@@ -13,9 +13,10 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
 /**
- * Инструмент {@code readSkill}: выдаёт модели навык — инструкцию из каталога в системном промпте.
- * Сами навыки и их доступность — {@link SkillService}; регистрируется только когда навыки есть (см.
- * {@code ChatConfig#skillFunction}).
+ * Инструмент {@code readSkill}: выдаёт модели навык — встроенный из каталога в системном промпте
+ * или объявленный активным проектом в блоке {@code <active-project>}. Сами навыки и их доступность
+ * — {@link SkillService}; регистрируется только когда навыки есть (см. {@code
+ * ChatConfig#skillFunction}).
  */
 @Slf4j
 @AllArgsConstructor
@@ -28,7 +29,8 @@ public class SkillFunction {
             description =
                     """
             Load a skill — an instruction file — by name. The available skills and when to \
-            load each are listed in the "Skills" section of the system prompt. Call it again \
+            load each are listed in the "Skills" section of the system prompt and, for the \
+            active repository's own skills, in the <active-project> block. Call it again \
             when a loaded skill's text is no longer visible in the context.
             """,
             resultConverter = CompactToolResultConverter.class)

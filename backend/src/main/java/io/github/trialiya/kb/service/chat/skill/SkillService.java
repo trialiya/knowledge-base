@@ -1,28 +1,49 @@
 package io.github.trialiya.kb.service.chat.skill;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.model.project.Project;
+import io.github.trialiya.kb.model.project.ProjectSkill;
 import io.github.trialiya.kb.model.skill.SkillContent;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
+import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 
 /**
- * Навыки — инструкции из {@code prompt/skills/}, которые модель загружает по требованию
- * инструментом {@code readSkill} ({@code SkillFunction}), а узнаёт о них из каталога в системном
- * промпте (плейсхолдер {@code {skill_catalogue}}, см. {@code SystemPromptService}).
+ * Навыки — инструкции, которые модель загружает по требованию инструментом {@code readSkill}
+ * ({@code SkillFunction}). Их два сорта, и объявлены они в разных местах промпта намеренно:
+ *
+ * <ul>
+ *   <li><b>Встроенные</b> — файлы из {@code prompt/skills/}, перечислены в {@link #CATALOGUE} и
+ *       объявляются каталогом в системном промпте (плейсхолдер {@code {skill_catalogue}}, см.
+ *       {@code SystemPromptService}). Они одни на всё приложение, поэтому им место в стабильной,
+ *       кэшируемой части промпта.
+ *   <li><b>Проектные</b> — файлы из рабочего дерева проекта, объявленные в {@code
+ *       kb.projects[].skills} ({@link ProjectSkill}). Их список — свойство разговора, а не
+ *       приложения: он меняется со сменой проекта, и в системном промпте он рвал бы префиксный кэш
+ *       провайдера с нулевого байта при каждой смене. Поэтому объявляются они в блоке {@code
+ *       <active-project>} ({@code ProjectPromptService} зовёт {@link #projectSkills}) — тот
+ *       собирается на чтении окна, в БД не попадает и до compact-раунда доезжает тем же байтом.
+ *       Загружаются они только пока их проект активен; текст читается с диска в момент вызова, так
+ *       что pull или смена ветки обновляют навык без рестарта.
+ * </ul>
  *
  * <p>Зачем это, когда есть системный промпт: обучающий текст велик, а нужен не в каждом чате. Один
- * навык — один файл; чтобы завести следующий, достаточно положить markdown в {@code prompt/skills/}
- * и добавить строку в {@link #CATALOGUE}. Никакой разницы по моделям здесь нет: каталог одинаков
- * для всех, а слабой модели вдобавок велит загрузить навык само руководство по скриптам ({@code
+ * навык — один файл; встроенный заводится строкой в {@link #CATALOGUE}, проектный — записью в
+ * конфигурации. Слабой модели загрузить встроенный навык велит само руководство по скриптам ({@code
  * script-run-extended.md} — сегодня это указание и есть его расширенная половина), потому что ждать
  * от неё выбора «по триггеру» не приходится.
  *
@@ -33,8 +54,8 @@ import org.springframework.util.StreamUtils;
  * {@code compactor.md}, «Must preserve»); правило перечитать продублировано и в каталоге — на
  * случай, если сводку писала модель, которая факт всё же уронила.
  *
- * <p>Своих конфигурационных ключей у навыков нет: пока все они — про {@code runScript}, их
- * доступность целиком выводится из {@code kb.script.*}. Навык про правки виден только там, где
+ * <p>Своих конфигурационных ключей у встроенных навыков нет: пока все они — про {@code runScript},
+ * их доступность целиком выводится из {@code kb.script.*}. Навык про правки виден только там, где
  * скриптам можно писать ({@link ScriptEditPolicy} — решение попроектное, поэтому и каталог, и
  * {@link #read} спрашивают проект): перечислять модели способ, которого у неё нет, — ровно та
  * ошибка, от которой {@code ScriptGuideService} бережёт системный промпт.
@@ -43,8 +64,8 @@ import org.springframework.util.StreamUtils;
 public class SkillService {
 
     /**
-     * Все навыки, какие бывают. Тексты лежат отдельными файлами, здесь — только имя, триггер для
-     * каталога и условие доступности; текст в конструкторе читается один раз.
+     * Все встроенные навыки, какие бывают. Тексты лежат отдельными файлами, здесь — только имя,
+     * триггер для каталога и условие доступности; текст в конструкторе читается один раз.
      */
     private static final List<SkillDefinition> CATALOGUE =
             List.of(
@@ -61,32 +82,85 @@ public class SkillService {
                             "prompt/skills/script-editing.md",
                             true));
 
+    /**
+     * Потолок текста проектного навыка, в байтах файла. Встроенные навыки — порядка десяти
+     * килобайт; навык, который не помещается в этот запас с четырёхкратным верхом, — уже не
+     * инструкция, а свалка в контекст, и честнее отказать, чем молча его туда вывалить.
+     */
+    static final long MAX_PROJECT_SKILL_BYTES = 64 * 1024;
+
+    private static final Logger log = LoggerFactory.getLogger(SkillService.class);
+
     private final List<Skill> skills;
     private final ScriptEditPolicy editPolicy;
+    private final ProjectCatalog projects;
 
-    public SkillService(ScriptProperties scriptProperties, ScriptEditPolicy editPolicy) {
+    /** Есть ли проектные навыки хоть у одного проекта — константа старта, как и весь каталог. */
+    private final boolean anyProjectSkills;
+
+    public SkillService(
+            ScriptProperties scriptProperties,
+            ScriptEditPolicy editPolicy,
+            ProjectCatalog projects) {
         this.editPolicy = editPolicy;
-        // Сегодня каждый навык — про runScript, поэтому без самого инструмента нет и навыков:
+        this.projects = projects;
+        // Сегодня каждый встроенный навык — про runScript, поэтому без самого инструмента их нет:
         // руководство по способу, которого у модели нет, — потраченный контекст и потраченные
         // попытки.
         this.skills =
                 scriptProperties.enabled() ? CATALOGUE.stream().map(Skill::of).toList() : List.of();
-    }
-
-    /** Есть ли хоть один навык — без единого {@code readSkill} и не регистрируется. */
-    public boolean anySkills() {
-        return !skills.isEmpty();
+        this.anyProjectSkills =
+                projects.projects().stream().anyMatch(project -> !project.skills().isEmpty());
+        requireNoBuiltInCollisions(projects.projects());
     }
 
     /**
-     * Раздел «Skills» системного промпта, {@code ""} — когда показывать нечего. Никогда не null:
-     * плейсхолдер обязан получить значение, иначе шаблон промпта не отрендерится.
+     * Имя проектного навыка, совпавшее со встроенным, — ошибка конфигурации, и падает она на
+     * старте: у {@link #read} встроенные в приоритете, так что проектный тёзка был бы объявлен в
+     * блоке проекта, но не загружаем никогда. Проверяется против {@link #CATALOGUE} целиком, а не
+     * против включённых: с выключенными скриптами коллизия не менее ошибочна — она всплывёт первым
+     * же их включением.
+     */
+    private static void requireNoBuiltInCollisions(List<Project> configured) {
+        for (Project project : configured) {
+            for (ProjectSkill skill : project.skills()) {
+                if (CATALOGUE.stream().anyMatch(d -> d.name().equals(skill.name()))) {
+                    throw new IllegalStateException(
+                            "kb.projects["
+                                    + project.id()
+                                    + "].skills: \""
+                                    + skill.name()
+                                    + "\" is a built-in skill's name — rename the project skill");
+                }
+            }
+        }
+    }
+
+    /**
+     * Есть ли хоть один навык, встроенный или проектный, — без единого {@code readSkill} и не
+     * регистрируется.
+     */
+    public boolean anySkills() {
+        return !skills.isEmpty() || anyProjectSkills;
+    }
+
+    /**
+     * Раздел «Skills» системного промпта: что такое навык, встроенный список и — константой
+     * развёртывания — отсылка к проектным в блоке {@code <active-project>}. {@code ""} — когда
+     * навыков нет вовсе. Никогда не null: плейсхолдер обязан получить значение, иначе шаблон
+     * промпта не отрендерится.
+     *
+     * <p>Сами проектные навыки здесь не перечисляются никогда — их список менялся бы со сменой
+     * проекта, а вместе с ним и системный промпт, то есть кэш всего контекста (см. javadoc класса).
+     * По той же причине и порог «показывать ли раздел» — {@link #anySkills()}, свойство
+     * развёртывания, а не активного проекта: иначе раздел появлялся бы и исчезал со сменой проекта.
+     * Поэтому отсылка говорит «может объявлять», а не «объявляет»: проект без навыков не
+     * перечисляет ничего, и это законное состояние раздела, а не пропавший список.
      *
      * @param projectId проект прогона; {@code null} — проект по умолчанию
      */
     public String catalogue(@Nullable String projectId) {
-        List<Skill> available = availableFor(projectId);
-        if (available.isEmpty()) {
+        if (!anySkills()) {
             return "";
         }
         StringBuilder text =
@@ -94,16 +168,28 @@ public class SkillService {
                         """
                         ## Skills
                         A skill is an instruction file loaded on demand: call `readSkill` with its \
-                        name and follow what it returns. Load a skill the moment its trigger below \
-                        matches — before attempting the task it covers, not after a failed try:
-                        """);
-        for (Skill skill : available) {
-            text.append("- `").append(skill.name()).append("` — ").append(skill.trigger());
-            text.append("\n");
+                        name and follow what it returns. Load a skill the moment its trigger \
+                        matches — before attempting the task it covers, not after a failed try.""");
+        List<Skill> available = availableFor(projectId);
+        if (!available.isEmpty()) {
+            text.append("\nAlways available:");
+            for (Skill skill : available) {
+                text.append("\n- `").append(skill.name()).append("` — ").append(skill.trigger());
+            }
+        }
+        if (anyProjectSkills) {
+            text.append(
+                    """
+                    \n
+                    The active repository may define skills of its own: if it does, they are \
+                    listed in the `<active-project>` block next to the current question, and \
+                    nothing beyond that list is loadable. They load only while that repository \
+                    stays the active project — after a project switch they are no longer \
+                    available.""");
         }
         text.append(
                 """
-
+                \n
                 A loaded skill lives in the context only as a tool result. If the conversation was \
                 summarized and the summary says a skill was loaded, its text is gone — call \
                 `readSkill` again before relying on it.""");
@@ -111,33 +197,68 @@ public class SkillService {
     }
 
     /**
-     * Текст навыка по имени.
+     * Список навыков одного проекта для блока {@code <active-project>}; {@code ""} — когда проекту
+     * нечего объявить. Коротко намеренно: блок пересобирается на каждой итерации tool-цикла и
+     * переоплачивается каждый ход — что такое навык и правило перечитывания уже сказаны разделом
+     * «Skills» системного промпта, который рендерится всегда, когда этой секции есть на что
+     * ссылаться (см. {@link #catalogue}).
+     */
+    public String projectSkills(Project project) {
+        if (project.skills().isEmpty()) {
+            return "";
+        }
+        StringBuilder text =
+                new StringBuilder(
+                        "\n\nSkills this repository defines — load with `readSkill` the moment the"
+                                + " trigger matches (see \"Skills\" in the system prompt):");
+        for (ProjectSkill skill : project.skills()) {
+            text.append("\n- `").append(skill.name()).append("` — ").append(skill.trigger());
+        }
+        return text.toString();
+    }
+
+    /**
+     * Текст навыка по имени: встроенный или объявленный <b>активным</b> проектом. Навык чужого
+     * проекта не выдаётся и не отличим от несуществующего — доступное перечисляется в отказе, и
+     * этого достаточно, чтобы модель после смены проекта не работала по инструкциям прежнего
+     * репозитория.
      *
      * @param projectId проект прогона — недоступный в нём навык не выдаётся, а объясняется, почему
      * @throws IllegalArgumentException незнакомое имя или недоступный навык; сообщение перечисляет
      *     доступные, и оно же — ответ инструмента модели
      */
     public SkillContent read(String name, @Nullable String projectId) {
-        Skill skill = skills.stream().filter(s -> s.name().equals(name)).findFirst().orElse(null);
-        if (skill == null) {
-            throw new IllegalArgumentException(
-                    "Unknown skill '" + name + "'. " + availableList(projectId));
+        Skill builtIn = skills.stream().filter(s -> s.name().equals(name)).findFirst().orElse(null);
+        if (builtIn != null) {
+            if (builtIn.needsScriptEdit() && !editPolicy.enabled(projectId)) {
+                throw new IllegalArgumentException(
+                        "Skill '"
+                                + name
+                                + "' is not available: scripts cannot write files in this project. "
+                                + availableList(projectId));
+            }
+            return new SkillContent(builtIn.name(), builtIn.content());
         }
-        if (skill.needsScriptEdit() && !editPolicy.enabled(projectId)) {
-            throw new IllegalArgumentException(
-                    "Skill '"
-                            + name
-                            + "' is not available: scripts cannot write files in this project. "
-                            + availableList(projectId));
-        }
-        return new SkillContent(skill.name(), skill.content());
+        ProjectSkill projectSkill =
+                activeProject(projectId).skills().stream()
+                        .filter(skill -> skill.name().equals(name))
+                        .findFirst()
+                        .orElseThrow(
+                                () ->
+                                        new IllegalArgumentException(
+                                                "Unknown skill '"
+                                                        + name
+                                                        + "'. "
+                                                        + availableList(projectId)));
+        return new SkillContent(name, readProjectFile(activeProject(projectId), projectSkill));
     }
 
     /**
      * Текст навыка для того, кто загрузить его не может, — сейчас это поисковый суб-агент: его
      * набор инструментов задан явным allow-list'ом без {@code readSkill}, каталога в его промпте
      * нет, а бюджет итераций жёсткий, и тратить одну на загрузку текста, который можно отдать
-     * сразу, дороже, чем этот текст занести. Ворот доступности здесь нет намеренно: зовущий уже
+     * сразу, дороже, чем этот текст занести. Только встроенные: у суб-агента нет разговора, чей
+     * активный проект дал бы право на проектные. Ворот доступности здесь нет намеренно: зовущий уже
      * решил, что навык нужен, а суб-агент по построению только читает.
      *
      * @throws IllegalArgumentException навыка с таким именем не бывает — это опечатка в коде,
@@ -151,14 +272,89 @@ public class SkillService {
                 .orElseThrow(() -> new IllegalArgumentException("Неизвестный навык: " + name));
     }
 
+    /**
+     * Чтение с диска в момент вызова — намеренно: файл живёт в рабочем дереве, и pull или смена
+     * ветки обновляют навык без рестарта. Обратная сторона той же монеты — дерево между стартом и
+     * вызовом меняется, поэтому здесь же, а не только при разборе конфигурации, проверяется, что
+     * путь никуда из дерева не ведёт.
+     *
+     * <p>Любая беда рабочего дерева — ответ инструмента модели, а не ошибка сервера: ветки без
+     * файла, каталог вместо файла, не-UTF-8 или нечитаемый файл одинаково означают, что навык
+     * сейчас не загрузить, и прогон обязан продолжиться без него.
+     */
+    private static String readProjectFile(Project project, ProjectSkill skill) {
+        Path file = skill.file();
+        try {
+            requireInsideTree(project, skill);
+            long size = Files.size(file);
+            if (size > MAX_PROJECT_SKILL_BYTES) {
+                throw new IllegalArgumentException(
+                        "Skill '"
+                                + skill.name()
+                                + "' is too large to load ("
+                                + size
+                                + " bytes, the limit is "
+                                + MAX_PROJECT_SKILL_BYTES
+                                + ") — tell the user its file needs splitting");
+            }
+            return Files.readString(file, StandardCharsets.UTF_8).strip();
+        } catch (NoSuchFileException e) {
+            throw new IllegalArgumentException(
+                    "Skill '"
+                            + skill.name()
+                            + "' has no file in the working tree right now — the current branch"
+                            + " does not carry it");
+        } catch (IOException e) {
+            log.warn("Навык {}: файл {} не читается", skill.name(), file, e);
+            throw new IllegalArgumentException(
+                    "Skill '"
+                            + skill.name()
+                            + "' cannot be read from the working tree right now — its file is not"
+                            + " readable UTF-8 text; tell the user to check the"
+                            + " kb.projects[].skills entry");
+        }
+    }
+
+    /**
+     * Символьная ссылка мимо проверки {@code ProjectCatalog}: та сверяет строки и о ссылках не
+     * знает, а закоммитить в дерево ссылку на {@code /etc/passwd} — или подложить ссылкой любой
+     * каталог по пути — можно и после старта. Настоящий путь спрашивается у файловой системы тем же
+     * приёмом, каким это делает {@code RepoPaths#confine} для всех остальных чтений репозитория:
+     * корень тоже разрешается, потому что само дерево законно живёт за симлинком ({@code /tmp} →
+     * {@code /private/tmp}).
+     *
+     * @throws NoSuchFileException файла нет — отвечает вызывающий, это легальное состояние ветки
+     */
+    private static void requireInsideTree(Project project, ProjectSkill skill) throws IOException {
+        Path real = skill.file().toRealPath();
+        if (!real.startsWith(project.path().toRealPath())) {
+            throw new IllegalArgumentException(
+                    "Skill '"
+                            + skill.name()
+                            + "' is not loadable: its file leaves the project tree through a"
+                            + " symlink");
+        }
+    }
+
+    /**
+     * Проект, чьи навыки видит этот вызов. Неизвестный id разрешается в дефолтный проект — тем же
+     * правилом, каким его разрешает весь остальной промпт ({@code ProjectPromptService}): навыки
+     * обязаны совпасть с блоком {@code <active-project>}, который модель читает.
+     */
+    private Project activeProject(@Nullable String projectId) {
+        return projects.find(projectId).orElseGet(projects::defaultProject);
+    }
+
     private String availableList(@Nullable String projectId) {
-        List<Skill> available = availableFor(projectId);
+        List<String> available =
+                Stream.concat(
+                                availableFor(projectId).stream().map(Skill::name),
+                                activeProject(projectId).skills().stream().map(ProjectSkill::name))
+                        .toList();
         if (available.isEmpty()) {
             return "No skills are available.";
         }
-        return "Available skills: "
-                + available.stream().map(Skill::name).collect(Collectors.joining(", "))
-                + ".";
+        return "Available skills: " + String.join(", ", available) + ".";
     }
 
     private List<Skill> availableFor(@Nullable String projectId) {
@@ -168,7 +364,7 @@ public class SkillService {
     }
 
     /**
-     * Навык до чтения текста.
+     * Встроенный навык до чтения текста.
      *
      * @param trigger когда навык загружать — строчка каталога после имени
      * @param resource путь к markdown в ресурсах
@@ -178,7 +374,7 @@ public class SkillService {
     private record SkillDefinition(
             String name, String trigger, String resource, boolean needsScriptEdit) {}
 
-    /** Навык с прочитанным текстом. */
+    /** Встроенный навык с прочитанным текстом. */
     private record Skill(String name, String trigger, String content, boolean needsScriptEdit) {
 
         static Skill of(SkillDefinition definition) {

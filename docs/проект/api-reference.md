@@ -809,7 +809,7 @@ SSE-поток событий чата: стриминг ответа + крос
 ---
 
 ### GET `/api/settings/tools`
-Каталог инструментов, доступных модели прямо сейчас, для группы «Настройки → Инструменты». Список собран из тех же `ToolCallback`, что отданы `ChatClient` (`ChatToolset` → `ToolCatalogService`), поэтому отражает фактическую конфигурацию: без `kb.projects[].edit-enabled` в нём нет `createFile`/`editFile`, без `kb.script.enabled` — `runScript` и `readSkill` (все сегодняшние навыки — половины скриптового руководства), а инструменты внешних MCP-серверов появляются только при `kb.mcp.enabled`.
+Каталог инструментов, доступных модели прямо сейчас, для группы «Настройки → Инструменты». Список собран из тех же `ToolCallback`, что отданы `ChatClient` (`ChatToolset` → `ToolCatalogService`), поэтому отражает фактическую конфигурацию: без `kb.projects[].edit-enabled` в нём нет `createFile`/`editFile`, без `kb.script.enabled` — `runScript` (а `readSkill` пропадает, только если вдобавок ни один проект не объявил навыков в `kb.projects[].skills`), а инструменты внешних MCP-серверов появляются только при `kb.mcp.enabled`.
 
 **Response:** `List<ToolInfo>`, отсортирован по имени
 ```json

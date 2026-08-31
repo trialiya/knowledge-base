@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.chat.prompt;
 
 import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.model.project.Project;
+import io.github.trialiya.kb.service.chat.skill.SkillService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import java.util.List;
@@ -44,9 +45,19 @@ public class ProjectPromptService {
      */
     private final GitRegistry gitRegistry;
 
-    public ProjectPromptService(ProjectCatalog catalog, GitRegistry gitRegistry) {
+    /**
+     * Навыки активного проекта объявляются здесь, а не в системном промпте, — тому же правилу
+     * подчинён весь блок: их список меняется со сменой проекта, а системный промпт менять при этом
+     * нельзя (см. javadoc {@code SkillService}). Секцию рендерит сам {@code SkillService}, чтобы
+     * все слова про навыки жили в одном месте.
+     */
+    private final SkillService skills;
+
+    public ProjectPromptService(
+            ProjectCatalog catalog, GitRegistry gitRegistry, SkillService skills) {
         this.catalog = catalog;
         this.gitRegistry = gitRegistry;
+        this.skills = skills;
     }
 
     /**
@@ -64,6 +75,7 @@ public class ProjectPromptService {
         """
                         .formatted(project.label(), project.id(), project.id())
                 + allowGlobs(project, gitRegistry.editsAllowed(project.id()))
+                + skills.projectSkills(project)
                 + timeline(visited)
                 + otherProjects(project, visited);
     }

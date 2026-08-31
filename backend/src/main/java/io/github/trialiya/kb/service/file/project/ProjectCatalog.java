@@ -3,7 +3,9 @@ package io.github.trialiya.kb.service.file.project;
 import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
+import io.github.trialiya.kb.config.model.ProjectProperties.SkillOption;
 import io.github.trialiya.kb.model.project.Project;
+import io.github.trialiya.kb.model.project.ProjectSkill;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -67,6 +69,9 @@ public class ProjectCatalog {
         }
         if (project.gitCommandsEnabled()) {
             granted.add(project.gitPushEnabled() ? "git commands, push" : "git commands");
+        }
+        if (!project.skills().isEmpty()) {
+            granted.add(project.skills().size() + " skills");
         }
         return granted.isEmpty() ? "" : " (" + String.join(", ", granted) + ")";
     }
@@ -146,6 +151,7 @@ public class ProjectCatalog {
                             false,
                             false,
                             List.of(),
+                            List.of(),
                             false,
                             false));
         }
@@ -174,14 +180,16 @@ public class ProjectCatalog {
                                 + " kb.git.project-path it defaults to");
             }
             requireRootedGlobs(id, option.allowGlobs());
+            Path root = absolute(option.path());
             resolved.add(
                     new Project(
                             id,
                             option.displayLabel(),
-                            absolute(option.path()),
+                            root,
                             option.editEnabled(),
                             untrackedEdits(option),
                             option.allowGlobs(),
+                            skills(id, root, option.skills()),
                             option.gitCommands().enabled(),
                             gitPush(option)));
         }
@@ -240,6 +248,63 @@ public class ProjectCatalog {
             return false;
         }
         return true;
+    }
+
+    /**
+     * One project's skills, resolved and vetted. Hard failures, like a bad project id: a skill the
+     * model cannot load by its configured name, and a file outside the tree it claims to come from,
+     * are both deployment errors, not tools that may merely refuse at call time.
+     *
+     * <p>The file's <em>existence</em> is deliberately not checked: the text is read at each {@code
+     * readSkill} call from a working tree whose branch can change, and a branch that legitimately
+     * lacks the file must cost a tool error there, not this deployment's startup.
+     *
+     * <p>Collisions with the built-in skill names are refused too, but not here — the built-ins
+     * live in {@code SkillService}, and it does that check over this resolved list on its own
+     * startup.
+     */
+    private static List<ProjectSkill> skills(String id, Path root, List<SkillOption> options) {
+        List<ProjectSkill> resolved = new ArrayList<>();
+        Set<String> names = new LinkedHashSet<>();
+        for (SkillOption option : options) {
+            String name = option.name();
+            String where = "kb.projects[" + id + "].skills";
+            if (name == null || !SAFE_ID.matcher(name).matches()) {
+                throw new IllegalStateException(
+                        where
+                                + ": name \""
+                                + name
+                                + "\" is not usable — lowercase letters, digits, '.', '_' and '-'"
+                                + " only, starting with a letter or a digit");
+            }
+            if (!names.add(name)) {
+                throw new IllegalStateException(where + ": duplicate name \"" + name + "\"");
+            }
+            if (!StringUtils.hasText(option.trigger())) {
+                throw new IllegalStateException(
+                        where
+                                + "["
+                                + name
+                                + "].trigger is empty — the trigger is what tells the model when to"
+                                + " load the skill");
+            }
+            if (!StringUtils.hasText(option.file())) {
+                throw new IllegalStateException(where + "[" + name + "].file is empty");
+            }
+            // Textual containment only — a symlink committed into the tree passes it, so where
+            // the path really lands is checked again at each read (SkillService).
+            Path file = root.resolve(option.file()).normalize();
+            if (!file.startsWith(root) || file.equals(root)) {
+                throw new IllegalStateException(
+                        where
+                                + "["
+                                + name
+                                + "].file resolves outside the project tree: "
+                                + option.file());
+            }
+            resolved.add(new ProjectSkill(name, option.trigger().strip(), file));
+        }
+        return List.copyOf(resolved);
     }
 
     /**

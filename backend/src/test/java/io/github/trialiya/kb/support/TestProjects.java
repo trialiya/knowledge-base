@@ -34,6 +34,7 @@ public final class TestProjects {
                                 false,
                                 null,
                                 null,
+                                null,
                                 true)));
     }
 
@@ -46,7 +47,7 @@ public final class TestProjects {
 
     /** A read-only project entry at {@code path}. */
     public static ProjectOption project(String id, Path path) {
-        return new ProjectOption(id, null, path.toString(), false, false, null, null, true);
+        return new ProjectOption(id, null, path.toString(), false, false, null, null, null, true);
     }
 
     /** A project entry at {@code path} whose user-run git commands are configured as given. */
@@ -57,6 +58,7 @@ public final class TestProjects {
                 path.toString(),
                 false,
                 false,
+                null,
                 null,
                 new GitCommandsOption(true, push),
                 true);
@@ -102,6 +104,7 @@ public final class TestProjects {
                                 editEnabled,
                                 untrackedEdits,
                                 allowGlobs,
+                                null,
                                 null,
                                 true)));
     }

@@ -17,6 +17,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *       edit-enabled: false
  *       untracked-edit-enabled: false
  *       allow-globs: []
+ *       skills:
+ *         - name: release-checklist
+ *           trigger: "before preparing a release of this repo"
+ *           file: docs/skills/release.md
  *       git-commands:
  *         enabled: false
  *         push-enabled: false
@@ -68,6 +72,9 @@ public record ProjectProperties(List<ProjectOption> projects) {
      *     every glob has to start with a real directory rather than a wildcard — {@code
      *     ProjectCatalog} refuses to start otherwise. Empty by default — tracked files only, as
      *     everywhere else
+     * @param skills the skills this project defines — see {@link SkillOption}. Loadable through
+     *     {@code readSkill} only while the project is the chat's active one; the built-in skills
+     *     from {@code prompt/skills/} stay available everywhere on top of these. Empty by default
      * @param gitCommands whether the <em>user</em> may run git commands against this repository
      *     from the UI, and which of them — see {@link GitCommandsOption}. A section of its own
      *     because it grants something different from {@link #editEnabled()}: that one says what the
@@ -86,11 +93,13 @@ public record ProjectProperties(List<ProjectOption> projects) {
             @DefaultValue("false") boolean editEnabled,
             @DefaultValue("false") boolean untrackedEditEnabled,
             List<String> allowGlobs,
+            List<SkillOption> skills,
             @DefaultValue GitCommandsOption gitCommands,
             @DefaultValue("true") boolean enabled) {
 
         public ProjectOption {
             allowGlobs = allowGlobs == null ? List.of() : List.copyOf(allowGlobs);
+            skills = skills == null ? List.of() : List.copyOf(skills);
             gitCommands = gitCommands == null ? GitCommandsOption.OFF : gitCommands;
         }
 
@@ -99,6 +108,29 @@ public record ProjectProperties(List<ProjectOption> projects) {
             return label == null || label.isBlank() ? id : label;
         }
     }
+
+    /**
+     * One skill a project defines — {@code kb.projects[].skills[]}: an instruction file inside the
+     * project tree that the model loads by name with {@code readSkill} while this project is the
+     * chat's active one.
+     *
+     * <p>The description lives in the configuration and the text in the repository, on purpose. The
+     * name and trigger go into the prompt on every turn, so they have to be readable without
+     * touching the disk and stable while the deployment runs; the text is wanted only at the {@code
+     * readSkill} call, and reading it there means a pull or branch switch updates the skill with no
+     * restart — which is also why a missing file is a call-time tool error, not a startup check:
+     * some branch may legitimately lack it.
+     *
+     * @param name key the model loads the skill by. Same character rules as a project id, and it
+     *     must not collide with a built-in skill's name — {@code SkillService} refuses to start on
+     *     either
+     * @param trigger when the model should load it — one line shown after the name in the {@code
+     *     <active-project>} skill list, e.g. {@code "before preparing a release of this repo"}
+     * @param file path of the markdown with the skill's instructions, relative to the project tree;
+     *     {@code ProjectCatalog} refuses one that resolves outside it. Tracked-ness does not matter
+     *     — the deployment named this exact file, so {@code allow-globs} plays no part
+     */
+    public record SkillOption(String name, String trigger, String file) {}
 
     /**
      * The git commands a user may run on one project from the UI — {@code kb.projects[].git-

@@ -11,7 +11,8 @@ import java.util.Map;
  * вид по форме ответа ({@code resultViews/contentResult.js}), и длинная строка в {@code content} —
  * то, что превращает ответ в читаемый текстовый блок вместо сырого JSON.
  *
- * @param name имя навыка из каталога в системном промпте
+ * @param name имя навыка — из каталога в системном промпте или из списка проекта в блоке {@code
+ *     <active-project>}
  * @param content текст инструкции как есть
  */
 public record SkillContent(String name, String content)
