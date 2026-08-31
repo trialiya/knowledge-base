@@ -802,12 +802,27 @@ public class ChatRunService {
         // и модели. Оборванный ответ тоже кем-то написан, и именно на нём вопрос «какая модель это
         // выдала» задают чаще всего.
         try {
-            chatHistory.markRunResult(
-                    conversationId,
-                    scope.runId(),
-                    scope.model(),
-                    scope.usage(),
-                    toolCollector.completedSnapshot());
+            final List<ToolInvocationMeta> metas =
+                    chatHistory.markRunResult(
+                            conversationId,
+                            scope.runId(),
+                            scope.model(),
+                            scope.usage(),
+                            toolCollector.completedSnapshot());
+            // Тот же финальный список, что уходит вкладкам за успешным прогоном (см. onComplete):
+            // живые TOOL_CALL-события несут только имя и аргументы, а блоки «изменённые файлы» и
+            // «изменённые документы» строятся по resultMeta, которая есть лишь здесь. Без этой
+            // публикации остановленный прогон показывал бы блоки лишь после перезагрузки.
+            // Строго ДО терминального события: RUN_STOPPED/RUN_ERROR снимают у вкладки метку
+            // прогона, а событие TOOL_CALLS не от живого прогона она отбрасывает.
+            if (!metas.isEmpty()) {
+                events.publish(
+                        conversationId,
+                        TOOL_CALLS,
+                        scope.runId(),
+                        null,
+                        new ToolCallsMessage(metas));
+            }
         } catch (Exception e) {
             log.warn("Failed to attach run meta for {}", conversationId, e);
         }
