@@ -19,7 +19,7 @@ import '../styles/file-changes.css';
  *
  * У последнего ответа блок ещё и откатывается целиком: `canRevert` (см. MessageList) говорит,
  * что этот блок — последний и чат свободен. Откатывает сервер, по своей записи в истории
- * (см. ChatFileRevert), поэтому кнопке нечего передавать, кроме чата и проекта; новый ряд
+ * (см. ChatFileRevert) — включая репозиторий, — поэтому кнопке нечего передавать, кроме чата; новый ряд
  * истории и сброс кэшей файлов приезжают событием FILE_REVERT.
  */
 const FileChangeBlock = ({ toolCalls, project, conversationId, canRevert = false }) => {
@@ -59,7 +59,7 @@ const FileChangeBlock = ({ toolCalls, project, conversationId, canRevert = false
     setReverting(true);
     setFailure(null);
     try {
-      await chatApi.revertFiles(conversationId, project);
+      await chatApi.revertFiles(conversationId);
     } catch (e) {
       setFailure(e?.reason || t('fileChange.revertFailed'));
     } finally {

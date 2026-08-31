@@ -55,7 +55,7 @@ describe('FileChangeBlock', () => {
     const confirm = screen.getAllByRole('button', { name: 'fileChange.revert' }).at(-1);
     await user.click(confirm);
 
-    await waitFor(() => expect(chatApi.revertFiles).toHaveBeenCalledWith('c1', 'kb'));
+    await waitFor(() => expect(chatApi.revertFiles).toHaveBeenCalledWith('c1'));
   });
 
   it('показывает причину отказа словами сервера', async () => {

@@ -9,13 +9,16 @@ import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Откат файловых правок последнего ответа: пользователь посмотрел, что модель написала в рабочее
@@ -50,22 +53,25 @@ public class ChatFileRevert {
      * чужим не откатывают, а во время прогона — не откатывают вовсе, иначе модель правит те же
      * файлы, из-под которых их уводят.
      *
-     * @param project репозиторий, в котором показан блок изменений; {@code null} — проект по
-     *     умолчанию
+     * <p>Репозиторий не спрашивается у вызывающего, а берётся из истории самого чата ({@link
+     * ChatHistoryService#lastStampedProject}): селектор проекта переключают сразу после ответа, и
+     * «выбранный сейчас» — не обязательно тот, в котором ответ правил файлы. Два чекаута с
+     * одинаковыми путями сделали бы такую ошибку неотличимой от успеха.
+     *
      * @throws FileRevertRefusedException рабочее дерево не тронуто: откатывать нечего, ответ менял
      *     файлы неоткатываемым способом или файл изменился после ответа
      */
-    public FileRevertPayload revertLastAnswer(String conversationId, @Nullable String project) {
+    public FileRevertPayload revertLastAnswer(String conversationId) {
         final String claim = chatGitLog.claimIdleAndOwned(conversationId);
         try {
-            return revertClaimed(conversationId, project);
+            return revertClaimed(conversationId);
         } finally {
             chatGitLog.release(conversationId, claim);
         }
     }
 
-    private FileRevertPayload revertClaimed(String conversationId, @Nullable String project) {
-        final GitService git = gitRegistry.requireEditable(project);
+    private FileRevertPayload revertClaimed(String conversationId) {
+        final GitService git = editable(chatHistory.lastStampedProject(conversationId));
         final List<ChatMessageEntity> answer = chatHistory.lastAnswerRows(conversationId);
         // Ряд отката остаётся в хвосте ответа (ходом он не является), поэтому повторный откат
         // виден прямо здесь — и это не педантизм: второй раз план собрался бы тот же, а файлы уже
@@ -86,20 +92,80 @@ public class ChatFileRevert {
                 reverted.put(file.getKey(), git.previewEdited(file.getKey(), file.getValue()));
             }
             plan.deletions().forEach(git::requireDeletable);
-        } catch (IllegalArgumentException e) {
-            // Точное совпадение не сошлось (или файл больше не тот, что правили) — это и есть
-            // проверка целостности отката, а не сбой: за неё сообщение и уходит пользователю.
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            // Точное совпадение не сошлось, файл больше не тот, что правили, или его вовсе нет
+            // (удалён руками — тогда не сходится уже чтение). Всё это про состояние дерева, а не
+            // про сбой сервиса: дерево не тронуто, и сообщение уходит пользователю как есть.
             throw new FileRevertRefusedException(
-                    e.getMessage() == null ? "Cannot revert" : e.getMessage());
+                    e.getMessage() == null ? "Cannot revert the changes" : e.getMessage());
         }
 
-        reverted.forEach(git::replaceTrackedFile);
-        plan.deletions().forEach(git::deleteFile);
-        log.info(
-                "Reverted {} file(s) of the last answer in chat {}",
-                plan.paths().size(),
-                conversationId);
+        return write(conversationId, git, plan, reverted);
+    }
 
+    /**
+     * Репозиторий чата, готовый принимать правки.
+     *
+     * <p>Отказ отдаётся кодом прямо отсюда — как это делает {@link ChatGitLog} с чужим и занятым
+     * чатом, и по той же причине: различить «проект настроен, но писать в него нельзя» ({@code
+     * 403}) и «репозиторий не открылся» ({@code 503}) может только тот, кто знает, о каком проекте
+     * речь, а после этого метода id проекта не знает уже никто.
+     */
+    private GitService editable(@Nullable String project) {
+        try {
+            return gitRegistry.requireEditable(project);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(
+                    gitRegistry.isAvailable(project)
+                            ? HttpStatus.FORBIDDEN
+                            : HttpStatus.SERVICE_UNAVAILABLE,
+                    e.getMessage());
+        }
+    }
+
+    /**
+     * Записывает пересчитанное: сначала файлы, потом ряд истории.
+     *
+     * <p>Дальше «всё-или-ничего» не гарантируется никем: файлы уже проверены, и упасть запись может
+     * только на самом диске — а откатывать откат назад означало бы писать поверх того, что этот же
+     * сбой мог оставить наполовину. Поэтому ряд пишется по факту: он перечисляет файлы, которые
+     * дошли до диска, и падение с ним честнее молчания — иначе модель узнала бы о половине отката
+     * ровно ничего.
+     */
+    private FileRevertPayload write(
+            String conversationId,
+            GitService git,
+            FileRevertPlan plan,
+            Map<String, String> reverted) {
+        final List<String> done = new ArrayList<>();
+        try {
+            reverted.forEach(
+                    (path, text) -> {
+                        git.replaceTrackedFile(path, text);
+                        done.add(path);
+                    });
+            plan.deletions()
+                    .forEach(
+                            (path, created) -> {
+                                git.deleteFile(path, created);
+                                done.add(path);
+                            });
+        } catch (RuntimeException e) {
+            if (!done.isEmpty()) {
+                record(conversationId, new FileRevertMeta(git.project().id(), List.copyOf(done)));
+            }
+            log.error("Revert of the last answer in chat {} failed midway", conversationId, e);
+            throw new FileRevertRefusedException(
+                    "The revert is incomplete: "
+                            + done.size()
+                            + " of "
+                            + plan.paths().size()
+                            + " file(s) went back before it failed — "
+                            + e.getMessage());
+        }
+        log.info("Reverted {} file(s) of the last answer in chat {}", done.size(), conversationId);
         return record(conversationId, new FileRevertMeta(git.project().id(), plan.paths()));
     }
 

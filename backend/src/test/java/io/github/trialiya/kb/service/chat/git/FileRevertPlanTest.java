@@ -89,7 +89,9 @@ class FileRevertPlanTest {
                                                 create("call-1", "new.txt"),
                                                 edit("call-2", "new.txt")))));
 
-        assertThat(plan.deletions()).containsExactly(Map.entry("new.txt", "x"));
+        // Сверять удаление надо с тем, что ответ оставил на диске: создал «x», тут же поправил
+        // на «y» — значит, ожидаем «y», иначе такой файл не откатить никогда.
+        assertThat(plan.deletions()).containsExactly(Map.entry("new.txt", "y"));
         assertThat(plan.edits()).isEmpty();
         assertThat(plan.paths()).containsExactly("new.txt");
     }

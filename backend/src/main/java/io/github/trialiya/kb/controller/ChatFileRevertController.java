@@ -4,7 +4,6 @@ import io.github.trialiya.kb.model.chat.dto.FileRevertPayload;
 import io.github.trialiya.kb.service.chat.git.ChatFileRevert;
 import io.github.trialiya.kb.service.chat.git.FileRevertRefusedException;
 import io.github.trialiya.kb.service.file.git.GitBusyException;
-import io.github.trialiya.kb.service.file.git.GitRegistry;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -33,42 +31,35 @@ import org.springframework.web.server.ResponseStatusException;
 public class ChatFileRevertController {
 
     private final ChatFileRevert chatFileRevert;
-    private final GitRegistry gitRegistry;
 
-    public ChatFileRevertController(ChatFileRevert chatFileRevert, GitRegistry gitRegistry) {
+    public ChatFileRevertController(ChatFileRevert chatFileRevert) {
         this.chatFileRevert = chatFileRevert;
-        this.gitRegistry = gitRegistry;
     }
 
     /**
      * Возвращает файлы, изменённые последним ответом чата, к состоянию до него и записывает это
      * рядом истории (ряд уезжает в ответе — из него фронт рисует плашку).
      *
+     * <p>Репозиторий не параметр: его называет история самого чата (см. {@code ChatFileRevert}) —
+     * селектор проекта переключают сразу после ответа, и присланный клиентом id мог бы оказаться не
+     * тем, в котором ответ правил файлы.
+     *
      * <p>Отказы отличают «не тронуто» от «не смогли»: {@code 422} — рабочее дерево осталось как
      * было и пользователю есть что прочитать (откатывать нечего, ответ правил файлы скриптом, файл
-     * изменился после ответа), {@code 409} — репозиторий или чат сейчас заняты, и это повод
-     * повторить.
+     * изменился после ответа); тем же кодом отвечает и оборвавшаяся посередине запись — там
+     * сообщение говорит, сколько файлов успело вернуться. {@code 409} — репозиторий или чат сейчас
+     * заняты, и это повод повторить.
      */
     @PostMapping("/{conversationId}/revert-files")
-    public FileRevertPayload revertFiles(
-            @PathVariable String conversationId,
-            @RequestParam(name = "project", required = false) @Nullable String project) {
+    public FileRevertPayload revertFiles(@PathVariable String conversationId) {
         try {
-            return chatFileRevert.revertLastAnswer(conversationId, project);
+            return chatFileRevert.revertLastAnswer(conversationId);
         } catch (FileRevertRefusedException e) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
         } catch (GitBusyException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
-        } catch (IllegalStateException e) {
-            // Проект настроен, но откатывать в нём нечем: репозиторий не открылся, дерево только
-            // для чтения. Тот же расклад, что у git-команд, — и те же два кода.
-            throw new ResponseStatusException(
-                    gitRegistry.isAvailable(project)
-                            ? HttpStatus.FORBIDDEN
-                            : HttpStatus.SERVICE_UNAVAILABLE,
-                    e.getMessage());
         }
     }
 

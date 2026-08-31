@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.MessageType;
 
 /**
@@ -52,7 +54,8 @@ class ChatFileRevertTest {
     @BeforeEach
     void setUp() {
         when(chatGitLog.claimIdleAndOwned(CONV)).thenReturn("claim-1");
-        when(gitRegistry.requireEditable(anyString())).thenReturn(git);
+        when(chatHistory.lastStampedProject(CONV)).thenReturn("kb");
+        when(gitRegistry.requireEditable("kb")).thenReturn(git);
         when(git.project()).thenReturn(project());
     }
 
@@ -63,7 +66,7 @@ class ChatFileRevertTest {
         when(git.previewEdited(eq("a.txt"), any())).thenReturn("было\n");
         when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
 
-        final FileRevertPayload payload = revert.revertLastAnswer(CONV, "kb");
+        final FileRevertPayload payload = revert.revertLastAnswer(CONV);
 
         verify(git).replaceTrackedFile("a.txt", "было\n");
         assertThat(payload.event().paths()).containsExactly("a.txt");
@@ -78,10 +81,70 @@ class ChatFileRevertTest {
         givenAnswer(createCall("call-1", "new.txt", "class New {}"));
         when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
 
-        revert.revertLastAnswer(CONV, "kb");
+        revert.revertLastAnswer(CONV);
 
         verify(git).requireDeletable("new.txt", "class New {}");
         verify(git).deleteFile("new.txt", "class New {}");
+    }
+
+    /**
+     * Репозиторий берётся из истории чата, а не из того, что выбрано в интерфейсе сейчас: селектор
+     * переключают сразу после ответа, а два чекаута с одинаковыми путями сделали бы промах
+     * неотличимым от успеха.
+     */
+    @Test
+    void theRepositoryComesFromTheChatsOwnRecord() {
+        when(chatHistory.lastStampedProject(CONV)).thenReturn("billing");
+        when(gitRegistry.requireEditable("billing")).thenReturn(git);
+        givenAnswer(editCall("call-1", "a.txt", "было", "стало"));
+        when(git.previewEdited(eq("a.txt"), any())).thenReturn("было\n");
+        when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
+
+        revert.revertLastAnswer(CONV);
+
+        verify(gitRegistry).requireEditable("billing");
+    }
+
+    /**
+     * Файл, удалённый человеком, читаться перестаёт вовсе — и это такой же отказ по состоянию
+     * дерева, как несошедшееся совпадение, а не сбой сервиса.
+     */
+    @Test
+    void aFileGoneFromDiskIsRefusedLikeAnyOtherMismatch() {
+        givenAnswer(editCall("call-1", "a.txt", "было", "стало"));
+        when(git.previewEdited(eq("a.txt"), any()))
+                .thenThrow(new IllegalStateException("Cannot read file: a.txt"));
+
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV))
+                .isInstanceOf(FileRevertRefusedException.class)
+                .hasMessageContaining("Cannot read file");
+        verify(git, never()).replaceTrackedFile(anyString(), anyString());
+    }
+
+    /**
+     * Запись оборвалась на втором файле: первый уже вернулся, и ряд об этом обязан появиться —
+     * иначе о половине отката модель не узнает ничего.
+     */
+    @Test
+    void aWriteThatFailsMidwayStillRecordsWhatWentBack() {
+        givenAnswer(
+                editCall("call-1", "a.txt", "было", "стало"),
+                editCall("call-2", "b.txt", "x", "y"));
+        when(git.previewEdited(eq("a.txt"), any())).thenReturn("было\n");
+        when(git.previewEdited(eq("b.txt"), any())).thenReturn("x\n");
+        when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
+        doThrow(new IllegalStateException("Cannot write file: b.txt"))
+                .when(git)
+                .replaceTrackedFile(eq("b.txt"), anyString());
+
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV))
+                .isInstanceOf(FileRevertRefusedException.class)
+                .hasMessageContaining("incomplete");
+
+        final ArgumentCaptor<FileRevertMeta> recorded =
+                ArgumentCaptor.forClass(FileRevertMeta.class);
+        verify(chatHistory).appendFileRevert(eq(CONV), recorded.capture());
+        assertThat(recorded.getValue().paths()).containsExactly("a.txt");
     }
 
     /**
@@ -97,7 +160,7 @@ class ChatFileRevertTest {
         when(git.previewEdited(eq("b.txt"), any()))
                 .thenThrow(new IllegalArgumentException("oldString not found in b.txt"));
 
-        assertThatThrownBy(() -> revert.revertLastAnswer(CONV, "kb"))
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV))
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining("b.txt");
 
@@ -112,7 +175,7 @@ class ChatFileRevertTest {
         when(chatHistory.lastAnswerRows(CONV))
                 .thenReturn(List.of(answer(List.of(), List.of()), revertRow()));
 
-        assertThatThrownBy(() -> revert.revertLastAnswer(CONV, "kb"))
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV))
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining("already been reverted");
     }
@@ -122,7 +185,7 @@ class ChatFileRevertTest {
     void anAnswerThatChangedNoFilesIsRefused() {
         when(chatHistory.lastAnswerRows(CONV)).thenReturn(List.of(answer(List.of(), List.of())));
 
-        assertThatThrownBy(() -> revert.revertLastAnswer(CONV, "kb"))
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV))
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining("changed no files");
     }

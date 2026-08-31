@@ -8,6 +8,7 @@ import io.github.trialiya.kb.model.git.dto.TextEdit;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
+import io.github.trialiya.kb.utils.ExactEdit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -86,12 +87,47 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
                 collect(call, arguments, edits, deletions);
             }
         }
-        // Правки в файле, который этим же ответом и создан, откатывать нечем и незачем: файл
-        // уходит целиком.
+        // Файл, созданный этим же ответом, уходит целиком — правки в нём откатывать нечем и
+        // незачем. Но сверять удаление надо с тем, что лежит на диске СЕЙЧАС, то есть с
+        // содержимым создания, к которому применены правки того же ответа: иначе созданный и тут
+        // же поправленный файл не откатить никогда.
+        deletions.replaceAll((path, created) -> applied(path, created, edits.get(path)));
         edits.keySet().removeAll(deletions.keySet());
         return new FileRevertPlan(
                 Collections.unmodifiableMap(deletions),
                 Collections.unmodifiableMap(reverse(edits)));
+    }
+
+    /**
+     * Содержимое созданного файла после правок того же ответа — то, чем ответ его на диске оставил.
+     *
+     * <p>Правки применяются вперёд, а не наоборот: это не откат, а восстановление ожидаемого
+     * состояния для сверки. Не сойдись они — история противоречит сама себе, и лучше отказаться,
+     * чем удалить файл, содержимое которого мы не понимаем.
+     */
+    private static String applied(
+            String path, String created, @Nullable List<TextEdit> forwardEdits) {
+        if (forwardEdits == null) {
+            return created;
+        }
+        String text = created;
+        for (TextEdit edit : forwardEdits) {
+            try {
+                text =
+                        ExactEdit.replace(
+                                        text,
+                                        edit.oldString().replace("\r\n", "\n"),
+                                        edit.newString().replace("\r\n", "\n"),
+                                        edit.replaceAll(),
+                                        path,
+                                        "getFileContent")
+                                .text();
+            } catch (IllegalArgumentException e) {
+                throw new FileRevertRefusedException(
+                        "Cannot tell what this answer left in " + path + " — undo it with git.");
+            }
+        }
+        return text;
     }
 
     private static void collect(

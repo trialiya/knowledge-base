@@ -270,6 +270,29 @@ public class ChatHistoryService {
     }
 
     /**
+     * Репозиторий, на котором чат работал последним, — по штампам живой истории: маркеру смены
+     * проекта или базовому штампу первого сообщения (см. {@link ChatMessageMeta}). {@code null} —
+     * штампов нет вовсе, то есть чат начат версией без них.
+     *
+     * <p>Нужен откату файловых правок: селектор проекта в интерфейсе можно переключить сразу после
+     * ответа, и «репозиторий, выбранный сейчас» — не тот, в котором ответ правил файлы. Штампы
+     * стоят на вопросах, а после последнего ответа вопросов уже нет, поэтому поиск с конца находит
+     * именно тот проект, в котором ответ и работал.
+     */
+    public @Nullable String lastStampedProject(String conversationId) {
+        final List<ChatMessageEntity> rows =
+                chatMessageRepository
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                conversationId);
+        for (ChatMessageEntity row : rows.reversed()) {
+            if (row.getMeta() != null && row.getMeta().project() != null) {
+                return row.getMeta().project();
+            }
+        }
+        return null;
+    }
+
+    /**
      * Ряды последнего ответа чата — хвост живого окна после последнего вопроса (см. {@link
      * #tailAfterLastUser}). Нужен откату файловых правок: что именно откатывать, он вычитывает из
      * {@code tool_data} этих рядов.

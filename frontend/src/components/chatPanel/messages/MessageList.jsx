@@ -244,6 +244,20 @@ const MessageList = ({
     };
   }, [searchQuery, activeSearchMid, messages]);
 
+  // Откатывается только последний ответ чата: поверх более раннего обычно уже лежат другие
+  // правки, и «вернуть как было» перестаёт быть однозначным (то же правило на сервере —
+  // ChatFileRevert). Плашки действий пользователя после ответа этому не мешают — они ответа не
+  // сдвигают, — а вот уже сделанный откат кнопку убирает. Одним проходом с конца, а не срезом на
+  // каждое сообщение: лента длинная, а ответ такой ровно один.
+  const revertableAnswerIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].fileRevert) return -1;
+      if (messages[i].gitEvent) continue;
+      return messages[i].sender === SENDER.AI ? i : -1;
+    }
+    return -1;
+  }, [messages]);
+
   return (
     <div className="message-list-container">
       {loadingMore && <div className="message-list-loading-older">{t('window.loadingMessages')}</div>}
@@ -261,14 +275,7 @@ const MessageList = ({
               if (messages[j].toolCalls?.length) groupToolCalls = [...messages[j].toolCalls, ...groupToolCalls];
             }
           }
-          // Откатывается только последний ответ чата: поверх более раннего обычно уже лежат
-          // другие правки, и «вернуть как было» перестаёт быть однозначным (то же правило на
-          // сервере — ChatFileRevert). Плашки действий пользователя после ответа этому не
-          // мешают: они ответа не сдвигают, а вот откат, уже сделанный, кнопку убирает.
-          const isLastAnswer =
-            groupEnd &&
-            messages.slice(index + 1).every((m) => m.gitEvent || m.fileRevert) &&
-            !messages.slice(index + 1).some((m) => m.fileRevert);
+          const isLastAnswer = groupEnd && index === revertableAnswerIndex;
           // Подпись проекта для плашки: id, выбывший из конфигурации, показывается как есть.
           const projectLabel = (id) => projectOptions.find((o) => o.id === id)?.label || id;
           return (
