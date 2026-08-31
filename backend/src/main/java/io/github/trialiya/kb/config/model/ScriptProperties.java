@@ -23,14 +23,15 @@ import org.springframework.util.unit.DataSize;
  *     can keep the edit tools and still hand the model read-only scripts
  * @param guide the reference half of the markdown handbook, injected into the system prompt for as
  *     long as the tool is enabled (see {@code ScriptGuideService})
- * @param extendedGuide the tutorial half — when to prefer a script, how to structure one, worked
- *     examples, what not to do — appended to {@code guide} for a run whose model is flagged {@code
- *     weak} ({@code ChatModelProperties.ModelOption#weak}). A strong model gets only the reference
- *     half, which no model can guess — the {@code kb} API, the budgets, the error kinds
+ * @param extendedGuide the standing order to load the {@code script-writing} skill before writing a
+ *     script ({@code SkillService}), appended to {@code guide} for a run whose model is flagged
+ *     {@code weak} ({@code ChatModelProperties.ModelOption#weak}). The worked examples themselves
+ *     are not here — they are the skill, loaded on demand; a strong model reaches them through the
+ *     catalogue's trigger instead of being ordered outright
  * @param editGuide reference appendix, appended only when writes are actually available — telling a
  *     model about a method it cannot call wastes its attempts
- * @param extendedEditGuide tutorial appendix for writes; needs both gates — writes available and
- *     the run's model flagged weak
+ * @param extendedEditGuide the same standing order for the {@code script-editing} skill; needs both
+ *     gates — writes available and the run's model flagged weak
  * @param timeout wall-clock budget for one script when the model does not ask for a specific one
  * @param maxTimeout ceiling for the tool's own {@code timeoutSeconds} argument
  * @param cancelPoll how often the watchdog re-checks the deadline and the run's cancellation flag

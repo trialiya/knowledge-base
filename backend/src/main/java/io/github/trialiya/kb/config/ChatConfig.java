@@ -14,6 +14,7 @@ import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
+import io.github.trialiya.kb.functions.SkillFunction;
 import io.github.trialiya.kb.functions.TopicFunction;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -26,6 +27,7 @@ import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
+import io.github.trialiya.kb.service.chat.skill.SkillService;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ChatToolset;
@@ -133,6 +135,23 @@ public class ChatConfig {
     }
 
     /**
+     * The {@code readSkill} tool — on-demand instruction files ({@code SkillService}). Absent when
+     * there are no skills to read: today every skill is a half of the {@code runScript} handbook,
+     * so {@code kb.script.enabled=false} means no tool and an empty {@code {skill_catalogue}} — the
+     * model is never offered a reader with an empty shelf.
+     */
+    @Bean
+    @Nullable
+    public SkillFunction skillFunction(SkillService skillService) {
+        if (!skillService.anySkills()) {
+            log.info("Skill tool is NOT exposed to the model: no skills available");
+            return null;
+        }
+        log.info("Skill tool enabled (readSkill)");
+        return new SkillFunction(skillService);
+    }
+
+    /**
      * Replaces Spring AI's own processor for one reason: {@link ScriptCancelledException} has to
      * stay an exception.
      *
@@ -186,6 +205,7 @@ public class ChatConfig {
             ScriptRunner scriptRunner,
             GitRegistry gitRegistry,
             ScriptGuideService scriptGuideService,
+            SkillService skillService,
             ChatModelProperties chatModelProperties) {
         // Two gates, and both matter. kb.script.enabled decides whether the tool exists anywhere —
         // without it the sub-agent's allow-list must not be able to conjure one up. Given that, the
@@ -210,7 +230,9 @@ public class ChatConfig {
         // separately rather than inherited from whichever model the current chat turn resolved to.
         String scriptInstructions =
                 scriptsAvailable
-                        ? scriptGuideService.readOnlyInstructions(
+                        ? subAgentScriptInstructions(
+                                scriptGuideService,
+                                skillService,
                                 chatModelProperties.isWeak(subAgentConfig.modelId()))
                         : "";
         // The sub-agent's model may be one of the kb.chat.models entries with an endpoint of its
@@ -241,6 +263,26 @@ public class ChatConfig {
     }
 
     /**
+     * The script handbook for the search sub-agent — the reference half whatever its model, plus
+     * the {@code script-writing} skill inlined for a weak one.
+     *
+     * <p>Never the extended half: that half is an order to call {@code readSkill}, and the
+     * sub-agent has no such tool (its tools are an explicit allow-list) and no skill catalogue in
+     * its prompt. Obeying it would abort the search on a tool it cannot call; ignoring it would
+     * cost a weak model the worked examples. Giving it the tool instead is the wrong trade — the
+     * sub-agent runs on a hard iteration budget, and spending one on a document it could simply
+     * have been handed buys nothing.
+     *
+     * <p>Package-private so {@code ChatConfigSubAgentScriptsAvailableTest} can pin it: it is the
+     * one place where the sub-agent's prompt and its tool set have to agree.
+     */
+    static String subAgentScriptInstructions(
+            ScriptGuideService scriptGuideService, SkillService skillService, boolean weak) {
+        String reference = scriptGuideService.readOnlyInstructions(false);
+        return weak ? reference + "\n\n" + skillService.textOf("script-writing") : reference;
+    }
+
+    /**
      * The tool set of the main chat, assembled in one place so that the {@code ChatClient} and the
      * Settings catalogue ({@code ToolCatalogService}) cannot disagree about what the model can
      * call. Which tools are in it is decided by the opt-ins documented on the beans above.
@@ -256,6 +298,7 @@ public class ChatConfig {
             ContextItemService contextItemService,
             ObjectProvider<SearchAgentService> searchAgentService,
             ObjectProvider<ScriptFunction> scriptFunction,
+            ObjectProvider<SkillFunction> skillFunction,
             McpProperties mcpProperties,
             ObjectProvider<ToolCallbackProvider> mcpToolCallbackProvider) {
         List<Object> functions =
@@ -274,6 +317,8 @@ public class ChatConfig {
         gitEditFunction.ifAvailable(functions::add);
         // Present only when kb.script.enabled=true (see scriptFunction bean).
         scriptFunction.ifAvailable(functions::add);
+        // Present only when there are skills to read (see skillFunction bean).
+        skillFunction.ifAvailable(functions::add);
 
         // MCP-derived tools (see spring.ai.mcp.client.* connections) are merged in only when
         // kb.mcp.enabled=true — external MCP servers run arbitrary local commands or call

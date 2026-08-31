@@ -271,16 +271,17 @@ kb:
     edit-enabled: ${KB_SCRIPT_EDIT_ENABLED:true}
     # Handbook injected into the system prompt while the tool is enabled (ScriptGuideService),
     # in two halves. The reference half is unconditional — the kb API, the limits and the error
-    # table are what no model can guess. The extended half is the tutorial: when to prefer a
-    # script, how to structure one, examples, what not to do — appended only for a run whose
-    # model is flagged weak (kb.chat.default-model.weak / kb.chat.models[].weak). Empty when
+    # table are what no model can guess. The extended half is a standing order to load the
+    # matching skill from prompt/skills/ before writing a script (SkillService) — appended only
+    # for a run whose model is flagged weak (kb.chat.default-model.weak / kb.chat.models[].weak);
+    # a strong model reaches the same skill through the catalogue's trigger. Empty when
     # enabled=false, so a model that cannot run scripts is never told about them. Budget numbers
     # are substituted, not copied.
     guide: classpath:prompt/script-run.md
     extended-guide: classpath:prompt/script-run-extended.md
     # Appended only when writes are actually available — telling a model about methods it cannot
-    # call wastes its attempts. Split the same way: the rules always, the examples only for a run
-    # whose model is flagged weak.
+    # call wastes its attempts. Split the same way: the rules always, the order to load the
+    # script-editing skill only for a run whose model is flagged weak.
     edit-guide: classpath:prompt/script-run-edit.md
     extended-edit-guide: classpath:prompt/script-run-edit-extended.md
     timeout: ${KB_SCRIPT_TIMEOUT:10s}   # default wall-clock budget for one script

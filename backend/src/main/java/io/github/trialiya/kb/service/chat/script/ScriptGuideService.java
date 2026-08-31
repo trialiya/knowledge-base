@@ -25,11 +25,13 @@ import org.springframework.util.unit.DataSize;
  *
  * <p>The handbook comes in two halves, and only the first is unconditional. The reference half —
  * the {@code kb} API, the budgets, the error kinds — is what no model can guess, so it ships
- * whenever the tool does. The tutorial half — when to prefer a script, how to structure one, worked
- * examples — is the part a strong model already knows; a run whose model is flagged {@code weak:
- * false} ({@code ChatModelProperties.ModelOption}) gets the reference half only, which keeps its
- * prompt short. The same split applies to the write appendix, so a strong model losing the tutorial
- * cannot lose the edit rules along with it.
+ * whenever the tool does. The extended half is a standing order to load the matching skill before
+ * writing a script ({@code SkillService}): the worked examples themselves live in {@code
+ * prompt/skills/} and are loaded on demand by every model. It ships only for a run whose model is
+ * flagged {@code weak} ({@code ChatModelProperties.ModelOption}) — a strong model picks the skill
+ * up from the catalogue by its trigger, while a weak one needs to be told outright. The same split
+ * applies to the write appendix, so a strong model losing that order cannot lose the edit rules
+ * along with it.
  *
  * <p>The four combinations (tutorial on/off × writes on/off) are rendered once at startup rather
  * than per request: nothing in a rendering depends on the request, only on which of the two
@@ -87,10 +89,13 @@ public class ScriptGuideService {
     /**
      * The handbook without the write appendix, whatever the edit policy says — for the search
      * sub-agent, which is read-only by construction and must stay that way even in a deployment
-     * where the main chat may edit files.
+     * where the main chat may edit files. Also the answer {@link #instructions} itself returns for
+     * a project that takes no writes.
      *
-     * @param weak {@code ChatModelProperties.ModelOption#weak} of the sub-agent's own model ({@code
-     *     kb.search.subagent.model-id}), which can differ from the main chat's
+     * @param weak whether the extended half — the order to load the {@code script-writing} skill —
+     *     is included. The sub-agent passes {@code false} whatever its model: it has no {@code
+     *     readSkill} to obey the order with, and {@code ChatConfig} appends the skill's text to it
+     *     directly instead
      */
     public String readOnlyInstructions(boolean weak) {
         return weak ? readOnlyInstructionsForWeakModel : readOnlyInstructionsForStrongModel;
@@ -98,19 +103,6 @@ public class ScriptGuideService {
 
     private static String render(
             ScriptProperties properties, boolean extended, boolean editEnabled) {
-        ScriptProperties.Limits limits = properties.limits();
-        Map<String, String> values =
-                Map.ofEntries(
-                        Map.entry("max_files_read", String.valueOf(limits.maxFilesRead())),
-                        Map.entry("max_bytes_read", humanBytes(limits.maxBytesRead())),
-                        Map.entry("max_calls", String.valueOf(limits.maxCalls())),
-                        Map.entry("max_log_chars", String.valueOf(limits.maxLogChars())),
-                        Map.entry("max_result_chars", String.valueOf(limits.maxResultChars())),
-                        Map.entry("max_edited_files", String.valueOf(limits.maxEditedFiles())),
-                        Map.entry("max_edited_bytes", humanBytes(limits.maxEditedBytes())),
-                        Map.entry("timeout", properties.timeout().toSeconds() + " с"),
-                        Map.entry("max_timeout", properties.maxTimeout().toSeconds() + " с"));
-
         // Two independent gates. The write appendices are added only when kb.edit/kb.create are
         // actually bound, so the handbook can never describe a method the sandbox does not have;
         // the extended halves are added only for a run whose model is flagged weak.
@@ -125,6 +117,18 @@ public class ScriptGuideService {
             }
         }
         String text = handbook.toString();
+        ScriptProperties.Limits limits = properties.limits();
+        Map<String, String> values =
+                Map.ofEntries(
+                        Map.entry("max_files_read", String.valueOf(limits.maxFilesRead())),
+                        Map.entry("max_bytes_read", humanBytes(limits.maxBytesRead())),
+                        Map.entry("max_calls", String.valueOf(limits.maxCalls())),
+                        Map.entry("max_log_chars", String.valueOf(limits.maxLogChars())),
+                        Map.entry("max_result_chars", String.valueOf(limits.maxResultChars())),
+                        Map.entry("max_edited_files", String.valueOf(limits.maxEditedFiles())),
+                        Map.entry("max_edited_bytes", humanBytes(limits.maxEditedBytes())),
+                        Map.entry("timeout", properties.timeout().toSeconds() + " с"),
+                        Map.entry("max_timeout", properties.maxTimeout().toSeconds() + " с"));
         for (Map.Entry<String, String> entry : values.entrySet()) {
             text = text.replace("{{" + entry.getKey() + "}}", entry.getValue());
         }

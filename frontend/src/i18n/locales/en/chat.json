@@ -348,6 +348,7 @@
     "getUserName": "User name",
     "getCurrentDateTime": "Current time",
     "recordChatInsights": "Chat topic",
+    "readSkill": "Read skill",
     "getFileTree": "File tree",
     "getCommitLog": "Commit log",
     "getCommitDiff": "Commit diff",

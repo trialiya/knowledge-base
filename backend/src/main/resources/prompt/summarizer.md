@@ -15,6 +15,11 @@ Summarize conversations. Create dense, complete summaries preserving all semanti
   numeric id verbatim (e.g. `report.md (attachment id=12)`). They arrive inside an
   `<attached-context>` block on a user message; the block itself disappears with the
   summarized message, so an id dropped here is an attachment nobody can reach again.
+- Skills the assistant loaded with `readSkill`: the tool line shows only the skill's
+  name, never its instructions, so they cannot be carried over — and after summarization
+  they are gone from the context. Record each loaded skill as a fact with the re-read
+  instruction attached, e.g. `skill script-writing was loaded; its text is no longer in
+  the context — re-read it with readSkill before the next task it covers`.
 - Project switches: a `<project-switched from="A" to="B">` block on a user message means
   everything before that message belongs to project A, everything after — to project B.
   Reproduce the block **verbatim** at the matching point of the summary, and never

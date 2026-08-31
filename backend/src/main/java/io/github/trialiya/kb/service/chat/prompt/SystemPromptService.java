@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.chat.prompt;
 
 import io.github.trialiya.kb.config.model.SystemPromptProperties;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
+import io.github.trialiya.kb.service.chat.skill.SkillService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -25,11 +26,16 @@ import org.springframework.util.StreamUtils;
 public class SystemPromptService {
 
     private final ScriptGuideService scriptGuide;
+    private final SkillService skillService;
     private final String extendedForWeakModel;
     private final String extendedForStrongModel;
 
-    public SystemPromptService(SystemPromptProperties properties, ScriptGuideService scriptGuide) {
+    public SystemPromptService(
+            SystemPromptProperties properties,
+            ScriptGuideService scriptGuide,
+            SkillService skillService) {
         this.scriptGuide = scriptGuide;
+        this.skillService = skillService;
         this.extendedForWeakModel = read(properties.extendedPrompt());
         this.extendedForStrongModel = "";
     }
@@ -53,6 +59,7 @@ public class SystemPromptService {
             boolean weakModel, @Nullable String project, String modeInstructions) {
         return Map.of(
                 "mode_instructions", modeInstructions,
+                "skill_catalogue", skillService.catalogue(project),
                 "script_instructions", scriptGuide.instructions(weakModel, project),
                 "system_extended", systemExtended(weakModel));
     }
