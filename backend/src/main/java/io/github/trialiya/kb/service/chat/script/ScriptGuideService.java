@@ -25,13 +25,13 @@ import org.springframework.util.unit.DataSize;
  *
  * <p>The handbook comes in two halves, and only the first is unconditional. The reference half —
  * the {@code kb} API, the budgets, the error kinds — is what no model can guess, so it ships
- * whenever the tool does. The tutorial half — when to prefer a script, how to structure one, worked
- * examples — is the part a strong model already knows; a run whose model is flagged {@code weak:
- * false} ({@code ChatModelProperties.ModelOption}) gets the reference half only, which keeps its
- * prompt short. The same split applies to the write appendix, so a strong model losing the tutorial
- * cannot lose the edit rules along with it. Совсем без туториала сильная модель всё же не остаётся:
- * обе его половины доступны ей по требованию как навыки {@code readSkill} — {@link #tutorial()} и
- * {@link #editTutorial()} отдаёт {@code SkillService}.
+ * whenever the tool does. The extended half is a standing order to load the matching skill before
+ * writing a script ({@code SkillService}): the worked examples themselves live in {@code
+ * prompt/skills/} and are loaded on demand by every model. It ships only for a run whose model is
+ * flagged {@code weak} ({@code ChatModelProperties.ModelOption}) — a strong model picks the skill
+ * up from the catalogue by its trigger, while a weak one needs to be told outright. The same split
+ * applies to the write appendix, so a strong model losing that order cannot lose the edit rules
+ * along with it.
  *
  * <p>The four combinations (tutorial on/off × writes on/off) are rendered once at startup rather
  * than per request: nothing in a rendering depends on the request, only on which of the two
@@ -49,8 +49,6 @@ public class ScriptGuideService {
     private final String instructionsForStrongModel;
     private final String readOnlyInstructionsForWeakModel;
     private final String readOnlyInstructionsForStrongModel;
-    private final String tutorial;
-    private final String editTutorial;
 
     public ScriptGuideService(ScriptProperties properties, ScriptEditPolicy editPolicy) {
         this.editPolicy = editPolicy;
@@ -61,14 +59,6 @@ public class ScriptGuideService {
                 properties.enabled() ? render(properties, true, false) : "";
         this.readOnlyInstructionsForStrongModel =
                 properties.enabled() ? render(properties, false, false) : "";
-        this.tutorial =
-                properties.enabled()
-                        ? substitute(read(properties.extendedGuide()), properties)
-                        : "";
-        this.editTutorial =
-                properties.enabled()
-                        ? substitute(read(properties.extendedEditGuide()), properties)
-                        : "";
     }
 
     /**
@@ -108,20 +98,6 @@ public class ScriptGuideService {
         return weak ? readOnlyInstructionsForWeakModel : readOnlyInstructionsForStrongModel;
     }
 
-    /**
-     * The tutorial half of the handbook as a standalone text, {@code ""} when the tool is off — the
-     * content behind the {@code script-writing} skill ({@code SkillService}), rendered with the
-     * same limit substitutions as the handbook itself so the two can never quote different budgets.
-     */
-    public String tutorial() {
-        return tutorial;
-    }
-
-    /** The write-appendix tutorial as a standalone text — the {@code script-editing} skill. */
-    public String editTutorial() {
-        return editTutorial;
-    }
-
     private static String render(
             ScriptProperties properties, boolean extended, boolean editEnabled) {
         // Two independent gates. The write appendices are added only when kb.edit/kb.create are
@@ -137,10 +113,7 @@ public class ScriptGuideService {
                 append(handbook, properties.extendedEditGuide());
             }
         }
-        return substitute(handbook.toString(), properties);
-    }
-
-    private static String substitute(String text, ScriptProperties properties) {
+        String text = handbook.toString();
         ScriptProperties.Limits limits = properties.limits();
         Map<String, String> values =
                 Map.ofEntries(

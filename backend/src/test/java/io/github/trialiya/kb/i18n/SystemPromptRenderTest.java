@@ -117,7 +117,7 @@ class SystemPromptRenderTest {
         ScriptGuideService guide = mock(ScriptGuideService.class);
         when(guide.instructions(false, null)).thenReturn("");
         SkillService skills = mock(SkillService.class);
-        when(skills.catalogue(false, null)).thenReturn("");
+        when(skills.catalogue(null)).thenReturn("");
         return new SystemPromptService(new SystemPromptProperties(null, null), guide, skills)
                 .placeholders(false, null, "");
     }

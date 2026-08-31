@@ -5,31 +5,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.skill.SkillContent;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
-import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import org.junit.jupiter.api.Test;
 
 class SkillServiceTest {
 
-    private static final String TUTORIAL = "### Script vs standard tool\nworked examples";
-    private static final String EDIT_TUTORIAL = "### Example: bulk rename\nkb.edit pitfalls";
-
     private SkillService service(boolean editsAllowed) {
-        ScriptGuideService guides = mock(ScriptGuideService.class);
-        when(guides.tutorial()).thenReturn(TUTORIAL);
-        when(guides.editTutorial()).thenReturn(EDIT_TUTORIAL);
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(null)).thenReturn(editsAllowed);
-        return new SkillService(guides, policy);
+        return new SkillService(ScriptProperties.enabledWithDefaults(), policy);
     }
 
     @Test
     void theCatalogueListsEverySkillWithItsTrigger() {
-        String catalogue = service(true).catalogue(false, null);
+        String catalogue = service(true).catalogue(null);
         assertThat(catalogue)
                 .contains("## Skills")
-                .contains("`readSkill`")
                 .contains("`script-writing`")
                 .contains("`script-editing`")
                 // Правило перечитать после сжатия — вторая половина механизма выживания навыков
@@ -40,51 +33,47 @@ class SkillServiceTest {
     /** Навык про пишущие скрипты не предлагается там, где скриптам писать нельзя. */
     @Test
     void theEditSkillIsHiddenWhereScriptsCannotWrite() {
-        String catalogue = service(false).catalogue(false, null);
+        String catalogue = service(false).catalogue(null);
         assertThat(catalogue).contains("`script-writing`").doesNotContain("`script-editing`");
     }
 
-    /**
-     * Слабая модель несёт те же тексты прямо в системном промпте, поэтому грузить ей нечего — но
-     * инструмент у неё в наборе есть (набор один на приложение), и его описание ссылается на этот
-     * раздел. Пустой раздел стоил бы вызова наугад, поэтому вместо каталога — прямой запрет.
-     */
+    /** Скрипты выключены — навыки не о чем: инструмент не регистрируется, каталог пуст. */
     @Test
-    void aWeakModelIsToldThereIsNothingToLoad() {
-        String catalogue = service(true).catalogue(true, null);
-        assertThat(catalogue)
-                .contains("## Skills")
-                .contains("do not call `readSkill`")
-                .doesNotContain("`script-writing`");
-    }
-
-    /** Навыков нет вовсе — раздела нет ни у какой модели: ссылаться не на что. */
-    @Test
-    void theSectionIsAbsentForEveryModelWhenNoSkillExists() {
-        ScriptGuideService guides = mock(ScriptGuideService.class);
-        when(guides.tutorial()).thenReturn("");
-        when(guides.editTutorial()).thenReturn("");
-        SkillService service = new SkillService(guides, mock(ScriptEditPolicy.class));
-        assertThat(service.catalogue(true, null)).isEmpty();
-        assertThat(service.catalogue(false, null)).isEmpty();
-    }
-
-    /** Скрипты выключены — туториалы пусты, навыков нет, и каталог, и инструмент исчезают. */
-    @Test
-    void noSkillsExistWhenTheGuidesAreEmpty() {
-        ScriptGuideService guides = mock(ScriptGuideService.class);
-        when(guides.tutorial()).thenReturn("");
-        when(guides.editTutorial()).thenReturn("");
-        SkillService service = new SkillService(guides, mock(ScriptEditPolicy.class));
+    void noSkillsExistWhenScriptsAreOff() {
+        SkillService service =
+                new SkillService(
+                        new ScriptProperties(
+                                false, false, null, null, null, null, null, null, null, null),
+                        mock(ScriptEditPolicy.class));
         assertThat(service.anySkills()).isFalse();
-        assertThat(service.catalogue(false, null)).isEmpty();
+        assertThat(service.catalogue(null)).isEmpty();
     }
 
+    /** Текст навыка — тот самый файл из {@code prompt/skills/}, а не пересказ. */
     @Test
-    void readReturnsTheSkillText() {
+    void readReturnsTheSkillFile() {
         SkillContent content = service(true).read("script-writing", null);
         assertThat(content.name()).isEqualTo("script-writing");
-        assertThat(content.content()).isEqualTo(TUTORIAL);
+        assertThat(content.content())
+                .contains("# Skill: writing scripts")
+                .contains("### Script vs standard tool")
+                .contains("kb.grep");
+
+        assertThat(service(true).read("script-editing", null).content())
+                .contains("# Skill: scripts that edit files")
+                .contains("kb.edit");
+    }
+
+    /**
+     * Подстановок лимитов в файлах навыков нет и быть не должно: их читает {@link SkillService}
+     * напрямую, мимо {@code ScriptGuideService}, — сырые {@code &#123;&#123;…&#125;&#125;} уехали
+     * бы модели как есть.
+     */
+    @Test
+    void skillFilesCarryNoBudgetPlaceholders() {
+        SkillService service = service(true);
+        assertThat(service.read("script-writing", null).content()).doesNotContain("{{");
+        assertThat(service.read("script-editing", null).content()).doesNotContain("{{");
     }
 
     /** Ответ на незнакомое имя — это ответ модели: он обязан назвать доступные навыки. */
@@ -108,16 +97,13 @@ class SkillServiceTest {
     /** Решение про правки — попроектное, и доступность навыка следует за проектом вызова. */
     @Test
     void theEditSkillFollowsTheProjectOfTheCall() {
-        ScriptGuideService guides = mock(ScriptGuideService.class);
-        when(guides.tutorial()).thenReturn(TUTORIAL);
-        when(guides.editTutorial()).thenReturn(EDIT_TUTORIAL);
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled("writable")).thenReturn(true);
         when(policy.enabled("readonly")).thenReturn(false);
-        SkillService service = new SkillService(guides, policy);
+        SkillService service = new SkillService(ScriptProperties.enabledWithDefaults(), policy);
 
-        assertThat(service.read("script-editing", "writable").content()).isEqualTo(EDIT_TUTORIAL);
-        assertThat(service.catalogue(false, "readonly")).doesNotContain("`script-editing`");
+        assertThat(service.read("script-editing", "writable").content()).contains("kb.edit");
+        assertThat(service.catalogue("readonly")).doesNotContain("`script-editing`");
         assertThatThrownBy(() -> service.read("script-editing", "readonly"))
                 .isInstanceOf(IllegalArgumentException.class);
     }

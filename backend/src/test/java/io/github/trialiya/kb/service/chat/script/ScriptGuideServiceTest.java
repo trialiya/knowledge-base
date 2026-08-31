@@ -102,11 +102,13 @@ class ScriptGuideServiceTest {
 
     /**
      * The split is only worth having if the two halves are the ones described: a strong model
-     * losing the tutorial must cost the examples and nothing else. A model that lost the {@code kb}
-     * reference or the edit rules along with them would be worse off than with no handbook at all.
+     * losing the extended half must cost it the order to load the skill and nothing else — it
+     * reaches the same skill through the catalogue's trigger ({@code SkillService}). A model that
+     * lost the {@code kb} reference or the edit rules along with it would be worse off than with no
+     * handbook at all.
      */
     @Test
-    void dropsTheTutorialForAStrongModelButKeepsTheReferenceForBoth() {
+    void dropsTheOrderToLoadTheSkillForAStrongModelButKeepsTheReferenceForBoth() {
         ScriptGuideService service = guide(ScriptProperties.enabledWithDefaults(), true);
         String full = service.instructions(true);
         String reference = service.instructions(false);
@@ -114,8 +116,11 @@ class ScriptGuideServiceTest {
         assertThat(reference)
                 .contains(
                         "### kb reference", "kb.grep", "### Limits per run", "### Rules", "kb.edit")
-                .doesNotContain("### Examples", "### Pitfalls", "### Example: bulk rename");
-        assertThat(full).contains("### Examples", "### Pitfalls", "### Example: bulk rename");
+                .doesNotContain("readSkill", "script-writing", "script-editing");
+        assertThat(full).contains("readSkill", "script-writing", "script-editing");
+        // The examples themselves are the skill, loaded on demand — the handbook must not carry a
+        // second copy of them, or the split saves nothing.
+        assertThat(full).doesNotContain("### Examples", "### Pitfalls", "### Example: bulk rename");
         // Substitution runs over the assembled text, so a placeholder left in an appendix would
         // reach the model verbatim.
         assertThat(full).doesNotContain("{{");
@@ -126,8 +131,8 @@ class ScriptGuideServiceTest {
     void readOnlyInstructionsAlsoTracksTheWeakFlag() {
         ScriptGuideService service = guide(ScriptProperties.enabledWithDefaults(), true);
 
-        assertThat(service.readOnlyInstructions(true)).contains("### Examples");
-        assertThat(service.readOnlyInstructions(false)).doesNotContain("### Examples");
+        assertThat(service.readOnlyInstructions(true)).contains("readSkill");
+        assertThat(service.readOnlyInstructions(false)).doesNotContain("readSkill");
     }
 
     @Test

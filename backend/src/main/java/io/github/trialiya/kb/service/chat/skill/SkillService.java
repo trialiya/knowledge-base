@@ -1,23 +1,30 @@
 package io.github.trialiya.kb.service.chat.skill;
 
+import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.skill.SkillContent;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
-import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
 
 /**
- * Навыки — инструкции, которые модель загружает по требованию инструментом {@code readSkill}
- * ({@code SkillFunction}), а узнаёт о них из каталога в системном промпте (плейсхолдер {@code
- * {skill_catalogue}}, см. {@code SystemPromptService}).
+ * Навыки — инструкции из {@code prompt/skills/}, которые модель загружает по требованию
+ * инструментом {@code readSkill} ({@code SkillFunction}), а узнаёт о них из каталога в системном
+ * промпте (плейсхолдер {@code {skill_catalogue}}, см. {@code SystemPromptService}).
  *
- * <p>Зачем это, когда есть системный промпт: туториал по {@code runScript} велик, а нужен не в
- * каждом чате. Слабая модель получает его в промпт целиком — она не умеет вовремя позвать
- * инструмент, поэтому у неё всё остаётся как было ({@code ScriptGuideService}), а вместо каталога
- * стоит запрет звать {@code readSkill}: грузить ей нечего, всё уже здесь же. Сильная до навыков не
- * видела туториала вовсе; теперь у неё каталог с триггерами и загрузка одним вызовом.
+ * <p>Зачем это, когда есть системный промпт: обучающий текст велик, а нужен не в каждом чате. Один
+ * навык — один файл; чтобы завести следующий, достаточно положить markdown в {@code prompt/skills/}
+ * и добавить строку в {@link #CATALOGUE}. Никакой разницы по моделям здесь нет: каталог одинаков
+ * для всех, а слабой модели вдобавок велит загрузить навык само руководство по скриптам ({@code
+ * script-run-extended.md} — сегодня это указание и есть его расширенная половина), потому что ждать
+ * от неё выбора «по триггеру» не приходится.
  *
  * <p>Загруженный навык живёт в контексте как результат вызова инструмента, и сжатие истории его не
  * щадит: суммаризатор текст навыка не видит вообще (ему достаётся только гист — см. {@code
@@ -26,8 +33,8 @@ import org.springframework.stereotype.Service;
  * {@code compactor.md}, «Must preserve»); правило перечитать продублировано и в каталоге — на
  * случай, если сводку писала модель, которая факт всё же уронила.
  *
- * <p>Своих конфигурационных ключей у навыков нет: пока все они — половины скриптового руководства,
- * их состав целиком выводится из {@code kb.script.*}. Навык про правки виден только там, где
+ * <p>Своих конфигурационных ключей у навыков нет: пока все они — про {@code runScript}, их
+ * доступность целиком выводится из {@code kb.script.*}. Навык про правки виден только там, где
  * скриптам можно писать ({@link ScriptEditPolicy} — решение попроектное, поэтому и каталог, и
  * {@link #read} спрашивают проект): перечислять модели способ, которого у неё нет, — ровно та
  * ошибка, от которой {@code ScriptGuideService} бережёт системный промпт.
@@ -35,30 +42,35 @@ import org.springframework.stereotype.Service;
 @Service
 public class SkillService {
 
+    /**
+     * Все навыки, какие бывают. Тексты лежат отдельными файлами, здесь — только имя, триггер для
+     * каталога и условие доступности; текст в конструкторе читается один раз.
+     */
+    private static final List<SkillDefinition> CATALOGUE =
+            List.of(
+                    new SkillDefinition(
+                            "script-writing",
+                            "before writing a non-trivial `runScript`: script vs single tools, how"
+                                    + " to structure one, worked examples for repo-wide tasks",
+                            "prompt/skills/script-writing.md",
+                            false),
+                    new SkillDefinition(
+                            "script-editing",
+                            "before a `runScript` that writes files: worked examples and pitfalls"
+                                    + " for `kb.edit` / `kb.create` / `kb.writeBytes`",
+                            "prompt/skills/script-editing.md",
+                            true));
+
     private final List<Skill> skills;
     private final ScriptEditPolicy editPolicy;
 
-    public SkillService(ScriptGuideService guides, ScriptEditPolicy editPolicy) {
+    public SkillService(ScriptProperties scriptProperties, ScriptEditPolicy editPolicy) {
         this.editPolicy = editPolicy;
+        // Сегодня каждый навык — про runScript, поэтому без самого инструмента нет и навыков:
+        // руководство по способу, которого у модели нет, — потраченный контекст и потраченные
+        // попытки.
         this.skills =
-                List.of(
-                                new Skill(
-                                        "script-writing",
-                                        "before writing a non-trivial `runScript`: script vs single"
-                                                + " tools, how to structure one, worked examples for"
-                                                + " repo-wide tasks",
-                                        guides.tutorial(),
-                                        false),
-                                new Skill(
-                                        "script-editing",
-                                        "before a `runScript` that writes files: worked examples and"
-                                                + " pitfalls for `kb.edit` / `kb.create` /"
-                                                + " `kb.writeBytes`",
-                                        guides.editTutorial(),
-                                        true))
-                        .stream()
-                        .filter(skill -> !skill.content().isBlank())
-                        .toList();
+                scriptProperties.enabled() ? CATALOGUE.stream().map(Skill::of).toList() : List.of();
     }
 
     /** Есть ли хоть один навык — без единого {@code readSkill} и не регистрируется. */
@@ -70,24 +82,12 @@ public class SkillService {
      * Раздел «Skills» системного промпта, {@code ""} — когда показывать нечего. Никогда не null:
      * плейсхолдер обязан получить значение, иначе шаблон промпта не отрендерится.
      *
-     * @param weak {@code ChatModelProperties.ModelOption#weak} модели прогона — ей вместо каталога
-     *     достаётся строчка о том, что грузить нечего: весь сегодняшний состав навыков она уже
-     *     несёт в этом же промпте ({@code ScriptGuideService}), и загрузка добавила бы к контексту
-     *     второй экземпляр того же текста. Не пустота: {@code readSkill} есть в наборе инструментов
-     *     у всех прогонов сразу (набор один на приложение, а модель — своя у каждого), и его
-     *     описание ссылается на этот раздел — исчезнув, раздел стоил бы слабой модели вызова наугад
      * @param projectId проект прогона; {@code null} — проект по умолчанию
      */
-    public String catalogue(boolean weak, @Nullable String projectId) {
+    public String catalogue(@Nullable String projectId) {
         List<Skill> available = availableFor(projectId);
         if (available.isEmpty()) {
             return "";
-        }
-        if (weak) {
-            return """
-                    ## Skills
-                    Every skill is already included in this prompt below — there is nothing to \
-                    load, do not call `readSkill`.""";
         }
         StringBuilder text =
                 new StringBuilder(
@@ -150,9 +150,34 @@ public class SkillService {
     }
 
     /**
+     * Навык до чтения текста.
+     *
      * @param trigger когда навык загружать — строчка каталога после имени
+     * @param resource путь к markdown в ресурсах
      * @param needsScriptEdit навык описывает пишущие скрипты и виден только там, где им можно
      *     писать
      */
-    private record Skill(String name, String trigger, String content, boolean needsScriptEdit) {}
+    private record SkillDefinition(
+            String name, String trigger, String resource, boolean needsScriptEdit) {}
+
+    /** Навык с прочитанным текстом. */
+    private record Skill(String name, String trigger, String content, boolean needsScriptEdit) {
+
+        static Skill of(SkillDefinition definition) {
+            return new Skill(
+                    definition.name(),
+                    definition.trigger(),
+                    read(new ClassPathResource(definition.resource())),
+                    definition.needsScriptEdit());
+        }
+
+        private static String read(Resource resource) {
+            try {
+                return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8)
+                        .strip();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Не удалось прочитать навык: " + resource, e);
+            }
+        }
+    }
 }

@@ -59,7 +59,7 @@ public class SystemPromptService {
             boolean weakModel, @Nullable String project, String modeInstructions) {
         return Map.of(
                 "mode_instructions", modeInstructions,
-                "skill_catalogue", skillService.catalogue(weakModel, project),
+                "skill_catalogue", skillService.catalogue(project),
                 "script_instructions", scriptGuide.instructions(weakModel, project),
                 "system_extended", systemExtended(weakModel));
     }
