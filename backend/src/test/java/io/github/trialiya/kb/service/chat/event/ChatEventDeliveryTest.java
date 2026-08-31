@@ -34,6 +34,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  */
 class ChatEventDeliveryTest {
 
+    private static final Pattern SEQ_FIELD = Pattern.compile("\"seq\":(\\d+)");
+
     private static final String CONV = "conv-1";
     private static final String RUN = "run-1";
 
@@ -124,7 +126,10 @@ class ChatEventDeliveryTest {
     @Test
     void aCursorFromAPreviousHubBelowTheCurrentSeqDoesNotSwallowTheReplay() throws Exception {
         // Прошлый инстанс хаба этого чата: вкладка досчитала курсор на нём и терминального события
-        // не увидела — связь оборвалась, курсор остался.
+        // не увидела — связь оборвалась, курсор остался. Курсор здесь равен baseSeq хаба, который
+        // заведёт startRun, — то есть проверяет ровно границу `<=`. Если между этими двумя
+        // строками номер успеет взять кто-то ещё (параллельный запуск тестов), проверка границы
+        // выродится в тот же случай, что и в соседнем тесте, и её придётся ставить иначе.
         final long staleCursor =
                 new ConversationHub(CONV, null)
                         .publish(ChatEventType.STREAM, RUN, null, "прошлый прогон")
@@ -177,7 +182,7 @@ class ChatEventDeliveryTest {
 
     /** Номера событий в теле ответа, по порядку: конкретные значения задаёт сквозной счётчик. */
     private static List<Long> seqs(String body) {
-        final Matcher matcher = Pattern.compile("\"seq\":(\\d+)").matcher(body);
+        final Matcher matcher = SEQ_FIELD.matcher(body);
         final List<Long> found = new ArrayList<>();
         while (matcher.find()) {
             found.add(Long.parseLong(matcher.group(1)));

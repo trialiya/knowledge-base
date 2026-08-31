@@ -368,7 +368,8 @@ describe('useChatEventStream stale run reconciliation', () => {
     await act(async () => {});
 
     expect(reloadMessages).toHaveBeenCalledWith('c1');
-    // The previous run's seq cursor is dropped: a fresh hub numbers its events from scratch.
+    // The previous run's seq cursor is dropped: the next run's log starts empty, and a cursor
+    // left over from the old one would cut its replay short.
     expect(openChatEventStream).toHaveBeenLastCalledWith('c1', expect.objectContaining({ fromSeq: 0 }));
   });
 

@@ -77,22 +77,23 @@ describe('openChatEventStream fromSeq', () => {
   });
 
   test('REPLAY_GAP ставит курсор на свою нумерацию, а не поднимает максимум', async () => {
-    // Курсор из прошлой жизни хаба (нумерация у нового своя, с нуля) выше всего, что новый
-    // хаб опубликует за целый прогон. Оставленный максимумом, он заставлял бы хаб на каждом
-    // обрыве реплеить лог целиком — поверх уже собранного пузыря, задваивая ответ.
+    // Курсор из прошлой жизни хаба: номера сквозные на процесс, поэтому такой курсор лежит
+    // ниже номеров текущего хаба, и REPLAY_GAP двигает его вниз — на начало лога. Оставленный
+    // максимумом (он выше seq самого REPLAY_GAP), он заставлял бы хаб на каждом обрыве реплеить
+    // лог целиком — поверх уже собранного пузыря, задваивая ответ.
     const seen = [];
     originalFetch = global.fetch;
     global.fetch = vi.fn(() =>
       Promise.resolve(
         sseResponse([
           { seq: 0, type: 'REPLAY_GAP' },
-          { seq: 1, type: 'STREAM' },
+          { seq: 1756654321000042, type: 'STREAM' },
         ]),
       ),
     );
 
     const close = openChatEventStream('chat-a', { fromSeq: 340, onEvent: () => {}, onSeq: (s) => seen.push(s) });
-    await vi.waitFor(() => expect(seen).toEqual([0, 1]));
+    await vi.waitFor(() => expect(seen).toEqual([0, 1756654321000042]));
     close();
   });
 });
