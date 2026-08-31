@@ -5,7 +5,7 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
-import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.PromptNotices;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -57,7 +57,7 @@ public class MessageLookupFunction {
                                                 // на выполненную команду.
                                                 + (m.getMeta() != null
                                                                 && m.getMeta().gitEvent() != null
-                                                        ? ChatHistoryService.gitCommandNotice(
+                                                        ? PromptNotices.gitCommandNotice(
                                                                 m.getMeta())
                                                         : m.getText())
                                                 // Приложенное к вопросу живёт в meta, а не в

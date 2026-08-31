@@ -5,7 +5,7 @@
 
 import { nextMessageId } from '../messages/messageId';
 import { SENDER } from '@/constants/messageSender';
-import { toolCallOf } from './runMessageOps';
+import { isEventRow, toolCallOf } from './runMessageOps';
 
 // Extracts runId from a system message that carries tool call breadcrumbs.
 const extractRunId = (m) => m.runId || null;
@@ -77,6 +77,18 @@ export const transformPage = (rawMsgs) => {
       });
       continue;
     }
+    // След отката файловых правок ответа: как и ряд git-команды, USER без текста, весь смысл
+    // которого в мете (см. ChatHistoryService.appendFileRevert).
+    if (m.fileRevert) {
+      bubbles.push({
+        mid: nextMessageId(),
+        dbId: m.id ?? null,
+        sender: SENDER.USER,
+        fileRevert: m.fileRevert,
+        timestamp: m.timestamp || null,
+      });
+      continue;
+    }
     if (type === 'system') continue; // прочие системные сообщения (напр. summary) не показываем
     // Протокольные TOOL-сообщения (ответы инструментов) — не для показа: их содержимое
     // видно через плашки/модалку деталей соответствующего сегмента.
@@ -92,7 +104,7 @@ export const transformPage = (rawMsgs) => {
     const carryUsageToPrev = () => {
       const prev = bubbles[bubbles.length - 1];
       const sameRun = !prev?.toolCallsRunId || !m.runId || prev.toolCallsRunId === m.runId;
-      if (m.usage && sameRun && prev?.sender === SENDER.AI && !prev.compact && !prev.gitEvent) {
+      if (m.usage && sameRun && prev?.sender === SENDER.AI && !prev.compact && !isEventRow(prev)) {
         prev.usage = m.usage;
       }
     };
@@ -111,7 +123,7 @@ export const transformPage = (rawMsgs) => {
       if (
         prev?.sender === SENDER.AI &&
         !prev.compact &&
-        !prev.gitEvent &&
+        !isEventRow(prev) &&
         (!prev.toolCallsRunId || !m.runId || prev.toolCallsRunId === m.runId)
       ) {
         prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(toolCallOf)];
@@ -173,16 +185,16 @@ export const trimActiveRunTail = (bubbles) => {
       break;
     }
   }
-  // Отрезаются только незаконченные сегменты ответа. Ряды git-команд в хвосте
-  // остаются: они уже сохранены в истории, и выбросив их, карточка вывода
-  // пропадала бы на время прогона и возвращалась после перезагрузки. Пузыри
-  // вопросов из этого же хвоста, наоборот, срезаются: они опубликованы событием
-  // USER_MESSAGE внутри активного прогона, и реплей вернёт их сам.
-  return lastUser < 0 ? bubbles : bubbles.filter((b, i) => i <= lastUser || !!b.gitEvent);
+  // Отрезаются только незаконченные сегменты ответа. Плашки действий пользователя
+  // (git-команда, откат правок) в хвосте остаются: они уже сохранены в истории, и
+  // выбросив их, карточка пропадала бы на время прогона и возвращалась после
+  // перезагрузки. Пузыри вопросов из этого же хвоста, наоборот, срезаются: они
+  // опубликованы событием USER_MESSAGE внутри активного прогона, и реплей вернёт их сам.
+  return lastUser < 0 ? bubbles : bubbles.filter((b, i) => i <= lastUser || isEventRow(b));
 };
 
 // Открывает ли пузырь ход разговора — фронтовый двойник ChatHistoryService.opensATurn.
-const opensATurn = (bubble) => bubble.sender === SENDER.USER && !bubble.gitEvent && !bubble.interjection;
+const opensATurn = (bubble) => bubble.sender === SENDER.USER && !isEventRow(bubble) && !bubble.interjection;
 
 // Прицепляет «висячие» metas (крошки без ассистента в своей странице) к последнему
 // AI-пузырю переданного набора. Возвращает остаток, который не удалось прицепить

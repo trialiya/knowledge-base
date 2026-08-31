@@ -781,6 +781,40 @@ describe('applyChatEvent', () => {
     expect(chat.messages.filter((m) => m.gitEvent)).toHaveLength(1);
   });
 
+  // ─── Откат файловых правок ответа ──────────────────────────────────────────
+  // Ход человека, как и git-команда: ряд в конец ленты, прогон не трогаем.
+  test('FILE_REVERT appends the revert row without touching the run', () => {
+    const chat = applyChatEvent(
+      userChat(),
+      {
+        type: 'FILE_REVERT',
+        payload: {
+          id: 92,
+          createdAt: '2026-08-31T12:00:00',
+          event: { project: 'kb', paths: ['src/App.java'] },
+        },
+      },
+      ctx,
+    );
+
+    expect(last(chat)).toMatchObject({
+      dbId: 92,
+      sender: 'user',
+      fileRevert: { project: 'kb', paths: ['src/App.java'] },
+      timestamp: '2026-08-31T12:00:00',
+    });
+    expect(chat.runId).toBe(userChat().runId);
+  });
+
+  /** Вкладка, запустившая откат, получает своё же событие обратно — ряд обязан остаться один. */
+  test('FILE_REVERT replayed for the same row does not double it', () => {
+    const ev = { type: 'FILE_REVERT', payload: { id: 92, event: { project: 'kb', paths: ['a.txt'] } } };
+    let chat = applyChatEvent(userChat(), ev, ctx);
+    chat = applyChatEvent(chat, ev, ctx);
+
+    expect(chat.messages.filter((m) => m.fileRevert)).toHaveLength(1);
+  });
+
   /**
    * «Вопрос → неудачный прогон → git-команда → Повторить». Эхо повтора приходит без clientMsgId,
    * и сверять его надо с последним ВОПРОСОМ, а не с последним USER-рядом: последний USER здесь —

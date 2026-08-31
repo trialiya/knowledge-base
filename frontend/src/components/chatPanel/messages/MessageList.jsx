@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import Message from './Message';
 import CompactNotice from './CompactNotice';
 import GitOutputCard from '../git/GitOutputCard';
+import FileRevertNotice from './FileRevertNotice';
 import DocChangeBlock from './DocChangeBlock';
 import FileChangeBlock from './FileChangeBlock';
 import { IconArrowDown } from '@/icons/index';
@@ -74,6 +75,9 @@ const MessageList = ({
   canLoadMore = true,
   activeSearchMid = null,
   searchQuery = '',
+  // Идёт ли сейчас прогон: пока модель работает, откатывать её же правки нельзя (сервер
+  // откажет так же — см. ChatGitLog.claimIdleAndOwned).
+  isStreaming = false,
 }) => {
   const { t } = useTranslation('chat');
   const containerRef = useRef(null);
@@ -257,6 +261,14 @@ const MessageList = ({
               if (messages[j].toolCalls?.length) groupToolCalls = [...messages[j].toolCalls, ...groupToolCalls];
             }
           }
+          // Откатывается только последний ответ чата: поверх более раннего обычно уже лежат
+          // другие правки, и «вернуть как было» перестаёт быть однозначным (то же правило на
+          // сервере — ChatFileRevert). Плашки действий пользователя после ответа этому не
+          // мешают: они ответа не сдвигают, а вот откат, уже сделанный, кнопку убирает.
+          const isLastAnswer =
+            groupEnd &&
+            messages.slice(index + 1).every((m) => m.gitEvent || m.fileRevert) &&
+            !messages.slice(index + 1).some((m) => m.fileRevert);
           // Подпись проекта для плашки: id, выбывший из конфигурации, показывается как есть.
           const projectLabel = (id) => projectOptions.find((o) => o.id === id)?.label || id;
           return (
@@ -276,7 +288,10 @@ const MessageList = ({
                   })}
                 </div>
               )}
-              {msg.gitEvent ? (
+              {msg.fileRevert ? (
+                // Откат правок ответа — тоже ход человека, и тоже плашкой, а не пузырём.
+                <FileRevertNotice revert={msg.fileRevert} />
+              ) : msg.gitEvent ? (
                 // Команду выполнил человек, но написал не он: карточка вывода
                 // вместо пузыря — ряд несёт только то, что ответил git.
                 <GitOutputCard event={msg.gitEvent} />
@@ -317,7 +332,12 @@ const MessageList = ({
               {groupEnd && groupToolCalls.length > 0 && (
                 <>
                   <DocChangeBlock toolCalls={groupToolCalls} onNavigateToDoc={onNavigateToDoc} />
-                  <FileChangeBlock toolCalls={groupToolCalls} project={project} />
+                  <FileChangeBlock
+                    toolCalls={groupToolCalls}
+                    project={project}
+                    conversationId={conversationId}
+                    canRevert={isLastAnswer && !isStreaming}
+                  />
                 </>
               )}
             </Fragment>

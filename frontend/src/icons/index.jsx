@@ -238,6 +238,13 @@ export const IconHistory = ({ size = 13 }) => (
   </svg>
 );
 
+export const IconUndo = ({ size = 13 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...s}>
+    <path d="M9 14 4 9l5-5" />
+    <path d="M4 9h11a5 5 0 0 1 0 10h-4" />
+  </svg>
+);
+
 export const IconSummarize = ({ size = 13 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...s}>
     <line x1="4" y1="6" x2="20" y2="6" />

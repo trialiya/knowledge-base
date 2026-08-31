@@ -19,7 +19,7 @@ import {
   pushAi,
   sameProjectSwitch,
   setRunUsage,
-  isGitRow,
+  isEventRow,
   isLiveRun,
   applyDelivered,
   finalize,
@@ -105,7 +105,7 @@ export function applyChatEvent(chat, ev, ctx) {
         // «вопрос → неудачный прогон → git-команда → Повторить» сверялся бы с карточкой git,
         // не находил совпадения и приписывал бы второй такой же вопрос, оставив пузырь с
         // прошлой ошибкой висеть между ними.
-        if (isGitRow(msgs[i])) continue;
+        if (isEventRow(msgs[i])) continue;
         if (msgs[i].sender === SENDER.USER) {
           // Сверяем по dbId, когда он есть с обеих сторон: два одинаковых вопроса подряд
           // (частый случай — «Повторить») текстовая сверка приняла бы за одно сообщение.
@@ -138,7 +138,7 @@ export function applyChatEvent(chat, ev, ctx) {
             // `trimActiveRunTail`: их пересобирать нечем, реплей событий прогона их не вернёт.
             // Если срезать оказалось нечего (за вопросом стоят одни карточки), чат остаётся
             // прежним объектом: повторное эхо не должно перерисовывать ленту впустую.
-            const kept = msgs.filter((m, j) => j <= i || isGitRow(m));
+            const kept = msgs.filter((m, j) => j <= i || isEventRow(m));
             if (kept.length === msgs.length) return patched ? { ...chat, messages: msgs } : chat;
             return { ...chat, messages: kept };
           }
@@ -408,6 +408,23 @@ export function applyChatEvent(chat, ev, ctx) {
         dbId: id,
         sender: SENDER.USER,
         gitEvent: payload?.event,
+        timestamp: payload?.createdAt ?? null,
+      });
+      return { ...chat, messages: msgs };
+    }
+
+    // ─── Откат файловых правок ответа ───────────────────────────────────────
+    // Тот же случай, что и git-команда: ход человека, ряд в конец ленты, дубль
+    // по dbId отбрасывается (вкладка, которая откат запустила, получает своё же
+    // событие обратно).
+    case CHAT_EVENT.FILE_REVERT: {
+      const id = payload?.id ?? null;
+      if (id != null && msgs.some((m) => m.dbId === id)) return chat;
+      msgs.push({
+        mid: nextMessageId(),
+        dbId: id,
+        sender: SENDER.USER,
+        fileRevert: payload?.event,
         timestamp: payload?.createdAt ?? null,
       });
       return { ...chat, messages: msgs };

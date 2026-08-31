@@ -126,6 +126,7 @@ const ChatCenter = ({
           onRetry={onRetry}
           hasMore={!!chat?.hasMore}
           canLoadMore={!isStreaming}
+          isStreaming={isStreaming}
           activeSearchMid={search.activeMatchMid}
           searchQuery={search.open ? search.query.trim() : ''}
         />

@@ -9,6 +9,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
+import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
@@ -54,7 +55,8 @@ public final class ChatMessageMetaToJsonConverter {
             @Nullable GitEventMeta gitEvent,
             @Nullable Boolean interjection,
             @Nullable RunTokenUsage usage,
-            @Nullable List<ProjectSpan> visitedProjects) {}
+            @Nullable List<ProjectSpan> visitedProjects,
+            @Nullable FileRevertMeta fileRevert) {}
 
     /**
      * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
@@ -129,7 +131,8 @@ public final class ChatMessageMetaToJsonConverter {
                         json.gitEvent(),
                         Boolean.TRUE.equals(json.interjection()),
                         json.usage(),
-                        json.visitedProjects() == null ? List.of() : json.visitedProjects());
+                        json.visitedProjects() == null ? List.of() : json.visitedProjects(),
+                        json.fileRevert());
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -176,7 +179,8 @@ public final class ChatMessageMetaToJsonConverter {
                                 // ряда каждого чата.
                                 source.visitedProjects().isEmpty()
                                         ? null
-                                        : source.visitedProjects()));
+                                        : source.visitedProjects(),
+                                source.fileRevert()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

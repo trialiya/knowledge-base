@@ -378,7 +378,14 @@
     "createdNoDiff": "New file — open it via the \"Open file\" link",
     "summary": "Files changed ({{count}})",
     "toggleMarkdown": "Toggle markdown preview",
-    "loadError": "Failed to load file content"
+    "loadError": "Failed to load file content",
+    "revert": "Revert changes",
+    "reverting": "Reverting…",
+    "revertTitle": "Revert file changes?",
+    "revertMessage": "These files go back to the state they had before this answer: {{files}}. Created files are deleted. The assistant is told about the revert in your next message.",
+    "revertFailed": "Could not revert the changes",
+    "reverted_one": "Reverted changes in 1 file",
+    "reverted_other": "Reverted changes in {{count}} files"
   },
   "model": {
     "aria": "Model",

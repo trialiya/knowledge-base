@@ -2,6 +2,7 @@ package io.github.trialiya.kb.model.chat.dto;
 
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
@@ -32,6 +33,11 @@ public record ChatMessage(
          * — по нему фронт и рисует карточку вывода вместо обычного пузыря.
          */
         @Nullable GitEventMeta gitEvent,
+        /**
+         * Откат файловых правок ответа, выполненный пользователем; непустой ровно у ряда этого
+         * отката — по нему фронт рисует плашку вместо обычного пузыря, как и у {@link #gitEvent}.
+         */
+        @Nullable FileRevertMeta fileRevert,
         /**
          * Вопрос был задан во время прогона, а не между ходами; {@code null} у всех остальных.
          * Фронту он нужен по той же причине, что и бэкенду: такой ряд не открывает ход, и всё, что

@@ -129,8 +129,11 @@ export const setRunUsage = (msgs, runId, usage, live) => {
   return true;
 };
 
-/** Карточка выполненной git-команды: отправитель у неё USER, ходом разговора она не является. */
-export const isGitRow = (message) => !!message.gitEvent;
+/**
+ * Плашка действия пользователя — выполненной git-команды или отката файловых правок ответа:
+ * отправитель у неё USER, ходом разговора она не является.
+ */
+export const isEventRow = (message) => !!message.gitEvent || !!message.fileRevert;
 
 /**
  * Тот ли это прогон, что чат считает идущим. Прогон в чате открывают ровно двое — RUN_STARTED и

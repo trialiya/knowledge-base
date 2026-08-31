@@ -1,14 +1,13 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { getFileChangeRefs } from './toolMeta';
 import { TOOL_STATUS } from '@/constants/toolStatus';
-import { fetchContent } from '../composer/fileChips';
 import { IconChevronDown } from '@/icons/index';
-import ModalShell from '@/components/common/modal/ModalShell';
-import { DiffLines, DiffStats } from './diffRender';
-import { filesUrl } from '@/navigation/urlScheme';
+import ConfirmModal from '@/components/common/modal/ConfirmModal';
+import FileDiffModal from './FileDiffModal';
+import { DiffStats } from './diffRender';
+import chatApi from '@/api/chatApi';
+import '@/components/common/ui/buttons.css';
 import '../styles/doc-changes.css';
 import '../styles/file-changes.css';
 
@@ -17,11 +16,21 @@ import '../styles/file-changes.css';
  * Строка на файл: путь, операция, +N/−M; клик открывает модалку со всеми
  * diff'ами правок этого файла из данного ответа (diff приходит в resultMeta —
  * работает и в live-стриме, и после перезагрузки чата, как у DocChangeBlock).
+ *
+ * У последнего ответа блок ещё и откатывается целиком: `canRevert` (см. MessageList) говорит,
+ * что этот блок — последний и чат свободен. Откатывает сервер, по своей записи в истории
+ * (см. ChatFileRevert), поэтому кнопке нечего передавать, кроме чата и проекта; новый ряд
+ * истории и сброс кэшей файлов приезжают событием FILE_REVERT.
  */
-const FileChangeBlock = ({ toolCalls, project }) => {
+const FileChangeBlock = ({ toolCalls, project, conversationId, canRevert = false }) => {
   const { t } = useTranslation('chat');
   const [target, setTarget] = useState(null); // { path, operation, additions, deletions, diffs } | null
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  // Отказ сервера показываем текстом под кнопкой: «файл изменился после ответа» — это и есть
+  // ответ пользователю, а не техническая деталь.
+  const [failure, setFailure] = useState(null);
+  const [reverting, setReverting] = useState(false);
 
   // Одна строка на файл: суммарные +/− по всем успешным правкам, diff'ы копятся
   // в порядке выполнения. Упавшие вызовы (ERROR) пропускаются — они файл не меняли.
@@ -44,6 +53,19 @@ const FileChangeBlock = ({ toolCalls, project }) => {
     }
     return [...byPath.values()];
   }, [toolCalls]);
+
+  const revert = async () => {
+    setConfirming(false);
+    setReverting(true);
+    setFailure(null);
+    try {
+      await chatApi.revertFiles(conversationId, project);
+    } catch (e) {
+      setFailure(e?.reason || t('fileChange.revertFailed'));
+    } finally {
+      setReverting(false);
+    }
+  };
 
   if (changes.length === 0) return null;
 
@@ -85,100 +107,33 @@ const FileChangeBlock = ({ toolCalls, project }) => {
           </button>
         ))}
 
-      {target && <FileDiffModal change={target} project={project} onClose={() => setTarget(null)} />}
-    </div>
-  );
-};
-
-const isMarkdownPath = (path) => /\.mdx?$/i.test(path || '');
-
-const FileDiffModal = ({ change, project, onClose }) => {
-  const { t } = useTranslation('chat');
-  const isMd = isMarkdownPath(change.path);
-  const [mdView, setMdView] = useState(false);
-  const showsContent = change.diffs.length === 0;
-  // Ответ сервера; null — запрос ещё идёт. `loading`/`error` выводятся из него
-  // при рендере, а сброс на смену файла делается тут же — эффект показал бы
-  // кадр с содержимым предыдущего.
-  const [answer, setAnswer] = useState(null); // { content, error } | null
-
-  const [req, setReq] = useState({ path: change.path, project, showsContent });
-  if (req.path !== change.path || req.project !== project || req.showsContent !== showsContent) {
-    setReq({ path: change.path, project, showsContent });
-    setAnswer(null);
-  }
-
-  useEffect(() => {
-    if (!showsContent) return undefined;
-    let cancelled = false;
-    fetchContent(change.path, { project })
-      .then((data) => {
-        if (!cancelled) setAnswer({ content: data, error: false });
-      })
-      .catch(() => {
-        if (!cancelled) setAnswer({ content: null, error: true });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [change.path, project, showsContent]);
-
-  const loading = showsContent && answer === null;
-  const content = answer?.content ?? null;
-  const error = answer?.error ?? false;
-
-  return (
-    <ModalShell onClose={onClose} className="fcd-modal">
-      <div className="fcd-header">
-        <span className="fcd-title" title={change.path}>
-          {change.path} <DiffStats additions={change.additions} deletions={change.deletions} />
-        </span>
-        {isMd && (
+      {open && canRevert && (
+        <div className="file-change-revert">
           <button
             type="button"
-            className={`fcd-md-toggle${mdView ? ' fcd-md-toggle--active' : ''}`}
-            onClick={() => setMdView((v) => !v)}
-            title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
+            className="btn btn--ghost btn--sm"
+            onClick={() => setConfirming(true)}
+            disabled={reverting}
           >
-            {mdView ? '{ }' : '👁'}
+            {reverting ? t('fileChange.reverting') : t('fileChange.revert')}
           </button>
-        )}
-        <a className="fcd-open-link" href={filesUrl(change.path, project)} target="_blank" rel="noreferrer">
-          {t('fileChange.openFile')}
-        </a>
-        <button className="fcd-close" onClick={onClose} title={t('common:close')} type="button">
-          ✕
-        </button>
-      </div>
-      <div className="fcd-body">
-        {change.diffs.length === 0 ? (
-          <>
-            {loading && <div className="fcd-empty">{t('loading')}</div>}
-            {!loading && error && <div className="fcd-empty">{t('fileChange.loadError')}</div>}
-            {!loading && !error && content?.binary && <div className="fcd-empty">{t('fileChips.binaryFile')}</div>}
-            {!loading && !error && content && !content.binary && (
-              <>
-                {mdView ? (
-                  <div className="fcd-md-preview">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.content || ''}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <pre className="fcd-diff fcd-content">{content.content || ''}</pre>
-                )}
-              </>
-            )}
-          </>
-        ) : (
-          change.diffs.map((diff, i) => (
-            // Индекс как key безопасен: список diff'ов иммутабелен в рамках открытой модалки.
+          {failure && <span className="file-change-revert__error">{failure}</span>}
+        </div>
+      )}
 
-            <pre key={i} className="fcd-diff">
-              <DiffLines patch={diff} />
-            </pre>
-          ))
-        )}
-      </div>
-    </ModalShell>
+      {target && <FileDiffModal change={target} project={project} onClose={() => setTarget(null)} />}
+      <ConfirmModal
+        open={confirming}
+        title={t('fileChange.revertTitle')}
+        message={t('fileChange.revertMessage', {
+          count: changes.length,
+          files: changes.map((c) => c.path).join(', '),
+        })}
+        confirmLabel={t('fileChange.revert')}
+        onConfirm={revert}
+        onCancel={() => setConfirming(false)}
+      />
+    </div>
   );
 };
 

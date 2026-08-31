@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.file.git;
 
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
+import io.github.trialiya.kb.model.git.dto.TextEdit;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.file.git.VisibleFiles.Resolved;
 import io.github.trialiya.kb.utils.ExactEdit;
@@ -10,9 +11,11 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.Constants;
 import org.jspecify.annotations.NonNull;
 
 /**
@@ -253,6 +256,90 @@ final class GitWriter {
                 "edit", path, stats.additions(), stats.deletions(), lines, stats.diff());
     }
 
+    // ── Undoing ─────────────────────────────────────────────────────────────
+
+    /**
+     * Applies {@code edits} to the file's current text and returns the result <b>without writing
+     * it</b>, so a caller changing several files can find out that one of them no longer matches
+     * before any of them is touched (see {@code ChatFileRevert}).
+     *
+     * <p>The text is read and matched exactly as {@link #editFile} does it — same LF-normalised
+     * view, same exact-match contract — which is what makes an undo safe without storing anything:
+     * a file edited by someone else since simply stops matching, and the caller is refused instead
+     * of overwriting that work. The write itself is {@link #replaceTrackedFile}, on the very text
+     * this returned.
+     *
+     * @param edits applied in the given order, each to the result of the previous one
+     */
+    String previewEdited(@NonNull String filePath, @NonNull List<TextEdit> edits) {
+        Editable file = readEditable(filePath);
+        String text = file.text();
+        for (TextEdit edit : edits) {
+            text =
+                    ExactEdit.replace(
+                                    text,
+                                    edit.oldString().replace("\r\n", "\n"),
+                                    edit.newString().replace("\r\n", "\n"),
+                                    edit.replaceAll(),
+                                    file.path(),
+                                    "getFileContent")
+                            .text();
+        }
+        return text;
+    }
+
+    /**
+     * Everything {@link #deleteFile} refuses before it removes anything: an unwritable path, a file
+     * no read tool serves (or an untracked one on a project that does not allow untracked edits),
+     * and a path HEAD already has.
+     *
+     * <p>That last refusal is what keeps an undo from undoing more than it was asked to: a file the
+     * assistant created and the user then committed is part of the repository's history now, and
+     * deleting it is a change of its own — git's to make, on the user's word, not this one's.
+     *
+     * <p>Split out for the same reason as {@link #requireCreatable}: a caller deleting several
+     * files finds out here that one of them cannot go, with nothing removed yet.
+     */
+    void requireDeletable(@NonNull String filePath) {
+        String normalized = validateWritablePath(filePath);
+        resolveEditable(normalized);
+        if (committed(normalized)) {
+            throw new IllegalArgumentException(
+                    "Cannot delete " + normalized + ": it is committed. Use git to remove it.");
+        }
+    }
+
+    /**
+     * Removes a file from the working tree and from the index — the undo of {@link #createFile},
+     * and the only deletion this service does at all.
+     *
+     * <p>Re-checks {@link #requireDeletable} rather than trusting a caller that already asked:
+     * between the two the tree can have moved, and the checks are a stat and an index lookup.
+     */
+    void deleteFile(@NonNull String filePath) {
+        String normalized = validateWritablePath(filePath);
+        Resolved resolved = resolveEditable(normalized);
+        requireDeletable(normalized);
+        try {
+            Files.delete(resolved.absolute());
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot delete file: " + normalized, e);
+        }
+        if (resolved.tracked()) {
+            unstage(normalized);
+        }
+        log.info("deleteFile: '{}' removed from the working tree", normalized);
+    }
+
+    /** Whether the last commit has this path — the one state a deletion here must not touch. */
+    private boolean committed(String normalized) {
+        try {
+            return git.getRepository().resolve(Constants.HEAD + ":" + normalized) != null;
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot read HEAD for " + normalized, e);
+        }
+    }
+
     // ── Refusals a caller can ask for on its own ────────────────────────────
 
     /**
@@ -394,6 +481,19 @@ final class GitWriter {
             git.add().addFilepattern(normalized).call();
         } catch (GitAPIException e) {
             throw new IllegalStateException("Failed to stage file: " + normalized, e);
+        }
+    }
+
+    /**
+     * Drops a path from the index ({@code git rm --cached}) — the staging counterpart of a
+     * deletion, and the reason a created-then-deleted file leaves no trace in {@code
+     * getUncommittedChanges}: it was staged by {@link #createFile} and HEAD has never seen it.
+     */
+    private void unstage(String normalized) {
+        try {
+            git.rm().setCached(true).addFilepattern(normalized).call();
+        } catch (GitAPIException e) {
+            throw new IllegalStateException("Failed to unstage file: " + normalized, e);
         }
     }
 

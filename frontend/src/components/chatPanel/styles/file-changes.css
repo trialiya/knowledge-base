@@ -137,3 +137,63 @@
 .fcd-md-preview pre {
   overflow-x: auto;
 }
+
+/* ── Откат правок ответа ──
+   Кнопка живёт под списком файлов, а не в шапке блока: её нажимают, посмотрев
+   diff'ы, то есть уже развернув список. */
+
+.file-change-revert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 10px 8px;
+}
+
+.file-change-revert__error {
+  font-size: 0.78rem;
+  color: var(--kb-error);
+}
+
+/* Плашка выполненного отката — ряд ленты, не пузырь: писал его не человек.
+   Строение и метрики те же, что у карточки git-команды (git-output.css), но
+   вывода у отката нет, есть список путей. */
+
+.file-revert {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--kb-border);
+  border-left: 3px solid var(--kb-muted);
+  border-radius: 8px;
+  background: var(--kb-white);
+}
+
+.file-revert__icon {
+  display: flex;
+  align-items: center;
+  color: var(--kb-muted);
+  padding-top: 1px;
+}
+
+.file-revert__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.file-revert__title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+
+.file-revert__path {
+  font-family: var(--kb-font-mono);
+  font-size: 0.74rem;
+  color: var(--kb-muted);
+  overflow-wrap: anywhere;
+}
