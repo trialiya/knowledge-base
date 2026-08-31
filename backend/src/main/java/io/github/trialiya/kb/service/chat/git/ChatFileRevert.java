@@ -85,9 +85,7 @@ public class ChatFileRevert {
             for (Map.Entry<String, List<TextEdit>> file : plan.edits().entrySet()) {
                 reverted.put(file.getKey(), git.previewEdited(file.getKey(), file.getValue()));
             }
-            for (String path : plan.deletions()) {
-                git.requireDeletable(path);
-            }
+            plan.deletions().forEach(git::requireDeletable);
         } catch (IllegalArgumentException e) {
             // Точное совпадение не сошлось (или файл больше не тот, что правили) — это и есть
             // проверка целостности отката, а не сбой: за неё сообщение и уходит пользователю.

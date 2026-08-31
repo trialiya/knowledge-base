@@ -89,9 +89,30 @@ class FileRevertPlanTest {
                                                 create("call-1", "new.txt"),
                                                 edit("call-2", "new.txt")))));
 
-        assertThat(plan.deletions()).containsExactly("new.txt");
+        assertThat(plan.deletions()).containsExactly(Map.entry("new.txt", "x"));
         assertThat(plan.edits()).isEmpty();
         assertThat(plan.paths()).containsExactly("new.txt");
+    }
+
+    /**
+     * TOOL-ряды ответа плашек не несут вовсе: мету проставляют одним ASSISTANT-сегментам. Разбор
+     * обязан проходить сквозь них, а не падать на первом же.
+     */
+    @Test
+    void rowsWithoutInvocationsAreSkipped() {
+        final ChatMessageEntity toolRow =
+                new ChatMessageEntity(
+                        2,
+                        "conv-1",
+                        "результат",
+                        MessageType.TOOL,
+                        2,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        null);
+
+        assertThat(FileRevertPlan.of(List.of(toolRow)).isEmpty()).isTrue();
     }
 
     /** Упавший вызов файла не тронул — откатывать по нему нечего. */

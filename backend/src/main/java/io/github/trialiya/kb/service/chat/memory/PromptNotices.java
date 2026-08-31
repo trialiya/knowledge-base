@@ -77,7 +77,19 @@ public final class PromptNotices {
      * состоянии. Требование «сохраняй дословно», как и у маркера смены проекта, адресовано
      * summarizer'у (правило продублировано в {@code prompt/summarizer.md}).
      */
-    public static String gitCommandNotice(@Nullable ChatMessageMeta meta) {
+    /**
+     * Что ряд, оставленный действием пользователя, говорит модели: git-команда, откат правок или
+     * пустая строка, если ряд не такой.
+     *
+     * <p>Одна точка входа на оба вида, потому что читателей у них двое — окно промпта и {@code
+     * getOriginalMessages} ({@code MessageLookupFunction}), — и разойтись им нельзя: у такого ряда
+     * нет текста, и читатель, забывший про один из видов, вернул бы вместо него пустоту.
+     */
+    public static String eventNotice(@Nullable ChatMessageMeta meta) {
+        return gitCommandNotice(meta) + fileRevertNotice(meta);
+    }
+
+    static String gitCommandNotice(@Nullable ChatMessageMeta meta) {
         if (meta == null || meta.gitEvent() == null) {
             return "";
         }

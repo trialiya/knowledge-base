@@ -680,9 +680,7 @@ public class ChatHistoryService {
         if (entity.getType() != MessageType.USER) {
             return new PromptRow(entity, entity.getContent());
         }
-        final String eventNotice =
-                PromptNotices.gitCommandNotice(entity.getMeta())
-                        + PromptNotices.fileRevertNotice(entity.getMeta());
+        final String eventNotice = PromptNotices.eventNotice(entity.getMeta());
         if (!eventNotice.isEmpty()) {
             // Ряд события (git-команда, откат правок) несёт только нотис: описи у него нет
             // (пользователь ничего не прикладывал), маркера смены проекта — тем более, чат таким

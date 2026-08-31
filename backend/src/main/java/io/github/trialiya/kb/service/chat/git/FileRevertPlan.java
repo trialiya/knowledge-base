@@ -30,11 +30,13 @@ import org.jspecify.annotations.Nullable;
  * усечённым, и откат записал бы в файл обрезок. Поэтому же откат ничего не хранит про запас: {@code
  * editFile} обратим ровно тем, что уже записано в истории.
  *
- * @param deletions пути файлов, созданных ответом
+ * @param deletions файлы, созданные ответом: путь → содержимое, с которым его создали. Содержимое
+ *     здесь не про запись, а про сверку: удалять файл, который человек с тех пор правил, значит
+ *     унести эти правки безвозвратно
  * @param edits обратные замены по файлам, в порядке применения (правки ответа, развёрнутые
  *     наоборот); файл из {@link #deletions} сюда не попадает — его не правят, а удаляют
  */
-record FileRevertPlan(Set<String> deletions, Map<String, List<TextEdit>> edits) {
+record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>> edits) {
 
     /** Инструменты, правку которых откат умеет отменять. */
     private static final String CREATE = "createFile";
@@ -60,7 +62,7 @@ record FileRevertPlan(Set<String> deletions, Map<String, List<TextEdit>> edits) 
     /** Все затронутые пути в порядке, в котором ответ их трогал. */
     List<String> paths() {
         final Set<String> all = new LinkedHashSet<>(edits.keySet());
-        all.addAll(deletions);
+        all.addAll(deletions.keySet());
         return List.copyOf(all);
     }
 
@@ -73,18 +75,22 @@ record FileRevertPlan(Set<String> deletions, Map<String, List<TextEdit>> edits) 
      */
     static FileRevertPlan of(List<ChatMessageEntity> answerRows) {
         final Map<String, List<TextEdit>> edits = new LinkedHashMap<>();
-        final Set<String> deletions = new LinkedHashSet<>();
+        final Map<String, String> deletions = new LinkedHashMap<>();
         for (ChatMessageEntity row : answerRows) {
             final Map<String, String> arguments = argumentsByCallId(row.getToolData());
-            for (ToolInvocationMeta call : row.getInvocations()) {
+            // Плашек нет у ряда без меты — а это каждый TOOL-ряд ответа: мету проставляют одним
+            // ASSISTANT-сегментам (см. ChatHistoryService.markRunResult).
+            final List<ToolInvocationMeta> calls =
+                    row.getInvocations() == null ? List.of() : row.getInvocations();
+            for (ToolInvocationMeta call : calls) {
                 collect(call, arguments, edits, deletions);
             }
         }
         // Правки в файле, который этим же ответом и создан, откатывать нечем и незачем: файл
         // уходит целиком.
-        edits.keySet().removeAll(deletions);
+        edits.keySet().removeAll(deletions.keySet());
         return new FileRevertPlan(
-                Collections.unmodifiableSet(deletions),
+                Collections.unmodifiableMap(deletions),
                 Collections.unmodifiableMap(reverse(edits)));
     }
 
@@ -92,7 +98,7 @@ record FileRevertPlan(Set<String> deletions, Map<String, List<TextEdit>> edits) 
             ToolInvocationMeta call,
             Map<String, String> arguments,
             Map<String, List<TextEdit>> edits,
-            Set<String> deletions) {
+            Map<String, String> deletions) {
         if (SCRIPT.equals(call.name()) && changedFiles(call)) {
             throw new FileRevertRefusedException(
                     "The answer changed files with runScript — those edits can only be undone with"
@@ -115,7 +121,7 @@ record FileRevertPlan(Set<String> deletions, Map<String, List<TextEdit>> edits) 
                             + " — undo it with git.");
         }
         if (CREATE.equals(call.name())) {
-            deletions.add(path);
+            deletions.put(path, text(args, "content"));
             return;
         }
         edits.computeIfAbsent(path, p -> new ArrayList<>())

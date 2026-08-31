@@ -72,6 +72,18 @@ class ChatFileRevertTest {
         verify(chatGitLog).release(CONV, "claim-1");
     }
 
+    /** Созданный файл удаляется с тем содержимым, с которым его создали, — оно и есть сверка. */
+    @Test
+    void aCreatedFileIsDeletedWithTheContentItWasCreatedWith() {
+        givenAnswer(createCall("call-1", "new.txt", "class New {}"));
+        when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
+
+        revert.revertLastAnswer(CONV, "kb");
+
+        verify(git).requireDeletable("new.txt", "class New {}");
+        verify(git).deleteFile("new.txt", "class New {}");
+    }
+
     /**
      * Половина отката хуже отказа: не сошёлся один файл — не пишется ни один, включая тот, что
      * пересчитался успешно.
@@ -141,6 +153,25 @@ class ChatFileRevertTest {
                                 + "\"}"),
                 new ToolInvocationMeta(
                         "editFile",
+                        Map.of(),
+                        ToolInvocationStatus.OK,
+                        null,
+                        Map.of("path", path),
+                        true,
+                        0,
+                        null,
+                        id));
+    }
+
+    private static Call createCall(String id, String path, String content) {
+        return new Call(
+                new ToolData.Call(
+                        id,
+                        "function",
+                        "createFile",
+                        "{\"filePath\":\"" + path + "\",\"content\":\"" + content + "\"}"),
+                new ToolInvocationMeta(
+                        "createFile",
                         Map.of(),
                         ToolInvocationStatus.OK,
                         null,

@@ -290,22 +290,35 @@ final class GitWriter {
 
     /**
      * Everything {@link #deleteFile} refuses before it removes anything: an unwritable path, a file
-     * no read tool serves (or an untracked one on a project that does not allow untracked edits),
-     * and a path HEAD already has.
+     * no read tool serves (or an untracked one on a project that does not allow untracked edits), a
+     * path HEAD already has, and content that is no longer the content {@code expectedContent}
+     * describes.
      *
-     * <p>That last refusal is what keeps an undo from undoing more than it was asked to: a file the
+     * <p>Those last two are what keep an undo from undoing more than it was asked to. A file the
      * assistant created and the user then committed is part of the repository's history now, and
-     * deleting it is a change of its own — git's to make, on the user's word, not this one's.
+     * deleting it is a change of its own — git's to make, on the user's word. A file the user has
+     * since edited holds their work, and a deletion would take it with no way back; the comparison
+     * is the same integrity check the exact match gives an edit ({@link #previewEdited}), which is
+     * why an undo can be safe without storing anything.
      *
      * <p>Split out for the same reason as {@link #requireCreatable}: a caller deleting several
      * files finds out here that one of them cannot go, with nothing removed yet.
+     *
+     * @param expectedContent the text the file was created with, as its creator passed it
      */
-    void requireDeletable(@NonNull String filePath) {
+    void requireDeletable(@NonNull String filePath, @NonNull String expectedContent) {
         String normalized = validateWritablePath(filePath);
         resolveEditable(normalized);
         if (committed(normalized)) {
             throw new IllegalArgumentException(
                     "Cannot delete " + normalized + ": it is committed. Use git to remove it.");
+        }
+        if (!readEditable(normalized).text().equals(expectedContent.replace("\r\n", "\n"))) {
+            throw new IllegalArgumentException(
+                    "Cannot delete "
+                            + normalized
+                            + ": it has changed since it was created, and deleting it would take"
+                            + " those changes with it.");
         }
     }
 
@@ -316,10 +329,10 @@ final class GitWriter {
      * <p>Re-checks {@link #requireDeletable} rather than trusting a caller that already asked:
      * between the two the tree can have moved, and the checks are a stat and an index lookup.
      */
-    void deleteFile(@NonNull String filePath) {
+    void deleteFile(@NonNull String filePath, @NonNull String expectedContent) {
         String normalized = validateWritablePath(filePath);
         Resolved resolved = resolveEditable(normalized);
-        requireDeletable(normalized);
+        requireDeletable(normalized, expectedContent);
         try {
             Files.delete(resolved.absolute());
         } catch (IOException e) {

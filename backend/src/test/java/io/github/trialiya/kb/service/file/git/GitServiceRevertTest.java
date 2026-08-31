@@ -94,7 +94,7 @@ class GitServiceRevertTest {
         commitAll();
         service.createFile("src/New.java", "class New {}");
 
-        service.deleteFile("src/New.java");
+        service.deleteFile("src/New.java", "class New {}");
 
         assertThat(repoDir.resolve("src/New.java")).doesNotExist();
         assertThat(service.getUncommittedChanges(false)).isEmpty();
@@ -106,7 +106,7 @@ class GitServiceRevertTest {
         service.createFile("src/New.java", "class New {}");
         commitAll();
 
-        assertThatThrownBy(() -> service.deleteFile("src/New.java"))
+        assertThatThrownBy(() -> service.deleteFile("src/New.java", "class New {}"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("committed");
         assertThat(repoDir.resolve("src/New.java")).exists();
@@ -117,8 +117,23 @@ class GitServiceRevertTest {
     void deletabilityCanBeAskedWithoutDeleting() {
         service.createFile("src/New.java", "class New {}");
 
-        service.requireDeletable("src/New.java");
+        service.requireDeletable("src/New.java", "class New {}");
 
+        assertThat(repoDir.resolve("src/New.java")).exists();
+    }
+
+    /**
+     * Файл, созданный ответом и правленный человеком после него, удалению не подлежит: его правки
+     * ушли бы вместе с ним. Та же проверка целостности, что даёт правке точное совпадение.
+     */
+    @Test
+    void aCreatedFileEditedSinceIsNotDeleted() {
+        service.createFile("src/New.java", "class New {}");
+        writeFile("src/New.java", "class New { int mine; }");
+
+        assertThatThrownBy(() -> service.deleteFile("src/New.java", "class New {}"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("changed since it was created");
         assertThat(repoDir.resolve("src/New.java")).exists();
     }
 

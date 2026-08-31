@@ -1206,15 +1206,15 @@ public class GitService {
     /**
      * @see GitWriter#requireDeletable
      */
-    public void requireDeletable(@NonNull String filePath) {
-        writer.requireDeletable(filePath);
+    public void requireDeletable(@NonNull String filePath, @NonNull String expectedContent) {
+        writer.requireDeletable(filePath, expectedContent);
     }
 
     /**
      * @see GitWriter#deleteFile
      */
-    public void deleteFile(@NonNull String filePath) {
-        writer.deleteFile(filePath);
+    public void deleteFile(@NonNull String filePath, @NonNull String expectedContent) {
+        writer.deleteFile(filePath, expectedContent);
     }
 
     /**
