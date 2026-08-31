@@ -8,6 +8,10 @@ import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,6 +33,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * этого теста то свойство было бы неотличимо от «публикация не делает вообще ничего».
  */
 class ChatEventDeliveryTest {
+
+    private static final Pattern SEQ_FIELD = Pattern.compile("\"seq\":(\\d+)");
 
     private static final String CONV = "conv-1";
     private static final String RUN = "run-1";
@@ -60,8 +66,9 @@ class ChatEventDeliveryTest {
         events.startRun(CONV, RUN);
         events.publish(CONV, ChatEventType.STREAM, RUN, null, "пропущенное");
 
-        assertThat(body(subscribe(0))).contains("пропущенное");
-        assertThat(body(subscribe(1))).doesNotContain("пропущенное");
+        final String replay = body(subscribe(0));
+        assertThat(replay).contains("пропущенное");
+        assertThat(body(subscribe(lastSeq(replay)))).doesNotContain("пропущенное");
     }
 
     /**
@@ -76,9 +83,12 @@ class ChatEventDeliveryTest {
             events.publish(CONV, ChatEventType.STREAM, RUN, null, "чанк");
         }
 
-        assertThat(body(subscribe(0))).contains("REPLAY_GAP");
-        // Хвост лога цел: вкладка, отставшая на пару событий, догоняет без всяких дыр.
-        assertThat(body(subscribe(2000))).doesNotContain("REPLAY_GAP").contains("чанк");
+        final String replay = body(subscribe(0));
+        assertThat(replay).contains("REPLAY_GAP");
+        // Хвост лога цел: вкладка, отставшая на одно событие, догоняет без всяких дыр.
+        final List<Long> replayed = seqs(replay);
+        final long oneBehind = replayed.get(replayed.size() - 2);
+        assertThat(body(subscribe(oneBehind))).doesNotContain("REPLAY_GAP").contains("чанк");
         // Тот же факт спрашивают и до подписки — вкладка, которая только грузит чат: начало
         // прогона ей придётся взять из истории (см. GET /runs/active).
         assertThat(events.replayTruncated(CONV)).isTrue();
@@ -86,20 +96,50 @@ class ChatEventDeliveryTest {
 
     /**
      * Курсор из прошлой жизни хаба реплей не отрезает. Хаб живёт меньше вкладки: простаивающий
-     * выгружается из реестра, и перезапуск приложения его тем более не переживает, — а нумерация у
-     * нового начинается заново. Вкладка со старым курсором иначе не получила бы ни одного события
-     * уже идущего прогона: все они «старше» её курсора.
+     * выгружается из реестра, и перезапуск приложения его тем более не переживает, — а номера
+     * нового заведомо выше номеров прошлого. Вкладка со старым курсором иначе не получила бы ни
+     * одного события уже идущего прогона: все они «старше» её курсора.
      */
     @Test
     void aCursorFromAPreviousHubDoesNotSwallowTheReplay() throws Exception {
         events.startRun(CONV, RUN);
         events.publish(CONV, ChatEventType.COMPACT_STARTED, RUN, null, null);
 
-        // 340 — курсор вкладки, досчитанный на прошлом инстансе хаба этого же чата.
+        // 340 — курсор вкладки, досчитанный на хабе прошлого запуска приложения.
         final String replay = body(subscribe(340));
         assertThat(replay).contains("COMPACT_STARTED");
         // И сразу честное «что из этого вы уже видели — не знаю»: часть реплея вкладка могла
         // применить вживую до обрыва, поэтому историю по концу прогона она перечитает.
+        assertThat(replay).contains("REPLAY_GAP");
+
+        // Номер выше всего, что хаб выдавал, курсором не бывает вовсе — и отрезать реплей ему
+        // тоже не дают.
+        assertThat(body(subscribe(Long.MAX_VALUE))).contains("COMPACT_STARTED");
+    }
+
+    /**
+     * Тот же курсор прошлой жизни, но попавший <b>ниже</b> текущего номера хаба, — и он тоже не
+     * обрезает реплей. Различить его позволяет сквозная нумерация: номера нового хаба заведомо выше
+     * всего, что раздали закрывшиеся до него, поэтому «чужой» — это локальная проверка, а не
+     * угадывание по верхней границе.
+     */
+    @Test
+    void aCursorFromAPreviousHubBelowTheCurrentSeqDoesNotSwallowTheReplay() throws Exception {
+        // Прошлый инстанс хаба этого чата: вкладка досчитала курсор на нём и терминального события
+        // не увидела — связь оборвалась, курсор остался. Курсор здесь равен baseSeq хаба, который
+        // заведёт startRun, — то есть проверяет ровно границу `<=`. Если между этими двумя
+        // строками номер успеет взять кто-то ещё (параллельный запуск тестов), проверка границы
+        // выродится в тот же случай, что и в соседнем тесте, и её придётся ставить иначе.
+        final long staleCursor =
+                new ConversationHub(CONV, null)
+                        .publish(ChatEventType.STREAM, RUN, null, "прошлый прогон")
+                        .seq();
+
+        events.startRun(CONV, RUN);
+        events.publish(CONV, ChatEventType.COMPACT_STARTED, RUN, null, null);
+
+        final String replay = body(subscribe(staleCursor));
+        assertThat(replay).contains("COMPACT_STARTED");
         assertThat(replay).contains("REPLAY_GAP");
     }
 
@@ -138,6 +178,21 @@ class ChatEventDeliveryTest {
 
         assertThat(body(subscription)).contains("поздний замер");
         assertThat(events.activeRunId(CONV)).isEmpty();
+    }
+
+    /** Номера событий в теле ответа, по порядку: конкретные значения задаёт сквозной счётчик. */
+    private static List<Long> seqs(String body) {
+        final Matcher matcher = SEQ_FIELD.matcher(body);
+        final List<Long> found = new ArrayList<>();
+        while (matcher.find()) {
+            found.add(Long.parseLong(matcher.group(1)));
+        }
+        return found;
+    }
+
+    private static long lastSeq(String body) {
+        final List<Long> found = seqs(body);
+        return found.get(found.size() - 1);
     }
 
     private MvcResult subscribe(long fromSeq) throws Exception {

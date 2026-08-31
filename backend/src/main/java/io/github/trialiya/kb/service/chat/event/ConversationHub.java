@@ -6,6 +6,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,26 @@ public class ConversationHub {
      */
     private static final int MAX_LOG_EVENTS = 2000;
 
+    /**
+     * Источник номеров событий — общий на процесс и монотонный, поэтому номера нового хаба всегда
+     * выше номеров любого хаба, закрывшегося до него. Это и есть признак «курсор из прошлой жизни»:
+     * он локальный ({@code fromSeq <= baseSeq}), а не эпоха в SSE-протоколе (см. {@link
+     * #ownCursor}).
+     *
+     * <p>Через рестарт монотонность держит засев временем, взятым в микросекундах: счётчик нового
+     * процесса стартует выше всего, что раздал прежний, пока тот публиковал в среднем меньше
+     * миллиона событий в секунду. Множитель здесь не украшение — в миллисекундах запас был бы
+     * тысячекратно меньше (1000 событий в секунду — это десяток параллельных стримов, событие на
+     * токен), а перевод часов назад съедал бы его целиком: шаг назад безопасен, пока он меньше
+     * прожитого процессом времени за вычетом уже израсходованного запаса. Гарантия, таким образом,
+     * вероятностная; засев пишется в лог при старте, чтобы после подозрительного реплея её можно
+     * было проверить, а не гадать.
+     *
+     * <p>Номера общие на все чаты — у одного хаба они идут с пропусками, но клиенту {@code seq}
+     * непрозрачен: он только сравнивает его с курсором.
+     */
+    private static final AtomicLong SEQ = new AtomicLong(System.currentTimeMillis() * 1000);
+
     private final String conversationId;
     private final ReentrantLock lock = new ReentrantLock();
     // Дек, а не список: из переполненного лога уходит самое старое, и на горячем пути (событие
@@ -57,13 +78,20 @@ public class ConversationHub {
     /** Колбэк «хаб простаивает» — реестр пытается выгрузить его (см. {@link ChatEventService}). */
     @Nullable private final Consumer<ConversationHub> onIdle;
 
-    private long seq;
+    /** Номер, ниже которого этот хаб не публиковал ничего: всё до него — из прошлой жизни. */
+    private final long baseSeq = SEQ.get();
+
+    private long seq = baseSeq;
 
     /** Наибольший seq, выброшенный из переполненного лога; 0 — не выброшено ничего. */
     private long droppedThroughSeq;
 
     @Nullable private String activeRunId;
     private boolean closed;
+
+    static {
+        log.info("SSE event numbering seeded at {}", SEQ.get());
+    }
 
     public ConversationHub(String conversationId, @Nullable Consumer<ConversationHub> onIdle) {
         this.conversationId = conversationId;
@@ -138,13 +166,19 @@ public class ConversationHub {
     }
 
     /**
-     * Курсор вкладки, годный для этого хаба. Номера событий сквозные внутри одного хаба, но новый
-     * хаб того же чата начинает нумерацию заново — а хаб живёт меньше вкладки: простаивающий
-     * выгружается из реестра ({@link #closeIfIdle}), и уж точно его не переживает перезапуск
-     * приложения. Курсор больше всего, что этот хаб публиковал, — из той, прошлой нумерации, и
-     * верить ему нельзя: он отрезал бы реплей целиком, и вкладка, переподключившаяся посреди
-     * сжатия, не получила бы ни {@code COMPACT_STARTED}, ни плашки «сжимаю…», ни таймера — только
-     * готовый результат в конце.
+     * Курсор вкладки, годный для этого хаба. Хаб живёт меньше вкладки: простаивающий выгружается из
+     * реестра ({@link #closeIfIdle}), и уж точно его не переживает перезапуск приложения, — а
+     * вкладка держит курсор, пока не увидит терминальное событие прогона. Курсору прошлой жизни
+     * верить нельзя: он отрезал бы реплей, и вкладка, переподключившаяся посреди сжатия, не
+     * получила бы ни {@code COMPACT_STARTED}, ни плашки «сжимаю…», ни таймера — только готовый
+     * результат в конце.
+     *
+     * <p>Отличить чужой курсор от своего позволяет сквозная нумерация {@link #SEQ}: свои номера
+     * лежат строго выше {@link #baseSeq}, а всё, что этот хаб не публиковал, — не выше. Верхняя
+     * граница отсекает не прошлую жизнь, а мусор: {@code fromSeq} приезжает сырым query-параметром
+     * ({@code ChatController}), и номер больше всего выданного этим хабом — либо произвольное
+     * число, либо курсор чужого чата (нумерация-то общая), либо курсор прошлого процесса, если
+     * засев {@link #SEQ} не дал обещанного запаса. Ни одному из них реплей отрезать нельзя.
      *
      * <p>Курсор вкладки чинит сам {@link ChatEventType#REPLAY_GAP}: его {@code seq} — то значение,
      * с которого продолжится реплей, и вкладка ставит курсор туда (не «не ниже», а именно туда —
@@ -152,7 +186,7 @@ public class ConversationHub {
      * связи приносил бы полный реплей поверх уже собранного пузыря.
      */
     private long ownCursor(long fromSeq) {
-        return fromSeq > seq ? 0 : fromSeq;
+        return fromSeq <= baseSeq || fromSeq > seq ? 0 : fromSeq;
     }
 
     public ChatEvent publish(
@@ -162,7 +196,8 @@ public class ConversationHub {
             @Nullable Object payload) {
         lock.lock();
         try {
-            final ChatEvent event = new ChatEvent(++seq, type, runId, clientMsgId, payload);
+            seq = SEQ.incrementAndGet();
+            final ChatEvent event = new ChatEvent(seq, type, runId, clientMsgId, payload);
             eventLog.addLast(event);
             while (eventLog.size() > MAX_LOG_EVENTS) {
                 droppedThroughSeq = eventLog.removeFirst().seq();
