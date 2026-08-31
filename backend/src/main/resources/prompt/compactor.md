@@ -35,7 +35,9 @@ only where repetition would begin.
 - **Skills** loaded with `readSkill`: the one tool result you must NOT transcribe — a
   skill is re-readable by name, unlike everything else here. Record the fact instead:
   `skill script-writing was loaded; its text is no longer in the context — re-read it
-  with readSkill before the next task it covers`.
+  with readSkill before the next task it covers`. A skill defined by a project is
+  re-readable only while that project is active: if the chat has switched away since,
+  record the load without promising a re-read.
 - **Numbers and quantities** as they were stated — counts, sizes, line numbers, timings.
 - **Code the conversation still depends on**: a signature that was agreed, a snippet that
   was accepted, a diff that was applied. Reproduce the lines that matter, not the whole

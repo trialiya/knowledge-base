@@ -7,6 +7,7 @@ import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.GitCommandsOption;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
+import io.github.trialiya.kb.config.model.ProjectProperties.SkillOption;
 import io.github.trialiya.kb.model.project.Project;
 import java.nio.file.Path;
 import java.util.List;
@@ -60,6 +61,7 @@ class ProjectCatalogTest {
                                         true,
                                         List.of("notes/**"),
                                         null,
+                                        null,
                                         true),
                                 new ProjectOption(
                                         "billing",
@@ -67,6 +69,7 @@ class ProjectCatalogTest {
                                         "/srv/billing",
                                         false,
                                         false,
+                                        null,
                                         null,
                                         null,
                                         true)),
@@ -98,6 +101,7 @@ class ProjectCatalogTest {
                                         true,
                                         List.of("notes/**"),
                                         null,
+                                        null,
                                         true)),
                         legacy(null));
 
@@ -118,6 +122,7 @@ class ProjectCatalogTest {
                                         false,
                                         false,
                                         null,
+                                        null,
                                         new GitCommandsOption(true, true),
                                         true),
                                 new ProjectOption(
@@ -126,6 +131,7 @@ class ProjectCatalogTest {
                                         "/srv/billing",
                                         false,
                                         false,
+                                        null,
                                         null,
                                         new GitCommandsOption(true, false),
                                         true)),
@@ -144,7 +150,8 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", true, false, null, null, true)),
+                                        "kb", null, "/srv/kb", true, false, null, null, null,
+                                        true)),
                         legacy(null));
 
         assertThat(catalog.require("kb").gitCommandsEnabled()).isFalse();
@@ -168,6 +175,7 @@ class ProjectCatalogTest {
                                         false,
                                         false,
                                         null,
+                                        null,
                                         new GitCommandsOption(false, true),
                                         true)),
                         legacy(null));
@@ -182,7 +190,8 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", " ", "/srv/kb", false, false, null, null, true)),
+                                        "kb", " ", "/srv/kb", false, false, null, null, null,
+                                        true)),
                         legacy(null));
 
         assertThat(catalog.defaultProject().label()).isEqualTo("kb");
@@ -195,13 +204,15 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, true),
+                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        true),
                                 new ProjectOption(
                                         "billing",
                                         "Billing",
                                         "/srv/billing",
                                         true,
                                         false,
+                                        null,
                                         null,
                                         null,
                                         true)),
@@ -225,13 +236,15 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, true),
+                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        true),
                                 new ProjectOption(
                                         "billing",
                                         null,
                                         "/srv/billing",
                                         false,
                                         false,
+                                        null,
                                         null,
                                         null,
                                         false)),
@@ -249,9 +262,18 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, true),
+                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        true),
                                 new ProjectOption(
-                                        "Not An Id", null, "", false, false, null, null, false)),
+                                        "Not An Id",
+                                        null,
+                                        "",
+                                        false,
+                                        false,
+                                        null,
+                                        null,
+                                        null,
+                                        false)),
                         legacy(null));
 
         assertThat(catalog.defaultProject().id()).isEqualTo("kb");
@@ -265,7 +287,7 @@ class ProjectCatalogTest {
                                         List.of(
                                                 new ProjectOption(
                                                         "kb", null, "/srv/kb", false, false, null,
-                                                        null, false)),
+                                                        null, null, false)),
                                         legacy("/srv/legacy")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("every configured project is disabled");
@@ -279,7 +301,7 @@ class ProjectCatalogTest {
                                         List.of(
                                                 new ProjectOption(
                                                         "My Repo", null, "/srv/kb", false, false,
-                                                        null, null, true)),
+                                                        null, null, null, true)),
                                         legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("My Repo");
@@ -293,7 +315,7 @@ class ProjectCatalogTest {
                                         List.of(
                                                 new ProjectOption(
                                                         "kb", null, " ", false, false, null, null,
-                                                        true)),
+                                                        null, true)),
                                         legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("No project configured");
@@ -305,7 +327,8 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, true)),
+                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        true)),
                         legacy(null));
 
         assertThat(catalog.find(null)).contains(catalog.defaultProject());
@@ -324,7 +347,8 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, true)),
+                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        true)),
                         legacy(null));
 
         assertThat(catalog.isAllowed("kb")).isTrue();
@@ -333,13 +357,117 @@ class ProjectCatalogTest {
         assertThat(catalog.isAllowed("")).isFalse();
     }
 
+    // ── kb.projects[].skills ─────────────────────────────────────────────────
+
+    private static ProjectOption withSkills(SkillOption... skills) {
+        return new ProjectOption(
+                "kb", null, "/srv/kb", false, false, null, List.of(skills), null, true);
+    }
+
+    /** Путь навыка разрешается от дерева проекта; триггер обрезается, порядок — конфигурации. */
+    @Test
+    void skillsAreResolvedAgainstTheProjectTree() {
+        ProjectCatalog catalog =
+                catalog(
+                        List.of(
+                                withSkills(
+                                        new SkillOption(
+                                                "release",
+                                                " before a release ",
+                                                "docs/skills/release.md"))),
+                        legacy(null));
+
+        assertThat(catalog.require("kb").skills())
+                .singleElement()
+                .satisfies(
+                        skill -> {
+                            assertThat(skill.name()).isEqualTo("release");
+                            assertThat(skill.trigger()).isEqualTo("before a release");
+                            assertThat(skill.file())
+                                    .isEqualTo(
+                                            Path.of("/srv/kb/docs/skills/release.md")
+                                                    .toAbsolutePath()
+                                                    .normalize());
+                        });
+    }
+
+    /**
+     * Файл за пределами дерева — отказ старта: навык обещает текст «этого репозитория», и
+     * конфигурация, дотягивающаяся через {@code ..} до чужих файлов, — ошибка развёртывания, а не
+     * инструмент, которому можно отказать на вызове.
+     */
+    @Test
+    void aSkillFileOutsideTheProjectTreeIsRefused() {
+        assertThatThrownBy(
+                        () ->
+                                catalog(
+                                        List.of(
+                                                withSkills(
+                                                        new SkillOption(
+                                                                "release",
+                                                                "t",
+                                                                "../secrets/notes.md"))),
+                                        legacy(null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("outside the project tree");
+    }
+
+    @Test
+    void aSkillNameThatCouldNotBeCalledIsRefused() {
+        assertThatThrownBy(
+                        () ->
+                                catalog(
+                                        List.of(
+                                                withSkills(
+                                                        new SkillOption("My Skill", "t", "a.md"))),
+                                        legacy(null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("My Skill");
+    }
+
+    @Test
+    void duplicateSkillNamesWithinAProjectAreRefused() {
+        assertThatThrownBy(
+                        () ->
+                                catalog(
+                                        List.of(
+                                                withSkills(
+                                                        new SkillOption("release", "t", "a.md"),
+                                                        new SkillOption("release", "t", "b.md"))),
+                                        legacy(null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("duplicate");
+    }
+
+    /** Без триггера каталог не скажет, когда навык загружать, — пустым он бесполезен. */
+    @Test
+    void aSkillWithoutATriggerOrFileIsRefused() {
+        assertThatThrownBy(
+                        () ->
+                                catalog(
+                                        List.of(
+                                                withSkills(
+                                                        new SkillOption("release", " ", "a.md"))),
+                                        legacy(null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("trigger");
+        assertThatThrownBy(
+                        () ->
+                                catalog(
+                                        List.of(withSkills(new SkillOption("release", "t", ""))),
+                                        legacy(null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("file");
+    }
+
     @Test
     void anUnknownProjectIsAnErrorRatherThanASilentFallback() {
         ProjectCatalog catalog =
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, true)),
+                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        true)),
                         legacy(null));
 
         assertThat(catalog.find("billing")).isEmpty();

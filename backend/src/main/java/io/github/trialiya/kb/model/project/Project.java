@@ -25,6 +25,10 @@ import java.util.List;
  *     never staged. Inside the globs the working tree is the truth, {@code .gitignore} included;
  *     empty — tracked files only. Enforced by {@code GitService}, rooted-ness checked by {@code
  *     ProjectCatalog}
+ * @param skills the skills this project defines, in configuration order — loadable through {@code
+ *     readSkill} only while the project is the chat's active one, and listed in the {@code
+ *     <active-project>} block rather than the system prompt for exactly that reason (see {@code
+ *     SkillService})
  * @param gitCommandsEnabled whether a <em>user</em> may run git commands on this repository from
  *     the UI — a different grant from {@link #editEnabled()}, which is about what the model writes
  *     into the working tree. The configured intent again: {@code GitRegistry} combines it with the
@@ -40,10 +44,12 @@ public record Project(
         boolean editEnabled,
         boolean untrackedEditEnabled,
         List<String> allowGlobs,
+        List<ProjectSkill> skills,
         boolean gitCommandsEnabled,
         boolean gitPushEnabled) {
 
     public Project {
         allowGlobs = allowGlobs == null ? List.of() : List.copyOf(allowGlobs);
+        skills = skills == null ? List.of() : List.copyOf(skills);
     }
 }

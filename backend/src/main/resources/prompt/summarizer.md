@@ -19,7 +19,9 @@ Summarize conversations. Create dense, complete summaries preserving all semanti
   name, never its instructions, so they cannot be carried over — and after summarization
   they are gone from the context. Record each loaded skill as a fact with the re-read
   instruction attached, e.g. `skill script-writing was loaded; its text is no longer in
-  the context — re-read it with readSkill before the next task it covers`.
+  the context — re-read it with readSkill before the next task it covers`. A skill
+  defined by a project loads only while that project is active: if the chat has switched
+  away since, record the load without promising a re-read.
 - Project switches: a `<project-switched from="A" to="B">` block on a user message means
   everything before that message belongs to project A, everything after — to project B.
   Reproduce the block **verbatim** at the matching point of the summary, and never

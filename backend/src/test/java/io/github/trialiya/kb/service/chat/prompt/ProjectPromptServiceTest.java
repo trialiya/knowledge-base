@@ -6,6 +6,7 @@ import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
+import io.github.trialiya.kb.service.chat.skill.SkillService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import io.github.trialiya.kb.support.TestProjects;
@@ -27,12 +28,37 @@ class ProjectPromptServiceTest {
 
     @TempDir Path root;
 
+    private final SkillService skills = org.mockito.Mockito.mock(SkillService.class);
+
     private ProjectPromptService service(String... ids) throws IOException {
         List<ProjectOption> options = List.of(ids).stream().map(this::project).toList();
         ProjectCatalog catalog =
                 new ProjectCatalog(new ProjectProperties(options), new GitProperties(null));
         GitRegistry registry = TestProjects.registry(options);
-        return new ProjectPromptService(catalog, registry);
+        org.mockito.Mockito.when(skills.projectSkills(org.mockito.ArgumentMatchers.any()))
+                .thenReturn("");
+        return new ProjectPromptService(catalog, registry, skills);
+    }
+
+    /**
+     * Секция навыков активного проекта — часть блока: объявить их в системном промпте нельзя (его
+     * сменой проекта не двигают), а здесь она пересобирается с блоком и до compact-раунда доезжает
+     * тем же байтом. Текст секции — целиком забота {@code SkillService}; блок лишь включает его.
+     */
+    @Test
+    void theActiveProjectsSkillSectionIsPartOfTheBlock() throws IOException {
+        ProjectPromptService service = service("kb", "billing");
+        org.mockito.Mockito.when(
+                        skills.projectSkills(
+                                org.mockito.ArgumentMatchers.argThat(p -> p.id().equals("kb"))))
+                .thenReturn("\n\nSkills this repository defines: `release`");
+
+        String text = service.context("kb", List.of(span("kb", 1, 9)));
+
+        assertThat(text).contains("Skills this repository defines: `release`");
+        // Секция — активного проекта, не соседей: для "billing" заглушка вернула "".
+        assertThat(service.context("billing", List.of(span("billing", 1, 9))))
+                .doesNotContain("Skills this repository defines");
     }
 
     private static ProjectSpan span(String id, long from, long to) {
@@ -48,7 +74,7 @@ class ProjectPromptServiceTest {
             throw new IllegalStateException(e);
         }
         return new ProjectOption(
-                id, id.toUpperCase(), dir.toString(), false, false, null, null, true);
+                id, id.toUpperCase(), dir.toString(), false, false, null, null, null, true);
     }
 
     @Test

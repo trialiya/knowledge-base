@@ -10,6 +10,7 @@ import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.skill.SkillService;
+import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -52,7 +53,7 @@ class ChatConfigSubAgentScriptsAvailableTest {
         when(policy.enabled(nullable(String.class))).thenReturn(true);
         ScriptProperties properties = ScriptProperties.enabledWithDefaults();
         ScriptGuideService guides = new ScriptGuideService(properties, policy);
-        SkillService skills = new SkillService(properties, policy);
+        SkillService skills = new SkillService(properties, policy, mock(ProjectCatalog.class));
 
         String weak = ChatConfig.subAgentScriptInstructions(guides, skills, true);
         String strong = ChatConfig.subAgentScriptInstructions(guides, skills, false);

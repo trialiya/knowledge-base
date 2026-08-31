@@ -63,7 +63,8 @@ class RunOptionsResolverTest {
                 new ProjectProperties(
                         List.of(
                                 new ProjectOption(
-                                        "kb", "KB", "/srv/kb", false, false, null, null, true))),
+                                        "kb", "KB", "/srv/kb", false, false, null, null, null,
+                                        true))),
                 new GitProperties(null));
     }
 
