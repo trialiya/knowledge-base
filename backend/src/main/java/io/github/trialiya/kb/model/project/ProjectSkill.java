@@ -4,8 +4,9 @@ import java.nio.file.Path;
 
 /**
  * One skill a project defines — {@code kb.projects[].skills[]} as resolved by {@code
- * ProjectCatalog}: the file path is absolute and proven to sit inside the project tree, so nothing
- * downstream re-derives or re-checks either.
+ * ProjectCatalog}: the file path is absolute and normalized against the project tree, so nothing
+ * downstream re-derives it. That check is textual, and a symlink in the working tree is not: where
+ * the path really lands is re-checked at each read ({@code SkillService}).
  *
  * <p>Only the description lives here; the text does not. It is read from the working tree at each
  * {@code readSkill} call ({@code SkillService}), so it moves with the repository — a pull or a
@@ -16,6 +17,7 @@ import java.nio.file.Path;
  *     built-in skill's name ({@code SkillService} refuses to start otherwise)
  * @param trigger when to load it — the catalogue line after the name, shown in the {@code
  *     <active-project>} block while this project is active
- * @param file absolute, normalized path of the markdown inside the project tree
+ * @param file absolute, normalized path of the markdown; textually inside the project tree, with
+ *     the filesystem asked whether it really is at each read
  */
 public record ProjectSkill(String name, String trigger, Path file) {}

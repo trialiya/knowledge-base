@@ -254,6 +254,49 @@ class SkillServiceTest {
                 .hasMessageContaining("branch");
     }
 
+    /**
+     * Символьная ссылка мимо дерева проекта: проверка {@code ProjectCatalog} — текстовая, и
+     * закоммитить такую ссылку можно уже после старта, так что чтение обязано спросить у файловой
+     * системы, куда путь ведёт на самом деле.
+     */
+    @Test
+    void aSkillFileLeavingTheTreeThroughASymlinkIsRefused(@TempDir Path outside)
+            throws IOException {
+        Path secret = outside.resolve("passwd");
+        Files.writeString(secret, "root:x:0:0");
+        Path link = tree.resolve("release.md");
+        Files.createSymbolicLink(link, secret);
+        SkillService service =
+                serviceWithProjectSkill("kb", new ProjectSkill("release", "when releasing", link));
+
+        assertThatThrownBy(() -> service.read("release", "kb"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("symlink")
+                .hasMessageNotContaining("root:x:0:0");
+    }
+
+    /** Не файл, не UTF-8, нет прав — беда рабочего дерева, а не 500: прогон продолжается. */
+    @Test
+    void anUnreadableSkillFileIsAToolAnswer() throws IOException {
+        Path directory = Files.createDirectory(tree.resolve("release.md"));
+        SkillService service =
+                serviceWithProjectSkill(
+                        "kb", new ProjectSkill("release", "when releasing", directory));
+
+        assertThatThrownBy(() -> service.read("release", "kb"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cannot be read");
+
+        Path binary = tree.resolve("binary.md");
+        Files.write(binary, new byte[] {(byte) 0xff, (byte) 0xfe, 0x00});
+        SkillService withBinary =
+                serviceWithProjectSkill("kb", new ProjectSkill("binary", "never", binary));
+
+        assertThatThrownBy(() -> withBinary.read("binary", "kb"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cannot be read");
+    }
+
     /** Файл сверх лимита в контекст не вываливается — отказ называет и размер, и предел. */
     @Test
     void anOversizedSkillFileIsRefused() throws IOException {

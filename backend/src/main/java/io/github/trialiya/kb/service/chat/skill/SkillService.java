@@ -15,6 +15,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -87,6 +89,8 @@ public class SkillService {
      */
     static final long MAX_PROJECT_SKILL_BYTES = 64 * 1024;
 
+    private static final Logger log = LoggerFactory.getLogger(SkillService.class);
+
     private final List<Skill> skills;
     private final ScriptEditPolicy editPolicy;
     private final ProjectCatalog projects;
@@ -148,6 +152,10 @@ public class SkillService {
      *
      * <p>Сами проектные навыки здесь не перечисляются никогда — их список менялся бы со сменой
      * проекта, а вместе с ним и системный промпт, то есть кэш всего контекста (см. javadoc класса).
+     * По той же причине и порог «показывать ли раздел» — {@link #anySkills()}, свойство
+     * развёртывания, а не активного проекта: иначе раздел появлялся бы и исчезал со сменой проекта.
+     * Поэтому отсылка говорит «может объявлять», а не «объявляет»: проект без навыков не
+     * перечисляет ничего, и это законное состояние раздела, а не пропавший список.
      *
      * @param projectId проект прогона; {@code null} — проект по умолчанию
      */
@@ -173,10 +181,11 @@ public class SkillService {
             text.append(
                     """
                     \n
-                    The active repository may define skills of its own: they are listed in the \
-                    `<active-project>` block next to the current question, and they load only \
-                    while that repository stays the active project — after a project switch they \
-                    are no longer available.""");
+                    The active repository may define skills of its own: if it does, they are \
+                    listed in the `<active-project>` block next to the current question, and \
+                    nothing beyond that list is loadable. They load only while that repository \
+                    stays the active project — after a project switch they are no longer \
+                    available.""");
         }
         text.append(
                 """
@@ -241,7 +250,7 @@ public class SkillService {
                                                         + name
                                                         + "'. "
                                                         + availableList(projectId)));
-        return new SkillContent(name, readProjectFile(projectSkill));
+        return new SkillContent(name, readProjectFile(activeProject(projectId), projectSkill));
     }
 
     /**
@@ -265,13 +274,18 @@ public class SkillService {
 
     /**
      * Чтение с диска в момент вызова — намеренно: файл живёт в рабочем дереве, и pull или смена
-     * ветки обновляют навык без рестарта. Обратная сторона той же монеты — файла может не быть
-     * (ветка без него — легальное состояние дерева, см. {@code ProjectCatalog}), и это ответ
-     * инструмента модели, а не ошибка сервера.
+     * ветки обновляют навык без рестарта. Обратная сторона той же монеты — дерево между стартом и
+     * вызовом меняется, поэтому здесь же, а не только при разборе конфигурации, проверяется, что
+     * путь никуда из дерева не ведёт.
+     *
+     * <p>Любая беда рабочего дерева — ответ инструмента модели, а не ошибка сервера: ветки без
+     * файла, каталог вместо файла, не-UTF-8 или нечитаемый файл одинаково означают, что навык
+     * сейчас не загрузить, и прогон обязан продолжиться без него.
      */
-    private static String readProjectFile(ProjectSkill skill) {
+    private static String readProjectFile(Project project, ProjectSkill skill) {
         Path file = skill.file();
         try {
+            requireInsideTree(project, skill);
             long size = Files.size(file);
             if (size > MAX_PROJECT_SKILL_BYTES) {
                 throw new IllegalArgumentException(
@@ -291,7 +305,34 @@ public class SkillService {
                             + "' has no file in the working tree right now — the current branch"
                             + " does not carry it");
         } catch (IOException e) {
-            throw new UncheckedIOException("Не удалось прочитать навык: " + file, e);
+            log.warn("Навык {}: файл {} не читается", skill.name(), file, e);
+            throw new IllegalArgumentException(
+                    "Skill '"
+                            + skill.name()
+                            + "' cannot be read from the working tree right now — its file is not"
+                            + " readable UTF-8 text; tell the user to check the"
+                            + " kb.projects[].skills entry");
+        }
+    }
+
+    /**
+     * Символьная ссылка мимо проверки {@code ProjectCatalog}: та сверяет строки и о ссылках не
+     * знает, а закоммитить в дерево ссылку на {@code /etc/passwd} — или подложить ссылкой любой
+     * каталог по пути — можно и после старта. Настоящий путь спрашивается у файловой системы тем же
+     * приёмом, каким это делает {@code RepoPaths#confine} для всех остальных чтений репозитория:
+     * корень тоже разрешается, потому что само дерево законно живёт за симлинком ({@code /tmp} →
+     * {@code /private/tmp}).
+     *
+     * @throws NoSuchFileException файла нет — отвечает вызывающий, это легальное состояние ветки
+     */
+    private static void requireInsideTree(Project project, ProjectSkill skill) throws IOException {
+        Path real = skill.file().toRealPath();
+        if (!real.startsWith(project.path().toRealPath())) {
+            throw new IllegalArgumentException(
+                    "Skill '"
+                            + skill.name()
+                            + "' is not loadable: its file leaves the project tree through a"
+                            + " symlink");
         }
     }
 

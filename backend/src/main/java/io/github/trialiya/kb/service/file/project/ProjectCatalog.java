@@ -291,6 +291,8 @@ public class ProjectCatalog {
             if (!StringUtils.hasText(option.file())) {
                 throw new IllegalStateException(where + "[" + name + "].file is empty");
             }
+            // Textual containment only — a symlink committed into the tree passes it, so where
+            // the path really lands is checked again at each read (SkillService).
             Path file = root.resolve(option.file()).normalize();
             if (!file.startsWith(root) || file.equals(root)) {
                 throw new IllegalStateException(
