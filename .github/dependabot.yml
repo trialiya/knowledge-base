@@ -9,6 +9,15 @@ updates:
     labels:
       - "dependencies"
       - "backend"
+    # Мажорную версию Spring Boot поднимаем руками: она переписывает управляемые
+    # версии всего стека (Framework, Security, Data, Jackson) и обычно требует
+    # правок кода, так что автоматический PR тут только шумел бы. Запрет живёт
+    # здесь, а не в команде `@dependabot ignore this major version`: условие,
+    # поставленное командой, хранится в невидимом состоянии джобы и заодно
+    # глушит патчи внутри текущего мажора.
+    ignore:
+      - dependency-name: "org.springframework.boot"
+        update-types: ["version-update:semver-major"]
     groups:
       spring:
         patterns:
