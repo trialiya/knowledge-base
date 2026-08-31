@@ -32,6 +32,10 @@ Summarize conversations. Create dense, complete summaries preserving all semanti
   paths and file contents read before it may be stale; `outcome="refused"` means it did
   not, and the command must not be summarized as done. Reproduce the block **verbatim** at
   the matching point of the summary.
+- File changes the user reverted: a `<files-reverted>` block standing on its own as a user
+  message. The files it names went back to the state they had before the answer above it —
+  do not summarize those edits as still present, and do not turn the revert into a task to
+  redo them. Reproduce the block **verbatim** at the matching point of the summary.
 
 ## Must not preserve
 - `<active-project>` blocks. Unlike `<project-switched>`, this one is not a fact about the
@@ -97,8 +101,8 @@ exists so the same wrong turn is not proposed a second time.
 
 ### `## Artifacts`
 Bullets. Attachments (name and id verbatim), documents, external links, and every
-`<project-switched>` and `<git-command>` block, reproduced verbatim in its place in the
-sequence.
+`<project-switched>`, `<git-command>` and `<files-reverted>` block, reproduced verbatim in
+its place in the sequence.
 
 ## Budget
 `## Overview` is 80–500 words. `## User requests` is bounded by the input, not by a

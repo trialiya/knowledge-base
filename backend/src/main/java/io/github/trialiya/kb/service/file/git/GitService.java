@@ -15,6 +15,7 @@ import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
 import io.github.trialiya.kb.model.git.dto.OutlineResult;
+import io.github.trialiya.kb.model.git.dto.TextEdit;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.file.outline.LanguageDetector;
 import io.github.trialiya.kb.service.file.outline.OutlineService;
@@ -1193,6 +1194,27 @@ public class GitService {
      */
     public GitEditResult replaceTrackedBytes(@NonNull String filePath, byte @NonNull [] content) {
         return writer.replaceTrackedBytes(filePath, content);
+    }
+
+    /**
+     * @see GitWriter#previewEdited
+     */
+    public String previewEdited(@NonNull String filePath, @NonNull List<TextEdit> edits) {
+        return writer.previewEdited(filePath, edits);
+    }
+
+    /**
+     * @see GitWriter#requireDeletable
+     */
+    public void requireDeletable(@NonNull String filePath, @NonNull String expectedContent) {
+        writer.requireDeletable(filePath, expectedContent);
+    }
+
+    /**
+     * @see GitWriter#deleteFile
+     */
+    public void deleteFile(@NonNull String filePath, @NonNull String expectedContent) {
+        writer.deleteFile(filePath, expectedContent);
     }
 
     /**

@@ -193,14 +193,14 @@ public class ChatController {
                 includeMessages
                         ? chatHistory.displayMessages(conversationId).stream()
                                 // Пустой текст обычно значит «служебный ряд, показывать нечего», но
-                                // у ряда git-команды весь смысл в мете: выбросив его здесь, эта
+                                // у ряда события весь смысл в мете: выбросив его здесь, эта
                                 // проекция рассказывала бы историю без pull'а, который посреди
-                                // разговора сдвинул ветку, — а GET /messages с ним.
+                                // разговора сдвинул ветку, и без отката правок — а GET /messages
+                                // с ними.
                                 .filter(
                                         a ->
                                                 (a.getText() != null && !a.getText().isBlank())
-                                                        || (a.getMeta() != null
-                                                                && a.getMeta().gitEvent() != null))
+                                                        || isEventRow(a))
                                 .map(a -> toChatMessage(a, a.getInvocations()))
                                 .toList()
                         : null;
@@ -621,8 +621,18 @@ public class ChatController {
                 meta != null ? meta.model() : null,
                 meta != null ? meta.compact() : null,
                 meta != null ? meta.gitEvent() : null,
+                meta != null ? meta.fileRevert() : null,
                 meta != null && meta.interjection() ? Boolean.TRUE : null,
                 meta != null ? meta.usage() : null);
+    }
+
+    /**
+     * Ряд, оставленный действием пользователя (git-команда, откат файловых правок): текста у него
+     * нет, и показать его можно только по мете.
+     */
+    private static boolean isEventRow(ChatMessageEntity entity) {
+        return entity.getMeta() != null
+                && (entity.getMeta().gitEvent() != null || entity.getMeta().fileRevert() != null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

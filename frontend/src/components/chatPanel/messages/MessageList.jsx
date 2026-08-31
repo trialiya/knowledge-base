@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import Message from './Message';
 import CompactNotice from './CompactNotice';
 import GitOutputCard from '../git/GitOutputCard';
+import FileRevertNotice from './FileRevertNotice';
 import DocChangeBlock from './DocChangeBlock';
 import FileChangeBlock from './FileChangeBlock';
 import { IconArrowDown } from '@/icons/index';
@@ -74,6 +75,9 @@ const MessageList = ({
   canLoadMore = true,
   activeSearchMid = null,
   searchQuery = '',
+  // Идёт ли сейчас прогон: пока модель работает, откатывать её же правки нельзя (сервер
+  // откажет так же — см. ChatGitLog.claimIdleAndOwned).
+  isStreaming = false,
 }) => {
   const { t } = useTranslation('chat');
   const containerRef = useRef(null);
@@ -240,6 +244,20 @@ const MessageList = ({
     };
   }, [searchQuery, activeSearchMid, messages]);
 
+  // Откатывается только последний ответ чата: поверх более раннего обычно уже лежат другие
+  // правки, и «вернуть как было» перестаёт быть однозначным (то же правило на сервере —
+  // ChatFileRevert). Плашки действий пользователя после ответа этому не мешают — они ответа не
+  // сдвигают, — а вот уже сделанный откат кнопку убирает. Одним проходом с конца, а не срезом на
+  // каждое сообщение: лента длинная, а ответ такой ровно один.
+  const revertableAnswerIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].fileRevert) return -1;
+      if (messages[i].gitEvent) continue;
+      return messages[i].sender === SENDER.AI ? i : -1;
+    }
+    return -1;
+  }, [messages]);
+
   return (
     <div className="message-list-container">
       {loadingMore && <div className="message-list-loading-older">{t('window.loadingMessages')}</div>}
@@ -257,6 +275,7 @@ const MessageList = ({
               if (messages[j].toolCalls?.length) groupToolCalls = [...messages[j].toolCalls, ...groupToolCalls];
             }
           }
+          const isLastAnswer = groupEnd && index === revertableAnswerIndex;
           // Подпись проекта для плашки: id, выбывший из конфигурации, показывается как есть.
           const projectLabel = (id) => projectOptions.find((o) => o.id === id)?.label || id;
           return (
@@ -276,7 +295,10 @@ const MessageList = ({
                   })}
                 </div>
               )}
-              {msg.gitEvent ? (
+              {msg.fileRevert ? (
+                // Откат правок ответа — тоже ход человека, и тоже плашкой, а не пузырём.
+                <FileRevertNotice revert={msg.fileRevert} />
+              ) : msg.gitEvent ? (
                 // Команду выполнил человек, но написал не он: карточка вывода
                 // вместо пузыря — ряд несёт только то, что ответил git.
                 <GitOutputCard event={msg.gitEvent} />
@@ -317,7 +339,12 @@ const MessageList = ({
               {groupEnd && groupToolCalls.length > 0 && (
                 <>
                   <DocChangeBlock toolCalls={groupToolCalls} onNavigateToDoc={onNavigateToDoc} />
-                  <FileChangeBlock toolCalls={groupToolCalls} project={project} />
+                  <FileChangeBlock
+                    toolCalls={groupToolCalls}
+                    project={project}
+                    conversationId={conversationId}
+                    canRevert={isLastAnswer && !isStreaming}
+                  />
                 </>
               )}
             </Fragment>

@@ -244,6 +244,26 @@ describe('transformPage — ряд git-команды', () => {
   });
 });
 
+describe('transformPage — ряд отката правок', () => {
+  const fileRevert = { project: 'kb', paths: ['src/App.java'] };
+
+  /**
+   * Тот же путь, что у ряда git-команды: пустой USER, весь смысл которого в мете, обязан стать
+   * плашкой — иначе после перезагрузки на месте отката висел бы пустой пузырь.
+   */
+  test('turns the empty USER row into a revert card bubble', () => {
+    const { bubbles } = transformPage([
+      { id: 1, content: 'вопрос', type: 'USER' },
+      { id: 2, content: 'ответ', type: 'ASSISTANT' },
+      { id: 3, content: '', type: 'USER', fileRevert, timestamp: '2026-08-31T12:00:00' },
+    ]);
+
+    expect(bubbles).toHaveLength(3);
+    expect(bubbles[2]).toMatchObject({ dbId: 3, sender: 'user', fileRevert });
+    expect(bubbles[2].text).toBeUndefined();
+  });
+});
+
 describe('trimActiveRunTail', () => {
   const u = (text) => ({ mid: 1, sender: 'user', text });
   const a = (text) => ({ mid: 2, sender: 'ai', text });

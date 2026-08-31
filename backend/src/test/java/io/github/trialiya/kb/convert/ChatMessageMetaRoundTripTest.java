@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
+import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
@@ -68,7 +69,8 @@ class ChatMessageMetaRoundTripTest {
                         List.of(
                                 new ProjectSpan("kb", 1, 34),
                                 new ProjectSpan("billing", 35, 92),
-                                new ProjectSpan("kb", 93, 140)));
+                                new ProjectSpan("kb", 93, 140)),
+                        new FileRevertMeta("billing", List.of("src/App.java", "src/New.java")));
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(meta);
         final ChatMessageMeta read =

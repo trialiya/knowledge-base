@@ -183,6 +183,34 @@ const chatApi = {
       console.error('stopRun error:', e),
     ),
 
+  /**
+   * Откатить файловые правки последнего ответа: файлы возвращаются к состоянию до него, а в
+   * истории остаётся ряд об этом. Репозиторий не передаётся: его называет история самого чата —
+   * селектор проекта могли переключить уже после ответа — { id, createdAt, event: { project, paths } }, из которого
+   * лента рисует плашку, а модель узнаёт об откате на следующем ходу.
+   *
+   * Отказ приезжает текстом (как у git-команд): «файл изменился после ответа», «правки скрипта
+   * так не откатываются» — это и есть ответ пользователю, поэтому тело разбирается, а не
+   * сводится к коду состояния.
+   */
+  revertFiles: async (id) => {
+    const res = await requestRaw(`/api/chats/${enc(id)}/revert-files`, { method: 'POST' });
+    const text = await res.text();
+    let body = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = null;
+      }
+    }
+    if (res.ok) return body;
+    const err = new Error(body?.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.reason = body?.message ?? null;
+    throw err;
+  },
+
   /** runId активного прогона чата (или {}). Для восстановления состояния. */
   getActiveRun: (id) => request(`/api/chats/${enc(id)}/runs/active`),
 };

@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.chat.dto.MessageCursor;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
@@ -243,6 +244,70 @@ public class ChatHistoryService {
     }
 
     /**
+     * Записывает откат файловых правок ответа отдельным рядом истории — тем же приёмом и по тем же
+     * причинам, что и {@link #appendGitEvent}: действие происходит между сообщениями, показать его
+     * надо сразу, а текст для модели собирается на чтении ({@link PromptNotices#fileRevertNotice}).
+     *
+     * <p>Хвост чинится перед записью по той же причине: {@link #repairDanglingToolCalls} смотрит
+     * только на последний ряд, и {@code USER}, вставший поверх незакрытой пары, спрятал бы её
+     * навсегда. Здесь это не теория — откат как раз и делают сразу после ответа, в том числе
+     * остановленного посреди работы инструментов.
+     */
+    @Transactional
+    public ChatMessageEntity appendFileRevert(String conversationId, FileRevertMeta revert) {
+        repairDanglingToolCalls(conversationId);
+        return chatMessageRepository.save(
+                new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        "",
+                        MessageType.USER,
+                        lastPosition(conversationId) + 1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofFileRevert(revert)));
+    }
+
+    /**
+     * Репозиторий, на котором чат работал последним, — по штампам живой истории: маркеру смены
+     * проекта или базовому штампу первого сообщения (см. {@link ChatMessageMeta}). {@code null} —
+     * штампов нет вовсе, то есть чат начат версией без них.
+     *
+     * <p>Нужен откату файловых правок: селектор проекта в интерфейсе можно переключить сразу после
+     * ответа, и «репозиторий, выбранный сейчас» — не тот, в котором ответ правил файлы. Штампы
+     * стоят на вопросах, а после последнего ответа вопросов уже нет, поэтому поиск с конца находит
+     * именно тот проект, в котором ответ и работал.
+     */
+    public @Nullable String lastStampedProject(String conversationId) {
+        final List<ChatMessageEntity> rows =
+                chatMessageRepository
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                conversationId);
+        for (ChatMessageEntity row : rows.reversed()) {
+            if (row.getMeta() != null && row.getMeta().project() != null) {
+                return row.getMeta().project();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Ряды последнего ответа чата — хвост живого окна после последнего вопроса (см. {@link
+     * #tailAfterLastUser}). Нужен откату файловых правок: что именно откатывать, он вычитывает из
+     * {@code tool_data} этих рядов.
+     *
+     * <p>Живое окно, а не вся история: откатывают только что увиденное, а сжатая часть — это уже
+     * другой разговор, у неё и {@code tool_data} может не быть.
+     */
+    public List<ChatMessageEntity> lastAnswerRows(String conversationId) {
+        return tailAfterLastUser(
+                chatMessageRepository
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                conversationId));
+    }
+
+    /**
      * Записывает доставленное из очереди сообщение (см. {@code PendingMessageService}) — вопрос,
      * отправленный во время активного прогона и доехавший до истории в безопасном «окне».
      *
@@ -441,7 +506,8 @@ public class ChatHistoryService {
      * ищет «последний вопрос», обязано смотреть сквозь два исключения:
      *
      * <ul>
-     *   <li>ряд git-команды ничего не спрашивает и ответа не ждёт;
+     *   <li>ряд события — git-команды или отката файловых правок — ничего не спрашивает и ответа не
+     *       ждёт;
      *   <li>вопрос, доставленный посреди прогона ({@code meta.interjection}), задан внутри уже
      *       идущего хода — ход открыл вопрос выше него.
      * </ul>
@@ -453,12 +519,17 @@ public class ChatHistoryService {
      */
     static boolean opensATurn(ChatMessageEntity row) {
         return row.getType() == MessageType.USER
-                && (row.getMeta() == null
-                        || (row.getMeta().gitEvent() == null && !row.getMeta().interjection()));
+                && (row.getMeta() == null || (!isEventRow(row) && !row.getMeta().interjection()));
     }
 
-    private static boolean isGitEvent(ChatMessageEntity row) {
-        return row.getMeta() != null && row.getMeta().gitEvent() != null;
+    /**
+     * Ряд, который оставило в истории действие пользователя, а не его реплика: git-команда или
+     * откат файловых правок ответа. Текста у такого ряда нет — его собирает {@link PromptNotices}
+     * при чтении, — и ходом разговора он не является.
+     */
+    static boolean isEventRow(ChatMessageEntity row) {
+        return row.getMeta() != null
+                && (row.getMeta().gitEvent() != null || row.getMeta().fileRevert() != null);
     }
 
     public void delete(String conversationId) {
@@ -619,9 +690,9 @@ public class ChatHistoryService {
      * бы новую копию текста на каждую.
      *
      * <p>Вопрос, которым чат сменил проект, дополнительно получает предупреждение ПЕРЕД текстом
-     * (см. {@link #projectSwitchNotice}): всё выше в истории читано в прежнем репозитории, и без
-     * этой строки модель сочтёт те пути и содержимое актуальными. Как и опись, предупреждение
-     * собирается при чтении и в БД не попадает.
+     * (см. {@link PromptNotices}): всё выше в истории читано в прежнем репозитории, и без этой
+     * строки модель сочтёт те пути и содержимое актуальными. Как и опись, предупреждение собирается
+     * при чтении и в БД не попадает.
      *
      * @param activeProject блок активного проекта ({@link ActiveProjectNotice}) — только у ряда, на
      *     который он назначен, у остальных пустая строка. Идёт последним, ПОСЛЕ описи: это
@@ -632,15 +703,17 @@ public class ChatHistoryService {
         if (entity.getType() != MessageType.USER) {
             return new PromptRow(entity, entity.getContent());
         }
-        final String gitCommand = gitCommandNotice(entity.getMeta());
-        if (!gitCommand.isEmpty()) {
-            // Ряд команды несёт только её: описи у него нет (пользователь ничего не прикладывал),
-            // маркера смены проекта — тем более, чат этим рядом никуда не переходит, и блока
-            // активного проекта — ход командой не открывается (см. ActiveProjectNotice#anchor).
-            return new PromptRow(entity, gitCommand);
+        final String eventNotice = PromptNotices.eventNotice(entity.getMeta());
+        if (!eventNotice.isEmpty()) {
+            // Ряд события (git-команда, откат правок) несёт только нотис: описи у него нет
+            // (пользователь ничего не прикладывал), маркера смены проекта — тем более, чат таким
+            // рядом никуда не переходит, и блока активного проекта — ход событием не открывается
+            // (см. ActiveProjectNotice#anchor).
+            return new PromptRow(entity, eventNotice);
         }
         final String notice =
-                projectSwitchNotice(entity.getMeta()) + interjectionNotice(entity.getMeta());
+                PromptNotices.projectSwitchNotice(entity.getMeta())
+                        + PromptNotices.interjectionNotice(entity.getMeta());
         if (notice.isEmpty() && inventory == null && activeProject.isEmpty()) {
             return new PromptRow(entity, entity.getContent());
         }
@@ -650,96 +723,6 @@ public class ChatHistoryService {
                         + entity.getContent()
                         + (inventory == null ? "" : inventory)
                         + (activeProject.isEmpty() ? "" : "\n\n" + activeProject));
-    }
-
-    /**
-     * Текст маркера смены проекта для модели. Требование «сохраняй дословно» адресовано
-     * summarizer'у: его вход строится из этих же {@code PromptRow}, и потерянный при сжатии маркер
-     * снова сделал бы раннюю историю «актуальной» (правило продублировано в {@code summarizer.md}).
-     */
-    private static String projectSwitchNotice(@Nullable ChatMessageMeta meta) {
-        if (meta == null || meta.projectSwitchFrom() == null) {
-            return "";
-        }
-        return "<project-switched from=\""
-                + meta.projectSwitchFrom()
-                + "\" to=\""
-                + meta.project()
-                + "\">\n"
-                + "The user switched this chat to another project at this message. Everything"
-                + " earlier in the conversation — file paths, file contents, grep and script"
-                + " results — belongs to project \""
-                + meta.projectSwitchFrom()
-                + "\"; do not assume any of it exists or looks the same in \""
-                + meta.project()
-                + "\". Re-read whatever you need with the tools. When summarizing, preserve this"
-                + " notice verbatim.\n"
-                + "</project-switched>\n\n";
-    }
-
-    /**
-     * Текст нотиса вопроса, доставленного посреди прогона. В отличие от маркера смены проекта, у
-     * summarizer'а здесь ПРОТИВОПОЛОЖНАЯ инструкция — свернуть как обычную реплику, а тег не
-     * сохранять: после завершения хода сообщение ничем не отличается от прочих просьб пользователя,
-     * и дословная обёртка только копила бы служебный текст в каждой сводке. Формулировка нейтральна
-     * к моменту чтения — тот же текст верен и внутри живой итерации, и в любом последующем прогоне.
-     */
-    private static String interjectionNotice(@Nullable ChatMessageMeta meta) {
-        if (meta == null || !meta.interjection()) {
-            return "";
-        }
-        return "<user-interjection>\n"
-                + "The user sent this message while you were still working on the previous"
-                + " request — they were reacting to your progress, not to a finished answer. Take"
-                + " it into account before continuing: it may redirect, narrow, or add to the"
-                + " task. When summarizing, fold its content into the user's requests as an"
-                + " ordinary message; this tag itself need not be preserved.\n"
-                + "</user-interjection>\n\n";
-    }
-
-    /**
-     * Текст ряда git-команды для модели. Вывод самого git сюда не идёт: модели нужно знать, что
-     * репозиторий сдвинулся и куда, а не читать «Fast-forward» построчно — вывод для человека и
-     * лежит там, где человек его открывает.
-     *
-     * <p>Отказ рассказывается наравне с успехом, и он важнее: после отклонённого push ветка
-     * осталась там же, где была, и модель, решившая иначе, будет строить работу на несуществующем
-     * состоянии. Требование «сохраняй дословно», как и у маркера смены проекта, адресовано
-     * summarizer'у (правило продублировано в {@code prompt/summarizer.md}).
-     */
-    public static String gitCommandNotice(@Nullable ChatMessageMeta meta) {
-        if (meta == null || meta.gitEvent() == null) {
-            return "";
-        }
-        final GitEventMeta event = meta.gitEvent();
-        return "<git-command command=\""
-                + attr(event.command())
-                + "\" outcome=\""
-                + (event.ok() ? "ok" : "refused")
-                + "\""
-                + (event.project() == null ? "" : " project=\"" + attr(event.project()) + "\"")
-                + (event.branch() == null ? "" : " branch=\"" + attr(event.branch()) + "\"")
-                + ">\n"
-                + "The user ran this git command on the project from this chat — not you, and not"
-                + " through any tool of yours. "
-                + (event.ok()
-                        ? "It succeeded: the working tree may differ from what you read earlier, so"
-                                + " re-read with the tools anything you are about to rely on."
-                        : "It was refused, so the repository is where it was before — do not treat"
-                                + " the command as done.")
-                + " When summarizing, preserve this notice verbatim.\n"
-                + "</git-command>\n";
-    }
-
-    /**
-     * Значение атрибута нотиса. Имена веток и пути — единственное место, где текст извне попадает в
-     * разметку, которую читает модель, а git запрещает в них далеко не всё: ни кавычка, ни угловые
-     * скобки под запрет не попадают. Кавычкой закрывают атрибут, угловой скобкой — сам тег, и
-     * ветка, названная {@code main>...</git-command}, дописала бы модели произвольный текст поверх
-     * нотиса. Вывод команды такой поверхностью не является: он модели не показывается вовсе.
-     */
-    private static String attr(String value) {
-        return value.replace("\"", "'").replace("<", "‹").replace(">", "›");
     }
 
     /**
@@ -769,7 +752,7 @@ public class ChatHistoryService {
         for (ChatMessageEntity row :
                 chatMessageRepository.findTop20ByConversationIdOrderByPositionDesc(
                         conversationId)) {
-            if (isGitEvent(row)) {
+            if (isEventRow(row)) {
                 continue;
             }
             return row.getType() == MessageType.USER ? Optional.of(row) : Optional.empty();
