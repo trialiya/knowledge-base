@@ -15,8 +15,8 @@ never in big-bang rewrites.
 - Every section — chat, knowledge base, files, **and** Settings/Admin — renders
   through the shared `<WorkspaceLayout>` (`components/common/layout/`). It owns the
   section container, the collapsible left panel (title · action · toolbar ·
-  body), the center area and the right panel: a drawer collapsed by default that
-  shows as an icon rail, with `<RightPanel>` rendering the expanded form.
+  body), the center area and the right panel: an icon rail that is always
+  visible and switches tabs, with `<RightPanel>` rendering the one open tab.
   Sections supply slot content only — never rebuild the split, and never
   reintroduce per-section container classes.
 - Panel metrics are CSS variables on `.workspace` (`--ws-right-width` and the row
@@ -51,7 +51,10 @@ never in big-bang rewrites.
   content and observing it loops), never by counting crumbs. Don't write a third
   breadcrumb.
 - The right panel holds everything *about* the thing; the center is the thing
-  itself. Every section opens with an **Info** tab, first and always, rendered
+  itself. Its tabs are switched from the rail only — the rail is the vertical
+  `tablist`, the open panel's body its `tabpanel`, and a click on the active
+  icon collapses the panel. The expanded panel shows one tab and names it in its
+  head; never put a tab strip back in there. Every section opens with an **Info** tab, first and always, rendered
   through the shared `<InfoList>` — sections pass `[{ label, value, mono, block }]`
   rows and it drops the empty ones. Don't hand-roll another `dl`. Info carries
   dates, AI topic and model in chat; type, dates and versions in the knowledge

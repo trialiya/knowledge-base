@@ -35,9 +35,6 @@
   overflow: hidden;
   position: relative; /* якорь для оверлейных панелей на узком экране */
   background: var(--kb-white);
-  border-radius: var(--kb-radius);
-  box-shadow: 0 4px 24px rgba(91, 79, 207, 0.1);
-  margin: 1rem;
   font-family: var(--kb-font-system);
   color: var(--kb-text);
   min-width: 0;
@@ -196,6 +193,13 @@
   height: 32px;
 }
 
+/* Иконка раскрытой вкладки. Рельс — единственный переключатель вкладок правой
+   панели, поэтому по нему должно читаться, что именно открыто. */
+.workspace__rail-btn--active {
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
+}
+
 /* Счётчик на иконке свёрнутой вкладки (например, число вложений) */
 .workspace__rail-badge {
   position: absolute;
@@ -225,38 +229,8 @@
 
 /* ── Вкладки правой панели ── */
 
-.workspace__tabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.workspace__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  padding: 5px 9px;
-  border: none;
-  border-radius: 8px;
-  background: none;
-  color: var(--kb-muted);
-  font-size: 0.76rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
-}
-.workspace__tab:hover {
-  background: var(--kb-accent-light);
-  color: var(--kb-accent);
-}
-.workspace__tab--active {
-  background: var(--kb-accent-bg);
-  color: var(--kb-accent);
-}
+/* Списка вкладок в шапке нет: переключает их рельс, а раскрытая панель показывает
+   одну вкладку. Бейдж и точка ниже — у её заголовка и у кнопок рельса. */
 
 .workspace__tab-badge {
   background: var(--kb-accent);
@@ -434,15 +408,13 @@
   color: var(--kb-border);
 }
 
-/* Горизонтальный скролл без видимой полосы — вкладки правой панели и крошки в
-   шапке центра. Обе строки высотой ровно в строку: системная полоса съела бы её
-   низ и появлялась/исчезала бы вместе с переполнением, дёргая содержимое. */
-.workspace__tabs,
+/* Горизонтальный скролл без видимой полосы — крошки в шапке центра. Строка
+   высотой ровно в строку: системная полоса съела бы её низ и появлялась бы
+   вместе с переполнением, дёргая содержимое. */
 .workspace__head-crumbs {
   overflow-x: auto;
   scrollbar-width: none;
 }
-.workspace__tabs::-webkit-scrollbar,
 .workspace__head-crumbs::-webkit-scrollbar {
   display: none;
 }
@@ -456,13 +428,14 @@
   .workspace__side--right {
     position: absolute;
     top: 0;
-    right: 0;
+    /* Рельс всегда в потоке и всегда у края окна — панель всплывает рядом с ним,
+       а не поверх: иначе оверлей накрыл бы единственный переключатель вкладок. */
+    right: var(--ws-rail-width);
     bottom: 0;
     z-index: 20;
     width: min(var(--ws-right-width), 85%);
     box-shadow: -8px 0 24px rgba(45, 43, 85, 0.16);
   }
-  /* Рельс остаётся в потоке — иначе центр «прыгал» бы при каждом раскрытии. */
 }
 
 @media (max-width: 820px) {
@@ -479,12 +452,5 @@
     z-index: 20;
     width: min(var(--ws-left-width), 85%);
     box-shadow: 8px 0 24px rgba(45, 43, 85, 0.16);
-  }
-}
-
-@media (max-width: 640px) {
-  .workspace {
-    margin: 0;
-    border-radius: 0;
   }
 }

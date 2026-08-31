@@ -9,7 +9,8 @@ import './sidePanel.css';
  * Единая оболочка рабочей области для всех разделов (чат, база знаний, файлы).
  *
  * Раскладка одна на всё приложение: скрываемая левая панель (список/дерево),
- * основная область и правая панель, свёрнутая по умолчанию. Раньше каждый
+ * основная область и правая панель — рельс иконок у края окна, раскрывающий
+ * одну вкладку. Раньше каждый
  * раздел рисовал собственный контейнер и собственный сплит — отсюда три набора
  * почти одинаковых классов и разное поведение; здесь это одна реализация.
  *
@@ -31,6 +32,8 @@ import './sidePanel.css';
  *   center — узел основной области
  *   right — [{ key, label, icon, badge, alert, content }] — вкладки правой панели.
  *           Пустой массив/undefined → правой панели и её рельса нет вовсе.
+ *           Рельс иконок виден всегда и переключает вкладки; раскрытая панель
+ *           показывает только текущую (её рисует RightPanel).
  *   leftCollapsed / onToggleLeft — состояние и тумблер левой панели
  *   rightTab / onRightTabChange  — раскрытая вкладка справа (null — свёрнута)
  *   className — модификатор корня для специфики раздела
@@ -119,37 +122,45 @@ const WorkspaceLayout = ({
 
       <section className="workspace__center">{center}</section>
 
-      {tabs.length > 0 &&
-        (activeTab ? (
-          <RightPanel
-            tabs={tabs}
-            activeKey={activeTab.key}
-            onTabChange={onRightTabChange}
-            onClose={() => onRightTabChange(null)}
-          />
-        ) : (
-          <div className="workspace__rail workspace__rail--right">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                className="icon-btn workspace__rail-btn"
-                onClick={() => onRightTabChange(tab.key)}
-                title={tab.label}
-                aria-label={tab.label}
-                aria-expanded={false}
-              >
-                {tab.icon}
-                {tab.badge > 0 && <span className="workspace__rail-badge">{tab.badge}</span>}
-                {tab.alert && (
-                  <span className="workspace__rail-dot">
-                    {typeof tab.alert === 'string' && <span className="workspace__a11y-only">{tab.alert}</span>}
-                  </span>
-                )}
-              </button>
-            ))}
+      {tabs.length > 0 && (
+        <>
+          {activeTab && <RightPanel tab={activeTab} onClose={() => onRightTabChange(null)} />}
+          {/* Рельс — единственный переключатель вкладок и потому виден всегда, а не
+              только в свёрнутом состоянии: у раскрытой панели списка вкладок нет.
+              Отсюда же и роли — это вертикальный tablist, а тело панели, которое
+              рисует RightPanel, его tabpanel. */}
+          <div className="workspace__rail workspace__rail--right" role="tablist" aria-orientation="vertical">
+            {tabs.map((tab) => {
+              const isActive = tab.key === activeTab?.key;
+              // По активной иконке панель сворачивается — второго способа закрыть
+              // её с рельса нет, а идти за крестиком в шапку ради этого странно.
+              const label = isActive ? t('panels.collapseRight') : tab.label;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  id={`ws-tab-${tab.key}`}
+                  aria-selected={isActive}
+                  aria-controls="ws-tabpanel"
+                  className={`icon-btn workspace__rail-btn${isActive ? ' workspace__rail-btn--active' : ''}`}
+                  onClick={() => onRightTabChange(isActive ? null : tab.key)}
+                  title={label}
+                  aria-label={label}
+                >
+                  {tab.icon}
+                  {tab.badge > 0 && <span className="workspace__rail-badge">{tab.badge}</span>}
+                  {tab.alert && (
+                    <span className="workspace__rail-dot">
+                      {typeof tab.alert === 'string' && <span className="workspace__a11y-only">{tab.alert}</span>}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
-        ))}
+        </>
+      )}
     </div>
   );
 };
