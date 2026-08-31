@@ -10,6 +10,11 @@ vi.mock('react-i18next', () => ({
 
 const baseLeft = { title: 'Дерево', children: <div>содержимое дерева</div> };
 
+const twoTabs = [
+  { key: 'summary', label: 'Описание', icon: <span>★</span>, content: <div>текст описания</div> },
+  { key: 'attachments', label: 'Вложения', icon: <span>📎</span>, content: <div>список вложений</div> },
+];
+
 // Ширина левой панели — общий стор на уровне модуля (см. useLeftPanelWidth):
 // без сброса тест, оставивший её не-дефолтной, ломает соседний, который
 // рассчитывает на чистое состояние.
@@ -54,21 +59,17 @@ describe('WorkspaceLayout', () => {
     expect(screen.queryByText('список вложений')).not.toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Вложения' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Вложения' }));
     expect(onRightTabChange).toHaveBeenCalledWith('attachments');
   });
 
   it('показывает содержимое активной вкладки и умеет её закрыть', async () => {
     const onRightTabChange = vi.fn();
-    const tabs = [
-      { key: 'summary', label: 'Описание', content: <div>текст описания</div> },
-      { key: 'attachments', label: 'Вложения', content: <div>список вложений</div> },
-    ];
     render(
       <WorkspaceLayout
         left={baseLeft}
         center={<div>центр</div>}
-        right={tabs}
+        right={twoTabs}
         rightTab="summary"
         onRightTabChange={onRightTabChange}
       />,
@@ -77,10 +78,41 @@ describe('WorkspaceLayout', () => {
     expect(screen.getByText('текст описания')).toBeInTheDocument();
     expect(screen.queryByText('список вложений')).not.toBeInTheDocument();
 
+    // Переключает вкладки рельс: списка вкладок в шапке раскрытой панели нет.
     await userEvent.click(screen.getByRole('tab', { name: 'Вложения' }));
     expect(onRightTabChange).toHaveBeenCalledWith('attachments');
 
-    await userEvent.click(screen.getByRole('button', { name: 'panels.collapseRight' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'panels.collapseRight' })[0]);
+    expect(onRightTabChange).toHaveBeenCalledWith(null);
+  });
+
+  it('рельс остаётся на месте при раскрытой вкладке — он и есть переключатель', () => {
+    const { container } = render(
+      <WorkspaceLayout left={baseLeft} center={<div>центр</div>} right={twoTabs} rightTab="summary" />,
+    );
+
+    expect(container.querySelector('.workspace__rail--right')).not.toBeNull();
+    expect(container.querySelector('.workspace__tabs')).toBeNull();
+    // Открытая вкладка помечена на рельсе, а её тело — tabpanel этой кнопки.
+    expect(screen.getByRole('tab', { selected: true })).toHaveAttribute('id', 'ws-tab-summary');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'ws-tab-summary');
+  });
+
+  it('клик по иконке раскрытой вкладки сворачивает панель', async () => {
+    const onRightTabChange = vi.fn();
+    render(
+      <WorkspaceLayout
+        left={baseLeft}
+        center={<div>центр</div>}
+        right={twoTabs}
+        rightTab="summary"
+        onRightTabChange={onRightTabChange}
+      />,
+    );
+
+    // Активная иконка подписана как «свернуть» — второго способа закрыть панель
+    // с рельса нет.
+    await userEvent.click(screen.getByRole('tab', { name: 'panels.collapseRight' }));
     expect(onRightTabChange).toHaveBeenCalledWith(null);
   });
 

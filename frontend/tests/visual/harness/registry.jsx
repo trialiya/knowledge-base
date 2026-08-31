@@ -108,7 +108,9 @@ const DetailTabs = ({ node, activeKey, folderChildren = [] }) => {
     onAttachmentCountChange: noop,
     folderChildren,
   });
-  return <RightPanel tabs={tabs} activeKey={activeKey} onTabChange={noop} onClose={noop} />;
+  // Вкладки переключает рельс WorkspaceLayout, стенд же рисует одну панель —
+  // поэтому кейс сразу выбирает вкладку, которую снимает.
+  return <RightPanel tab={tabs.find((tab) => tab.key === activeKey) || tabs[0]} onClose={noop} />;
 };
 
 /**

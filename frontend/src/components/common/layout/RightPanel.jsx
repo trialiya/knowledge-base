@@ -4,67 +4,37 @@ import { IconChevronRight } from '@/icons/index';
 /**
  * Правая панель рабочей области — раскрытое состояние.
  *
- * Рисует шапку с вкладками (или одним заголовком, если вкладка единственная),
- * кнопку сворачивания и тело активной вкладки. Свёрнутое состояние — это уже
- * не этот компонент, а «рельс» в WorkspaceLayout: там панель представлена
- * колонкой иконок, каждая из которых раскрывает свою вкладку.
+ * Показывает ровно одну вкладку: её заголовок с кнопкой сворачивания и её тело.
+ * Переключение вкладок живёт не здесь, а на рельсе иконок в WorkspaceLayout —
+ * он виден всегда и служит tablist'ом для этого тела.
  *
  * props:
- *   tabs      — [{ key, label, icon, badge, alert, content }] (content — узел)
- *               badge — число (сколько), alert — строка-причина или true:
- *               точка «требует внимания» там, где считать нечего. Строку
- *               озвучивает скринридер — без неё вкладка молчала бы ровно о
- *               том состоянии, ради которого точка и заведена
- *   activeKey — ключ раскрытой вкладки
- *   onTabChange — (key) => void
- *   onClose   — () => void
+ *   tab     — { key, label, icon, badge, alert, content } (content — узел)
+ *             badge — число (сколько), alert — строка-причина или true:
+ *             точка «требует внимания» там, где считать нечего. Строку
+ *             озвучивает скринридер — без неё вкладка молчала бы ровно о
+ *             том состоянии, ради которого точка и заведена
+ *   onClose — () => void
  */
-/**
- * Точка «здесь что-то не закрыто». Сама по себе она видна только глазами,
- * поэтому рядом с ней — та же мысль словами: строка `alert` уезжает в
- * доступное имя вкладки, а на экране остаётся невидимой.
- */
-const AlertDot = ({ alert }) => (
-  <span className="workspace__tab-dot">
-    {typeof alert === 'string' && <span className="workspace__a11y-only">{alert}</span>}
-  </span>
-);
-
-const RightPanel = ({ tabs, activeKey, onTabChange, onClose }) => {
+const RightPanel = ({ tab, onClose }) => {
   const { t } = useTranslation();
-  const active = tabs.find((tab) => tab.key === activeKey) || tabs[0];
-  const single = tabs.length === 1;
 
   return (
-    <aside className="workspace__side workspace__side--right" aria-label={active?.label}>
+    <aside className="workspace__side workspace__side--right" aria-label={tab.label}>
       <div className="workspace__side-head">
-        {single ? (
-          <span className="workspace__side-title">
-            {active.icon}
-            {active.label}
-            {active.badge > 0 && <span className="workspace__tab-badge">{active.badge}</span>}
-            {active.alert && <AlertDot alert={active.alert} />}
-          </span>
-        ) : (
-          <div className="workspace__tabs" role="tablist">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                id={`ws-tab-${tab.key}`}
-                aria-selected={tab.key === active.key}
-                aria-controls="ws-tabpanel"
-                className={`workspace__tab${tab.key === active.key ? ' workspace__tab--active' : ''}`}
-                onClick={() => onTabChange(tab.key)}
-              >
-                {tab.label}
-                {tab.badge > 0 && <span className="workspace__tab-badge">{tab.badge}</span>}
-                {tab.alert && <AlertDot alert={tab.alert} />}
-              </button>
-            ))}
-          </div>
-        )}
+        <span className="workspace__side-title">
+          {tab.icon}
+          {tab.label}
+          {tab.badge > 0 && <span className="workspace__tab-badge">{tab.badge}</span>}
+          {/* Точка «здесь что-то не закрыто». Сама по себе она видна только
+              глазами, поэтому рядом с ней — та же мысль словами: строка `alert`
+              уезжает в доступное имя, а на экране остаётся невидимой. */}
+          {tab.alert && (
+            <span className="workspace__tab-dot">
+              {typeof tab.alert === 'string' && <span className="workspace__a11y-only">{tab.alert}</span>}
+            </span>
+          )}
+        </span>
         <button
           type="button"
           className="icon-btn"
@@ -75,13 +45,8 @@ const RightPanel = ({ tabs, activeKey, onTabChange, onClose }) => {
           <IconChevronRight size={14} />
         </button>
       </div>
-      <div
-        className="workspace__side-body"
-        id="ws-tabpanel"
-        role={single ? undefined : 'tabpanel'}
-        aria-labelledby={single ? undefined : `ws-tab-${active?.key}`}
-      >
-        {active?.content}
+      <div className="workspace__side-body" id="ws-tabpanel" role="tabpanel" aria-labelledby={`ws-tab-${tab.key}`}>
+        {tab.content}
       </div>
     </aside>
   );
