@@ -133,6 +133,24 @@ public class SkillService {
         return new SkillContent(skill.name(), skill.content());
     }
 
+    /**
+     * Текст навыка для того, кто загрузить его не может, — сейчас это поисковый суб-агент: его
+     * набор инструментов задан явным allow-list'ом без {@code readSkill}, каталога в его промпте
+     * нет, а бюджет итераций жёсткий, и тратить одну на загрузку текста, который можно отдать
+     * сразу, дороже, чем этот текст занести. Ворот доступности здесь нет намеренно: зовущий уже
+     * решил, что навык нужен, а суб-агент по построению только читает.
+     *
+     * @throws IllegalArgumentException навыка с таким именем не бывает — это опечатка в коде,
+     *     которую надо увидеть при старте, а не молча отдать пустую строку
+     */
+    public String textOf(String name) {
+        return skills.stream()
+                .filter(skill -> skill.name().equals(name))
+                .findFirst()
+                .map(Skill::content)
+                .orElseThrow(() -> new IllegalArgumentException("Неизвестный навык: " + name));
+    }
+
     private String availableList(@Nullable String projectId) {
         List<Skill> available = availableFor(projectId);
         if (available.isEmpty()) {

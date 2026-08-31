@@ -89,10 +89,13 @@ public class ScriptGuideService {
     /**
      * The handbook without the write appendix, whatever the edit policy says — for the search
      * sub-agent, which is read-only by construction and must stay that way even in a deployment
-     * where the main chat may edit files.
+     * where the main chat may edit files. Also the answer {@link #instructions} itself returns for
+     * a project that takes no writes.
      *
-     * @param weak {@code ChatModelProperties.ModelOption#weak} of the sub-agent's own model ({@code
-     *     kb.search.subagent.model-id}), which can differ from the main chat's
+     * @param weak whether the extended half — the order to load the {@code script-writing} skill —
+     *     is included. The sub-agent passes {@code false} whatever its model: it has no {@code
+     *     readSkill} to obey the order with, and {@code ChatConfig} appends the skill's text to it
+     *     directly instead
      */
     public String readOnlyInstructions(boolean weak) {
         return weak ? readOnlyInstructionsForWeakModel : readOnlyInstructionsForStrongModel;

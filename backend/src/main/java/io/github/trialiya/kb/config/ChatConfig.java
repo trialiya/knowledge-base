@@ -205,6 +205,7 @@ public class ChatConfig {
             ScriptRunner scriptRunner,
             GitRegistry gitRegistry,
             ScriptGuideService scriptGuideService,
+            SkillService skillService,
             ChatModelProperties chatModelProperties) {
         // Two gates, and both matter. kb.script.enabled decides whether the tool exists anywhere —
         // without it the sub-agent's allow-list must not be able to conjure one up. Given that, the
@@ -229,7 +230,9 @@ public class ChatConfig {
         // separately rather than inherited from whichever model the current chat turn resolved to.
         String scriptInstructions =
                 scriptsAvailable
-                        ? scriptGuideService.readOnlyInstructions(
+                        ? subAgentScriptInstructions(
+                                scriptGuideService,
+                                skillService,
                                 chatModelProperties.isWeak(subAgentConfig.modelId()))
                         : "";
         // The sub-agent's model may be one of the kb.chat.models entries with an endpoint of its
@@ -257,6 +260,26 @@ public class ChatConfig {
     static boolean subAgentScriptsAvailable(
             ScriptProperties scriptProperties, SubAgentConfig subAgentConfig) {
         return scriptProperties.enabled() && subAgentConfig.allowedTools().contains("runScript");
+    }
+
+    /**
+     * The script handbook for the search sub-agent — the reference half whatever its model, plus
+     * the {@code script-writing} skill inlined for a weak one.
+     *
+     * <p>Never the extended half: that half is an order to call {@code readSkill}, and the
+     * sub-agent has no such tool (its tools are an explicit allow-list) and no skill catalogue in
+     * its prompt. Obeying it would abort the search on a tool it cannot call; ignoring it would
+     * cost a weak model the worked examples. Giving it the tool instead is the wrong trade — the
+     * sub-agent runs on a hard iteration budget, and spending one on a document it could simply
+     * have been handed buys nothing.
+     *
+     * <p>Package-private so {@code ChatConfigSubAgentScriptsAvailableTest} can pin it: it is the
+     * one place where the sub-agent's prompt and its tool set have to agree.
+     */
+    static String subAgentScriptInstructions(
+            ScriptGuideService scriptGuideService, SkillService skillService, boolean weak) {
+        String reference = scriptGuideService.readOnlyInstructions(false);
+        return weak ? reference + "\n\n" + skillService.textOf("script-writing") : reference;
     }
 
     /**
