@@ -149,10 +149,7 @@ public class SearchAgentService {
         final String fullTask = buildTask(task, context, scope, pathGlob);
 
         final OpenAiChatOptions toolOptions =
-                OpenAiChatOptions.builder()
-                        .model(config.modelId())
-                        .maxTokens(config.maxTokens())
-                        .temperature(0.0)
+                callOptions()
                         .toolCallbacks(toolCallbacks)
                         .toolContext(context(conversationId).project(projectId).build())
                         .build();
@@ -292,10 +289,7 @@ public class SearchAgentService {
         messages.add(new UserMessage(instruction));
 
         final OpenAiChatOptions finalOptions =
-                OpenAiChatOptions.builder()
-                        .model(config.modelId())
-                        .maxTokens(config.maxTokens())
-                        .temperature(0.0)
+                callOptions()
                         // Keep the SAME tool set as the loop calls, then forbid their use with
                         // tool_choice=none. Dropping the tools here would change the request's
                         // `tools` array, and OpenAI prompt caching only reuses a prefix when that
@@ -324,6 +318,29 @@ public class SearchAgentService {
      * чем вызвали, и она же повторяется при финальной суммаризации ({@link #summarize}); брифинг же
      * бывает длинным, и открывать им запрос значило бы топить формулировку под чужими фактами.
      */
+    /**
+     * Опции, общие у обоих обращений сабагента.
+     *
+     * <p>Дедлайн вызова здесь приходится ставить руками, и это не перестраховка: сабагент зовёт
+     * модель напрямую ({@code chatModel.call(prompt)}), а не через {@code ChatClient}, и опции
+     * промпта уезжают в SDK как есть — настроенного у модели они не наследуют. Билдер же ставит в
+     * {@code timeout} свои 60 с (почему именно так — {@code ChatModelRegistry#withCallDeadline}),
+     * так что без этой строки итоговый вызов — тот, что везёт всю накопленную историю инструментов
+     * — обрывался бы на минуте с {@code Error reading response}. Замерено: на ответе, приходящем на
+     * 75-й секунде, прямой вызов со свежесобранными опциями умирает на 61-й, с ней — доживает.
+     *
+     * <p>Берётся именно дедлайн, а не {@code getOptions().mutate()} целиком: параметры
+     * сэмплирования у сабагента свои, и наследовать вместе с таймаутом ещё и top-p с extra-body
+     * деплоя он не должен.
+     */
+    private OpenAiChatOptions.Builder callOptions() {
+        return OpenAiChatOptions.builder()
+                .model(config.modelId())
+                .maxTokens(config.maxTokens())
+                .temperature(0.0)
+                .timeout(chatModel.getOptions().getTimeout());
+    }
+
     private static String buildTask(
             String task,
             @Nullable String context,

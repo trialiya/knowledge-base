@@ -11,8 +11,7 @@ spring:
       # rounds and aborts the stream mid-flight with OpenAIIoException/StreamResetException(CANCEL).
       # A chat call is limited by its REQUEST deadline rather than by this one, and that deadline
       # lives in OpenAiChatOptions, out of reach of any property — ChatModelRegistry stamps this
-      # value there for every connection, which is what makes it govern /compact. The pair is
-      # logged at startup.
+      # value there for every connection, which is what makes it govern /compact.
       timeout: ${KB_CHAT_STREAM_TIMEOUT:10m}
       chat:
         model: ${kb.chat.default-model.id}
