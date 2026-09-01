@@ -175,12 +175,14 @@ public class ToolCallService {
                         // Мета вызова появляется только в конце прогона (markRunResult), а
                         // аргументы лежат в сегменте с самого его персиста — модалка деталей
                         // открывается и на ещё работающем вызове. Пока ответа нет, статус —
-                        // STARTED, иначе идущий вызов показался бы успешно завершённым; ответ
-                        // без меты — оборванный прогон, он и правда отработал.
+                        // STARTED, иначе идущий вызов показался бы успешно завершённым; ответ без
+                        // меты — оборванный прогон: вызов отработал, но чем кончился, знала только
+                        // несохранённая мета, отсюда UNKNOWN (тот же ответ у синтезированных
+                        // плашек, см. {@link #invocationsFor}).
                         invocation != null
                                 ? invocation.status()
                                 : resultText != null
-                                        ? ToolInvocationStatus.OK
+                                        ? ToolInvocationStatus.UNKNOWN
                                         : ToolInvocationStatus.STARTED,
                         invocation != null ? invocation.error() : null,
                         resultText,
@@ -192,9 +194,11 @@ public class ToolCallService {
      * Метаданные плашек вызовов для сегмента: сохранённые {@code meta.invocations}, а если их нет
      * (прогон оборвался до записи меты, старые данные) — синтезированные из {@code tool_data}: имя
      * и усечённые аргументы из toolCalls сегмента, гист — из ответа в TOOL-сообщениях среди {@code
-     * context} (строк той же страницы). Статус всегда OK (история = завершённые вызовы),
-     * hasDetails=false — намеренно не предлагаем детали для этого синтезированного (не через {@link
-     * #runInvocations}) пути. {@code SKIP_TOOLS} вырезаны, как и там.
+     * context} (строк той же страницы). Статус — UNKNOWN: исход вызова живёт только в мете, а её
+     * тут нет; провалившийся вызов выглядит в {@code tool_data} ровно как успешный (текст ошибки
+     * лежит на месте результата), и {@code OK} здесь был бы утверждением, которого никто не
+     * проверял. hasDetails=false — намеренно не предлагаем детали для этого синтезированного (не
+     * через {@link #runInvocations}) пути. {@code SKIP_TOOLS} вырезаны, как и там.
      */
     public @Nullable List<ToolInvocationMeta> invocationsFor(
             ChatMessageEntity entity, List<ChatMessageEntity> context) {
@@ -232,7 +236,7 @@ public class ToolCallService {
                                 new ToolInvocationMeta(
                                         call.name(),
                                         RecordingToolCallback.parseToolInput(call.arguments()),
-                                        ToolInvocationStatus.OK,
+                                        ToolInvocationStatus.UNKNOWN,
                                         null,
                                         null,
                                         false,

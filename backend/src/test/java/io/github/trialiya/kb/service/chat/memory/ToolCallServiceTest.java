@@ -64,7 +64,9 @@ class ToolCallServiceTest {
         // SKIP_TOOLS (getUserName) вырезан, как и в runInvocations.
         assertThat(metas).hasSize(1);
         assertThat(metas.get(0).name()).isEqualTo("searchDocuments");
-        assertThat(metas.get(0).status()).isEqualTo(ToolInvocationStatus.OK);
+        // Ответ инструмента есть, но чем вызов кончился, знала только несохранённая мета: провал
+        // выглядит в tool_data ровно так же, поэтому UNKNOWN, а не OK.
+        assertThat(metas.get(0).status()).isEqualTo(ToolInvocationStatus.UNKNOWN);
         assertThat(metas.get(0).hasDetails()).isFalse();
         assertThat(metas.get(0).callIndex()).isNull();
         assertThat(metas.get(0).arguments()).containsEntry("q", "a");

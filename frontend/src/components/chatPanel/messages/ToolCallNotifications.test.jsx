@@ -112,4 +112,15 @@ describe('ToolCallNotifications', () => {
 
     expect(screen.getByTestId('detail')).toHaveTextContent('call-2');
   });
+
+  it('не выдаёт за успех вызов, исход которого не сохранён', async () => {
+    const { container } = show([
+      { name: 'editFile', callId: 'call-1', status: 'UNKNOWN', arguments: { path: 'a' } },
+      { name: 'editFile', callId: 'call-2', status: 'OK', arguments: { path: 'b' } },
+    ]);
+
+    // Заголовок группы берёт худшее из того, что внутри: зелёным он отвечал бы и за вызов,
+    // о котором ничего не известно.
+    expect(plaques(container)[0].className).toContain('tool-call-item--unknown');
+  });
 });

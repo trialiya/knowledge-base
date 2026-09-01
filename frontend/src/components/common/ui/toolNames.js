@@ -62,6 +62,9 @@ export const getToolIcon = (name) => TOOL_META[name]?.icon ?? '🔧';
 /** i18n-ключ лейбла. Использовать как t(toolLabelKey(name), { defaultValue: humanizeTool(name) }). */
 export const toolLabelKey = (name) => `tools.${name}`;
 
+/** i18n-ключ исхода вызова (TOOL_STATUS) — им подписаны и плашка, и бейдж в модалке деталей. */
+export const statusLabelKey = (status) => `toolCall.statusValue.${status}`;
+
 /**
  * Фолбэк, если для инструмента нет перевода:
  * camelCase / snake_case → "Camel Case".

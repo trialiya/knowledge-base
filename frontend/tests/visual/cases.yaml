@@ -2206,3 +2206,28 @@
     группа из двух вызовов — другой тип узла, чем одиночная плашка, и React
     размонтировал поддерево вместе с состоянием модалки; отсюда detailCallId
     на самой ленте. Логика закреплена ToolCallNotifications.test.jsx.
+
+- id: tool-call-outcomes
+  component: ToolCallNotifications
+  path: frontend/src/components/chatPanel/messages/ToolCallNotifications.jsx
+  title: Плашки трёх исходов вызова — успех, провал, исход не сохранён
+  status: verified
+  origin:
+    - Сессия 2026-09-01, провал показывался успехом до конца прогона
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat, ответ с вызовами инструментов
+  fixtures: ./fixtures/toolCallNotifications.js#callOutcomes
+  expected:
+    - Успех — зелёная полоса и галочка, третьей строкой краткая сводка результата
+    - Провал — красная полоса, крестик, и ошибка ровно одной строкой: гиста у него нет, результат вызова и есть его ошибка
+    - Исход не сохранён (UNKNOWN) — нейтрально-серая плашка со знаком вопроса, не зелёная и не «выполняется»
+    - Плашка UNKNOWN деталей не предлагает (hasDetails=false) — их для этого пути и не сохранили
+  notes: |
+    Провал приходит красным уже во время прогона: живое событие TOOL_CALL
+    спрашивает исход у коллектора (ToolCallEventPublisher), потому что в
+    сохранённом ответе инструмента ошибка лежит на месте результата и вызов
+    неотличим от успешного. UNKNOWN отвечает бэкенд там, где меты прогона нет
+    вовсе (ToolCallService#invocationsFor и #findToolCallDetail) — раньше
+    синтез утверждал OK.

@@ -64,6 +64,22 @@ public final class ToolInvocationCollector {
         return List.copyOf(invocations);
     }
 
+    /**
+     * Чем кончился вызов с этим сквозным номером; {@code null} — вызов ещё идёт либо этот прогон
+     * его не делал. Спрашивает {@link
+     * io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher}: по протокольному ответу
+     * инструмента провал не отличить от успеха — текст ошибки уходит модели обычным результатом
+     * (см. {@code ChatConfig#toolExecutionExceptionProcessor}), и знает об ошибке только запись
+     * здесь.
+     */
+    public @Nullable ToolInvocation completed(int callIndex) {
+        return invocations.stream()
+                .filter(inv -> STARTED != inv.status())
+                .filter(inv -> inv.callIndex() == callIndex)
+                .reduce((first, second) -> second)
+                .orElse(null);
+    }
+
     public List<ToolInvocation> completedSnapshot() {
         return invocations.stream().filter(inv -> STARTED != inv.status()).toList();
     }
@@ -123,6 +139,13 @@ public final class ToolInvocationCollector {
     public enum ToolInvocationStatus {
         STARTED,
         OK,
-        ERROR
+        ERROR,
+        /**
+         * Исход вызова не сохранён: мету прогона записать не успели (процесс умер посреди хода)
+         * либо запись старее самой меты. Отдельным статусом, а не {@code OK}: в протокольных {@code
+         * tool_data} провал ничем не отличается от успеха, и зелёная плашка утверждала бы то, чего
+         * никто не знает.
+         */
+        UNKNOWN
     }
 }

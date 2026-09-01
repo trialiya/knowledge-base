@@ -688,6 +688,21 @@ export const IconStatusOk = () => (
   </svg>
 );
 
+/** Серый круг с вопросом — исход вызова не сохранён. */
+export const IconStatusUnknown = () => (
+  <svg className="tool-call-status-svg tool-call-status-svg--unknown" width="14" height="14" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="7" fill="#9aa0a6" />
+    <path
+      d="M6.2 6.1a1.9 1.9 0 113.1 1.7c-.7.5-1.1.9-1.1 1.6"
+      fill="none"
+      stroke="#fff"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+    <circle cx="8" cy="11.6" r="0.9" fill="#fff" />
+  </svg>
+);
+
 /** Красный круг с крестом — вызов инструмента завершился ошибкой. */
 export const IconStatusError = () => (
   <svg className="tool-call-status-svg tool-call-status-svg--error" width="14" height="14" viewBox="0 0 16 16">

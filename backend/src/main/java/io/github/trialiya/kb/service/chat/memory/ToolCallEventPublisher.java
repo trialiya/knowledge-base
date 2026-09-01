@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
@@ -20,10 +21,11 @@ import org.springframework.stereotype.Service;
 /**
  * Live-события TOOL_CALL текущего прогона — по только что сохранённым рядам (см. {@link
  * ChatHistoryService#append}): STARTED по tool_calls нового ASSISTANT-сегмента (имя и аргументы уже
- * известны), OK по responses нового TOOL-сообщения. Событие уходит только после персиста, то есть
- * фронт не увидит вызова, которого нет в БД. Ошибки и resultMeta здесь недоступны (в {@link
- * ToolData} только сырой текст) — их доносит финальное TOOL_CALLS-событие прогона (см. {@code
- * ChatRunService.onComplete}).
+ * известны), OK или ERROR по responses нового TOOL-сообщения. Событие уходит только после персиста,
+ * то есть фронт не увидит вызова, которого нет в БД. Провал виден не по самому ответу — в нём на
+ * месте результата лежит текст ошибки, — а по записи коллектора ({@link RunScope#completedCall}).
+ * resultMeta здесь недоступна (в {@link ToolData} только сырой текст) — её доносит финальное
+ * TOOL_CALLS-событие прогона (см. {@code ChatRunService.onComplete}).
  *
  * <p>Событие несёт протокольный {@code callId} — модалка деталей находит
  * messageId/responseMessageId сама через {@code tool_call_index} (см. {@link
@@ -102,19 +104,36 @@ public class ToolCallEventPublisher {
                     // TOOL_CALLS (markRunResult) или reload.
                     continue;
                 }
+                // Исход — у коллектора: сам ответ о нём молчит, в нём у провалившегося вызова
+                // лежит текст ошибки на месте результата. Без этого вопроса плашка стояла бы
+                // зелёной до конца прогона — до финального TOOL_CALLS, который один и приносил
+                // статусы, — а после перезагрузки та же плашка краснела.
+                final ToolInvocation outcome = scope.completedCall(started.callIndex());
+                final ToolInvocation failure =
+                        outcome != null && ToolInvocationStatus.ERROR == outcome.status()
+                                ? outcome
+                                : null;
                 publish(
                         conversationId,
                         scope.runId(),
                         new ToolInvocationMeta(
                                 response.name(),
                                 started.arguments(),
-                                ToolInvocationStatus.OK,
-                                null,
+                                failure != null
+                                        ? ToolInvocationStatus.ERROR
+                                        : ToolInvocationStatus.OK,
+                                failure != null ? failure.error() : null,
                                 null,
                                 true,
                                 started.callIndex(),
-                                Compact.truncate(
-                                        response.responseData(), ToolCallService.RESULT_GIST_MAX),
+                                // У провала гиста нет: результат — та же ошибка, и плашка написала
+                                // бы её дважды. Итоговая мета его тоже не несёт, так что склейка
+                                // на фронте показанного не меняет.
+                                failure != null
+                                        ? null
+                                        : Compact.truncate(
+                                                response.responseData(),
+                                                ToolCallService.RESULT_GIST_MAX),
                                 response.id()));
             }
         }

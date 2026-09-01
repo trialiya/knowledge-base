@@ -2,6 +2,8 @@ package io.github.trialiya.kb.service.chat.runtime;
 
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.entity.TokenUsage;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,6 +47,14 @@ public final class RunScope {
 
     /** Нумерация вызовов инструментов прогона — состояние под собственным замком. */
     private final Numbering numbering = new Numbering();
+
+    /**
+     * Коллектор вызовов прогона: ставит его владелец прогона, спрашивает — публикация live-событий
+     * (см. {@link #completedCall}). Пустой до подписки на стрим и у прогона, который вовсе не дошёл
+     * до инструментов.
+     */
+    private final AtomicReference<@Nullable ToolInvocationCollector> collector =
+            new AtomicReference<>();
 
     RunScope(String runId, String conversationId, String user, String model) {
         this.runId = runId;
@@ -161,6 +171,22 @@ public final class RunScope {
      */
     public int nextCallIndex() {
         return numbering.next();
+    }
+
+    /** Привязывает коллектор вызовов этого прогона. */
+    public void attachCollector(ToolInvocationCollector toolCollector) {
+        collector.set(toolCollector);
+    }
+
+    /**
+     * Чем кончился вызов с этим номером; {@code null} — исход ещё не записан либо коллектора у
+     * прогона нет. Единственный способ узнать про провал в момент, когда сохранён ответ
+     * инструмента: протокольный ответ у провалившегося вызова обычный — текст ошибки уходит модели
+     * результатом (см. {@code ChatConfig#toolExecutionExceptionProcessor}).
+     */
+    public @Nullable ToolInvocation completedCall(int callIndex) {
+        final ToolInvocationCollector current = collector.get();
+        return current == null ? null : current.completed(callIndex);
     }
 
     /** Запоминает разобранные аргументы вызова — ими дополняется событие его ответа. */

@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ToolCallDetailModal from './ToolCallDetailModal';
-import { getToolIcon, toolLabelKey, humanizeTool } from '@/components/common/ui/toolNames';
-import { IconCopySmall, IconCopied, IconStatusStarted, IconStatusOk, IconStatusError } from '@/icons/index';
+import { getToolIcon, toolLabelKey, humanizeTool, statusLabelKey } from '@/components/common/ui/toolNames';
+import {
+  IconCopySmall,
+  IconCopied,
+  IconStatusStarted,
+  IconStatusOk,
+  IconStatusError,
+  IconStatusUnknown,
+} from '@/icons/index';
 import { GIST_PREVIEW_LEN } from '@/constants/ui';
 import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
 import { TOOL_STATUS } from '@/constants/toolStatus';
@@ -20,6 +27,8 @@ const StatusIcon = ({ status }) => {
       return <IconStatusOk />;
     case TOOL_STATUS.ERROR:
       return <IconStatusError />;
+    case TOOL_STATUS.UNKNOWN:
+      return <IconStatusUnknown />;
     default:
       return <IconStatusStarted />;
   }
@@ -49,7 +58,7 @@ const buildCopyText = (tc, t) => {
   const argsStr = formatArgs(tc.arguments);
   if (argsStr) parts.push(argsStr);
   if (tc.resultGist) parts.push(`${t('toolCall.result')}: ${tc.resultGist}`);
-  parts.push(`${t('toolCall.status')}: ${tc.status || '—'}`);
+  parts.push(`${t('toolCall.status')}: ${tc.status ? t(statusLabelKey(tc.status)) : '—'}`);
   if (tc.status === TOOL_STATUS.ERROR && tc.error) parts.push(`${t('toolCall.error')}: ${tc.error}`);
   return parts.join('\n');
 };
@@ -137,10 +146,14 @@ const ToolCallGroup = ({ name, items, conversationId, detailCallId, onOpenDetail
   const label = t(toolLabelKey(name), { defaultValue: humanizeTool(name) });
   const icon = getToolIcon(name);
   const firstArgsStr = formatArgs(first.arguments);
+  // Худшее из того, что внутри: провал группу красит целиком, неизвестный исход — тоже вперёд
+  // успеха, иначе одна зелёная плашка отвечала бы за вызов, о котором ничего не известно.
   const groupStatus = items.some((t2) => t2.status === TOOL_STATUS.ERROR)
     ? TOOL_STATUS.ERROR
     : items.some((t2) => t2.status === TOOL_STATUS.STARTED)
     ? TOOL_STATUS.STARTED
+    : items.some((t2) => t2.status === TOOL_STATUS.UNKNOWN)
+    ? TOOL_STATUS.UNKNOWN
     : TOOL_STATUS.OK;
 
   return (

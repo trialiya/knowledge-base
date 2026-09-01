@@ -91,6 +91,12 @@
   "toolCall": {
     "copy": "Скопировать",
     "status": "Статус",
+    "statusValue": {
+      "STARTED": "ВЫПОЛНЯЕТСЯ",
+      "OK": "OK",
+      "ERROR": "ОШИБКА",
+      "UNKNOWN": "НЕИЗВЕСТНО"
+    },
     "result": "Результат",
     "error": "Ошибка",
     "detail": {

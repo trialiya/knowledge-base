@@ -273,6 +273,14 @@ const REGISTRY = [
     render: (p) => <LiveToolCalls calls={p.calls} next={p.next} />,
   })),
 
+  // Исходы вызова рядом: успех, провал и несохранённый исход (см. cases.yaml,
+  // tool-call-outcomes). Рамка `feed` — плашки живут в колонке ленты.
+  {
+    id: 'toolCallNotifications.js#callOutcomes',
+    frame: 'feed',
+    render: (p) => <ToolCallNotifications toolCalls={p} conversationId="1" />,
+  },
+
   // ── База знаний ──
   {
     id: 'detailHeader.js#documentInFolder',
