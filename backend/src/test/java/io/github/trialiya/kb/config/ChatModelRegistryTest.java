@@ -95,23 +95,50 @@ class ChatModelRegistryTest {
     }
 
     @Test
-    void ownEndpointConnectionsKeepTheSharedCallTimeout() {
-        // Соединение со своим эндпоинтом собираем мы сами, и дедлайн вызова оно берёт из того же
-        // spring.ai.openai.timeout, что и автоконфигурируемое. Откат к дефолту фреймворка (60 с)
-        // виден только на самом длинном запросе приложения — раунде /compact, который везёт весь
-        // контекст одним блокирующим вызовом, — и приходит туда как «Error reading response».
+    void everyConnectionCarriesTheCallDeadlineInItsRequestOptions() {
+        // Дедлайн вызова живёт в опциях запроса, а не в клиенте: OpenAiChatModel собирает из них
+        // RequestOptions, а таймаут запроса сильнее клиентского. Причём опции несут его всегда —
+        // билдер OpenAiChatOptions по умолчанию ставит 60 с, и ни одно свойство до этого поля не
+        // достаёт, — так что без подстановки здесь ЛЮБОЙ вызов приложения жил бы минуту. Замерено:
+        // с клиентом на 10m ответ, приходящий на 75-й секунде, обрывается на 61-й.
         OpenAiCommonProperties common = new OpenAiCommonProperties();
+        common.setBaseUrl("https://default.example");
+        common.setApiKey("sk-default");
         common.setTimeout(Duration.ofMinutes(10));
+        OpenAiChatProperties chat = new OpenAiChatProperties();
 
-        assertThat(ChatModelRegistry.callTimeout(common, new OpenAiChatProperties()))
+        OpenAiChatModel shared =
+                ChatModelRegistry.buildDefaultModel(
+                        common, chat, mock(ToolCallingManager.class), absent(), absent(), empty());
+        ChatModelRegistry registry =
+                ChatModelRegistry.build(
+                        shared,
+                        new ChatModelProperties(
+                                DEFAULT_MODEL,
+                                List.of(
+                                        new ModelOption(
+                                                "remote",
+                                                "Remote",
+                                                false,
+                                                true,
+                                                null,
+                                                "https://llm.example/v1",
+                                                "sk-r"))),
+                        common,
+                        chat,
+                        mock(ToolCallingManager.class),
+                        absent(),
+                        absent(),
+                        empty());
+
+        assertThat(shared.getOptions().getTimeout())
                 .isEqualTo(Duration.ofMinutes(10))
                 .isNotEqualTo(AbstractOpenAiProperties.DEFAULT_TIMEOUT);
-
-        // Заданный явно чат-уровень остаётся сильнее общего — это и есть причина, по которой
-        // общий дедлайн нельзя просто подставить вместо слияния.
-        OpenAiChatProperties chat = new OpenAiChatProperties();
-        chat.setTimeout(Duration.ofMinutes(2));
-        assertThat(ChatModelRegistry.callTimeout(common, chat)).isEqualTo(Duration.ofMinutes(2));
+        assertThat(registry.forModel("remote").getOptions().getTimeout())
+                .isEqualTo(Duration.ofMinutes(10));
+        // Ловушка, ради которой это закреплено тестом: незаданный дедлайн — не «как у клиента».
+        assertThat(chat.toOptions().getTimeout())
+                .isEqualTo(AbstractOpenAiProperties.DEFAULT_TIMEOUT);
     }
 
     private static ChatModelRegistry build(
