@@ -28,6 +28,8 @@ CI/CD построен на GitHub Actions. Три workflow + Dependabot для 
 
 **Группировка:** Spring-зависимости (`org.springframework*`) сгруппированы в один PR. Minor и patch-обновления также группируются.
 
+**Исключения:** мажорные версии `org.springframework.boot` (gradle) и ESLint с `@eslint/js` (npm) не предлагаются — причины записаны комментариями рядом с правилами. Запреты держим в этом файле, а не командой `@dependabot ignore` в комментарии к PR: условие из команды хранится в состоянии джобы, в репозитории его не видно, и снять его можно только `@dependabot unignore` в PR группового обновления.
+
 ---
 
 ## 2. Dependabot Lockfiles (`dependabot-locks.yml`)

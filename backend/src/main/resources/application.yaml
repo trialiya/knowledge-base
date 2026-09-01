@@ -32,6 +32,19 @@ spring:
         enabled: off
     retry:
       max-attempts: 2
+    tools:
+      # Ограничители агентного цикла (DefaultToolCallingManager). Считаются в пределах текущего
+      # хода — от последнего USER-сообщения в отправленном запросе и дальше, — а не за всю историю
+      # чата; вставка реплики пользователем на лету (InterjectionAdvisor) счётчик обнуляет.
+      # Дефолты фреймворка (40 на инструмент, 150 суммарно) написаны под приложение с парой
+      # инструментов, у нас же один ответ легально читает десятки файлов, поэтому пороги подняты.
+      # -1 — отключить ограничение.
+      limits:
+        max-calls-per-tool-default: ${KB_TOOL_MAX_CALLS_PER_TOOL:80}
+        max-total-tool-calls: ${KB_TOOL_MAX_TOTAL_CALLS:300}
+        # Превышение приходит модели ошибкой в ответе инструмента — она видит стену и сворачивает
+        # ответ сама. Дефолтный THROW оборвал бы прогон исключением на середине.
+        on-limit-exceeded: RETURN_ERROR_RESPONSE
     # External MCP (Model Context Protocol) tool servers — see kb.mcp.enabled above, which gates
     # whether the tools these connections expose are actually merged into the chat model's tool
     # list. With no connections configured here, spring-ai-starter-mcp-client contributes zero
