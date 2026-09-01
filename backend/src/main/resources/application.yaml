@@ -7,6 +7,10 @@ spring:
     # startup and serves nothing that runs here; the ones that hang off these
     # (the per-component Micrometer meters, the observation registrations) drop
     # out on their own once the registry they need is gone.
+    #
+    # The list is for classes something else on the classpath genuinely needs. A
+    # dependency nothing here needs at all belongs out of the graph instead —
+    # see the exclusion on spring-ai-starter-model-openai in backend/build.gradle.
     exclude:
       # Nothing collects metrics from this application: actuator exposes health
       # alone, and the OpenAI client is only handed a MeterRegistry when
@@ -14,14 +18,6 @@ spring:
       - org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration
       - org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration
       - org.springframework.boot.micrometer.metrics.autoconfigure.export.simple.SimpleMetricsExportAutoConfiguration
-      # The reactive half of the stack, on the classpath because
-      # spring-ai-starter-model-openai depends on spring-boot-starter-webclient.
-      # The chat and embedding calls go through the openai-java SDK over OkHttp,
-      # and the servlet security chain is the one that guards the endpoints.
-      - org.springframework.boot.webclient.autoconfigure.WebClientAutoConfiguration
-      - org.springframework.boot.http.client.autoconfigure.reactive.ReactiveHttpClientAutoConfiguration
-      - org.springframework.boot.http.codec.autoconfigure.CodecsAutoConfiguration
-      - org.springframework.boot.security.autoconfigure.web.reactive.ReactiveWebSecurityAutoConfiguration
       # Pageable/Sort resolved from query parameters, and Page serialization:
       # the one paged endpoint (DocumentController) builds its PageRequest
       # itself and answers with a DTO of its own.

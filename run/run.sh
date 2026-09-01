@@ -22,7 +22,7 @@
 #   JAVA_OPTS      JVM options for both the application and the AOT training run
 #                  below (default -Xmx150m)
 #   KB_AOT         0 disables the AOT cache entirely
-#   KB_AOT_CACHE   path of the cache file, instead of local-db/aot/<profile>.aot
+#   KB_AOT_CACHE   path of the cache file, instead of local-db/aot/kb.aot
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,11 +57,15 @@ JAVA_OPTS="${JAVA_OPTS:--Xmx150m}"
 # the context is refreshed, before the port is bound, so it can be done while an
 # instance is running.
 #
-# The cache describes the classes of one JAR under one profile, and the JVM only
-# rejects it when the JVM itself changed — a rebuilt JAR keeping the same name
-# would be started from a stale cache.  Hence the timestamp check: a cache older
-# than the JAR is retrained rather than used.
-AOT_CACHE="${KB_AOT_CACHE:-$SCRIPT_DIR/../local-db/aot/$(printf '%s' "$PROFILE" | tr -c 'A-Za-z0-9._-' '-').aot}"
+# One cache serves every profile.  What it holds is classes of this JAR, and the
+# profile only decides which of them a given run reaches for — a class the cache
+# does not have is loaded the ordinary way, so the profile that trained it costs
+# the others nothing but the classes they alone need.
+#
+# The JVM rejects a cache only when the JVM itself changed, so a rebuilt JAR
+# keeping the same name would be started from a stale one.  Hence the timestamp
+# check: a cache older than the JAR is retrained rather than used.
+AOT_CACHE="${KB_AOT_CACHE:-$SCRIPT_DIR/../local-db/aot/kb.aot}"
 AOT_OPTS=()
 
 if [ "${KB_AOT:-1}" != "0" ]; then

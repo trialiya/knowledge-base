@@ -55,7 +55,16 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
-    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    // Chat and embeddings, over the openai-java SDK (OkHttp) rather than a Spring HTTP client.
+    // The starter also asks for spring-boot-starter-webclient, and nothing here answers through
+    // it: neither spring-ai-openai nor its auto-configuration mentions WebClient, and the servlet
+    // chain is what guards the endpoints. Dropped, it takes spring-webflux, reactor-netty and all
+    // of Netty with it — the five platform QUIC natives alone are ~12 MB of the JAR — and the
+    // auto-configurations that matched on those classes stop existing rather than being excluded
+    // by name. reactor-core stays: the MCP SDK and Spring AI's own streaming are built on it.
+    implementation('org.springframework.ai:spring-ai-starter-model-openai') {
+        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-webclient'
+    }
     // MCP (Model Context Protocol) client — lets the chat model call tools exposed by external MCP
     // servers (stdio subprocess or SSE/streamable-HTTP), on top of the built-in git/document tools.
     // httpclient-based variant (not -webflux) to match the servlet stack. See ChatConfig.chatClientBuilder
