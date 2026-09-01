@@ -7,10 +7,12 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
+import java.time.Duration;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.model.openai.autoconfigure.AbstractOpenAiProperties;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties;
 import org.springframework.ai.model.tool.ToolCallingManager;
@@ -90,6 +92,26 @@ class ChatModelRegistryTest {
 
         assertThat(registry.forModel(null)).isNotSameAs(defaultConnection);
         assertThat(registry.forModel(null)).isSameAs(registry.forModel("default-model"));
+    }
+
+    @Test
+    void ownEndpointConnectionsKeepTheSharedCallTimeout() {
+        // Соединение со своим эндпоинтом собираем мы сами, и дедлайн вызова оно берёт из того же
+        // spring.ai.openai.timeout, что и автоконфигурируемое. Откат к дефолту фреймворка (60 с)
+        // виден только на самом длинном запросе приложения — раунде /compact, который везёт весь
+        // контекст одним блокирующим вызовом, — и приходит туда как «Error reading response».
+        OpenAiCommonProperties common = new OpenAiCommonProperties();
+        common.setTimeout(Duration.ofMinutes(10));
+
+        assertThat(ChatModelRegistry.callTimeout(common, new OpenAiChatProperties()))
+                .isEqualTo(Duration.ofMinutes(10))
+                .isNotEqualTo(AbstractOpenAiProperties.DEFAULT_TIMEOUT);
+
+        // Заданный явно чат-уровень остаётся сильнее общего — это и есть причина, по которой
+        // общий дедлайн нельзя просто подставить вместо слияния.
+        OpenAiChatProperties chat = new OpenAiChatProperties();
+        chat.setTimeout(Duration.ofMinutes(2));
+        assertThat(ChatModelRegistry.callTimeout(common, chat)).isEqualTo(Duration.ofMinutes(2));
     }
 
     private static ChatModelRegistry build(

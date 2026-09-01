@@ -4,11 +4,14 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
+import org.springframework.ai.model.openai.autoconfigure.AbstractOpenAiProperties;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiAutoConfigurationUtil;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiAutoConfigurationUtil.ResolvedConnectionProperties;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties;
@@ -31,7 +34,10 @@ import org.springframework.beans.factory.ObjectProvider;
  *
  * <p>The extra connections are built once at startup, not per request: an OkHttp client owns a
  * connection pool, and one per call would leak sockets.
+ *
+ * <p>Every connection is logged with its call deadline at startup — see {@link #logConnection}.
  */
+@Slf4j
 public class ChatModelRegistry {
 
     private final String defaultModelId;
@@ -86,6 +92,13 @@ public class ChatModelRegistry {
         ObservationRegistry observations =
                 observationRegistry.getIfAvailable(() -> ObservationRegistry.NOOP);
         Map<String, OpenAiChatModel> byModelId = new LinkedHashMap<>();
+        // The autoconfigured connection is built elsewhere (OpenAiChatAutoConfiguration) and takes
+        // its deadline straight from these properties — the same value the connections below get,
+        // unless spring.ai.openai.chat.timeout overrides it for them (see callTimeout).
+        logConnection(
+                "default (spring.ai.openai)",
+                commonProperties.getTimeout(),
+                commonProperties.getMaxRetries());
         for (ModelOption option : chatModelProperties.models()) {
             if (option.hasOwnEndpoint()) {
                 byModelId.put(
@@ -139,10 +152,14 @@ public class ChatModelRegistry {
         if (option.apiKey() != null) {
             connection.setApiKey(option.apiKey());
         }
+        logConnection(option.id(), connection.getTimeout(), connection.getMaxRetries());
         // Mirrors the autoconfiguration: the meter registry is handed to the client only when
         // connection-pool metrics are asked for, otherwise the pool is not instrumented at all.
         MeterRegistry meters =
                 connection.isConnectionPoolMetricsEnabled() ? meterRegistry.getIfAvailable() : null;
+        // Both clients get the same deadline, and both need it: the blocking one carries the whole
+        // context in a single request (/compact, summarization, the search sub-agent), the
+        // streaming one carries a long generation — either one outlives the framework default.
         return OpenAiChatModel.builder()
                 .openAiClient(
                         OpenAiSetup.setupSyncClient(
@@ -185,5 +202,50 @@ public class ChatModelRegistry {
                 .observationRegistry(observations)
                 .meterRegistry(meters)
                 .build();
+    }
+
+    /**
+     * The call deadline of one connection, at startup, where it can be read against a failure.
+     *
+     * <p>It is the deadline of the whole call, not of one idle socket read, and it is enforced on
+     * the blocking client exactly as on the streaming one — so the longest single request the app
+     * makes decides whether the value is enough. That request is a compaction round: it carries the
+     * entire live context in one blocking call and answers with a whole document, which is why a
+     * chat whose answers all fit inside the deadline can still lose every {@code /compact}. The cut
+     * arrives as {@code OpenAIInvalidDataException: Error reading response} over an {@code
+     * InterruptedIOException: timeout} — a message that names neither the deadline nor the property
+     * behind it, hence this line.
+     *
+     * <p>The framework default is warned about rather than logged: it is 60s, short enough that
+     * reaching it says the connection was left unconfigured rather than tuned.
+     */
+    private static void logConnection(String connection, Duration timeout, int maxRetries) {
+        if (AbstractOpenAiProperties.DEFAULT_TIMEOUT.equals(timeout)) {
+            log.warn(
+                    "Model connection {}: call timeout {} is the framework default — a round"
+                            + " longer than that is cut with \"Error reading response\"; set"
+                            + " spring.ai.openai.timeout (KB_CHAT_STREAM_TIMEOUT)",
+                    connection,
+                    timeout);
+        } else {
+            log.info(
+                    "Model connection {}: call timeout {}, max retries {}",
+                    connection,
+                    timeout,
+                    maxRetries);
+        }
+    }
+
+    /**
+     * The deadline a connection of its own ends up with: the chat-level property when it was set,
+     * the shared {@code spring.ai.openai.timeout} otherwise. Pinned by a test — the merge is
+     * upstream's ({@link OpenAiAutoConfigurationUtil#resolveCommonProperties}), and an endpoint of
+     * its own silently dropping back to the 60s default is the one outcome that has to fail loudly
+     * here rather than an hour later, mid-compaction.
+     */
+    static Duration callTimeout(
+            OpenAiCommonProperties commonProperties, OpenAiChatProperties chatProperties) {
+        return OpenAiAutoConfigurationUtil.resolveCommonProperties(commonProperties, chatProperties)
+                .getTimeout();
     }
 }

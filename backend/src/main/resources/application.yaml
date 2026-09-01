@@ -10,6 +10,11 @@ spring:
       # actually cancels a call) and the underlying OkHttp client's timeouts. Default (60s, see
       # AbstractOpenAiProperties.DEFAULT_TIMEOUT) is too short for long tool-call/generation
       # rounds and aborts the stream mid-flight with OpenAIIoException/StreamResetException(CANCEL).
+      # Streaming is not the only thing it decides: it is the deadline of the whole call on the
+      # BLOCKING client too, and the longest single request the app makes is a blocking one — a
+      # /compact round carries the entire live context and answers with a whole document. There the
+      # cut arrives as OpenAIInvalidDataException: Error reading response. The value every
+      # connection ended up with is logged at startup (ChatModelRegistry).
       timeout: ${KB_CHAT_STREAM_TIMEOUT:10m}
       chat:
         model: ${kb.chat.default-model.id}
