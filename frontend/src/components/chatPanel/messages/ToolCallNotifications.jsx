@@ -55,14 +55,13 @@ const buildCopyText = (tc, t) => {
 };
 
 /** Одиночная плашка вызова — кнопка копирования + кнопка деталей */
-const ToolCallItem = ({ tc, conversationId }) => {
+const ToolCallItem = ({ tc, conversationId, onOpenDetail }) => {
   const { t } = useTranslation('chat');
   const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
   const icon = getToolIcon(tc.name);
   const argsStr = formatArgs(tc.arguments);
   const gist = gistPreview(tc.resultGist);
   const [copied, copy] = useCopyFeedback();
-  const [showDetail, setShowDetail] = useState(false);
   // callId приходит вместе с плашкой (SSE TOOL_CALL/TOOL_CALLS или GET /messages) — без него
   // (старые записи до этого поля) модалке деталей нечего запросить. Статус не ограничивает:
   // аргументы вызова сохранены до его запуска, и посмотреть, с чем модель позвала инструмент,
@@ -83,7 +82,7 @@ const ToolCallItem = ({ tc, conversationId }) => {
       }`}
       onClick={() => {
         if (!canShowDetail) return;
-        setShowDetail(true);
+        onOpenDetail(tc.callId);
       }}
     >
       <span className="tool-call-status-icon">
@@ -103,26 +102,18 @@ const ToolCallItem = ({ tc, conversationId }) => {
       <button className="tool-call-copy-btn" onClick={handleCopy} title={t('toolCall.copy')}>
         {copied ? <IconCopied /> : <IconCopySmall />}
       </button>
-      {showDetail && canShowDetail && (
-        <ToolCallDetailModal
-          conversationId={conversationId}
-          callId={tc.callId}
-          tc={tc}
-          onClose={() => setShowDetail(false)}
-        />
-      )}
     </div>
   );
 };
 
 /** Группа одноимённых последовательных вызовов — сворачиваемая */
-const ToolCallGroup = ({ name, items, conversationId }) => {
+const ToolCallGroup = ({ name, items, conversationId, onOpenDetail }) => {
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
 
   // Одиночный вызов — рендерим как обычную плашку, без шеврона/бейджа
   if (items.length === 1) {
-    return <ToolCallItem tc={items[0]} conversationId={conversationId} />;
+    return <ToolCallItem tc={items[0]} conversationId={conversationId} onOpenDetail={onOpenDetail} />;
   }
 
   // Группа ≥2: заголовок показывает аргументы первого вызова (чтобы высота
@@ -161,7 +152,12 @@ const ToolCallGroup = ({ name, items, conversationId }) => {
       {open && (
         <div className="tool-call-group-children">
           {items.map((tc, i) => (
-            <ToolCallItem key={i} tc={tc} conversationId={conversationId} />
+            <ToolCallItem
+              key={tc.callId ?? i}
+              tc={tc}
+              conversationId={conversationId}
+              onOpenDetail={onOpenDetail}
+            />
           ))}
         </div>
       )}
@@ -170,11 +166,23 @@ const ToolCallGroup = ({ name, items, conversationId }) => {
 };
 
 const ToolCallNotifications = ({ toolCalls, conversationId }) => {
-  if (!toolCalls || toolCalls.length === 0) return null;
+  // Открытая модалка принадлежит ленте плашек, а не плашке: пока её читают, модель успевает
+  // позвать тот же инструмент ещё раз, одиночная плашка становится группой (другой узел
+  // дерева), и состояние, лежавшее в ней, исчезло бы вместе с ней — прямо из-под читающего.
+  // Держим здесь callId: он переживает и перегруппировку, и слияние результата в плашку.
+  const [detailCallId, setDetailCallId] = useState(null);
+
+  const calls = toolCalls || [];
+  // Вызов, на котором открыты детали. Ищем его в текущем списке, а не запоминаем объект:
+  // mergeToolCall кладёт на его место новый, и по забытому модалка не увидела бы ни статуса,
+  // ни resultMeta.
+  const detail = detailCallId ? calls.find((tc) => tc.callId === detailCallId) : null;
+
+  if (calls.length === 0) return null;
 
   // Группируем последовательные вызовы с одним именем
   const groups = [];
-  for (const tc of toolCalls) {
+  for (const tc of calls) {
     const last = groups[groups.length - 1];
     if (last && last.name === tc.name) {
       last.items.push(tc);
@@ -187,9 +195,23 @@ const ToolCallNotifications = ({ toolCalls, conversationId }) => {
     <div className="tool-call-notifications">
       <div className="tool-call-scroll">
         {groups.map((g, i) => (
-          <ToolCallGroup key={`${g.name}-${i}`} name={g.name} items={g.items} conversationId={conversationId} />
+          <ToolCallGroup
+            key={`${g.name}-${i}`}
+            name={g.name}
+            items={g.items}
+            conversationId={conversationId}
+            onOpenDetail={setDetailCallId}
+          />
         ))}
       </div>
+      {detail && (
+        <ToolCallDetailModal
+          conversationId={conversationId}
+          callId={detail.callId}
+          tc={detail}
+          onClose={() => setDetailCallId(null)}
+        />
+      )}
     </div>
   );
 };
