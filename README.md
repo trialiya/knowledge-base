@@ -101,6 +101,10 @@ from `run/` —
 ./run/run.sh
 ```
 
+The first run after a build spends about twenty seconds writing an AOT cache
+(`local-db/aot/`) and every run after that starts from it, roughly 40% faster;
+`KB_AOT=0` skips the whole thing.
+
 Step-by-step instructions for both options, profiles, and Windows scripts —
 [Installation Guide](docs/проект/руководство-по-установке.md) [RU].
 

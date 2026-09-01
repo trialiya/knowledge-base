@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import lombok.extern.slf4j.Slf4j;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
@@ -73,23 +74,33 @@ public class ScriptRunner {
 
     private static final String SUFFIX = "\n})()";
 
-    /** Guest-side JSON helpers, evaluated once per context (see {@link #stringify}). */
-    private static final Source JSON_HELPERS =
-            Source.newBuilder(
-                            "js",
-                            """
-                            ({
-                              result: function (x) { return x === undefined ? null : JSON.stringify(x); },
-                              log: function (x) {
-                                if (typeof x === 'string') return x;
-                                if (x === undefined) return 'undefined';
-                                var s = JSON.stringify(x);
-                                return s === undefined ? String(x) : s;
-                              }
-                            })
-                            """,
-                            "kb-helpers.js")
-                    .buildLiteral();
+    /**
+     * Guest-side JSON helpers, evaluated once per context (see {@link #stringify}).
+     *
+     * <p>In a holder of its own so that it is built on the first script, with the engine, and not
+     * when this class is loaded: building a {@link Source} stands up the polyglot runtime, which is
+     * the very cost {@link #engine()} is late for.
+     */
+    private static final class Helpers {
+        static final Source JSON =
+                Source.newBuilder(
+                                "js",
+                                """
+                                ({
+                                  result: function (x) { return x === undefined ? null : JSON.stringify(x); },
+                                  log: function (x) {
+                                    if (typeof x === 'string') return x;
+                                    if (x === undefined) return 'undefined';
+                                    var s = JSON.stringify(x);
+                                    return s === undefined ? String(x) : s;
+                                  }
+                                })
+                                """,
+                                "kb-helpers.js")
+                        .buildLiteral();
+
+        private Helpers() {}
+    }
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -105,16 +116,16 @@ public class ScriptRunner {
      * one, building a context costs about a quarter of what it costs to stand up an engine too,
      * which is most of a short script's wall clock.
      *
+     * <p>Built on the first script rather than with the bean: standing up the engine loads the
+     * language, an eighth of a second of startup that a deployment whose model never reaches for
+     * {@code runScript} would pay for nothing.
+     *
      * <p>Closed with the application, and not before: a context outlives nothing here, but an
      * engine closed while a script is running would take that script down with it.
      */
-    private final Engine engine =
-            Engine.newBuilder("js")
-                    // On a stock JDK there is no Graal compiler, so the engine warns once that it
-                    // is interpreting. Expected here: scripts are glue code, and kb.script.limits
-                    // keeps them small enough for interpretation to be irrelevant.
-                    .option("engine.WarnInterpreterOnly", "false")
-                    .build();
+    @Nullable private volatile Engine engine;
+
+    private final ReentrantLock engineLock = new ReentrantLock();
 
     public ScriptRunner(
             GitRegistry gitRegistry,
@@ -127,9 +138,39 @@ public class ScriptRunner {
         this.editPolicy = editPolicy;
     }
 
+    private Engine engine() {
+        Engine existing = engine;
+        if (existing != null) {
+            return existing;
+        }
+        engineLock.lock();
+        try {
+            Engine created = engine;
+            if (created == null) {
+                created =
+                        Engine.newBuilder("js")
+                                // On a stock JDK there is no Graal compiler, so the engine warns
+                                // once that it is interpreting. Expected here: scripts are glue
+                                // code, and kb.script.limits keeps them small enough for
+                                // interpretation to be irrelevant.
+                                .option("engine.WarnInterpreterOnly", "false")
+                                .build();
+                engine = created;
+            }
+            return created;
+        } finally {
+            engineLock.unlock();
+        }
+    }
+
+    // Closing the engine is what this method is for; the local is the engine itself.
+    @SuppressWarnings("PMD.CloseResource")
     @PreDestroy
     void shutdown() {
-        engine.close();
+        Engine existing = engine;
+        if (existing != null) {
+            existing.close();
+        }
     }
 
     /**
@@ -206,7 +247,7 @@ public class ScriptRunner {
         Thread watchdog =
                 startWatchdog(context, cancellation, deadlineNanos, finished, cancelReason);
         try {
-            Value helpers = context.eval(JSON_HELPERS);
+            Value helpers = context.eval(Helpers.JSON);
             Value logFormatter = helpers.getMember("log");
             api.bindFormatter(value -> logFormatter.execute(value).asString());
             context.getBindings("js").putMember("kb", api);
@@ -244,7 +285,7 @@ public class ScriptRunner {
 
     private Context newContext() {
         return Context.newBuilder("js")
-                .engine(engine)
+                .engine(engine())
                 // IOAccess.NONE, not the deprecated allowIO(false): same thing — no FileSystem is
                 // attached — spelled the way the 23.0 API does.
                 .allowIO(IOAccess.NONE)

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.treesitter.TSLanguage;
@@ -26,9 +27,9 @@ import org.treesitter.TreeSitterTypescript;
  * (char)} which garbled non-ASCII. Parameter annotations ({@code @ToolParam}, {@code @Nullable}, …)
  * are stripped from the signature; the AI only needs types and names.
  *
- * <p><b>Native isolation.</b> If loading fails (missing native lib), {@link #available} is false
- * and {@link #supports} returns false for every language, so the caller falls back to {@link
- * RegexOutlineParser}. Construction never throws.
+ * <p><b>Native isolation.</b> If loading fails (missing native lib), {@link #available()} answers
+ * false and {@link #supports} returns false for every language, so the caller falls back to {@link
+ * RegexOutlineParser}. Neither construction nor a probe ever throws.
  */
 @Slf4j
 public final class TreeSitterOutlineParser implements CodeOutlineParser {
@@ -37,21 +38,11 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
             Set.of("java", "javascript", "typescript", "python");
 
     private final Map<String, TSLanguage> languages = new ConcurrentHashMap<>();
-    private final boolean available;
 
-    public TreeSitterOutlineParser() {
-        boolean ok;
-        try {
-            new TreeSitterJava();
-            ok = true;
-        } catch (Throwable t) {
-            log.warn(
-                    "tree-sitter native layer unavailable, falling back to regex outline: {}",
-                    t.toString());
-            ok = false;
-        }
-        this.available = ok;
-    }
+    /** Null until the native layer has been probed; see {@link #available()}. */
+    @Nullable private volatile Boolean available;
+
+    private final ReentrantLock probeLock = new ReentrantLock();
 
     @Override
     public String name() {
@@ -60,7 +51,43 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
 
     @Override
     public boolean supports(@Nullable String language) {
-        return available && language != null && LANGUAGES.contains(language);
+        // The language check comes first so that the native layer is loaded only for a file this
+        // parser could actually answer about — a repository of none of these four never loads it.
+        return language != null && LANGUAGES.contains(language) && available();
+    }
+
+    /**
+     * Whether the native layer is there, loaded once on the first file that needs it. Loading costs
+     * about a fifth of a second, and an outline is asked for long after startup — or never.
+     */
+    private boolean available() {
+        Boolean known = available;
+        if (known != null) {
+            return known;
+        }
+        probeLock.lock();
+        try {
+            Boolean probed = available;
+            if (probed == null) {
+                probed = probe();
+                available = probed;
+            }
+            return probed;
+        } finally {
+            probeLock.unlock();
+        }
+    }
+
+    private static boolean probe() {
+        try {
+            new TreeSitterJava();
+            return true;
+        } catch (Throwable t) {
+            log.warn(
+                    "tree-sitter native layer unavailable, falling back to regex outline: {}",
+                    t.toString());
+            return false;
+        }
     }
 
     @Nullable
