@@ -10,6 +10,12 @@
 #                         # edit it with your own values, then run with this profile
 #
 # Edit application.yaml and application-<profile>.yaml before running.
+#
+# Environment:
+#   JAVA_OPTS      JVM options for both the application and the AOT training run
+#                  below (default -Xmx150m)
+#   KB_AOT         0 disables the AOT cache entirely
+#   KB_AOT_CACHE   path of the cache file, instead of local-db\aot\<profile>.aot
 #Requires -Version 5.1
 
 param(
@@ -34,14 +40,71 @@ if (-not (Test-Path (Join-Path $ScriptDir 'application.yaml'))) {
 $JavaBin  = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { 'java' }
 $JavaOpts = if ($env:JAVA_OPTS)  { $env:JAVA_OPTS -split '\s+' } else { @('-Xmx150m') }
 
+# ── AOT cache ─────────────────────────────────────────────────────────────────
+# Starting from a cache of already loaded and linked classes (JDK 24+) is worth
+# about 40% of this application's startup.  Writing one costs a training run:
+# the application starts under -XX:AOTCacheOutput and Spring exits it the moment
+# the context is refreshed, before the port is bound, so it can be done while an
+# instance is running.
+#
+# The cache describes the classes of one JAR under one profile, and the JVM only
+# rejects it when the JVM itself changed — a rebuilt JAR keeping the same name
+# would be started from a stale cache.  Hence the timestamp check: a cache older
+# than the JAR is retrained rather than used.
+$AotCache = if ($env:KB_AOT_CACHE) {
+    $env:KB_AOT_CACHE
+} else {
+    $name = ($Profile -replace '[^A-Za-z0-9._-]', '-') + '.aot'
+    [IO.Path]::GetFullPath((Join-Path $ScriptDir "..\local-db\aot\$name"))
+}
+$AotOpts = @()
+
+if ($env:KB_AOT -ne '0') {
+    $jarTime = (Get-Item $Jar).LastWriteTime
+    if (-not (Test-Path $AotCache) -or (Get-Item $AotCache).LastWriteTime -lt $jarTime) {
+        Write-Host "Training the AOT cache (once per build): $AotCache"
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $AotCache) | Out-Null
+        Push-Location $ScriptDir
+        # The training run reads the same configuration as the real one, so its
+        # failures are the real one's failures — reported by the start that
+        # follows rather than here, where the log would be the only thing the
+        # user sees.
+        # $ErrorActionPreference = 'Stop' turns a native command's stderr
+        # into a terminating error, and the JVM reports the cache it is
+        # building on stderr — the training run has to be read by exit code.
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $JavaBin --enable-preview @JavaOpts `
+          "-XX:AOTCacheOutput=$AotCache" `
+          '-Dspring.context.exit=onRefresh' `
+          -jar $Jar `
+          "--spring.profiles.active=$Profile" 2>&1 |
+          Out-File -FilePath "$AotCache.log" -Encoding utf8
+        $trained = $LASTEXITCODE -eq 0
+        $ErrorActionPreference = $previousPreference
+        Pop-Location
+        if (-not $trained) {
+            Write-Warning "AOT training failed, starting without a cache (log: $AotCache.log)"
+            Remove-Item -Force -ErrorAction SilentlyContinue $AotCache
+        }
+    }
+    # An unreadable cache only costs the JVM a warning and a normal startup, but
+    # passing a path that is not there says "cache" in the banner below and means
+    # nothing of the sort.
+    if (Test-Path $AotCache) {
+        $AotOpts = @("-XX:AOTCache=$AotCache")
+    }
+}
+
 Write-Host "Starting Knowledge Base..."
 Write-Host "  Profile: $Profile"
 Write-Host "  Config:  $(Join-Path $ScriptDir 'application.yaml') + application-$Profile.yaml"
 Write-Host "  JAR:     $Jar"
+Write-Host "  AOT:     $(if ($AotOpts) { $AotOpts[0] } else { 'off' })"
 Write-Host ""
 
 Set-Location $ScriptDir
 
-& $JavaBin --enable-preview @JavaOpts `
+& $JavaBin --enable-preview @JavaOpts @AotOpts `
   -jar $Jar `
   "--spring.profiles.active=$Profile"

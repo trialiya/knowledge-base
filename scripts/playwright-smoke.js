@@ -113,6 +113,10 @@ async function main() {
   const backend = spawn(RUN_SH, ['h2,playwright-smoke'], {
     cwd: ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
+    // A run.sh AOT cache is keyed on the JAR, and this script rebuilds the JAR
+    // by default — the cache would be retrained on every screenshot run and
+    // used by none of them.
+    env: { ...process.env, KB_AOT: '0' },
   });
   backend.stdout.on('data', (d) => process.stdout.write(`[backend] ${d}`));
   backend.stderr.on('data', (d) => process.stderr.write(`[backend] ${d}`));

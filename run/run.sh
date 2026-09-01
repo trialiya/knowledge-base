@@ -17,6 +17,12 @@
 # application-<profile>.yaml) before running.  The JVM is started from this
 # directory so relative paths in application.yaml (e.g. kb.projects[0].path: ..)
 # resolve against it.
+#
+# Environment:
+#   JAVA_OPTS      JVM options for both the application and the AOT training run
+#                  below (default -Xmx150m)
+#   KB_AOT         0 disables the AOT cache entirely
+#   KB_AOT_CACHE   path of the cache file, instead of local-db/aot/<profile>.aot
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,16 +50,58 @@ export LC_ALL="${LC_ALL:-C.utf8}"
 
 JAVA_OPTS="${JAVA_OPTS:--Xmx150m}"
 
+# ── AOT cache ─────────────────────────────────────────────────────────────────
+# Starting from a cache of already loaded and linked classes (JDK 24+) is worth
+# about 40% of this application's startup.  Writing one costs a training run:
+# the application starts under -XX:AOTCacheOutput and Spring exits it the moment
+# the context is refreshed, before the port is bound, so it can be done while an
+# instance is running.
+#
+# The cache describes the classes of one JAR under one profile, and the JVM only
+# rejects it when the JVM itself changed — a rebuilt JAR keeping the same name
+# would be started from a stale cache.  Hence the timestamp check: a cache older
+# than the JAR is retrained rather than used.
+AOT_CACHE="${KB_AOT_CACHE:-$SCRIPT_DIR/../local-db/aot/$(printf '%s' "$PROFILE" | tr -c 'A-Za-z0-9._-' '-').aot}"
+AOT_OPTS=()
+
+if [ "${KB_AOT:-1}" != "0" ]; then
+  if [ ! -f "$AOT_CACHE" ] || [ "$JAR" -nt "$AOT_CACHE" ]; then
+    echo "Training the AOT cache (once per build): $AOT_CACHE"
+    mkdir -p "$(dirname "$AOT_CACHE")"
+    # The training run reads the same configuration as the real one, so its
+    # failures are the real one's failures — reported by the start that follows
+    # rather than here, where the log would be the only thing the user sees.
+    # shellcheck disable=SC2086
+    if ! (cd "$SCRIPT_DIR" && "$JAVA_BIN" --enable-preview $JAVA_OPTS \
+        -XX:AOTCacheOutput="$AOT_CACHE" \
+        -Dspring.context.exit=onRefresh \
+        -jar "$JAR" \
+        --spring.profiles.active="$PROFILE" > "$AOT_CACHE.log" 2>&1); then
+      echo "  ...failed, starting without a cache (log: $AOT_CACHE.log)" >&2
+      rm -f "$AOT_CACHE"
+    fi
+  fi
+  # An unreadable cache only costs the JVM a warning and a normal startup, but
+  # passing a path that is not there says "cache" in the banner below and means
+  # nothing of the sort.
+  if [ -f "$AOT_CACHE" ]; then
+    AOT_OPTS=(-XX:AOTCache="$AOT_CACHE")
+  fi
+fi
+
 echo "Starting Knowledge Base..."
 echo "  Profile: $PROFILE"
 echo "  Config:  $SCRIPT_DIR/application.yaml + application-$PROFILE.yaml"
 echo "  JAR:     $JAR"
 echo "  JAVA:    $JAVA_BIN"
+echo "  AOT:     ${AOT_OPTS[0]:-off}"
 echo ""
 
 cd "$SCRIPT_DIR"
 
+# ${AOT_OPTS[@]+...} keeps an empty array from tripping `set -u` on bash 3.2,
+# which is still what macOS ships as /bin/bash.
 # shellcheck disable=SC2086
-exec "$JAVA_BIN" --enable-preview $JAVA_OPTS \
+exec "$JAVA_BIN" --enable-preview $JAVA_OPTS ${AOT_OPTS[@]+"${AOT_OPTS[@]}"} \
   -jar "$JAR" \
   --spring.profiles.active="$PROFILE"
