@@ -16,7 +16,9 @@
 #   format      spotlessCheck (Google Java Format, AOSP) — fails on a violation
 #   formatApply spotlessApply — same rules, rewrites the files instead of failing
 #   lint        PMD + SpotBugs over backend main sources — rules and exclusions
-#               live in config/pmd/ruleset.xml and config/spotbugs/exclude.xml
+#               live in config/pmd/ruleset.xml and config/spotbugs/exclude.xml.
+#               Not part of `build`: neither tool is incremental, so it is run
+#               here and by pre-pr rather than on every compile
 #   build       full build (frontend bundled into the backend JAR)
 #   jar         just the runnable backend JAR (bootJar, frontend bundled, no tests)
 #   clean       gradle clean — when something is stuck in the toolchain/spotless cache
@@ -215,8 +217,8 @@ run_it() {
 run_back()   { ensure_docker; gradle_run :backend:test; }
 run_front()  { gradle_run :frontend:yarnTest :frontend:yarnLint; }
 run_format() { gradle_run spotlessCheck; }
-# Also reached through `build` (both tasks hang off `check`); its own suite so a
-# rule violation surfaces in seconds instead of after the whole test run.
+# Deliberately off `check`, so `build` does not pay for it (see backend/build.gradle);
+# this suite and the pre-pr gate are what run it locally.
 run_lint()   { gradle_run :backend:pmdMain :backend:spotbugsMain; }
 run_format_apply() { gradle_run spotlessApply; }
 run_build()  { gradle_run build; }

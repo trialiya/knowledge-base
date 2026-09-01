@@ -165,6 +165,24 @@ tasks.named('spotbugsTest') {
     enabled = false
 }
 
+// Both plugins wire their tasks into `check` by default, and both are unwired here so that
+// `build` costs what it did before. Neither tool is incremental — one edited file re-analyses
+// every source, ~14s — which is a poor trade on each local build. They are invoked by name
+// instead: `./run/test.sh lint`, the pre-pr gate, and the static-analysis step of backend-pr.yml.
+//
+// Two different mechanisms, because the plugins wire themselves up differently:
+//   * PMD reads `check`'s dependency off pmd.sourceSets, while the tasks are created for every
+//     source set regardless — so emptying the list keeps pmdMain and pmdTest available by name.
+//   * SpotBugs hangs a TaskCollection of its own on check, which has to be filtered back out.
+pmd.sourceSets = []
+tasks.named('check') {
+    setDependsOn(
+            dependsOn.findAll { dep ->
+                !(dep instanceof TaskCollection)
+                        || !dep.any { it instanceof com.github.spotbugs.snom.SpotBugsTask }
+            })
+}
+
 tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
     reports {
         // Without an explicit report the plugin only prints to the console and leaves nothing
