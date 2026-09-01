@@ -13,7 +13,12 @@ vi.mock('react-i18next', async (importOriginal) => ({
 
 // Настоящая модалка ходит за деталями в API; здесь важно лишь то, чей вызов в ней открыт.
 vi.mock('./ToolCallDetailModal', () => ({
-  default: ({ callId, tc }) => <div data-testid="detail">{`${callId} ${tc.status}`}</div>,
+  default: ({ callId, tc, onClose }) => (
+    <div data-testid="detail">
+      {`${callId} ${tc.status}`}
+      <button data-testid="close" onClick={onClose} />
+    </div>
+  ),
 }));
 
 const edit = (callId, path, status = 'OK') => ({
@@ -46,6 +51,23 @@ describe('ToolCallNotifications', () => {
     expect(screen.getByTestId('detail')).toHaveTextContent('call-1');
     // И сама плашка остаётся на виду: группа с открытыми деталями разворачивается сама.
     expect(plaques(container).map((el) => el.textContent)).toHaveLength(3);
+  });
+
+  it('не разворачивает группу, детали которой успели закрыть', async () => {
+    const user = userEvent.setup();
+    const { container, rerender } = show([edit('call-1', 'src/App.java')]);
+
+    await user.click(plaques(container)[0]);
+    await user.click(screen.getByTestId('close'));
+
+    rerender(
+      <ToolCallNotifications
+        toolCalls={[edit('call-1', 'src/App.java'), edit('call-2', 'src/Other.java')]}
+        conversationId="c1"
+      />,
+    );
+
+    expect(plaques(container)).toHaveLength(1);
   });
 
   it('не разворачивает группу, деталей которой не открывали', async () => {

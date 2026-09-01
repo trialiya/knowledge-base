@@ -115,7 +115,10 @@ const ToolCallGroup = ({ name, items, conversationId, detailCallId, onOpenDetail
   // это детали. Разворачиваем один раз, на приходе деталей в эту группу, — дальше решает
   // шеврон: закрыть развёрнутое силой значило бы спорить с человеком.
   const [holding, setHolding] = useState(null);
-  const holds = detailCallId != null && items.some((tc) => tc.callId === detailCallId);
+  // Пока вызов в группе один, разворачивать нечего — и помечать группу развёрнутой тоже:
+  // иначе флаг дожил бы до следующего вызова того же инструмента и открыл бы группу, детали
+  // которой давно закрыли.
+  const holds = detailCallId != null && items.length > 1 && items.some((tc) => tc.callId === detailCallId);
   if (holds && holding !== detailCallId) {
     setHolding(detailCallId);
     setOpen(true);
@@ -164,12 +167,7 @@ const ToolCallGroup = ({ name, items, conversationId, detailCallId, onOpenDetail
       {open && (
         <div className="tool-call-group-children">
           {items.map((tc, i) => (
-            <ToolCallItem
-              key={tc.callId ?? i}
-              tc={tc}
-              conversationId={conversationId}
-              onOpenDetail={onOpenDetail}
-            />
+            <ToolCallItem key={tc.callId ?? i} tc={tc} conversationId={conversationId} onOpenDetail={onOpenDetail} />
           ))}
         </div>
       )}
