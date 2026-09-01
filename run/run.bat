@@ -16,7 +16,7 @@ rem Environment:
 rem   JAVA_OPTS      JVM options for both the application and the AOT training
 rem                  run below (default -Xmx150m)
 rem   KB_AOT         0 disables the AOT cache entirely
-rem   KB_AOT_CACHE   path of the cache file, instead of local-db\aot\<profile>.aot
+rem   KB_AOT_CACHE   path of the cache file, instead of local-db\aot\kb.aot
 setlocal EnableDelayedExpansion
 
 set "SCRIPT_DIR=%~dp0"
@@ -57,13 +57,17 @@ rem run: the application starts under -XX:AOTCacheOutput and Spring exits it the
 rem moment the context is refreshed, before the port is bound, so it can be done
 rem while an instance is running.
 rem
-rem The cache describes the classes of one JAR under one profile, and the JVM
-rem only rejects it when the JVM itself changed — a rebuilt JAR keeping the same
-rem name would be started from a stale cache.  cmd has no timestamp comparison,
-rem so the JAR's own timestamp is written beside the cache and compared as text.
-set "AOT_NAME=%PROFILE:,=-%"
+rem One cache serves every profile.  What it holds is classes of this JAR, and
+rem the profile only decides which of them a given run reaches for — a class the
+rem cache does not have is loaded the ordinary way, so the profile that trained
+rem it costs the others nothing but the classes they alone need.
+rem
+rem The JVM rejects a cache only when the JVM itself changed, so a rebuilt JAR
+rem keeping the same name would be started from a stale one.  cmd has no
+rem timestamp comparison, so the JAR's own timestamp is written beside the cache
+rem and compared as text.
 if "%KB_AOT_CACHE%"=="" (
-    set "AOT_CACHE=%SCRIPT_DIR%\..\local-db\aot\!AOT_NAME!.aot"
+    set "AOT_CACHE=%SCRIPT_DIR%\..\local-db\aot\kb.aot"
 ) else (
     set "AOT_CACHE=%KB_AOT_CACHE%"
 )
