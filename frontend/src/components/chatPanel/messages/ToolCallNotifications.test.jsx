@@ -44,6 +44,28 @@ describe('ToolCallNotifications', () => {
     );
 
     expect(screen.getByTestId('detail')).toHaveTextContent('call-1');
+    // И сама плашка остаётся на виду: группа с открытыми деталями разворачивается сама.
+    expect(plaques(container).map((el) => el.textContent)).toHaveLength(3);
+  });
+
+  it('не разворачивает группу, деталей которой не открывали', async () => {
+    const user = userEvent.setup();
+    const { container, rerender } = show([edit('call-1', 'src/App.java')]);
+
+    await user.click(plaques(container)[0]);
+    rerender(
+      <ToolCallNotifications
+        toolCalls={[
+          edit('call-1', 'src/App.java'),
+          { name: 'getFileContent', callId: 'call-2', status: 'OK', arguments: { path: 'a' } },
+          { name: 'getFileContent', callId: 'call-3', status: 'OK', arguments: { path: 'b' } },
+        ]}
+        conversationId="c1"
+      />,
+    );
+
+    // Одиночная плашка editFile плюс заголовок свёрнутой группы getFileContent ×2.
+    expect(plaques(container)).toHaveLength(2);
   });
 
   it('показывает в деталях свежее состояние вызова, а не то, что было при открытии', async () => {

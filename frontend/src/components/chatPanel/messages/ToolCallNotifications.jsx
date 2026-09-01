@@ -107,9 +107,21 @@ const ToolCallItem = ({ tc, conversationId, onOpenDetail }) => {
 };
 
 /** Группа одноимённых последовательных вызовов — сворачиваемая */
-const ToolCallGroup = ({ name, items, conversationId, onOpenDetail }) => {
+const ToolCallGroup = ({ name, items, conversationId, detailCallId, onOpenDetail }) => {
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
+  // Группа с открытыми деталями разворачивается сама: плашку, по которой кликнули, следующий
+  // вызов того же инструмента сворачивает в заголовок «×N», и читающий теряет из виду, чьи
+  // это детали. Разворачиваем один раз, на приходе деталей в эту группу, — дальше решает
+  // шеврон: закрыть развёрнутое силой значило бы спорить с человеком.
+  const [holding, setHolding] = useState(null);
+  const holds = detailCallId != null && items.some((tc) => tc.callId === detailCallId);
+  if (holds && holding !== detailCallId) {
+    setHolding(detailCallId);
+    setOpen(true);
+  } else if (!holds && holding !== null) {
+    setHolding(null);
+  }
 
   // Одиночный вызов — рендерим как обычную плашку, без шеврона/бейджа
   if (items.length === 1) {
@@ -200,6 +212,7 @@ const ToolCallNotifications = ({ toolCalls, conversationId }) => {
             name={g.name}
             items={g.items}
             conversationId={conversationId}
+            detailCallId={detailCallId}
             onOpenDetail={setDetailCallId}
           />
         ))}
