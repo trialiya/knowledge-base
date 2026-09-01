@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatHeader from '@/components/chatPanel/center/ChatHeader';
 import ChatUsage from '@/components/chatPanel/center/ChatUsage';
@@ -9,6 +10,7 @@ import GitCommandsModal from '@/components/chatPanel/git/GitCommandsModal';
 import GitOutputCard from '@/components/chatPanel/git/GitOutputCard';
 import CompactNotice from '@/components/chatPanel/messages/CompactNotice';
 import ToolCallDetailModal from '@/components/chatPanel/messages/ToolCallDetailModal';
+import ToolCallNotifications from '@/components/chatPanel/messages/ToolCallNotifications';
 import GitBranchBar from '@/components/filesPanel/git/GitBranchBar';
 import Breadcrumb from '@/components/filesPanel/Breadcrumb';
 import DetailHeader from '@/components/knowledgeBasePanel/detail/DetailHeader';
@@ -48,6 +50,7 @@ import * as runStatus from '../fixtures/runStatus';
 import * as syncDiff from '../fixtures/syncDiff';
 import * as systemInfo from '../fixtures/systemInfo';
 import * as toolCallDetail from '../fixtures/toolCallDetail';
+import * as toolCallNotifications from '../fixtures/toolCallNotifications';
 import * as toolCatalog from '../fixtures/toolCatalog';
 
 /**
@@ -146,6 +149,24 @@ const toolCallCase = ([name, viewport]) => ({
   ),
 });
 
+/**
+ * Лента плашек, перестраивающаяся под идущий ответ: клик по плашке открывает
+ * детали, а следующим тиком приходит второй вызов того же инструмента —
+ * одиночная плашка становится группой. Ждать этого от живого приложения
+ * нечего: момент длится один шаг tool-цикла, а от того, что показывают в этот
+ * момент, кейс и зависит.
+ */
+const LiveToolCalls = ({ calls, next }) => {
+  const [items, setItems] = useState(calls);
+  const deliver = () =>
+    setTimeout(() => setItems((prev) => (prev.length > calls.length ? prev : [...prev, next])), 0);
+  return (
+    <div onClickCapture={deliver}>
+      <ToolCallNotifications toolCalls={items} conversationId="1" />
+    </div>
+  );
+};
+
 const REGISTRY = [
   // ── Чат ──
   {
@@ -234,6 +255,23 @@ const REGISTRY = [
     ['scriptRunCall', [1440, 1350]],
     ['scriptFailedCall'],
   ].map(toolCallCase),
+
+  // Плашки вызовов под ответом. Рамка `feed`: ширина ленты решает, что в плашке
+  // поместится, а модалка деталей уходит порталом поверх неё — как в чате.
+  ...[
+    // Ответ дошёл до первого вызова: одиночная плашка, деталей никто не открывал.
+    ['', undefined],
+    // По плашке кликнули, и ровно тогда модель позвала тот же инструмент снова.
+    ['@detail', [{ click: '.tool-call-item' }]],
+    // Детали закрыли: группа осталась развёрнутой, кликнутая плашка на виду.
+    ['@expanded', [{ click: '.tool-call-item' }, { click: '.tool-call-detail__header .icon-btn' }]],
+  ].map(([variant, steps]) => ({
+    id: `toolCallNotifications.js#editFileTwice${variant}`,
+    frame: 'feed',
+    steps,
+    api: (p) => ({ '/api/chats/': p.detail }),
+    render: (p) => <LiveToolCalls calls={p.calls} next={p.next} />,
+  })),
 
   // ── База знаний ──
   {
@@ -455,6 +493,7 @@ const MODULES = {
   'syncDiff.js': syncDiff,
   'systemInfo.js': systemInfo,
   'toolCallDetail.js': toolCallDetail,
+  'toolCallNotifications.js': toolCallNotifications,
   'toolCatalog.js': toolCatalog,
 };
 
