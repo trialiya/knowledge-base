@@ -13,4 +13,8 @@ public class GitCommandFailedException extends RuntimeException {
     public GitCommandFailedException(String message) {
         super(message);
     }
+
+    public GitCommandFailedException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

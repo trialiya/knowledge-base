@@ -15,6 +15,10 @@
 #   front       frontend tests (vitest) + eslint
 #   format      spotlessCheck (Google Java Format, AOSP) — fails on a violation
 #   formatApply spotlessApply — same rules, rewrites the files instead of failing
+#   lint        PMD + SpotBugs over backend main sources — rules and exclusions
+#               live in config/pmd/ruleset.xml and config/spotbugs/exclude.xml.
+#               Not part of `build`: neither tool is incremental, so it is run
+#               here and by pre-pr rather than on every compile
 #   build       full build (frontend bundled into the backend JAR)
 #   jar         just the runnable backend JAR (bootJar, frontend bundled, no tests)
 #   clean       gradle clean — when something is stuck in the toolchain/spotless cache
@@ -35,8 +39,8 @@
 #               Docker) — that is where the baselines belong, so comparison
 #               works, and new baselines are taken here too (`-- --update`).
 #               The first run pulls the image, ~3.7 GB
-#   pre-pr      format + back + build — the gate before a pull request
-#   ci          the same three with --console=plain (non-interactive logs). Note: the
+#   pre-pr      format + lint + back + build — the gate before a pull request
+#   ci          the same four with --console=plain (non-interactive logs). Note: the
 #               GitHub workflows do not call this — they run ./gradlew per module.
 #
 # No suite given → unit + front: the fast pair that needs neither Docker nor a JAR.
@@ -213,6 +217,9 @@ run_it() {
 run_back()   { ensure_docker; gradle_run :backend:test; }
 run_front()  { gradle_run :frontend:yarnTest :frontend:yarnLint; }
 run_format() { gradle_run spotlessCheck; }
+# Deliberately off `check`, so `build` does not pay for it (see backend/build.gradle);
+# this suite and the pre-pr gate are what run it locally.
+run_lint()   { gradle_run :backend:pmdMain :backend:spotbugsMain; }
 run_format_apply() { gradle_run spotlessApply; }
 run_build()  { gradle_run build; }
 run_clean()  { gradle_run clean; }
@@ -282,6 +289,7 @@ run_suite() {
     back)   run_back ;;
     front)  run_front ;;
     format) run_format ;;
+    lint)   run_lint ;;
     formatApply) run_format_apply ;;
     build)  run_build ;;
     jar)    run_jar ;;
@@ -289,10 +297,10 @@ run_suite() {
     smoke)  run_smoke ;;
     harness) run_harness ;;
     harness-image) run_harness_image ;;
-    pre-pr | ci) run_format; run_back; run_build ;;
+    pre-pr | ci) run_format; run_lint; run_back; run_build ;;
     *)
       echo "ERROR: unknown suite '$1'." >&2
-      echo "       Known: unit it back front format formatApply build jar clean smoke harness harness-image pre-pr ci" >&2
+      echo "       Known: unit it back front format formatApply lint build jar clean smoke harness harness-image pre-pr ci" >&2
       exit 2
       ;;
   esac

@@ -15,18 +15,20 @@ import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-public class ChatUtils {
+public final class ChatUtils {
 
-    public static String DEFAULT_CONVERSATION_ID = "default";
+    public static final String DEFAULT_CONVERSATION_ID = "default";
 
     /** Имя пользователя для контекстов без аутентификации (фоновые задачи, тесты). */
     public static final String ANONYMOUS_USER = "anonymous";
+
+    private ChatUtils() {}
 
     @NonNull
     public static String conversationId(ToolContext context) {
         return Optional.ofNullable(context.getContext().get(ChatMemory.CONVERSATION_ID))
                 .map(Object::toString)
-                .orElse("default");
+                .orElse(DEFAULT_CONVERSATION_ID);
     }
 
     /**

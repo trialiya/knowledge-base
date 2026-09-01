@@ -14,9 +14,11 @@
 #   front       frontend tests (vitest) + eslint
 #   format      spotlessCheck (Google Java Format, AOSP) — fails on a violation
 #   formatApply spotlessApply — same rules, rewrites the files instead of failing
+#   lint        PMD + SpotBugs over backend main sources — rules and exclusions
+#               live in config/pmd/ruleset.xml and config/spotbugs/exclude.xml
 #   build       full build (frontend bundled into the backend JAR)
 #   clean       gradle clean — when something is stuck in the toolchain/spotless cache
-#   pre-pr      format + back + build — the gate before a pull request
+#   pre-pr      format + lint + back + build — the gate before a pull request
 #   ci          the same three with --console=plain (non-interactive logs). Note: the
 #               GitHub workflows do not call this — they run ./gradlew per module.
 #
@@ -130,12 +132,13 @@ function Invoke-Suite {
         'front'  { Invoke-Gradle @(':frontend:yarnTest', ':frontend:yarnLint') }
         'format'      { Invoke-Gradle @('spotlessCheck') }
         'formatApply' { Invoke-Gradle @('spotlessApply') }
+        'lint'        { Invoke-Gradle @(':backend:pmdMain', ':backend:spotbugsMain') }
         'build'  { Invoke-Gradle @('build') }
         'clean'  { Invoke-Gradle @('clean') }
-        'pre-pr' { Invoke-Suite 'format'; Invoke-Suite 'back'; Invoke-Suite 'build' }
+        'pre-pr' { Invoke-Suite 'format'; Invoke-Suite 'lint'; Invoke-Suite 'back'; Invoke-Suite 'build' }
         'ci'     { Invoke-Suite 'pre-pr' }
         default  {
-            Write-Error "Unknown suite '$Name'. Known: unit it back front format formatApply build clean pre-pr ci"
+            Write-Error "Unknown suite '$Name'. Known: unit it back front format formatApply lint build clean pre-pr ci"
             exit 2
         }
     }

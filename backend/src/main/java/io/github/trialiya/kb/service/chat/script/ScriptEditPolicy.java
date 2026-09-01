@@ -42,7 +42,7 @@ public class ScriptEditPolicy {
     }
 
     /** Whether scripts may write to {@code projectId}; {@code null} — the default project. */
-    public boolean enabled(@Nullable String projectId) {
+    public final boolean enabled(@Nullable String projectId) {
         return scriptEditEnabled && gitRegistry.editsAllowed(projectId);
     }
 
@@ -52,7 +52,7 @@ public class ScriptEditPolicy {
      * instead: {@code edit-enabled} is configured per project, so the default's answer is not the
      * deployment's.
      */
-    public boolean enabled() {
+    public final boolean enabled() {
         return enabled(null);
     }
 }

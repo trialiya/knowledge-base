@@ -88,7 +88,7 @@ public class EmbeddingService {
             return new EmbeddingResponse(List.of());
         }
         float[] vector = embedWithCacheAndChunking(text);
-        return wrapVector(vector, text);
+        return wrapVector(vector);
     }
 
     /**
@@ -302,7 +302,7 @@ public class EmbeddingService {
         return sum;
     }
 
-    private static EmbeddingResponse wrapVector(float[] vector, String inputText) {
+    private static EmbeddingResponse wrapVector(float[] vector) {
         Embedding embedding = new Embedding(vector, 0);
         return new EmbeddingResponse(List.of(embedding));
     }

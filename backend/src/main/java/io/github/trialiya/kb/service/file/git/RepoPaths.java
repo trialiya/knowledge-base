@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.file.git;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.NonNull;
@@ -198,7 +199,8 @@ final class RepoPaths {
             return true;
         }
         int dot = name.lastIndexOf('.');
-        return dot >= 0 && IGNORED_EXTENSIONS.contains(name.substring(dot).toLowerCase());
+        return dot >= 0
+                && IGNORED_EXTENSIONS.contains(name.substring(dot).toLowerCase(Locale.ROOT));
     }
 
     /** Index of the first {@code *} or {@code ?} in a glob, or {@code -1} when it has none. */

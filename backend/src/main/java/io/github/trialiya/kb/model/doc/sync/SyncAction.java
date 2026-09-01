@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.doc.sync;
 
 import com.fasterxml.jackson.annotation.JsonValue;
+import java.util.Locale;
 
 /**
  * What an import actually did to one node.
@@ -29,6 +30,6 @@ public enum SyncAction {
 
     @JsonValue
     public String value() {
-        return name().toLowerCase();
+        return name().toLowerCase(Locale.ROOT);
     }
 }

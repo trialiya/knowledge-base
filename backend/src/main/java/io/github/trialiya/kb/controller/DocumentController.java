@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -274,7 +275,7 @@ public class DocumentController {
             @RequestParam(required = false) @Nullable Double kwWeight,
             @RequestParam(required = false) @Nullable Double semWeight) {
 
-        return switch (mode.toLowerCase()) {
+        return switch (mode.toLowerCase(Locale.ROOT)) {
             case "semantic" -> service.semanticSearch(q, threshold, limit);
             case "hybrid" -> service.hybridSearch(q, threshold, limit, kwWeight, semWeight);
             default -> service.search(q);

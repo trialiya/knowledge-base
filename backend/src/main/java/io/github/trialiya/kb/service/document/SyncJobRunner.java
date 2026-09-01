@@ -99,7 +99,10 @@ public class SyncJobRunner {
             emitter.send(SseEmitter.event().data(event));
         } catch (Exception e) {
             alive.set(false);
-            throw new CancellationException("send failed: " + e.getMessage());
+            CancellationException cancelled =
+                    new CancellationException("send failed: " + e.getMessage());
+            cancelled.initCause(e);
+            throw cancelled;
         }
     }
 

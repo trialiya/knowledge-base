@@ -5,6 +5,7 @@ import io.github.trialiya.kb.repository.DocumentRepository;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -231,7 +232,7 @@ public class DocumentTreeReader {
         }
         String name =
                 title.trim()
-                        .toLowerCase()
+                        .toLowerCase(Locale.ROOT)
                         .replaceAll("[^a-z0-9а-яё]+", "-")
                         .replaceAll("^-+|-+$", "");
         return name.isEmpty() ? "untitled" : name;

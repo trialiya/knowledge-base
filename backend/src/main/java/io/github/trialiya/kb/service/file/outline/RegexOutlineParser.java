@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.file.outline;
 import io.github.trialiya.kb.model.git.dto.GitSymbol;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -142,7 +143,7 @@ public final class RegexOutlineParser implements CodeOutlineParser {
             if (m.find()) {
                 out.add(
                         new GitSymbol(
-                                m.group(1).toLowerCase(),
+                                m.group(1).toLowerCase(Locale.ROOT),
                                 m.group(2),
                                 trimSig(lines[i]),
                                 i + 1,

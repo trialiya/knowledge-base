@@ -45,7 +45,8 @@ starting `dockerd` for Testcontainers.
 
 ```bash
 ./run/test.sh                  # unit + front — the fast pair, no Docker
-./run/test.sh pre-pr           # format + back + build — the gate before a PR
+./run/test.sh lint             # PMD + SpotBugs over backend main sources
+./run/test.sh pre-pr           # format + lint + back + build — the gate before a PR
 ./run/test.sh smoke            # build the JAR and drive the UI with Chromium
 ./run/test.sh harness          # screenshot one component against a fixture, no backend
 ./run/test.sh harness-image    # the same in the image the baselines were taken in
@@ -70,8 +71,16 @@ The wrapper deliberately does not cover:
 ## Rules that apply everywhere
 
 - **Before a pull request run `./run/test.sh pre-pr`** — `spotlessCheck` ·
-  `:backend:test` · `build`. All three run in the web sandbox too, IT tests
-  included.
+  PMD + SpotBugs · `:backend:test` · `build`. All of it runs in the web sandbox
+  too, IT tests included.
+- **PMD and SpotBugs gate the backend** (main sources only, like NullAway), but
+  deliberately *not* through `check` — `build` does not run them, `./run/test.sh
+  lint`, `pre-pr` and CI do. The rule selection and every exclusion, each with
+  its reason, live in `config/pmd/ruleset.xml` and
+  `config/spotbugs/exclude.xml` — fix the finding first; suppress in place
+  (`@SuppressWarnings("PMD.Rule")` plus a comment, or an addressed `<Match>`)
+  only when the rule is wrong about that spot, and turn a rule off wholesale
+  only when it is wrong about the project.
 - **Dependency locking is on.** After changing dependencies run
   `./gradlew resolveAndLockAll --write-locks`.
 - **A schema change is four edits, not one.** Write the migration for both

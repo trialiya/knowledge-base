@@ -16,6 +16,8 @@ on:
       - 'gradle.lockfile'
       - 'gradle/**'
       - 'gradlew'
+      - 'config/pmd/**'
+      - 'config/spotbugs/**'
       - '.github/workflows/backend-pr.yml'
   push:
     branches: [main]
@@ -27,6 +29,8 @@ on:
       - 'gradle.lockfile'
       - 'gradle/**'
       - 'gradlew'
+      - 'config/pmd/**'
+      - 'config/spotbugs/**'
       - '.github/workflows/backend-pr.yml'
 
 permissions:
@@ -58,11 +62,27 @@ jobs:
       - name: Run backend tests
         run: ./gradlew :backend:test :backend:spotlessCheck --no-daemon --stacktrace
 
+      # Статический анализ main-исходников: правила и исключения — в
+      # config/pmd/ruleset.xml и config/spotbugs/exclude.xml.
+      - name: Run static analysis
+        run: ./gradlew :backend:pmdMain :backend:spotbugsMain --no-daemon --stacktrace
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: backend-test-reports
           path: backend/build/reports/tests/test
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload static analysis reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-static-analysis-reports
+          path: |
+            backend/build/reports/pmd
+            backend/build/reports/spotbugs
           retention-days: 7
           if-no-files-found: ignore

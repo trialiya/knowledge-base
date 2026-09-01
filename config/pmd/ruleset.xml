@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="kb"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+    <description>
+        PMD rules for the backend. The build fails on any violation, so the set is picked for
+        signal, not coverage: a rule stays only if a hit is worth stopping a build for.
+
+        Two whole categories are absent on purpose:
+          * category/java/codestyle.xml — formatting and naming are Spotless' job
+            (Google Java Format, AOSP); the rest of the category is taste.
+          * category/java/documentation.xml — comment length and placement are not linted here.
+        The metric rules of category/java/design.xml (complexity, method/import/field counts) are
+        excluded below for the same reason: CLAUDE.md sets file-size expectations in code lines,
+        which is not what those rules measure.
+    </description>
+
+    <rule ref="category/java/bestpractices.xml">
+        <!-- Every logger call here is slf4j with {} placeholders, so the guarded-call speedup
+             this rule asks for does not apply. -->
+        <exclude name="GuardLogStatement"/>
+        <!-- Whether an API takes a List or a varargs is a design call, not a defect. -->
+        <exclude name="UseVarargs"/>
+        <!-- @FunctionalInterface on every one-method interface is ceremony; the compiler already
+             rejects a lambda over an interface that is not functional. -->
+        <exclude name="ImplicitFunctionalInterface"/>
+        <!-- A default branch on an exhaustive switch is a deliberate guard against an enum
+             constant added later. -->
+        <exclude name="ExhaustiveSwitchHasDefault"/>
+        <!-- Declaring a field as ConcurrentHashMap/LinkedHashMap rather than Map is how the
+             thread-safety or the ordering guarantee is stated at the declaration. -->
+        <exclude name="LooseCoupling"/>
+        <!-- Yoda comparisons guard against a null receiver, which NullAway already rules out on
+             @NullMarked code; what is left is a readability preference. -->
+        <exclude name="LiteralsFirstInComparisons"/>
+        <!-- The flagged StringBuilder fields belong to short-lived per-call collectors, not to
+             long-lived beans. -->
+        <exclude name="AvoidStringBufferField"/>
+    </rule>
+
+    <rule ref="category/java/errorprone.xml">
+        <!-- Catching Exception at a controller boundary or around a tool call is the pattern
+             this codebase uses on purpose: one failure must not kill a chat run. -->
+        <exclude name="AvoidCatchingGenericException"/>
+        <!-- getX() next to a field x is the accessor idiom, including everything Lombok
+             generates. -->
+        <exclude name="AvoidFieldNameMatchingMethodName"/>
+        <!-- Repeated literals are mostly SQL fragments, log keys and tool names, where a
+             constant per occurrence reads worse than the literal. -->
+        <exclude name="AvoidDuplicateLiterals"/>
+        <exclude name="AvoidLiteralsInIfCondition"/>
+        <!-- Assigning null to clear a reference is legitimate here (ThreadLocal-ish cleanup,
+             optional builder fields). -->
+        <exclude name="NullAssignment"/>
+        <!-- null and empty are different answers in this codebase ("no selection" vs "select
+             nothing"), and the difference is carried by @Nullable, which NullAway enforces. -->
+        <exclude name="ReturnEmptyCollectionRatherThanNull"/>
+        <exclude name="AssignmentInOperand"/>
+        <!-- Nothing here is serialized with Java serialization. -->
+        <exclude name="MissingSerialVersionUID"/>
+        <!-- The Spring Data JDBC converters are instantiated by the framework through their
+             enclosing @Configuration, not by a static factory. -->
+        <exclude name="MissingStaticMethodInNonInstantiatableClass"/>
+        <!-- `break`/`continue` as the last statement of a loop body is how the scan loops here
+             express "stop after this iteration". -->
+        <exclude name="AvoidBranchingStatementAsLastInLoop"/>
+        <!-- java.util.Date appears only where a JDBC driver hands one back. -->
+        <exclude name="ReplaceJavaUtilDate"/>
+    </rule>
+
+    <rule ref="category/java/design.xml">
+        <!-- Metric rules: they measure shapes this project sizes differently (see CLAUDE.md). -->
+        <exclude name="CyclomaticComplexity"/>
+        <exclude name="CognitiveComplexity"/>
+        <exclude name="NPathComplexity"/>
+        <exclude name="NcssCount"/>
+        <exclude name="ExcessiveImports"/>
+        <exclude name="ExcessiveParameterList"/>
+        <exclude name="ExcessivePublicCount"/>
+        <exclude name="TooManyFields"/>
+        <exclude name="TooManyMethods"/>
+        <exclude name="GodClass"/>
+        <exclude name="CouplingBetweenObjects"/>
+        <exclude name="AvoidDeeplyNestedIfStmts"/>
+        <!-- "Only talk to your friends" would flag most of the fluent Spring AI and JGit APIs. -->
+        <exclude name="LawOfDemeter"/>
+        <!-- Entities and DTOs are supposed to be data. -->
+        <exclude name="DataClass"/>
+        <!-- Control flow through exceptions is how the tool layer reports a refusal to the model. -->
+        <exclude name="ExceptionAsFlowControl"/>
+        <!-- JGit and the Spring AI callbacks declare throws Exception; wrappers have to match. -->
+        <exclude name="SignatureDeclareThrowsException"/>
+        <!-- Spring Data JDBC writes the generated @Id back into the field after an insert, so an
+             entity id cannot be final. -->
+        <exclude name="ImmutableField"/>
+    </rule>
+
+    <rule ref="category/java/multithreading.xml">
+        <!-- Chat runs are background tasks on virtual threads: threads are the design. -->
+        <exclude name="DoNotUseThreads"/>
+        <!-- Most flagged maps are read-only or confined to one thread. -->
+        <exclude name="UseConcurrentHashMap"/>
+        <exclude name="AvoidSynchronizedAtMethodLevel"/>
+        <exclude name="AvoidUsingVolatile"/>
+    </rule>
+
+    <rule ref="category/java/performance.xml">
+        <!-- Allocation inside a loop is normal in mapping code; this rule cannot tell a hot
+             loop from a five-element one. -->
+        <exclude name="AvoidInstantiatingObjectsInLoops"/>
+        <!-- StringBuilder micro-tuning: sizing hints and append-merging are not worth a build
+             failure at the volumes involved. -->
+        <exclude name="InsufficientStringBufferDeclaration"/>
+        <exclude name="ConsecutiveLiteralAppends"/>
+        <exclude name="ConsecutiveAppendsShouldReuse"/>
+        <exclude name="AppendCharacterWithChar"/>
+        <exclude name="TooFewBranchesForSwitch"/>
+    </rule>
+
+    <rule ref="category/java/security.xml"/>
+</ruleset>

@@ -30,6 +30,7 @@ import io.github.trialiya.kb.utils.ExactEdit;
 import io.github.trialiya.kb.utils.MarkdownSections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -89,7 +90,7 @@ public class DocumentFunction {
          */
         @JsonCreator
         static InsertPosition parse(String raw) {
-            final String value = raw == null ? "" : raw.strip().toUpperCase();
+            final String value = raw == null ? "" : raw.strip().toUpperCase(Locale.ROOT);
             return switch (value) {
                 case "BEFORE" -> BEFORE;
                 case "AFTER" -> AFTER;
@@ -139,7 +140,7 @@ public class DocumentFunction {
         // No empty-query fallback: semantic and hybrid both embed the query, and the embedding API
         // rejects an empty string — the "safe" default would fail deeper down with a worse message.
         requireText(query, "query");
-        final String effectiveMode = orDefault(mode, "hybrid").toLowerCase();
+        final String effectiveMode = orDefault(mode, "hybrid").toLowerCase(Locale.ROOT);
         log.info(
                 "Document search: query='{}' mode={} threshold={} limit={}",
                 query,

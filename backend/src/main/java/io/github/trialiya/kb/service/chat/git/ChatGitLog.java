@@ -90,7 +90,7 @@ public class ChatGitLog {
             // генерируется»: команду мог отклонить и параллельный git из другой вкладки, но для
             // пользователя это один и тот же ответ — «сейчас нельзя, попробуйте снова».
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "The assistant is working on this chat right now");
+                    HttpStatus.CONFLICT, "The assistant is working on this chat right now", e);
         }
     }
 

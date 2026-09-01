@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.file.outline;
 
+import java.util.Locale;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
@@ -42,6 +43,6 @@ public final class LanguageDetector {
         if (dot < 0 || dot == name.length() - 1) {
             return null;
         }
-        return BY_EXTENSION.get(name.substring(dot + 1).toLowerCase());
+        return BY_EXTENSION.get(name.substring(dot + 1).toLowerCase(Locale.ROOT));
     }
 }

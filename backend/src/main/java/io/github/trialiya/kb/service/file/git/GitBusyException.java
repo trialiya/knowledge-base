@@ -12,4 +12,8 @@ public class GitBusyException extends RuntimeException {
     public GitBusyException(String message) {
         super(message);
     }
+
+    public GitBusyException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

@@ -115,11 +115,9 @@ public class TextChunker {
                 continue;
             }
 
-            if (buf.length() + 1 + s.length() > maxChars) {
-                if (!buf.isEmpty()) {
-                    out.add(buf.toString().strip());
-                    buf.setLength(0);
-                }
+            if (buf.length() + 1 + s.length() > maxChars && !buf.isEmpty()) {
+                out.add(buf.toString().strip());
+                buf.setLength(0);
             }
             if (!buf.isEmpty()) buf.append(' ');
             buf.append(s);
@@ -132,11 +130,9 @@ public class TextChunker {
         StringBuilder buf = new StringBuilder();
 
         for (String word : words) {
-            if (buf.length() + 1 + word.length() > maxChars) {
-                if (!buf.isEmpty()) {
-                    out.add(buf.toString().strip());
-                    buf.setLength(0);
-                }
+            if (buf.length() + 1 + word.length() > maxChars && !buf.isEmpty()) {
+                out.add(buf.toString().strip());
+                buf.setLength(0);
             }
             if (!buf.isEmpty()) buf.append(' ');
             buf.append(word);

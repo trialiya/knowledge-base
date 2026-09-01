@@ -22,6 +22,7 @@ public class AssistantChatMessage extends AssistantMessage implements IMessage {
         this.chatMessageEntity = chatMessageEntity;
     }
 
+    @Override
     public ChatMessageEntity chatMessage() {
         return chatMessageEntity;
     }

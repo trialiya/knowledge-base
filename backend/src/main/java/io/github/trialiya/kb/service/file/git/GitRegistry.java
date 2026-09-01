@@ -152,7 +152,7 @@ public class GitRegistry {
      * Whether working-tree writes are available for this project right now: configured <em>and</em>
      * physically possible. A read-only mount withholds them whatever the configuration says.
      */
-    public boolean editsAllowed(@Nullable String projectId) {
+    public final boolean editsAllowed(@Nullable String projectId) {
         Project project = catalog.require(projectId);
         GitService service = byProjectId.get(project.id());
         // Asked of the filesystem on every call rather than cached: a mount can be remounted
