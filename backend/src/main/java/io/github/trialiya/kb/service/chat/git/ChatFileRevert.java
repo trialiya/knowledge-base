@@ -97,7 +97,7 @@ public class ChatFileRevert {
             // (удалён руками — тогда не сходится уже чтение). Всё это про состояние дерева, а не
             // про сбой сервиса: дерево не тронуто, и сообщение уходит пользователю как есть.
             throw new FileRevertRefusedException(
-                    e.getMessage() == null ? "Cannot revert the changes" : e.getMessage());
+                    e.getMessage() == null ? "Cannot revert the changes" : e.getMessage(), e);
         }
 
         return write(conversationId, git, plan, reverted);
@@ -115,13 +115,14 @@ public class ChatFileRevert {
         try {
             return gitRegistry.requireEditable(project);
         } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         } catch (IllegalStateException e) {
             throw new ResponseStatusException(
                     gitRegistry.isAvailable(project)
                             ? HttpStatus.FORBIDDEN
                             : HttpStatus.SERVICE_UNAVAILABLE,
-                    e.getMessage());
+                    e.getMessage(),
+                    e);
         }
     }
 
@@ -163,7 +164,8 @@ public class ChatFileRevert {
                             + " of "
                             + plan.paths().size()
                             + " file(s) went back before it failed — "
-                            + e.getMessage());
+                            + e.getMessage(),
+                    e);
         }
         log.info("Reverted {} file(s) of the last answer in chat {}", done.size(), conversationId);
         return record(conversationId, new FileRevertMeta(git.project().id(), plan.paths()));

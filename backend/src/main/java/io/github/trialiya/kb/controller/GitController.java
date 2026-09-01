@@ -136,12 +136,11 @@ public class GitController {
             @RequestParam(name = "path", required = false) @Nullable String path,
             @RequestParam(name = "patch", defaultValue = "false") boolean patch,
             @RequestParam(name = "project", required = false) @Nullable String project) {
-        if (path != null && !path.isBlank()) {
-            requireSafePath(path);
-        } else {
-            path = null;
+        final String scope = path != null && !path.isBlank() ? path : null;
+        if (scope != null) {
+            requireSafePath(scope);
         }
-        return git(project).getUncommittedChanges(patch, path);
+        return git(project).getUncommittedChanges(patch, scope);
     }
 
     /**
@@ -186,7 +185,7 @@ public class GitController {
         try {
             return gitRegistry.capabilities(project);
         } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }
     }
 
@@ -200,9 +199,9 @@ public class GitController {
         try {
             return gitRegistry.forProject(project);
         } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         } catch (IllegalStateException e) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
         }
     }
 

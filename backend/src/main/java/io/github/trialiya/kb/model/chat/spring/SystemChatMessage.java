@@ -12,6 +12,7 @@ public class SystemChatMessage extends SystemMessage implements IMessage {
         this.chatMessageEntity = chatMessageEntity;
     }
 
+    @Override
     public ChatMessageEntity chatMessage() {
         return chatMessageEntity;
     }

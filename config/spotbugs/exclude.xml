@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs detectors that do not pay for themselves here. Everything not listed fails the build,
+  so keep this file to patterns that are wrong about *this* codebase, not to findings that are
+  merely inconvenient.
+-->
+<FindBugsFilter>
+
+    <!-- Defensive-copy findings. Constructor-injected Spring beans, JDBC entities and DTOs pass
+         each other live references by design; copying them would break the sharing the app is
+         built on. Named rather than excluding all of MALICIOUS_CODE, which also holds
+         MS_SHOULD_BE_FINAL — a mutable public static is worth failing on. -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2,EI_EXPOSE_STATIC_REP2"/>
+    </Match>
+
+    <!-- Nullness has one owner: NullAway in JSpecify mode over @NullMarked packages (see
+         backend/build.gradle). SpotBugs reads neither the annotations nor the package marking,
+         so its dataflow reports every @Nullable-returning call it cannot prove guarded. -->
+    <Match>
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
+    </Match>
+    <Match>
+        <Bug pattern="NP_NULL_ON_SOME_PATH"/>
+    </Match>
+
+    <!-- Validating in a constructor is deliberate: a half-built service must not exist. The
+         finalizer attack this warns about needs a finalizer, and finalization is gone. -->
+    <Match>
+        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+    </Match>
+
+    <!-- The flagged format strings build prompts and SQL, where \n is the character asked for,
+         not "whatever this platform ends a line with". -->
+    <Match>
+        <Bug pattern="VA_FORMAT_STRING_USES_NEWLINE"/>
+    </Match>
+
+    <!-- The Spring AI message subclasses in model/chat/spring only carry the entity they were
+         built from; equality stays the framework's, by message content. -->
+    <Match>
+        <Package name="io.github.trialiya.kb.model.chat.spring"/>
+        <Bug pattern="EQ_DOESNT_OVERRIDE_EQUALS"/>
+    </Match>
+
+    <!-- Collectors.toMap throws NPE on a null key, and a tool argument map arrives straight from
+         the model — catching it is the point of the guard. -->
+    <Match>
+        <Class name="io.github.trialiya.kb.tools.RecordingToolCallback"/>
+        <Method name="parseToolInput"/>
+        <Bug pattern="DCN_NULLPOINTER_EXCEPTION"/>
+    </Match>
+
+</FindBugsFilter>

@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -152,7 +153,7 @@ public class ChatSearchService {
             return null;
         }
         String flat = content.strip().replaceAll("\\s+", " ");
-        int idx = flat.toLowerCase().indexOf(query.toLowerCase());
+        int idx = flat.toLowerCase(Locale.ROOT).indexOf(query.toLowerCase(Locale.ROOT));
         if (idx < 0) {
             // Запрос с пробелами мог совпасть в сыром тексте через перенос строки — после
             // схлопывания его не найти; показываем начало сообщения.

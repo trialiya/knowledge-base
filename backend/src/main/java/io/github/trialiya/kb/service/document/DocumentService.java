@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -378,7 +379,8 @@ public class DocumentService {
         } catch (OptimisticLockingFailureException ex) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Document was modified by another request. Please reload and try again.");
+                    "Document was modified by another request. Please reload and try again.",
+                    ex);
         }
 
         // ── 4. Persist snapshot of current state (always, as before) ──────────
@@ -626,7 +628,8 @@ public class DocumentService {
         } catch (OptimisticLockingFailureException ex) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Document was modified by another request. Please reload and try again.");
+                    "Document was modified by another request. Please reload and try again.",
+                    ex);
         }
     }
 
@@ -801,7 +804,8 @@ public class DocumentService {
                                 new RawSearchResult(
                                         Objects.requireNonNull(e.getId()),
                                         e.getTitle(),
-                                        generateSnippet(e.getDescription(), q.toLowerCase()),
+                                        generateSnippet(
+                                                e.getDescription(), q.toLowerCase(Locale.ROOT)),
                                         e.getUpdatedAt(),
                                         e.getSummary()))
                 .collect(Collectors.toList());
@@ -829,7 +833,9 @@ public class DocumentService {
                                         new RawSearchResult(
                                                 r.id(),
                                                 r.title(),
-                                                generateSnippet(r.description(), q.toLowerCase()),
+                                                generateSnippet(
+                                                        r.description(),
+                                                        q.toLowerCase(Locale.ROOT)),
                                                 r.updatedAt(),
                                                 r.summary()))
                         .collect(Collectors.toList());
@@ -897,7 +903,7 @@ public class DocumentService {
                             new RawSearchResult(
                                     id,
                                     sr.title(),
-                                    generateSnippet(sr.description(), q.toLowerCase()),
+                                    generateSnippet(sr.description(), q.toLowerCase(Locale.ROOT)),
                                     sr.updatedAt(),
                                     sr.summary()));
         }
@@ -1015,7 +1021,7 @@ public class DocumentService {
 
     private String generateSnippet(@Nullable String content, String query) {
         if (content == null) return "";
-        int idx = content.toLowerCase().indexOf(query);
+        int idx = content.toLowerCase(Locale.ROOT).indexOf(query);
         if (idx == -1) return content.substring(0, Math.min(150, content.length())) + "...";
         int start = Math.max(0, idx - 50);
         int end = Math.min(content.length(), idx + 100);

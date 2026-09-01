@@ -12,4 +12,8 @@ public class FileRevertRefusedException extends RuntimeException {
     public FileRevertRefusedException(String message) {
         super(message);
     }
+
+    public FileRevertRefusedException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

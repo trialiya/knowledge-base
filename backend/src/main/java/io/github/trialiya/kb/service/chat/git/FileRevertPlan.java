@@ -124,7 +124,7 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
                                 .text();
             } catch (IllegalArgumentException e) {
                 throw new FileRevertRefusedException(
-                        "Cannot tell what this answer left in " + path + " — undo it with git.");
+                        "Cannot tell what this answer left in " + path + " — undo it with git.", e);
             }
         }
         return text;

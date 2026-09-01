@@ -82,19 +82,23 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
         }
     }
 
+    // TSLanguage is a process-lifetime grammar handle cached by languageFor; closing it would
+    // invalidate the cache for every later parse.
+    @SuppressWarnings("PMD.CloseResource")
     @Override
     public List<GitSymbol> parse(String language, String source) {
         if (!supports(language) || source == null || source.isEmpty()) return List.of();
         TSLanguage lang = languageFor(language);
         if (lang == null) return List.of();
-        try {
-            TSParser parser = new TSParser();
+        // Both handles wrap native tree-sitter memory that the JVM does not reclaim on its own.
+        try (TSParser parser = new TSParser()) {
             parser.setLanguage(lang);
-            TSTree tree = parser.parseString(null, source);
-            byte[] bytes = source.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            List<GitSymbol> out = new ArrayList<>();
-            walk(tree.getRootNode(), bytes, language, out);
-            return out;
+            try (TSTree tree = parser.parseString(null, source)) {
+                byte[] bytes = source.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                List<GitSymbol> out = new ArrayList<>();
+                walk(tree.getRootNode(), bytes, language, out);
+                return out;
+            }
         } catch (Throwable t) {
             log.warn(
                     "tree-sitter parse failed for {} ({} bytes): {}",
@@ -356,8 +360,8 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
 
     /** Collapses whitespace and caps at 200 chars. */
     private static String cap(String s) {
-        s = s.replaceAll("\\s+", " ").strip();
-        return s.length() > 200 ? s.substring(0, 200) + "…" : s;
+        String flat = s.replaceAll("\\s+", " ").strip();
+        return flat.length() > 200 ? flat.substring(0, 200) + "…" : flat;
     }
 
     /** Decodes a node's byte span as UTF-8. Never misinterprets multibyte sequences. */

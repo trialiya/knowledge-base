@@ -24,6 +24,8 @@ import org.springframework.data.convert.WritingConverter;
 
 public final class ChatMessageMetaToJsonConverter {
 
+    private ChatMessageMetaToJsonConverter() {}
+
     /**
      * Схема колонки {@code chat_message.meta}. Проекция, а не сам {@link ChatMessageMeta}: чтение
      * обязано переживать и записи прошлых версий, и записи будущих ({@code ignoreUnknown}), а поля

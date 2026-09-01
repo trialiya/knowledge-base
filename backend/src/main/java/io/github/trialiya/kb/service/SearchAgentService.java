@@ -99,7 +99,7 @@ public class SearchAgentService {
         String basePrompt = readResource(systemPrompt);
         this.systemPrompt =
                 extraInstructions.isBlank() ? basePrompt : basePrompt + "\n\n" + extraInstructions;
-        this.toolCallbacks = toolCallbacks;
+        this.toolCallbacks = toolCallbacks.clone();
         log.info(
                 "SearchAgentService ready: model={}, maxIterations={}, tools={}",
                 config.modelId(),
@@ -354,6 +354,9 @@ public class SearchAgentService {
         }
     }
 
+    // Reference comparison on purpose: the guard is against a cause chain that points at
+    // itself, which equals() would not catch.
+    @SuppressWarnings("PMD.CompareObjectsWithEquals")
     private static String rootMessage(Throwable t) {
         Throwable cur = t;
         while (cur.getCause() != null && cur.getCause() != cur) {

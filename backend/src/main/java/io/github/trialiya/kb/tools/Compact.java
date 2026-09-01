@@ -8,8 +8,10 @@ public final class Compact {
     @Nullable
     public static String truncate(@Nullable String s, int max) {
         if (s == null) return null;
-        s = s.strip();
-        return s.length() <= max ? s : s.substring(0, max) + "…(+" + (s.length() - max) + ")";
+        String text = s.strip();
+        return text.length() <= max
+                ? text
+                : text.substring(0, max) + "…(+" + (text.length() - max) + ")";
     }
 
     @Nullable

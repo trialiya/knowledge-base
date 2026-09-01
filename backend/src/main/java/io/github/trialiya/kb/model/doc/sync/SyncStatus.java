@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.doc.sync;
 
 import com.fasterxml.jackson.annotation.JsonValue;
+import java.util.Locale;
 
 /** How one export path compares between the file system and the database. */
 public enum SyncStatus {
@@ -19,6 +20,6 @@ public enum SyncStatus {
 
     @JsonValue
     public String value() {
-        return name().toLowerCase();
+        return name().toLowerCase(Locale.ROOT);
     }
 }

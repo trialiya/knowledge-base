@@ -251,7 +251,8 @@ public final class KbEditScriptApi extends KbScriptApi {
                             method
                                     + ": the string is not valid base64. Pass base64 (as"
                                     + " kb.readBase64 returns) or an array of byte values (as"
-                                    + " kb.readBytes returns).");
+                                    + " kb.readBytes returns).",
+                            e);
                 }
             }
             if (data.hasArrayElements()) {

@@ -197,7 +197,7 @@ class GitCommands {
                     throw new GitCommandFailedException("No such branch: " + name);
                 }
             } catch (IOException e) {
-                throw new GitCommandFailedException("Cannot resolve branch: " + name);
+                throw new GitCommandFailedException("Cannot resolve branch: " + name, e);
             }
         }
         return local(
@@ -207,9 +207,9 @@ class GitCommands {
                         git.checkout().setName(name).setCreateBranch(create).call();
                         return "";
                     } catch (RefAlreadyExistsException e) {
-                        throw new GitCommandFailedException("Branch already exists: " + name);
+                        throw new GitCommandFailedException("Branch already exists: " + name, e);
                     } catch (RefNotFoundException e) {
-                        throw new GitCommandFailedException("No such branch: " + name);
+                        throw new GitCommandFailedException("No such branch: " + name, e);
                     } catch (CheckoutConflictException e) {
                         // The one refusal a user acts on rather than reports: git names the files
                         // whose local changes the switch would overwrite, and stashing or
@@ -217,7 +217,8 @@ class GitCommands {
                         throw new GitCommandFailedException(
                                 "Uncommitted changes would be overwritten by the switch: "
                                         + String.join(", ", e.getConflictingPaths())
-                                        + ". Commit or stash them first.");
+                                        + ". Commit or stash them first.",
+                                e);
                     } catch (GitAPIException e) {
                         throw new GitCommandFailedException(message(e));
                     }
@@ -267,7 +268,8 @@ class GitCommands {
                         throw new GitCommandFailedException(
                                 "The stashed changes conflict with the working tree — the stash is"
                                         + " kept. Resolve the conflict, or commit what you have"
-                                        + " first.");
+                                        + " first.",
+                                e);
                     } catch (GitAPIException e) {
                         throw new GitCommandFailedException(message(e));
                     }
@@ -319,7 +321,7 @@ class GitCommands {
                                         .call();
                         return "Committed " + commit.abbreviate(ABBREV_LEN).name();
                     } catch (EmptyCommitException e) {
-                        throw new GitCommandFailedException("Nothing to commit");
+                        throw new GitCommandFailedException("Nothing to commit", e);
                     } catch (GitAPIException e) {
                         throw new GitCommandFailedException(message(e));
                     }
@@ -360,16 +362,16 @@ class GitCommands {
                         git.checkout().setStartPoint(Constants.HEAD).addPath(path).call();
                         return "";
                     } catch (IOException e) {
-                        throw new GitCommandFailedException("Cannot read HEAD for " + path);
+                        throw new GitCommandFailedException("Cannot read HEAD for " + path, e);
                     } catch (RefNotFoundException e) {
                         throw new GitCommandFailedException(
-                                "The repository has no commit to restore " + path + " from");
+                                "The repository has no commit to restore " + path + " from", e);
                     } catch (GitAPIException e) {
                         // JGit reports "did not match any file(s) known to git" for a path HEAD
                         // does not have — an untracked file, which has no committed state to go
                         // back to and would have to be deleted instead.
                         throw new GitCommandFailedException(
-                                "Cannot restore " + path + ": " + message(e));
+                                "Cannot restore " + path + ": " + message(e), e);
                     }
                 });
     }

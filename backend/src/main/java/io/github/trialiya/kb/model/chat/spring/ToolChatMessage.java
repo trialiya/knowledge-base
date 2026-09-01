@@ -20,6 +20,7 @@ public class ToolChatMessage extends ToolResponseMessage implements IMessage {
         this.chatMessageEntity = chatMessageEntity;
     }
 
+    @Override
     public ChatMessageEntity chatMessage() {
         return chatMessageEntity;
     }

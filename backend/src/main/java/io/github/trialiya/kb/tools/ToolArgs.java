@@ -104,7 +104,8 @@ public final class ToolArgs {
                             + name
                             + "' must be a single numeric id, got \""
                             + (text.length() > 60 ? text.substring(0, 60) + "…" : text)
-                            + "\". Call the tool again with one id.");
+                            + "\". Call the tool again with one id.",
+                    e);
         }
     }
 

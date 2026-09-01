@@ -10,6 +10,8 @@ import org.springframework.data.convert.WritingConverter;
 /** JSON-конвертеры колонки {@code chat_message.tool_data} (см. {@link ToolData}). */
 public final class ToolDataToJsonConverter {
 
+    private ToolDataToJsonConverter() {}
+
     @ReadingConverter
     public static class Reader implements Converter<String, ToolData> {
 

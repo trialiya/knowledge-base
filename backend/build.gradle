@@ -4,6 +4,8 @@ plugins {
     id 'io.spring.dependency-management' version '1.1.7'
     id 'com.diffplug.spotless'
     id 'net.ltgt.errorprone'
+    id 'pmd'
+    id 'com.github.spotbugs' version '6.5.11'
 }
 
 group = 'io.github.trialiya.kb'
@@ -123,6 +125,52 @@ spotless {
         importOrder()
         removeUnusedImports()
         endWithNewline()
+    }
+}
+
+pmd {
+    toolVersion = '7.27.0'
+    // The whole rule selection lives in that file; ruleSets = [] drops Gradle's own default
+    // (category/java/errorprone.xml + bestpractices.xml), which would otherwise be added on top.
+    ruleSets = []
+    ruleSetConfig = resources.text.fromFile(rootProject.file('config/pmd/ruleset.xml'))
+    consoleOutput = true
+}
+
+tasks.withType(Pmd).configureEach {
+    // org.graalvm.js:js-community is a pom-packaging module, so its .pom lands on the compile
+    // classpath as the artifact itself. PMD's auxClasspath loader opens every non-directory entry
+    // as a zip and dies on the first one ("zip END header not found"), so keep jars and class
+    // directories only.
+    classpath = classpath.filter { it.isDirectory() || it.name.endsWith('.jar') }
+}
+
+spotbugs {
+    toolVersion = '4.10.4'
+    // valueOf rather than Effort.MAX / Confidence.DEFAULT: Groovy resolves the bare constant
+    // name to a nested class (Confidence$DEFAULT) and the assignment fails to convert.
+    effort = com.github.spotbugs.snom.Effort.valueOf('MAX')
+    reportLevel = com.github.spotbugs.snom.Confidence.valueOf('DEFAULT')
+    excludeFilter = rootProject.file('config/spotbugs/exclude.xml')
+}
+
+// Main sources only — the same cut compileTestJava takes for NullAway below. Test code passes
+// nulls on purpose, duplicates fixtures on purpose and leans on JUnit lifecycle for cleanup, all
+// of which these rules exist to stop in production code.
+tasks.named('pmdTest') {
+    enabled = false
+}
+
+tasks.named('spotbugsTest') {
+    enabled = false
+}
+
+tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
+    reports {
+        // Without an explicit report the plugin only prints to the console and leaves nothing
+        // behind to open after a CI run.
+        html.required = true
+        xml.required = true
     }
 }
 

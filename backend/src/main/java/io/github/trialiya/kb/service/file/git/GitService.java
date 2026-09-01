@@ -37,6 +37,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -389,9 +390,12 @@ public class GitService {
      * @param query hash prefix or subject substring, already stripped and non-blank
      * @param maxCount max commits to return, capped at 100
      */
+    // The ObjectReader below belongs to the RevWalk and is closed with it; closing it here would
+    // pull the reader out from under the walk still being iterated.
+    @SuppressWarnings("PMD.CloseResource")
     public List<GitCommit> searchCommits(@NonNull String query, int maxCount) {
         if (query.isBlank()) return List.of();
-        String q = query.strip().toLowerCase();
+        String q = query.strip().toLowerCase(Locale.ROOT);
         int limit = Math.min(Math.max(maxCount, 1), 100);
 
         // Обход строим сами, а не через git.log(): LogCommand отдаёт свой RevWalk как
@@ -419,8 +423,8 @@ public class GitService {
     }
 
     private static boolean matchesCommit(RevCommit commit, String lowerQuery) {
-        return commit.getName().toLowerCase().startsWith(lowerQuery)
-                || commit.getShortMessage().toLowerCase().contains(lowerQuery);
+        return commit.getName().toLowerCase(Locale.ROOT).startsWith(lowerQuery)
+                || commit.getShortMessage().toLowerCase(Locale.ROOT).contains(lowerQuery);
     }
 
     // ── Diff for commit(s) ──────────────────────────────────────────────────
@@ -539,7 +543,7 @@ public class GitService {
      */
     public List<GitFileNode> searchFiles(@NonNull String pattern, int maxResults) {
         if (pattern.isBlank()) return List.of();
-        String q = pattern.strip().toLowerCase();
+        String q = pattern.strip().toLowerCase(Locale.ROOT);
         int limit = Math.min(Math.max(maxResults, 1), 50);
 
         VisibleFiles.Visible files = visible.all();

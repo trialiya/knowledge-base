@@ -207,7 +207,7 @@ public class GitCommandController {
                             ? gitRegistry.requireGitPush(project)
                             : gitRegistry.requireGitCommands(project);
         } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         } catch (IllegalStateException e) {
             // A repository that never opened is the deployment's problem and not this project's
             // policy — the same 503 the read endpoints answer with. Everything else here is the
@@ -216,7 +216,8 @@ public class GitCommandController {
                     gitRegistry.isAvailable(project)
                             ? HttpStatus.FORBIDDEN
                             : HttpStatus.SERVICE_UNAVAILABLE,
-                    e.getMessage());
+                    e.getMessage(),
+                    e);
         }
         // Whose chat it is, and the chat's claim held for as long as the command runs — taken
         // before anything is executed, so a refusal leaves the working tree untouched, and held
@@ -254,9 +255,9 @@ public class GitCommandController {
         } catch (IllegalArgumentException e) {
             // An unusable path — the same refusal RepoPaths gives every other endpoint, and the
             // caller's mistake rather than git's.
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         } catch (GitBusyException e) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
         } catch (GitCommandFailedException e) {
             // git refused, and that is an outcome the chat records: the user will want to read the
             // reason again, and the model must not take the command for done. A busy repository
@@ -264,13 +265,13 @@ public class GitCommandController {
             if (chat != null) {
                 chatGitLog.record(chat, verb, project, false, String.valueOf(e.getMessage()), null);
             }
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage(), e);
         } catch (IllegalStateException e) {
             // The command could not be run at all: no git binary, an unreadable HEAD, a reader
             // that never drained. Ours to fix rather than the user's, but it still travels with
             // its message — "Cannot run git fetch" is the whole diagnosis, and a bare 500 sends
             // whoever is looking at the panel to the server log for a sentence we already have.
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
         }
     }
 

@@ -303,7 +303,8 @@ public class SkillService {
                     "Skill '"
                             + skill.name()
                             + "' has no file in the working tree right now — the current branch"
-                            + " does not carry it");
+                            + " does not carry it",
+                    e);
         } catch (IOException e) {
             log.warn("Навык {}: файл {} не читается", skill.name(), file, e);
             throw new IllegalArgumentException(
@@ -311,7 +312,8 @@ public class SkillService {
                             + skill.name()
                             + "' cannot be read from the working tree right now — its file is not"
                             + " readable UTF-8 text; tell the user to check the"
-                            + " kb.projects[].skills entry");
+                            + " kb.projects[].skills entry",
+                    e);
         }
     }
 

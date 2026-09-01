@@ -18,6 +18,8 @@ import org.jspecify.annotations.Nullable;
 record Pathspec(@Nullable Pattern pattern, String literal) {
 
     /** {@code null} for "no glob given" — matches everything. */
+    // Advancing the index past a consumed character class is the scan itself, not a slip.
+    @SuppressWarnings("PMD.AvoidReassigningLoopVariables")
     static @Nullable Pathspec of(@Nullable String glob) {
         if (glob == null) {
             return null;

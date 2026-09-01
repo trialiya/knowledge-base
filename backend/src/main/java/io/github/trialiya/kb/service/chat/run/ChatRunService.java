@@ -526,13 +526,7 @@ public class ChatRunService {
                             .chatResponse()
                             .doFinally(signal -> onTerminal(scope, buffer, toolCollector, signal))
                             .subscribe(
-                                    response ->
-                                            onNext(
-                                                    conversationId,
-                                                    runId,
-                                                    buffer,
-                                                    liveSink,
-                                                    response),
+                                    response -> onNext(buffer, liveSink, response),
                                     error -> log.error("Stream error {}", conversationId, error),
                                     () -> onComplete(scope, toolCollector, liveSink));
             // Остановку могли запросить, пока задача ещё не подписалась на стрим, — attach
@@ -546,12 +540,7 @@ public class ChatRunService {
         }
     }
 
-    private void onNext(
-            String conversationId,
-            String runId,
-            StringBuffer buffer,
-            Consumer<Object> liveSink,
-            ChatResponse response) {
+    private void onNext(StringBuffer buffer, Consumer<Object> liveSink, ChatResponse response) {
         final String chunk =
                 Optional.ofNullable(response)
                         .map(ChatResponse::getResult)

@@ -173,6 +173,7 @@ public class ScriptRunner {
      * project, which is what every caller that does not know the run's project gets (see {@code
      * GitRegistry}).
      */
+    @SuppressWarnings("PMD.UseTryWithResources") // see the comment on `Context context` below
     public ScriptResult run(
             String script,
             @Nullable Integer timeoutSeconds,
