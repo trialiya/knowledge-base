@@ -229,7 +229,8 @@ class TokenUsageAdvisorTest {
     /** Ожидаемый итог прогона; кэш во всех сценариях здесь нулевой. */
     private static RunTokenUsage usage(
             long context, long base, long tools, long output, long prompt, int calls) {
-        return new RunTokenUsage(context, base, tools, output, prompt, 0, 0, calls);
+        return new RunTokenUsage(
+                context, base, tools, output, prompt, 0, 0, output + prompt, calls);
     }
 
     /** Замеры, доехавшие до фронта, по порядку. */

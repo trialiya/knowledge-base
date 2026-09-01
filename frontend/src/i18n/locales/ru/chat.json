@@ -50,7 +50,6 @@
   "usage": {
     "tab": "Usage",
     "empty": "Ни один прогон этого чата ещё не измерен.",
-    "partial": "Токены посчитаны по загруженной части чата — прокрутите ленту вверх, чтобы дочитать остальное.",
     "context": "Context",
     "system": "Системная часть",
     "input": "Input",
@@ -58,9 +57,16 @@
     "cacheHit": "Input (Cache hit)",
     "cacheWrite": "Cache write",
     "output": "Output",
+    "reasoning": "Reasoning",
     "total": "Total",
     "modelCalls": "Обращений к модели",
-    "valuePercent": "{{value}} ({{percent}}%)"
+    "valuePercent": "{{value}} ({{percent}}%)",
+    "subagentTitle": "Суб-агент",
+    "subagentRuns": "Вызовов",
+    "subagentInput": "Input",
+    "subagentOutput": "Output",
+    "subagentTotal": "Total",
+    "subagentNote": "Суб-агент работает на своей модели, поэтому его токены тарифицируются отдельно и в Total выше не входят."
   },
   "errorModal": {
     "notFoundTitle": "Чат не найден",

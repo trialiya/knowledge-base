@@ -4,6 +4,15 @@
    перенесено из knowledgeBasePanel/styles/detail.css)
 ═══════════════════════════════════════════════ */
 
+.info-list__title {
+  margin: 1rem 0 0.2rem;
+  color: var(--kb-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .info-list__list {
   margin: 0;
   display: flex;

@@ -55,7 +55,7 @@ class PendingSummaryServiceTest {
                     30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, null, null, null);
 
     private static final RunTokenUsage ROUND_USAGE =
-            new RunTokenUsage(48_900, 48_000, 0, 900, 48_000, 40_000, 0, 1);
+            new RunTokenUsage(48_900, 48_000, 0, 900, 48_000, 40_000, 0, 48_900, 1);
 
     private ChatPendingSummaryRepository parkedRepository;
     private ChatMessageRepository chatMessages;

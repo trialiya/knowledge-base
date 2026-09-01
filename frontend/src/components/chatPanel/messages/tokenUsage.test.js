@@ -3,13 +3,13 @@ import {
   baseContextOf,
   cacheMissOf,
   cacheShare,
-  chatUsageTotals,
   compactSavingsIn,
   contextUsageOf,
   formatContext,
   formatTokens,
   hasUsage,
   runInputGrowth,
+  totalOf,
   usageTooltip,
 } from './tokenUsage';
 
@@ -283,12 +283,6 @@ describe('tokenUsage', () => {
     const spent = { contextTokens: 169040, promptTokens: 169000, basePromptTokens: 169000, outputTokens: 40 };
     const command = { mid: 9, sender: 'user', usage: { ...spent, modelCalls: 1 } };
 
-    test('идёт в счёт провайдера наравне с прогонами', () => {
-      const totals = chatUsageTotals([{ sender: 'ai', usage: { contextTokens: 12000, promptTokens: 11000 } }, command]);
-
-      expect(totals).toMatchObject({ runs: 2, promptTokens: 180000, modelCalls: 1 });
-    });
-
     test('но не выдаёт себя ни за занятый контекст, ни за системную часть', () => {
       const messages = [{ sender: 'ai', usage: { contextTokens: 12000, basePromptTokens: 9800 } }, command];
 
@@ -387,45 +381,21 @@ describe('tokenUsage', () => {
     });
   });
 
-  describe('chatUsageTotals', () => {
-    const run = (usage) => ({ sender: 'ai', usage });
-
-    test('складывает выход, вход, кэш и обращения — но не контекст', () => {
-      const totals = chatUsageTotals([
-        run({ contextTokens: 4000, outputTokens: 300, promptTokens: 9000, cacheReadTokens: 2000, modelCalls: 2 }),
-        { sender: 'user' },
-        run({ contextTokens: 11000, outputTokens: 320, promptTokens: 31100, cacheReadTokens: 24000, modelCalls: 3 }),
-      ]);
-
-      expect(totals).toEqual({
-        runs: 2,
-        outputTokens: 620,
-        promptTokens: 40100,
-        cacheReadTokens: 26000,
-        cacheWriteTokens: 0,
-        modelCalls: 5,
-      });
-      // Контекст у прогонов общий и растёт, а не набирается: 4000 + 11000 было бы числом ниоткуда.
-      expect(totals).not.toHaveProperty('contextTokens');
+  describe('totalOf', () => {
+    test('обычно это вход плюс выход', () => {
+      expect(totalOf({ promptTokens: 81_100, outputTokens: 1_100, totalTokens: 82_200 })).toBe(82_200);
     });
 
-    test('деньги выброшенных сжатием сводок считаются наравне, но прогонами не становятся', () => {
-      // Полное сжатие выбросило две отложенные сводки: своего ряда у их раундов не осталось, и
-      // без этого числа Total разошёлся бы со счётом провайдера ровно на их стоимость.
-      const totals = chatUsageTotals([
-        run({ contextTokens: 4000, outputTokens: 300, promptTokens: 9000, modelCalls: 1 }),
-        {
-          sender: 'ai',
-          compact: { messages: 40, carried: { outputTokens: 900, promptTokens: 61000, modelCalls: 2 } },
-        },
-      ]);
-
-      expect(totals).toMatchObject({ runs: 1, outputTokens: 1200, promptTokens: 70000, modelCalls: 3 });
+    // Провайдер считает reasoning-токены сверх видимого выхода, а платит за них клиент: своё
+    // `total` он присылает больше суммы частей, и итог обязан показать именно его.
+    test('но у модели с reasoning-токенами берётся счёт провайдера', () => {
+      expect(totalOf({ promptTokens: 81_100, outputTokens: 1_100, totalTokens: 96_000 })).toBe(96_000);
     });
 
-    test('чат без единого измеренного прогона итогов не даёт', () => {
-      expect(chatUsageTotals([{ sender: 'user' }, run(undefined)])).toBeNull();
-      expect(chatUsageTotals([])).toBeNull();
+    // У прогонов, записанных до появления поля, своего `total` нет — сумма частей честнее нуля.
+    test('у записи без этого поля остаётся сумма частей', () => {
+      expect(totalOf({ promptTokens: 11_000, outputTokens: 400 })).toBe(11_400);
+      expect(totalOf(null)).toBe(0);
     });
   });
 });

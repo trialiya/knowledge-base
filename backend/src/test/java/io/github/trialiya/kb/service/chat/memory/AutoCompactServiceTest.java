@@ -215,7 +215,8 @@ class AutoCompactServiceTest {
     }
 
     private static RunTokenUsage measured(long contextTokens) {
-        return new RunTokenUsage(contextTokens, contextTokens, 0, 0, contextTokens, 0, 0, 1);
+        return new RunTokenUsage(
+                contextTokens, contextTokens, 0, 0, contextTokens, 0, 0, contextTokens, 1);
     }
 
     private static PromptRow row(long position, MessageType type) {

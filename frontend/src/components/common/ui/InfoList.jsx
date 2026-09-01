@@ -24,19 +24,23 @@ import './infoList.css';
  *                  block не нужен: строка переносится целиком, и значение
  *                  остаётся справа
  *   note — узел под списком (предупреждение/пояснение), необязателен
+ *   title — заголовок над списком: нужен там, где на вкладке стоит второй
+ *           список со своим смыслом (счёт суб-агента в чате) и без подписи
+ *           он читался бы продолжением первого
  *
  * У строки с текстовым значением есть кнопка копирования: большинство значений
  * здесь (id, хеш, путь) для того и нужны, чтобы вставить их куда-то ещё, а
  * выделить их мышью трудно — это не текст, а вёрстка списка. У значения-узла
  * кнопки нет: копировать в буфер нечего, в него ушло бы «[object Object]».
  */
-const InfoList = ({ rows, note }) => {
+const InfoList = ({ rows, note, title }) => {
   const { t } = useTranslation();
   const [copiedLabel, copy] = useCopyFeedback();
   const visible = rows.filter((row) => row && row.value != null && row.value !== '');
 
   return (
     <div className="info-list">
+      {title && <h4 className="info-list__title">{title}</h4>}
       <dl className="info-list__list">
         {visible.map((row) => {
           const copied = copiedLabel === row.label;

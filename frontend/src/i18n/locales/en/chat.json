@@ -50,7 +50,6 @@
   "usage": {
     "tab": "Usage",
     "empty": "No run of this chat has been measured yet.",
-    "partial": "Tokens are counted over the loaded part of the chat — scroll up to read in the rest.",
     "context": "Context",
     "system": "System + tools",
     "input": "Input",
@@ -58,9 +57,16 @@
     "cacheHit": "Input (Cache hit)",
     "cacheWrite": "Cache write",
     "output": "Output",
+    "reasoning": "Reasoning",
     "total": "Total",
     "modelCalls": "Model calls",
-    "valuePercent": "{{value}} ({{percent}}%)"
+    "valuePercent": "{{value}} ({{percent}}%)",
+    "subagentTitle": "Sub-agent",
+    "subagentRuns": "Runs",
+    "subagentInput": "Input",
+    "subagentOutput": "Output",
+    "subagentTotal": "Total",
+    "subagentNote": "The sub-agent runs on its own model, so its tokens are billed at their own rate and are not part of the Total above."
   },
   "errorModal": {
     "notFoundTitle": "Chat not found",

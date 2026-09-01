@@ -557,7 +557,7 @@ class SummarizeWindowTest {
                         type,
                         text(3),
                         ChatMessageMeta.ofUsage(
-                                new RunTokenUsage(context, base, 0, 0, base, 0, 0, 1)),
+                                new RunTokenUsage(context, base, 0, 0, base, 0, 0, base, 1)),
                         null);
         return new PromptRow(entity, entity.getContent());
     }

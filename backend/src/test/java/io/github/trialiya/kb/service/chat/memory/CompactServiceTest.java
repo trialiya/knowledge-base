@@ -162,7 +162,7 @@ class CompactServiceTest {
      */
     @Test
     void theMoneyOfTheDiscardedQueueLandsOnTheNotice() {
-        final RunTokenUsage carried = new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 2);
+        final RunTokenUsage carried = new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 61_900, 2);
         when(pendingSummaries.discard(CONV)).thenReturn(carried);
 
         final CompactPayload payload =

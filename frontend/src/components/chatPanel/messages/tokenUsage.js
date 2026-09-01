@@ -1,6 +1,10 @@
 // Токены прогонов на фронте: формат и выборки по ленте. Считает их бэкенд (см. TokenUsageAdvisor),
-// здесь только показ — в футере ответа и в шапке помещается одно короткое число, разбивка живёт в
-// подсказке, а расширенная статистика по всему чату — во вкладке «Инфо».
+// здесь только показ — в футере ответа и в шапке помещается одно короткое число, а разбивка живёт
+// в подсказке.
+//
+// Выборки тут отвечают на вопрос «сколько занято сейчас», и лента для него годится: занятое
+// описывает последний замер, а он в хвосте. Итог за всё время по ленте не считается вовсе — она
+// страница, и счёт по ней был бы счётом по хвосту разговора; его отдаёт GET /chats/{id}/usage.
 
 import { isFullCompaction } from '@/constants/compactKind';
 import { SENDER } from '@/constants/messageSender';
@@ -37,7 +41,7 @@ export const hasUsage = (usage) => !!usage && Number(usage.contextTokens) > 0;
  * строку своей команды (см. CompactService.spentRound), — и описывает окно, которое раунд прочитал,
  * вместе с его собственной инструкцией, при том что само окно осталось в чате как было.
  *
- * В счёт провайдера такой замер идёт наравне со всеми (chatUsageTotals: деньги потрачены), а в
+ * В счёт провайдера такой замер идёт наравне со всеми (ChatUsageService: деньги потрачены), а в
  * «сколько занято сейчас» и в «стало» после сжатия — нет.
  */
 const runUsage = (m) => (m?.sender === SENDER.USER ? null : m?.usage);
@@ -58,6 +62,14 @@ export const cacheShare = (usage) => {
  */
 export const cacheMissOf = (usage) =>
   Math.max(0, Number(usage?.promptTokens || 0) - Number(usage?.cacheReadTokens || 0));
+
+/**
+ * Итог по счёту провайдера. Обычно это вход плюс выход, но у модели с reasoning-токенами провайдер
+ * присылает своё `total` больше их суммы: невидимую часть выхода он считает отдельно, а платит за
+ * неё клиент. Берём большее из двух — у прогонов, записанных до появления поля, своего `total` нет.
+ */
+export const totalOf = (usage) =>
+  Math.max(Number(usage?.totalTokens || 0), Number(usage?.promptTokens || 0) + Number(usage?.outputTokens || 0));
 
 /**
  * Разбивка токенов для подсказки: три строки одна под другой. Первая своя у каждого места показа
@@ -299,48 +311,4 @@ export const runInputGrowth = (messages, runId) => {
   if (!aiBefore) return Number(live.contextTokens);
   if (beforeContext != null) return Math.max(0, Number(live.contextTokens) - beforeContext);
   return Number(live.toolTokens) || 0;
-};
-
-/**
- * Итоги по чату: что складывается по прогонам, а что нет.
- *
- * Складываются output, total input, кэш и число обращений — каждое из них у прогона своё, и в
- * соседний прогон не входит. `contextTokens` НЕ складывается ни при каких условиях: контекст у
- * прогонов общий и растёт, а не набирается, и сумма по ним была бы просто числом ниоткуда.
- * «Сколько занято сейчас» отвечает contextUsageOf.
- *
- * Деньги, унесённые плашкой сжатия (`compact.carried`), складываются наравне: это оплаченные
- * раунды фоновых сводок, которые сжатие выбросило вместе с их куском истории, и своего ряда у них
- * не осталось. В `runs` они не идут — прогоном в ленте они больше не представлены, — а вот в счёт
- * провайдера идут, и без них Total разошёлся бы с ним ровно на их стоимость.
- *
- * `null` — ни один прогон чата не измерен: показывать нечего, и ноль здесь был бы неправдой.
- */
-export const chatUsageTotals = (messages) => {
-  const totals = {
-    runs: 0,
-    outputTokens: 0,
-    promptTokens: 0,
-    cacheReadTokens: 0,
-    cacheWriteTokens: 0,
-    modelCalls: 0,
-  };
-  const addMoney = (usage) => {
-    totals.outputTokens += Number(usage.outputTokens || 0);
-    totals.promptTokens += Number(usage.promptTokens || 0);
-    totals.cacheReadTokens += Number(usage.cacheReadTokens || 0);
-    totals.cacheWriteTokens += Number(usage.cacheWriteTokens || 0);
-    totals.modelCalls += Number(usage.modelCalls || 0);
-  };
-  let carried = false;
-  for (const m of messages || []) {
-    if (m.compact?.carried) {
-      addMoney(m.compact.carried);
-      carried = true;
-    }
-    if (!hasUsage(m.usage)) continue;
-    totals.runs += 1;
-    addMoney(m.usage);
-  }
-  return totals.runs > 0 || carried ? totals : null;
 };

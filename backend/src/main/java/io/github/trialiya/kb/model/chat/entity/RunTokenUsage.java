@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.chat.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
  * Итог прогона в терминах, в которых о токенах думает пользователь. Собирается из замеров отдельных
@@ -35,10 +36,15 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * @param cacheReadTokens прочитано из кэша промпта; часть {@link #promptTokens}, а не добавка —
  *     доля кэша это их отношение
  * @param cacheWriteTokens записано в кэш промпта
+ * @param totalTokens итог по счёту провайдера — сумма его же {@code total} по обращениям. Обычно
+ *     равен {@link #promptTokens} плюс {@link #outputTokens}, но у модели с reasoning-токенами
+ *     больше: провайдер считает их отдельно от видимого выхода, а платит за них клиент. Отсюда и
+ *     отдельное поле: без него итог по чату занижал бы счёт ровно на невидимую часть
  * @param modelCalls обращений к модели за прогон: единица у обычного ответа, больше — у ответа с
  *     инструментами. Без него расширенную статистику не прочитать — непонятно, откуда разрыв между
  *     {@link #contextTokens} и {@link #promptTokens}
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record RunTokenUsage(
         long contextTokens,
         long basePromptTokens,
@@ -47,9 +53,10 @@ public record RunTokenUsage(
         long promptTokens,
         long cacheReadTokens,
         long cacheWriteTokens,
+        long totalTokens,
         int modelCalls) {
 
-    public static final RunTokenUsage EMPTY = new RunTokenUsage(0, 0, 0, 0, 0, 0, 0, 0);
+    public static final RunTokenUsage EMPTY = new RunTokenUsage(0, 0, 0, 0, 0, 0, 0, 0, 0);
 
     /**
      * Не измерено ничего. Проверяем замеры, а не {@link #modelCalls}: обращение к эндпоинту без
@@ -72,7 +79,7 @@ public record RunTokenUsage(
     /**
      * Деньги нескольких раундов, у которых своего ряда в истории не осталось, одним числом (см.
      * {@code CompactMeta#carried}). Складываются только те поля, которые у раунда свои: выход,
-     * total input, кэш и число обращений — они и есть счёт от провайдера.
+     * total input, кэш, итог провайдера и число обращений — они и есть счёт от провайдера.
      *
      * <p>Контекстные числа при этом остаются нулями, а не суммой: контекст у раундов общий и
      * растёт, а не набирается (см. {@link #contextTokens}), так что сумма по ним была бы числом
@@ -84,15 +91,27 @@ public record RunTokenUsage(
         long prompt = 0;
         long cacheRead = 0;
         long cacheWrite = 0;
+        long total = 0;
         int calls = 0;
         for (RunTokenUsage round : rounds) {
             output += round.outputTokens();
             prompt += round.promptTokens();
             cacheRead += round.cacheReadTokens();
             cacheWrite += round.cacheWriteTokens();
+            total += round.billedTotal();
             calls += round.modelCalls();
         }
-        return new RunTokenUsage(0, 0, 0, output, prompt, cacheRead, cacheWrite, calls);
+        return new RunTokenUsage(0, 0, 0, output, prompt, cacheRead, cacheWrite, total, calls);
+    }
+
+    /**
+     * Итог по счёту провайдера, не меньше суммы частей. Складывать в сумме по раундам надо именно
+     * его: у прогонов, записанных до появления {@link #totalTokens}, поле нулевое, и сырая сумма
+     * оказалась бы меньше суммы входов с выходами. Тогда потребителю остаётся лишь взять большее из
+     * двух — и один такой раунд стёр бы reasoning-токены всех остальных.
+     */
+    public long billedTotal() {
+        return Math.max(totalTokens, promptTokens + outputTokens);
     }
 
     /**
@@ -147,6 +166,7 @@ public record RunTokenUsage(
                     sum.promptTokens(),
                     sum.cacheReadTokens(),
                     sum.cacheWriteTokens(),
+                    sum.totalTokens(),
                     calls);
         }
     }

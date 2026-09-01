@@ -13,6 +13,7 @@ import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
+import io.github.trialiya.kb.model.chat.dto.ChatUsageTotals;
 import io.github.trialiya.kb.model.chat.dto.CompactDetail;
 import io.github.trialiya.kb.model.chat.dto.CompactRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
@@ -35,6 +36,7 @@ import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.run.RunOptionsResolver;
 import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
 import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
+import io.github.trialiya.kb.service.chat.usage.ChatUsageService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import jakarta.annotation.Nonnull;
 import java.time.Clock;
@@ -73,6 +75,7 @@ public class ChatController {
     private final PendingMessageService pendingMessages;
     private final ChatTopicRepository chatTopicRepository;
     private final ChatHistoryService chatHistory;
+    private final ChatUsageService chatUsageService;
     private final ToolCallService toolCallService;
     private final ChatSearchService chatSearchService;
     private final ChatRunService chatRunService;
@@ -92,6 +95,7 @@ public class ChatController {
             PendingMessageService pendingMessages,
             ChatTopicRepository chatTopicRepository,
             ChatHistoryService chatHistory,
+            ChatUsageService chatUsageService,
             ToolCallService toolCallService,
             ChatSearchService chatSearchService,
             ChatRunService chatRunService,
@@ -107,6 +111,7 @@ public class ChatController {
         this.pendingMessages = pendingMessages;
         this.chatTopicRepository = chatTopicRepository;
         this.chatHistory = chatHistory;
+        this.chatUsageService = chatUsageService;
         this.toolCallService = toolCallService;
         this.chatSearchService = chatSearchService;
         this.chatRunService = chatRunService;
@@ -234,6 +239,17 @@ public class ChatController {
                                                 toolCallService.invocationsFor(e, page.messages())))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
+    }
+
+    /**
+     * Счёт токенов за весь чат (см. {@link ChatUsageTotals}). Отдельным запросом, а не полем
+     * страницы истории: страница — это хвост разговора, а счёт спрашивают про чат целиком, и
+     * пересчитывать его на каждой догрузке страницы незачем.
+     */
+    @GetMapping("/{conversationId}/usage")
+    public ChatUsageTotals getUsage(@PathVariable String conversationId) {
+        getChatTopic(conversationId); // 404/403 + проверка владельца
+        return chatUsageService.totals(conversationId);
     }
 
     /** Поиск сообщений внутри одного чата — для локального find-бара (Ctrl+F). */
