@@ -91,6 +91,12 @@
   "toolCall": {
     "copy": "Copy",
     "status": "Status",
+    "statusValue": {
+      "STARTED": "RUNNING",
+      "OK": "OK",
+      "ERROR": "ERROR",
+      "UNKNOWN": "UNKNOWN"
+    },
     "result": "Result",
     "error": "Error",
     "detail": {

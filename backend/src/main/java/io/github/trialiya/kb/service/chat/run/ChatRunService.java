@@ -440,6 +440,9 @@ public class ChatRunService {
         // публикует ToolCallEventPublisher при сохранении tool-данных сегмента.
         final ToolInvocationCollector toolCollector =
                 new ToolInvocationCollector(() -> buffer.setLength(0));
+        // Публикация live-событий спрашивает у коллектора исход вызова: в сохранённых tool_data
+        // провалившийся вызов выглядит как обычный (см. RunScope#completedCall).
+        scope.attachCollector(toolCollector);
 
         // На повторе сообщение не новое, но событие всё равно нужно: вкладки сверяют пузырь по id
         // и срезают всё, что стоит после него, — так пузырь с ошибкой упавшего прогона исчезает

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '@/api/chatApi';
-import { getToolIcon, humanizeTool, toolLabelKey } from '@/components/common/ui/toolNames';
+import { getToolIcon, humanizeTool, statusLabelKey, toolLabelKey } from '@/components/common/ui/toolNames';
 import CopyButton from '@/components/common/ui/CopyButton';
 import ModalShell from '@/components/common/modal/ModalShell';
 import { formatTokens, usageTooltip } from './tokenUsage';
@@ -197,7 +197,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
 
       {details && !loading && (
         <div className="tool-call-detail__body">
-          <div className={`tool-call-detail__status${statusClass}`}>{details.status}</div>
+          <div className={`tool-call-detail__status${statusClass}`}>{t(statusLabelKey(details.status))}</div>
 
           <ToolCost meta={tc.resultMeta} />
 

@@ -399,13 +399,15 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_stopped");
 
         assertThat(detail).isPresent();
-        assertThat(detail.get().status()).isEqualTo(ToolInvocationStatus.OK);
+        // Ответ есть — значит, вызов больше не «работает»; успехом он от этого не стал: прогон
+        // прервали посреди инструмента, и чем тот кончился, не знает никто.
+        assertThat(detail.get().status()).isEqualTo(ToolInvocationStatus.UNKNOWN);
         assertThat(detail.get().resultText()).contains("interrupted");
     }
 
-    /** Оборванный прогон: ответ есть, меты нет — вызов отработал, статус OK. */
+    /** Оборванный прогон: ответ есть, меты нет — вызов отработал, но исход неизвестен. */
     @Test
-    void responseWithoutMetaStaysOk() {
+    void responseWithoutMetaIsUnknown() {
         String conv = UUID.randomUUID().toString();
 
         ChatMessageEntity segment =
@@ -433,7 +435,9 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_0");
 
         assertThat(detail).isPresent();
-        assertThat(detail.get().status()).isEqualTo(ToolInvocationStatus.OK);
+        // Вызов отработал — ответ есть, — но чем кончился, знала только мета, которую оборванный
+        // прогон записать не успел: OK здесь был бы обещанием успеха вместо ответа «не знаю».
+        assertThat(detail.get().status()).isEqualTo(ToolInvocationStatus.UNKNOWN);
         assertThat(detail.get().resultText()).isEqualTo("hits");
     }
 

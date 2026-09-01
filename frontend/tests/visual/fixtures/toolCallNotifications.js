@@ -64,3 +64,34 @@ export const editFileTwice = {
     createdAt: '2026-08-16T09:02:14',
   },
 };
+
+/**
+ * Три исхода вызова рядом: успех, провал и «исход не сохранён». Кейс про то, чем они
+ * отличаются на вид — цветом полосы, значком и тем, что показано под аргументами.
+ */
+export const callOutcomes = [
+  {
+    name: 'getFileContent',
+    callId: 'call-1',
+    status: 'OK',
+    hasDetails: true,
+    arguments: { path: 'backend/src/main/java/io/github/trialiya/kb/functions/GitFunction.java' },
+    resultGist: 'java · 323 строки · 11.5 КБ',
+  },
+  {
+    name: 'editFile',
+    callId: 'call-2',
+    status: 'ERROR',
+    hasDetails: true,
+    arguments: { path: 'docs/проект/архитектура.md', oldText: '## Слои' },
+    error: 'oldText not found in docs/проект/архитектура.md: 0 matches, expected exactly 1',
+  },
+  {
+    name: 'searchDocuments',
+    callId: 'call-3',
+    status: 'UNKNOWN',
+    hasDetails: false,
+    arguments: { query: 'кэш эмбеддингов' },
+    resultGist: '[{"id":42,"title":"Кэш эмбеддингов","score":0.…',
+  },
+];

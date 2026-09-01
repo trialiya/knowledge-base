@@ -416,6 +416,6 @@ ID текущего чата.
 |---|---|---|
 | `name` | String | Имя инструмента |
 | `arguments` | Map | Параметры вызова |
-| `status` | String | `STARTED`, `OK`, `ERROR` |
+| `status` | String | `STARTED`, `OK`, `ERROR`, `UNKNOWN` (исход не сохранён — мету прогона записать не успели) |
 | `error` | String | Сообщение об ошибке (при ERROR) |
 | `resultGist` | String | Краткая сводка результата (из `CompactToolResultConverter`) |

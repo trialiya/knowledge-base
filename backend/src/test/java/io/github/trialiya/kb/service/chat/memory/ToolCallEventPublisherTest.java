@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
@@ -18,6 +19,7 @@ import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.support.ActiveProjectNotices;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.util.List;
 import java.util.Map;
@@ -30,9 +32,10 @@ import org.springframework.ai.chat.messages.UserMessage;
 
 /**
  * Live-события TOOL_CALL, которые {@link ChatHistoryService#append} шлёт по только что сохранённым
- * рядам: STARTED при записи ASSISTANT-сегмента с tool_calls, OK с гистом при записи TOOL-ответов.
- * {@code callIndex} сквозной по прогону и обнуляется на новом — так он совпадает со счётчиком
- * {@code ToolInvocationCollector}, из которого приходят итоговые меты.
+ * рядам: STARTED при записи ASSISTANT-сегмента с tool_calls, OK с гистом или ERROR при записи
+ * TOOL-ответов (провал виден только по записи коллектора — в самом ответе на месте результата лежит
+ * текст ошибки). {@code callIndex} сквозной по прогону и обнуляется на новом — так он совпадает со
+ * счётчиком {@code ToolInvocationCollector}, из которого приходят итоговые меты.
  */
 class ToolCallEventPublisherTest {
 
@@ -112,6 +115,46 @@ class ToolCallEventPublisherTest {
         assertThat(metas.get(1).callIndex()).isEqualTo(0);
         assertThat(metas.get(1).arguments()).containsEntry("q", "a");
         assertThat(metas.get(1).resultGist()).contains("found 3 docs");
+    }
+
+    @Test
+    void failedCallIsPublishedAsErrorRightAway() {
+        generating(RUN);
+        // Ответ провалившегося инструмента — обычный TOOL-ряд с текстом ошибки на месте
+        // результата (см. ChatConfig#toolExecutionExceptionProcessor), поэтому исход публикация
+        // спрашивает у коллектора прогона.
+        final ToolInvocationCollector collector = new ToolInvocationCollector();
+        collector.record(
+                new ToolInvocation(
+                        "editFile",
+                        Map.of(),
+                        ToolInvocationStatus.ERROR,
+                        "oldText not found",
+                        null,
+                        null,
+                        "{}",
+                        null,
+                        0,
+                        null));
+        runs.find(RUN).orElseThrow().attachCollector(collector);
+
+        history.append(
+                CONV,
+                List.of(
+                        ToolCallTestSupport.assistantWithCalls(
+                                ToolCallTestSupport.call("id-0", "editFile", "{}")),
+                        new ToolResponseMessage(
+                                List.<ToolResponseMessage.ToolResponse>of(
+                                        new ToolResponseMessage.ToolResponse(
+                                                "id-0", "editFile", "oldText not found")),
+                                Map.of()) {}));
+
+        final List<ToolInvocationMeta> metas = publishedMetas(RUN);
+        assertThat(metas).hasSize(2);
+        assertThat(metas.get(1).status()).isEqualTo(ToolInvocationStatus.ERROR);
+        assertThat(metas.get(1).error()).isEqualTo("oldText not found");
+        // Гиста у провала нет: результат — та же ошибка, и плашка написала бы её дважды.
+        assertThat(metas.get(1).resultGist()).isNull();
     }
 
     @Test
