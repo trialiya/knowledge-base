@@ -106,7 +106,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
   }
 
   // Модалку открывают и на работающем вызове — ради аргументов, — поэтому пока ответ говорит
-  // STARTED, детали перезапрашиваются сами. Одной перезагрузки по смене статуса плашки мало
+  // STARTED или UNKNOWN (исход ещё не записан), детали перезапрашиваются сами. Одной перезагрузки по смене статуса плашки мало
   // сразу по трём причинам: SSE-событие ответа публикуется ещё внутри транзакции записи, так
   // что запрос может обогнать коммит и получить тот же STARTED; на остановке и на ошибке
   // прогона финального TOOL_CALLS вовсе нет, и плашка остаётся STARTED навсегда; а неудачная
@@ -135,7 +135,10 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
         .then((data) => {
           if (cancelled) return;
           setAnswer({ details: data || null, failed: false });
-          if (data?.status === TOOL_STATUS.STARTED) again();
+          // UNKNOWN здесь не окончательный: так отвечает вызов, ответ которого уже записан, а
+          // мета прогона — ещё нет (её пишет конец прогона), и статус плашки при этом меняться
+          // не обязан — переспросить некому, кроме нас.
+          if (data?.status === TOOL_STATUS.STARTED || data?.status === TOOL_STATUS.UNKNOWN) again();
         })
         .catch(() => {
           if (cancelled) return;

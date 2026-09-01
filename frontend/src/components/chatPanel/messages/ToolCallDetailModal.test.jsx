@@ -69,6 +69,26 @@ describe('ToolCallDetailModal', () => {
     expect(chatApi.getToolCallDetails).toHaveBeenCalledTimes(calls);
   });
 
+  it('переспрашивает и по несохранённому исходу: его допишет конец прогона', async () => {
+    // Ответ инструмента уже записан, меты прогона ещё нет — бэкенд отвечает UNKNOWN. Статус
+    // плашки при этом свой (её красит живое событие), и переспросить, кроме опроса, некому.
+    chatApi.getToolCallDetails
+      .mockResolvedValueOnce(detail('UNKNOWN', '"нашлось 3 файла"'))
+      .mockResolvedValueOnce(detail('ERROR', '"нашлось 3 файла"'));
+
+    open({ ...tc, status: 'OK' });
+
+    expect(await screen.findByText('toolCall.statusValue.UNKNOWN')).toBeInTheDocument();
+
+    await tick(1000);
+    expect(await screen.findByText('toolCall.statusValue.ERROR')).toBeInTheDocument();
+
+    // Исход известен — опрос прекращается.
+    const calls = chatApi.getToolCallDetails.mock.calls.length;
+    await tick(60000);
+    expect(chatApi.getToolCallDetails).toHaveBeenCalledTimes(calls);
+  });
+
   it('сорвавшийся перезапрос не стирает уже показанные аргументы', async () => {
     chatApi.getToolCallDetails
       .mockResolvedValueOnce(detail('STARTED', null))
