@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.repository;
 
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatUsageRow;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -84,6 +85,22 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     """)
     List<ChatMessageEntity> findLatest(
             @Param("conversationId") String conversationId, @Param("limit") int limit);
+
+    /**
+     * Ряды чата для счёта токенов — тип и мета, без содержимого (см. {@link ChatUsageRow}).
+     *
+     * <p>Отбор тот же, что у страниц истории ({@link #findLatest}): всё, кроме строк-сводок. Иначе
+     * итог по чату разошёлся бы с тем, что пользователь видит в ленте, — а сходиться он обязан,
+     * потому что это одни и те же прогоны. Замер раунда сжатия при этом не теряется: он стоит на
+     * плашке, а плашка сводкой не является.
+     */
+    @Query(
+            """
+    SELECT type, meta FROM chat_message
+    WHERE conversation_id = :conversationId AND summary = false
+    ORDER BY created_at, id
+    """)
+    List<ChatUsageRow> findUsageRows(@Param("conversationId") String conversationId);
 
     @Query(
             """

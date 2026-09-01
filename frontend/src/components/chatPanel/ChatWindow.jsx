@@ -511,7 +511,7 @@ const ChatWindow = ({
   // Токены чата отдельным хуком: считаются по ленте (она меняется на каждый чанк), а наружу
   // отдаются прежним объектом, пока не изменились сами числа — иначе мемо ниже пересобиралось бы
   // по буквам ответа, ровно вопреки своей цели.
-  const chatUsage = useChatUsage(activeMessages, activeChat?.hasMore);
+  const chatUsage = useChatUsage(activeChatId, activeMessages, isStreaming);
 
   const baseTabs = useMemo(
     () =>

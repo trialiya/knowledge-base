@@ -326,11 +326,6 @@ export function applyChatEvent(chat, ev, ctx) {
           messages: payload?.messages ?? 0,
           summaryChars: payload?.summaryChars ?? 0,
           kind: payload?.kind,
-          // Деньги отложенных сводок, которые это сжатие выбросило: своего ряда у них не
-          // осталось, и в итог по чату они идут отсюда (см. chatUsageTotals). Из истории
-          // плашка приезжает с ними (transformPage) — без них живая вкладка показывала бы
-          // итог меньше, чем она же после перезагрузки.
-          ...(payload?.carried ? { carried: payload.carried } : {}),
         },
         // Токены раунда — те же, что приедут из истории после перезагрузки: без них счётчик
         // контекста и итоги чата в живой вкладке разошлись бы с перезагруженной.
@@ -369,7 +364,6 @@ export function applyChatEvent(chat, ev, ctx) {
           messages: payload.messages ?? 0,
           summaryChars: payload.summaryChars ?? 0,
           kind: payload.kind,
-          ...(payload.carried ? { carried: payload.carried } : {}),
         },
         ...(payload.usage ? { usage: payload.usage } : {}),
         timestamp: payload.createdAt,

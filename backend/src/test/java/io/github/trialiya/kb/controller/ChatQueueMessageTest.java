@@ -25,6 +25,7 @@ import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.run.RunOptionsResolver;
 import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
 import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
+import io.github.trialiya.kb.service.chat.usage.ChatUsageService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import java.time.Clock;
 import java.util.List;
@@ -67,6 +68,7 @@ class ChatQueueMessageTest {
                         pendingMessages,
                         mock(ChatTopicRepository.class),
                         mock(ChatHistoryService.class),
+                        mock(ChatUsageService.class),
                         mock(ToolCallService.class),
                         mock(ChatSearchService.class),
                         runService,

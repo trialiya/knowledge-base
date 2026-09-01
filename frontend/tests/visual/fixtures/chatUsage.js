@@ -2,43 +2,61 @@
  * Фикстуры вкладки «Usage» правой панели чата (chatPanel/center/ChatUsage.jsx).
  *
  * Компонент принимает то, что собирает useChatUsage: занятый контекст последнего измеренного
- * прогона, системную часть (база первого прогона) и суммы по прогонам. Числа синтетические, но
- * связанные между собой так же, как у настоящего чата: cache miss + cache hit = total input
- * (17 700 + 63 400 = 81 100), а он с выходом — ровно Total (82 200). Разрыв между занятыми 21.1k и
- * Total намеренный: его объясняют шесть обращений к модели, каждое из которых оплачивает контекст
- * заново, — ради этого вкладка и существует.
+ * прогона (его считает фронт по ленте) и счёт за весь чат (его отдаёт GET /chats/{id}/usage).
+ * Числа синтетические, но связанные между собой так же, как у настоящего чата: cache miss + cache
+ * hit = total input (17 700 + 63 400 = 81 100), а он с выходом — ровно Total (82 200). Разрыв
+ * между занятыми 21.1k и Total намеренный: его объясняют шесть обращений к модели, каждое из
+ * которых оплачивает контекст заново, — ради этого вкладка и существует.
  */
 export const measuredChat = {
   usage: {
     current: { contextTokens: 21_100 },
-    base: 9_400,
     totals: {
-      outputTokens: 1_100,
-      promptTokens: 81_100,
-      cacheReadTokens: 63_400,
-      cacheWriteTokens: 2_400,
-      modelCalls: 6,
+      baseContextTokens: 9_400,
+      spent: {
+        outputTokens: 1_100,
+        promptTokens: 81_100,
+        cacheReadTokens: 63_400,
+        cacheWriteTokens: 2_400,
+        totalTokens: 82_200,
+        modelCalls: 6,
+      },
+      subagentRuns: 0,
+      subagentSpent: null,
     },
-    partial: false,
   },
 };
 
 /**
- * Загружена не вся история: числа относятся к прочитанной части, и вкладка обязана это сказать —
- * иначе они читаются как итог по всему чату. Кэша у прогонов нет вовсе (эндпоинт без него), и вход
- * тогда одной строкой «Input», без пары miss/hit.
+ * Тот же чат, но модель считает reasoning-токены, а поиск по коду ходил к суб-агенту.
+ *
+ * Reasoning — невидимая часть выхода: провайдерский total (96 000) больше входа с выходом
+ * (82 200) ровно на неё, и без своей строки (13 800) столбец не сходился бы. Суб-агент стоит
+ * отдельным блоком со своим заголовком: у него своя модель и свой тариф, и в Total выше его
+ * деньги не входят — об этом же говорит сноска под блоком.
  */
-export const partialHistory = {
+export const subagentSpending = {
   usage: {
-    current: { contextTokens: 8_300 },
-    base: null,
+    current: { contextTokens: 21_100 },
     totals: {
-      outputTokens: 640,
-      promptTokens: 15_900,
-      cacheReadTokens: 0,
-      cacheWriteTokens: 0,
-      modelCalls: 2,
+      baseContextTokens: 9_400,
+      spent: {
+        outputTokens: 1_100,
+        promptTokens: 81_100,
+        cacheReadTokens: 63_400,
+        cacheWriteTokens: 2_400,
+        totalTokens: 96_000,
+        modelCalls: 6,
+      },
+      subagentRuns: 3,
+      subagentSpent: {
+        outputTokens: 900,
+        promptTokens: 24_000,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        totalTokens: 24_900,
+        modelCalls: 7,
+      },
     },
-    partial: true,
   },
 };

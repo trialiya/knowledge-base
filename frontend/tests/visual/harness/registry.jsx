@@ -159,7 +159,7 @@ const REGISTRY = [
     render: (p) => <ChatHeader {...p} onToggleSearch={noop} onRename={noop} onDelete={noop} />,
   },
   { id: 'chatUsage.js#measuredChat', frame: 'panel', render: (p) => <ChatUsage {...p} /> },
-  { id: 'chatUsage.js#partialHistory', frame: 'panel', render: (p) => <ChatUsage {...p} /> },
+  { id: 'chatUsage.js#subagentSpending', frame: 'panel', render: (p) => <ChatUsage {...p} /> },
   { id: 'chatRepo.js#repoTabIdle', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },
   { id: 'chatRepo.js#repoTabBusy', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },
   { id: 'chatRepo.js#repoTabMerging', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },

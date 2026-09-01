@@ -52,13 +52,10 @@ export const transformPage = (rawMsgs) => {
           messages: m.compact.messages,
           summaryChars: m.compact.summaryChars,
           kind: m.compact.kind,
-          // Деньги отложенных сводок, которые это сжатие выбросило: своего ряда у них не
-          // осталось, и в итог по чату они идут отсюда (см. chatUsageTotals).
-          ...(m.compact.carried ? { carried: m.compact.carried } : {}),
         },
-        // Токены самого раунда сжатия — тем же полем, что и у ответа: сжатие тоже обращение к
-        // модели, и в итогах чата оно обязано считаться наравне. По ним же плашка говорит,
-        // сколько контекст занимал до неё (см. contextBeforeCompact).
+        // Токены самого раунда сжатия — тем же полем, что и у ответа: по ним плашка говорит,
+        // сколько контекст занимал до неё (см. contextBeforeCompact). Деньги выброшенных
+        // сжатием сводок (compact.carried) сюда не едут: их читает счёт по чату, прямо из БД.
         ...(m.usage ? { usage: m.usage } : {}),
         timestamp: m.timestamp || null,
       });

@@ -62,10 +62,11 @@ class ChatMessageMetaRoundTripTest {
                                 4096,
                                 512,
                                 CompactMeta.Kind.SUMMARIZE,
-                                new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 2)),
+                                new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 61_900, 2)),
                         new GitEventMeta("pull", "billing", true, "Fast-forward", "main"),
                         true,
-                        new RunTokenUsage(12_400, 11_400, 700, 320, 31_000, 24_000, 1_100, 3),
+                        new RunTokenUsage(
+                                12_400, 11_400, 700, 320, 31_000, 24_000, 1_100, 31_320, 3),
                         List.of(
                                 new ProjectSpan("kb", 1, 34),
                                 new ProjectSpan("billing", 35, 92),
