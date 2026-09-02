@@ -40,10 +40,12 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
 
     @Override
     public int getOrder() {
-        // Максимально близко к модели: логировать надо то, что уходит ей, а не то, что ещё
-        // будет переписано. Порядок с TokenUsageAdvisor (тот же LOWEST_PRECEDENCE) не важен —
-        // оба только наблюдают.
-        return Ordered.LOWEST_PRECEDENCE;
+        // Максимально близко к модели, но НА ШАГ раньше неё. Цепочку замыкает адвайзер самого
+        // вызова, и стоит он на LOWEST_PRECEDENCE: встань мы туда же, ничью решал бы порядок
+        // складывания, и в цепочке без ToolCallingAdvisor — а это ровно раунд /compact, который
+        // его отключает, — терминальный адвайзер оказывался бы первым и логировать было бы уже
+        // некому. Порядок с TokenUsageAdvisor не важен, оба только наблюдают.
+        return Ordered.LOWEST_PRECEDENCE - 1;
     }
 
     @Override

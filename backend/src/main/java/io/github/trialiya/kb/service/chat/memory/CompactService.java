@@ -36,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientAttributes;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -437,6 +438,13 @@ public class CompactService {
                         .advisors(
                                 a ->
                                         a.advisors(new MessageLoggingAdvisor())
+                                                // Чат запроса — только чтобы лог сжатия можно было
+                                                // положить рядом с логом прогона того же чата: без
+                                                // него обе строки подписаны «?», а сравнивают их
+                                                // ровно тогда, когда кэш промпта не сошёлся.
+                                                // Памяти на этом клиенте нет, подмешивать по этому
+                                                // параметру историю здесь некому.
+                                                .param(ChatMemory.CONVERSATION_ID, conversationId)
                                                 .param(
                                                         ChatClientAttributes
                                                                 .TOOL_CALLING_ADVISOR_AUTO_REGISTER
