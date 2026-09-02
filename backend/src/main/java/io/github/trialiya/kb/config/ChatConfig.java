@@ -341,8 +341,31 @@ public class ChatConfig {
     }
 
     /**
-     * Connections to the model endpoints: the autoconfigured one, plus one per {@code
-     * kb.chat.models} entry that named its own {@code base-url}/{@code api-key}.
+     * The shared connection, in place of the one the OpenAI autoconfiguration would contribute —
+     * see {@link ChatModelRegistry#buildDefaultModel}. A bean rather than a detail of the registry
+     * because the longest blocking calls hang on it directly: attachments, document summaries and
+     * chat summarization take the model, not the registry.
+     */
+    @Bean
+    public OpenAiChatModel openAiChatModel(
+            OpenAiCommonProperties commonProperties,
+            OpenAiChatProperties chatProperties,
+            ToolCallingManager toolCallingManager,
+            ObjectProvider<ObservationRegistry> observationRegistry,
+            ObjectProvider<MeterRegistry> meterRegistry,
+            ObjectProvider<OpenAiHttpClientBuilderCustomizer> httpClientCustomizers) {
+        return ChatModelRegistry.buildDefaultModel(
+                commonProperties,
+                chatProperties,
+                toolCallingManager,
+                observationRegistry,
+                meterRegistry,
+                httpClientCustomizers);
+    }
+
+    /**
+     * Connections to the model endpoints: the shared one, plus one per {@code kb.chat.models} entry
+     * that named its own {@code base-url}/{@code api-key}.
      */
     @Bean
     public ChatModelRegistry chatModelRegistry(
