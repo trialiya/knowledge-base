@@ -45,6 +45,16 @@
   color: #333;
 }
 
+/* Тело сообщения — связный текст, а не строка шапки: переносы в нём свои. */
+.tool-diff__body {
+  padding: 0 0 6px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #555;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .tool-diff__author,
 .tool-diff__date {
   flex-shrink: 0;

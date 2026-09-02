@@ -38,23 +38,28 @@ const initialOpen = (groups) => {
   return open;
 };
 
-/** Шапка коммита: хеш, сообщение, автор и дата. */
+/** Шапка коммита: строка «хеш · тема · автор · дата», под ней — тело сообщения. */
 const CommitHead = ({ commit }) => {
   const { i18n } = useTranslation('chat');
   const date = commit.date ? new Date(commit.date) : null;
   const shown = date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString(i18n.language) : null;
 
   return (
-    <div className="tool-diff__commit">
-      <span className="tool-diff__hash">{commit.hash}</span>
-      {commit.message && (
-        <span className="tool-diff__message" title={commit.message}>
-          {commit.message}
-        </span>
-      )}
-      {commit.author && <span className="tool-diff__author">{commit.author}</span>}
-      {shown && <span className="tool-diff__date">{shown}</span>}
-    </div>
+    <>
+      <div className="tool-diff__commit">
+        <span className="tool-diff__hash">{commit.hash}</span>
+        {commit.message && (
+          <span className="tool-diff__message" title={commit.message}>
+            {commit.message}
+          </span>
+        )}
+        {commit.author && <span className="tool-diff__author">{commit.author}</span>}
+        {shown && <span className="tool-diff__date">{shown}</span>}
+      </div>
+      {/* Тема в строке шапки обрезается по ширине, поэтому тело — отдельным
+          блоком: в нём и стоит объяснение правки, ради которого коммит открыли. */}
+      {commit.body && <div className="tool-diff__body">{commit.body}</div>}
+    </>
   );
 };
 

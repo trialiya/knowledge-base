@@ -211,6 +211,43 @@ export const uncommittedChangesCall = {
   createdAt: '2026-08-16T09:04:47',
 };
 
+/**
+ * Один названный коммит: `getCommitDiff` по хешу отдаёт его вместе с телом
+ * сообщения — в сэмпле такого вызова нет, там оба вызова без тела.
+ */
+export const commitDiffCall = {
+  name: 'getCommitDiff',
+  argumentsRaw: JSON.stringify({ commitHashes: '38e5ba2', includePatch: true }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify([
+    {
+      hash: '38e5ba2c6941bf43815588d2dbbdb1d5be9590ce',
+      shortHash: '38e5ba2',
+      author: 'Ivan Petrov',
+      email: 'ivan@example.com',
+      date: '2026-06-17T23:58:42+03:00',
+      message: 'Черновик чата переживает переключение на другой чат и перезагрузку',
+      body:
+        'Состояние черновика уехало в localStorage: в state оно жило до первого\n' +
+        'размонтирования, а размонтируется центр на каждом переключении чата.\n\n' +
+        'Ключ — id чата, поэтому черновики соседних чатов друг друга не затирают.',
+      files: [
+        {
+          status: 'M',
+          path: 'frontend/src/components/chatPanel/ChatCenter.jsx',
+          oldPath: null,
+          additions: 3,
+          deletions: 1,
+          patch: PATCH_EDIT,
+        },
+      ],
+    },
+  ]),
+  resultMeta: null,
+  createdAt: '2026-08-16T09:06:31',
+};
+
 /** Выдача поиска: пояснение из snippet, хлебные крошки — полем в развороте. */
 export const searchDocumentsCall = {
   name: 'searchDocuments',
