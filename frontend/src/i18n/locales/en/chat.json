@@ -168,6 +168,7 @@
       "diff": {
         "files": "{{count}} files",
         "noPatch": "No diff attached",
+        "commitBody": "Commit message body",
         "status": {
           "A": "added",
           "M": "modified",

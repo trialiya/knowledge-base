@@ -45,6 +45,26 @@
   color: #333;
 }
 
+/* С телом шапка становится кнопкой: сбрасываем UA-стили кнопки, а не заводим ей
+   второй набор правил. Ширина во всю строку — кликается вся шапка, не текст. */
+.tool-diff__commit--toggle {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 -4px;
+  padding: 2px 4px 4px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.75rem;
+  color: #888;
+  text-align: left;
+  cursor: pointer;
+}
+.tool-diff__commit--toggle:hover {
+  background: #f7f7f8;
+}
+
 /* Тело сообщения — связный текст, а не строка шапки: переносы в нём свои. */
 .tool-diff__body {
   padding: 0 0 6px;
