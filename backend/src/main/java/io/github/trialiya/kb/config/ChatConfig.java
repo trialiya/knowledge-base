@@ -484,10 +484,13 @@ public class ChatConfig {
         //       iteration's usage never leaves the loop, so from outside only the last
         //       iteration would ever be counted.
         //
-        //   MessageLoggingAdvisor     (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop, innermost:
-        //       DEBUG-only, logs the exact message list about to be sent to the model on each
-        //       iteration (post memory-prepend, post history-window trim). Off by default — enable
-        //       via logging.level.io.github.trialiya.kb.advisor.MessageLoggingAdvisor=DEBUG.
+        //   MessageLoggingAdvisor     (LOWEST_PRECEDENCE - 1 = MAX-1) — INSIDE the loop, last
+        //       before the model itself: DEBUG-only, measures the request about to be sent on each
+        //       iteration (post memory-prepend, post history-window trim) — sizes, previews and a
+        //       rolling prefix hash. A step above MAX on purpose: the chain is closed by the model
+        //       call advisor sitting at MAX, and a tie with it is lost in a chain without the tool
+        //       loop (see the advisor's own getOrder). Off by default — enable via
+        //       logging.level.io.github.trialiya.kb.advisor.MessageLoggingAdvisor=DEBUG.
         List<Advisor> advisors = new ArrayList<>();
         advisors.add(
                 ToolCallingAdvisor.builder()

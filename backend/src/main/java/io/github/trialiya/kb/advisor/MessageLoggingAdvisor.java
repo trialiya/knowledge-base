@@ -95,6 +95,9 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
      * Тело лога: строка про инструменты, затем по строке на сообщение, затем итог. Хэш — один на
      * весь обход, и в этом весь смысл: каждая строка печатает его текущее значение, то есть хэш
      * всего префикса запроса до неё включительно.
+     *
+     * <p>Итог считает схемы наравне с сообщениями — это вес всего, что уедет модели, а не сумма
+     * колонки выше; так и подписан, иначе читатель складывал бы колонку и не сходился.
      */
     private static String describe(ChatClientRequest request) {
         final Prefix prefix = new Prefix();
@@ -105,7 +108,10 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
         for (int i = 0; i < messages.size(); i++) {
             chars += message(out, prefix, i + 1, messages.get(i));
         }
-        return out.append(String.format("  total %3d messages %8d chars", messages.size(), chars))
+        return out.append(
+                        String.format(
+                                "  total %3d messages %8d chars (tool schemas included)",
+                                messages.size(), chars))
                 .toString();
     }
 
