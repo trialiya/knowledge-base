@@ -47,6 +47,7 @@
     "author": "Changed by",
     "commit": "Commit",
     "commitMessage": "Commit message",
+    "commitBody": "Message body",
     "untracked": "not tracked by git"
   },
   "preview": {

@@ -74,16 +74,21 @@ public class GitController {
      * Commit history, newest first — optionally narrowed to one file or directory. The file
      * browser's "Info" panel asks for {@code limit=1} to show who last changed the selected path
      * and when; omit {@code path} for the repository's own history.
+     *
+     * <p>{@code body} is opt-in because it scales with the page: one commit's message body is
+     * nothing, twenty of them are the bulk of the response, and a caller that only prints subjects
+     * would pay for it on every listing.
      */
     @GetMapping("/commits")
     public List<GitCommit> getCommits(
             @RequestParam(name = "path", required = false) @Nullable String path,
             @RequestParam(name = "limit", defaultValue = "20") int limit,
+            @RequestParam(name = "body", defaultValue = "false") boolean body,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return git(project).getCommitLog(limit, path, false);
+        return git(project).getCommitLog(limit, path, body);
     }
 
     /**

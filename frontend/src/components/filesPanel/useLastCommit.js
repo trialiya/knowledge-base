@@ -4,6 +4,9 @@ import gitApi from '@/api/gitApi';
 /**
  * Последний коммит, затронувший `path` (пустой путь — весь репозиторий).
  *
+ * С телом сообщения: коммит здесь ровно один, и на нём тело стоит запроса —
+ * во «что здесь меняли последним» объяснение правки и есть главное.
+ *
  * Отдельным запросом, а не полем в дереве: `git log` по пути стоит заметно
  * дороже листинга, а нужен он только когда раскрыта вкладка «Инфо» — компонент
  * с этим хуком до раскрытия панели не смонтирован.
@@ -27,7 +30,7 @@ export default function useLastCommit(path, project, enabled = true) {
     const controller = new AbortController();
 
     gitApi
-      .getCommits(path, { limit: 1, project, signal: controller.signal })
+      .getCommits(path, { limit: 1, body: true, project, signal: controller.signal })
       .then((commits) => {
         if (controller.signal.aborted) return;
         setAnswer({ commit: commits?.[0] || null, loading: false, error: false });

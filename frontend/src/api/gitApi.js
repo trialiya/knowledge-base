@@ -244,11 +244,16 @@ const gitApi = {
   /**
    * История коммитов (свежие первыми), опционально по одному пути.
    * path='' или omitted — история всего репозитория. Возвращает GitCommit[]
-   * { hash, shortHash, author, email, date, message }.
+   * { hash, shortHash, author, email, date, message, body }.
+   *
+   * `body` (текст сообщения ниже темы) приходит только с `body: true`: он есть
+   * не у каждого коммита, зато у больших правок идёт на десятки строк, и в
+   * листинге на двадцать записей весит больше всего остального ответа.
    */
-  getCommits: (path, { limit = 20, project, signal } = {}) => {
+  getCommits: (path, { limit = 20, body = false, project, signal } = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (path) params.set('path', path);
+    if (body) params.set('body', 'true');
     const [qs, init] = opts(params, project, signal);
     return request(`/api/git/commits${qs}`, init);
   },

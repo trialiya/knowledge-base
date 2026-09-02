@@ -47,6 +47,7 @@
     "author": "Кто изменил",
     "commit": "Коммит",
     "commitMessage": "Название коммита",
+    "commitBody": "Тело сообщения",
     "untracked": "не отслеживается git"
   },
   "preview": {

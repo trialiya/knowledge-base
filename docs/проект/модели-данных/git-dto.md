@@ -17,7 +17,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | `email` | String | Email автора |
 | `date` | OffsetDateTime | Дата коммита (ISO-8601) |
 | `message` | String | Subject — первый абзац сообщения, переносы строк склеены пробелами |
-| `body` | String | Остальное сообщение (всё после первой пустой строки). `null`, если тела нет или его не запрашивали — см. `includeMessageBody` у [`getCommitLog`](../ai-инструменты.md) |
+| `body` | String | Остальное сообщение (всё после первой пустой строки). `null`, если тела нет или его не запрашивали — см. `includeMessageBody` у [`getCommitLog`](../ai-инструменты.md) и `body=true` у `GET /api/git/commits` |
 | `files` | List\<GitDiffEntry\> | Затронутые файлы (null если не запрошены) |
 
 `getResultMeta()`: `shortHash`, `author`, `email`, `date`, `message`, `changesFilesCount` — тела в плашке нет ни при каких условиях, там строка на коммит.
