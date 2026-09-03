@@ -36,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientAttributes;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -76,7 +77,9 @@ import org.springframework.web.server.ResponseStatusException;
  * место на оба запроса), тот же {@link ChatToolset}, та же модель и то же окно, собранное тем же
  * кодом (см. {@link ChatHistoryService#promptRowsBefore} — там про блок активного проекта, который
  * иначе уехал бы вместе с командой). Расходится с запросом чата только последнее сообщение — то
- * самое, которое просит сжать; всё, что перед ним, совпадает.
+ * самое, которое просит сжать; всё, что перед ним, совпадает. Держит это не аккуратность правок, а
+ * {@code CompactPromptCacheTest}: он сравнивает тела HTTP-запросов обоих путей по одному окну —
+ * иначе разошедшееся начало видно только по счёту от провайдера.
  *
  * <p><b>Инструменты уезжают схемами, но исполнять их некому.</b> {@code
  * ChatClientAttributes#TOOL_CALLING_ADVISOR_AUTO_REGISTER} выключает адвайзер tool-цикла, который
@@ -435,6 +438,13 @@ public class CompactService {
                         .advisors(
                                 a ->
                                         a.advisors(new MessageLoggingAdvisor())
+                                                // Чат запроса — только чтобы лог сжатия можно было
+                                                // положить рядом с логом прогона того же чата: без
+                                                // него обе строки подписаны «?», а сравнивают их
+                                                // ровно тогда, когда кэш промпта не сошёлся.
+                                                // Памяти на этом клиенте нет, подмешивать по этому
+                                                // параметру историю здесь некому.
+                                                .param(ChatMemory.CONVERSATION_ID, conversationId)
                                                 .param(
                                                         ChatClientAttributes
                                                                 .TOOL_CALLING_ADVISOR_AUTO_REGISTER

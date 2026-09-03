@@ -468,4 +468,4 @@ logging:
 #        trialiya:
 #          kb:
 #            advisor:
-#              MessageLoggingAdvisor: DEBUG # logs the exact message list sent to the LLM on every request
+#              MessageLoggingAdvisor: DEBUG # per request: message sizes, previews and a rolling prefix hash (find where two requests stop sharing the cached prefix)
