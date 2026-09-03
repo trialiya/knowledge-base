@@ -18,14 +18,29 @@ const OPEN_LINE_BUDGET = 400;
 const lineCount = (file) => (file.patch ? file.patch.split('\n').length : 0) + (file.header?.length ?? 0);
 
 /**
- * Какие файлы открыты при первом показе: подряд, пока не выбран бюджет строк.
- * Первый — всегда, иначе «Обзор» открылся бы пустым списком заголовков.
+ * Ключ раскрытия для тела сообщения коммита: оно сворачивается наравне с
+ * патчами, поэтому и живёт в том же состоянии — иначе «свернуть всё» оставляло
+ * бы половину вида раскрытой.
+ */
+const bodyKey = (group) => `${group.key}-body`;
+
+/** Всё сворачиваемое вида: патч на файл плюс тело сообщения у коммитов с ним. */
+const expandKeys = (groups) => [
+  ...groups.flatMap((group) => group.files.map((file) => file.key)),
+  ...groups.filter((group) => group.commit?.body).map(bodyKey),
+];
+
+/**
+ * Что открыто при первом показе: тела сообщений — всегда (в них и стоит
+ * объяснение правки), файлы — подряд, пока не выбран бюджет строк. Первый файл
+ * тоже всегда, иначе «Обзор» открылся бы пустым списком заголовков.
  */
 const initialOpen = (groups) => {
   const open = {};
   let used = 0;
   let first = true;
   for (const group of groups) {
+    if (group.commit?.body) open[bodyKey(group)] = true;
     for (const file of group.files) {
       const lines = lineCount(file);
       if (first || used + lines <= OPEN_LINE_BUDGET) {
@@ -38,14 +53,20 @@ const initialOpen = (groups) => {
   return open;
 };
 
-/** Шапка коммита: хеш, сообщение, автор и дата. */
-const CommitHead = ({ commit }) => {
-  const { i18n } = useTranslation('chat');
+/**
+ * Шапка коммита: строка «хеш · тема · автор · дата», под ней — тело сообщения.
+ *
+ * С телом строка становится кнопкой и сворачивает его; без тела шеврона нет
+ * вовсе — он обещал бы содержимое, которого у этого коммита не будет (списку
+ * коммитов тела не приходят).
+ */
+const CommitHead = ({ commit, open, onToggle }) => {
+  const { t, i18n } = useTranslation('chat');
   const date = commit.date ? new Date(commit.date) : null;
   const shown = date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString(i18n.language) : null;
 
-  return (
-    <div className="tool-diff__commit">
+  const head = (
+    <>
       <span className="tool-diff__hash">{commit.hash}</span>
       {commit.message && (
         <span className="tool-diff__message" title={commit.message}>
@@ -54,7 +75,29 @@ const CommitHead = ({ commit }) => {
       )}
       {commit.author && <span className="tool-diff__author">{commit.author}</span>}
       {shown && <span className="tool-diff__date">{shown}</span>}
-    </div>
+    </>
+  );
+
+  if (!commit.body) return <div className="tool-diff__commit">{head}</div>;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="tool-diff__commit tool-diff__commit--toggle"
+        onClick={onToggle}
+        aria-expanded={open}
+        title={t('toolCall.detail.diff.commitBody')}
+      >
+        <span className={`tool-diff__chevron${open ? ' tool-diff__chevron--open' : ''}`} aria-hidden="true">
+          <IconChevronDown />
+        </span>
+        {head}
+      </button>
+      {/* Тема в строке шапки обрезается по ширине, поэтому тело — отдельным
+          блоком: в нём и стоит объяснение правки, ради которого коммит открыли. */}
+      {open && <div className="tool-diff__body">{commit.body}</div>}
+    </>
   );
 };
 
@@ -99,10 +142,7 @@ const FileEntry = ({ file, open, onToggle }) => {
 const DiffResultView = ({ data: groups }) => {
   const { t } = useTranslation('chat');
   const files = groups.flatMap((group) => group.files);
-  const expand = useExpandAll(
-    files.map((file) => file.key),
-    () => initialOpen(groups),
-  );
+  const expand = useExpandAll(expandKeys(groups), () => initialOpen(groups));
 
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
@@ -120,7 +160,13 @@ const DiffResultView = ({ data: groups }) => {
 
       {groups.map((group) => (
         <section key={group.key} className="tool-diff__group">
-          {group.commit && <CommitHead commit={group.commit} />}
+          {group.commit && (
+            <CommitHead
+              commit={group.commit}
+              open={expand.isOpen(bodyKey(group))}
+              onToggle={() => expand.toggle(bodyKey(group))}
+            />
+          )}
           {group.files.map((file) => (
             <FileEntry
               key={file.key}

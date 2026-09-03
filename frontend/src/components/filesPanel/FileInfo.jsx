@@ -8,7 +8,7 @@ import { formatFileSize, formatDateTime } from '@/utils/formatting';
  *
  * Две группы полей: сам объект (имя, путь, размер, язык, число строк — всё уже
  * загружено центром, лишнего запроса нет) и последний коммит, который его
- * тронул — дата, автор и заголовок коммита. Историю запрашиваем отдельно
+ * тронул — дата, автор, заголовок и тело сообщения. Историю запрашиваем отдельно
  * (см. useLastCommit): `git log` по пути дороже листинга дерева.
  *
  * `content` — это объект из useFileTree: { type: 'file'|'directory'|'not-found'
@@ -67,6 +67,8 @@ const FileInfo = ({ content, loading, path = '', project }) => {
     { label: t('info.author'), value: commit?.author },
     { label: t('info.commit'), value: commit?.shortHash, mono: true },
     { label: t('info.commitMessage'), value: commit?.message, block: true },
+    // Тело есть не у каждого коммита — пустую строку InfoList отбросит сам.
+    { label: t('info.commitBody'), value: commit?.body, block: true, pre: true },
   ];
 
   return <InfoList rows={rows} />;

@@ -47,6 +47,15 @@ const entry = (over = {}) => ({
 });
 
 describe('detectDiffResult — что попадает в «Обзор»', () => {
+  it('тело сообщения попадает в шапку, а его отсутствие не выдумывается', () => {
+    const body = 'Первый абзац.\n\nВторой абзац.';
+    const [withBody] = detect(JSON.stringify([{ ...commit([entry()]), body }]));
+    expect(withBody.commit.body).toBe(body);
+
+    const [withoutBody] = detect(JSON.stringify([commit([entry()])]));
+    expect(withoutBody.commit.body).toBeNull();
+  });
+
   it('getCommitDiff: коммит с файлами → группа с шапкой', () => {
     const groups = detect(JSON.stringify([commit([entry()])]));
     expect(groups).toHaveLength(1);

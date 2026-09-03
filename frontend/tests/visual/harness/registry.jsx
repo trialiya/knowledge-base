@@ -243,6 +243,7 @@ const REGISTRY = [
     ['mcpCall'],
     ['editFileCall'],
     ['uncommittedChangesCall', [1440, 1100]],
+    ['commitDiffCall'],
     // Единственный инструмент со строкой цены: он сам ходит в модель (см. фикстуру).
     ['searchCodebaseCall'],
     ['searchDocumentsCall'],

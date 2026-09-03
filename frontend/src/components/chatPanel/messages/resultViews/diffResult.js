@@ -62,7 +62,15 @@ const toCommit = (obj, key) => {
 
   return {
     key,
-    commit: { hash, author: str(obj.author), date: str(obj.date), message: str(obj.message) },
+    commit: {
+      hash,
+      author: str(obj.author),
+      date: str(obj.date),
+      message: str(obj.message),
+      // Тело сообщения приходит только у одного названного коммита
+      // (`getCommitDiff` по одному хешу) — у списка его нет, и строки тоже не будет.
+      body: str(obj.body),
+    },
     files,
   };
 };

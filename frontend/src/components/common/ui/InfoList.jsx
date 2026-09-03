@@ -16,13 +16,15 @@ import './infoList.css';
  * «—» в панели быть не должно.
  *
  * props:
- *   rows — [{ label, value, mono, block }]
+ *   rows — [{ label, value, mono, block, pre }]
  *          mono  — моноширинное значение (хеш, путь, id)
  *          block — значение под меткой и по левому краю: только для связного
  *                  текста в несколько строк (сообщение коммита), где выключка
  *                  вправо нечитаема. Длинному значению-строке (id, дата, путь)
  *                  block не нужен: строка переносится целиком, и значение
  *                  остаётся справа
+ *          pre   — сохранить переносы строк значения (тело коммита: там абзацы,
+ *                  списки и отступы несут смысл). Только вместе с block
  *   note — узел под списком (предупреждение/пояснение), необязателен
  *   title — заголовок над списком: нужен там, где на вкладке стоит второй
  *           список со своим смыслом (счёт суб-агента в чате) и без подписи
@@ -49,7 +51,9 @@ const InfoList = ({ rows, note, title }) => {
             <div className={`info-list__row${row.block ? ' info-list__row--block' : ''}`} key={row.label}>
               <dt className="info-list__label">{row.label}</dt>
               <dd className={`info-list__value${row.mono ? ' info-list__value--mono' : ''}`}>
-                <span className="info-list__value-text">{row.value}</span>
+                <span className={`info-list__value-text${row.pre ? ' info-list__value-text--pre' : ''}`}>
+                  {row.value}
+                </span>
                 {copyable && (
                   <button
                     type="button"
