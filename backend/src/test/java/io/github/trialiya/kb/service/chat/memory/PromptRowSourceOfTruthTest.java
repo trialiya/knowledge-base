@@ -128,10 +128,15 @@ class PromptRowSourceOfTruthTest {
 
     private static final String BLOCK = "<active-project>\nкакой репозиторий\n</active-project>";
 
-    /** Тот же сервис, но нотис говорящий: проверяем не его текст, а место, куда он встаёт. */
-    private ChatHistoryService withNotice() {
+    /**
+     * Тот же сервис, но нотис говорящий: куда встать, решает {@code ActiveProjectNotice} и
+     * проверяет его собственный тест, а здесь проверяется, что {@code promptRow} несёт блок ровно
+     * на названный ряд и последним куском текста.
+     */
+    private ChatHistoryService withNotice(long anchor) {
         final ActiveProjectNotice notice = mock(ActiveProjectNotice.class);
-        when(notice.render(anyString(), anyList())).thenReturn(BLOCK);
+        when(notice.place(anyString(), anyList()))
+                .thenReturn(new ActiveProjectNotice.Placement(anchor, BLOCK));
         return new ChatHistoryService(
                 chatMessageRepository,
                 contextItemService,
@@ -141,18 +146,18 @@ class PromptRowSourceOfTruthTest {
     }
 
     /**
-     * Блок стоит на последнем вопросе — и только на нём. У вопроса из середины истории активным был
-     * другой репозиторий, и копия блока там была бы прямой неправдой.
+     * Блок достаётся названному ряду — и только ему. Копия на соседних вопросах была бы лишним
+     * текстом в каждом запросе, а у вопроса из чужого отрезка — ещё и прямой неправдой.
      */
     @Test
-    void theActiveProjectBlockStandsOnTheLastQuestionOnly() {
+    void theActiveProjectBlockStandsOnTheAnchoredRowOnly() {
         givenStored(
                 List.of(
                         question(0, "первый", false),
                         row(1, "ответ", MessageType.ASSISTANT, false),
                         question(2, "второй", false)));
 
-        final List<PromptRow> rows = withNotice().promptRows(CONV);
+        final List<PromptRow> rows = withNotice(2).promptRows(CONV);
 
         assertThat(rows.get(0).text()).isEqualTo("первый");
         assertThat(rows.get(1).text()).isEqualTo("ответ");
@@ -167,7 +172,7 @@ class PromptRowSourceOfTruthTest {
     void theBlockComesAfterTheInventoryNotBeforeIt() {
         givenStored(List.of(question(0, "смотри файл", true)));
 
-        final String text = withNotice().promptRows(CONV).getFirst().text();
+        final String text = withNotice(0).promptRows(CONV).getFirst().text();
 
         assertThat(text).isEqualTo("смотри файл" + INVENTORY + "\n\n" + BLOCK);
     }
@@ -190,7 +195,7 @@ class PromptRowSourceOfTruthTest {
                                         "pull", "kb", true, "ok", "main")));
         givenStored(List.of(git));
 
-        assertThat(withNotice().promptRows(CONV).getFirst().text())
+        assertThat(withNotice(1).promptRows(CONV).getFirst().text())
                 .startsWith("<git-command")
                 .doesNotContain(BLOCK);
     }
