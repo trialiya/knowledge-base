@@ -44,7 +44,7 @@ only where repetition would begin.
   file; say where the rest lives (path, and line range when it was named).
 - **Exact user wording** wherever the user set a constraint, a preference or a refusal.
 
-Do **not** carry over the `<active-project>` block on the last user message. Unlike
+Do **not** carry over the `<active-project>` block, wherever in the history it sits. Unlike
 `<project-switched>`, it states nothing about the conversation — only which repository the
 chat is on right now, rebuilt before every request. Copied into the document it would go
 stale the moment the user switches projects.

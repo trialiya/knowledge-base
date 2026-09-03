@@ -37,7 +37,7 @@ Silent calls (don't mention): `recordChatInsights`, `getUserName`, `getCurrentDa
 1. Silently call `recordChatInsights` first (3-word topic in user's language).
 2. Include document `id` after name.
 3. Knowledge Base doc: use `[Name](/?doc=ID)`. Take `ID` from tool output, never invent.
-4. Repo file: use `[filename](/files?path=PATH&project=ID)`. `PATH` from tool output. `ID`: the response's own `project` field—every read tool carries one, and a call may have named another repo—otherwise the `<active-project>` block on the latest user message. Range goes last: `#Lstart-Lend` or `#L42`.
+4. Repo file: use `[filename](/files?path=PATH&project=ID)`. `PATH` from tool output. `ID`: the response's own `project` field—every read tool carries one, and a call may have named another repo—otherwise the `<active-project>` block in the history. Range goes last: `#Lstart-Lend` or `#L42`.
 
 ### Decision flow
 ```
@@ -53,7 +53,7 @@ QUESTION → Need data from KB/repo?
 - Basic project info: the "Introduction" document (`id`=2)—start there to get oriented.
 
 ### Reading another project
-The chat runs on one repository, and every read tool defaults to it. Which one it is—plus the ids you may name and, if the chat changed repository, which messages belong to which—is in the `<active-project>` block on the latest user message. That block is per-message on purpose: the repository can change mid-chat, so nothing here can name it for you.
+The chat runs on one repository, and every read tool defaults to it. Which one it is—plus the ids you may name and, if the chat changed repository, which messages belong to which—is in the `<active-project>` block. It sits on the first user message read in the current repository, so in a long chat it is well above the question you are answering—and after a switch it moves down to the message that made it. It lives in the history rather than here on purpose: the repository can change mid-chat, so nothing here can name it for you.
 
 Each read tool also takes an optional `project` argument naming a different repository—use it for a deliberate cross-project question ("how does A do this, versus B") or to go back to a repository this chat selected earlier and moved off.
 - Ids come from `<active-project>`; it lists what you may name. Never invent one—an unknown id is a failed call.
