@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.chat.memory;
 
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -27,9 +28,10 @@ import org.springframework.ai.chat.messages.MessageType;
 /**
  * Куда садится блок активного проекта и что в нём оказывается.
  *
- * <p>Место здесь важнее текста: блок обязан стоять ровно на одном ряду и ровно на том, который
- * открывает текущий ход. Копия на каждом вопросе — это лишний текст в каждом запросе; блок на ряду
- * из середины истории — прямая неправда, там активным был другой репозиторий.
+ * <p>Место здесь важнее текста: блок обязан стоять ровно на одном ряду и ровно на том, с которого
+ * действует активный проект. Копия на каждом вопросе — это лишний текст в каждом запросе; блок на
+ * ряду из чужого отрезка — прямая неправда, там активным был другой репозиторий; блок на ряду,
+ * который меняется от хода к ходу, обрывает кэш промпта на хвосте предыдущего хода.
  */
 class ActiveProjectNoticeTest {
 
@@ -72,6 +74,20 @@ class ActiveProjectNoticeTest {
                 new ChatMessageMeta(null, false, List.of(), List.of(), to, from));
     }
 
+    /** Строка-сводка: след сжатой части приходит её спанами. */
+    private static ChatMessageEntity summary(long position, String project, ProjectSpan... spans) {
+        return new ChatMessageEntity(
+                position,
+                CONV,
+                "сводка",
+                MessageType.ASSISTANT,
+                position,
+                false,
+                true,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofProject(project, List.of(spans)));
+    }
+
     private static ChatMessageEntity answer(long position) {
         return row(position, MessageType.ASSISTANT, null);
     }
@@ -87,30 +103,67 @@ class ActiveProjectNoticeTest {
         return row(position, MessageType.USER, ChatMessageMeta.ofInterjection(List.of()));
     }
 
+    /** Позиция носителя блока или {@code -1}, если блок ставить некуда. */
+    private long anchorOf(List<ChatMessageEntity> rows) {
+        final ActiveProjectNotice.@Nullable Placement placement = notice.place(CONV, rows);
+        return placement == null ? -1 : placement.anchor();
+    }
+
+    /**
+     * Чат без смены проекта: блок уезжает с первым вопросом и там же остаётся все следующие ходы.
+     */
     @Test
-    void theAnchorIsTheLastQuestionOfTheWindow() {
-        assertThat(ActiveProjectNotice.anchor(List.of(question(1), answer(2), question(3))))
+    void theAnchorIsTheFirstQuestionOfTheChat() {
+        assertThat(anchorOf(List.of(stamp(1, "kb"), answer(2), question(3)))).isEqualTo(1);
+    }
+
+    /**
+     * Смена проекта — единственный повод блоку переехать: он встаёт на вопрос, который её сделал.
+     */
+    @Test
+    void aSwitchMovesTheAnchorToTheQuestionThatMadeIt() {
+        assertThat(
+                        anchorOf(
+                                List.of(
+                                        stamp(1, "kb"),
+                                        answer(2),
+                                        switched(3, "kb", "billing"),
+                                        answer(4),
+                                        question(5))))
                 .isEqualTo(3);
     }
 
-    /** Оба ряда прозрачны для «последнего вопроса» — ход открыл не они. */
+    /** Оба ряда прозрачны для «вопроса» — ход открыл не они. */
     @Test
     void neitherAGitEventNorAnInterjectionBecomesTheAnchor() {
+        assertThat(anchorOf(List.of(gitEvent(1), interjection(2), stamp(3, "kb")))).isEqualTo(3);
+    }
+
+    /**
+     * После сжатия вопроса, которым отрезок начался, в окне уже нет — след приходит спанами сводки.
+     * Блок садится на первый живой вопрос и снова стоит там до следующего сжатия.
+     */
+    @Test
+    void aStretchInheritedFromASummaryAnchorsOnTheFirstLivingQuestion() {
         assertThat(
-                        ActiveProjectNotice.anchor(
-                                List.of(question(3), answer(4), gitEvent(5), interjection(6))))
-                .isEqualTo(3);
+                        anchorOf(
+                                List.of(
+                                        summary(8, "kb", new ProjectSpan("kb", 1, 8)),
+                                        question(9),
+                                        answer(10),
+                                        question(11))))
+                .isEqualTo(9);
     }
 
     /** Ставить некуда — окно из одних ответов; собирать блок тогда незачем вовсе. */
     @Test
     void aWindowWithoutAQuestionHasNoAnchor() {
-        assertThat(ActiveProjectNotice.anchor(List.of(answer(1), answer(2)))).isEqualTo(-1);
+        assertThat(anchorOf(List.of(answer(1), answer(2)))).isEqualTo(-1);
     }
 
     @Test
     void theNoticeIsTaggedAndTellsTheSummarizerToDropIt() {
-        String text = notice.render(CONV, List.of(stamp(1, "kb"), answer(2)));
+        String text = requireNonNull(notice.place(CONV, List.of(stamp(1, "kb"), answer(2)))).text();
 
         assertThat(text).startsWith("<active-project>\n").endsWith("</active-project>");
         assertThat(text).contains("do not preserve it");
@@ -119,7 +172,7 @@ class ActiveProjectNoticeTest {
     /** Активный проект — последний носитель окна, а не первый и не проект чата. */
     @Test
     void theActiveProjectIsTheLastCarrierOfTheWindow() {
-        notice.render(CONV, List.of(stamp(1, "kb"), switched(4, "kb", "billing")));
+        notice.place(CONV, List.of(stamp(1, "kb"), switched(4, "kb", "billing")));
 
         ArgumentCaptor<String> project = ArgumentCaptor.forClass(String.class);
         verify(projectPrompt).context(project.capture(), any());
@@ -136,7 +189,7 @@ class ActiveProjectNoticeTest {
 
     @Test
     void theTimelineCarriesEveryStretchOfTheWindow() {
-        notice.render(CONV, List.of(stamp(1, "kb"), switched(4, "kb", "billing"), answer(5)));
+        notice.place(CONV, List.of(stamp(1, "kb"), switched(4, "kb", "billing"), answer(5)));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<ProjectSpan>> spans = ArgumentCaptor.forClass(List.class);
@@ -157,10 +210,10 @@ class ActiveProjectNoticeTest {
         final List<ChatMessageEntity> window =
                 new ArrayList<>(List.of(stamp(1, "kb"), switched(4, "kb", "billing")));
 
-        notice.render(CONV, window);
+        notice.place(CONV, window);
         window.add(answer(5));
         window.add(answer(6));
-        notice.render(CONV, window);
+        notice.place(CONV, window);
 
         final List<List<ProjectSpan>> renders = capturedSpans(2);
         final List<ProjectSpan> before = renders.get(0);
@@ -190,7 +243,7 @@ class ActiveProjectNoticeTest {
                                         LocalDateTime.now(),
                                         false)));
 
-        notice.render(CONV, List.of(gitEvent(1), question(2)));
+        notice.place(CONV, List.of(gitEvent(1), question(2)));
 
         ArgumentCaptor<String> project = ArgumentCaptor.forClass(String.class);
         verify(projectPrompt).context(project.capture(), any());
@@ -203,7 +256,7 @@ class ActiveProjectNoticeTest {
      */
     @Test
     void aWindowWithACarrierNeverQueriesTheChat() {
-        notice.render(CONV, List.of(stamp(1, "kb"), answer(2)));
+        notice.place(CONV, List.of(stamp(1, "kb"), answer(2)));
 
         verify(chatTopicRepository, never()).findById(any());
     }

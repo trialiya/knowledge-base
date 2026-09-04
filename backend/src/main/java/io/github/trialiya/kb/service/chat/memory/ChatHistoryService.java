@@ -634,12 +634,12 @@ public class ChatHistoryService {
      * что за ней. Нужно сжатию ({@code CompactService}): команда {@code /compact} к моменту раунда
      * уже сохранена, а материалом сжатия не является.
      *
-     * <p>Отсечь хвост здесь, а не у вызывающего, обязательно из-за блока активного проекта: он
-     * достаётся ряду, открывшему последний ход ({@link ActiveProjectNotice#anchor}), а команда —
-     * обычный USER-ряд и ход открывает. Отфильтруй вызывающий готовые {@link PromptRow}, и блок
-     * уехал бы вместе с командой: модель не узнала бы, в каком репозитории написано то, что она
-     * сжимает, а окно разошлось бы с последним запросом чата на последнем же вопросе — то есть
-     * ровно там, где провайдер перестал бы засчитывать кэш промпта.
+     * <p>Отсечь хвост здесь, а не у вызывающего, обязательно из-за блока активного проекта: {@link
+     * ActiveProjectNotice} выбирает носителя по окну, которое ему дали, и команда — обычный
+     * USER-ряд, ход открывающий. Отфильтруй вызывающий готовые {@link PromptRow}, и в чате, где
+     * блок сел бы на неё, он уехал бы вместе с ней: модель не узнала бы, в каком репозитории
+     * написано то, что она сжимает, а окно разошлось бы с последним запросом чата — то есть там,
+     * где провайдер перестал бы засчитывать кэш промпта.
      */
     public List<PromptRow> promptRowsBefore(String conversationId, long position) {
         return promptRowsFor(
@@ -666,16 +666,18 @@ public class ChatHistoryService {
     private List<PromptRow> promptRowsFor(String conversationId, List<ChatMessageEntity> rows) {
         final Map<Long, String> context = contextItemService.renderAll(conversationId, rows);
         // Блок активного проекта собирается один раз на окно и достаётся одному ряду — см.
-        // ActiveProjectNotice. Пустой якорь значит «ставить некуда», и тогда его не собирают вовсе.
-        final long anchor = ActiveProjectNotice.anchor(rows);
-        final String project = anchor < 0 ? "" : activeProject.render(conversationId, rows);
+        // ActiveProjectNotice.
+        final ActiveProjectNotice.@Nullable Placement project =
+                activeProject.place(conversationId, rows);
         return rows.stream()
                 .map(
                         entity ->
                                 promptRow(
                                         entity,
                                         context.get(entity.getId()),
-                                        entity.getPosition() == anchor ? project : ""))
+                                        project != null && entity.getPosition() == project.anchor()
+                                                ? project.text()
+                                                : ""))
                 .toList();
     }
 
@@ -695,8 +697,9 @@ public class ChatHistoryService {
      * при чтении и в БД не попадает.
      *
      * @param activeProject блок активного проекта ({@link ActiveProjectNotice}) — только у ряда, на
-     *     который он назначен, у остальных пустая строка. Идёт последним, ПОСЛЕ описи: это
-     *     действующая справка о том, где искать файлы, и стоять ей у самого места ответа
+     *     который он назначен, у остальных пустая строка. Идёт последним, ПОСЛЕ описи: опись
+     *     говорит о том, что приложено к этому вопросу, а блок — о репозитории всего разговора
+     *     ниже, и вклиниваться между вопросом и его вложениями ему незачем
      */
     private static PromptRow promptRow(
             ChatMessageEntity entity, @Nullable String inventory, String activeProject) {
@@ -708,7 +711,7 @@ public class ChatHistoryService {
             // Ряд события (git-команда, откат правок) несёт только нотис: описи у него нет
             // (пользователь ничего не прикладывал), маркера смены проекта — тем более, чат таким
             // рядом никуда не переходит, и блока активного проекта — ход событием не открывается
-            // (см. ActiveProjectNotice#anchor).
+            // (см. ActiveProjectNotice).
             return new PromptRow(entity, eventNotice);
         }
         final String notice =
