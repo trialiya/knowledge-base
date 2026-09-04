@@ -1,0 +1,301 @@
+/* Окно коммита: слева выбор файлов, справа патч, внизу описание во всю ширину.
+   Раскраска патча — общая с лентой чата и панелью «Файлы» (diff.css). */
+
+.commit-dialog {
+  /* fullscreen-вариант ModalShell: своей ширины окно не задаёт — два столбца и
+     патч требуют всей доступной, а поля от края экрана держит сам ModalShell. */
+  height: 100%;
+}
+
+.commit-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+  height: 100%;
+  padding: 1.1rem 1.25rem 1.25rem;
+}
+
+.commit-dialog__title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.commit-dialog__branch {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kb-muted);
+  font-family: var(--kb-font-mono);
+  font-size: 0.8rem;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-dialog__blocked {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  background: var(--kb-bg);
+  color: var(--kb-muted);
+  font-size: 0.82rem;
+}
+
+/* ── Тело: два столбца ─────────────────────────────────────────────────── */
+
+.commit-dialog__body {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+  min-height: 0;
+  border: 1px solid var(--kb-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.commit-dialog__diff {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.commit-dialog__diff-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--kb-border-light);
+  background: var(--kb-bg);
+}
+
+.commit-dialog__diff-path {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--kb-font-mono);
+  font-size: 0.75rem;
+  /* Обрезаем с конца, а не с начала: direction: rtl утащил бы ведущую точку в
+     хвост, и `.github/ci.yml` читался бы как `github/ci.yml.`. */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-dialog__diff-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.5rem 0.75rem;
+}
+
+.commit-dialog__empty {
+  margin: auto;
+  color: var(--kb-muted);
+  font-size: 0.85rem;
+}
+
+/* ── Подвал: описание во всю ширину ────────────────────────────────────── */
+
+.commit-dialog__footer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.commit-dialog__message {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 0.75rem;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 10px;
+  background: var(--kb-white);
+  color: var(--kb-text);
+  font-family: var(--kb-font-system);
+  font-size: 0.88rem;
+}
+
+.commit-dialog__message:focus {
+  outline: none;
+  border-color: var(--kb-accent);
+}
+
+/* ── Левый столбец: список файлов ──────────────────────────────────────── */
+
+.commit-files {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: none;
+  width: 320px;
+  min-height: 0;
+  padding: 0.5rem 0.4rem;
+  border-right: 1px solid var(--kb-border);
+}
+
+.commit-files__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.35rem;
+}
+
+.commit-files__layout {
+  flex: none;
+  padding: 4px 8px;
+}
+
+.commit-files__all {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.commit-files__all-label {
+  overflow: hidden;
+  color: var(--kb-muted);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-files__count {
+  flex: none;
+  color: var(--kb-muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.commit-files__list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Строка: своя, а не .ws-item — у неё два независимых действия (открыть diff и
+   включить в коммит), и оба обязаны доставаться табом. */
+.commit-files__row {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 28px;
+  padding-left: calc(0.35rem + var(--depth, 0) * 12px);
+  padding-right: 0.35rem;
+  border-radius: 6px;
+}
+
+.commit-files__row--open {
+  background: var(--kb-accent-light);
+}
+
+.commit-files__row--dir {
+  color: var(--kb-muted);
+}
+
+.commit-files__dir-name {
+  overflow: hidden;
+  font-family: var(--kb-font-mono);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-files__open {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.commit-files__status {
+  flex: none;
+  width: 0.9rem;
+  color: var(--kb-muted);
+  font-family: var(--kb-font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Неотслеживаемый — единственный статус, который меняет смысл галочки: такой
+   файл в коммит сам не попадёт, и по умолчанию он не отмечен. */
+.commit-files__status--U {
+  color: var(--kb-warning);
+}
+
+.commit-files__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-files__dir {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kb-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-files__stats {
+  flex: none;
+  margin-left: auto;
+  font-size: 0.72rem;
+}
+
+/* ── Галочка с третьим состоянием ──────────────────────────────────────── */
+
+.commit-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 4px;
+  background: var(--kb-white);
+  color: var(--kb-white);
+  cursor: pointer;
+}
+
+.commit-box--all {
+  border-color: var(--kb-accent);
+  background: var(--kb-accent);
+}
+
+.commit-box--some {
+  border-color: var(--kb-accent);
+}
+
+.commit-box__dash {
+  width: 7px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--kb-accent);
+}

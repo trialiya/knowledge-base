@@ -162,11 +162,13 @@ function App() {
   // Тело — useEffectEvent: обработчик живёт в модуле сколько угодно долго и
   // обязан видеть свежие goView/openFilePath, но перерегистрировать его на
   // каждое их изменение незачем.
-  const navigateToFile = useEffectEvent((path, project) => {
+  const navigateToFile = useEffectEvent((path, project, options) => {
     goView('files');
-    openFilePath(path, project);
+    // Режим левого блока едет тем же переходом: ссылка на файл из чата ведёт в
+    // дерево, ссылка из вкладки «Репозиторий» — к незакоммиченному.
+    openFilePath(path, project, options);
   });
-  useEffect(() => registerFileNavigator((path, project) => navigateToFile(path, project)), []);
+  useEffect(() => registerFileNavigator((path, project, options) => navigateToFile(path, project, options)), []);
 
   return (
     <div className="App">

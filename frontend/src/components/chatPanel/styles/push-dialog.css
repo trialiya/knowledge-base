@@ -1,0 +1,96 @@
+/* Окно push: куда отправляем и что именно уедет. */
+
+.push-dialog__title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.push-dialog__branch {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kb-muted);
+  font-family: var(--kb-font-mono);
+  font-size: 0.8rem;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.push-dialog__target,
+.push-dialog__note {
+  margin: 0;
+  color: var(--kb-muted);
+  font-size: 0.82rem;
+}
+
+.push-dialog__blocked {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  background: var(--kb-bg);
+  color: var(--kb-muted);
+  font-size: 0.82rem;
+}
+
+.push-dialog__section {
+  margin: 0;
+  color: var(--kb-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.push-dialog__commits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  /* Список длиннее экрана — обычное дело для ветки, которую давно не отправляли;
+     прокручивается он, а не всё окно с кнопкой push. */
+  max-height: 40vh;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.push-dialog__commit {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  min-height: 26px;
+  font-size: 0.82rem;
+}
+
+.push-dialog__hash {
+  flex: none;
+  color: var(--kb-muted);
+  font-family: var(--kb-font-mono);
+  font-size: 0.75rem;
+}
+
+.push-dialog__message {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.push-dialog__author,
+.push-dialog__date {
+  flex: none;
+  color: var(--kb-muted);
+  font-size: 0.72rem;
+}
+
+.push-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}

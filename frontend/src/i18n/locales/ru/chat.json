@@ -428,27 +428,11 @@
   "repo": {
     "title": "Репозиторий",
     "tab": "Репозиторий",
-    "commands": "Команды…",
     "unavailable": "Репозиторий проекта недоступен.",
     "uncommitted": "Не сохранено · {{count}}",
     "lastCommand": "Последняя команда",
     "outcomeOk": "выполнена",
     "outcomeFailed": "отказ",
-    "groupRemote": "Обмен с origin",
-    "groupTreeDirty": "Рабочее дерево — есть несохранённое",
-    "groupTreeClean": "Рабочее дерево чисто",
-    "fetch": "Получить",
-    "pull": "Забрать",
-    "push": "Отправить",
-    "stash": "Спрятать",
-    "stashPop": "Достать",
-    "switch": "Переключить",
-    "pickBranch": "Выбрать ветку…",
-    "inSync": "Совпадает с {{upstream}}",
-    "diverged": "Своих коммитов: {{ahead}}, в upstream новых: {{behind}}",
-    "pushNotAllowed": "push для этого проекта не разрешён",
-    "conflictsInFiles": "Файлы с конфликтами правят в разделе «Файлы» — модалка их не трогает.",
-    "close": "Закрыть",
     "copyOutput": "Скопировать вывод",
     "expandOutput": "Показать вывод",
     "collapseOutput": "Свернуть вывод",
@@ -465,6 +449,28 @@
       "R": "переименован",
       "C": "скопирован",
       "U": "не отслеживается"
-    }
+    },
+    "commit": "Commit…",
+    "push": "Push…",
+    "saveWork": "Сохранить работу",
+    "allChanges": "Все изменения",
+    "moreChanges": "Ещё файлов · {{count}}",
+    "restInFiles": "Ветки, stash, pull, откат — в «Файлах»"
+  },
+  "commit": {
+    "title": "Commit",
+    "selectAll": "Выбрать все",
+    "ofTotal": "{{count}} из {{total}}",
+    "selectFile": "Включить {{path}} в коммит",
+    "selectDir": "Включить содержимое {{dir}} в коммит",
+    "submit": "Commit",
+    "submitCount": "Commit · {{count}}"
+  },
+  "push": {
+    "title": "Push",
+    "submit": "Push",
+    "commits": "Коммиты к отправке · {{count}}",
+    "newBranch": "Ветка ничего не отслеживает — push создаст её в remote",
+    "loadError": "Не удалось прочитать список коммитов"
   }
 }

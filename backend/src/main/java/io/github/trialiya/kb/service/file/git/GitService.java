@@ -57,6 +57,7 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.patch.FileHeader;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -105,6 +106,12 @@ public class GitService {
     private static final int TRUNCATE_HEAD_LINES = 200;
 
     private static final int TRUNCATE_TAIL_LINES = 50;
+
+    /**
+     * Most commits the push dialog is given. A branch further ahead than this is not a list any
+     * more, and the counter next to the branch keeps saying how many there really are.
+     */
+    private static final int MAX_OUTGOING = 100;
 
     /**
      * Minimum length for abbreviated commit hashes, matching native git's own default (grows
@@ -375,6 +382,52 @@ public class GitService {
             return List.of();
         } catch (GitAPIException | IOException e) {
             throw new IllegalStateException("Failed to read commit log", e);
+        }
+    }
+
+    /**
+     * The commits this branch would publish — what the push dialog lists before the push runs.
+     *
+     * <p>Read off the refs on disk like every other count here, so it is as fresh as the last
+     * fetch. With an upstream the answer is exactly {@code upstream..HEAD}, the same range the
+     * "ahead" counter reports. Without one — a branch created in the panel and never pushed — that
+     * range would be empty while the push is about to publish real work, so the commits reachable
+     * from HEAD but from no remote-tracking ref are listed instead: that is what a first push
+     * actually sends.
+     *
+     * @param maxCount how many to return, capped at {@value #MAX_OUTGOING}
+     */
+    public List<GitCommit> getOutgoingCommits(int maxCount) {
+        int limit = Math.min(Math.max(maxCount, 1), MAX_OUTGOING);
+        GitBranchStatus status = branches.status();
+        // Neither has anything to publish: a detached HEAD is not a branch, an unborn one has no
+        // commits. The dialog says that instead of showing an empty list it cannot explain.
+        if (status.detached() || status.unborn()) return List.of();
+        try (ObjectReader reader = repository.newObjectReader()) {
+            ObjectId head = repository.resolve(Constants.HEAD);
+            if (head == null) return List.of();
+            var log = git.log().setMaxCount(limit);
+            ObjectId upstream =
+                    status.upstream() == null ? null : repository.resolve(status.upstream());
+            if (upstream == null) {
+                log.add(head);
+                for (Ref remote :
+                        repository.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES)) {
+                    ObjectId id = remote.getObjectId();
+                    if (id != null) log.not(id);
+                }
+            } else {
+                log.addRange(upstream, head);
+            }
+            List<GitCommit> commits = new ArrayList<>();
+            for (RevCommit commit : log.call()) {
+                commits.add(toGitCommit(commit, null, reader, false));
+            }
+            return commits;
+        } catch (NoHeadException e) {
+            return List.of();
+        } catch (GitAPIException | IOException e) {
+            throw new IllegalStateException("Failed to read outgoing commits", e);
         }
     }
 
@@ -1137,6 +1190,18 @@ public class GitService {
      */
     public GitCommandResult commit(@NonNull String message) {
         return commands.commit(message);
+    }
+
+    /**
+     * Commits only the given paths ({@code git commit -- <paths>}) — what the commit dialog sends
+     * when the user unticks some of the changed files.
+     *
+     * <p>An empty list means the same as {@link #commit(String)}: everything tracked. A selection
+     * is staged path by path and committed with those paths alone, so the edits the assistant left
+     * in the index do not ride along uninvited.
+     */
+    public GitCommandResult commit(@NonNull String message, @NonNull List<String> paths) {
+        return commands.commit(message, paths);
     }
 
     /**

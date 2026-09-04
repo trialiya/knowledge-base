@@ -393,14 +393,21 @@ export default function useAppNavigation() {
    * @param project репозиторий пути; не передан — остаёмся в том, что открыт
    *   (клик по дереву не должен уводить в другой проект), а переход по ссылке из
    *   чата проект называет и панель переключает
+   * @param options `{ changes }` — каким показать левый блок: ссылка из вкладки
+   *   «Репозиторий» ведёт к незакоммиченному, ссылка на файл — в дерево. Не
+   *   передан — режим остаётся тем, что был
    */
   const openFilePath = useCallback(
-    (path, project) => {
+    (path, project, options) => {
       pushNav((prev) => ({
         ...prev,
         view: 'files',
         filePath: path || '',
         fileProject: project === undefined ? prev.fileProject : project || '',
+        // Режим левого блока — часть этого же перехода, а не отдельная запись:
+        // отдельным setFileChanges (он через replaceNav) переход превратился бы
+        // в замену, и «Назад» не вернуло бы туда, откуда ссылку нажали.
+        fileChanges: options?.changes === undefined ? prev.fileChanges : !!options.changes,
       }));
     },
     [pushNav],

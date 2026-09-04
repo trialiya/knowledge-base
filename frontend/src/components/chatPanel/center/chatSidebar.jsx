@@ -80,7 +80,7 @@ export function buildChatTabs({
  * вопрос «где мы» тем же, что и «Инфо», и стоила бы третьей кнопки в шапке
  * ради повтора.
  */
-export function buildRepoTab({ t, git, onOpen }) {
+export function buildRepoTab({ t, git, onCommit, onPush }) {
   if (!git?.capabilities?.commands) return [];
   return [
     {
@@ -91,7 +91,7 @@ export function buildRepoTab({ t, git, onOpen }) {
       // закрытая панель молчит, а про незакрытый merge молчать нельзя. Строкой,
       // а не флагом: глазами это точка, скринридеру — причина.
       alert: git.status?.merging ? t('files:git.merging') : false,
-      content: <ChatRepoPanel git={git} onOpenCommands={onOpen} />,
+      content: <ChatRepoPanel git={git} onOpenCommit={onCommit} onOpenPush={onPush} />,
     },
   ];
 }

@@ -214,18 +214,22 @@ const gitApi = {
   },
 
   /**
-   * `git commit` отслеживаемых изменений — тех самых, что показывает режим «Изменения».
+   * `git commit` — по умолчанию всех отслеживаемых изменений, тех самых, что показывает
+   * режим «Изменения»; `paths` сужает коммит до выбранных в окне коммита файлов.
    *
    * Сообщение — в теле формы, а не в query: длинный текст (сервер разрешает
    * до 4000 символов) в строке запроса упирается в лимит длины стартовой
    * строки запроса на сервере, и вместо понятного отказа приходит голый 400.
+   * Пути там же и по той же причине: их бывает сотня.
    */
-  commit: (message, options = {}) => {
+  commit: (message, { paths = [], ...options } = {}) => {
     const [qs, init] = commandOpts(options);
+    const body = new URLSearchParams({ message });
+    paths.forEach((path) => body.append('paths', path));
     return command(`/api/git/commit${qs}`, {
       ...init,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ message }).toString(),
+      body: body.toString(),
     });
   },
 
@@ -239,6 +243,16 @@ const gitApi = {
   abortMerge: (options = {}) => {
     const [qs, init] = commandOpts(options);
     return command(`/api/git/merge/abort${qs}`, init);
+  },
+
+  /**
+   * Коммиты, которые отправит push, — то, что показывает окно push перед отправкой.
+   * Обычное чтение: в сеть не ходит, поэтому список настолько свеж, насколько свеж
+   * последний fetch. Возвращает GitCommit[] без тел сообщений.
+   */
+  getOutgoing: ({ limit = 20, project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams({ limit: String(limit) }), project, signal);
+    return request(`/api/git/outgoing${qs}`, init);
   },
 
   /**
