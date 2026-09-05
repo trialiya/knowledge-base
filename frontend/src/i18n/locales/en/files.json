@@ -98,9 +98,8 @@
     "stash": "Stash changes",
     "stashPop": "Pop the stash",
     "nothingToStash": "Nothing to stash: there are no changes",
-    "commit": "Commit",
+    "commit": "Commit…",
     "commitMessage": "Commit message",
-    "commitHint": "The tracked changes go in — the same ones the Changes mode lists, the assistant's edits included",
     "nothingToCommit": "Nothing to commit: there are no changes",
     "cancel": "Cancel",
     "discard": "Discard the file's changes",
@@ -111,8 +110,29 @@
     "mergeConflicts": "Merge conflict in {{count}} file(s)",
     "abortMerge": "Abort the merge",
     "pull": "Pull changes",
-    "push": "Push to the remote",
+    "push": "Push to the remote…",
     "pullHint": "Fast-forward only: diverged histories are merged deliberately, not by a click",
-    "nothingToPush": "Nothing to push: no commits of your own"
+    "nothingToPush": "Nothing to push: no commits of your own",
+    "blocked": {
+      "busy": "Repository commands are off while the assistant is working: it is reading and editing the same files.",
+      "running": "A command is already running — the repository takes one at a time.",
+      "draft": "This conversation has not started yet, so there is nowhere to record the command. Send a first message."
+    },
+    "commitDialog": {
+      "title": "Commit",
+      "selectAll": "Select all",
+      "ofTotal": "{{count}} of {{total}}",
+      "selectFile": "Include {{path}} in the commit",
+      "selectDir": "Include everything under {{dir}} in the commit",
+      "submit": "Commit",
+      "submitCount": "Commit · {{count}}"
+    },
+    "pushDialog": {
+      "title": "Push",
+      "submit": "Push",
+      "commits": "Commits to push · {{count}}",
+      "newBranch": "The branch tracks nothing — push will create it on the remote",
+      "loadError": "Could not read the list of commits"
+    }
   }
 }

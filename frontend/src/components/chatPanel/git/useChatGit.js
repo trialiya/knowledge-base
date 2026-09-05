@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import useGitBranch from '@/components/filesPanel/git/useGitBranch';
 import useUncommittedChanges from '@/components/filesPanel/changes/useUncommittedChanges';
 import runGitCommand from '@/components/filesPanel/git/runGitCommand';
@@ -47,6 +47,12 @@ export default function useChatGit({
   // вывод целиком лежит в ленте чата, где команда и оставила свой ряд.
   const [last, setLast] = useState(null);
   const [failure, setFailure] = useState(null);
+  // Номер открытия окна: его двигает закрытие (`dismissFailure`). Команда
+  // переживает закрытие — push к недоступному remote отвечает через десяток
+  // секунд, — и её отказ обязан умереть вместе с окном, иначе следующее
+  // открытое окно встретит человека чужой красной карточкой. Строку «последняя
+  // команда» это не касается: вкладка отвечает ею за репозиторий, а не за окно.
+  const session = useRef(0);
 
   /**
    * Обе команды двигают рабочее дерево или его отношение к remote, поэтому после
@@ -58,11 +64,13 @@ export default function useChatGit({
    */
   const run = useCallback(
     (name, command) => {
+      const mine = session.current;
       setFailure(null);
       return runGitCommand(command, {
         onSuccess: (result) => setLast({ command: result?.command ?? name, ok: true, at: Date.now() }),
         onFailure: (error) => {
           setLast({ command: name, ok: false, at: Date.now() });
+          if (session.current !== mine) return;
           setFailure({ command: name, reason: error?.reason ?? null });
         },
         onSettled: onRepoChanged,
@@ -95,9 +103,14 @@ export default function useChatGit({
       loading: branch.loading,
       running: branch.running,
       changes: changes.entries,
+      changesLoading: changes.loading,
+      changesError: changes.error,
       last,
       failure,
-      dismissFailure: () => setFailure(null),
+      dismissFailure: () => {
+        session.current += 1;
+        setFailure(null);
+      },
       disabled: !!busy || branch.running || !chatId,
       // Причин «сейчас нельзя» три, и они разные: модель работает, команда уже
       // идёт, чата ещё нет. Одна подпись на все три врала бы в двух случаях из
@@ -105,6 +118,18 @@ export default function useChatGit({
       disabledReason: busy ? 'busy' : branch.running ? 'running' : chatId ? null : 'draft',
       ...commands,
     }),
-    [branch, changes.entries, last, failure, busy, chatId, commands, project, refreshToken],
+    [
+      branch,
+      changes.entries,
+      changes.loading,
+      changes.error,
+      last,
+      failure,
+      busy,
+      chatId,
+      commands,
+      project,
+      refreshToken,
+    ],
   );
 }

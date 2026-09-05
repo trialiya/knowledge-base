@@ -49,7 +49,7 @@ describe('PushDialog', () => {
     render(<PushDialog git={state} onClose={onClose} />);
     await waitFor(() => expect(screen.getByText('second')).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole('button', { name: /push.submit/ }));
+    await userEvent.click(screen.getByRole('button', { name: /git.pushDialog.submit/ }));
     expect(state.push).toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -59,14 +59,14 @@ describe('PushDialog', () => {
     gitApi.getOutgoing.mockResolvedValue([]);
     render(<PushDialog git={git({ status: { ahead: 0 } })} onClose={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByText('files:git.nothingToPush')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /push.submit/ })).toBeDisabled();
+    await waitFor(() => expect(screen.getByText('git.nothingToPush')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /git.pushDialog.submit/ })).toBeDisabled();
   });
 
   /** Ветка без upstream: push её создаст, и окно говорит об этом до нажатия. */
   test('a branch that tracks nothing says where it will be created', async () => {
     render(<PushDialog git={git({ status: { upstream: null } })} onClose={vi.fn()} />);
 
-    expect(screen.getByText('push.newBranch')).toBeInTheDocument();
+    expect(screen.getByText('git.pushDialog.newBranch')).toBeInTheDocument();
   });
 });

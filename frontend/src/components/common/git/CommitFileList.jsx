@@ -16,8 +16,8 @@ import { IconCheck, IconFolder, IconList } from '@/icons/index';
  * Раскладка — тот же выбор «плоско или деревом», что и в панели, и хранится он
  * там же (`changesLayout`): предпочтение принадлежит человеку, а не окну.
  */
-const CommitFileList = ({ entries, selection, flat, onLayoutChange, openPath, onOpen }) => {
-  const { t } = useTranslation(['chat', 'files']);
+const CommitFileList = ({ entries, selection, flat, onLayoutChange, note, openPath, onOpen }) => {
+  const { t } = useTranslation('files');
   const allPaths = entries.map((entry) => entry.path);
   const allState = selection.stateOf(allPaths);
 
@@ -28,22 +28,27 @@ const CommitFileList = ({ entries, selection, flat, onLayoutChange, openPath, on
           type="button"
           className="btn btn--ghost btn--sm commit-files__layout"
           aria-pressed={!flat}
-          title={flat ? t('files:changes.layoutTree') : t('files:changes.layoutFlat')}
-          aria-label={flat ? t('files:changes.layoutTree') : t('files:changes.layoutFlat')}
+          title={flat ? t('changes.layoutTree') : t('changes.layoutFlat')}
+          aria-label={flat ? t('changes.layoutTree') : t('changes.layoutFlat')}
           onClick={() => onLayoutChange(!flat)}
         >
           {flat ? <IconFolder size={15} /> : <IconList size={15} />}
         </button>
         <label className="commit-files__all">
-          <Box state={allState} onToggle={(on) => selection.toggle(allPaths, on)} label={t('commit.selectAll')} />
-          <span className="commit-files__all-label">{t('commit.selectAll')}</span>
+          <Box
+            state={allState}
+            onToggle={(on) => selection.toggle(allPaths, on)}
+            label={t('git.commitDialog.selectAll')}
+          />
+          <span className="commit-files__all-label">{t('git.commitDialog.selectAll')}</span>
         </label>
         <span className="commit-files__count">
-          {t('commit.ofTotal', { count: selection.count, total: entries.length })}
+          {t('git.commitDialog.ofTotal', { count: selection.count, total: entries.length })}
         </span>
       </div>
 
       <div className="commit-files__list">
+        {note && entries.length === 0 && <p className="commit-files__note">{note}</p>}
         {flat
           ? sortByName(entries).map((entry) => (
               <Row
@@ -66,7 +71,7 @@ const CommitFileList = ({ entries, selection, flat, onLayoutChange, openPath, on
 
 /** Узел дерева: каталог со своей галочкой на всё содержимое, либо файл. */
 const Node = ({ node, depth, selection, openPath, onOpen }) => {
-  const { t } = useTranslation('chat');
+  const { t } = useTranslation('files');
   if (node.type === 'file') {
     return <Row entry={node.entry} depth={depth} selection={selection} open={openPath === node.path} onOpen={onOpen} />;
   }
@@ -79,7 +84,7 @@ const Node = ({ node, depth, selection, openPath, onOpen }) => {
         <Box
           state={selection.stateOf(paths)}
           onToggle={(on) => selection.toggle(paths, on)}
-          label={t('commit.selectDir', { dir: node.path })}
+          label={t('git.commitDialog.selectDir', { dir: node.path })}
         />
         <span className="commit-files__dir-name">{node.name}</span>
       </div>
@@ -99,17 +104,17 @@ const Node = ({ node, depth, selection, openPath, onOpen }) => {
 
 /** Строка файла: галочка, статус, имя, каталог (в плоской раскладке) и счётчики. */
 const Row = ({ entry, depth = 0, showDir = false, selection, open, onOpen }) => {
-  const { t } = useTranslation(['chat', 'files']);
+  const { t } = useTranslation('files');
   const name = entry.path.split('/').pop();
   const dir = entry.path.slice(0, entry.path.length - name.length - 1);
-  const statusLabel = t(`files:changes.status.${entry.status}`, { defaultValue: entry.status });
+  const statusLabel = t(`changes.status.${entry.status}`, { defaultValue: entry.status });
 
   return (
     <div className={`commit-files__row${open ? ' commit-files__row--open' : ''}`} style={{ '--depth': depth }}>
       <Box
         state={selection.checked.has(entry.path) ? 'all' : 'none'}
         onToggle={(on) => selection.toggle([entry.path], on)}
-        label={t('commit.selectFile', { path: entry.path })}
+        label={t('git.commitDialog.selectFile', { path: entry.path })}
       />
       <button
         type="button"

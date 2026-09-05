@@ -11,8 +11,10 @@ import { readChangesFlat, saveChangesFlat } from './changes/changesLayout';
 import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
 import useGitBranch from './git/useGitBranch';
-import useGitActions, { GIT_PROMPT } from './git/useGitActions';
+import useGitActions from './git/useGitActions';
 import GitPromptModal from './git/GitPromptModal';
+import CommitDialog from '@/components/common/git/CommitDialog';
+import PushDialog from '@/components/common/git/PushDialog';
 import ConfirmModal from '@/components/common/modal/ConfirmModal';
 import useNotice from '@/components/common/ui/useNotice';
 import ErrorModal from '@/components/common/modal/ErrorModal';
@@ -54,19 +56,34 @@ const FilesPanelForProject = ({
     refreshToken,
   });
 
-  const changeList = useUncommittedChanges({
-    project,
-    refreshToken,
-    enabled: changes,
-  });
   const diff = useChangeDiff({ project, path, refreshToken, enabled: changes });
   const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
 
   // Одно уведомление на панель: git-команда отказывает словами самого git
   // («Permission denied (publickey)»), и это ровно то, что нужно показать —
-  // своя формулировка сказала бы меньше.
+  // своя формулировка сказала бы меньше. Кроме коммита и push: их отказ остаётся
+  // в окне, из которого их запустили (см. useGitActions).
   const { notice, notify, dismissNotice } = useNotice();
-  const actions = useGitActions({ git, onRepoChanged, notify, t });
+  const actions = useGitActions({ git, project, refreshToken, onRepoChanged, notify, t });
+
+  // Список незакоммиченного нужен и режиму «Изменения», и окну коммита — окно
+  // открывается и из режима дерева, где списка на экране нет.
+  const changeList = useUncommittedChanges({
+    project,
+    refreshToken,
+    enabled: changes || actions.dialog === 'commit',
+  });
+  // Панель дополняет контракт окон тем, чего сам `useGitActions` собрать не мог:
+  // список спрашивается лениво, по открытому окну.
+  const dialogGit = useMemo(
+    () => ({
+      ...actions.dialogGit,
+      changes: changeList.entries,
+      changesLoading: changeList.loading,
+      changesError: changeList.error,
+    }),
+    [actions.dialogGit, changeList.entries, changeList.loading, changeList.error],
+  );
 
   // Раскладка списка изменений — предпочтение, переживающее и проект, и
   // перезагрузку (см. changesLayout).
@@ -183,25 +200,19 @@ const FilesPanelForProject = ({
         right={rightTabs}
       />
       <GitPromptModal
-        open={actions.prompt === GIT_PROMPT.BRANCH}
+        open={actions.naming}
         title={t('git.newBranch')}
         label={t('git.branchName')}
         hint={git.status ? t('git.branchFrom', { branch: git.status.current }) : undefined}
         placeholder="feature/…"
         confirmLabel={t('git.create')}
-        onConfirm={actions.confirmPrompt}
-        onCancel={actions.cancelPrompt}
+        onConfirm={actions.confirmNewBranch}
+        onCancel={actions.cancelNewBranch}
       />
-      <GitPromptModal
-        open={actions.prompt === GIT_PROMPT.COMMIT}
-        title={t('git.commit')}
-        label={t('git.commitMessage')}
-        hint={t('git.commitHint')}
-        confirmLabel={t('git.commit')}
-        multiline
-        onConfirm={actions.confirmPrompt}
-        onCancel={actions.cancelPrompt}
-      />
+      {/* Те же окна, что открывает вкладка «Репозиторий» в чате: коммит там и
+          здесь означает одно и то же (см. common/git). */}
+      {actions.dialog === 'commit' && <CommitDialog git={dialogGit} onClose={actions.closeDialog} />}
+      {actions.dialog === 'push' && <PushDialog git={dialogGit} onClose={actions.closeDialog} />}
       <ConfirmModal
         open={!!actions.discarding}
         title={t('git.discardTitle')}

@@ -35,7 +35,7 @@ describe('CommitDialog', () => {
     // Снимаем docs/b.md — вторую строку списка (a.js, b.md).
     await userEvent.click(boxes()[2]);
     await userEvent.type(screen.getByRole('textbox'), 'ranking weights');
-    await userEvent.click(screen.getByRole('button', { name: /commit.submitCount/ }));
+    await userEvent.click(screen.getByRole('button', { name: /git.commitDialog.submitCount/ }));
 
     expect(state.commit).toHaveBeenCalledWith('ranking weights', ['src/a.js']);
   });
@@ -50,11 +50,31 @@ describe('CommitDialog', () => {
     expect(boxes()[2]).toHaveAttribute('aria-checked', 'false');
   });
 
+  /**
+   * Из «Файлов» окно открывают и в режиме дерева, где список никто не спрашивал
+   * заранее: «изменений нет» до ответа было бы неправдой ровно в том окне,
+   * которое ради них и открыли.
+   */
+  test('a list still on its way is not an empty repository', () => {
+    render(<CommitDialog git={git({ changes: [], changesLoading: true })} onClose={vi.fn()} />);
+
+    expect(screen.getAllByText('common:loading')).toHaveLength(2);
+    expect(screen.queryByText('changes.empty')).not.toBeInTheDocument();
+  });
+
+  /** Не прочитанный список — тоже не пустой репозиторий. */
+  test('a list that failed to load is not an empty repository', () => {
+    render(<CommitDialog git={git({ changes: [], changesError: new Error('boom') })} onClose={vi.fn()} />);
+
+    expect(screen.getAllByText('common:loadError')).toHaveLength(2);
+    expect(screen.queryByText('changes.empty')).not.toBeInTheDocument();
+  });
+
   /** Пустое сообщение и пустой выбор — два разных способа не получить коммит. */
   test('a commit needs both a message and at least one file', async () => {
     const state = git();
     render(<CommitDialog git={state} onClose={vi.fn()} />);
-    const submit = () => screen.getByRole('button', { name: /commit.submit/ });
+    const submit = () => screen.getByRole('button', { name: /git.commitDialog.submit/ });
 
     expect(submit()).toBeDisabled();
 
@@ -73,13 +93,13 @@ describe('CommitDialog', () => {
     const { rerender } = render(<CommitDialog git={state} onClose={onClose} />);
 
     await userEvent.type(screen.getByRole('textbox'), 'message');
-    await userEvent.click(screen.getByRole('button', { name: /commit.submitCount/ }));
+    await userEvent.click(screen.getByRole('button', { name: /git.commitDialog.submitCount/ }));
     expect(onClose).not.toHaveBeenCalled();
 
     const ok = git({ commit: vi.fn(() => Promise.resolve({ command: 'commit' })) });
     rerender(<CommitDialog git={ok} onClose={onClose} />);
     await userEvent.type(screen.getByRole('textbox'), 'message');
-    await userEvent.click(screen.getByRole('button', { name: /commit.submitCount/ }));
+    await userEvent.click(screen.getByRole('button', { name: /git.commitDialog.submitCount/ }));
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -88,7 +108,7 @@ describe('CommitDialog', () => {
     render(<CommitDialog git={git({ disabled: true, disabledReason: 'busy' })} onClose={vi.fn()} />);
 
     await userEvent.type(screen.getByRole('textbox'), 'message');
-    expect(screen.getByRole('status')).toHaveTextContent('repo.blocked.busy');
-    expect(screen.getByRole('button', { name: /commit.submitCount/ })).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('git.blocked.busy');
+    expect(screen.getByRole('button', { name: /git.commitDialog.submitCount/ })).toBeDisabled();
   });
 });

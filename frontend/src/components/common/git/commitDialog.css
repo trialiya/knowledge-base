@@ -181,6 +181,12 @@
   overflow: auto;
 }
 
+.commit-files__note {
+  margin: 0.4rem 0.35rem;
+  color: var(--kb-muted);
+  font-size: 0.8rem;
+}
+
 /* Строка: своя, а не .ws-item — у неё два независимых действия (открыть diff и
    включить в коммит), и оба обязаны доставаться табом. */
 .commit-files__row {
