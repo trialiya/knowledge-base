@@ -39,8 +39,11 @@ describe('ChatRepoPanel', () => {
   test('offers exactly two actions — commit and push', async () => {
     const onOpenCommit = vi.fn();
     const onOpenPush = vi.fn();
-    render(<ChatRepoPanel git={git({ changes: dirty(1) })} onOpenCommit={onOpenCommit} onOpenPush={onOpenPush} />);
+    const { container } = render(
+      <ChatRepoPanel git={git({ changes: dirty(1) })} onOpenCommit={onOpenCommit} onOpenPush={onOpenPush} />,
+    );
 
+    expect(container.querySelectorAll('.chat-repo__action')).toHaveLength(2);
     await userEvent.click(screen.getByRole('button', { name: /repo.commit/ }));
     await userEvent.click(screen.getByRole('button', { name: /repo.push/ }));
 

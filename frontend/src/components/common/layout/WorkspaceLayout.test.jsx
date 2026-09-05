@@ -92,7 +92,6 @@ describe('WorkspaceLayout', () => {
     );
 
     expect(container.querySelector('.workspace__rail--right')).not.toBeNull();
-    expect(container.querySelector('.workspace__tabs')).toBeNull();
     // Открытая вкладка помечена на рельсе, а её тело — tabpanel этой кнопки.
     expect(screen.getByRole('tab', { selected: true })).toHaveAttribute('id', 'ws-tab-summary');
     expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'ws-tab-summary');

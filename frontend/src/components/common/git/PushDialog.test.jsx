@@ -45,13 +45,18 @@ describe('PushDialog', () => {
 
   test('pushing closes the dialog only when git accepted it', async () => {
     const onClose = vi.fn();
-    const state = git({ push: vi.fn(() => Promise.resolve(undefined)) });
-    render(<PushDialog git={state} onClose={onClose} />);
+    const refused = git({ push: vi.fn(() => Promise.resolve(undefined)) });
+    const { rerender } = render(<PushDialog git={refused} onClose={onClose} />);
     await waitFor(() => expect(screen.getByText('second')).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole('button', { name: /git.pushDialog.submit/ }));
-    expect(state.push).toHaveBeenCalled();
+    await waitFor(() => expect(refused.push).toHaveBeenCalled());
     expect(onClose).not.toHaveBeenCalled();
+
+    const accepted = git();
+    rerender(<PushDialog git={accepted} onClose={onClose} />);
+    await userEvent.click(screen.getByRole('button', { name: /git.pushDialog.submit/ }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
   /** Нечего отправлять — кнопка не должна звать в сеть за пустым push. */

@@ -63,7 +63,7 @@ describe('detectContentResult — что попадает в «Обзор»', ()
     expect(items[0].facts.filter((f) => f.key === 'project')).toEqual([{ key: 'project', value: 'billing' }]);
   });
 
-  it('без проекта в обеих формах факта нет', () => {
+  it('запись без проекта факта не получает', () => {
     expect(
       detect(JSON.stringify(fileContent()))
         .at(0)

@@ -327,26 +327,28 @@ describe('getCaretOffset + placeCaretAtOffset (paste normalization round-trip)',
     root.remove();
   });
 
-  it('a Shift+Enter right after such a paste now produces a visible line on the flattened DOM', () => {
-    // Regression for the reported bug: pasting "a\nb" via execCommand('insertText')
-    // leaves the caret inside a <div>b</div> block. normalizeTrailingSentinel only
-    // inspects root's direct children, so a <br> inserted inside that block was
-    // invisible until a second Shift+Enter. Simulating the paste-then-normalize
-    // flow (getCaretOffset → serialize → renderValue → placeCaretAtOffset) must
-    // leave the caret as root's own trailing text node, not inside a nested <div>.
+  it('a Shift+Enter right after such a paste produces a visible line on the flattened DOM', () => {
+    // Pasting "a\nb" via execCommand('insertText') leaves the caret inside a
+    // <div>b</div> block. normalizeTrailingSentinel only inspects root's direct
+    // children, so a <br> inserted inside that block stays invisible until a
+    // second Shift+Enter — the flattening (serialize → renderValue →
+    // placeCaretAtOffset) is what makes the first one work.
     const root = makeRoot();
     root.innerHTML = 'a<div>b</div>';
     document.body.appendChild(root);
     setCaret(root.querySelector('div').firstChild, 1);
 
     const offset = getCaretOffset(root);
-    const v = serialize(root);
-    renderValue(root, v);
+    renderValue(root, serialize(root));
     placeCaretAtOffset(root, offset);
 
-    const sel = window.getSelection();
-    const range = sel.getRangeAt(0);
-    expect(range.endContainer.parentNode).toBe(root); // no nested <div> left
+    // Shift+Enter, as ChipEditor does it: a <br> at the caret, then the sentinel pass.
+    const range = window.getSelection().getRangeAt(0);
+    range.insertNode(document.createElement('br'));
+    normalizeTrailingSentinel(root);
+
+    expect(root.querySelector('br[data-sentinel]')).not.toBeNull();
+    expect(serialize(root)).toBe('a\nb\n');
     root.remove();
   });
 });

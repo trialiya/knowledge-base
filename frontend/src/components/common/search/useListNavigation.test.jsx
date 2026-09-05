@@ -40,6 +40,18 @@ const Renaming = ({ onActivate }) => {
   );
 };
 
+/** Список строк-кнопок (как группы настроек): Enter/Space по ним обрабатывает браузер. */
+const Buttons = ({ onActivate }) => {
+  const onKeyDown = useListNavigation();
+  return (
+    <div role="list" tabIndex={0} onKeyDown={onKeyDown} data-testid="list">
+      <button type="button" data-ws-item tabIndex={-1} onClick={onActivate}>
+        группа
+      </button>
+    </div>
+  );
+};
+
 const row = (name) => screen.getByText(name).closest('[data-ws-item]');
 
 describe('useListNavigation', () => {
@@ -85,6 +97,19 @@ describe('useListNavigation', () => {
     // Пробел работает так же, как Enter.
     fireEvent.keyDown(document.activeElement, { key: ' ' });
     expect(onActivate).toHaveBeenCalledTimes(2);
+  });
+
+  it('строку-кнопку по Enter не кликает сам — это делает браузер', () => {
+    const onActivate = vi.fn();
+    render(<Buttons onActivate={onActivate} />);
+    fireEvent.keyDown(screen.getByTestId('list'), { key: 'ArrowDown' });
+    expect(document.activeElement.tagName).toBe('BUTTON');
+
+    // fireEvent не эмулирует нативное нажатие кнопки, так что единственный
+    // возможный вызов здесь — лишний click() из хука.
+    fireEvent.keyDown(document.activeElement, { key: 'Enter' });
+    fireEvent.keyDown(document.activeElement, { key: ' ' });
+    expect(onActivate).not.toHaveBeenCalled();
   });
 
   it('вправо/влево раскрывает и сворачивает папку через её шеврон', () => {

@@ -84,9 +84,7 @@ describe('detectScriptRun — что остаётся другим видам', 
   });
 
   it('без лога, путей или статистики форма не та', () => {
-    const { log, ...withoutLog } = result();
-    expect(log).toHaveLength(2);
-    expect(detect(JSON.stringify(withoutLog))).toBeNull();
+    expect(detect(JSON.stringify(result({ log: undefined })))).toBeNull();
     expect(detect(JSON.stringify(result({ stats: {} })))).toBeNull();
     expect(detect(JSON.stringify(result({ filesRead: [{ path: 'a.jsx' }] })))).toBeNull();
   });
