@@ -43,7 +43,7 @@ const ChatRepoPanel = ({ git, onOpenCommit, onOpenPush }) => {
   // Одна подпись на обе кнопки: причина «сейчас нельзя» у них общая — работает
   // модель, идёт команда, чата ещё нет, — и повторённая словами она читалась бы
   // как два разных запрета.
-  const blocked = git.disabled && git.disabledReason ? t(`repo.blocked.${git.disabledReason}`) : undefined;
+  const blocked = git.disabled && git.disabledReason ? t(`files:git.blocked.${git.disabledReason}`) : undefined;
 
   return (
     <div className="chat-repo">

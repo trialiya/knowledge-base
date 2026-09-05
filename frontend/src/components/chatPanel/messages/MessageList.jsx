@@ -3,7 +3,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { useTranslation } from 'react-i18next';
 import Message from './Message';
 import CompactNotice from './CompactNotice';
-import GitOutputCard from '../git/GitOutputCard';
+import GitOutputCard from '@/components/common/git/GitOutputCard';
 import FileRevertNotice from './FileRevertNotice';
 import DocChangeBlock from './DocChangeBlock';
 import FileChangeBlock from './FileChangeBlock';

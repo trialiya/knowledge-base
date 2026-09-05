@@ -82,5 +82,11 @@
     "language": "Language",
     "admin": "Admin panel",
     "settings": "Chat settings"
+  },
+  "gitOutput": {
+    "copy": "Copy output",
+    "expand": "Show output",
+    "collapse": "Hide output",
+    "silent": "git said nothing — for this command that is the ordinary success."
   }
 }

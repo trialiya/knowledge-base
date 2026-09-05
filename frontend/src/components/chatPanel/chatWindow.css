@@ -12,6 +12,3 @@
 @import './styles/modals.css';
 @import './styles/compact.css';
 @import './styles/chat-repo.css';
-@import './styles/commit-dialog.css';
-@import './styles/push-dialog.css';
-@import './styles/git-output.css';

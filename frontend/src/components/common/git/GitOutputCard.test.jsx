@@ -29,7 +29,7 @@ describe('GitOutputCard', () => {
   test('the folded output opens on demand', async () => {
     render(<GitOutputCard event={event()} />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'repo.expandOutput' }));
+    await userEvent.click(screen.getByRole('button', { name: 'gitOutput.expand' }));
 
     expect(screen.getByText(/Fast-forward/)).toBeInTheDocument();
   });
@@ -41,8 +41,8 @@ describe('GitOutputCard', () => {
   test('a silent command says so instead of showing an empty terminal', () => {
     render(<GitOutputCard event={event({ output: '' })} />);
 
-    expect(screen.queryByRole('button', { name: 'repo.expandOutput' })).not.toBeInTheDocument();
-    expect(screen.getByText('repo.noOutput')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'gitOutput.expand' })).not.toBeInTheDocument();
+    expect(screen.getByText('gitOutput.silent')).toBeInTheDocument();
   });
 
   test('the command and the branch it left behind are both named', () => {
@@ -56,6 +56,6 @@ describe('GitOutputCard', () => {
   test('there is nothing to copy when git said nothing', () => {
     render(<GitOutputCard event={event({ output: '   ' })} />);
 
-    expect(screen.queryByRole('button', { name: 'repo.copyOutput' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'gitOutput.copy' })).not.toBeInTheDocument();
   });
 });

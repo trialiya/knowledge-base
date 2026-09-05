@@ -431,15 +431,6 @@
     "lastCommand": "Last command",
     "outcomeOk": "done",
     "outcomeFailed": "refused",
-    "copyOutput": "Copy output",
-    "expandOutput": "Show output",
-    "collapseOutput": "Hide output",
-    "noOutput": "git said nothing — for this command that is the ordinary success.",
-    "blocked": {
-      "busy": "Repository commands are off while the assistant is working: it is reading and editing the same files.",
-      "running": "A command is already running — the repository takes one at a time.",
-      "draft": "This conversation has not started yet, so there is nowhere to record the command. Send a first message."
-    },
     "fileStatus": {
       "M": "modified",
       "A": "added",
@@ -454,21 +445,5 @@
     "allChanges": "All changes",
     "moreChanges": "More files · {{count}}",
     "restInFiles": "Branches, stash, pull, restore — under Files"
-  },
-  "commit": {
-    "title": "Commit",
-    "selectAll": "Select all",
-    "ofTotal": "{{count}} of {{total}}",
-    "selectFile": "Include {{path}} in the commit",
-    "selectDir": "Include everything under {{dir}} in the commit",
-    "submit": "Commit",
-    "submitCount": "Commit · {{count}}"
-  },
-  "push": {
-    "title": "Push",
-    "submit": "Push",
-    "commits": "Commits to push · {{count}}",
-    "newBranch": "The branch tracks nothing — push will create it on the remote",
-    "loadError": "Could not read the list of commits"
   }
 }

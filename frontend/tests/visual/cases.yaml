@@ -1910,6 +1910,7 @@
   status: verified
   origin:
     - PR #286, сессия 2026-08-25 (ревью и правки по нему)
+    - Сессия 2026-09-05, коммит и push из меню открывают общие окна
   preconditions:
     viewport: [1600, 950]
     auth: admin
@@ -1921,9 +1922,10 @@
   expected:
     - Строка ветки над деревом показывает имя текущей ветки и счётчик «впереди»
     - 'Раздел «Переключиться на» перечисляет локальные ветки; текущая отмечена галкой и выключена'
-    - Пункт «Отправить (push)» отсутствует вовсе — у проекта нет права push-enabled
+    - Пункт «Отправить в remote (push)…» отсутствует вовсе — у проекта нет права push-enabled
     - Пункт pull включён, пока ветка что-то отслеживает
-    - Stash и «Закоммитить» включены на грязном дереве и выключены на чистом (с подсказкой, а не спрятанные)
+    - Stash и «Закоммитить…» включены на грязном дереве и выключены на чистом (с подсказкой, а не спрятанные)
+    - Многоточие только у тех двух пунктов, что открывают окно; остальные выполняются нажатием
     - Escape и клик снаружи закрывают меню
   notes: |
     Проверено на живом бэкенде (jar + h2,playwright-smoke, Chromium, locale ru).
@@ -1949,7 +1951,7 @@
     - Имена до ~57 символов читаются полностью; более длинное обрезано с конца многоточием, а не с начала
     - У каждого пункта ветки подсказка с полным именем; она же — у имени в строке ветки над списком
     - Текущая ветка отмечена галкой и выключена, колонка галочки видна у всех пунктов
-    - Команды под списком (новая ветка, pull, stash, коммит) на месте и не съедены шириной
+    - Команды под списком (новая ветка, pull, stash, «Закоммитить…») на месте и не съедены шириной
     - 'От десяти веток над списком стоит поле фильтра — сразу в фокусе, прилипшее к верху при прокрутке'
     - 'В окне 375px (панель всплывает поверх центра) список уезжает влево и остаётся в окне целиком: `fixed` не доскроллить'
   notes: |
@@ -2090,16 +2092,17 @@
 
 - id: chat-commit-dialog-dirty
   component: CommitDialog
-  path: frontend/src/components/chatPanel/git/CommitDialog.jsx
+  path: frontend/src/components/common/git/CommitDialog.jsx
   title: Окно коммита — выбор файлов слева, патч справа, описание во всю ширину
   status: verified
   origin:
     - Сессия 2026-09-04, окна коммита и push вместо модалки команд
+    - Сессия 2026-09-05, окна коммита и push стали общими с панелью «Файлы»
   preconditions:
     viewport: [1440, 900]
     auth: admin
-    route: /chat/<id чата>?right=repo
-    action: клик по «Commit…»
+    route: /chat/<id чата>?right=repo либо /files?project=<id>
+    action: кнопка «Commit…» на вкладке «Репозиторий» либо пункт «Закоммитить…» в меню git над деревом
   fixtures: ./fixtures/chatRepo.js#commitDialogDirty
   expected:
     - Окно во всю высоту экрана (fullscreen-вариант ModalShell), заголовок «Commit» и рядом ветка моноширинным
@@ -2108,6 +2111,8 @@
     - Неотслеживаемый файл (U) не отмечен, остальные отмечены
     - Справа патч первой по имени строки — раскраска общая с лентой чата и панелью «Файлы»
     - Внизу во всю ширину поле описания, справа «Отмена» и «Commit · 9»; кнопка серая, пока поле пустое
+    - Окно одно на обе поверхности: из «Файлов» оно открывается ровно таким же
+    - Список, который ещё едет или не прочёлся, говорит об этом вместо «изменений нет» — из «Файлов» окно открывают и в режиме дерева
   notes: |
     Прогнано стендом (`./run/test.sh harness`), сессия 2026-09-04. Патч стенд
     отдаёт один на любой путь (см. `commitDialogPatch`), поэтому он написан про
@@ -2115,7 +2120,7 @@
 
 - id: chat-commit-dialog-busy
   component: CommitDialog
-  path: frontend/src/components/chatPanel/git/CommitDialog.jsx
+  path: frontend/src/components/common/git/CommitDialog.jsx
   title: Окно коммита, пока модель работает — причина названа один раз
   status: verified
   origin:
@@ -2135,16 +2140,17 @@
 
 - id: chat-push-dialog-ahead
   component: PushDialog
-  path: frontend/src/components/chatPanel/git/PushDialog.jsx
+  path: frontend/src/components/common/git/PushDialog.jsx
   title: Окно push — что именно уедет за пределы деплоя
   status: verified
   origin:
     - Сессия 2026-09-04, окна коммита и push вместо модалки команд
+    - Сессия 2026-09-05, окна коммита и push стали общими с панелью «Файлы»
   preconditions:
     viewport: [1440, 900]
     auth: admin
-    route: /chat/<id чата>?right=repo
-    action: клик по «Push…»
+    route: /chat/<id чата>?right=repo либо /files?project=<id>
+    action: кнопка «Push…» на вкладке «Репозиторий» либо пункт «Отправить в remote (push)…» в меню git
   fixtures: ./fixtures/chatRepo.js#pushDialogAhead
   expected:
     - Заголовок «Push» без многоточия — многоточие принадлежит кнопке, которая окно открывает
@@ -2157,7 +2163,7 @@
 
 - id: chat-push-dialog-new-branch
   component: PushDialog
-  path: frontend/src/components/chatPanel/git/PushDialog.jsx
+  path: frontend/src/components/common/git/PushDialog.jsx
   title: Окно push для ветки без upstream — push её создаст
   status: verified
   origin:
@@ -2176,7 +2182,7 @@
 
 - id: chat-git-output-card
   component: GitOutputCard
-  path: frontend/src/components/chatPanel/git/GitOutputCard.jsx
+  path: frontend/src/components/common/git/GitOutputCard.jsx
   title: Карточка вывода git в ленте чата — успех свёрнут, отказ развёрнут
   status: verified
   origin:

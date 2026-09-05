@@ -4,6 +4,7 @@ import { formatDateTime } from '@/utils/formatting';
 import '@/components/common/ui/buttons.css';
 import GitOutputCard from './GitOutputCard';
 import useOutgoingCommits from './useOutgoingCommits';
+import './pushDialog.css';
 
 /**
  * Окно push: что именно уедет из деплоя наружу.
@@ -16,9 +17,12 @@ import useOutgoingCommits from './useOutgoingCommits';
  *
  * Список читается по refs на диске: он настолько свеж, насколько свеж последний
  * fetch, — как и счётчик «↑», из которого он и раскрывается.
+ *
+ * Окно общее с панелью «Файлы»; контракт `git` — тот же, что у окна коммита,
+ * командой здесь служит `push()`.
  */
 const PushDialog = ({ git, onClose }) => {
-  const { t, i18n } = useTranslation(['chat', 'files', 'common']);
+  const { t, i18n } = useTranslation(['files', 'common']);
   const outgoing = useOutgoingCommits({
     project: git.project,
     refreshToken: git.refreshToken,
@@ -35,31 +39,31 @@ const PushDialog = ({ git, onClose }) => {
   return (
     <ModalShell variant="wide" onClose={onClose} className="push-dialog">
       <h2 className="push-dialog__title">
-        {t('push.title')}
+        {t('git.pushDialog.title')}
         <span className="push-dialog__branch">{git.status?.current}</span>
       </h2>
 
       <p className="push-dialog__target">
         {upstream
-          ? t('files:git.upstream', { upstream })
+          ? t('git.upstream', { upstream })
           : /* Ветка ещё ничего не отслеживает: push проставит upstream сам, если
                remote у репозитория ровно один, — и опубликует всю её работу. */
-            t('push.newBranch')}
+            t('git.pushDialog.newBranch')}
       </p>
 
       {git.disabled && git.disabledReason && (
         <p className="push-dialog__blocked" role="status">
-          {t(`repo.blocked.${git.disabledReason}`)}
+          {t(`git.blocked.${git.disabledReason}`)}
         </p>
       )}
 
-      <h3 className="push-dialog__section">{t('push.commits', { count: commits.length })}</h3>
+      <h3 className="push-dialog__section">{t('git.pushDialog.commits', { count: commits.length })}</h3>
       {outgoing.loading ? (
         <p className="push-dialog__note">{t('common:loading')}</p>
       ) : outgoing.error ? (
-        <p className="push-dialog__note">{t('push.loadError')}</p>
+        <p className="push-dialog__note">{t('git.pushDialog.loadError')}</p>
       ) : nothingToPush ? (
-        <p className="push-dialog__note">{t('files:git.nothingToPush')}</p>
+        <p className="push-dialog__note">{t('git.nothingToPush')}</p>
       ) : (
         <ul className="push-dialog__commits">
           {commits.map((commit) => (
@@ -78,7 +82,7 @@ const PushDialog = ({ git, onClose }) => {
           event={{
             command: git.failure.command,
             ok: false,
-            output: git.failure.reason || t('files:git.failedUnknown'),
+            output: git.failure.reason || t('git.failedUnknown'),
           }}
           compact
         />
@@ -86,7 +90,7 @@ const PushDialog = ({ git, onClose }) => {
 
       <div className="push-dialog__footer">
         <button type="button" className="btn btn--ghost" onClick={onClose}>
-          {t('files:git.cancel')}
+          {t('git.cancel')}
         </button>
         <button
           type="button"
@@ -96,7 +100,7 @@ const PushDialog = ({ git, onClose }) => {
           // (publickey)», «rejected — non-fast-forward») читают здесь же.
           onClick={() => git.push().then((result) => result && onClose())}
         >
-          {t('push.submit')}
+          {t('git.pushDialog.submit')}
         </button>
       </div>
     </ModalShell>

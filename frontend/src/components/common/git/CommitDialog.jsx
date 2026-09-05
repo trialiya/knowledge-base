@@ -9,14 +9,24 @@ import '@/components/common/ui/buttons.css';
 import CommitFileList from './CommitFileList';
 import GitOutputCard from './GitOutputCard';
 import useCommitSelection from './useCommitSelection';
+import './commitDialog.css';
 
 /**
  * Окно коммита: слева — что менялось и что из этого коммитить, справа — сам
  * патч выбранной строки, внизу во всю ширину — описание.
  *
- * Единственная модалка, которая осталась у git в чате, и она ничего не
- * дублирует: выбрать файлы для коммита больше негде — панель «Файлы» показывает
- * изменения, но коммитит их только целиком.
+ * Одно окно на обе поверхности — вкладку «Репозиторий» в чате и меню git над
+ * деревом файлов: коммит там и там означает одно и то же, и разойтись им
+ * нельзя. Панели остаётся собрать `git` (см. ниже) и решить, когда окно открыто.
+ *
+ * Контракт `git`: `status`, `project`, `refreshToken` — про какой репозиторий и
+ * на каком тике спрашивать патч; `changes` — незакоммиченное, из которого
+ * выбирают; `disabled` + `disabledReason` — почему команда сейчас не пойдёт;
+ * `failure` — отказ последней команды, `commit(message, paths)` — сама команда.
+ * `changesLoading` и `changesError` — список ещё едет либо не прочёлся: из
+ * «Файлов» окно открывают и в режиме дерева, где его никто не спрашивал
+ * заранее, и «изменений нет» вместо ответа было бы неправдой ровно в том окне,
+ * которое открыли ради них.
  *
  * Описание — одна строка, а не многострочное поле: коммит из чата сохраняет то,
  * что наменял ассистент, и на поле в три строки уходит место, которое здесь
@@ -28,7 +38,7 @@ import useCommitSelection from './useCommitSelection';
  * месте, чтобы не набирать заново.
  */
 const CommitDialog = ({ git, onClose }) => {
-  const { t } = useTranslation(['chat', 'files']);
+  const { t } = useTranslation(['files', 'common']);
   const entries = git.changes ?? [];
   const selection = useCommitSelection(entries);
   const [flat, setFlat] = useState(readChangesFlat);
@@ -71,7 +81,7 @@ const CommitDialog = ({ git, onClose }) => {
     <ModalShell variant="fullscreen" onClose={onClose} className="commit-dialog">
       <form className="commit-dialog__form" onSubmit={submit}>
         <h2 className="commit-dialog__title">
-          {t('commit.title')}
+          {t('git.commitDialog.title')}
           <span className="commit-dialog__branch">{git.status?.current}</span>
         </h2>
 
@@ -79,7 +89,7 @@ const CommitDialog = ({ git, onClose }) => {
             повторённая под каждой кнопкой читалась бы как несколько запретов. */}
         {git.disabled && git.disabledReason && (
           <p className="commit-dialog__blocked" role="status">
-            {t(`repo.blocked.${git.disabledReason}`)}
+            {t(`git.blocked.${git.disabledReason}`)}
           </p>
         )}
 
@@ -89,6 +99,7 @@ const CommitDialog = ({ git, onClose }) => {
             selection={selection}
             flat={flat}
             onLayoutChange={changeLayout}
+            note={listNote(git, t)}
             openPath={openPath}
             onOpen={setWanted}
           />
@@ -107,7 +118,7 @@ const CommitDialog = ({ git, onClose }) => {
                 </div>
               </>
             ) : (
-              <p className="commit-dialog__empty">{t('files:changes.empty')}</p>
+              <p className="commit-dialog__empty">{listNote(git, t) ?? t('changes.empty')}</p>
             )}
           </div>
         </div>
@@ -119,7 +130,7 @@ const CommitDialog = ({ git, onClose }) => {
             event={{
               command: git.failure.command,
               ok: false,
-              output: git.failure.reason || t('files:git.failedUnknown'),
+              output: git.failure.reason || t('git.failedUnknown'),
             }}
             compact
           />
@@ -130,20 +141,32 @@ const CommitDialog = ({ git, onClose }) => {
             className="commit-dialog__message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder={t('files:git.commitMessage')}
-            aria-label={t('files:git.commitMessage')}
+            placeholder={t('git.commitMessage')}
+            aria-label={t('git.commitMessage')}
             maxLength={4000}
           />
           <button type="button" className="btn btn--ghost" onClick={onClose}>
-            {t('files:git.cancel')}
+            {t('git.cancel')}
           </button>
           <button type="submit" className="btn btn--primary" disabled={!canCommit}>
-            {selection.count > 0 ? t('commit.submitCount', { count: selection.count }) : t('commit.submit')}
+            {selection.count > 0
+              ? t('git.commitDialog.submitCount', { count: selection.count })
+              : t('git.commitDialog.submit')}
           </button>
         </div>
       </form>
     </ModalShell>
   );
+};
+
+/**
+ * Что сказать вместо списка, пока его нет: ответ ещё едет либо не прочёлся.
+ * Пусто — список настоящий, и говорить за него нечего.
+ */
+const listNote = (git, t) => {
+  if (git.changesError) return t('common:loadError');
+  if (git.changesLoading) return t('common:loading');
+  return null;
 };
 
 export default CommitDialog;
