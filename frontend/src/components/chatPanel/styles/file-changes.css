@@ -139,20 +139,42 @@
 }
 
 /* ── Откат правок ответа ──
-   Кнопка живёт под списком файлов, а не в шапке блока: её нажимают, посмотрев
-   diff'ы, то есть уже развернув список. */
-
-.file-change-revert {
+   Кнопка у каждой строки, справа: решение принимают по файлу, посмотрев его diff.
+   Снаружи строки, а не внутри: строка — сама <button>, вложить в неё вторую нельзя. */
+.file-change-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 6px 10px 8px;
+  gap: 4px;
+}
+
+.file-change-row > .doc-change-item {
+  min-width: 0;
+}
+
+.file-change-row--reverted > .doc-change-item {
+  opacity: 0.6;
+}
+
+.file-change-row--reverted .doc-change-title {
+  text-decoration: line-through;
+}
+
+.file-change-row__reverted {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  color: var(--kb-muted);
+  opacity: 0.45;
 }
 
 .file-change-revert__error {
+  padding: 4px 10px 8px;
   font-size: 0.78rem;
   color: var(--kb-error);
+  overflow-wrap: anywhere;
 }
 
 /* Плашка выполненного отката — ряд ленты, не пузырь: писал его не человек.

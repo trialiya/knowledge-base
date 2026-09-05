@@ -10,6 +10,7 @@ import CommitDialog from '@/components/common/git/CommitDialog';
 import PushDialog from '@/components/common/git/PushDialog';
 import GitOutputCard from '@/components/common/git/GitOutputCard';
 import CompactNotice from '@/components/chatPanel/messages/CompactNotice';
+import FileChangeBlock from '@/components/chatPanel/messages/FileChangeBlock';
 import ToolCallDetailModal from '@/components/chatPanel/messages/ToolCallDetailModal';
 import ToolCallNotifications from '@/components/chatPanel/messages/ToolCallNotifications';
 import GitBranchBar from '@/components/filesPanel/git/GitBranchBar';
@@ -39,6 +40,7 @@ import * as chatUsage from '../fixtures/chatUsage';
 import * as compactNotice from '../fixtures/compactNotice';
 import * as composerToolbar from '../fixtures/composerToolbar';
 import * as detailHeader from '../fixtures/detailHeader';
+import * as fileChangeBlock from '../fixtures/fileChangeBlock';
 import * as detailPanel from '../fixtures/detailPanel';
 import * as filesBreadcrumb from '../fixtures/filesBreadcrumb';
 import * as gitMenu from '../fixtures/gitMenu';
@@ -239,6 +241,15 @@ const REGISTRY = [
     id: 'runStatus.js#generatingRun',
     frame: 'feed',
     render: (p) => <RunStatus startedAt={p.startedAt} inputGrowth={p.inputGrowth} />,
+  },
+
+  // Блок «изменённые файлы» последнего ответа: свёрнут по умолчанию, снимается раскрытым —
+  // кнопки отката видны только у строк.
+  {
+    id: 'fileChangeBlock.js#lastAnswer',
+    frame: 'feed',
+    render: (p) => <FileChangeBlock {...p} />,
+    steps: [{ click: '.change-block-summary' }],
   },
 
   // Плашка сжатия — по состоянию экономии на кейс. Рамка `feed`: плашка живёт разделителем
@@ -514,6 +525,7 @@ const MODULES = {
   'chatRepo.js': chatRepo,
   'detailHeader.js': detailHeader,
   'detailPanel.js': detailPanel,
+  'fileChangeBlock.js': fileChangeBlock,
   'filesBreadcrumb.js': filesBreadcrumb,
   'gitMenu.js': gitMenu,
   'chatUsage.js': chatUsage,
