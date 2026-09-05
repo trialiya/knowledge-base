@@ -2210,6 +2210,31 @@
     `flex: none`. Варианты «отказ» и «развёрнутый вывод» на живом прогоне не
     наблюдались — сеть в песочнице их не даёт, они на фикстурах.
 
+- id: chat-file-change-revert-per-file
+  component: FileChangeBlock
+  path: frontend/src/components/chatPanel/messages/FileChangeBlock.jsx
+  title: Блок «изменённые файлы» последнего ответа — кнопка отката у каждой строки
+  status: verified
+  origin:
+    - Сессия 2026-09-05, откат файловых правок ответа по одному файлу
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat/<id чата>, последний ответ правил файлы, чат свободен
+    action: развернуть блок «Изменённые файлы (3)»
+  fixtures:
+    - ./fixtures/fileChangeBlock.js#lastAnswer
+  expected:
+    - У каждой строки справа своя кнопка-иконка «↶», строка с путём и «+N/−M» остаётся кликабельной целиком и открывает diff
+    - Общей кнопки «Откатить изменения» под списком нет — решение принимается по каждому файлу
+    - Уже откаченный файл кнопки не имеет — на её месте серая отметка той же иконкой, путь зачёркнут и строка приглушена
+    - Нажатие на кнопку спрашивает подтверждение с именем файла; у созданного файла — что он будет удалён
+  notes: |
+    Кнопка стоит снаружи строки, а не внутри: строка — сама <button>, и вложить в неё
+    вторую нельзя. Откаченный файл узнаётся по рядам отката в хвосте ответа (MessageList
+    собирает их пути), поэтому отметка переживает перезагрузку чата.
+    Прогнано стендом (`./run/test.sh harness`), сессия 2026-09-05.
+
 - id: chat-modal-header-icon-buttons
   component: ToolCallDetailModal + CompactSummaryModal
   path: frontend/src/components/chatPanel/messages/ToolCallDetailModal.jsx

@@ -247,16 +247,9 @@ const MessageList = ({
   // Откатывается только последний ответ чата: поверх более раннего обычно уже лежат другие
   // правки, и «вернуть как было» перестаёт быть однозначным (то же правило на сервере —
   // ChatFileRevert). Плашки действий пользователя после ответа этому не мешают — они ответа не
-  // сдвигают, — а вот уже сделанный откат кнопку убирает. Одним проходом с конца, а не срезом на
-  // каждое сообщение: лента длинная, а ответ такой ровно один.
-  const revertableAnswerIndex = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].fileRevert) return -1;
-      if (messages[i].gitEvent) continue;
-      return messages[i].sender === SENDER.AI ? i : -1;
-    }
-    return -1;
-  }, [messages]);
+  // сдвигают; уже сделанные откаты лишь называют файлы, у которых кнопки больше нет. Одним
+  // проходом с конца, а не срезом на каждое сообщение: лента длинная, а ответ такой ровно один.
+  const revertable = useMemo(() => revertableAnswer(messages), [messages]);
 
   return (
     <div className="message-list-container">
@@ -275,7 +268,7 @@ const MessageList = ({
               if (messages[j].toolCalls?.length) groupToolCalls = [...messages[j].toolCalls, ...groupToolCalls];
             }
           }
-          const isLastAnswer = groupEnd && index === revertableAnswerIndex;
+          const isLastAnswer = groupEnd && index === revertable.index;
           // Подпись проекта для плашки: id, выбывший из конфигурации, показывается как есть.
           const projectLabel = (id) => projectOptions.find((o) => o.id === id)?.label || id;
           return (
@@ -344,6 +337,7 @@ const MessageList = ({
                     project={project}
                     conversationId={conversationId}
                     canRevert={isLastAnswer && !isStreaming}
+                    revertedPaths={isLastAnswer ? revertable.revertedPaths : undefined}
                   />
                 </>
               )}
@@ -365,6 +359,23 @@ const MessageList = ({
       )}
     </div>
   );
+};
+
+/**
+ * Индекс последнего ответа ленты и пути, которые откаты этого ответа уже вернули; `-1` — откатывать
+ * нечего (последним стоит вопрос, лента пуста).
+ */
+const revertableAnswer = (messages) => {
+  const revertedPaths = new Set();
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].fileRevert) {
+      messages[i].fileRevert.paths?.forEach((path) => revertedPaths.add(path));
+      continue;
+    }
+    if (messages[i].gitEvent) continue;
+    return { index: messages[i].sender === SENDER.AI ? i : -1, revertedPaths };
+  }
+  return { index: -1, revertedPaths };
 };
 
 export default MessageList;

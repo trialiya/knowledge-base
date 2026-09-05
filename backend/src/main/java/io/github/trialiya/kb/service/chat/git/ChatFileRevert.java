@@ -11,8 +11,10 @@ import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -22,19 +24,25 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Откат файловых правок последнего ответа: пользователь посмотрел, что модель написала в рабочее
- * дерево, и вернул файлы к состоянию до ответа.
+ * дерево, и вернул файлы к состоянию до ответа — по одному или все разом.
  *
- * <p>Что откатывать, сервис вычитывает из истории сам — клиент называет только чат и репозиторий.
- * Правки {@code editFile} обратимы своими же аргументами (см. {@link FileRevertPlan}), созданные
- * файлы удаляются, поэтому ничего дополнительного при записи файлов хранить не приходится.
+ * <p>Что откатывать, сервис вычитывает из истории сам — клиент называет чат и, если решает
+ * пофайлово, пути. Правки {@code editFile} обратимы своими же аргументами (см. {@link
+ * FileRevertPlan}), созданные файлы удаляются, поэтому ничего дополнительного при записи файлов
+ * хранить не приходится.
  *
  * <p>Откатывается ровно последний ответ. Не потому, что раньше нельзя технически, а потому, что
  * поверх старого блока обычно уже лежат другие правки, и «вернуть как было» перестаёт быть
  * однозначным действием; для всего остального есть git.
  *
  * <p>Сначала считаем, потом пишем: новое содержимое каждого файла собирается в памяти ({@code
- * GitService.previewEdited}), и только когда сошлись все файлы — они записываются. Иначе ответ,
+ * GitService.previewEdited}), и только когда сошлись все файлы — они записываются. Иначе запрос,
  * тронувший три файла, мог бы откатиться наполовину, а половина отката хуже отказа.
+ *
+ * <p>Каждый откат оставляет свой ряд, и следующий вычитает из плана то, что прежние ряды уже
+ * вернули: так файлы одного ответа откатываются по очереди, а повторный откат того же файла
+ * получает «уже откачено», а не «файл изменился» — план для него собрался бы тот же, но файл на
+ * диске уже не тот.
  */
 @AllArgsConstructor
 @Slf4j
@@ -49,6 +57,9 @@ public class ChatFileRevert {
     /**
      * Откатывает файловые правки последнего ответа чата и записывает это рядом истории.
      *
+     * <p>{@code paths} — какие файлы вернуть; пустой список — все, что ответ правил и что ещё не
+     * откачено.
+     *
      * <p>Заявка на чат берётся тем же {@link ChatGitLog#claimIdleAndOwned}, что и у git-команд: чат
      * чужим не откатывают, а во время прогона — не откатывают вовсе, иначе модель правит те же
      * файлы, из-под которых их уводят.
@@ -59,32 +70,26 @@ public class ChatFileRevert {
      * одинаковыми путями сделали бы такую ошибку неотличимой от успеха.
      *
      * @throws FileRevertRefusedException рабочее дерево не тронуто: откатывать нечего, ответ менял
-     *     файлы неоткатываемым способом или файл изменился после ответа
+     *     файлы неоткатываемым способом, названный файл ответ не трогал или уже откачен, файл
+     *     изменился после ответа
      */
-    public FileRevertPayload revertLastAnswer(String conversationId) {
+    public FileRevertPayload revertLastAnswer(String conversationId, List<String> paths) {
         final String claim = chatGitLog.claimIdleAndOwned(conversationId);
         try {
-            return revertClaimed(conversationId);
+            return revertClaimed(conversationId, paths);
         } finally {
             chatGitLog.release(conversationId, claim);
         }
     }
 
-    private FileRevertPayload revertClaimed(String conversationId) {
+    private FileRevertPayload revertClaimed(String conversationId, List<String> paths) {
         final GitService git = editable(chatHistory.lastStampedProject(conversationId));
         final List<ChatMessageEntity> answer = chatHistory.lastAnswerRows(conversationId);
-        // Ряд отката остаётся в хвосте ответа (ходом он не является), поэтому повторный откат
-        // виден прямо здесь — и это не педантизм: второй раз план собрался бы тот же, а файлы уже
-        // не совпадают, и пользователь получил бы «файл изменился» вместо «уже откачено».
-        if (answer.stream()
-                .anyMatch(row -> row.getMeta() != null && row.getMeta().fileRevert() != null)) {
-            throw new FileRevertRefusedException(
-                    "The file changes from this answer have already been reverted.");
-        }
-        final FileRevertPlan plan = FileRevertPlan.of(answer);
-        if (plan.isEmpty()) {
+        final FileRevertPlan whole = FileRevertPlan.of(answer);
+        if (whole.isEmpty()) {
             throw new FileRevertRefusedException("This answer changed no files.");
         }
+        final FileRevertPlan plan = remaining(whole, revertedPaths(answer), paths);
 
         final Map<String, String> reverted = new LinkedHashMap<>();
         try {
@@ -101,6 +106,50 @@ public class ChatFileRevert {
         }
 
         return write(conversationId, git, plan, reverted);
+    }
+
+    /**
+     * Что откатывать этим запросом: названные файлы, а без имён — всё, что ещё не откачено.
+     *
+     * <p>Отказ называет файл и причину: человек нажал кнопку у конкретной строки, и «откатывать
+     * нечего» ему не объяснит, что не так именно с ней.
+     */
+    private static FileRevertPlan remaining(
+            FileRevertPlan whole, Set<String> reverted, List<String> paths) {
+        if (paths.isEmpty()) {
+            final Set<String> left = new LinkedHashSet<>(whole.paths());
+            left.removeAll(reverted);
+            if (left.isEmpty()) {
+                throw new FileRevertRefusedException(
+                        "The file changes from this answer have already been reverted.");
+            }
+            return whole.only(left);
+        }
+        final Set<String> wanted = new LinkedHashSet<>(paths);
+        for (String path : wanted) {
+            if (reverted.contains(path)) {
+                throw new FileRevertRefusedException(
+                        "The changes to " + path + " have already been reverted.");
+            }
+            if (!whole.paths().contains(path)) {
+                throw new FileRevertRefusedException("This answer did not change " + path + ".");
+            }
+        }
+        return whole.only(wanted);
+    }
+
+    /**
+     * Файлы, которые прежние откаты этого же ответа уже вернули. Ряды отката остаются в хвосте
+     * ответа (ходом они не являются), поэтому читаются из тех же рядов, что и план.
+     */
+    private static Set<String> revertedPaths(List<ChatMessageEntity> answer) {
+        final Set<String> reverted = new LinkedHashSet<>();
+        for (ChatMessageEntity row : answer) {
+            if (row.getMeta() != null && row.getMeta().fileRevert() != null) {
+                reverted.addAll(row.getMeta().fileRevert().paths());
+            }
+        }
+        return reverted;
     }
 
     /**
@@ -157,7 +206,10 @@ public class ChatFileRevert {
             if (!done.isEmpty()) {
                 record(conversationId, new FileRevertMeta(git.project().id(), List.copyOf(done)));
             }
-            log.error("Revert of the last answer in chat {} failed midway", conversationId, e);
+            log.error(
+                    "Revert of files of the last answer in chat {} failed midway",
+                    conversationId,
+                    e);
             throw new FileRevertRefusedException(
                     "The revert is incomplete: "
                             + done.size()

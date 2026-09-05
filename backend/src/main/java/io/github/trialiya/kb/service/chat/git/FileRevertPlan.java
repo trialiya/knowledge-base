@@ -23,8 +23,9 @@ import org.jspecify.annotations.Nullable;
  * Что нужно сделать с рабочим деревом, чтобы файловых правок одного ответа в нём не осталось:
  * созданные файлы удалить, отредактированные — вернуть теми же заменами наоборот.
  *
- * <p>Собирается из рядов ответа и ничего больше не знает: ни про git, ни про чат. Отсюда и
- * отдельный класс — правило «что считается откатываемым» проверяется юнит-тестом на голых рядах.
+ * <p>Собирается из рядов ответа целиком — что из него откатывать сейчас, вырезает {@link #only} — и
+ * ничего больше не знает: ни про git, ни про чат. Отсюда и отдельный класс — правило «что считается
+ * откатываемым» проверяется юнит-тестом на голых рядах.
  *
  * <p>Источник аргументов — протокольные {@code tool_data} ряда, а не «крошки» вызовов для UI: у
  * первых аргументы лежат целиком (их читает модель), у вторых {@code oldString} мог бы оказаться
@@ -65,6 +66,21 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
         final Set<String> all = new LinkedHashSet<>(edits.keySet());
         all.addAll(deletions.keySet());
         return List.copyOf(all);
+    }
+
+    /**
+     * Тот же план, но только для названных файлов: откатывают по одному, и файлы, которых человек
+     * не выбрал — или уже откатил, — остаются как есть. Путь, которого в плане нет, просто не
+     * попадает в результат: есть ли он в ответе вообще, решает вызывающий (см. {@code
+     * ChatFileRevert}), у которого для этого есть слова.
+     */
+    FileRevertPlan only(Set<String> paths) {
+        final Map<String, String> keptDeletions = new LinkedHashMap<>(deletions);
+        keptDeletions.keySet().retainAll(paths);
+        final Map<String, List<TextEdit>> keptEdits = new LinkedHashMap<>(edits);
+        keptEdits.keySet().retainAll(paths);
+        return new FileRevertPlan(
+                Collections.unmodifiableMap(keptDeletions), Collections.unmodifiableMap(keptEdits));
     }
 
     /**

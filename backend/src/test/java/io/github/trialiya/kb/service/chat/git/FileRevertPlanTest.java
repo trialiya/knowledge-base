@@ -12,6 +12,7 @@ import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.MessageType;
 
@@ -40,6 +41,32 @@ class FileRevertPlanTest {
         assertThat(plan.edits())
                 .containsExactly(
                         Map.entry("src/App.java", List.of(new TextEdit("стало", "было", false))));
+    }
+
+    /** План на часть файлов: остальные — и правки, и удаления — в него не попадают. */
+    @Test
+    void aPlanNarrowsToTheNamedFiles() {
+        final FileRevertPlan plan =
+                FileRevertPlan.of(
+                        List.of(
+                                answer(
+                                        List.of(
+                                                call(
+                                                        "call-1",
+                                                        "editFile",
+                                                        "{\"filePath\":\"a.txt\",\"oldString\":\"1\",\"newString\":\"2\"}"),
+                                                call(
+                                                        "call-2",
+                                                        "createFile",
+                                                        "{\"filePath\":\"new.txt\",\"content\":\"x\"}")),
+                                        List.of(
+                                                edit("call-1", "a.txt"),
+                                                create("call-2", "new.txt")))));
+
+        assertThat(plan.only(Set.of("a.txt")).paths()).containsExactly("a.txt");
+        assertThat(plan.only(Set.of("a.txt")).deletions()).isEmpty();
+        assertThat(plan.only(Set.of("new.txt")).edits()).isEmpty();
+        assertThat(plan.only(Set.of("new.txt")).deletions()).containsOnlyKeys("new.txt");
     }
 
     /** Несколько правок одного файла отменяются с конца — иначе вторая не найдёт своего текста. */

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getFileChangeRefs } from './toolMeta';
 import { TOOL_STATUS } from '@/constants/toolStatus';
-import { IconChevronDown } from '@/icons/index';
+import { IconChevronDown, IconUndo } from '@/icons/index';
 import ConfirmModal from '@/components/common/modal/ConfirmModal';
 import FileDiffModal from './FileDiffModal';
 import { DiffStats } from './diffRender';
@@ -17,20 +17,22 @@ import '../styles/file-changes.css';
  * diff'ами правок этого файла из данного ответа (diff приходит в resultMeta —
  * работает и в live-стриме, и после перезагрузки чата, как у DocChangeBlock).
  *
- * У последнего ответа блок ещё и откатывается целиком: `canRevert` (см. MessageList) говорит,
- * что этот блок — последний и чат свободен. Откатывает сервер, по своей записи в истории
- * (см. ChatFileRevert) — включая репозиторий, — поэтому кнопке нечего передавать, кроме чата; новый ряд
- * истории и сброс кэшей файлов приезжают событием FILE_REVERT.
+ * У последнего ответа каждая строка ещё и откатывается — своей кнопкой справа: решение о каждом
+ * файле человек принимает отдельно, посмотрев его diff. `canRevert` (см. MessageList) говорит,
+ * что этот блок — последний и чат свободен, `revertedPaths` — какие файлы прежние откаты уже
+ * вернули: у них вместо кнопки отметка. Откатывает сервер, по своей записи в истории
+ * (см. ChatFileRevert) — включая репозиторий, — поэтому кнопке нечего передавать, кроме чата и
+ * пути; новый ряд истории и сброс кэшей файлов приезжают событием FILE_REVERT.
  */
-const FileChangeBlock = ({ toolCalls, project, conversationId, canRevert = false }) => {
+const FileChangeBlock = ({ toolCalls, project, conversationId, canRevert = false, revertedPaths }) => {
   const { t } = useTranslation('chat');
   const [target, setTarget] = useState(null); // { path, operation, additions, deletions, diffs } | null
   const [open, setOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  // Отказ сервера показываем текстом под кнопкой: «файл изменился после ответа» — это и есть
+  const [confirming, setConfirming] = useState(null); // change | null
+  // Отказ сервера показываем текстом под списком: «файл изменился после ответа» — это и есть
   // ответ пользователю, а не техническая деталь.
-  const [failure, setFailure] = useState(null);
-  const [reverting, setReverting] = useState(false);
+  const [failure, setFailure] = useState(null); // текст | null
+  const [reverting, setReverting] = useState(null); // path | null
 
   // Одна строка на файл: суммарные +/− по всем успешным правкам, diff'ы копятся
   // в порядке выполнения. Упавшие вызовы (ERROR) пропускаются — они файл не меняли.
@@ -54,16 +56,29 @@ const FileChangeBlock = ({ toolCalls, project, conversationId, canRevert = false
     return [...byPath.values()];
   }, [toolCalls]);
 
+  // Правки скрипта откат не отменяет — и не по файлу, а весь ответ (см. FileRevertPlan): кнопок
+  // у такого блока нет вовсе, иначе они обещали бы то, в чём сервер откажет.
+  const scripted = useMemo(
+    () =>
+      (toolCalls || []).some(
+        (tc) => tc.name === 'runScript' && tc.status !== TOOL_STATUS.ERROR && tc.resultMeta?.edits?.length > 0,
+      ),
+    [toolCalls],
+  );
+  const revertable = canRevert && !scripted;
+
   const revert = async () => {
-    setConfirming(false);
-    setReverting(true);
+    const { path } = confirming;
+    setConfirming(null);
+    setReverting(path);
     setFailure(null);
     try {
-      await chatApi.revertFiles(conversationId);
+      await chatApi.revertFiles(conversationId, [path]);
     } catch (e) {
-      setFailure(e?.reason || t('fileChange.revertFailed'));
+      // Отказ сервера сам называет файл; путь дописывается только к нашему общему тексту.
+      setFailure(e?.reason || `${path}: ${t('fileChange.revertFailed')}`);
     } finally {
-      setReverting(false);
+      setReverting(null);
     }
   };
 
@@ -84,54 +99,65 @@ const FileChangeBlock = ({ toolCalls, project, conversationId, canRevert = false
       </button>
 
       {open &&
-        changes.map((c) => (
-          <button
-            key={c.path}
-            type="button"
-            className="doc-change-item"
-            onClick={() => setTarget(c)}
-            title={t('fileChange.viewChanges')}
-          >
-            <span className="doc-change-icon" aria-hidden="true">
-              {c.operation === 'create' ? '🆕' : '✏️'}
-            </span>
-            <span className="doc-change-text">
-              <span className="doc-change-title">{c.path}</span>
-              <span className="doc-change-sub">
-                {c.operation === 'create' ? t('fileChange.created') : t('fileChange.edited')}
-                {' · '}
-                <DiffStats additions={c.additions} deletions={c.deletions} />
-              </span>
-            </span>
-            <span className="doc-change-cta">{t('fileChange.viewChanges')} ›</span>
-          </button>
-        ))}
+        changes.map((c) => {
+          const reverted = revertedPaths?.has(c.path) ?? false;
+          return (
+            <div key={c.path} className={`file-change-row ${reverted ? 'file-change-row--reverted' : ''}`}>
+              <button
+                type="button"
+                className="doc-change-item"
+                onClick={() => setTarget(c)}
+                title={t('fileChange.viewChanges')}
+              >
+                <span className="doc-change-icon" aria-hidden="true">
+                  {c.operation === 'create' ? '🆕' : '✏️'}
+                </span>
+                <span className="doc-change-text">
+                  <span className="doc-change-title">{c.path}</span>
+                  <span className="doc-change-sub">
+                    {c.operation === 'create' ? t('fileChange.created') : t('fileChange.edited')}
+                    {' · '}
+                    <DiffStats additions={c.additions} deletions={c.deletions} />
+                  </span>
+                </span>
+                <span className="doc-change-cta">{t('fileChange.viewChanges')} ›</span>
+              </button>
+              {revertable && reverted && (
+                <span className="file-change-row__reverted" title={t('fileChange.revertedFile')}>
+                  <IconUndo />
+                </span>
+              )}
+              {revertable && !reverted && (
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setConfirming(c)}
+                  disabled={reverting != null}
+                  title={reverting === c.path ? t('fileChange.reverting') : t('fileChange.revertFile')}
+                  aria-label={t('fileChange.revertFile')}
+                >
+                  <IconUndo />
+                </button>
+              )}
+            </div>
+          );
+        })}
 
-      {open && canRevert && (
-        <div className="file-change-revert">
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm"
-            onClick={() => setConfirming(true)}
-            disabled={reverting}
-          >
-            {reverting ? t('fileChange.reverting') : t('fileChange.revert')}
-          </button>
-          {failure && <span className="file-change-revert__error">{failure}</span>}
-        </div>
-      )}
+      {open && failure && <div className="file-change-revert__error">{failure}</div>}
 
       {target && <FileDiffModal change={target} project={project} onClose={() => setTarget(null)} />}
       <ConfirmModal
-        open={confirming}
+        open={confirming != null}
         title={t('fileChange.revertTitle')}
-        message={t('fileChange.revertMessage', {
-          count: changes.length,
-          files: changes.map((c) => c.path).join(', '),
-        })}
+        message={t(
+          confirming?.operation === 'create' ? 'fileChange.revertMessageCreated' : 'fileChange.revertMessage',
+          {
+            path: confirming?.path,
+          },
+        )}
         confirmLabel={t('fileChange.revert')}
         onConfirm={revert}
-        onCancel={() => setConfirming(false)}
+        onCancel={() => setConfirming(null)}
       />
     </div>
   );

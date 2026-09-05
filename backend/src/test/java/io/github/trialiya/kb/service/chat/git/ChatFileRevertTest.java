@@ -26,6 +26,7 @@ import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,9 +35,10 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.MessageType;
 
 /**
- * Откат правок ответа целиком: заявка на чат, всё-или-ничего при записи, ряд истории и событие
- * подписчикам. Сам разбор ответа проверяет {@link FileRevertPlanTest}, работу с деревом — {@code
- * GitServiceRevertTest}; здесь мокнуто и то и другое.
+ * Откат правок ответа — по файлу и целиком: заявка на чат, всё-или-ничего при записи, ряд истории и
+ * событие подписчикам, вычитание уже откаченного из следующего отката. Сам разбор ответа проверяет
+ * {@link FileRevertPlanTest}, работу с деревом — {@code GitServiceRevertTest}; здесь мокнуто и то и
+ * другое.
  */
 class ChatFileRevertTest {
 
@@ -66,7 +68,7 @@ class ChatFileRevertTest {
         when(git.previewEdited(eq("a.txt"), any())).thenReturn("было\n");
         when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
 
-        final FileRevertPayload payload = revert.revertLastAnswer(CONV);
+        final FileRevertPayload payload = revert.revertLastAnswer(CONV, List.of());
 
         verify(git).replaceTrackedFile("a.txt", "было\n");
         assertThat(payload.event().paths()).containsExactly("a.txt");
@@ -81,7 +83,7 @@ class ChatFileRevertTest {
         givenAnswer(createCall("call-1", "new.txt", "class New {}"));
         when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
 
-        revert.revertLastAnswer(CONV);
+        revert.revertLastAnswer(CONV, List.of());
 
         verify(git).requireDeletable("new.txt", "class New {}");
         verify(git).deleteFile("new.txt", "class New {}");
@@ -100,7 +102,7 @@ class ChatFileRevertTest {
         when(git.previewEdited(eq("a.txt"), any())).thenReturn("было\n");
         when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
 
-        revert.revertLastAnswer(CONV);
+        revert.revertLastAnswer(CONV, List.of());
 
         verify(gitRegistry).requireEditable("billing");
     }
@@ -115,7 +117,7 @@ class ChatFileRevertTest {
         when(git.previewEdited(eq("a.txt"), any()))
                 .thenThrow(new IllegalStateException("Cannot read file: a.txt"));
 
-        assertThatThrownBy(() -> revert.revertLastAnswer(CONV))
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV, List.of()))
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining("Cannot read file");
         verify(git, never()).replaceTrackedFile(anyString(), anyString());
@@ -137,7 +139,7 @@ class ChatFileRevertTest {
                 .when(git)
                 .replaceTrackedFile(eq("b.txt"), anyString());
 
-        assertThatThrownBy(() -> revert.revertLastAnswer(CONV))
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV, List.of()))
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining("incomplete");
 
@@ -160,7 +162,7 @@ class ChatFileRevertTest {
         when(git.previewEdited(eq("b.txt"), any()))
                 .thenThrow(new IllegalArgumentException("oldString not found in b.txt"));
 
-        assertThatThrownBy(() -> revert.revertLastAnswer(CONV))
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV, List.of()))
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining("b.txt");
 
@@ -169,15 +171,73 @@ class ChatFileRevertTest {
         verify(chatGitLog).release(CONV, "claim-1");
     }
 
-    /** Второй откат того же ответа — отказ по своему же ряду, а не «файл изменился». */
+    /** Названный файл возвращается один: соседний по ответу остаётся как есть. */
     @Test
-    void anAnswerAlreadyRevertedIsRefusedByItsOwnRow() {
-        when(chatHistory.lastAnswerRows(CONV))
-                .thenReturn(List.of(answer(List.of(), List.of()), revertRow()));
+    void onlyTheNamedFileGoesBack() {
+        givenAnswer(
+                editCall("call-1", "a.txt", "было", "стало"),
+                editCall("call-2", "b.txt", "x", "y"));
+        when(git.previewEdited(eq("b.txt"), any())).thenReturn("x\n");
+        when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
 
-        assertThatThrownBy(() -> revert.revertLastAnswer(CONV))
+        final FileRevertPayload payload = revert.revertLastAnswer(CONV, List.of("b.txt"));
+
+        verify(git).replaceTrackedFile("b.txt", "x\n");
+        verify(git, never()).previewEdited(eq("a.txt"), any());
+        assertThat(payload.event().paths()).containsExactly("b.txt");
+    }
+
+    /**
+     * Откат без имён после пофайлового возвращает остаток: то, что прежний ряд уже вернул, второй
+     * раз не пересчитывается — на диске оно уже не то, и вышло бы «файл изменился».
+     */
+    @Test
+    void aRevertOfEverythingSkipsWhatEarlierRowsAlreadyTookBack() {
+        givenAnswer(
+                editCall("call-1", "a.txt", "было", "стало"),
+                editCall("call-2", "b.txt", "x", "y"));
+        givenRevertedAlready("a.txt");
+        when(git.previewEdited(eq("b.txt"), any())).thenReturn("x\n");
+        when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
+
+        final FileRevertPayload payload = revert.revertLastAnswer(CONV, List.of());
+
+        verify(git, never()).previewEdited(eq("a.txt"), any());
+        assertThat(payload.event().paths()).containsExactly("b.txt");
+    }
+
+    /** Второй откат того же файла — отказ по своему же ряду, а не «файл изменился». */
+    @Test
+    void aFileAlreadyRevertedIsRefusedByItsOwnRow() {
+        givenAnswer(editCall("call-1", "a.txt", "было", "стало"));
+        givenRevertedAlready("a.txt");
+
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV, List.of("a.txt")))
+                .isInstanceOf(FileRevertRefusedException.class)
+                .hasMessageContaining("a.txt")
+                .hasMessageContaining("already been reverted");
+        verify(git, never()).previewEdited(anyString(), any());
+    }
+
+    /** Когда вернулось уже всё, откатывать нечего — и отказ говорит именно это. */
+    @Test
+    void anAnswerRevertedInFullIsRefusedByItsOwnRows() {
+        givenAnswer(editCall("call-1", "a.txt", "было", "стало"));
+        givenRevertedAlready("a.txt");
+
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV, List.of()))
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining("already been reverted");
+    }
+
+    /** Файл, которого ответ не трогал, — отказ по имени, а не «откатывать нечего». */
+    @Test
+    void aFileTheAnswerDidNotTouchIsRefusedByName() {
+        givenAnswer(editCall("call-1", "a.txt", "было", "стало"));
+
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV, List.of("other.txt")))
+                .isInstanceOf(FileRevertRefusedException.class)
+                .hasMessageContaining("did not change other.txt");
     }
 
     /** Ответу без файловых правок откатывать нечего — и это отказ, а не пустой успех. */
@@ -185,7 +245,7 @@ class ChatFileRevertTest {
     void anAnswerThatChangedNoFilesIsRefused() {
         when(chatHistory.lastAnswerRows(CONV)).thenReturn(List.of(answer(List.of(), List.of())));
 
-        assertThatThrownBy(() -> revert.revertLastAnswer(CONV))
+        assertThatThrownBy(() -> revert.revertLastAnswer(CONV, List.of()))
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining("changed no files");
     }
@@ -197,6 +257,23 @@ class ChatFileRevertTest {
                                 answer(
                                         List.of(calls).stream().map(Call::call).toList(),
                                         List.of(calls).stream().map(Call::meta).toList())));
+    }
+
+    /** Дописывает к уже заданному ответу ряд отката названных файлов. */
+    private void givenRevertedAlready(String... paths) {
+        final List<ChatMessageEntity> rows = new ArrayList<>(chatHistory.lastAnswerRows(CONV));
+        rows.add(
+                new ChatMessageEntity(
+                        2,
+                        CONV,
+                        "",
+                        MessageType.USER,
+                        2,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofFileRevert(new FileRevertMeta("kb", List.of(paths)))));
+        when(chatHistory.lastAnswerRows(CONV)).thenReturn(rows);
     }
 
     private record Call(ToolData.Call call, ToolInvocationMeta meta) {}
