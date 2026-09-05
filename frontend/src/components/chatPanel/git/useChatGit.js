@@ -13,7 +13,7 @@ import runGitCommand from '@/components/filesPanel/git/runGitCommand';
  * Первое: пока модель работает, команды не запускаются. Кнопки гасятся, но
  * настоящий запрет — на сервере (см. `ChatGitLog.claimIdleAndOwned`, который
  * чат не проверяет, а занимает на время команды): между нажатием и запросом чат
- * может стать занятым, а модалка вообще могла открыться до отправки вопроса.
+ * может стать занятым, а окно коммита вообще могло открыться до отправки вопроса.
  *
  * Второе: команда несёт с собой id чата, и бэкенд оставляет в его истории ряд с
  * выводом. Поэтому в черновике, у которого id ещё выдуман фронтом, команд нет
@@ -49,16 +49,15 @@ export default function useChatGit({
   const [failure, setFailure] = useState(null);
 
   /**
-   * `movesTree` — трогает ли команда рабочее дерево. У всех, кроме fetch, да, и
-   * тогда поднимается общий сигнал: дерево, изменения и открытый файл поедут
-   * перечитываться вместе. Fetch двигает одни счётчики и обновляет их сам (см.
-   * `useGitBranch`), поэтому общий сигнал стал бы лишней работой на ровном месте.
+   * Обе команды двигают рабочее дерево или его отношение к remote, поэтому после
+   * каждой поднимается общий сигнал: дерево, список изменений и открытый файл
+   * перечитываются вместе.
    *
-   * Остальное — правило «перечитать и на успехе, и на отказе» — общее с панелью
-   * «Файлы», см. runGitCommand.
+   * Правило «перечитать и на успехе, и на отказе» — общее с панелью «Файлы»,
+   * см. runGitCommand.
    */
   const run = useCallback(
-    (name, command, { movesTree = true } = {}) => {
+    (name, command) => {
       setFailure(null);
       return runGitCommand(command, {
         onSuccess: (result) => setLast({ command: result?.command ?? name, ok: true, at: Date.now() }),
@@ -66,7 +65,7 @@ export default function useChatGit({
           setLast({ command: name, ok: false, at: Date.now() });
           setFailure({ command: name, reason: error?.reason ?? null });
         },
-        onSettled: movesTree ? onRepoChanged : undefined,
+        onSettled: onRepoChanged,
       });
     },
     [onRepoChanged],
@@ -74,14 +73,11 @@ export default function useChatGit({
 
   const commands = useMemo(
     () => ({
-      fetch: () => run('fetch', branch.fetchRemote, { movesTree: false }),
-      pull: () => run('pull', branch.pull),
+      // Из чата запускаются ровно две команды: сохранить работу и опубликовать
+      // её. Ветки, stash, pull и откат живут в панели «Файлы» — второе место с
+      // теми же командами обязано было бы с ней разойтись.
+      commit: (message, paths) => run('commit', () => branch.commit(message, paths)),
       push: () => run('push', branch.push),
-      switchBranch: (name) => run(`switch ${name}`, () => branch.switchBranch(name, false)),
-      stashPush: () => run('stash', branch.stashPush),
-      stashPop: () => run('stash pop', branch.stashPop),
-      commit: (message) => run('commit', () => branch.commit(message)),
-      abortMerge: () => run('merge --abort', branch.abortMerge),
     }),
     [run, branch],
   );
@@ -90,6 +86,12 @@ export default function useChatGit({
     () => ({
       status: branch.status,
       capabilities: branch.capabilities,
+      // Проект и сигнал обновления едут вместе с состоянием: окно коммита само
+      // спрашивает патч выбранного файла, а окно push — список коммитов, и оба
+      // обязаны спрашивать их про тот же репозиторий и на том же тике, что и
+      // список изменений рядом.
+      project,
+      refreshToken,
       loading: branch.loading,
       running: branch.running,
       changes: changes.entries,
@@ -103,6 +105,6 @@ export default function useChatGit({
       disabledReason: busy ? 'busy' : branch.running ? 'running' : chatId ? null : 'draft',
       ...commands,
     }),
-    [branch, changes.entries, last, failure, busy, chatId, commands],
+    [branch, changes.entries, last, failure, busy, chatId, commands, project, refreshToken],
   );
 }

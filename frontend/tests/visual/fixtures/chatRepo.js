@@ -1,5 +1,5 @@
-// Фикстуры визуальных кейсов панели «Репозиторий» в чате: вкладка, модалка
-// команд и карточка вывода. Состояния подобраны по тому, чем они отличаются на
+// Фикстуры визуальных кейсов панели «Репозиторий» в чате: вкладка, окна коммита
+// и push, карточка вывода. Состояния подобраны по тому, чем они отличаются на
 // экране, а не по тому, чем отличаются данные: чистое дерево против грязного,
 // команда доступная против объяснённой, успех против отказа.
 
@@ -16,16 +16,13 @@ const branch = {
   conflicts: [],
 };
 
+// Из чата запускаются ровно две команды; остальное живёт в панели «Файлы».
 const commands = {
-  fetch: () => {},
-  pull: () => {},
-  push: () => {},
-  stashPush: () => {},
-  stashPop: () => {},
-  switchBranch: () => Promise.resolve(),
   commit: () => Promise.resolve(),
-  abortMerge: () => {},
+  push: () => Promise.resolve(),
   dismissFailure: () => {},
+  project: 'kb',
+  refreshToken: 0,
 };
 
 /** Обычное состояние: ветка впереди origin, три файла не сохранено. */
@@ -43,7 +40,33 @@ export const repoTabIdle = {
     ],
     last: { command: 'commit', ok: true, at: 0 },
   },
-  onOpenCommands: () => {},
+  onOpenCommit: () => {},
+  onOpenPush: () => {},
+};
+
+/**
+ * Правка на пол-репозитория — обычный ответ ассистента. Вкладка показывает
+ * первые четыре файла и считает остальные ссылкой: полсотни строк в панели
+ * шириной 320px отвечают на вопрос «что наменяли» хуже, чем счётчик.
+ */
+export const repoTabManyChanges = {
+  ...repoTabIdle,
+  git: {
+    ...repoTabIdle.git,
+    changes: [
+      { status: 'M', path: 'backend/src/main/java/io/github/trialiya/kb/service/file/git/GitService.java', additions: 18, deletions: 4 },
+      { status: 'A', path: 'backend/src/main/java/io/github/trialiya/kb/service/file/git/RankingWeights.java', additions: 34, deletions: 0 },
+      { status: 'A', path: 'backend/src/test/java/io/github/trialiya/kb/service/file/git/RankingTest.java', additions: 42, deletions: 0 },
+      { status: 'M', path: 'backend/src/main/resources/application.yml', additions: 3, deletions: 1 },
+      { status: 'A', path: 'backend/src/main/resources/db/migration/V27__ranking.sql', additions: 11, deletions: 0 },
+      { status: 'A', path: 'backend/src/main/resources/db/migration-h2/V27__ranking.sql', additions: 11, deletions: 0 },
+      { status: 'M', path: 'docs/проект/архитектура-и-реализация-поиска.md', additions: 26, deletions: 9 },
+      { status: 'M', path: 'frontend/src/i18n/locales/ru/search.json', additions: 4, deletions: 0 },
+      { status: 'M', path: 'frontend/src/i18n/locales/en/search.json', additions: 4, deletions: 0 },
+      { status: 'U', path: 'build/reports/pmd/main.html', additions: 0, deletions: 0 },
+    ],
+    last: null,
+  },
 };
 
 // Причина запрета едет вместе с ним: их три (модель работает, идёт другая
@@ -75,27 +98,75 @@ export const repoTabMerging = {
   },
 };
 
-/** Модалка на грязном дереве: коммит доступен, всё остальное объяснено. */
-export const commandsModalDirty = {
+/**
+ * Окно коммита на грязном дереве: слева выбор файлов, справа патч первой строки,
+ * внизу описание. Список тот же, что у `repoTabManyChanges`, — окно как раз и
+ * есть место, где полсотни строк имеют смысл.
+ */
+export const commitDialogDirty = {
+  git: repoTabManyChanges.git,
+  onClose: () => {},
+};
+
+/**
+ * Патч, который отдаёт стенд на запрос diff'а. Стенд отвечает им на любой путь,
+ * поэтому он про тот файл, который окно открывает первым (первый по имени).
+ */
+export const commitDialogPatch = [
+  {
+    status: 'M',
+    path: 'docs/проект/архитектура-и-реализация-поиска.md',
+    additions: 26,
+    deletions: 9,
+    patchHeader:
+      'diff --git a/docs/проект/архитектура-и-реализация-поиска.md b/docs/проект/архитектура-и-реализация-поиска.md\nindex 1a2b3c4..5d6e7f8 100644',
+    patch:
+      '@@ -46,7 +46,9 @@ ## Ранжирование\n' +
+      ' Итоговая позиция — сумма ключевого и семантического попадания.\n' +
+      '-Совпадения в заголовке и в тексте весят одинаково.\n' +
+      '+Совпадение в заголовке весит больше: множитель задаётся в `kb.search.title-weight`.\n' +
+      '+Значение по умолчанию — 1.6; ноль отключает надбавку.\n',
+  },
+];
+
+/** Окно коммита, пока модель работает: причина названа один раз на всё окно. */
+export const commitDialogBusy = {
+  git: { ...repoTabManyChanges.git, disabled: true, disabledReason: 'busy' },
+  onClose: () => {},
+};
+
+/** Окно push: перед отправкой видно, что именно уедет. */
+export const pushDialogAhead = {
   git: repoTabIdle.git,
   onClose: () => {},
 };
 
-/** Модалка после конфликтного pull: выход из merge — здесь же, где в него вошли. */
-export const commandsModalMerging = {
-  git: {
-    ...repoTabMerging.git,
-    failure: {
-      command: 'pull',
-      reason: 'CONFLICT (content): Merge conflict in backend/build.gradle\nAutomatic merge failed',
-    },
+/** Коммиты, которые стенд отдаёт окну push. */
+export const pushDialogCommits = [
+  {
+    hash: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+    shortHash: 'a1b2c3d',
+    author: 'Claude',
+    email: 'noreply@anthropic.com',
+    date: '2026-09-04T09:12:00+03:00',
+    message: 'Ранжирование поиска: вес заголовка',
   },
-  onClose: () => {},
-};
+  {
+    hash: 'b2c3d4e5f60718293a4b5c6d7e8f901234567890',
+    shortHash: 'b2c3d4e',
+    author: 'Иван Петров',
+    email: 'ivan@example.com',
+    date: '2026-09-03T18:40:00+03:00',
+    message: 'Миграции для обеих баз и фикстура',
+  },
+];
 
-/** Модалка, пока модель работает: причина названа один раз на всю модалку. */
-export const commandsModalBusy = {
-  git: { ...repoTabIdle.git, disabled: true, disabledReason: 'busy' },
+/** Ветка, которую ещё ни разу не отправляли: push её создаст. */
+export const pushDialogNewBranch = {
+  git: {
+    ...repoTabIdle.git,
+    status: { ...branch, upstream: null, ahead: 0 },
+  },
   onClose: () => {},
 };
 

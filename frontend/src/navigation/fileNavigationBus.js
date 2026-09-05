@@ -31,7 +31,10 @@ export function registerFileNavigator(fn) {
  * @param project репозиторий пути; переход по ссылке из чата обязан открыть файл
  *   ИМЕННО в том проекте, который назвала ссылка, переключив панель. Не назван —
  *   дефолтный (так выглядит любая ссылка, написанная до появления проектов).
+ * @param options `{ changes: true }` — открыть левый блок в режиме «Изменения»:
+ *   так уходят ссылки из вкладки «Репозиторий», которые ведут именно к
+ *   незакоммиченному, а не к файлу в дереве. Не передан — режим не трогаем.
  */
-export function navigateToFile(path, project) {
-  navigator?.(path, project);
+export function navigateToFile(path, project, options) {
+  navigator?.(path, project, options);
 }

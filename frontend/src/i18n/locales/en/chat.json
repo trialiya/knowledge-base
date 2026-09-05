@@ -426,27 +426,11 @@
   "repo": {
     "title": "Repository",
     "tab": "Repository",
-    "commands": "Commands…",
     "unavailable": "The project's repository is unavailable.",
     "uncommitted": "Uncommitted · {{count}}",
     "lastCommand": "Last command",
     "outcomeOk": "done",
     "outcomeFailed": "refused",
-    "groupRemote": "Exchange with origin",
-    "groupTreeDirty": "Working tree — uncommitted changes",
-    "groupTreeClean": "Working tree is clean",
-    "fetch": "Fetch",
-    "pull": "Pull",
-    "push": "Push",
-    "stash": "Stash",
-    "stashPop": "Pop",
-    "switch": "Switch",
-    "pickBranch": "Pick a branch…",
-    "inSync": "In sync with {{upstream}}",
-    "diverged": "{{ahead}} ahead, {{behind}} behind",
-    "pushNotAllowed": "push is not permitted for this project",
-    "conflictsInFiles": "Conflicted files are resolved under Files — this dialog does not edit them.",
-    "close": "Close",
     "copyOutput": "Copy output",
     "expandOutput": "Show output",
     "collapseOutput": "Hide output",
@@ -463,6 +447,28 @@
       "R": "renamed",
       "C": "copied",
       "U": "untracked"
-    }
+    },
+    "commit": "Commit…",
+    "push": "Push…",
+    "saveWork": "Save your work",
+    "allChanges": "All changes",
+    "moreChanges": "More files · {{count}}",
+    "restInFiles": "Branches, stash, pull, restore — under Files"
+  },
+  "commit": {
+    "title": "Commit",
+    "selectAll": "Select all",
+    "ofTotal": "{{count}} of {{total}}",
+    "selectFile": "Include {{path}} in the commit",
+    "selectDir": "Include everything under {{dir}} in the commit",
+    "submit": "Commit",
+    "submitCount": "Commit · {{count}}"
+  },
+  "push": {
+    "title": "Push",
+    "submit": "Push",
+    "commits": "Commits to push · {{count}}",
+    "newBranch": "The branch tracks nothing — push will create it on the remote",
+    "loadError": "Could not read the list of commits"
   }
 }

@@ -6,7 +6,11 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -15,10 +19,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.api.CommitCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.CheckoutConflictException;
 import org.eclipse.jgit.api.errors.EmptyCommitException;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.RefAlreadyExistsException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.api.errors.StashApplyFailureException;
@@ -77,6 +83,13 @@ class GitCommands {
 
     /** Longest commit message accepted — a subject and a body, not a pasted document. */
     private static final int MAX_MESSAGE_CHARS = 4000;
+
+    /**
+     * Most files one commit may name. A person ticking boxes in a dialog never reaches this; a
+     * request that does is not a selection any more, and "everything tracked" already has its own
+     * spelling — the empty list.
+     */
+    private static final int MAX_COMMIT_PATHS = 1000;
 
     private final Path root;
     private final GitBranches branches;
@@ -277,9 +290,16 @@ class GitCommands {
     }
 
     /**
-     * @see GitService#commit
+     * @see GitService#commit(String)
      */
     GitCommandResult commit(String message) {
+        return commit(message, List.of());
+    }
+
+    /**
+     * @see GitService#commit(String, List)
+     */
+    GitCommandResult commit(String message, List<String> paths) {
         String text = message == null ? "" : message.strip();
         if (text.isEmpty()) {
             throw new GitCommandFailedException("A commit needs a message");
@@ -296,36 +316,137 @@ class GitCommands {
             throw new GitCommandFailedException(
                     "HEAD is not on a branch — switch to one first, or the commit will be lost");
         }
+        List<String> only = commitPaths(paths);
         return local(
                 "commit",
                 () -> {
+                    Set<String> staged = Set.of();
                     try {
-                        // Everything tracked, staged or not — what the panel showed under
-                        // "changes" is what goes in, including the edits the assistant staged.
-                        // Untracked files are left out: -A would pull in whatever the working tree
-                        // happens to hold, which is not what the review surface displayed.
-                        git.add().addFilepattern(".").setUpdate(true).call();
+                        staged = untrackedAmong(only);
+                        stageForCommit(only);
                         // Never signed. Signing needs a key, and this application holds none of
                         // the operator's — with commit.gpgsign on for the host user, JGit would
                         // otherwise fail the commit outright ("No signer for ssh signatures")
                         // instead of recording it. A deployment that wants signed history signs
                         // on the host, where the key is.
-                        RevCommit commit =
+                        CommitCommand command =
                                 git.commit()
                                         .setMessage(text)
                                         // Без этого JGit молча записывает коммит без единого
                                         // изменения: кнопка «закоммитить» на чистом дереве
                                         // оставила бы в истории пустышку.
                                         .setAllowEmpty(false)
-                                        .setSign(false)
-                                        .call();
+                                        .setSign(false);
+                        // Ровно выбранные пути, как `git commit -- <paths>`: правки ассистента
+                        // лежат в индексе, и коммит всего индекса унёс бы файлы, с которых
+                        // человек снял галочку в окне коммита.
+                        only.forEach(command::setOnly);
+                        RevCommit commit = command.call();
                         return "Committed " + commit.abbreviate(ABBREV_LEN).name();
                     } catch (EmptyCommitException e) {
+                        unstage(staged);
                         throw new GitCommandFailedException("Nothing to commit", e);
-                    } catch (GitAPIException e) {
+                    } catch (GitAPIException | JGitInternalException e) {
+                        // JGitInternalException — как отказ, а не как поломка: `setOnly` бросает
+                        // именно её на пути, которого git не знает, и 500 на выбранном файле
+                        // сказал бы пользователю меньше, чем сообщение самого JGit.
+                        unstage(staged);
                         throw new GitCommandFailedException(message(e));
                     }
                 });
+    }
+
+    /**
+     * The paths a commit was asked to include — normalized, confined to the repository, and refused
+     * when there are more of them than a person could have picked.
+     *
+     * <p>An empty list means "everything tracked", which is the older behaviour and stays the
+     * default: the panel's own button commits what the review surface showed.
+     */
+    private List<String> commitPaths(List<String> selected) {
+        if (selected == null || selected.isEmpty()) return List.of();
+        if (selected.size() > MAX_COMMIT_PATHS) {
+            throw new GitCommandFailedException(
+                    "A commit takes at most " + MAX_COMMIT_PATHS + " selected files");
+        }
+        List<String> only = new ArrayList<>(selected.size());
+        for (String raw : selected) {
+            String path = RepoPaths.normalize(raw);
+            if (path.isEmpty()) {
+                throw new GitCommandFailedException("A selected path cannot be empty");
+            }
+            // Тот же барьер, что у discard: допущенный allow-globs файл может оказаться симлинком
+            // наружу, и коммит не должен быть той единственной командой, которая по нему пройдёт.
+            Path absolute = paths.confine(path);
+            // И то же правило про каталог: `add` по каталогу забрал бы в коммит всё, что под ним,
+            // — расширение выбора, которого человек в списке файлов не делал.
+            if (Files.isDirectory(absolute)) {
+                throw new GitCommandFailedException(path + " is a directory, not a file");
+            }
+            if (!only.contains(path)) only.add(path);
+        }
+        return only;
+    }
+
+    /**
+     * Puts what is about to be committed into the index.
+     *
+     * <p>With no selection: everything tracked, staged or not — what the panel showed under
+     * "changes" is what goes in, including the edits the assistant staged. Untracked files are left
+     * out, because {@code -A} would pull in whatever the working tree happens to hold, which is not
+     * what the review surface displayed.
+     *
+     * <p>With a selection each path is staged on its own, and a path whose file is gone is staged
+     * as a removal: {@code add} alone ignores a deletion, and a commit that silently kept a deleted
+     * file would contradict the very list the user ticked it off in. An untracked file that was
+     * ticked is staged like any other — it was offered in the list, so choosing it means adding it.
+     */
+    private void stageForCommit(List<String> only) throws GitAPIException {
+        if (only.isEmpty()) {
+            git.add().addFilepattern(".").setUpdate(true).call();
+            return;
+        }
+        for (String path : only) {
+            // NOFOLLOW_LINKS: у отслеживаемого симлинка цель может не существовать, и по
+            // `exists` он выглядел бы удалённым — коммит унёс бы сам симлинк, о котором никто
+            // не просил.
+            if (Files.exists(root.resolve(path), LinkOption.NOFOLLOW_LINKS)) {
+                git.add().addFilepattern(path).call();
+            } else {
+                git.rm().addFilepattern(path).setCached(true).call();
+            }
+        }
+    }
+
+    /**
+     * The paths that were untracked before this commit staged them.
+     *
+     * <p>Asked <em>before</em> anything is staged, because a commit that fails afterwards has to
+     * put them back: {@code add} on an untracked file is the one part of staging that the next
+     * default commit ("everything tracked") would silently carry along — and a file the user ticked
+     * once would then ride into a commit they never ticked it for.
+     */
+    private Set<String> untrackedAmong(List<String> only) throws GitAPIException {
+        if (only.isEmpty()) return Set.of();
+        Set<String> untracked = git.status().call().getUntracked();
+        Set<String> staged = new HashSet<>();
+        for (String path : only) {
+            if (untracked.contains(path)) staged.add(path);
+        }
+        return staged;
+    }
+
+    /** Takes the named paths back out of the index — the undo for {@link #untrackedAmong}. */
+    private void unstage(Set<String> added) {
+        for (String path : added) {
+            try {
+                git.reset().addPath(path).call();
+            } catch (GitAPIException e) {
+                // Ничего не поделать и незачем прятать отказ самой команды за этим: пишем в лог,
+                // а наружу уходит причина, по которой коммит не состоялся.
+                log.warn("Cannot unstage {} after a failed commit", path, e);
+            }
+        }
     }
 
     /**

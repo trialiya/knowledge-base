@@ -6,7 +6,8 @@ import ComposerToolbar from '@/components/chatPanel/composer/ComposerToolbar';
 import PhraseFillModal from '@/components/chatPanel/composer/PhraseFillModal';
 import RunStatus from '@/components/chatPanel/composer/RunStatus';
 import ChatRepoPanel from '@/components/chatPanel/git/ChatRepoPanel';
-import GitCommandsModal from '@/components/chatPanel/git/GitCommandsModal';
+import CommitDialog from '@/components/chatPanel/git/CommitDialog';
+import PushDialog from '@/components/chatPanel/git/PushDialog';
 import GitOutputCard from '@/components/chatPanel/git/GitOutputCard';
 import CompactNotice from '@/components/chatPanel/messages/CompactNotice';
 import ToolCallDetailModal from '@/components/chatPanel/messages/ToolCallDetailModal';
@@ -184,9 +185,33 @@ const REGISTRY = [
   { id: 'chatRepo.js#repoTabIdle', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },
   { id: 'chatRepo.js#repoTabBusy', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },
   { id: 'chatRepo.js#repoTabMerging', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },
-  { id: 'chatRepo.js#commandsModalDirty', frame: 'bare', render: (p) => <GitCommandsModal {...p} /> },
-  { id: 'chatRepo.js#commandsModalMerging', frame: 'bare', render: (p) => <GitCommandsModal {...p} /> },
-  { id: 'chatRepo.js#commandsModalBusy', frame: 'bare', render: (p) => <GitCommandsModal {...p} /> },
+  { id: 'chatRepo.js#repoTabManyChanges', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },
+  // Патч выбранной строки окно спрашивает само (useChangeDiff → GET /api/git/status):
+  // без ответа стенда правая половина показала бы «Загрузка…».
+  {
+    id: 'chatRepo.js#commitDialogDirty',
+    frame: 'bare',
+    api: { '/api/git/status': chatRepo.commitDialogPatch },
+    render: (p) => <CommitDialog {...p} />,
+  },
+  {
+    id: 'chatRepo.js#commitDialogBusy',
+    frame: 'bare',
+    api: { '/api/git/status': chatRepo.commitDialogPatch },
+    render: (p) => <CommitDialog {...p} />,
+  },
+  {
+    id: 'chatRepo.js#pushDialogAhead',
+    frame: 'bare',
+    api: { '/api/git/outgoing': chatRepo.pushDialogCommits },
+    render: (p) => <PushDialog {...p} />,
+  },
+  {
+    id: 'chatRepo.js#pushDialogNewBranch',
+    frame: 'bare',
+    api: { '/api/git/outgoing': chatRepo.pushDialogCommits },
+    render: (p) => <PushDialog {...p} />,
+  },
   { id: 'chatRepo.js#outputCardOk', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
   { id: 'chatRepo.js#outputCardRefused', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
   { id: 'chatRepo.js#outputCardSilent', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },

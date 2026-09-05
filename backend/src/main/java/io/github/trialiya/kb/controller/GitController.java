@@ -92,6 +92,21 @@ public class GitController {
     }
 
     /**
+     * The commits a push would publish, newest first — what the push dialog lists so the user sees
+     * what leaves the deployment before it leaves it.
+     *
+     * <p>Plain reading, like {@code /commits}: no remote is contacted, so the answer is as fresh as
+     * the last fetch. Empty on a detached HEAD and on a branch without commits — neither has
+     * anything to publish.
+     */
+    @GetMapping("/outgoing")
+    public List<GitCommit> outgoing(
+            @RequestParam(name = "limit", defaultValue = "20") int limit,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return git(project).getOutgoingCommits(limit);
+    }
+
+    /**
      * Commit lookup for the phrase placeholder picker: matches a hash prefix or a substring of the
      * commit message, newest first. History has no index for either, so matching is a bounded walk
      * — see {@link GitService#searchCommits}.

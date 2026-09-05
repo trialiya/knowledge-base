@@ -70,12 +70,15 @@ describe('useChatGit', () => {
    * на занятом чате. Без него команда выполнилась бы, не оставив следа.
    */
   test('a command carries the chat it was run from; reading state does not', async () => {
-    gitApi.pull.mockResolvedValue({ command: 'pull', output: '', status });
+    gitApi.commit.mockResolvedValue({ command: 'commit', output: '', status });
     const { result } = await ready();
 
-    await act(() => result.current.pull());
+    await act(() => result.current.commit('message', ['a.js']));
 
-    expect(gitApi.pull).toHaveBeenCalledWith(expect.objectContaining({ chat: 'c-1', project: 'kb' }));
+    expect(gitApi.commit).toHaveBeenCalledWith(
+      'message',
+      expect.objectContaining({ chat: 'c-1', project: 'kb', paths: ['a.js'] }),
+    );
     expect(gitApi.getBranches).toHaveBeenCalledWith(expect.not.objectContaining({ chat: 'c-1' }));
   });
 
@@ -92,15 +95,15 @@ describe('useChatGit', () => {
   });
 
   /**
-   * Отказ тоже мог сдвинуть дерево: конфликтующий `stash pop` накладывает stash
-   * и только потом отказывает. Сигнал уходит в обоих случаях.
+   * Отказ тоже мог сдвинуть дерево: отклонённый pre-commit hook оставляет за
+   * собой уже застейдженные файлы. Сигнал уходит в обоих случаях.
    */
   test('the working tree is re-read after a refusal too, not only after a success', async () => {
-    gitApi.stashPop.mockRejectedValue(Object.assign(new Error('conflict'), { reason: 'CONFLICT' }));
+    gitApi.commit.mockRejectedValue(Object.assign(new Error('hook'), { reason: 'hook declined' }));
     const onRepoChanged = vi.fn();
     const { result } = await ready({ onRepoChanged });
 
-    await act(() => result.current.stashPop());
+    await act(() => result.current.commit('message', []));
 
     expect(onRepoChanged).toHaveBeenCalled();
   });
@@ -151,16 +154,16 @@ describe('useChatGit', () => {
   /** Пока команда идёт, вторую не запускают — и причина у этого своя. */
   test('a command in flight is its own reason, not the assistant working', async () => {
     let finish;
-    gitApi.fetch.mockReturnValue(new Promise((r) => (finish = r)));
+    gitApi.push.mockReturnValue(new Promise((r) => (finish = r)));
     const { result } = await ready();
 
     act(() => {
-      result.current.fetch();
+      result.current.push();
     });
     await waitFor(() => expect(result.current.disabledReason).toBe('running'));
 
     await act(async () => {
-      finish({ command: 'fetch', output: '', status });
+      finish({ command: 'push', output: '', status });
     });
   });
 
@@ -179,21 +182,29 @@ describe('useChatGit', () => {
   });
 
   /**
-   * fetch рабочее дерево не трогает: общий сигнал перезапросил бы заодно дерево,
-   * изменения и открытый файл. Счётчики он поднимает своим, лёгким.
+   * Из чата запускаются ровно две команды. Остальные — ветки, stash, pull, откат —
+   * живут в панели «Файлы»: второй набор тех же кнопок обязан был бы с ней
+   * разойтись, и этот тест — то, что не даёт им завестись здесь снова.
    */
-  test('fetch raises the refs signal, not the heavy one; pull raises the heavy one', async () => {
-    const onRepoChanged = vi.fn();
-    const onRefsChanged = vi.fn();
-    gitApi.fetch.mockResolvedValue({ command: 'fetch', output: '', status });
-    gitApi.pull.mockResolvedValue({ command: 'pull', output: '', status });
-    const { result } = await ready({ onRepoChanged, onRefsChanged });
+  test('the chat runs exactly two commands: commit and push', async () => {
+    const { result } = await ready();
 
-    await act(() => result.current.fetch());
-    expect(onRefsChanged).toHaveBeenCalledTimes(1);
-    expect(onRepoChanged).not.toHaveBeenCalled();
+    expect(typeof result.current.commit).toBe('function');
+    expect(typeof result.current.push).toBe('function');
+    ['fetch', 'pull', 'switchBranch', 'stashPush', 'stashPop', 'abortMerge', 'discard'].forEach((name) =>
+      expect(result.current[name]).toBeUndefined(),
+    );
+  });
 
-    await act(() => result.current.pull());
-    expect(onRepoChanged).toHaveBeenCalledTimes(1);
+  /**
+   * Проект и сигнал обновления уезжают вместе с состоянием: окно коммита само
+   * спрашивает патч выбранного файла, окно push — список коммитов, и оба обязаны
+   * спрашивать про тот же репозиторий и на том же тике, что и список рядом.
+   */
+  test('the state carries the project and the refresh signal the dialogs ask with', async () => {
+    const { result } = await ready({ refreshToken: 7 });
+
+    expect(result.current.project).toBe('kb');
+    expect(result.current.refreshToken).toBe(7);
   });
 });

@@ -27,7 +27,8 @@ import { buildChatTabs, buildRepoTab } from './center/chatSidebar';
 import useChatGit from './git/useChatGit';
 import { RIGHT_TAB } from '@/constants/rightTabs';
 import { RUN_KIND } from '@/constants/runKind';
-import GitCommandsModal from './git/GitCommandsModal';
+import CommitDialog from './git/CommitDialog';
+import PushDialog from './git/PushDialog';
 import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
@@ -300,7 +301,9 @@ const ChatWindow = ({
   // Занят чат — заняты и команды: и генерация, и сжатие читают те же файлы, и
   // разница между ними для git никакая. Настоящий запрет всё равно на сервере
   // (см. ChatGitLog): между нажатием и запросом чат успевает стать занятым.
-  const [gitCommandsOpen, setGitCommandsOpen] = useState(false);
+  // Какое из двух окон репозитория открыто: 'commit' | 'push' | null. Одним
+  // состоянием, а не двумя флагами: открытых одновременно не бывает.
+  const [gitDialog, setGitDialog] = useState(null);
   const git = useChatGit({
     chatId: activeChatId === DRAFT_CHAT_ID ? null : activeChatId,
     project: selectedProjectId,
@@ -313,6 +316,13 @@ const ChatWindow = ({
     onRepoChanged,
     onRefsChanged: onGitRefsChanged,
   });
+
+  const closeGitDialog = useCallback(() => {
+    setGitDialog(null);
+    // Отказ живёт до следующей команды и показывается в окне: закрыли окно —
+    // читать его больше негде, и в следующем открытии он был бы чужим.
+    git.dismissFailure();
+  }, [git]);
 
   // Чат считается пустым ТОЛЬКО когда сообщения уже загружены (messages !== null)
   // и среди них нет ни одного реального (с полем sender). Пока messages === null
@@ -548,7 +558,10 @@ const ChatWindow = ({
   // с остальными она тащила бы за собой пересоздание панели вложений, ради чего
   // тот мемо и заведён.
   const rightTabs = useMemo(
-    () => [...baseTabs, ...buildRepoTab({ t, git, onOpen: () => setGitCommandsOpen(true) })],
+    () => [
+      ...baseTabs,
+      ...buildRepoTab({ t, git, onCommit: () => setGitDialog('commit'), onPush: () => setGitDialog('push') }),
+    ],
     [baseTabs, t, git],
   );
 
@@ -644,15 +657,8 @@ const ChatWindow = ({
         message={notice ? t(notice.messageKey, notice.params) : ''}
         onClose={dismissNotice}
       />
-      {gitCommandsOpen && (
-        <GitCommandsModal
-          git={git}
-          onClose={() => {
-            setGitCommandsOpen(false);
-            git.dismissFailure();
-          }}
-        />
-      )}
+      {gitDialog === 'commit' && <CommitDialog git={git} onClose={closeGitDialog} />}
+      {gitDialog === 'push' && <PushDialog git={git} onClose={closeGitDialog} />}
     </>
   );
 };

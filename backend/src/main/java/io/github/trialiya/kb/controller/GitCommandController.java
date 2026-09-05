@@ -6,10 +6,12 @@ import io.github.trialiya.kb.service.file.git.GitBusyException;
 import io.github.trialiya.kb.service.file.git.GitCommandFailedException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
+import java.util.List;
 import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -137,13 +139,25 @@ public class GitCommandController {
      * Commits the tracked changes — the same files the panel lists under "changes", the assistant's
      * staged edits included. Refused when the repository has no {@code user.name}/{@code
      * user.email}: the identity is the deployment's to set, not this application's to invent.
+     *
+     * <p>{@code paths} narrows it to the files the commit dialog ticked; without them the whole
+     * tracked set goes in, which is what the plain button in the files panel means.
      */
     @PostMapping("/commit")
     public GitCommandResult commit(
             @RequestParam("message") String message,
+            @RequestParam MultiValueMap<String, String> form,
             @RequestParam(name = "project", required = false) @Nullable String project,
             @RequestParam(name = "chat", required = false) @Nullable String chat) {
-        return run("commit", project, chat, git -> git.commit(message));
+        // Read off the raw form rather than bound as a List<String>: a single value bound to a
+        // collection is split on commas by the default converter, and a comma is a perfectly
+        // ordinary character in a file name — one ticked "docs/a,b.md" would arrive as two paths
+        // that match nothing.
+        //
+        // No paths at all is not the same as none selected: the commit dialog always names what it
+        // ticked, and an older caller that names nothing still means "everything tracked".
+        List<String> selected = form.getOrDefault("paths", List.of());
+        return run("commit", project, chat, git -> git.commit(message, selected));
     }
 
     /**

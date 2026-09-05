@@ -110,7 +110,9 @@ export default function useGitBranch({ project, refreshToken, refsToken, chat, o
       switchBranch: (branch, create) => run((o) => gitApi.switchBranch(branch, { ...o, create })),
       stashPush: () => run(gitApi.stashPush),
       stashPop: () => run(gitApi.stashPop),
-      commit: (message) => run((o) => gitApi.commit(message, o)),
+      // paths пустой — коммит всех отслеживаемых изменений, как его запускает меню панели
+      // «Файлы»; окно коммита передаёт сюда ровно отмеченные файлы.
+      commit: (message, paths) => run((o) => gitApi.commit(message, { ...o, paths })),
       discard: (path) => run((o) => gitApi.discard(path, o)),
       abortMerge: () => run(gitApi.abortMerge),
     }),

@@ -11,6 +11,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -149,6 +150,89 @@ class GitCommandsTest {
         assertThatThrownBy(() -> service.commit("empty"))
                 .isInstanceOf(GitCommandFailedException.class)
                 .hasMessageContaining("Nothing to commit");
+    }
+
+    /**
+     * Главное правило выбора файлов: невыбранное остаётся невыбранным — и то, что ассистент уже
+     * положил в индекс, тоже. Коммит всего индекса унёс бы его с собой, а человек снял с него
+     * галочку именно чтобы этого не произошло.
+     */
+    @Test
+    void committingSelectedPathsLeavesEverythingElseUncommitted() {
+        write("README.md", "picked\n");
+        write("staged.txt", "staged by the assistant\n");
+        git("add", "staged.txt");
+        write("other.txt", "not picked\n");
+        git("add", "other.txt");
+
+        GitCommandResult result = service.commit("only the readme", List.of("README.md"));
+
+        assertThat(result.output()).startsWith("Committed ");
+        assertThat(service.getCommitLog(1, null, false).getFirst().message())
+                .isEqualTo("only the readme");
+        // Файлы остались на месте и по-прежнему незакоммичены — их коммит впереди.
+        assertThat(service.branchStatus().dirty()).isTrue();
+        assertThat(changedPaths()).containsExactlyInAnyOrder("staged.txt", "other.txt");
+    }
+
+    /** Удалённый файл выбирают в том же списке, что и изменённый, и коммит обязан его унести. */
+    @Test
+    void aSelectedDeletionIsRecorded() {
+        write("gone.txt", "for now\n");
+        git("add", "gone.txt");
+        git("commit", "-q", "-m", "add gone");
+        write("README.md", "left behind\n");
+
+        assertThat(deleteFile("gone.txt")).isTrue();
+        service.commit("drop it", List.of("gone.txt"));
+
+        assertThat(changedPaths()).containsExactly("README.md");
+        assertThat(service.getUncommittedChanges(false, "gone.txt")).isEmpty();
+    }
+
+    /**
+     * Отказавший коммит не должен оставлять за собой ничего в индексе: добавленный неотслеживаемый
+     * файл иначе уехал бы в следующий коммит «всего отслеживаемого», которого никто про него не
+     * просил.
+     */
+    @Test
+    void aFailedCommitLeavesTheIndexAsItFoundIt() {
+        write("report.html", "build output\n");
+
+        // Второй путь коммиту неизвестен вовсе — на нём команда и отказывает, уже успев
+        // положить в индекс первый.
+        assertThatThrownBy(() -> service.commit("both", List.of("report.html", "ghost.txt")))
+                .isInstanceOf(GitCommandFailedException.class);
+
+        // Файл на месте и по-прежнему не в индексе: следующий коммит «всего отслеживаемого»
+        // его не унёс — в истории по этому пути пусто.
+        assertThat(read("report.html")).isEqualTo("build output\n");
+        write("README.md", "changed\n");
+        service.commit("only the readme");
+        assertThat(service.getCommitLog(1, "report.html", false)).isEmpty();
+    }
+
+    /** Каталог в выборе — то же расширение «на всё, что под ним», которое запрещает discard. */
+    @Test
+    void aSelectedDirectoryIsRefused() {
+        write("docs/guide.md", "one\n");
+        git("add", "-A");
+        git("commit", "-q", "-m", "add docs");
+        write("docs/guide.md", "two\n");
+
+        assertThatThrownBy(() -> service.commit("nope", List.of("docs")))
+                .isInstanceOf(GitCommandFailedException.class)
+                .hasMessageContaining("is a directory");
+    }
+
+    @Test
+    void aSelectedPathOutsideTheRepositoryIsRefused() {
+        write("README.md", "changed\n");
+
+        assertThatThrownBy(() -> service.commit("nope", List.of("../escape.txt")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.commit("nope", List.of("   ")))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // Отказ коммитить без user.name/user.email проверяется только вручную: JGit читает и
@@ -305,6 +389,21 @@ class GitCommandsTest {
     private String read(String name) {
         try {
             return Files.readString(repoDir.resolve(name), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** Пути, которые рабочее дерево показывает незакоммиченными — тот же список, что и панель. */
+    private List<String> changedPaths() {
+        return service.getUncommittedChanges(false, null).stream()
+                .map(io.github.trialiya.kb.model.git.dto.GitDiffEntry::path)
+                .toList();
+    }
+
+    private boolean deleteFile(String name) {
+        try {
+            return Files.deleteIfExists(repoDir.resolve(name));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
