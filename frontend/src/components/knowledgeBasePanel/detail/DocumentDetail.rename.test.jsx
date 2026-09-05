@@ -14,23 +14,26 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key) => key }),
 }));
 
-describe('DocumentDetail: переименование', () => {
-  it('отдаёт новое имя одним onRename и не дублирует его через onUpdate', async () => {
+const renderDetail = ({ onRename, onUpdate, contentDraft = '' }) =>
+  render(
+    <DocumentDetail
+      node={{ id: 7, title: 'Старое имя', type: 'document', description: '' }}
+      path={[]}
+      onRename={onRename}
+      onUpdate={onUpdate}
+      onDelete={vi.fn()}
+      onNavigate={vi.fn()}
+      contentDraft={contentDraft}
+      setContentDraft={vi.fn()}
+    />,
+  );
+
+describe('DocumentDetail: два пути сохранения не пересекаются', () => {
+  it('переименование уходит одним onRename и не дублируется через onUpdate', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
     const onUpdate = vi.fn();
-    const { container } = render(
-      <DocumentDetail
-        node={{ id: 7, title: 'Старое имя', type: 'document', description: '' }}
-        path={[]}
-        onRename={onRename}
-        onUpdate={onUpdate}
-        onDelete={vi.fn()}
-        onNavigate={vi.fn()}
-        contentDraft=""
-        setContentDraft={vi.fn()}
-      />,
-    );
+    const { container } = renderDetail({ onRename, onUpdate });
 
     await user.click(screen.getByText('Старое имя'));
     await user.clear(container.querySelector('.detail-header__edit'));
@@ -39,5 +42,18 @@ describe('DocumentDetail: переименование', () => {
     expect(onRename).toHaveBeenCalledTimes(1);
     expect(onRename).toHaveBeenCalledWith(7, 'Новое имя');
     expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it('сохранение текста уходит одним onUpdate с описанием и не трогает имя', async () => {
+    const user = userEvent.setup();
+    const onRename = vi.fn();
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    renderDetail({ onRename, onUpdate, contentDraft: 'новый текст' });
+
+    await user.click(screen.getByText('editor.save'));
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onUpdate).toHaveBeenCalledWith(7, { description: 'новый текст' });
+    expect(onRename).not.toHaveBeenCalled();
   });
 });

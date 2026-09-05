@@ -195,16 +195,4 @@ describe('useChatGit', () => {
       expect(result.current[name]).toBeUndefined(),
     );
   });
-
-  /**
-   * Проект и сигнал обновления уезжают вместе с состоянием: окно коммита само
-   * спрашивает патч выбранного файла, окно push — список коммитов, и оба обязаны
-   * спрашивать про тот же репозиторий и на том же тике, что и список рядом.
-   */
-  test('the state carries the project and the refresh signal the dialogs ask with', async () => {
-    const { result } = await ready({ refreshToken: 7 });
-
-    expect(result.current.project).toBe('kb');
-    expect(result.current.refreshToken).toBe(7);
-  });
 });

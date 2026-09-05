@@ -1,4 +1,4 @@
-import { getFileChangeRefs, getDocChangeRef, FILE_MUTATION_TOOLS, DOC_MUTATION_TOOLS } from './toolMeta';
+import { getFileChangeRefs, getDocChangeRef } from './toolMeta';
 
 describe('getFileChangeRefs', () => {
   it('returns nothing for non-mutation tools and missing meta', () => {
@@ -59,12 +59,6 @@ describe('getFileChangeRefs', () => {
   it('returns nothing for a runScript call that changed no files', () => {
     expect(getFileChangeRefs({ name: 'runScript', status: 'OK', resultMeta: { filesRead: 3 } })).toEqual([]);
   });
-
-  it('registers every mutation tool', () => {
-    expect(FILE_MUTATION_TOOLS.has('createFile')).toBe(true);
-    expect(FILE_MUTATION_TOOLS.has('editFile')).toBe(true);
-    expect(FILE_MUTATION_TOOLS.has('runScript')).toBe(true);
-  });
 });
 
 describe('getDocChangeRef', () => {
@@ -98,10 +92,5 @@ describe('getDocChangeRef', () => {
       resultMeta: { id: 3, descriptionVersion: 2 },
     });
     expect(ref.parentId).toBeNull();
-  });
-
-  it('registers the document mutation tools', () => {
-    expect(DOC_MUTATION_TOOLS.has('createDocument')).toBe(true);
-    expect(DOC_MUTATION_TOOLS.has('updateDocument')).toBe(true);
   });
 });

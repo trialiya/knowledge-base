@@ -1,4 +1,5 @@
 import { parsePlaceholders, fillPlaceholders, splitPhrase, PLACEHOLDER_TYPES } from './phrasePlaceholders';
+import { PLACEHOLDER_FIELDS } from './placeholderFields';
 
 describe('parsePlaceholders', () => {
   it('returns nothing for text without placeholders', () => {
@@ -17,8 +18,14 @@ describe('parsePlaceholders', () => {
     ]);
   });
 
-  it.each(PLACEHOLDER_TYPES)('recognises the %s type', (type) => {
+  // Список задан здесь руками: он — контракт с фразами, уже сохранёнными в базе,
+  // и выпадение типа из PLACEHOLDER_TYPES обязано уронить тест, а не сократить его.
+  it.each(['file', 'commit', 'document', 'number', 'string', 'boolean'])('recognises the %s type', (type) => {
     expect(parsePlaceholders(`{{X:${type}}}`)[0].type).toBe(type);
+  });
+
+  it('every placeholder type has a field to fill it', () => {
+    expect(Object.keys(PLACEHOLDER_FIELDS).sort()).toEqual([...PLACEHOLDER_TYPES].sort());
   });
 
   it('matches the type case-insensitively', () => {

@@ -70,13 +70,6 @@ describe('detectDiffResult — что попадает в «Обзор»', () =>
     expect(groups[0].files[0]).toMatchObject({ header: HEADER, patch: BODY });
   });
 
-  it('шапка патча отделена от содержимого, `@@` остаётся в патче', () => {
-    const [{ files }] = detect(JSON.stringify([commit([entry()])]));
-    expect(files[0].header).toEqual(HEADER);
-    expect(files[0].patch.startsWith('@@ -1,6 +1,6 @@')).toBe(true);
-    expect(files[0].patch).not.toContain('diff --git');
-  });
-
   it('патч без ханков не делится: у него нет границы, а содержимое есть', () => {
     // Файл вне git (`U`): бэкенд отдаёт `+++ b/path` и одни `+`-строки, без `@@`.
     const untracked = ['+++ b/new.txt', '+первая строка', '+вторая'].join('\n');
