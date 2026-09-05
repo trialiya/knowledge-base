@@ -187,12 +187,15 @@ describe('useChatGit', () => {
    * разойтись, и этот тест — то, что не даёт им завестись здесь снова.
    */
   test('the chat runs exactly two commands: commit and push', async () => {
-    const { result } = await ready();
+    const { result } = await ready({ refreshToken: 7 });
 
     expect(typeof result.current.commit).toBe('function');
     expect(typeof result.current.push).toBe('function');
     ['fetch', 'pull', 'switchBranch', 'stashPush', 'stashPop', 'abortMerge', 'discard'].forEach((name) =>
       expect(result.current[name]).toBeUndefined(),
     );
+    // Окна коммита и push читают из этого же состояния, про какой репозиторий и
+    // на каком тике спрашивать патч и список коммитов.
+    expect(result.current).toMatchObject({ project: 'kb', refreshToken: 7 });
   });
 });
