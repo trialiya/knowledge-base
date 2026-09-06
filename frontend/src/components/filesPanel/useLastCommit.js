@@ -4,6 +4,11 @@ import gitApi from '@/api/gitApi';
 /**
  * Последний коммит, затронувший `path` (пустой путь — весь репозиторий).
  *
+ * `rev` — ревизия, от которой идёт история ('' — рабочее дерево, то есть HEAD).
+ * В режиме снимка спрашивать от HEAD нельзя: коммит, сделанный после выбранной
+ * ревизии, к тому, что показано в центре, отношения не имеет, а у пути,
+ * удалённого позже, ответ был бы про его удаление.
+ *
  * С телом сообщения: коммит здесь ровно один, и на нём тело стоит запроса —
  * во «что здесь меняли последним» объяснение правки и есть главное.
  *
@@ -13,15 +18,15 @@ import gitApi from '@/api/gitApi';
  *
  * @returns {{ commit: object|null, loading: boolean, error: boolean }}
  */
-export default function useLastCommit(path, project, enabled = true) {
+export default function useLastCommit(path, project, enabled = true, rev = '') {
   // Ответ сервера; null — запрос ещё не завершён. Пока его нет, состояние
   // выводится из пропсов при рендере: сброс эффектом дал бы лишний проход и
   // кадр с коммитом от предыдущего пути.
   const [answer, setAnswer] = useState(null);
 
-  const [prev, setPrev] = useState({ path, project, enabled });
-  if (prev.path !== path || prev.project !== project || prev.enabled !== enabled) {
-    setPrev({ path, project, enabled });
+  const [prev, setPrev] = useState({ path, project, enabled, rev });
+  if (prev.path !== path || prev.project !== project || prev.enabled !== enabled || prev.rev !== rev) {
+    setPrev({ path, project, enabled, rev });
     setAnswer(null);
   }
 
@@ -30,7 +35,7 @@ export default function useLastCommit(path, project, enabled = true) {
     const controller = new AbortController();
 
     gitApi
-      .getCommits(path, { limit: 1, body: true, project, signal: controller.signal })
+      .getCommits(path, { limit: 1, body: true, rev, project, signal: controller.signal })
       .then((commits) => {
         if (controller.signal.aborted) return;
         setAnswer({ commit: commits?.[0] || null, loading: false, error: false });
@@ -41,7 +46,7 @@ export default function useLastCommit(path, project, enabled = true) {
       });
 
     return () => controller.abort();
-  }, [path, project, enabled]);
+  }, [path, project, enabled, rev]);
 
   // Мемо, а не литерал: результат хука уходит в зависимости у вызывающих.
   const pending = useMemo(() => ({ commit: null, loading: enabled, error: false }), [enabled]);

@@ -129,10 +129,10 @@ const FilesPanelForProject = ({
         key: RIGHT_TAB.INFO,
         label: t('tabs.info'),
         icon: <IconInfo size={15} />,
-        content: <FileInfo content={content} loading={contentLoading} path={path} project={project} />,
+        content: <FileInfo content={content} loading={contentLoading} path={path} project={project} rev={rev} />,
       },
     ],
-    [t, content, contentLoading, path, project],
+    [t, content, contentLoading, path, project, rev],
   );
 
   return (

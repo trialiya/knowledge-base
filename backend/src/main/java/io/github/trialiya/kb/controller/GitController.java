@@ -11,6 +11,7 @@ import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import java.util.List;
+import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -73,13 +74,15 @@ public class GitController {
         String at = revision(rev);
         return at == null
                 ? git.getFileContent(path, from, to)
-                : git.getFileContentAt(at, path, from, to);
+                : atRevision(() -> git.getFileContentAt(at, path, from, to));
     }
 
     /**
      * Commit history, newest first — optionally narrowed to one file or directory. The file
      * browser's "Info" panel asks for {@code limit=1} to show who last changed the selected path
-     * and when; omit {@code path} for the repository's own history.
+     * and when; omit {@code path} for the repository's own history. With {@code rev} the walk
+     * starts there instead of HEAD — the browser's revision mode asks for it, so the panel
+     * describes a path by the history of the snapshot it shows.
      *
      * <p>{@code body} is opt-in because it scales with the page: one commit's message body is
      * nothing, twenty of them are the bulk of the response, and a caller that only prints subjects
@@ -90,11 +93,16 @@ public class GitController {
             @RequestParam(name = "path", required = false) @Nullable String path,
             @RequestParam(name = "limit", defaultValue = "20") int limit,
             @RequestParam(name = "body", defaultValue = "false") boolean body,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return git(project).getCommitLog(limit, path, body);
+        GitService git = git(project);
+        String at = revision(rev);
+        return at == null
+                ? git.getCommitLog(limit, path, body)
+                : atRevision(() -> git.getCommitLog(limit, path, body, at));
     }
 
     /**
@@ -147,7 +155,9 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return at == null ? git.browsePath(path, ancestors) : git.browsePathAt(at, path, ancestors);
+        return at == null
+                ? git.browsePath(path, ancestors)
+                : atRevision(() -> git.browsePathAt(at, path, ancestors));
     }
 
     /**
@@ -186,7 +196,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return at == null ? git.getFileTree(path) : git.getFileTreeAt(at, path);
+        return at == null ? git.getFileTree(path) : atRevision(() -> git.getFileTreeAt(at, path));
     }
 
     /**
@@ -255,6 +265,19 @@ public class GitController {
      */
     private static @Nullable String revision(@Nullable String rev) {
         return rev == null || rev.isBlank() ? null : rev;
+    }
+
+    /**
+     * Ответ по ревизии, у которого неизвестная или неоднозначная ревизия — 400, а не 500. Ревизию
+     * печатает пользователь (поле ввода в переключателе, ссылка из чата), и опечатка в ней — ошибка
+     * запроса, ровно как неизвестный проект выше.
+     */
+    private static <T> T atRevision(Supplier<T> answer) {
+        try {
+            return answer.get();
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
+        }
     }
 
     private static void requireSafePath(@Nullable String path) {

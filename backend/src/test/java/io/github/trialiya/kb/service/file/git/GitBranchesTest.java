@@ -12,6 +12,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -219,15 +220,20 @@ class GitBranchesTest {
      */
     @Test
     void tagsAreListedNewestFirstAndBranchesAlphabetically() {
-        git(repoDir, "tag", "v9");
-        write(repoDir, "README.md", "later\n");
-        commit(repoDir, "second");
+        write(repoDir, "README.md", "older\n");
+        commitAt(repoDir, "older", "2024-01-01T00:00:00");
         git(repoDir, "tag", "v10");
+        write(repoDir, "README.md", "later\n");
+        commitAt(repoDir, "newer", "2024-06-01T00:00:00");
+        // Аннотированный тег — отдельный объект: датировать его должен коммит, на который он
+        // указывает, а не он сам, иначе даты у него нет и список уезжает в алфавит.
+        git(repoDir, "tag", "-a", "v9", "-m", "release");
         git(repoDir, "branch", "feature");
 
         GitRefs refs = service.refs();
 
-        assertThat(refs.tags()).containsExactly("v10", "v9");
+        // v9 выпущен позже v10 — по алфавиту порядок был бы обратным.
+        assertThat(refs.tags()).containsExactly("v9", "v10");
         assertThat(refs.branches()).contains("feature", "main");
     }
 
@@ -251,16 +257,28 @@ class GitBranchesTest {
         git(dir, "commit", "-q", "-m", message);
     }
 
+    /** Коммит с заданной датой: время коммита у соседних вызовов иначе совпадает до секунды. */
+    private static void commitAt(Path dir, String message, String date) {
+        git(dir, "add", "-A");
+        gitDated(dir, date, "commit", "-q", "-m", message);
+    }
+
     private static void git(Path dir, String... args) {
+        gitDated(dir, null, args);
+    }
+
+    private static void gitDated(Path dir, @Nullable String date, String... args) {
         try {
             String[] command = new String[args.length + 1];
             command[0] = "git";
             System.arraycopy(args, 0, command, 1, args.length);
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(dir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
+            ProcessBuilder builder =
+                    new ProcessBuilder(command).directory(dir.toFile()).redirectErrorStream(true);
+            if (date != null) {
+                builder.environment().put("GIT_AUTHOR_DATE", date);
+                builder.environment().put("GIT_COMMITTER_DATE", date);
+            }
+            Process process = builder.start();
             String output =
                     new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             if (process.waitFor() != 0) {

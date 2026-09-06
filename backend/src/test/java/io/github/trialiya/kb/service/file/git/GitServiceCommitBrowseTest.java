@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
+import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.support.TestProjects;
@@ -155,6 +156,28 @@ class GitServiceCommitBrowseTest {
     @Test
     void aPathOutsideTheRepositoryIsRefused() {
         assertThatThrownBy(() -> service.browsePathAt(head(), "../outside.txt", false))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** История пути от ревизии: коммиты, сделанные после неё, в ответ не попадают. */
+    @Test
+    void theHistoryOfARevisionStopsAtIt() {
+        String first = head();
+        write("README.md", "second\n");
+        commitAll("second");
+
+        assertThat(service.getCommitLog(10, "README.md", false, first))
+                .extracting(GitCommit::message)
+                .containsExactly("first");
+        assertThat(service.getCommitLog(10, "README.md", false))
+                .extracting(GitCommit::message)
+                .containsExactly("second", "first");
+    }
+
+    /** Неизвестная ревизия отвергается и в истории — так же, как в обзоре дерева. */
+    @Test
+    void theHistoryOfAnUnknownRevisionIsRefused() {
+        assertThatThrownBy(() -> service.getCommitLog(1, null, false, "no-such-ref"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

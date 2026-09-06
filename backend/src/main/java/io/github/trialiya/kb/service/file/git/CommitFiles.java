@@ -144,11 +144,17 @@ final class CommitFiles {
      */
     record Snapshot(String commit, List<String> paths, Map<String, ObjectId> blobs) {
 
-        /** Размер файла по данным git, или -1 у пути, которого в этом коммите нет. */
-        long sizeOf(Repository repository, String path) {
+        /**
+         * Размер файла по данным git, или -1 у пути, которого в этом коммите нет.
+         *
+         * <p>Читатель приходит снаружи и им же закрывается: размеры спрашивают по одному, для
+         * каждого пути в листинге, и свой читатель на путь означал бы их открытие и закрытие
+         * десятками на запрос вместо одного.
+         */
+        long sizeOf(ObjectReader reader, String path) {
             ObjectId id = blobs.get(path);
             if (id == null) return -1;
-            try (ObjectReader reader = repository.newObjectReader()) {
+            try {
                 return reader.getObjectSize(id, Constants.OBJ_BLOB);
             } catch (IOException e) {
                 return -1;
@@ -156,7 +162,8 @@ final class CommitFiles {
         }
     }
 
-    private static ObjectId resolve(Repository repository, String rev) throws IOException {
+    /** Ревизия в объект, либо {@link IllegalArgumentException} — «такой ревизии нет». */
+    static ObjectId resolve(Repository repository, String rev) throws IOException {
         ObjectId id;
         try {
             id = repository.resolve(rev);

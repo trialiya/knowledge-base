@@ -4,7 +4,9 @@ import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -49,24 +51,43 @@ class GitBranches {
                     git.branchList().call().stream()
                             .map(ref -> Repository.shortenRefName(ref.getName()))
                             .toList();
-            // По дате коммита, а не по имени: алфавит ставит v10 перед v9, а искать в списке
-            // обычно последнюю версию. Тег может указывать на что угодно, и у объекта без даты
-            // (дерево, блоб) её просто нет — такие уезжают в конец, сохраняя порядок git.
-            List<String> tags =
-                    git.tagList().call().stream()
-                            .sorted(Comparator.comparingLong(this::taggedAt).reversed())
-                            .map(ref -> Repository.shortenRefName(ref.getName()))
-                            .toList();
-            return new GitRefs(branches, tags);
+            return new GitRefs(branches, tagsByDate(git.tagList().call()));
         } catch (GitAPIException e) {
             throw new IllegalStateException("Failed to list refs", e);
         }
     }
 
-    /** When the commit a tag points at was made, or 0 when the tag names something else. */
-    private long taggedAt(Ref ref) {
+    /**
+     * Теги по дате коммита, новые первыми: алфавит ставит v10 перед v9, а искать в списке обычно
+     * последнюю версию. Тег может указывать на что угодно, и у объекта без даты (дерево, блоб) её
+     * просто нет — такие уезжают в конец, сохраняя порядок git.
+     *
+     * <p>Дату каждого тега читаем ровно один раз, до сортировки: в компараторе это был бы разбор
+     * объекта на каждое сравнение, то есть n log n обращений к базе объектов вместо n.
+     */
+    private List<String> tagsByDate(List<Ref> refs) {
         try (RevWalk walk = new RevWalk(repository)) {
-            RevObject object = walk.parseAny(ref.getObjectId());
+            Map<String, Long> dates = new HashMap<>();
+            for (Ref ref : refs) {
+                dates.put(ref.getName(), taggedAt(walk, ref));
+            }
+            return refs.stream()
+                    .sorted(
+                            Comparator.comparingLong((Ref r) -> dates.getOrDefault(r.getName(), 0L))
+                                    .reversed())
+                    .map(ref -> Repository.shortenRefName(ref.getName()))
+                    .toList();
+        }
+    }
+
+    /** When the commit a tag points at was made, or 0 when the tag names something else. */
+    private long taggedAt(RevWalk walk, Ref ref) {
+        try {
+            // peel, а не parseAny: аннотированный (и подписанный) тег — это отдельный объект, и
+            // без разыменования у него не коммит, а RevTag, у которого времени коммита нет. Без
+            // этого весь список тегов уезжал бы в «даты нет» и сортировался по алфавиту — ровно
+            // тем порядком, из-за которого сортировка здесь и заведена.
+            RevObject object = walk.peel(walk.parseAny(ref.getObjectId()));
             return object instanceof RevCommit commit ? commit.getCommitTime() : 0L;
         } catch (IOException e) {
             return 0L;

@@ -206,7 +206,9 @@ public class GitService {
      */
     public List<GitFileNode> getFileTreeAt(@NonNull String rev, @Nullable String subPath) {
         CommitFiles.Snapshot snapshot = CommitFiles.tree(repository, rev.strip());
-        return RepoBrowse.tree(committed(snapshot), RepoPaths.normalizeDir(subPath));
+        try (ObjectReader reader = repository.newObjectReader()) {
+            return RepoBrowse.tree(committed(snapshot, reader), RepoPaths.normalizeDir(subPath));
+        }
     }
 
     /** The working tree as the browser lists it: the index widened by {@code allow-globs}. */
@@ -218,11 +220,11 @@ public class GitService {
      * A commit's tree as the browser lists it. Everything in a commit is tracked by definition, so
      * the two halves are the same set and no node is greyed out.
      */
-    private RepoBrowse.Snapshot committed(CommitFiles.Snapshot snapshot) {
+    private RepoBrowse.Snapshot committed(CommitFiles.Snapshot snapshot, ObjectReader reader) {
         return new RepoBrowse.Snapshot(
                 snapshot.paths(),
                 Set.copyOf(snapshot.paths()),
-                path -> snapshot.sizeOf(repository, path));
+                path -> snapshot.sizeOf(reader, path));
     }
 
     // ── Opening a path in the file browser ───────────────────────────────────
@@ -264,17 +266,25 @@ public class GitService {
             @NonNull String rev, @Nullable String path, boolean includeAncestors) {
         String target = RepoPaths.normalizeDir(path);
         CommitFiles.Snapshot snapshot = CommitFiles.tree(repository, rev.strip());
-        return RepoBrowse.browse(
-                committed(snapshot),
-                target,
-                includeAncestors,
-                snapshot.commit(),
-                // Уже прочитанный снимок содержимого не несёт, а второе чтение того же коммита
-                // отвечает тем же: getFileContentAt берёт блоб по пути в дереве этого же хеша.
-                tracked -> getFileContentAt(snapshot.commit(), target, null, null));
+        try (ObjectReader reader = repository.newObjectReader()) {
+            return RepoBrowse.browse(
+                    committed(snapshot, reader),
+                    target,
+                    includeAncestors,
+                    snapshot.commit(),
+                    // Уже прочитанный снимок содержимого не несёт, а второе чтение того же коммита
+                    // отвечает тем же: getFileContentAt берёт блоб по пути в дереве этого же хеша.
+                    tracked -> getFileContentAt(snapshot.commit(), target, null, null));
+        }
     }
 
     // ── Commit history ───────────────────────────────────────────────────────
+
+    /** History from HEAD — {@link #getCommitLog(int, String, boolean, String)} of no revision. */
+    public List<GitCommit> getCommitLog(
+            int maxCount, @Nullable String filePath, boolean includeBody) {
+        return getCommitLog(maxCount, filePath, includeBody, null);
+    }
 
     /**
      * Returns recent commit history.
@@ -282,12 +292,18 @@ public class GitService {
      * @param maxCount max commits to return (default 20, capped at 100)
      * @param filePath optional — limit history to a specific file
      * @param includeBody fill each commit's {@code body} with the message below the subject
+     * @param rev optional — walk from this revision instead of HEAD, so a browser showing a
+     *     commit's snapshot describes its paths by the history of that snapshot: a commit made
+     *     after {@code rev} did not touch what the snapshot holds
      */
     public List<GitCommit> getCommitLog(
-            int maxCount, @Nullable String filePath, boolean includeBody) {
+            int maxCount, @Nullable String filePath, boolean includeBody, @Nullable String rev) {
         int limit = Math.min(Math.max(maxCount, 1), 100);
         try (ObjectReader reader = repository.newObjectReader()) {
             var logCommand = git.log().setMaxCount(limit);
+            if (rev != null && !rev.isBlank()) {
+                logCommand.add(CommitFiles.resolve(repository, rev.strip()));
+            }
             if (filePath != null && !filePath.isBlank()) {
                 logCommand.addPath(RepoPaths.toForwardSlashes(filePath.strip()));
             }

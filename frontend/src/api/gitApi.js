@@ -281,10 +281,11 @@ const gitApi = {
    * не у каждого коммита, зато у больших правок идёт на десятки строк, и в
    * листинге на двадцать записей весит больше всего остального ответа.
    */
-  getCommits: (path, { limit = 20, body = false, project, signal } = {}) => {
+  getCommits: (path, { limit = 20, body = false, rev, project, signal } = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (path) params.set('path', path);
     if (body) params.set('body', 'true');
+    if (rev) params.set('rev', rev);
     const [qs, init] = opts(params, project, signal);
     return request(`/api/git/commits${qs}`, init);
   },
