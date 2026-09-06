@@ -123,6 +123,7 @@
       "showAll": "Show {{count}} more lines",
       "fact": {
         "project": "project",
+        "commit": "at commit",
         "lines": "lines",
         "language": "language",
         "contentType": "type",
@@ -368,6 +369,7 @@
     "searchFiles": "Search files",
     "getFileOutline": "File outline",
     "getFileContent": "Read file",
+    "getFileContentAt": "Read file at commit",
     "getUncommittedChanges": "Uncommitted changes",
     "grepContent": "Search in code",
     "searchCodebase": "Smart search",

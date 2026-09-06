@@ -102,11 +102,6 @@ public class GitService {
      */
     private static final int STREAM_BUFFER_BYTES = 8192;
 
-    /** When a file exceeds {@code RepoFiles.MAX_FILE_SIZE}, this many lines from head and tail. */
-    private static final int TRUNCATE_HEAD_LINES = 200;
-
-    private static final int TRUNCATE_TAIL_LINES = 50;
-
     /**
      * Most commits the push dialog is given. A branch further ahead than this is not a list any
      * more, and the counter next to the branch keeps saying how many there really are.
@@ -816,80 +811,36 @@ public class GitService {
             @Nullable Integer toLine,
             @Nullable Boolean vouchedTracked) {
         FileBytes fb = readTrackedFile(filePath, vouchedTracked);
-        String language = LanguageDetector.detect(fb.path());
+        return FileViews.of(fb.path(), fb.tracked(), null, fb.bytes(), fb.size(), fromLine, toLine);
+    }
 
-        if (fb.binary()) {
-            return new GitFileContent(
-                    fb.path(), fb.tracked(), null, true, fb.size(), language, 0, false, null, null);
-        }
-
-        String full = RepoFiles.decodeToLf(fb.bytes());
-        // Split keeping a stable line index; -1 keeps trailing empty lines.
-        String[] lines = full.split("\n", -1);
-        int total = lines.length;
-
-        boolean rangeRequested = fromLine != null || toLine != null;
-
-        // Oversized file with no explicit range → head+tail excerpt.
-        if (!rangeRequested && fb.size() > RepoFiles.MAX_FILE_SIZE) {
-            String excerpt = headTailExcerpt(lines);
-            return new GitFileContent(
-                    fb.path(),
-                    fb.tracked(),
-                    excerpt,
-                    false,
-                    fb.size(),
-                    language,
-                    total,
-                    true,
-                    null,
-                    null);
-        }
-
-        if (!rangeRequested) {
-            return new GitFileContent(
-                    fb.path(),
-                    fb.tracked(),
-                    full,
-                    false,
-                    fb.size(),
-                    language,
-                    total,
-                    false,
-                    null,
-                    null);
-        }
-
-        // Clamp the requested range into [1, total].
-        int from = fromLine == null ? 1 : Math.max(1, fromLine);
-        int to = toLine == null ? total : Math.min(total, toLine);
-        if (from > total || from > to) {
-            // Empty/invalid slice — return no content but keep metadata truthful.
-            return new GitFileContent(
-                    fb.path(),
-                    fb.tracked(),
-                    "",
-                    false,
-                    fb.size(),
-                    language,
-                    total,
-                    true,
-                    from,
-                    Math.max(from, to));
-        }
-        String slice = String.join("\n", Arrays.asList(lines).subList(from - 1, to));
-        boolean truncated = from > 1 || to < total;
-        return new GitFileContent(
-                fb.path(),
-                fb.tracked(),
-                slice,
-                false,
-                fb.size(),
-                language,
-                total,
-                truncated,
-                from,
-                to);
+    /**
+     * The same file as {@link #getFileContent(String, Integer, Integer)}, as of a commit — {@code
+     * git show <rev>:<path>}. Reads the commit's tree, never the working copy, so an uncommitted
+     * edit on disk does not show through and a file deleted since that commit still reads.
+     *
+     * <p>Serves whatever the commit holds, without the working-tree gate {@code getFileContent}
+     * applies: a path in a commit is committed history by definition, and {@link #getCommitDiff}
+     * already hands that same content out as a patch. Files bigger than 512 KB and binaries are
+     * reported the same way as on disk.
+     *
+     * @param commitHash any revision git resolves: a full or short hash, a branch, a tag, {@code
+     *     HEAD~2}
+     * @param filePath path relative to repo root, as it was spelled in that commit
+     * @param fromLine first line to return (1-based, inclusive); null for start of file
+     * @param toLine last line to return (1-based, inclusive); null for end of file
+     * @throws IllegalArgumentException if the revision is unknown or ambiguous, or the commit holds
+     *     no file at that path
+     */
+    public GitFileContent getFileContentAt(
+            @NonNull String commitHash,
+            @NonNull String filePath,
+            @Nullable Integer fromLine,
+            @Nullable Integer toLine) {
+        String normalized = normalizePath(filePath);
+        CommitFiles.Blob blob = CommitFiles.read(repository, commitHash.strip(), normalized);
+        return FileViews.of(
+                normalized, true, blob.commit(), blob.bytes(), blob.size(), fromLine, toLine);
     }
 
     /** Convenience overload: full file, no range. */
@@ -924,23 +875,6 @@ public class GitService {
         int total = source.split("\n", -1).length;
         OutlineResult result = outlineService.outline(language, source);
         return new GitFileOutline(fb.path(), language, total, result.parser(), result.symbols());
-    }
-
-    /** Returns the first {@code TRUNCATE_HEAD_LINES} and last {@code TRUNCATE_TAIL_LINES} lines. */
-    private static String headTailExcerpt(String[] lines) {
-        if (lines.length <= TRUNCATE_HEAD_LINES + TRUNCATE_TAIL_LINES) {
-            return String.join("\n", lines);
-        }
-        var sb = new StringBuilder();
-        for (int i = 0; i < TRUNCATE_HEAD_LINES; i++) {
-            sb.append(lines[i]).append('\n');
-        }
-        int omitted = lines.length - TRUNCATE_HEAD_LINES - TRUNCATE_TAIL_LINES;
-        sb.append("... (").append(omitted).append(" lines omitted) ...\n");
-        for (int i = lines.length - TRUNCATE_TAIL_LINES; i < lines.length; i++) {
-            sb.append(lines[i]).append('\n');
-        }
-        return sb.toString();
     }
 
     // ── Bytes (binary files included) ───────────────────────────────────────

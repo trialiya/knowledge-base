@@ -356,6 +356,73 @@ public class GitFunction {
     }
 
     /**
+     * The same file as {@link #getFileContent}, as of a commit — {@code git show <rev>:<path>}.
+     *
+     * <p>Reads the commit's tree, so the answer is the file as that commit left it: an uncommitted
+     * edit on disk does not show through, and a file deleted since still reads. The response's
+     * {@code commit} field carries the full hash that answered, whatever spelling was asked for.
+     *
+     * @param commitHash any revision git resolves: full or short hash, branch, tag, {@code HEAD~2}
+     * @param filePath path relative to repo root, as spelled in that commit
+     * @param fromLine first line to return (1-based, inclusive); null for start of file
+     * @param toLine last line to return (1-based, inclusive); null for end of file
+     * @return file content at that commit, with the same metadata as a working-tree read
+     */
+    @Tool(
+            description =
+                    "Read file content as of a commit (git show COMMIT:PATH), full or line range. "
+                            + "Use it to see what a file looked like before or after a change, or "
+                            + "to read a file that no longer exists; getFileContent reads the "
+                            + "current working tree instead. The path is the one that commit used "
+                            + "— for a renamed file, take it from getCommitDiff. The response's "
+                            + "commit field is the full hash that answered. Binary files flagged "
+                            + "without content; large files (>512 KB) return excerpt with "
+                            + "truncated=true.",
+            resultConverter = CompactToolResultConverter.class)
+    public ToolResult<GitFileContent> getFileContentAt(
+            ToolContext context,
+            @ToolParam(
+                            description =
+                                    "Commit to read from: full or short hash, branch, tag, or a"
+                                            + " revision like HEAD~2.")
+                    String commitHash,
+            @ToolParam(description = "File path relative to repo root, as spelled in that commit.")
+                    String filePath,
+            @ToolParam(
+                            description =
+                                    "First line to read (1-based, inclusive). Null for start of file.",
+                            required = false)
+                    @Nullable Integer fromLine,
+            @ToolParam(
+                            description =
+                                    "Last line to read (1-based, inclusive). Null for end of file.",
+                            required = false)
+                    @Nullable Integer toLine,
+            @ToolParam(
+                            description =
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " top-level \"project\" field says which"
+                                            + " one answered.",
+                            required = false)
+                    @Nullable String project) {
+        requireText(commitHash, "commitHash");
+        requireText(filePath, "filePath");
+        log.info(
+                "getFileContentAt called: commitHash='{}', filePath='{}', fromLine={}, toLine={},"
+                        + " project='{}'",
+                commitHash,
+                filePath,
+                fromLine,
+                toLine,
+                project);
+        GitService git = git(context, project);
+        GitFileContent fileContent = git.getFileContentAt(commitHash, filePath, fromLine, toLine);
+        log.info("getFileContentAt called: fileContent='{}'", fileContent);
+        return answer(git, fileContent);
+    }
+
+    /**
      * Returns uncommitted changes to tracked files in the working tree, plus the untracked files
      * the project's {@code allow-globs} admit under a status of their own, {@code U}. Every other
      * untracked file (including everything {@code .gitignore} matches) is not reported — same rule

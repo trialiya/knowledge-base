@@ -70,6 +70,7 @@ class GitFunctionTest {
                         new GitFileContent(
                                 "pom.xml",
                                 true,
+                                null,
                                 "<project/>",
                                 false,
                                 10,

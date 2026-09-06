@@ -123,6 +123,7 @@
       "showAll": "Показать ещё {{count}} строк",
       "fact": {
         "project": "проект",
+        "commit": "на коммите",
         "lines": "строки",
         "language": "язык",
         "contentType": "тип",
@@ -368,6 +369,7 @@
     "searchFiles": "Поиск файлов",
     "getFileOutline": "Структура файла",
     "getFileContent": "Чтение файла",
+    "getFileContentAt": "Файл на коммите",
     "getUncommittedChanges": "Незакоммиченные изменения",
     "grepContent": "Поиск по коду",
     "searchCodebase": "Умный поиск",

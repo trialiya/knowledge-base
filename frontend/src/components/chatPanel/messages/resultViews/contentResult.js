@@ -35,6 +35,7 @@ const MAX_ITEMS = 20;
 // компонент (размер — через formatFileSize, подписи — через i18n).
 const FACT_FIELDS = [
   'project',
+  'commit',
   'language',
   'contentType',
   'type',
@@ -99,8 +100,15 @@ export const isContentText = (text) => text.includes('\n') || text.length >= MIN
  */
 const factsOf = (obj, skipField, project) =>
   FACT_FIELDS.filter((key) => key !== skipField)
-    .map((key) => ({ key, value: key === 'project' ? obj.project ?? project : obj[key] }))
+    .map((key) => ({ key, value: factValue(obj, key, project) }))
     .filter(({ value }) => value !== null && value !== undefined && value !== '');
+
+/** Значение факта: проект берётся из двух мест, хеш коммита показывается коротким. */
+const factValue = (obj, key, project) => {
+  if (key === 'project') return obj.project ?? project;
+  if (key === 'commit' && typeof obj.commit === 'string') return obj.commit.slice(0, 7);
+  return obj[key];
+};
 
 /**
  * Один объект ответа → блок текста, либо null если форма не та.

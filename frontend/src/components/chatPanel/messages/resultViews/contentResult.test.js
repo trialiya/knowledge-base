@@ -63,6 +63,21 @@ describe('detectContentResult — что попадает в «Обзор»', ()
     expect(items[0].facts.filter((f) => f.key === 'project')).toEqual([{ key: 'project', value: 'billing' }]);
   });
 
+  /** Чтение из истории: без хеша в шапке ответ не отличить от текущего содержимого файла. */
+  it('getFileContentAt: коммит показан фактом, и коротким хешем', () => {
+    const items = detect(JSON.stringify(fileContent({ commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678' })));
+
+    expect(items[0].facts).toContainEqual({ key: 'commit', value: 'a1b2c3d' });
+  });
+
+  it('запись из рабочего дерева коммитом не подписана', () => {
+    expect(
+      detect(JSON.stringify(fileContent({ commit: null })))
+        .at(0)
+        .facts.map((f) => f.key),
+    ).not.toContain('commit');
+  });
+
   it('запись без проекта факта не получает', () => {
     expect(
       detect(JSON.stringify(fileContent()))
