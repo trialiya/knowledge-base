@@ -369,7 +369,6 @@
     "searchFiles": "Поиск файлов",
     "getFileOutline": "Структура файла",
     "getFileContent": "Чтение файла",
-    "getFileContentAt": "Файл на коммите",
     "getUncommittedChanges": "Незакоммиченные изменения",
     "grepContent": "Поиск по коду",
     "searchCodebase": "Умный поиск",
