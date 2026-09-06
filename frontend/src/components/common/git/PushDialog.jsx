@@ -31,10 +31,15 @@ const PushDialog = ({ git, onClose }) => {
 
   const upstream = git.status?.upstream ?? null;
   const commits = outgoing.commits;
-  // Пустой список — «нечего отправлять» только когда его действительно прочли:
-  // упавший запрос ничего не знает про ветку, и гасить по нему push значило бы
+  // Пустой список — «своих коммитов нет» только когда его действительно прочли:
+  // упавший запрос ничего не знает про ветку, и судить по нему значило бы
   // запретить отправку из-за сбоя чтения.
-  const nothingToPush = !outgoing.loading && !outgoing.error && commits.length === 0;
+  const noCommits = !outgoing.loading && !outgoing.error && commits.length === 0;
+  // А вот гасить кнопку по этому можно только у отслеживающей ветки — то же
+  // правило, что в панели чата и в меню «Файлов». Неопубликованной ветке push
+  // нужен и без своих коммитов: он заводит её в remote и проставляет upstream,
+  // а веткам, отведённым от уже отправленного коммита, список пуст всегда.
+  const nothingToPush = noCommits && upstream !== null;
 
   return (
     <ModalShell variant="wide" onClose={onClose} className="push-dialog">
@@ -62,8 +67,8 @@ const PushDialog = ({ git, onClose }) => {
         <p className="push-dialog__note">{t('common:loading')}</p>
       ) : outgoing.error ? (
         <p className="push-dialog__note">{t('git.pushDialog.loadError')}</p>
-      ) : nothingToPush ? (
-        <p className="push-dialog__note">{t('git.nothingToPush')}</p>
+      ) : noCommits ? (
+        <p className="push-dialog__note">{t(nothingToPush ? 'git.nothingToPush' : 'git.pushDialog.onlyBranch')}</p>
       ) : (
         <ul className="push-dialog__commits">
           {commits.map((commit) => (
