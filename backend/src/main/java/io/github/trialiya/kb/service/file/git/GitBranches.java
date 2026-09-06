@@ -1,7 +1,9 @@
 package io.github.trialiya.kb.service.file.git;
 
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
+import io.github.trialiya.kb.model.git.dto.GitRefs;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
@@ -11,6 +13,9 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryState;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevObject;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -33,6 +38,39 @@ class GitBranches {
     GitBranches(Repository repository, Git git) {
         this.repository = repository;
         this.git = git;
+    }
+
+    /**
+     * @see GitService#refs()
+     */
+    GitRefs refs() {
+        try {
+            List<String> branches =
+                    git.branchList().call().stream()
+                            .map(ref -> Repository.shortenRefName(ref.getName()))
+                            .toList();
+            // По дате коммита, а не по имени: алфавит ставит v10 перед v9, а искать в списке
+            // обычно последнюю версию. Тег может указывать на что угодно, и у объекта без даты
+            // (дерево, блоб) её просто нет — такие уезжают в конец, сохраняя порядок git.
+            List<String> tags =
+                    git.tagList().call().stream()
+                            .sorted(Comparator.comparingLong(this::taggedAt).reversed())
+                            .map(ref -> Repository.shortenRefName(ref.getName()))
+                            .toList();
+            return new GitRefs(branches, tags);
+        } catch (GitAPIException e) {
+            throw new IllegalStateException("Failed to list refs", e);
+        }
+    }
+
+    /** When the commit a tag points at was made, or 0 when the tag names something else. */
+    private long taggedAt(Ref ref) {
+        try (RevWalk walk = new RevWalk(repository)) {
+            RevObject object = walk.parseAny(ref.getObjectId());
+            return object instanceof RevCommit commit ? commit.getCommitTime() : 0L;
+        } catch (IOException e) {
+            return 0L;
+        }
     }
 
     /**

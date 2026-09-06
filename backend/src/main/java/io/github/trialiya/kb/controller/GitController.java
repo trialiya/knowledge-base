@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
+import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import java.util.List;
@@ -65,9 +66,14 @@ public class GitController {
             @RequestParam("path") String path,
             @RequestParam(name = "from", required = false) @Nullable Integer from,
             @RequestParam(name = "to", required = false) @Nullable Integer to,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         requireSafePath(path);
-        return git(project).getFileContent(path, from, to);
+        GitService git = git(project);
+        String at = revision(rev);
+        return at == null
+                ? git.getFileContent(path, from, to)
+                : git.getFileContentAt(at, path, from, to);
     }
 
     /**
@@ -134,11 +140,14 @@ public class GitController {
     public GitPathView browse(
             @RequestParam(name = "path", required = false) @Nullable String path,
             @RequestParam(name = "ancestors", defaultValue = "true") boolean ancestors,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return git(project).browsePath(path, ancestors);
+        GitService git = git(project);
+        String at = revision(rev);
+        return at == null ? git.browsePath(path, ancestors) : git.browsePathAt(at, path, ancestors);
     }
 
     /**
@@ -170,11 +179,25 @@ public class GitController {
     @GetMapping("/tree")
     public List<GitFileNode> getTree(
             @RequestParam(name = "path", required = false) @Nullable String path,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return git(project).getFileTree(path);
+        GitService git = git(project);
+        String at = revision(rev);
+        return at == null ? git.getFileTree(path) : git.getFileTreeAt(at, path);
+    }
+
+    /**
+     * The named revisions the browser offers as snapshots — local branches and tags. Commit hashes
+     * are not listed here: they are searched for ({@code GET /commits/search}), because a
+     * repository's history has no useful "all of it" answer.
+     */
+    @GetMapping("/refs")
+    public GitRefs refs(
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return git(project).refs();
     }
 
     /**
@@ -223,6 +246,15 @@ public class GitController {
         } catch (IllegalStateException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
         }
+    }
+
+    /**
+     * Ревизия запроса, либо null — «рабочее дерево». Пустая {@code rev} значит именно это, а не
+     * отказ: клиент, оставивший параметр в адресе пустым при выходе из режима ревизии, должен
+     * получить обычный ответ.
+     */
+    private static @Nullable String revision(@Nullable String rev) {
+        return rev == null || rev.isBlank() ? null : rev;
     }
 
     private static void requireSafePath(@Nullable String path) {

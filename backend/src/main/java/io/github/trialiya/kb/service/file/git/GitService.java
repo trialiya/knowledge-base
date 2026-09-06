@@ -13,7 +13,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
-import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
+import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.model.git.dto.OutlineResult;
 import io.github.trialiya.kb.model.git.dto.TextEdit;
 import io.github.trialiya.kb.model.project.Project;
@@ -34,11 +34,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
@@ -124,11 +122,6 @@ public class GitService {
      */
     private static final String UNTRACKED_STATUS = "U";
 
-    /** Tree listing order: directories first, then by name, case-insensitively. */
-    private static final Comparator<GitFileNode> NODE_ORDER =
-            Comparator.<GitFileNode, Boolean>comparing(n -> FileEntryType.DIRECTORY != n.type())
-                    .thenComparing(GitFileNode::name, String.CASE_INSENSITIVE_ORDER);
-
     private final Project project;
 
     /** Where the working tree is, and every rule about which paths may reach into it. */
@@ -201,72 +194,35 @@ public class GitService {
      * {@link VisibleFiles#paths()}).
      */
     public List<GitFileNode> getFileTree(@Nullable String subPath) {
-        String base = RepoPaths.normalizeDir(subPath);
-        return listDirectories(visible.all(), Set.of(base)).getOrDefault(base, List.of());
+        return RepoBrowse.tree(workingTree(visible.all()), RepoPaths.normalizeDir(subPath));
     }
 
     /**
-     * Lists several directories in a single pass over the index.
+     * The same listing as {@link #getFileTree(String)}, but of a commit's tree rather than the
+     * working tree: no uncommitted change reaches it, and a file deleted since is still there.
      *
-     * <p>Each tracked path is walked segment by segment; whenever a prefix of it is one of the
-     * requested {@code bases}, the child at that level (a subdirectory or the file itself) is added
-     * to that base's listing. So the whole ancestor chain of a deeply nested file costs one index
-     * read and one scan, instead of one full scan per level as repeated {@link
-     * #getFileTree(String)} calls would.
-     *
-     * <p>A node is reported as untracked when nothing tracked passes through it: the file itself is
-     * only admitted by {@code allow-globs}, or the directory holds no tracked file at all. That is
-     * what the file browser greys out, and what tells the model the path carries no history.
-     *
-     * @param visible what to build the listings from, and which of it git knows about
-     * @param bases directory paths to list ("" — repo root); paths that are not directories simply
-     *     come back with an empty listing
+     * @param rev anything git reads as a commit — a full or short hash, a branch, a tag, {@code
+     *     HEAD~2}
      */
-    private Map<String, List<GitFileNode>> listDirectories(
-            VisibleFiles.Visible visible, Set<String> bases) {
-        Set<String> tracked = visible.tracked();
-        // Directory nodes de-duplicate by path (many files share one subdirectory), hence the
-        // LinkedHashMap per base rather than a plain list.
-        Map<String, LinkedHashMap<String, GitFileNode>> acc = new LinkedHashMap<>();
-        for (String base : bases) {
-            acc.put(base, new LinkedHashMap<>());
-        }
+    public List<GitFileNode> getFileTreeAt(@NonNull String rev, @Nullable String subPath) {
+        CommitFiles.Snapshot snapshot = CommitFiles.tree(repository, rev.strip());
+        return RepoBrowse.tree(committed(snapshot), RepoPaths.normalizeDir(subPath));
+    }
 
-        for (String path : visible.paths()) {
-            boolean isTracked = tracked.contains(path);
-            int from = 0;
-            while (true) {
-                int slash = path.indexOf('/', from);
-                String dir = from == 0 ? "" : path.substring(0, from - 1);
-                LinkedHashMap<String, GitFileNode> bucket = acc.get(dir);
-                if (bucket != null) {
-                    if (slash >= 0) {
-                        String name = path.substring(from, slash);
-                        String dirPath = dir.isEmpty() ? name : dir + "/" + name;
-                        GitFileNode node =
-                                new GitFileNode(
-                                        dirPath, name, FileEntryType.DIRECTORY, null, isTracked);
-                        // A directory counts as tracked as soon as one tracked file runs through
-                        // it, whichever order the paths arrive in.
-                        bucket.merge(dirPath, node, (old, fresh) -> old.tracked() ? old : fresh);
-                    } else {
-                        String name = path.substring(from);
-                        bucket.putIfAbsent(
-                                path,
-                                new GitFileNode(
-                                        path, name, FileEntryType.FILE, fileSize(path), isTracked));
-                    }
-                }
-                if (slash < 0) break;
-                from = slash + 1;
-            }
-        }
+    /** The working tree as the browser lists it: the index widened by {@code allow-globs}. */
+    private RepoBrowse.Snapshot workingTree(VisibleFiles.Visible files) {
+        return new RepoBrowse.Snapshot(files.paths(), files.tracked(), this::fileSize);
+    }
 
-        Map<String, List<GitFileNode>> result = new LinkedHashMap<>();
-        acc.forEach(
-                (base, nodes) ->
-                        result.put(base, nodes.values().stream().sorted(NODE_ORDER).toList()));
-        return result;
+    /**
+     * A commit's tree as the browser lists it. Everything in a commit is tracked by definition, so
+     * the two halves are the same set and no node is greyed out.
+     */
+    private RepoBrowse.Snapshot committed(CommitFiles.Snapshot snapshot) {
+        return new RepoBrowse.Snapshot(
+                snapshot.paths(),
+                Set.copyOf(snapshot.paths()),
+                path -> snapshot.sizeOf(repository, path));
     }
 
     // ── Opening a path in the file browser ───────────────────────────────────
@@ -284,70 +240,38 @@ public class GitService {
     public GitPathView browsePath(@Nullable String path, boolean includeAncestors) {
         String target = RepoPaths.normalizeDir(path);
         VisibleFiles.Visible files = visible.all();
-        @Nullable FileEntryType type = resolvePathType(target, files.paths());
-
-        List<String> ancestors = includeAncestors ? ancestorDirs(target) : List.of();
-        Set<String> bases = new LinkedHashSet<>(ancestors);
-        boolean isDirectory = type == FileEntryType.DIRECTORY;
-        if (isDirectory) bases.add(target);
-        Map<String, List<GitFileNode>> listings =
-                bases.isEmpty() ? Map.of() : listDirectories(files, bases);
-
-        List<GitTreeLevel> tree =
-                ancestors.stream()
-                        .map(dir -> new GitTreeLevel(dir, listings.getOrDefault(dir, List.of())))
-                        .toList();
-
-        boolean targetTracked = files.tracked().contains(target);
-
-        return new GitPathView(
+        return RepoBrowse.browse(
+                workingTree(files),
                 target,
-                type,
-                // The path is vouched for by the `tracked` list resolvePathType() just read, so
-                // re-checking it via isTracked() would re-read the index for nothing.
-                type == FileEntryType.FILE
-                        ? getFileContent(target, null, null, targetTracked)
-                        : null,
-                isDirectory ? listings.getOrDefault(target, List.of()) : null,
-                tree,
-                // The root and any missing path count as tracked: there is nothing to warn about.
-                target.isEmpty()
-                        || type == null
-                        || targetTracked
-                        || isTrackedPrefix(files.tracked(), target));
-    }
-
-    /** Whether any tracked file lives under {@code dir} — the directory form of the membership. */
-    private static boolean isTrackedPrefix(Set<String> tracked, String dir) {
-        String prefix = dir + "/";
-        return tracked.stream().anyMatch(p -> p.startsWith(prefix));
+                includeAncestors,
+                null,
+                tracked -> getFileContent(target, null, null, tracked));
     }
 
     /**
-     * {@code FILE}, {@code DIRECTORY} or {@code null} for missing — the repo root is a directory.
+     * The same view of a commit's tree — what the file browser's revision mode renders.
+     *
+     * <p>A separate entry point rather than a flag on {@link #browsePath}: the two answer from
+     * different sources, and mixing them in one response is exactly the confusion the mode exists
+     * to prevent. Whether the path is *visible* is not asked here — everything in a commit is
+     * already the repository's published history, the same rule {@code getFileContent}'s {@code
+     * commit} argument follows.
+     *
+     * @param rev anything git reads as a commit — a full or short hash, a branch, a tag, {@code
+     *     HEAD~2}
      */
-    private static @Nullable FileEntryType resolvePathType(String path, List<String> tracked) {
-        if (path.isEmpty()) return FileEntryType.DIRECTORY;
-        String prefix = path + "/";
-        for (String candidate : tracked) {
-            if (candidate.equals(path)) return FileEntryType.FILE;
-            if (candidate.startsWith(prefix)) return FileEntryType.DIRECTORY;
-        }
-        return null;
-    }
-
-    /**
-     * Directories from the repo root down to {@code path}'s parent; {@code path} itself is never
-     * included — for the root that means no ancestors at all, not a self-reference.
-     */
-    private static List<String> ancestorDirs(String path) {
-        if (path.isEmpty()) return List.of();
-        List<String> dirs = new ArrayList<>();
-        dirs.add("");
-        for (int slash = path.indexOf('/'); slash >= 0; slash = path.indexOf('/', slash + 1)) {
-            dirs.add(path.substring(0, slash));
-        }
-        return dirs;
+    public GitPathView browsePathAt(
+            @NonNull String rev, @Nullable String path, boolean includeAncestors) {
+        String target = RepoPaths.normalizeDir(path);
+        CommitFiles.Snapshot snapshot = CommitFiles.tree(repository, rev.strip());
+        return RepoBrowse.browse(
+                committed(snapshot),
+                target,
+                includeAncestors,
+                snapshot.commit(),
+                // Уже прочитанный снимок содержимого не несёт, а второе чтение того же коммита
+                // отвечает тем же: getFileContentAt берёт блоб по пути в дереве этого же хеша.
+                tracked -> getFileContentAt(snapshot.commit(), target, null, null));
     }
 
     // ── Commit history ───────────────────────────────────────────────────────
@@ -1038,6 +962,15 @@ public class GitService {
     }
 
     // ── Branches and the user's commands ────────────────────────────────────
+
+    /**
+     * The named revisions this repository has — what the file browser offers as snapshots to look
+     * at. Branch names come from {@link #branchStatus()} too, but that answer is about the working
+     * tree's own position; this one is about what may be opened.
+     */
+    public GitRefs refs() {
+        return branches.refs();
+    }
 
     /**
      * Which branch the working tree is on, how far it has drifted from its upstream, and what other

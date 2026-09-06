@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
+import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.support.TestProjects;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -210,6 +211,24 @@ class GitBranchesTest {
         assertThat(status.upstream()).isNull();
         assertThat(status.ahead()).isZero();
         assertThat(status.behind()).isZero();
+    }
+
+    /**
+     * Теги перечисляются свежими вперёд, а не по алфавиту: в списке ищут последнюю версию, а
+     * алфавит ставит {@code v10} перед {@code v9}.
+     */
+    @Test
+    void tagsAreListedNewestFirstAndBranchesAlphabetically() {
+        git(repoDir, "tag", "v9");
+        write(repoDir, "README.md", "later\n");
+        commit(repoDir, "second");
+        git(repoDir, "tag", "v10");
+        git(repoDir, "branch", "feature");
+
+        GitRefs refs = service.refs();
+
+        assertThat(refs.tags()).containsExactly("v10", "v9");
+        assertThat(refs.branches()).contains("feature", "main");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
