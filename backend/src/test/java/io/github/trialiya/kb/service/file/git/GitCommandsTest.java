@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
+import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.support.TestProjects;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -188,10 +189,11 @@ class GitCommandsTest {
         service.commit("drop it", List.of("gone.txt"));
 
         assertThat(changedPaths()).containsExactly("README.md");
-        // Удаление уехало в историю, а не просто пропало из незакоммиченных.
-        assertThat(service.getCommitLog(1, "gone.txt", false))
-                .singleElement()
-                .satisfies(c -> assertThat(c.message()).isEqualTo("drop it"));
+        // Удаление уехало в историю, а не просто пропало из незакоммиченных: по пути видны
+        // оба его коммита и ни одного чужого.
+        assertThat(service.getCommitLog(10, "gone.txt", false))
+                .extracting(GitCommit::message)
+                .containsExactly("drop it", "add gone");
     }
 
     /**
