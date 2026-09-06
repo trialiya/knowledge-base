@@ -84,7 +84,8 @@ class GitCommandsTest {
                 .isInstanceOf(GitCommandFailedException.class)
                 .hasMessageContaining("Not a valid branch name");
         assertThatThrownBy(() -> service.switchBranch("  ", true))
-                .isInstanceOf(GitCommandFailedException.class);
+                .isInstanceOf(GitCommandFailedException.class)
+                .hasMessageContaining("A branch name is required");
     }
 
     // ── stash ────────────────────────────────────────────────────────────────
@@ -187,7 +188,10 @@ class GitCommandsTest {
         service.commit("drop it", List.of("gone.txt"));
 
         assertThat(changedPaths()).containsExactly("README.md");
-        assertThat(service.getUncommittedChanges(false, "gone.txt")).isEmpty();
+        // Удаление уехало в историю, а не просто пропало из незакоммиченных.
+        assertThat(service.getCommitLog(1, "gone.txt", false))
+                .singleElement()
+                .satisfies(c -> assertThat(c.message()).isEqualTo("drop it"));
     }
 
     /**
@@ -230,9 +234,19 @@ class GitCommandsTest {
         write("README.md", "changed\n");
 
         assertThatThrownBy(() -> service.commit("nope", List.of("../escape.txt")))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid path");
+    }
+
+    /** Пустой выбор — не «всё отслеживаемое»: пустая строка отвергается как путь. */
+    @Test
+    void aBlankSelectedPathIsRefused() {
+        write("README.md", "changed\n");
+
         assertThatThrownBy(() -> service.commit("nope", List.of("   ")))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not be blank");
+        assertThat(changedPaths()).containsExactly("README.md");
     }
 
     // Отказ коммитить без user.name/user.email проверяется только вручную: JGit читает и

@@ -117,7 +117,13 @@ class GitServiceAllowGlobsTest {
                 .singleElement()
                 .extracting(GitFileNode::tracked)
                 .isEqualTo(false);
-        assertThat(service.searchFiles("App", 5)).allSatisfy(n -> assertThat(n.tracked()).isTrue());
+        assertThat(service.searchFiles("App", 5))
+                .singleElement()
+                .satisfies(
+                        n -> {
+                            assertThat(n.path()).isEqualTo("src/App.java");
+                            assertThat(n.tracked()).isTrue();
+                        });
     }
 
     /** {@code *.java} достаёт файл на любой глубине — иначе фильтр съедал бы всё. */
@@ -175,6 +181,12 @@ class GitServiceAllowGlobsTest {
         assertThatThrownBy(() -> service.requireCreatable("notes/new.md", "fresh\n"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not created");
+        assertThat(repoDir.resolve("notes/new.md")).doesNotExist();
+
+        // И разрешение — тоже только ответ: путь нормализован, а файла всё ещё нет.
+        assertThat(service.requireCreatable("./src//New.java", "class New {}\n"))
+                .isEqualTo("src/New.java");
+        assertThat(repoDir.resolve("src/New.java")).doesNotExist();
     }
 
     @Test
@@ -203,6 +215,7 @@ class GitServiceAllowGlobsTest {
         assertThatThrownBy(() -> service.requireEditable("notes/todo.md"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("untracked");
+        assertThat(readFile("notes/todo.md")).isEqualTo("remember the milk\n");
 
         // Прошедший проверку файл несёт и ответ индекса — второй раз его не перечитывают.
         assertThat(untrackedEditable().requireEditable("notes/todo.md"))
@@ -314,17 +327,21 @@ class GitServiceAllowGlobsTest {
                 .satisfies(
                         entry -> {
                             assertThat(entry.status()).isEqualTo("U");
-                            assertThat(entry.patch()).isNotNull();
-                            // Ханков у файла вне git нет, но имя — такие же метаданные, как у
-                            // остальных, и приходит оно тем же полем.
+                            // Файла вне git нет в индексе, поэтому «патч» — всё его содержимое
+                            // добавленными строками, без ханков.
+                            // Хвостовой перевод строки даёт последнюю пустую добавленную строку.
+                            assertThat(entry.patch()).isEqualTo("+remember the milk\n+\n");
+                            // Имя — такие же метаданные, как у остальных, и приходит тем же полем.
                             assertThat(entry.patchHeader()).isEqualTo("+++ b/notes/todo.md");
-                            assertThat(entry.patch()).doesNotContain("+++ b/");
                         });
     }
 
     /** Сборочный артефакт читается, но изменением не является — в ревью ему делать нечего. */
     @Test
-    void gitignoredFilesStayOutOfTheUncommittedChanges() {
+    void gitignoredFilesAreReadableButStayOutOfTheUncommittedChanges() {
+        assertThat(service.getFileContent("notes/generated/report.md").content())
+                .isEqualTo("generated, and gitignored\n");
+
         assertThat(service.getUncommittedChanges(false))
                 .extracting(GitDiffEntry::path)
                 .doesNotContain("notes/generated/report.md");
@@ -351,7 +368,13 @@ class GitServiceAllowGlobsTest {
                 .singleElement()
                 .extracting(GitFileNode::tracked)
                 .isEqualTo(false);
-        assertThat(service.getFileTree("src")).allSatisfy(n -> assertThat(n.tracked()).isTrue());
+        assertThat(service.getFileTree("src"))
+                .singleElement()
+                .satisfies(
+                        n -> {
+                            assertThat(n.path()).isEqualTo("src/App.java");
+                            assertThat(n.tracked()).isTrue();
+                        });
     }
 
     @Test

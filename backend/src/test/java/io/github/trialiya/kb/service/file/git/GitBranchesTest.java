@@ -133,6 +133,9 @@ class GitBranchesTest {
         service.push();
 
         assertThat(service.branchStatus().ahead()).isZero();
+        // И работа действительно у origin, а не только в remote-tracking ref клона:
+        // `cat-file -e` падает, если объекта по этому пути в ветке origin нет.
+        git(originDir, "cat-file", "-e", "main:mine.md");
     }
 
     /**
@@ -204,6 +207,9 @@ class GitBranchesTest {
         assertThat(status.unborn()).isTrue();
         assertThat(status.detached()).isFalse();
         assertThat(status.branches()).isEmpty();
+        assertThat(status.upstream()).isNull();
+        assertThat(status.ahead()).isZero();
+        assertThat(status.behind()).isZero();
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

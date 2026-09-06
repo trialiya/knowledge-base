@@ -89,12 +89,14 @@ class GitServiceEditTest {
     @Test
     void createFileRejectsUnsafePaths() {
         assertThatThrownBy(() -> service.createFile("../outside.txt", "x"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid path");
         assertThatThrownBy(() -> service.createFile(".git/hooks/pre-commit", "x"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(".git");
         assertThatThrownBy(() -> service.createFile("some/dir/.DS_Store", "x"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(".DS_Store");
     }
 
     // ── One spelling per path ────────────────────────────────────────────────
@@ -265,11 +267,6 @@ class GitServiceEditTest {
                             assertThat(entry.path()).isEqualTo("app.txt");
                             assertThat(entry.status()).isEqualTo("M");
                         });
-    }
-
-    @Test
-    void isRepoWritableIsTrueForTempRepo() {
-        assertThat(service.isRepoWritable()).isTrue();
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

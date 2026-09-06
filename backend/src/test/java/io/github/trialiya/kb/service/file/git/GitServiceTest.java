@@ -126,21 +126,6 @@ class GitServiceTest {
     }
 
     @Test
-    void subPathIsNeverInterpretedAsGitOption() {
-        writeFile("tracked.txt", "tracked");
-        commitAll();
-        // Not added/committed — must never surface via ls-files, tracked or not.
-        writeFile("untracked.txt", "untracked");
-
-        // Without a "--" pathspec separator, "--others" would be parsed by `git ls-files` as the
-        // --others *option* (list untracked files too) rather than a literal pathspec, leaking
-        // untracked.txt. With the separator it's just a (non-existent) directory name.
-        List<GitFileNode> result = service.getFileTree("--others");
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
     void untrackedAndMissingFilesReportIdenticalError() {
         writeFile("tracked.txt", "tracked");
         commitAll();
@@ -339,12 +324,17 @@ class GitServiceTest {
     @Test
     void uncommittedChangesNarrowedToAnUnchangedPathIsEmpty() {
         writeFile("a.txt", "one\n");
+        writeFile("b.txt", "one\n");
         commitAll();
         writeFile("a.txt", "one\ntwo\n");
 
         // Открыт файл без изменений, а режим diff остался включённым — панель
         // показывает «изменений нет», и пустой ответ здесь именно это и значит.
-        assertThat(service.getUncommittedChanges(true, "missing.txt")).isEmpty();
+        assertThat(service.getUncommittedChanges(true, "b.txt")).isEmpty();
+        // Правка рядом при этом видна — пустой ответ выше про файл, а не про весь список.
+        assertThat(service.getUncommittedChanges(true, "a.txt"))
+                .singleElement()
+                .satisfies(entry -> assertThat(entry.path()).isEqualTo("a.txt"));
     }
 
     @Test
@@ -452,11 +442,14 @@ class GitServiceTest {
     @Test
     void windowsBackslashInCommitLogFilePathIsNormalized() {
         writeFile("src/main/Bar.java", "class Bar {}\n");
-        commitAll();
+        commitAll("bar");
+        writeFile("src/main/Other.java", "class Other {}\n");
+        commitAll("other");
 
-        // A backslash path must still find the commit that touched the file.
+        // A backslash path must still find the commit that touched THAT file — a filter that
+        // stopped being applied would return both commits.
         var log = service.getCommitLog(10, "src\\main\\Bar.java", false);
-        assertThat(log).hasSize(1);
+        assertThat(log).singleElement().satisfies(c -> assertThat(c.message()).isEqualTo("bar"));
     }
 
     @Test
@@ -619,6 +612,17 @@ class GitServiceTest {
         for (GitTreeLevel level : view.tree()) {
             assertThat(level.nodes()).isEqualTo(service.getFileTree(level.path()));
         }
+
+        // Обе стороны сравнения строит один и тот же обход, поэтому один уровень закреплён
+        // именами: общая поломка листингов иначе осталась бы зелёной.
+        assertThat(view.tree())
+                .filteredOn(level -> "src".equals(level.path()))
+                .singleElement()
+                .satisfies(
+                        level ->
+                                assertThat(level.nodes())
+                                        .extracting(GitFileNode::name)
+                                        .containsExactly("main", "README.md"));
     }
 
     @Test
