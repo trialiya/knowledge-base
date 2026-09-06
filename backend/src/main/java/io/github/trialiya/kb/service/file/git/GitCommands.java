@@ -371,10 +371,9 @@ class GitCommands {
         }
         List<String> only = new ArrayList<>(selected.size());
         for (String raw : selected) {
+            // Пустой и небезопасный путь отвергает сам normalize, своим IllegalArgumentException:
+            // GitCommandController отдаёт по нему 400, а не 422, — ошибка вызова, не отказ git.
             String path = RepoPaths.normalize(raw);
-            if (path.isEmpty()) {
-                throw new GitCommandFailedException("A selected path cannot be empty");
-            }
             // Тот же барьер, что у discard: допущенный allow-globs файл может оказаться симлинком
             // наружу, и коммит не должен быть той единственной командой, которая по нему пройдёт.
             Path absolute = paths.confine(path);

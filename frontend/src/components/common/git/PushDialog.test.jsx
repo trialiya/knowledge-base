@@ -74,4 +74,27 @@ describe('PushDialog', () => {
 
     expect(screen.getByText('git.pushDialog.newBranch')).toBeInTheDocument();
   });
+
+  /**
+   * Пустой список у неопубликованной ветки — не «нечего отправлять»: своих
+   * коммитов у ветки, отведённой от уже отправленного коммита, нет никогда, а
+   * push всё равно заводит её в remote. Погасить здесь кнопку значило бы
+   * лишить такую ветку единственного способа опубликоваться.
+   */
+  test('an unpublished branch stays pushable with no commits of its own', async () => {
+    gitApi.getOutgoing.mockResolvedValue([]);
+    render(<PushDialog git={git({ status: { upstream: null, ahead: 0 } })} onClose={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('git.pushDialog.onlyBranch')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /git.pushDialog.submit/ })).toBeEnabled();
+  });
+
+  /** Сбой чтения списка ничего не знает про ветку — по нему push не гасят. */
+  test('a failed listing does not disable the push', async () => {
+    gitApi.getOutgoing.mockRejectedValue(new Error('boom'));
+    render(<PushDialog git={git({ status: { ahead: 0 } })} onClose={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('git.pushDialog.loadError')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /git.pushDialog.submit/ })).toBeEnabled();
+  });
 });

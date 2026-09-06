@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { DiffStats } from '@/components/chatPanel/messages/diffRender';
 import { buildChangeTree, sortByName } from '@/components/filesPanel/changes/changeTree';
+import { baseName, dirName } from '@/components/common/ui/utils';
 import { IconCheck, IconFolder, IconList } from '@/icons/index';
 
 /**
@@ -105,8 +106,8 @@ const Node = ({ node, depth, selection, openPath, onOpen }) => {
 /** Строка файла: галочка, статус, имя, каталог (в плоской раскладке) и счётчики. */
 const Row = ({ entry, depth = 0, showDir = false, selection, open, onOpen }) => {
   const { t } = useTranslation('files');
-  const name = entry.path.split('/').pop();
-  const dir = entry.path.slice(0, entry.path.length - name.length - 1);
+  const name = baseName(entry.path);
+  const dir = dirName(entry.path);
   const statusLabel = t(`changes.status.${entry.status}`, { defaultValue: entry.status });
 
   return (

@@ -32,6 +32,20 @@ export function baseName(path) {
   return i >= 0 ? path.slice(i + 1) : path;
 }
 
+/**
+ * Directory part of a repo-relative path, without the trailing slash; `''` for
+ * a file at the repository root.
+ *
+ * Считать его вычитанием длины имени из длины пути нельзя: у файла в корне
+ * вычитается ещё и разделитель, которого там нет, и `README.md` показывается
+ * в каталоге `README.m`. Позиция слэша знает про этот случай сама.
+ */
+export function dirName(path) {
+  if (!path) return '';
+  const i = path.lastIndexOf('/');
+  return i > 0 ? path.slice(0, i) : '';
+}
+
 // ─── Content helpers ──────────────────────────────────────────────────────────
 
 /** Strip markdown syntax and return first non-empty line, capped at maxLen chars */
