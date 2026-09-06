@@ -829,8 +829,9 @@ public class GitService {
      * @param filePath path relative to repo root, as it was spelled in that commit
      * @param fromLine first line to return (1-based, inclusive); null for start of file
      * @param toLine last line to return (1-based, inclusive); null for end of file
-     * @throws IllegalArgumentException if the revision is unknown or ambiguous, or the commit holds
-     *     no file at that path
+     * @throws IllegalArgumentException if the revision is unknown or ambiguous, the commit holds no
+     *     file at that path, or the object there is too large to read at all (32 MB — a blob that
+     *     size is an artefact somebody committed, not source)
      */
     public GitFileContent getFileContentAt(
             @NonNull String commitHash,

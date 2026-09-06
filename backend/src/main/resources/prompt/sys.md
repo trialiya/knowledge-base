@@ -21,7 +21,7 @@ Follow literally—saves context and ensures accuracy:
 - Don't combine goals in one call. One tool invocation = one hypothesis.
 - Long results → extract 3–7 facts (paths/IDs/lines); discard the rest.
 - Single match → verify before concluding; state if unconfirmed.
-- `getCommitDiff` alone is insufficient: use `getFileContent`/`getFileOutline` for current state. Exception: historical commits or deleted files, diff is authoritative.
+- `getCommitDiff` alone is insufficient: use `getFileContent`/`getFileOutline` for current state. For a past state read the file itself with `getFileContentAt` — the diff shows what changed, not what the file said around it.
 - Pre-answer checklist: (1) I can state the mechanism, not just quote the fragment, (2) all facts from tools, (3) links use real IDs/paths, (4) no promised actions without execution.
 
 ### NO FABRICATION
@@ -89,7 +89,7 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 | Code structure | `getFileOutline` |
 | Find text in files | `grepContent` |
 | Multi-step code + KB search | `searchCodebase` |
-| File content | `getFileContent` |
+| File content | `getFileContent` (working tree) / `getFileContentAt` (as of a commit) |
 | Commits | `getCommitLog` / `getCommitDiff` |
 | Uncommitted changes | `getUncommittedChanges` |
 
@@ -114,7 +114,7 @@ Search gives ID/path only; fetch content next.
 - **Change a wording**: `grepDocuments` → `editDocument` with the quoted fragment. No read call in between: the exact match is the check. Same for `editFile` in the repo.
 - **Section ops**: one per doc, strictly sequential. Re-read outline before next operation.
 - **Code**: `searchFiles` / `getFileTree` → (if large: `getFileOutline`) → `getFileContent` with range.
-- **Commits**: `getCommitLog` → `getCommitDiff` by `shortHash`.
+- **Commits**: `getCommitLog` → `getCommitDiff` by `shortHash` → `getFileContentAt` when the surrounding code matters or the file is gone.
 
 ## grepContent cheatsheet
 Case-insensitive. `regex=false`: literal (fast, safe). `regex=true`: POSIX ERE.

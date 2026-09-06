@@ -25,6 +25,14 @@ import org.eclipse.jgit.treewalk.TreeWalk;
  */
 final class CommitFiles {
 
+    /**
+     * Самый большой объект, который поднимается в память ради ответа. Много больше того, что
+     * инструмент отдаёт ({@link RepoFiles#MAX_FILE_SIZE}): усечённый ответ показывает начало и
+     * конец файла, поэтому прочитать его приходится целиком, — но не настолько, чтобы один блоб из
+     * истории (дамп, собранный артефакт, случайно закоммиченный архив) положил бэкенд.
+     */
+    private static final long MAX_BLOB_SIZE = 32L * 1024 * 1024;
+
     private CommitFiles() {}
 
     /**
@@ -34,7 +42,8 @@ final class CommitFiles {
      *     {@code HEAD~2}
      * @return байты объекта и хеш коммита, который их отдал
      * @throws IllegalArgumentException коммит не найден или неоднозначен; такого пути в этом
-     *     коммите нет; по пути лежит каталог или подмодуль, а не файл
+     *     коммите нет; по пути лежит каталог или подмодуль, а не файл; объект больше {@code
+     *     MAX_BLOB_SIZE}
      */
     static Blob read(Repository repository, String rev, String path) {
         try (RevWalk walk = new RevWalk(repository)) {
@@ -54,11 +63,25 @@ final class CommitFiles {
                             "Not a file in " + commit.name() + ": " + path);
                 }
                 ObjectLoader loader = repository.open(tree.getObjectId(0), Constants.OBJ_BLOB);
-                // Через поток, а не getBytes(): тот отказывается отдавать объект, который счёл
-                // большим, а усечённый ответ строится из начала И конца файла — конец нужен
-                // целиком, ровно как при чтении такого же файла с диска.
-                return new Blob(
-                        commit.name(), loader.openStream().readAllBytes(), loader.getSize());
+                long size = loader.getSize();
+                if (size > MAX_BLOB_SIZE) {
+                    // Отказ, а не усечение: ответ строится из начала И конца файла, и прочитать
+                    // конец, не подняв в память всё остальное, нельзя. Размер объекта известен до
+                    // чтения, поэтому граница проходит здесь, а не по факту нехватки памяти.
+                    throw new IllegalArgumentException(
+                            "Too large to read from history: "
+                                    + path
+                                    + " at "
+                                    + commit.name()
+                                    + " is "
+                                    + size
+                                    + " bytes (limit "
+                                    + MAX_BLOB_SIZE
+                                    + ")");
+                }
+                // Через поток, а не getBytes(): тот отказывает по своему порогу
+                // (core.streamFileThreshold), то есть по настройке репозитория, а не по нашей.
+                return new Blob(commit.name(), loader.openStream().readAllBytes(), size);
             }
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + rev, e);
