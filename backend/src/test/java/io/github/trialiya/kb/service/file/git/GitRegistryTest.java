@@ -105,6 +105,7 @@ class GitRegistryTest {
     @Test
     void pushIsOfferedOnlyWhereItIsConfigured() {
         assertThat(TestProjects.gitCommandsRegistry(repoDir, true).gitPushAllowed(null)).isTrue();
+        assertThat(TestProjects.gitCommandsRegistry(repoDir, false).gitPushAllowed(null)).isFalse();
     }
 
     /** То же, что с правками: не открывшийся репозиторий не даёт ни одной команды. */

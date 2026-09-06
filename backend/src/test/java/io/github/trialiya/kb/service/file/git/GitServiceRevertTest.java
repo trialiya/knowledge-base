@@ -119,7 +119,20 @@ class GitServiceRevertTest {
 
         service.requireDeletable("src/New.java", "class New {}");
 
+        // Ни файла, ни индекса проверка не трогает: он всё так же собран под коммит.
         assertThat(repoDir.resolve("src/New.java")).exists();
+        assertThat(service.getUncommittedChanges(false))
+                .singleElement()
+                .satisfies(
+                        entry -> {
+                            assertThat(entry.path()).isEqualTo("src/New.java");
+                            assertThat(entry.status()).isEqualTo("A");
+                        });
+
+        // И проверяет она то же, что удаление: разошедшееся содержимое — отказ.
+        assertThatThrownBy(() -> service.requireDeletable("src/New.java", "class Other {}"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("changed since it was created");
     }
 
     /**
