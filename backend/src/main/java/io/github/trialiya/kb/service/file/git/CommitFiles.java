@@ -9,6 +9,7 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.ObjectStream;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -81,7 +82,11 @@ final class CommitFiles {
                 }
                 // Через поток, а не getBytes(): тот отказывает по своему порогу
                 // (core.streamFileThreshold), то есть по настройке репозитория, а не по нашей.
-                return new Blob(commit.name(), loader.openStream().readAllBytes(), size);
+                // Поток закрывается: у большого объекта за ним стоит окно пака и inflater из
+                // пула JGit, и они возвращаются в пул только по close().
+                try (ObjectStream stream = loader.openStream()) {
+                    return new Blob(commit.name(), stream.readAllBytes(), size);
+                }
             }
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + rev, e);
