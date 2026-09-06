@@ -145,7 +145,10 @@ describe('loadMessages return value', () => {
     expect(getChat().runStartedAt).toBeGreaterThanOrEqual(before - 12_000);
   });
 
-  test('an active claim without elapsedMs leaves the timer unanchored', async () => {
+  // Вид занятости переживает перезагрузку страницы: без него чат, застигнутый посреди
+  // сжатия контекста или git-команды, показал бы кнопку «остановить» (останавливать там
+  // нечего) и разблокированный композер — до первого события, которого может и не быть.
+  test('an active claim without elapsedMs restores the kind of run, but leaves the timer unanchored', async () => {
     const { result, getChat } = setup({ activeRun: { runId: 'r2', kind: 'OPERATION' } });
 
     await act(async () => {
@@ -153,20 +156,8 @@ describe('loadMessages return value', () => {
     });
 
     expect(getChat().runId).toBe('r2');
-    expect(getChat().runStartedAt).toBeNull();
-  });
-
-  // Вид занятости переживает перезагрузку страницы: без него чат, застигнутый посреди
-  // сжатия контекста или git-команды, показал бы кнопку «остановить» (останавливать там
-  // нечего) и разблокированный композер — до первого события, которого может и не быть.
-  test('restores what kind of run holds the chat, not just that one does', async () => {
-    const { result, getChat } = setup({ activeRun: { runId: 'r2', kind: 'OPERATION' } });
-
-    await act(async () => {
-      await result.current.loadMessages('c1');
-    });
-
     expect(getChat().runKind).toBe(RUN_KIND.OPERATION);
+    expect(getChat().runStartedAt).toBeNull();
   });
 
   test('a free chat is restored as free, with no leftover run of its own', async () => {

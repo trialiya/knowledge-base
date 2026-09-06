@@ -30,13 +30,23 @@ describe('MarkdownEditor: тулбар', () => {
     expect(onChange).toHaveBeenCalledWith('привет **мир**');
   });
 
-  it('без выделения вставляет разметку в позицию каретки', async () => {
+  it('без выделения оборачивает подставленный текст в позиции каретки', async () => {
     const user = userEvent.setup();
-    const { onChange, textarea } = setup('строка');
-    textarea.setSelectionRange(0, 0);
+    const { onChange, textarea } = setup('привет мир');
+    textarea.setSelectionRange(7, 7);
+
+    await user.click(screen.getByTitle('editor.bold'));
+
+    expect(onChange).toHaveBeenCalledWith('привет **editor.insertText**мир');
+  });
+
+  it('префикс строки встаёт в её начало, где бы ни стояла каретка', async () => {
+    const user = userEvent.setup();
+    const { onChange, textarea } = setup('первая\nвторая');
+    textarea.setSelectionRange(10, 10); // внутри «вторая»
 
     await user.click(screen.getByTitle('editor.heading'));
 
-    expect(onChange).toHaveBeenCalledWith('## строка');
+    expect(onChange).toHaveBeenCalledWith('первая\n## вторая');
   });
 });

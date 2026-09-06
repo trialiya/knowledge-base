@@ -1,4 +1,4 @@
-import { detectTriggerInText, tokenForItem, TRIGGER_TYPES } from './chipTriggers';
+import { detectTriggerInText, tokenForItem } from './chipTriggers';
 
 describe('detectTriggerInText', () => {
   it('returns null when there is no trigger', () => {
@@ -67,18 +67,5 @@ describe('tokenForItem', () => {
     // Документам проект не приписывается и с ним: база знаний общая.
     expect(tokenForItem('doc', item, false, 'kb')).toBe('⟦docref:7:Guide⟧');
     expect(tokenForItem('doc', item, true, 'kb')).toBe('⟦doc:7:Guide⟧');
-  });
-});
-
-describe('TRIGGER_TYPES', () => {
-  it('exposes a self-describing spec per type', () => {
-    for (const key of ['file', 'doc']) {
-      const spec = TRIGGER_TYPES[key];
-      expect(spec.type).toBe(key);
-      expect(spec.triggers[0]).toBe(`/${key}`);
-      expect(typeof spec.search).toBe('function');
-      expect(typeof spec.refToken).toBe('function');
-      expect(typeof spec.contentToken).toBe('function');
-    }
   });
 });

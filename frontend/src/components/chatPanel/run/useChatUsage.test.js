@@ -50,10 +50,14 @@ describe('useChatUsage', () => {
   // Итог по чату считает бэкенд: по ленте его не собрать — она страница, и счёт по ней был бы
   // счётом по хвосту разговора. Системная часть оттуда же — её знает только первый прогон чата.
   test('итоги и системная часть приезжают с бэкенда', async () => {
-    const { result } = renderHook(() => useChatUsage('chat-1', [answer(measured)], false));
+    // Сразу после полного сжатия замера нет: контекст оценивается как системная часть
+    // с бэкенда плюс сама сводка — без `baseContextTokens` оценивать было бы не из чего.
+    const compacted = { sender: 'ai', compact: { messages: 40 }, usage: { contextTokens: 91000, outputTokens: 700 } };
+    const { result } = renderHook(() => useChatUsage('chat-1', [answer(measured), compacted], false));
 
     await waitFor(() => expect(result.current.totals).toEqual(totals));
     expect(chatApi.getUsage).toHaveBeenCalledWith('chat-1');
+    expect(result.current.current).toEqual({ contextTokens: totals.baseContextTokens + 700, estimated: true });
   });
 
   // Числа меняет прогон, и перечитывать их надо по его завершении: до неё считать нечего.

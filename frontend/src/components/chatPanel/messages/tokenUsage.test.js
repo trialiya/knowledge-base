@@ -382,8 +382,10 @@ describe('tokenUsage', () => {
   });
 
   describe('totalOf', () => {
+    // Заниженный `total` провайдера проигрывает сумме частей: иначе итог показал бы
+    // меньше, чем ушло и пришло на самом деле.
     test('обычно это вход плюс выход', () => {
-      expect(totalOf({ promptTokens: 81_100, outputTokens: 1_100, totalTokens: 82_200 })).toBe(82_200);
+      expect(totalOf({ promptTokens: 81_100, outputTokens: 1_100, totalTokens: 80_000 })).toBe(82_200);
     });
 
     // Провайдер считает reasoning-токены сверх видимого выхода, а платит за них клиент: своё

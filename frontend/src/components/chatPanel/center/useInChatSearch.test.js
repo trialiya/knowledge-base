@@ -85,15 +85,20 @@ describe('useInChatSearch — догрузка старых страниц не 
     expect(loadOlderMessages).not.toHaveBeenCalled();
   });
 
-  // Регрессия: удаление активного чата переключает activeChatId на другой чат, чьи
-  // messages ещё не загружены (undefined). Первичная проверка обязана обращаться к
-  // ним через опциональную цепочку — прямой messages.some(...) падал с TypeError.
-  it('не падает, если messages стал undefined при смене чата (удаление активного чата)', async () => {
+  // Регрессия: лента чата может стать undefined (список чатов перестроился, страница
+  // ещё не загружена), пока активное совпадение живо. Первичная проверка обязана
+  // обращаться к ней через опциональную цепочку — прямой messages.some(...) падал с
+  // TypeError, а догрузка старых страниц при этом должна идти своим чередом.
+  it('не падает, если messages стал undefined при живом совпадении', async () => {
     const messages = [loaded('m1', 10, 'про жирафов')];
-    let chatList = [{ id: 'chat-1', messages, hasMore: false }];
+    let chatList = [{ id: 'chat-1', messages, hasMore: true }];
     const getChats = () => chatList;
-    const loadOlderMessages = vi.fn().mockResolvedValue(true);
-    chatApi.searchMessages.mockResolvedValue([{ id: 10, createdAt: '2026-01-01' }]);
+    const loadOlderMessages = vi.fn().mockResolvedValue(false);
+    // Активным по умолчанию становится последнее — то, что уже в ленте.
+    chatApi.searchMessages.mockResolvedValue([
+      { id: 3, createdAt: '2026-01-01' },
+      { id: 10, createdAt: '2026-01-02' },
+    ]);
 
     const { result, rerender } = renderHook((props) => useInChatSearch(props), {
       initialProps: { activeChatId: 'chat-1', getChats, loadOlderMessages, messages },
@@ -102,7 +107,11 @@ describe('useInChatSearch — догрузка старых страниц не 
     act(() => result.current.openWithQuery('жираф'));
     await waitFor(() => expect(result.current.activeMatchMid).toBe('m1'));
 
-    chatList = [{ id: 'chat-2', messages: undefined, hasMore: true }];
-    expect(() => rerender({ activeChatId: 'chat-2', getChats, loadOlderMessages, messages: undefined })).not.toThrow();
+    chatList = [{ id: 'chat-1', messages: undefined, hasMore: true }];
+    rerender({ activeChatId: 'chat-1', getChats, loadOlderMessages, messages: undefined });
+    // Переход к совпадению вне ленты перезапускает первичную проверку по messages.
+    act(() => result.current.goNext());
+
+    await waitFor(() => expect(loadOlderMessages).toHaveBeenCalledWith('chat-1'));
   });
 });

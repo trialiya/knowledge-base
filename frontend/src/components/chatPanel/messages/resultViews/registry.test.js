@@ -44,8 +44,17 @@ describe('parseResult', () => {
 
 describe('detectResultView', () => {
   it('diff выбирается раньше текста', () => {
+    // `content` такую запись тоже взял бы — у неё есть путь и длинный текст;
+    // побеждает diff только потому, что стоит в реестре выше.
     const view = detectResultView(
-      JSON.stringify({ operation: 'edit', path: 'a.js', additions: 1, deletions: 1, diff: '@@ -1 +1 @@\n-a\n+b' }),
+      JSON.stringify({
+        operation: 'edit',
+        path: 'a.js',
+        additions: 1,
+        deletions: 1,
+        diff: '@@ -1 +1 @@\n-a\n+b',
+        content: 'x\n'.repeat(20),
+      }),
     );
     expect(view.id).toBe('diff');
   });
@@ -187,9 +196,7 @@ describe('detectResultView', () => {
     expect(detectResultView(outline).id).toBe('tree');
   });
 
-  it('прогон скрипта — scriptRun, хотя его правки формой подошли бы и diff’у', () => {
-    // Вид, который содержит другой вид, обязан стоять выше него: иначе ответ
-    // разобрали бы по частям и лог со статистикой потерялись бы.
+  it('прогон скрипта достаётся виду scriptRun', () => {
     // runScript обёртки не знает: id репозитория — его собственное поле верхнего
     // уровня, и распаковка до этого ответа не дотягивается.
     const script = JSON.stringify({

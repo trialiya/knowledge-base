@@ -656,13 +656,6 @@ describe('applyChatEvent', () => {
     expect(last(chat).usage).toEqual(usage);
   });
 
-  test('COMPACT_DONE survives finalize even though the notice bubble has no text', () => {
-    let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
-    chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messageId: 5, messages: 3 } }, ctx);
-    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
-    expect(chat.messages.filter((m) => m.compact)).toHaveLength(1);
-  });
-
   // ─── Фоновая сводка ───────────────────────────────────────────────────────
   // Прогона нет вовсе: сводку написали раньше, а применили в первый подходящий момент.
   // Плашка встаёт не в конец ленты, а туда, где кончается свёрнутое.

@@ -54,9 +54,7 @@ describe('detectDocMutation — что остаётся другим видам'
   });
 
   it('версия описания без версии документа — форма не та', () => {
-    const { version, ...withoutVersion } = short();
-    expect(version).toBe(1);
-    expect(detect(JSON.stringify(withoutVersion))).toBeNull();
+    expect(detect(JSON.stringify(short({ version: undefined })))).toBeNull();
   });
 
   it('запись без заголовка, массив, скаляр и не JSON', () => {

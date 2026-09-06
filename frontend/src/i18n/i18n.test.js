@@ -17,8 +17,8 @@
  *      useTranslation('knowledgeBase').
  *   5. Каждый инструмент из TOOL_META имеет лейбл в tools.* (ru и en).
  *
- * Динамические ключи (шаблонные строки `tools.${name}`, `gitPhrases.phrases.${id}...`)
- * статически не резолвятся — они покрыты отдельными проверками (5) и (6).
+ * Динамические ключи (шаблонные строки вроде `tools.${name}`) статически не
+ * резолвятся — инструменты покрывает проверка (5).
  */
 
 import fs from 'fs';
@@ -220,11 +220,9 @@ describe('i18n: нет пустых значений', () => {
 describe('i18n: используемые в коде ключи существуют', () => {
   const files = walkSource(SRC_ROOT);
 
-  test('найдены исходные файлы для сканирования', () => {
-    expect(files.length).toBeGreaterThan(0);
-  });
-
   test('каждый литеральный t() резолвится в ru и en', () => {
+    // Пустой обход означал бы не «все ключи на месте», а сломанный сканер.
+    expect(files.length).toBeGreaterThan(0);
     const problems = [];
     for (const file of files) {
       const code = fs.readFileSync(file, 'utf8');

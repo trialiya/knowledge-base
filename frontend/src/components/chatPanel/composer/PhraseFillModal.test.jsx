@@ -199,6 +199,8 @@ describe('PhraseFillModal', () => {
 
     expect(document.querySelector('.phrase-fill__results')).toBeNull();
     expect(input).toHaveValue('App');
+    // Набранное без выбора подстановка выбросит — поле предупреждает об этом сразу.
+    expect(input).toHaveClass('phrase-fill__input--warn');
   });
 
   // Регрессия: Enter гасился на любом открытом списке, в том числе на пустой
@@ -226,18 +228,6 @@ describe('PhraseFillModal', () => {
 
     expect(input).toHaveClass('phrase-fill__input--warn');
     expect(input).toHaveAttribute('aria-invalid', 'true');
-  });
-
-  it('warns when the list was closed and nothing was picked from it', async () => {
-    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
-    renderModal('Посмотри {{Файл:file}}');
-
-    const input = screen.getByLabelText(/Файл/);
-    await userEvent.type(input, 'App');
-    await screen.findByText('src/App.jsx');
-    await userEvent.keyboard('{Escape}');
-
-    expect(input).toHaveClass('phrase-fill__input--warn');
   });
 
   // Регрессия: снаружи список гасит только mousedown, поэтому уход по Tab
