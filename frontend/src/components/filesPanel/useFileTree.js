@@ -1,12 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import gitApi from '@/api/gitApi';
-import { readDir, readDirs, readExpanded, putDirs, putExpanded, ancestorsOf } from './fileTreeStore';
+import { readDir, readDirs, readExpanded, putDirs, putExpanded, ancestorsOf, treeScope } from './fileTreeStore';
 
-/** Ответ /api/git/browse → содержимое центра ({ type, path, tracked, file|nodes }). */
+/** Ответ /api/git/browse → содержимое центра ({ type, path, tracked, commit, file|nodes }). */
 function contentOf(view, path) {
-  if (view.type === 'file') return { type: 'file', path: view.path, tracked: view.tracked, file: view.file };
-  if (view.type === 'directory')
-    return { type: 'directory', path: view.path, tracked: view.tracked, nodes: view.nodes ?? [] };
+  const common = { path: view.path, tracked: view.tracked, commit: view.commit ?? null };
+  if (view.type === 'file') return { ...common, type: 'file', file: view.file };
+  if (view.type === 'directory') return { ...common, type: 'directory', nodes: view.nodes ?? [] };
   return { type: 'not-found', path };
 }
 
@@ -33,6 +33,12 @@ function contentOf(view, path) {
  * запросы в полёте и ключ ответа — пять сбросов вместо одного, и любой забытый
  * показал бы файлы прежнего репозитория.
  *
+ * `rev` — ревизия, снимок которой показывает панель ('' — рабочее дерево).
+ * Постоянна внутри жизни хука по той же причине, что и `project`: смену снимка
+ * FilesPanel тоже делает перемонтированием. Кэш листингов разложен по паре
+ * (проект, ревизия) — у `src/` в рабочем дереве и в коммите один путь и разное
+ * содержимое, — поэтому возврат в рабочее дерево ничего не выкачивает заново.
+ *
  * `refreshToken` — внешний сигнал «что-то в репозитории могло поменяться»
  * (правка файла инструментом чата, см. App.jsx): рост значения перезапускает
  * эффект открытия пути ниже, даже если сам `path` не изменился. Каталоги,
@@ -40,15 +46,16 @@ function contentOf(view, path) {
  * перезапрошены как недостающие; сам открытый путь всегда перезапрашивается
  * заново вне зависимости от кэша.
  */
-export default function useFileTree({ project, path, onPathChange, refreshToken }) {
-  const [treeCache, setTreeCache] = useState(() => readDirs(project));
+export default function useFileTree({ project, rev = '', path, onPathChange, refreshToken }) {
+  const scope = treeScope(project, rev);
+  const [treeCache, setTreeCache] = useState(() => readDirs(scope));
   // Каталоги, которые тянет ensureDir (раскрытие шевроном). Предки открываемого
   // пути сюда не попадают — их спиннеры выводятся ниже из самого запроса.
   const [expandingDirs, setExpandingDirs] = useState(() => new Set());
   // Предков открываемого пути раскрываем сразу на монтировании, не дожидаясь
   // ответа: уровни, уже лежащие в кэше, отрисуются мгновенно.
   const [expanded, setExpanded] = useState(() => {
-    const stored = readExpanded(project);
+    const stored = readExpanded(scope);
     ancestorsOf(path).forEach((dir) => stored.add(dir));
     return stored;
   });
@@ -59,14 +66,14 @@ export default function useFileTree({ project, path, onPathChange, refreshToken 
   // Кэш каталогов и раскрытые узлы переживают размонтирование панели.
   const cacheDirs = useCallback(
     (entries) => {
-      putDirs(project, entries);
+      putDirs(scope, entries);
       setTreeCache((prev) => ({ ...prev, ...entries }));
     },
-    [project],
+    [scope],
   );
   useEffect(() => {
-    putExpanded(project, expanded);
-  }, [project, expanded]);
+    putExpanded(scope, expanded);
+  }, [scope, expanded]);
 
   const markLoading = useCallback((dirs, loading) => {
     if (dirs.length === 0) return;
@@ -81,7 +88,7 @@ export default function useFileTree({ project, path, onPathChange, refreshToken 
     (dirPath) => {
       // Спрашиваем сам кэш, а не состояние: `treeCache` — его снимок для
       // отрисовки, и зеркалить снимок обратно нечем.
-      const cached = readDir(project, dirPath);
+      const cached = readDir(scope, dirPath);
       if (cached) return Promise.resolve(cached);
       if (inFlightRef.current.has(dirPath)) {
         return inFlightRef.current.get(dirPath);
@@ -92,7 +99,7 @@ export default function useFileTree({ project, path, onPathChange, refreshToken 
       // запрос. Промис отклоняется, и следующий ensureDir(dirPath) (повторный
       // клик по шеврону) увидит, что в кэше ничего нет, и запросит заново.
       const promise = gitApi
-        .getTree(dirPath, { project })
+        .getTree(dirPath, { project, rev })
         .then((nodes) => {
           cacheDirs({ [dirPath]: nodes });
           return nodes;
@@ -104,7 +111,7 @@ export default function useFileTree({ project, path, onPathChange, refreshToken 
       inFlightRef.current.set(dirPath, promise);
       return promise;
     },
-    [project, cacheDirs, markLoading],
+    [project, rev, scope, cacheDirs, markLoading],
   );
 
   const toggleExpand = useCallback(
@@ -163,11 +170,11 @@ export default function useFileTree({ project, path, onPathChange, refreshToken 
   // not-found, ошибка) — иначе в центре навсегда остаётся «Загрузка…».
   useEffect(() => {
     let cancelled = false;
-    const missing = ancestorsOf(path).filter((dir) => !readDir(project, dir));
+    const missing = ancestorsOf(path).filter((dir) => !readDir(scope, dir));
 
     (async () => {
       try {
-        const view = await gitApi.browse(path, { ancestors: missing.length > 0, project });
+        const view = await gitApi.browse(path, { ancestors: missing.length > 0, rev, project });
         if (cancelled) return;
 
         const levels = Object.fromEntries((view.tree ?? []).map((level) => [level.path, level.nodes]));
@@ -189,7 +196,7 @@ export default function useFileTree({ project, path, onPathChange, refreshToken 
     return () => {
       cancelled = true;
     };
-  }, [contentKey, project, path, cacheDirs]);
+  }, [contentKey, project, rev, scope, path, cacheDirs]);
 
   const selectNode = useCallback((node) => onPathChange(node.path), [onPathChange]);
 

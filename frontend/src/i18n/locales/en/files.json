@@ -134,6 +134,19 @@
       "newBranch": "The branch tracks nothing — push will create it on the remote",
       "loadError": "Could not read the list of commits",
       "onlyBranch": "No commits of your own: push just publishes the branch"
+    },
+    "revision": {
+      "workingTree": "Working tree",
+      "workingTreeHint": "Showing the files on disk, uncommitted edits included",
+      "viewingHint": "Showing a snapshot: {{rev}}. It holds no uncommitted edits",
+      "exit": "Back to the working tree",
+      "typePlaceholder": "Hash, branch or tag…",
+      "typeLabel": "Revision",
+      "branches": "Branches",
+      "tags": "Tags",
+      "loading": "Loading…",
+      "loadError": "Could not read the list of revisions",
+      "empty": "No branches, no tags"
     }
   }
 }

@@ -17,6 +17,7 @@ import { invalidateFilePreviewCache, invalidateAllFilePreviewCache } from '@/com
 import {
   invalidatePath as invalidateFileTreePath,
   invalidateFileListings,
+  treeScope,
 } from '@/components/filesPanel/fileTreeStore';
 import '@/App.css';
 
@@ -30,8 +31,18 @@ const TABS = [
 
 function App() {
   const { t } = useTranslation();
-  const { nav, switchView, openDoc, setSearch, openChat, openFilePath, setFileChanges, toggleLeftPanel, setRightTab } =
-    useAppNavigation();
+  const {
+    nav,
+    switchView,
+    openDoc,
+    setSearch,
+    openChat,
+    openFilePath,
+    setFileChanges,
+    setFileRev,
+    toggleLeftPanel,
+    setRightTab,
+  } = useAppNavigation();
   const view = nav.view; // 'chat' | 'knowledge' | 'files' | 'admin' | 'settings'
 
   // Раскладка панелей рабочей области. Живёт в URL (общая для всех разделов
@@ -111,7 +122,9 @@ function App() {
   const handleFileChanged = useCallback((refs, project) => {
     refs.forEach((ref) => {
       invalidateFilePreviewCache(project, ref.path);
-      invalidateFileTreePath(project, ref.path);
+      // Правка инструмента меняет рабочее дерево; снимки коммитов от неё не
+      // сдвигаются — у них свой кэш и он остаётся верным.
+      invalidateFileTreePath(treeScope(project, ''), ref.path);
     });
     // Тик безвреден, даже если Files сейчас не смонтирована (проп просто не
     // используется) — а если смонтирована на том же пути, форсирует живой
@@ -248,7 +261,9 @@ function App() {
               project={nav.fileProject}
               path={nav.filePath}
               changes={nav.fileChanges}
+              rev={nav.fileRev}
               onChangesToggle={setFileChanges}
+              onRevChange={setFileRev}
               onPathChange={openFilePath}
               refreshToken={filesRefreshTick}
               gitRefsToken={gitRefsTick}

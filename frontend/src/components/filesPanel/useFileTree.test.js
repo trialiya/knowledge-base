@@ -1,6 +1,6 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import useFileTree from './useFileTree';
-import { resetFileTreeCache, invalidatePath } from './fileTreeStore';
+import { resetFileTreeCache, invalidatePath, treeScope } from './fileTreeStore';
 
 /** Панель всегда смотрит в один проект — его и передаём хуку. */
 const PROJECT = 'kb';
@@ -46,7 +46,7 @@ describe('useFileTree', () => {
     // Раньше на каждый уровень вложенности уходил свой /tree, и только потом
     // запрос содержимого — здесь всё приходит одним ответом.
     expect(gitApi.browse).toHaveBeenCalledTimes(1);
-    expect(gitApi.browse).toHaveBeenCalledWith('a/b/c.txt', { ancestors: true, project: PROJECT });
+    expect(gitApi.browse).toHaveBeenCalledWith('a/b/c.txt', { ancestors: true, rev: '', project: PROJECT });
     expect(gitApi.getTree).not.toHaveBeenCalled();
     expect(gitApi.getFileContent).not.toHaveBeenCalled();
 
@@ -57,6 +57,7 @@ describe('useFileTree', () => {
     expect(result.current.content).toEqual({
       type: 'file',
       path: 'a/b/c.txt',
+      commit: null,
       file: { path: 'a/b/c.txt', content: 'hi' },
     });
   });
@@ -76,7 +77,7 @@ describe('useFileTree', () => {
     const { result } = renderHook(() => useFileTree({ project: PROJECT, path: 'a/b', onPathChange: vi.fn() }));
     await waitFor(() => expect(result.current.contentLoading).toBe(false));
 
-    expect(result.current.content).toEqual({ type: 'directory', path: 'a/b', nodes: [nodeC] });
+    expect(result.current.content).toEqual({ type: 'directory', path: 'a/b', commit: null, nodes: [nodeC] });
     // Раскрытый каталог уже в кэше — второго запроса за тем же листингом нет.
     expect(result.current.expanded.has('a/b')).toBe(true);
     expect(result.current.treeCache['a/b']).toEqual([nodeC]);
@@ -111,7 +112,7 @@ describe('useFileTree', () => {
     rerender({ path: 'a/b/d.txt' });
     await waitFor(() => expect(result.current.content?.path).toBe('a/b/d.txt'));
 
-    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/d.txt', { ancestors: false, project: PROJECT });
+    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/d.txt', { ancestors: false, rev: '', project: PROJECT });
     // Дерево от прошлого пути никуда не делось.
     expect(result.current.treeCache['a/b']).toEqual([nodeC]);
   });
@@ -129,7 +130,7 @@ describe('useFileTree', () => {
     expect(second.result.current.treeCache['a/b']).toEqual([nodeC]);
     expect(second.result.current.expanded.has('a/b')).toBe(true);
     await waitFor(() => expect(second.result.current.contentLoading).toBe(false));
-    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', { ancestors: false, project: PROJECT });
+    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', { ancestors: false, rev: '', project: PROJECT });
   });
 
   test('a shared ancestor does not flicker when a second navigation starts before the first resolves', async () => {
@@ -188,6 +189,7 @@ describe('useFileTree', () => {
     expect(result.current.content).toEqual({
       type: 'file',
       path: 'a/b/d.txt',
+      commit: null,
       file: { path: 'a/b/d.txt', content: 'yo' },
     });
   });
@@ -226,7 +228,7 @@ describe('useFileTree', () => {
 
     // A chat-driven edit under 'a/b' invalidates that directory (and its
     // ancestors) from outside React, same as App.jsx does on a file mutation.
-    invalidatePath(PROJECT, 'a/b/new.txt');
+    invalidatePath(treeScope(PROJECT, ''), 'a/b/new.txt');
 
     gitApi.browse.mockResolvedValue(fileView(false));
     const second = renderHook(() => useFileTree({ project: PROJECT, path: 'a/b/c.txt', onPathChange: vi.fn() }));
@@ -234,7 +236,7 @@ describe('useFileTree', () => {
 
     // Unlike the "survives unmounting" test above, 'a/b' was evicted, so this
     // mount must ask the server for ancestors again instead of trusting cache.
-    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', { ancestors: true, project: PROJECT });
+    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', { ancestors: true, rev: '', project: PROJECT });
   });
 
   test('bumping refreshToken re-fetches the currently open path even though it did not change', async () => {
@@ -260,6 +262,7 @@ describe('useFileTree', () => {
       expect(result.current.content).toEqual({
         type: 'file',
         path: 'a/b/c.txt',
+        commit: null,
         file: { path: 'a/b/c.txt', content: 'edited by chat' },
       }),
     );

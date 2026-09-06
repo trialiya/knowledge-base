@@ -1,0 +1,135 @@
+/* ═══════════════════════════════════════════════
+   REVISION PICKER — чем панель показывает репозиторий: рабочим деревом
+   или снимком ревизии
+═══════════════════════════════════════════════ */
+
+.rev-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rev-picker__trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+  /* Как и в .git-branch: box-sizing глобально не задан, а высота строки должна
+     совпадать с соседней строкой ветки. */
+  box-sizing: border-box;
+  min-height: 24px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--kb-muted);
+  cursor: pointer;
+}
+
+.rev-picker__trigger:hover {
+  border-color: var(--kb-border-light);
+  background: var(--kb-accent-light);
+}
+
+.rev-picker__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kb-text);
+}
+
+/* В снимке контрол не «одна из строк тулбара», а ответ на «почему тут нет моих
+   правок»: рамка и акцентный цвет держат это на виду всё время, пока режим
+   включён. */
+.rev-picker--snapshot .rev-picker__trigger {
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+}
+
+.rev-picker--snapshot .rev-picker__label {
+  color: var(--kb-accent);
+}
+
+.rev-picker__exit {
+  flex: none;
+}
+
+.rev-picker__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--kb-border);
+  border-radius: 10px;
+  background: var(--kb-white);
+  box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
+}
+
+.rev-picker__form {
+  margin: 0 0 4px;
+}
+
+.rev-picker__input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--kb-border);
+  border-radius: 7px;
+  background: var(--kb-bg);
+  font: inherit;
+  font-size: 12px;
+  color: var(--kb-text);
+}
+
+.rev-picker__group-title {
+  margin: 6px 0 2px;
+  padding: 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--kb-muted);
+}
+
+.rev-picker__item {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  color: var(--kb-text);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rev-picker__item:hover {
+  background: var(--kb-accent-light);
+}
+
+.rev-picker__item[aria-current='true'] {
+  color: var(--kb-accent);
+}
+
+.rev-picker__note {
+  margin: 4px 0;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--kb-muted);
+}
