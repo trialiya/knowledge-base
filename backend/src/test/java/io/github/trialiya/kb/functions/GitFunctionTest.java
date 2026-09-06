@@ -70,6 +70,7 @@ class GitFunctionTest {
                         new GitFileContent(
                                 "pom.xml",
                                 true,
+                                null,
                                 "<project/>",
                                 false,
                                 10,
@@ -111,7 +112,7 @@ class GitFunctionTest {
     void explicitProjectArgumentOverridesTheChatsOwnProject() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
-        function.getFileContent(context, "pom.xml", null, null, "billing");
+        function.getFileContent(context, "pom.xml", null, null, null, "billing");
 
         verify(gitRegistry).forProject("billing");
     }
@@ -120,7 +121,7 @@ class GitFunctionTest {
     void omittedProjectArgumentFallsBackToTheChatsOwnProject() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        function.getFileContent(context, "pom.xml", null, null, null);
+        function.getFileContent(context, "pom.xml", null, null, null, null);
 
         verify(gitRegistry).forProject("billing");
     }
@@ -129,7 +130,7 @@ class GitFunctionTest {
     void blankProjectArgumentIsTreatedAsOmitted() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        function.getFileContent(context, "pom.xml", null, null, "  ");
+        function.getFileContent(context, "pom.xml", null, null, null, "  ");
 
         verify(gitRegistry).forProject("billing");
     }
@@ -139,7 +140,7 @@ class GitFunctionTest {
         ToolContext context = new ToolContext(Map.of());
 
         ToolResult<GitFileContent> result =
-                function.getFileContent(context, "pom.xml", null, null, "billing");
+                function.getFileContent(context, "pom.xml", null, null, null, "billing");
 
         assertThat(result.project()).isEqualTo("billing");
         assertThat(result.result().path()).isEqualTo("pom.xml");
@@ -212,6 +213,37 @@ class GitFunctionTest {
 
         function.getCommitLog(context, 5, null, true, null);
         verify(billing).getCommitLog(5, null, true);
+    }
+
+    /**
+     * Один инструмент читает два разных источника, и выбирает их по {@code commit}. Пустая строка
+     * здесь значит то же, что пропущенный аргумент: модель, заполнившая поле впустую, должна
+     * получить рабочее дерево, а не отказ на «no such rev».
+     */
+    @Test
+    void theCommitArgumentSwitchesTheReadFromTheWorkingTreeToThatCommitsTree() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+        when(billing.getFileContentAt(anyString(), anyString(), any(), any()))
+                .thenReturn(
+                        new GitFileContent(
+                                "pom.xml",
+                                true,
+                                "abc1234def",
+                                "<project/>",
+                                false,
+                                10,
+                                "xml",
+                                1,
+                                false,
+                                null,
+                                null));
+
+        function.getFileContent(context, "pom.xml", 1, 5, "abc1234", null);
+        verify(billing).getFileContentAt("abc1234", "pom.xml", 1, 5);
+
+        function.getFileContent(context, "pom.xml", null, null, "  ", null);
+        function.getFileContent(context, "pom.xml", null, null, null, null);
+        verify(billing, times(2)).getFileContent("pom.xml", null, null);
     }
 
     @Test

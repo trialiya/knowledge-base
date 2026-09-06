@@ -123,6 +123,7 @@
       "showAll": "Show {{count}} more lines",
       "fact": {
         "project": "project",
+        "commit": "at commit",
         "lines": "lines",
         "language": "language",
         "contentType": "type",

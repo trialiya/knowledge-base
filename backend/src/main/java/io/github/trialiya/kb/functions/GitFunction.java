@@ -306,20 +306,28 @@ public class GitFunction {
      * flagged without content. Files larger than 512 KB return a head+tail excerpt with {@code
      * truncated=true}.
      *
+     * <p>With {@code commit} the file comes from that commit's tree instead — {@code git show
+     * <rev>:<path>}. Then an uncommitted edit on disk does not show through, a file deleted since
+     * still reads, and the response's {@code commit} field carries the full hash that answered.
+     *
      * @param filePath path relative to repo root
      * @param fromLine first line to return (1-based, inclusive); null for start of file
      * @param toLine last line to return (1-based, inclusive); null for end of file
+     * @param commit revision to read from; null reads the working tree
      * @return file content (full, ranged, or excerpt) with metadata
      */
     @Tool(
             description =
-                    "Read file content (full or line range). Binary files flagged without content. "
-                            + "Large files (>512 KB) return excerpt with truncated=true. When "
-                            + "mentioning the file in your response, link it as "
-                            + "[filename](/files?path=PATH&project=ID), where PATH is the path "
-                            + "from the response and ID is the response's project field; append "
-                            + "#Lfrom-Lto for a line range. tracked=false marks a file git does "
-                            + "not track, served through the project's allow-globs.",
+                    "Read file content (full or line range). Reads the working tree, including "
+                            + "uncommitted edits, unless commit is given — then it reads the file "
+                            + "as of that commit (git show COMMIT:PATH), which is how you see what "
+                            + "a file said before a change or read one that no longer exists. "
+                            + "Binary files flagged without content. Large files (>512 KB) return "
+                            + "excerpt with truncated=true. When mentioning the file in your "
+                            + "response, link it as [filename](/files?path=PATH&project=ID), where "
+                            + "PATH is the path from the response and ID is the response's project "
+                            + "field; append #Lfrom-Lto for a line range. tracked=false marks a "
+                            + "file git does not track, served through the project's allow-globs.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<GitFileContent> getFileContent(
             ToolContext context,
@@ -336,6 +344,17 @@ public class GitFunction {
                     @Nullable Integer toLine,
             @ToolParam(
                             description =
+                                    "Optional: read the file as of this commit instead of the"
+                                            + " working tree — a full or short hash, a branch, a"
+                                            + " tag, or a revision like HEAD~2. Note HEAD is the"
+                                            + " last commit, not the working tree, so leave this"
+                                            + " out to see uncommitted edits. Give the path as it"
+                                            + " was spelled in that commit; for a renamed file,"
+                                            + " getCommitDiff says what that was.",
+                            required = false)
+                    @Nullable String commit,
+            @ToolParam(
+                            description =
                                     "Optional: another project (repository id) to read instead of"
                                             + " the chat's active one; the response's"
                                             + " top-level \"project\" field says which"
@@ -344,13 +363,18 @@ public class GitFunction {
                     @Nullable String project) {
         requireText(filePath, "filePath");
         log.info(
-                "getFileContent called: filePath='{}', fromLine={}, toLine={}, project='{}'",
+                "getFileContent called: filePath='{}', fromLine={}, toLine={}, commit='{}',"
+                        + " project='{}'",
                 filePath,
                 fromLine,
                 toLine,
+                commit,
                 project);
         GitService git = git(context, project);
-        GitFileContent fileContent = git.getFileContent(filePath, fromLine, toLine);
+        GitFileContent fileContent =
+                commit == null || commit.isBlank()
+                        ? git.getFileContent(filePath, fromLine, toLine)
+                        : git.getFileContentAt(commit, filePath, fromLine, toLine);
         log.info("getFileContent called: fileContent='{}'", fileContent);
         return answer(git, fileContent);
     }

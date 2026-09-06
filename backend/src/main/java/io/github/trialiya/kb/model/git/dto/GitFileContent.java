@@ -12,6 +12,8 @@ import org.jspecify.annotations.Nullable;
  * <p>Репозиторий здесь не назван: его называет обёртка ответа ({@code ToolResult}).
  *
  * @param path относительный путь
+ * @param commit коммит, из которого прочитано содержимое (полный хеш), либо {@code null} — файл
+ *     взят из рабочего дерева, то есть таким, какой он сейчас, вместе с незакоммиченными правками
  * @param tracked отслеживается ли файл git'ом. {@code false} — файл виден только через {@code
  *     allow-globs} проекта: он читается как любой другой, но живёт вне истории, и правка в нём
  *     остаётся неотслеживаемой (а на проекте без {@code untracked-edit-enabled} запрещена вовсе).
@@ -30,6 +32,7 @@ import org.jspecify.annotations.Nullable;
 public record GitFileContent(
         String path,
         boolean tracked,
+        @Nullable String commit,
         @Nullable String content,
         boolean binary,
         long sizeBytes,
@@ -44,6 +47,7 @@ public record GitFileContent(
     public String getFormattedResponse() {
         String head =
                 Compact.tag("file:" + path)
+                        .add("at", commit == null ? null : commit.substring(0, 7))
                         .add("lang", language)
                         .add("untracked", tracked ? null : "1")
                         .add("lines", lineCount)

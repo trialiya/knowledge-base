@@ -123,6 +123,7 @@
       "showAll": "Показать ещё {{count}} строк",
       "fact": {
         "project": "проект",
+        "commit": "на коммите",
         "lines": "строки",
         "language": "язык",
         "contentType": "тип",
