@@ -12,6 +12,7 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
+import io.github.trialiya.kb.model.chat.dto.ChatSearchGroups;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
 import io.github.trialiya.kb.model.chat.dto.ChatUsageTotals;
 import io.github.trialiya.kb.model.chat.dto.CompactDetail;
@@ -178,6 +179,17 @@ public class ChatController {
             @RequestParam String q, @RequestParam(defaultValue = "20") int limit) {
         int safe = Math.min(Math.max(limit, 1), 50);
         return chatSearchService.searchChats(getUser(), q, safe);
+    }
+
+    /**
+     * Тот же поиск для страницы поиска: чат один раз со всеми своими совпавшими сообщениями. {@code
+     * limit} ограничивает число чатов, не сообщений.
+     */
+    @GetMapping("/search/grouped")
+    public ChatSearchGroups searchChatsGrouped(
+            @RequestParam String q, @RequestParam(defaultValue = "20") int limit) {
+        int safe = Math.min(Math.max(limit, 1), 50);
+        return chatSearchService.searchChatsGrouped(getUser(), q, safe);
     }
 
     // ---------------------------------------------------------------------

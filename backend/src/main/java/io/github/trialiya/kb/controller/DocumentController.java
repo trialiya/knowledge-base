@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistory;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistoryShort;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
+import io.github.trialiya.kb.model.doc.dto.DocumentSearchGroups;
 import io.github.trialiya.kb.model.doc.dto.MoveRequest;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
@@ -13,6 +14,7 @@ import io.github.trialiya.kb.model.doc.entity.DocumentTreeRow;
 import io.github.trialiya.kb.model.doc.sync.ImportRequest;
 import io.github.trialiya.kb.service.document.DocumentExportService;
 import io.github.trialiya.kb.service.document.DocumentExportService.ExportEntry;
+import io.github.trialiya.kb.service.document.DocumentSearchGroupService;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.service.document.DocumentSyncService;
 import io.github.trialiya.kb.service.document.SyncJobRunner;
@@ -53,6 +55,7 @@ public class DocumentController {
     private final DocumentSyncService documentSyncService;
     private final SyncJobRunner syncJobRunner;
     private final SemanticSearchService semanticSearchService;
+    private final DocumentSearchGroupService searchGroups;
 
     // ── Tree ──────────────────────────────────────────────────────────────────
 
@@ -280,6 +283,19 @@ public class DocumentController {
             case "hybrid" -> service.hybridSearch(q, threshold, limit, kwWeight, semWeight);
             default -> service.search(q);
         };
+    }
+
+    /**
+     * The same search, shaped for the search page: each document once, with every line of its body
+     * the query occurs in.
+     *
+     * <pre>GET /api/documents/search/grouped?q=...&mode=hybrid</pre>
+     */
+    @GetMapping("/search/grouped")
+    public DocumentSearchGroups searchGrouped(
+            @RequestParam String q, @RequestParam(defaultValue = "keyword") String mode) {
+        if (q.isBlank()) return new DocumentSearchGroups(0, List.of());
+        return searchGroups.search(q, mode);
     }
 
     // ── @mention autocomplete ─────────────────────────────────────────────────────

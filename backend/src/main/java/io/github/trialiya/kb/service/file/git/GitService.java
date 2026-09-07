@@ -19,11 +19,9 @@ import io.github.trialiya.kb.model.git.dto.TextEdit;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.file.outline.LanguageDetector;
 import io.github.trialiya.kb.service.file.outline.OutlineService;
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -81,9 +79,10 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>All operations run against this project's repository via JGit, in-process — no {@code git}
  * subprocess, no argv, no output parsing — except {@link #grepContent}, which still shells out to
- * {@code git grep} (JGit has no equivalent), and the user's network commands ({@link #fetch}, see
- * {@code GitCommands}), which shell out to reuse the host's credentials. Files matched by {@code
- * .gitignore} are excluded from tree/search/status results the same way native git excludes them.
+ * {@code git grep} through {@link GitGrepRunner} (JGit has no equivalent), and the user's network
+ * commands ({@link #fetch}, see {@code GitCommands}), which shell out to reuse the host's
+ * credentials. Files matched by {@code .gitignore} are excluded from tree/search/status results the
+ * same way native git excludes them.
  */
 @Slf4j
 public class GitService {
@@ -134,6 +133,9 @@ public class GitService {
     /** Which paths this project exposes, and what the index says about them. */
     private final VisibleFiles visible;
 
+    /** Content search — the one operation that shells out to {@code git}. */
+    private final GitGrepRunner grep;
+
     /** The working-tree writes, kept apart from this far larger read surface. */
     private final GitWriter writer;
 
@@ -166,6 +168,7 @@ public class GitService {
         }
         this.git = new Git(repository);
         this.visible = new VisibleFiles(project, paths, repository);
+        this.grep = new GitGrepRunner(paths, repository, visible);
         this.writer = new GitWriter(project, paths, visible, git);
         this.branches = new GitBranches(repository, git);
         this.commands = new GitCommands(paths, repository, git, branches);
@@ -646,34 +649,8 @@ public class GitService {
     // ── Content grep ────────────────────────────────────────────────────────
 
     /**
-     * Searches the contents of tracked files for lines matching {@code pattern}.
-     *
-     * <p>Delegates to {@code git grep}, which searches only tracked files (honouring {@code
-     * .gitignore}) and is orders of magnitude faster than scanning the filesystem. Binary files are
-     * skipped automatically by git grep. JGit has no equivalent of {@code git grep}, so this is the
-     * one operation in this class that still shells out to the {@code git} binary.
-     *
-     * <p>The search is <b>literal by default</b> ({@code --fixed-strings}). Pass {@code regex=true}
-     * to enable POSIX extended regular expressions. The search is always <b>case-insensitive</b>
-     * ({@code -i}) because the AI often doesn't know exact casing.
-     *
-     * <p>When {@code contextLines > 0} the raw git grep output contains context lines (prefixed
-     * with {@code -}) and groups separated by {@code --}. These are collapsed into one {@link
-     * GitGrepMatch} per contiguous block so the caller sees grouped context rather than one record
-     * per raw line.
-     *
-     * @param pattern literal string or regex to search for
-     * @param pathGlob optional glob to restrict search to matching paths (e.g. {@code "*.java"},
-     *     {@code "src/main/**"}); null means all tracked files
-     * @param regex if true, treat {@code pattern} as an extended regex; otherwise literal
-     * @param contextLines number of context lines before and after each match (like grep -C); 0
-     *     means match line only; capped at 10
-     * @param maxResults maximum number of match blocks to return; capped at 200
-     * @param includeUntracked also search the untracked files this project's {@code allow-globs}
-     *     admit; off by default, so a plain search answers about the committed codebase
-     * @return match blocks in order of appearance; with {@code includeUntracked} the two runs are
-     *     merged and the whole list comes back ordered by path instead, so a file's blocks stay
-     *     together rather than splitting around the seam between the runs. Empty if nothing matched
+     * Searches the contents of tracked files for lines matching {@code pattern}; see {@link
+     * GitGrepRunner#grepContent}.
      */
     public List<GitGrepMatch> grepContent(
             @NonNull String pattern,
@@ -682,54 +659,22 @@ public class GitService {
             int contextLines,
             int maxResults,
             boolean includeUntracked) {
+        return grep.grepContent(
+                pattern, pathGlob, regex, contextLines, maxResults, includeUntracked);
+    }
 
-        int ctx = Math.min(Math.max(contextLines, 0), 10);
-        int limit = Math.min(Math.max(maxResults, 1), 200);
-
-        if (!regex && (pattern.contains(".*") || pattern.contains("|"))) {
-            log.warn(
-                    "grepContent: pattern '{}' looks like regex but regex=false — using literal match",
-                    pattern);
-        }
-
-        String glob =
-                pathGlob == null || pathGlob.isBlank()
-                        ? null
-                        : RepoPaths.toForwardSlashes(pathGlob.strip());
-        List<GitGrepMatch> tracked =
-                GitGrep.parse(exec(GitGrep.args(pattern, glob, regex, ctx, null)), ctx, limit);
-        // No roots left to search is not "search everywhere": without a pathspec the untracked run
-        // would sweep the whole working tree.
-        if (!includeUntracked || visible.allowGlobRoots().isEmpty()) {
-            return tracked;
-        }
-
-        // A second, separately bounded run: `--untracked` cannot be added to the one above without
-        // also dragging in every other untracked file in the repository, and
-        // `--no-exclude-standard`
-        // would send it through node_modules and build/. Rooting it at the globs' own directories
-        // keeps the walk the size of the named area.
-        List<GitGrepMatch> extra =
-                GitGrep.parse(
-                        exec(GitGrep.args(pattern, null, regex, ctx, visible.allowGlobRoots())),
-                        ctx,
-                        Integer.MAX_VALUE);
-        Set<String> trackedPaths = Set.copyOf(visible.trackedPaths());
-        @Nullable Pathspec pathspec = Pathspec.of(glob);
-        List<GitGrepMatch> merged = new ArrayList<>(tracked);
-        extra.stream()
-                // The roots are wider than the globs, and `--untracked` reports tracked files too;
-                // `glob` is re-applied by hand because it is spent on the pathspec above.
-                .filter(m -> !trackedPaths.contains(m.path()))
-                .filter(m -> visible.matchesAllowGlobs(m.path()))
-                .filter(m -> pathspec == null || pathspec.matches(m.path()))
-                .forEach(merged::add);
-        // Cut only once everything invisible is gone, or a large untracked area would spend the
-        // whole cap on matches nobody gets to see.
-        return merged.stream()
-                .sorted(Comparator.comparing(GitGrepMatch::path))
-                .limit(limit)
-                .toList();
+    /**
+     * {@link #grepContent} over the tree of a commit instead of the working tree; see {@link
+     * GitGrepRunner#grepContentAt}.
+     */
+    public List<GitGrepMatch> grepContentAt(
+            @NonNull String rev,
+            @NonNull String pattern,
+            @Nullable String pathGlob,
+            boolean regex,
+            int contextLines,
+            int maxResults) {
+        return grep.grepContentAt(rev, pattern, pathGlob, regex, contextLines, maxResults);
     }
 
     // ── File content ────────────────────────────────────────────────────────
@@ -1539,46 +1484,6 @@ public class GitService {
      */
     public static String normalizePath(@NonNull String filePath) {
         return RepoPaths.normalize(filePath);
-    }
-
-    /** Runs {@code git grep} as a subprocess — the one operation JGit cannot do in-process. */
-    private List<String> exec(List<String> command) {
-        try {
-            // core.quotepath=false: without it, git quotes/octal-escapes any path containing
-            // non-ASCII bytes (e.g. Cyrillic filenames) in grep output — "docs/проект" becomes
-            // "\"docs/\\320\\277...\"", which breaks path parsing.
-            List<String> withConfig = new ArrayList<>(command.size() + 2);
-            withConfig.add(command.get(0));
-            withConfig.add("-c");
-            withConfig.add("core.quotepath=false");
-            withConfig.addAll(command.subList(1, command.size()));
-
-            ProcessBuilder pb =
-                    new ProcessBuilder(withConfig)
-                            .directory(paths.root().toFile())
-                            .redirectErrorStream(true);
-            Process process = pb.start();
-            List<String> lines;
-            try (var reader =
-                    new BufferedReader(
-                            new InputStreamReader(
-                                    process.getInputStream(), StandardCharsets.UTF_8))) {
-                lines = reader.lines().toList();
-            }
-            int exit = process.waitFor();
-            if (exit != 0) {
-                String output = String.join("\n", lines);
-                log.warn("Git command exited {}: {} → {}", exit, command, output);
-                // git grep exits 1 when there are simply no matches — not an error, so we still
-                // return whatever output we got (empty in that case).
-            }
-            return lines;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Git command interrupted: " + command, e);
-        } catch (IOException e) {
-            throw new IllegalStateException("Git command failed: " + command, e);
-        }
     }
 
     private long fileSize(String relativePath) {

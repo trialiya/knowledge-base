@@ -26,6 +26,15 @@ const documentsApi = {
   search: (q, mode) => request(`/api/documents/search?q=${encodeURIComponent(q)}&mode=${mode}`),
 
   /**
+   * Тот же поиск для страницы поиска: документ один раз со всеми фрагментами, где встретился запрос.
+   * Возвращает { total, documents: [{ id, title, updatedAt, parentList, fragments: [{ line, sectionPath, text }] }] }.
+   */
+  searchGrouped: (q, mode = 'keyword', signal) => {
+    const params = new URLSearchParams({ q, mode });
+    return request(`/api/documents/search/grouped?${params}`, signal ? { signal } : undefined);
+  },
+
+  /**
    * Поиск по имени для @mention-автодополнения. limit — макс. результатов.
    * signal — AbortSignal для отмены при следующем нажатии клавиши.
    */

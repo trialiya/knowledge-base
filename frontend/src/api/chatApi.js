@@ -80,6 +80,15 @@ const chatApi = {
     return request(`/api/chats/search?${params}`, signal ? { signal } : undefined);
   },
 
+  /**
+   * Тот же поиск для страницы поиска: чат один раз со всеми совпавшими сообщениями (хронологически).
+   * Возвращает { total, chats: [{ conversationId, topic, updatedAt, titleMatched, messages: [{ id, role, createdAt, snippet }] }] }.
+   */
+  searchChatsGrouped: (q, limit = 20, signal) => {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    return request(`/api/chats/search/grouped?${params}`, signal ? { signal } : undefined);
+  },
+
   /** Полные детали одного вызова инструмента — точечно по протокольному id вызова. */
   getToolCallDetails: (chatId, callId) => {
     const params = new URLSearchParams({ callId });
