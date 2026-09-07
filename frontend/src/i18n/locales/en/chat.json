@@ -432,6 +432,7 @@
     "tab": "Repository",
     "unavailable": "The project's repository is unavailable.",
     "uncommitted": "Uncommitted · {{count}}",
+    "uncommittedUnknown": "Uncommitted",
     "lastCommand": "Last command",
     "outcomeOk": "done",
     "outcomeFailed": "refused",

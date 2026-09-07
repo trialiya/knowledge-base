@@ -35,6 +35,10 @@ const ChatRepoPanel = ({ git, onOpenCommit, onOpenPush }) => {
   // оказывается другая четвёрка.
   const changes = sortByName(git.changes ?? []);
   const hidden = Math.max(0, changes.length - VISIBLE_CHANGES);
+  // Пока список не пришёл (или не пришёл вовсе), счётчика нет: ноль — это
+  // утверждение «всё сохранено», и сделанное по незнанию оно стоит дороже
+  // пустого места. Кнопку коммита оно тоже гасит, а гасить её нечем.
+  const knownChanges = !git.changesLoading && !git.changesError;
   // Отправлять нечего — это про ветку, а не про права: разрешение проекта решает,
   // быть ли кнопке вообще.
   const nothingToPush = !!upstream && ahead === 0;
@@ -86,7 +90,9 @@ const ChatRepoPanel = ({ git, onOpenCommit, onOpenPush }) => {
 
       <section className="chat-repo__section">
         <div className="chat-repo__section-head">
-          <h3 className="chat-repo__section-title">{t('repo.uncommitted', { count: changes.length })}</h3>
+          <h3 className="chat-repo__section-title">
+            {knownChanges ? t('repo.uncommitted', { count: changes.length }) : t('repo.uncommittedUnknown')}
+          </h3>
           {changes.length > 0 && (
             <button type="button" className="chat-repo__link" onClick={openChanges}>
               {t('repo.allChanges')}
@@ -95,7 +101,11 @@ const ChatRepoPanel = ({ git, onOpenCommit, onOpenPush }) => {
           )}
         </div>
 
-        {changes.length === 0 ? (
+        {git.changesLoading ? (
+          <p className="chat-repo__note">{t('files:tree.loading')}</p>
+        ) : git.changesError ? (
+          <p className="chat-repo__note">{t('files:changes.loadError')}</p>
+        ) : changes.length === 0 ? (
           <p className="chat-repo__note">{t('files:changes.empty')}</p>
         ) : (
           <>
@@ -143,8 +153,8 @@ const ChatRepoPanel = ({ git, onOpenCommit, onOpenPush }) => {
         <button
           type="button"
           className="btn btn--primary chat-repo__action"
-          disabled={git.disabled || changes.length === 0}
-          title={changes.length === 0 ? t('files:git.nothingToCommit') : blocked}
+          disabled={git.disabled || (knownChanges && changes.length === 0)}
+          title={knownChanges && changes.length === 0 ? t('files:git.nothingToCommit') : blocked}
           onClick={onOpenCommit}
         >
           <IconCheck size={14} />

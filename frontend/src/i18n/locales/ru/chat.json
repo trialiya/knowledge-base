@@ -434,6 +434,7 @@
     "tab": "Репозиторий",
     "unavailable": "Репозиторий проекта недоступен.",
     "uncommitted": "Не сохранено · {{count}}",
+    "uncommittedUnknown": "Не сохранено",
     "lastCommand": "Последняя команда",
     "outcomeOk": "выполнена",
     "outcomeFailed": "отказ",
