@@ -67,30 +67,7 @@ final class CommitFiles {
                     throw new IllegalArgumentException(
                             "Not a file in " + commit.name() + ": " + path);
                 }
-                ObjectLoader loader = repository.open(tree.getObjectId(0), Constants.OBJ_BLOB);
-                long size = loader.getSize();
-                if (size > MAX_BLOB_SIZE) {
-                    // Отказ, а не усечение: ответ строится из начала И конца файла, и прочитать
-                    // конец, не подняв в память всё остальное, нельзя. Размер объекта известен до
-                    // чтения, поэтому граница проходит здесь, а не по факту нехватки памяти.
-                    throw new IllegalArgumentException(
-                            "Too large to read from history: "
-                                    + path
-                                    + " at "
-                                    + commit.name()
-                                    + " is "
-                                    + size
-                                    + " bytes (limit "
-                                    + MAX_BLOB_SIZE
-                                    + ")");
-                }
-                // Через поток, а не getBytes(): тот отказывает по своему порогу
-                // (core.streamFileThreshold), то есть по настройке репозитория, а не по нашей.
-                // Поток закрывается: у большого объекта за ним стоит окно пака и inflater из
-                // пула JGit, и они возвращаются в пул только по close().
-                try (ObjectStream stream = loader.openStream()) {
-                    return new Blob(commit.name(), stream.readAllBytes(), size);
-                }
+                return load(walk.getObjectReader(), tree.getObjectId(0), commit.name(), path);
             }
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + rev, e);
@@ -164,6 +141,28 @@ final class CommitFiles {
                 return -1;
             }
         }
+
+        /**
+         * Содержимое файла из этого же снимка: объект найден обходом дерева, поэтому ни коммит, ни
+         * дерево второй раз не разбираются — в отличие от {@link CommitFiles#read}, которому
+         * ревизию нужно ещё разрешить.
+         *
+         * <p>Читатель, как и в {@link #sizeOf}, приходит снаружи и им же закрывается.
+         *
+         * @throws IllegalArgumentException такого файла в снимке нет или объект больше {@code
+         *     MAX_BLOB_SIZE}
+         */
+        Blob blobAt(ObjectReader reader, String path) {
+            ObjectId id = blobs.get(path);
+            if (id == null) {
+                throw new IllegalArgumentException("File not found in " + commit + ": " + path);
+            }
+            try {
+                return load(reader, id, commit, path);
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed reading " + path + " at " + commit, e);
+            }
+        }
     }
 
     /**
@@ -180,6 +179,41 @@ final class CommitFiles {
             throw new IllegalArgumentException("Ambiguous commit reference: " + rev, e);
         } catch (IOException e) {
             throw new IllegalStateException("Failed resolving " + rev, e);
+        }
+    }
+
+    /**
+     * Блоб по уже найденному объекту.
+     *
+     * @param reader читатель объектов; закрывает его тот, кто открыл
+     * @param commit полный хеш коммита, из дерева которого взят объект
+     * @throws IllegalArgumentException объект больше {@link #MAX_BLOB_SIZE}
+     */
+    private static Blob load(ObjectReader reader, ObjectId id, String commit, String path)
+            throws IOException {
+        ObjectLoader loader = reader.open(id, Constants.OBJ_BLOB);
+        long size = loader.getSize();
+        if (size > MAX_BLOB_SIZE) {
+            // Отказ, а не усечение: ответ строится из начала И конца файла, и прочитать конец, не
+            // подняв в память всё остальное, нельзя. Размер объекта известен до чтения, поэтому
+            // граница проходит здесь, а не по факту нехватки памяти.
+            throw new IllegalArgumentException(
+                    "Too large to read from history: "
+                            + path
+                            + " at "
+                            + commit
+                            + " is "
+                            + size
+                            + " bytes (limit "
+                            + MAX_BLOB_SIZE
+                            + ")");
+        }
+        // Через поток, а не getBytes(): тот отказывает по своему порогу
+        // (core.streamFileThreshold), то есть по настройке репозитория, а не по нашей. Поток
+        // закрывается: у большого объекта за ним стоит окно пака и inflater из пула JGit, и они
+        // возвращаются в пул только по close().
+        try (ObjectStream stream = loader.openStream()) {
+            return new Blob(commit, stream.readAllBytes(), size);
         }
     }
 

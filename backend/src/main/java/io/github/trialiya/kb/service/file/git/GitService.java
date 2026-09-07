@@ -272,9 +272,7 @@ public class GitService {
                     target,
                     includeAncestors,
                     snapshot.commit(),
-                    // Уже прочитанный снимок содержимого не несёт, а второе чтение того же коммита
-                    // отвечает тем же: getFileContentAt берёт блоб по пути в дереве этого же хеша.
-                    tracked -> contentAt(snapshot.commit(), target));
+                    tracked -> contentAt(snapshot, reader, target));
         }
     }
 
@@ -286,11 +284,13 @@ public class GitService {
      * имеют, а без них браузер показал бы одну ошибку вместо панели — и починить адрес было бы
      * негде. Что именно нечитаемо, видно по {@code file: null} у типа {@code FILE}.
      */
-    private @Nullable GitFileContent contentAt(String commit, String path) {
+    private @Nullable GitFileContent contentAt(
+            CommitFiles.Snapshot snapshot, ObjectReader reader, String path) {
         try {
-            return getFileContentAt(commit, path, null, null);
+            CommitFiles.Blob blob = snapshot.blobAt(reader, path);
+            return FileViews.of(path, true, blob.commit(), blob.bytes(), blob.size(), null, null);
         } catch (IllegalArgumentException e) {
-            log.debug("No content for {} at {}: {}", path, commit, e.getMessage());
+            log.debug("No content for {} at {}: {}", path, snapshot.commit(), e.getMessage());
             return null;
         }
     }

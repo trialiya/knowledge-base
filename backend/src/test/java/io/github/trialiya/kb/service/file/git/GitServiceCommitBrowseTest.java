@@ -205,6 +205,26 @@ class GitServiceCommitBrowseTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /**
+     * Содержимое в этом режиме приходит из того же снимка, что и дерево, и проходит те же правила
+     * показа, что чтение с диска: двоичный файл помечается флагом и отдаётся без текста.
+     */
+    @Test
+    void aBinaryFileOfTheCommitIsFlaggedWithoutContent() {
+        byte[] bytes = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x01, 0x02};
+        writeBytes("assets/blob.bin", bytes);
+        commitAll("binary");
+
+        GitPathView view = service.browsePathAt(head(), "assets/blob.bin", false);
+
+        assertThat(view.type()).isEqualTo(FileEntryType.FILE);
+        assertThat(view.file()).isNotNull();
+        assertThat(view.file().binary()).isTrue();
+        assertThat(view.file().content()).isNull();
+        assertThat(view.file().sizeBytes()).isEqualTo(bytes.length);
+        assertThat(view.file().commit()).isEqualTo(head());
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static List<String> names(@org.jspecify.annotations.Nullable List<GitFileNode> nodes) {
@@ -222,6 +242,18 @@ class GitServiceCommitBrowseTest {
                 Files.createDirectories(file.getParent());
             }
             Files.writeString(file, content);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private void writeBytes(String relativePath, byte[] content) {
+        try {
+            Path file = repoDir.resolve(relativePath);
+            if (file.getParent() != null) {
+                Files.createDirectories(file.getParent());
+            }
+            Files.write(file, content);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
