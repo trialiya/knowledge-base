@@ -110,6 +110,10 @@ export default function useChatGit({
       running: branch.running,
       changes: changes.entries,
       changesLoading: changes.loading,
+      // Был ли ответ вообще — не то же, что «идёт ли запрос»: на перезапросе
+      // прежний список остаётся, и пустым он выглядит только пока не ответили
+      // ни разу (см. useUncommittedChanges).
+      changesAnswered: changes.answered,
       changesError: changes.error,
       last,
       failure,
@@ -128,6 +132,7 @@ export default function useChatGit({
       branch,
       changes.entries,
       changes.loading,
+      changes.answered,
       changes.error,
       last,
       failure,

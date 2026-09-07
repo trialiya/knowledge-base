@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import gitApi from '@/api/gitApi';
 import useUncommittedChanges from './useUncommittedChanges';
 
@@ -39,6 +39,48 @@ describe('useUncommittedChanges', () => {
 
     rerender({ project: 'kb', enabled: true, refreshToken: 1 });
     await waitFor(() => expect(gitApi.getStatus).toHaveBeenCalledTimes(2));
+  });
+
+  /**
+   * Сигнал обновления поднимает каждая правка файла инструментом чата. Если бы
+   * список на время перезапроса обнулялся, панель мигала бы на каждую из них —
+   * ровно тогда, когда в неё и смотрят.
+   */
+  test('the previous list stays on screen while the re-ask is in flight', async () => {
+    const entry = { path: 'src/App.jsx', status: 'M', additions: 1, deletions: 0 };
+    gitApi.getStatus.mockResolvedValue([entry]);
+
+    const { result, rerender } = renderHook((props) => useUncommittedChanges(props), {
+      initialProps: { project: 'kb', enabled: true, refreshToken: 0 },
+    });
+    await waitFor(() => expect(result.current.entries).toHaveLength(1));
+
+    let answer;
+    gitApi.getStatus.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    rerender({ project: 'kb', enabled: true, refreshToken: 1 });
+
+    expect(result.current.loading).toBe(true);
+    expect(result.current.answered).toBe(true);
+    expect(result.current.entries).toEqual([entry]);
+
+    await act(async () => answer([]));
+    expect(result.current.entries).toEqual([]);
+  });
+
+  /** Ответ другого проекта не устаревший, а чужой: показать его — не мигание, а ложь. */
+  test('another project starts from unknown rather than from the previous list', async () => {
+    gitApi.getStatus.mockResolvedValue([{ path: 'src/App.jsx', status: 'M', additions: 1, deletions: 0 }]);
+
+    const { result, rerender } = renderHook((props) => useUncommittedChanges(props), {
+      initialProps: { project: 'kb', enabled: true, refreshToken: 0 },
+    });
+    await waitFor(() => expect(result.current.entries).toHaveLength(1));
+
+    gitApi.getStatus.mockReturnValue(new Promise(() => {}));
+    rerender({ project: 'other', enabled: true, refreshToken: 0 });
+
+    expect(result.current.answered).toBe(false);
+    expect(result.current.entries).toEqual([]);
   });
 
   test('a failed request is reported, not left loading forever', async () => {

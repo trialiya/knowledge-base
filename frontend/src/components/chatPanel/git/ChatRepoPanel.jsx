@@ -38,7 +38,12 @@ const ChatRepoPanel = ({ git, onOpenCommit, onOpenPush }) => {
   // Пока список не пришёл (или не пришёл вовсе), счётчика нет: ноль — это
   // утверждение «всё сохранено», и сделанное по незнанию оно стоит дороже
   // пустого места. Кнопку коммита оно тоже гасит, а гасить её нечем.
-  const knownChanges = !git.changesLoading && !git.changesError;
+  //
+  // Считается по «был ли ответ», а не по «идёт ли запрос»: запрос идёт после
+  // каждой правки файла инструментом чата, и прежний список на это время
+  // остаётся на экране — иначе вкладка мигала бы ровно тогда, когда в неё и
+  // смотрят.
+  const knownChanges = git.changesAnswered && !git.changesError;
   // Отправлять нечего — это про ветку, а не про права: разрешение проекта решает,
   // быть ли кнопке вообще.
   const nothingToPush = !!upstream && ahead === 0;
@@ -101,10 +106,10 @@ const ChatRepoPanel = ({ git, onOpenCommit, onOpenPush }) => {
           )}
         </div>
 
-        {git.changesLoading ? (
-          <p className="chat-repo__note">{t('files:tree.loading')}</p>
-        ) : git.changesError ? (
+        {git.changesError ? (
           <p className="chat-repo__note">{t('files:changes.loadError')}</p>
+        ) : !git.changesAnswered ? (
+          <p className="chat-repo__note">{t('files:tree.loading')}</p>
         ) : changes.length === 0 ? (
           <p className="chat-repo__note">{t('files:changes.empty')}</p>
         ) : (

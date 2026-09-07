@@ -10,6 +10,9 @@ const change = (path, status = 'M') => ({ path, status, additions: 1, deletions:
 const git = ({ status, capabilities, ...rest } = {}) => ({
   loading: false,
   changes: [],
+  // Список уже отвечен: панель без ответа рисует загрузку, и по умолчанию
+  // тестам нужна именно та, у которой данные есть.
+  changesAnswered: true,
   last: null,
   disabled: false,
   project: 'kb',
@@ -58,7 +61,7 @@ describe('ChatRepoPanel', () => {
    */
   test('an unanswered list is not reported as nothing to commit', () => {
     const { rerender } = render(
-      <ChatRepoPanel git={git({ changesLoading: true })} onOpenCommit={vi.fn()} onOpenPush={vi.fn()} />,
+      <ChatRepoPanel git={git({ changesAnswered: false })} onOpenCommit={vi.fn()} onOpenPush={vi.fn()} />,
     );
 
     expect(screen.getByText('repo.uncommittedUnknown')).toBeInTheDocument();
