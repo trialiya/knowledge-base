@@ -421,10 +421,10 @@
   dependencies:
     "@babel/runtime" "^7.12.5"
 
-"@testing-library/user-event@^14.6.6":
-  version "14.6.6"
-  resolved "https://registry.yarnpkg.com/@testing-library/user-event/-/user-event-14.6.6.tgz#ecd5614fe2dbb76a1744a9b5a96e305b8591ceac"
-  integrity sha512-Jbs9FpkkIDw8FgSc6kOVsOv8JuuqGAL7J4X1oot77JxAoDlkNn2GRkd0aYRVuQ+pVQAiHWVkE4rX/dkF5fBiCw==
+"@testing-library/user-event@^14.6.7":
+  version "14.6.7"
+  resolved "https://registry.yarnpkg.com/@testing-library/user-event/-/user-event-14.6.7.tgz#c453ccfcaffed110cc79048ed18fccb0f4224f3b"
+  integrity sha512-MPCpX8bxe8zS+JmmTwLp8jd0dy1rAm60Te/SL8JrQM3qvQJcBOs1d7IefJMyZzqM3EWBrDn/LWDt1BCGu4ASfg==
 
 "@types/aria-query@^5.0.1":
   version "5.0.4"
@@ -1478,10 +1478,10 @@ globals@^14.0.0:
   resolved "https://registry.yarnpkg.com/globals/-/globals-14.0.0.tgz#898d7413c29babcf6bafe56fcadded858ada724e"
   integrity sha512-oahGvuMGQlPw/ivIYBjVSrWAfWLBeku5tpPE2fOPLi+WHffIWbuh2tCjhyQhTBPMf5E9jDEH4FOmTYgYwbKwtQ==
 
-globals@^17.11.0:
-  version "17.11.0"
-  resolved "https://registry.yarnpkg.com/globals/-/globals-17.11.0.tgz#d643485bb30220d7751e511cf4f68c73d3870d87"
-  integrity sha512-Z2I8hM+PbJDXQDq3Icgpzv+mPdwr68iZUU9d5WW4FuXfDUQfkZaZuvjMv42/5crNyw154+9+VWXbYrUgDXbxNw==
+globals@^17.12.0:
+  version "17.12.0"
+  resolved "https://registry.yarnpkg.com/globals/-/globals-17.12.0.tgz#910a368b8f093d3feb3f77a56dcefa05647d698e"
+  integrity sha512-cezEd/DTyyht9cvSSURyygXPfy04GtWO/5e6ZPvH7fCtjKz9PYOmuawphw1Ctd1f6C+5JypXfGD7ahNMXvevBA==
 
 globalthis@^1.0.4:
   version "1.0.4"
@@ -1496,10 +1496,10 @@ gopd@^1.0.1, gopd@^1.2.0:
   resolved "https://registry.yarnpkg.com/gopd/-/gopd-1.2.0.tgz#89f56b8217bdbc8802bd299df6d7f1081d7e51a1"
   integrity sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==
 
-happy-dom@^20.11.15:
-  version "20.11.15"
-  resolved "https://registry.yarnpkg.com/happy-dom/-/happy-dom-20.11.15.tgz#6f61c418aebc4cc840a0321c10c50bfd91abb654"
-  integrity sha512-bj2gQIKzOYB6GAAJ/jrN/IFHQe79MhEOiMAspRRWiKebRoegvGDv2B6eUt8KiZMTEDvx6ri0fAF7Xh/umAUUZA==
+happy-dom@^20.14.0:
+  version "20.14.0"
+  resolved "https://registry.yarnpkg.com/happy-dom/-/happy-dom-20.14.0.tgz#92bd0629d00bcdbb1f254a504980f4c99f0f6652"
+  integrity sha512-4bRh1KzRvKDnFNTlLhzT1RZTpkKhQbQDl9j+7GXszWsvuspYdo29k6OHRf4PwiM6oLb8r/pMWeYiJjkfod5AvQ==
   dependencies:
     "@types/node" ">=20.0.0"
     "@types/whatwg-mimetype" "^3.0.2"
@@ -1623,10 +1623,10 @@ i18next-browser-languagedetector@^8.2.1:
   dependencies:
     "@babel/runtime" "^7.23.2"
 
-i18next@^26.4.0:
-  version "26.4.0"
-  resolved "https://registry.yarnpkg.com/i18next/-/i18next-26.4.0.tgz#721c4f0ae295a5c237e25b01abfc8489831c1204"
-  integrity sha512-rsmK5bFqsD1AetSFSIa43wtNR4WpvvH4p0tLEsTxkC7QTrfdFm06nbQ95bh8Og4wwaCnUEcm9DVYL2cgxitiQg==
+i18next@^26.4.2:
+  version "26.4.2"
+  resolved "https://registry.yarnpkg.com/i18next/-/i18next-26.4.2.tgz#824233630f147359296bcaddf1404945d2b211bf"
+  integrity sha512-RX+R0VLg13IbvRuJSxnqykUFS9vQZTl8wYpWPCIUDWVrSGjsQywB5Y+pjzrkboxGAuYfJZVH1InFTdgBdxq6ug==
 
 ignore@^5.2.0:
   version "5.3.2"
@@ -2786,10 +2786,10 @@ react-dom@^19.2.8:
   dependencies:
     scheduler "^0.27.0"
 
-react-i18next@^17.0.12:
-  version "17.0.12"
-  resolved "https://registry.yarnpkg.com/react-i18next/-/react-i18next-17.0.12.tgz#8f7254800c81644a284be2fd0908e895df9a1d18"
-  integrity sha512-lFWPEGkxQ6RhusdUkysFBD58VHfSSzvHBzqMgN0SvfVpdQGfwtNkStTqdy08/sJd7s807qqutgx93fRpD0DJ3Q==
+react-i18next@^17.0.13:
+  version "17.0.13"
+  resolved "https://registry.yarnpkg.com/react-i18next/-/react-i18next-17.0.13.tgz#b35ec04059096797e6b12ea2f6552168c0172f7b"
+  integrity sha512-Cc1PscmblIHA1kljTqDwrcVMI21ydgmUzw0UAeQBe7pAOgfuRLfzXze4EUBQoeDiICzFIXXhHFoZxuetNg5D0Q==
   dependencies:
     "@babel/runtime" "^7.29.7"
     html-parse-stringify "^4.0.1"
