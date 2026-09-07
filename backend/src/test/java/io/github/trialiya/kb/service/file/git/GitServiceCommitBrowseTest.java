@@ -206,6 +206,46 @@ class GitServiceCommitBrowseTest {
     }
 
     /**
+     * Каталог, в котором нет ни одного открываемого файла, в дереве не показывается: раскрылся бы
+     * он пустым — по тому же правилу, по которому в снимок не попала сама символьная ссылка.
+     */
+    @Test
+    void aDirectoryHoldingOnlySymlinksIsNotListedEither() throws IOException {
+        Files.createDirectories(repoDir.resolve("links"));
+        Files.createSymbolicLink(repoDir.resolve("links/readme.md"), Path.of("../README.md"));
+        commitAll("links");
+
+        assertThat(names(service.getFileTreeAt(head(), ""))).doesNotContain("links");
+        assertThat(names(service.getFileTreeAt(head(), "links"))).isEmpty();
+        assertThat(names(service.browsePathAt(head(), "", false).nodes())).doesNotContain("links");
+    }
+
+    /** Размер в листинге — тоже из коммита: правка на диске его не меняет. */
+    @Test
+    void theListedSizeIsTheCommittedOne() {
+        String first = head();
+        write("README.md", "a much longer line than the committed one\n");
+
+        GitFileNode node =
+                service.getFileTreeAt(first, "").stream()
+                        .filter(n -> "README.md".equals(n.path()))
+                        .findFirst()
+                        .orElseThrow();
+
+        assertThat(node.size()).isEqualTo("first\n".length());
+        assertThat(node.type()).isEqualTo(FileEntryType.FILE);
+    }
+
+    /**
+     * Листинг спрашивают у каталога; файл и несуществующий путь отвечают пустотой, а не отказом.
+     */
+    @Test
+    void aPathThatIsNotADirectoryListsNothing() {
+        assertThat(service.getFileTreeAt(head(), "README.md")).isEmpty();
+        assertThat(service.getFileTreeAt(head(), "no/such/dir")).isEmpty();
+    }
+
+    /**
      * Содержимое в этом режиме приходит из того же снимка, что и дерево, и проходит те же правила
      * показа, что чтение с диска: двоичный файл помечается флагом и отдаётся без текста.
      */

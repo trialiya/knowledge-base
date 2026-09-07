@@ -205,10 +205,18 @@ public class GitService {
      *     HEAD~2}
      */
     public List<GitFileNode> getFileTreeAt(@NonNull String rev, @Nullable String subPath) {
-        CommitFiles.Snapshot snapshot = CommitFiles.tree(repository, rev.strip());
-        try (ObjectReader reader = repository.newObjectReader()) {
-            return RepoBrowse.tree(committed(snapshot, reader), RepoPaths.normalizeDir(subPath));
-        }
+        return RepoBrowse.ordered(
+                CommitFiles.children(repository, rev.strip(), RepoPaths.normalizeDir(subPath))
+                        .stream()
+                        .map(GitService::committedNode)
+                        .toList());
+    }
+
+    /** Потомок каталога коммита как узел дерева: в коммите отслеживается всё. */
+    private static GitFileNode committedNode(CommitFiles.Child child) {
+        return child.directory()
+                ? new GitFileNode(child.path(), child.name(), FileEntryType.DIRECTORY, null)
+                : new GitFileNode(child.path(), child.name(), FileEntryType.FILE, child.size());
     }
 
     /** The working tree as the browser lists it: the index widened by {@code allow-globs}. */
