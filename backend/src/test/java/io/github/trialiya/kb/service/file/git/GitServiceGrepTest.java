@@ -92,7 +92,7 @@ class GitServiceGrepTest {
 
         assertThatThrownBy(() -> service.grepContent("needle(", null, true, 0, 50, false))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("needle(");
+                .hasMessageStartingWith("'needle('");
     }
 
     private void writeFile(String relativePath, String content) {

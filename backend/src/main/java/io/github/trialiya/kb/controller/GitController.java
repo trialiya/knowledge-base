@@ -67,7 +67,8 @@ public class GitController {
      * Content search for the search page: {@code git grep} over the working tree (or, with {@code
      * rev}, over a commit), matches grouped by file. The pattern is literal unless {@code
      * regex=true}; matching is always case-insensitive, the same way the {@code grepContent} tool
-     * searches.
+     * searches. A search git could not finish in time is {@code 503}, like a repository that did
+     * not open: the server is fine, this one answer is not available right now.
      */
     @GetMapping("/grep")
     public GitGrepResult grep(
@@ -83,14 +84,19 @@ public class GitController {
         int cap = Math.clamp(limit, 1, 200);
         GitService git = git(project);
         @Nullable String revision = revision(rev);
-        List<GitGrepMatch> matches =
-                atRevision(
-                        () ->
-                                revision == null
-                                        ? git.grepContent(query, pathGlob, regex, 0, cap, untracked)
-                                        : git.grepContentAt(
-                                                revision, query, pathGlob, regex, 0, cap));
-        return GitGrepResult.group(matches, cap);
+        try {
+            List<GitGrepMatch> matches =
+                    atRevision(
+                            () ->
+                                    revision == null
+                                            ? git.grepContent(
+                                                    query, pathGlob, regex, 0, cap, untracked)
+                                            : git.grepContentAt(
+                                                    revision, query, pathGlob, regex, 0, cap));
+            return GitGrepResult.group(matches, cap);
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
+        }
     }
 
     /** File content for chip preview/expansion; {@code from}/{@code to} are 1-based inclusive. */

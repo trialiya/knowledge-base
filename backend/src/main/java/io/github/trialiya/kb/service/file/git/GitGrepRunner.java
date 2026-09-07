@@ -133,9 +133,9 @@ final class GitGrepRunner {
     }
 
     /**
-     * {@link #grepContent} over the tree of a commit instead of the working tree: what the file
-     * browser's snapshot mode searches. Untracked files have no place in a commit, so there is no
-     * second run here.
+     * {@link #grepContent} over the tree of a commit instead of the working tree: what the search
+     * page asks for with a revision chosen. Untracked files have no place in a commit, so there is
+     * no second run here.
      *
      * @param rev hash (full or short), branch, tag or {@code HEAD~2}; resolved through JGit first,
      *     so only a hash ever reaches the command line
@@ -239,14 +239,14 @@ final class GitGrepRunner {
 
     /**
      * Git's own explanation of a refused command line, without the {@code fatal:} prefix and the
-     * "command line," it puts before the offending regex. Falls back to a generic message when git
-     * said nothing readable.
+     * "-e option," it puts before the offending regex — the pattern travels as {@code -e}'s value,
+     * so that is how git names it. Falls back to a generic message when git said nothing readable.
      */
     private static String gitFatalLine(List<String> output) {
         return output.stream()
                 .filter(line -> line.startsWith("fatal:"))
                 .map(line -> line.substring("fatal:".length()).strip())
-                .map(line -> line.startsWith("command line, ") ? line.substring(14) : line)
+                .map(line -> line.startsWith("-e option, ") ? line.substring(11) : line)
                 .findFirst()
                 .orElse("git grep refused the pattern");
     }
