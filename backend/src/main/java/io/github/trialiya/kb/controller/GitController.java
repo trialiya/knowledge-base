@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
+import io.github.trialiya.kb.service.file.git.GitGrepTimeoutException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import java.util.List;
@@ -68,7 +69,8 @@ public class GitController {
      * rev}, over a commit), matches grouped by file. The pattern is literal unless {@code
      * regex=true}; matching is always case-insensitive, the same way the {@code grepContent} tool
      * searches. A search git could not finish in time is {@code 503}, like a repository that did
-     * not open: the server is fine, this one answer is not available right now.
+     * not open: the server is fine, this one answer is not available right now. Any other failure
+     * of git stays the {@code 500} it is.
      */
     @GetMapping("/grep")
     public GitGrepResult grep(
@@ -94,7 +96,7 @@ public class GitController {
                                             : git.grepContentAt(
                                                     revision, query, pathGlob, regex, 0, cap));
             return GitGrepResult.group(matches, cap);
-        } catch (IllegalStateException e) {
+        } catch (GitGrepTimeoutException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
         }
     }

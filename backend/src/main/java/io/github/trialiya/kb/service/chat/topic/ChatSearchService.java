@@ -112,7 +112,7 @@ public class ChatSearchService {
     public ChatSearchGroups searchChatsGrouped(String user, String q, int limit) {
         String pattern = q == null ? "" : q.trim();
         if (pattern.isEmpty()) {
-            return new ChatSearchGroups(0, List.of());
+            return new ChatSearchGroups(0, false, List.of());
         }
         Hits hits = collect(user, pattern);
         List<ChatSearchGroups.Group> groups =
@@ -138,7 +138,7 @@ public class ChatSearchService {
                                 })
                         .toList();
         int total = groups.stream().mapToInt(g -> g.messages().size()).sum();
-        return new ChatSearchGroups(total, groups);
+        return new ChatSearchGroups(total, hits.scanCapped(), groups);
     }
 
     private static ChatSearchGroups.Message message(ChatMessageEntity e, String pattern) {
@@ -156,11 +156,14 @@ public class ChatSearchService {
      * @param titleMatchIds чаты, у которых совпало название
      * @param messagesByConversation совпавшие сообщения каждого чата от новых к старым; чат,
      *     найденный только по названию, здесь отсутствует
+     * @param scanCapped просмотр сообщений упёрся в {@link #MESSAGE_SEARCH_SCAN_LIMIT}: списки
+     *     неполны, и более старые совпадения в них не попали
      */
     private record Hits(
             List<ChatTopicEntity> topics,
             Set<String> titleMatchIds,
-            Map<String, List<ChatMessageEntity>> messagesByConversation) {}
+            Map<String, List<ChatMessageEntity>> messagesByConversation,
+            boolean scanCapped) {}
 
     private Hits collect(String user, String pattern) {
         List<ChatTopicEntity> titleHits = chatTopicRepository.searchByTopic(user, pattern);
@@ -210,7 +213,11 @@ public class ChatSearchService {
                                                                 : LocalDateTime.MIN)
                                         .reversed())
                         .toList();
-        return new Hits(topics, titleMatchIds, messagesByConversation);
+        return new Hits(
+                topics,
+                titleMatchIds,
+                messagesByConversation,
+                rawHits.size() >= MESSAGE_SEARCH_SCAN_LIMIT);
     }
 
     /**

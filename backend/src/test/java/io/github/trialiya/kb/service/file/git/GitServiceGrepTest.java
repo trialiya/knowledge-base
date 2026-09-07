@@ -10,8 +10,13 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -93,6 +98,66 @@ class GitServiceGrepTest {
         assertThatThrownBy(() -> service.grepContent("needle(", null, true, 0, 50, false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageStartingWith("'needle('");
+    }
+
+    /**
+     * Git is refused for something other than the pattern — here a pathspec with magic it does not
+     * know — and that is not the caller's regex: a failure, not a bad argument.
+     */
+    @Test
+    void aRefusalThatIsNotAboutThePatternIsAFailureNotABadArgument() {
+        writeFile("a.txt", "needle\n");
+        commitAll("first");
+
+        assertThatThrownBy(
+                        () -> service.grepContent("needle", ":(bogus)a.txt", false, 0, 50, false))
+                .isInstanceOf(IllegalStateException.class)
+                .isNotInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("bogus");
+    }
+
+    /**
+     * The whole output is not read for a handful of blocks: git is stopped once the cap's worth of
+     * lines is in, and what was read is the answer, complete and in order — no exit-code noise from
+     * the kill.
+     */
+    @Test
+    void outputIsReadOnlyUpToTheLimit() {
+        String body =
+                IntStream.range(0, 5_000)
+                        .mapToObj(i -> "needle " + i)
+                        .collect(Collectors.joining("\n", "", "\n"));
+        writeFile("big.txt", body);
+        commitAll("first");
+
+        List<GitGrepMatch> matches = service.grepContent("needle", null, false, 0, 3, false);
+
+        assertThat(matches).extracting(GitGrepMatch::matchLine).containsExactly(1, 2, 3);
+    }
+
+    /**
+     * The deadline is the search's, not one run's: a run that starts with the budget already spent
+     * (here, none at all) is refused as timed out before git is even asked. The kill of a run that
+     * outlives its budget goes through the same {@code destroyForcibly} and {@code waitFor} as the
+     * output cap above; only the timing itself is not pinned down by a test.
+     */
+    @Test
+    void aSearchWhoseBudgetIsSpentIsRefusedAsTimedOut() throws IOException {
+        writeFile("a.txt", "needle\n");
+        commitAll("first");
+        RepoPaths paths = new RepoPaths(repoDir);
+        try (Repository repository =
+                new FileRepositoryBuilder().setWorkTree(repoDir.toFile()).build()) {
+            GitGrepRunner runner =
+                    new GitGrepRunner(
+                            paths,
+                            repository,
+                            new VisibleFiles(service.project(), paths, repository),
+                            Duration.ZERO);
+
+            assertThatThrownBy(() -> runner.grepContent("needle", null, false, 0, 50, false))
+                    .isInstanceOf(GitGrepTimeoutException.class);
+        }
     }
 
     private void writeFile(String relativePath, String content) {

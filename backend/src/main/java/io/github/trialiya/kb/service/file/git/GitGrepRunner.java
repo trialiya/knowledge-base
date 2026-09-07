@@ -27,20 +27,38 @@ import org.jspecify.annotations.Nullable;
 final class GitGrepRunner {
 
     /**
-     * How long one {@code git grep} may run. A search is interactive on both of its entry points —
-     * a tool call inside a run and the search page — and a walk that has not answered by then is
-     * better cut short than left to occupy the repository for as long as the walk takes.
+     * How long one search may run, both {@code git grep} runs of an untracked search included. A
+     * search is interactive on both of its entry points — a tool call inside a run and the search
+     * page — and a walk that has not answered by then is better cut short than left to occupy the
+     * repository for as long as the walk takes.
      */
     static final Duration GREP_TIMEOUT = Duration.ofSeconds(20);
+
+    /**
+     * Raw output lines one run is read up to; git is stopped once they are in. The cap on match
+     * blocks does not bound the output on its own: a pattern that matches every line of a large
+     * repository writes the repository, and holding it to keep a handful of blocks is what this
+     * prevents. With no context a block is one line, so the cap is exact there; with context the
+     * ceiling is generous enough that no realistic answer reaches it, and a run that does ends at
+     * its last complete block.
+     */
+    static final int MAX_OUTPUT_LINES = 20_000;
 
     private final RepoPaths paths;
     private final Repository repository;
     private final VisibleFiles visible;
+    private final Duration timeout;
 
     GitGrepRunner(RepoPaths paths, Repository repository, VisibleFiles visible) {
+        this(paths, repository, visible, GREP_TIMEOUT);
+    }
+
+    /** With the deadline spelled out — a test's way of seeing one expire. */
+    GitGrepRunner(RepoPaths paths, Repository repository, VisibleFiles visible, Duration timeout) {
         this.paths = paths;
         this.repository = repository;
         this.visible = visible;
+        this.timeout = timeout;
     }
 
     /**
@@ -93,9 +111,15 @@ final class GitGrepRunner {
                 pathGlob == null || pathGlob.isBlank()
                         ? null
                         : RepoPaths.toForwardSlashes(pathGlob.strip());
+        long deadline = System.nanoTime() + timeout.toNanos();
         List<GitGrepMatch> tracked =
                 GitGrep.parse(
-                        exec(GitGrep.args(pattern, glob, regex, ctx, null, null)), ctx, limit);
+                        exec(
+                                GitGrep.args(pattern, glob, regex, ctx, null, null),
+                                outputLines(ctx, limit),
+                                deadline),
+                        ctx,
+                        limit);
         // No roots left to search is not "search everywhere": without a pathspec the untracked run
         // would sweep the whole working tree.
         if (!includeUntracked || visible.allowGlobRoots().isEmpty()) {
@@ -107,11 +131,15 @@ final class GitGrepRunner {
         // `--no-exclude-standard`
         // would send it through node_modules and build/. Rooting it at the globs' own directories
         // keeps the walk the size of the named area.
+        // Unbounded in blocks, since the filters below decide what counts, and bounded in lines
+        // by the output ceiling alone, since the roots are a named area and not the repository.
         List<GitGrepMatch> extra =
                 GitGrep.parse(
                         exec(
                                 GitGrep.args(
-                                        pattern, null, regex, ctx, visible.allowGlobRoots(), null)),
+                                        pattern, null, regex, ctx, visible.allowGlobRoots(), null),
+                                MAX_OUTPUT_LINES,
+                                deadline),
                         ctx,
                         Integer.MAX_VALUE);
         Set<String> trackedPaths = Set.copyOf(visible.trackedPaths());
@@ -156,22 +184,40 @@ final class GitGrepRunner {
                 pathGlob == null || pathGlob.isBlank()
                         ? null
                         : RepoPaths.toForwardSlashes(pathGlob.strip());
-        List<String> lines = exec(GitGrep.args(pattern, glob, regex, ctx, null, commit));
+        List<String> lines =
+                exec(
+                        GitGrep.args(pattern, glob, regex, ctx, null, commit),
+                        outputLines(ctx, limit),
+                        System.nanoTime() + timeout.toNanos());
         return GitGrep.parse(GitGrep.withoutCommitPrefix(lines, commit), ctx, limit);
     }
 
+    /** Output lines that are enough for {@code limit} blocks: exact without context. */
+    private static int outputLines(int ctx, int limit) {
+        return ctx == 0 ? limit : MAX_OUTPUT_LINES;
+    }
+
     /**
-     * Runs {@code git grep} as a subprocess — the one operation JGit cannot do in-process.
+     * Runs {@code git grep} as a subprocess — the one operation JGit cannot do in-process — and
+     * reads at most {@code maxLines} of what it prints: past that git is stopped and the lines
+     * already in hand are the answer, since the caller has no use for the rest.
      *
-     * <p>Exit code 1 is git's "no match" and comes back as the (empty) output; anything above it is
-     * a refused command line — in practice a pattern that is not a valid regular expression — and
-     * surfaces as {@link IllegalArgumentException} carrying git's own {@code fatal:} line, so the
-     * caller can show why nothing came back instead of an empty list.
+     * <p>Exit code 1 is git's "no match" and comes back as the (empty) output. 128 is git's own
+     * refusal, told apart by what it complains about: the pattern (a broken regular expression) is
+     * the caller's mistake and surfaces as {@link IllegalArgumentException} carrying git's words,
+     * so the caller can show why nothing came back instead of an empty list; anything else git
+     * refuses — a repository it cannot read — is a failure of this side.
      *
-     * @throws IllegalArgumentException if git refused the command line
-     * @throws IllegalStateException if git did not answer within {@link #GREP_TIMEOUT}
+     * @param deadline {@link System#nanoTime()} past which the run is killed
+     * @throws IllegalArgumentException if git refused the pattern
+     * @throws GitGrepTimeoutException if git did not answer by {@code deadline}
+     * @throws IllegalStateException if git failed in any other way
      */
-    private List<String> exec(List<String> command) {
+    private List<String> exec(List<String> command, int maxLines, long deadline) {
+        long budget = deadline - System.nanoTime();
+        if (budget <= 0) {
+            throw timedOut(command);
+        }
         try {
             // core.quotepath=false: without it, git quotes/octal-escapes any path containing
             // non-ASCII bytes (e.g. Cyrillic filenames) in grep output — "docs/проект" becomes
@@ -195,9 +241,7 @@ final class GitGrepRunner {
                             .start(
                                     () -> {
                                         try {
-                                            if (!process.waitFor(
-                                                    GREP_TIMEOUT.toMillis(),
-                                                    TimeUnit.MILLISECONDS)) {
+                                            if (!process.waitFor(budget, TimeUnit.NANOSECONDS)) {
                                                 timedOut.set(true);
                                                 process.destroyForcibly();
                                             }
@@ -205,25 +249,43 @@ final class GitGrepRunner {
                                             Thread.currentThread().interrupt();
                                         }
                                     });
-            List<String> lines;
+            List<String> lines = new ArrayList<>();
+            boolean cut = false;
             try (var reader =
                     new BufferedReader(
                             new InputStreamReader(
                                     process.getInputStream(), StandardCharsets.UTF_8))) {
-                lines = reader.lines().toList();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    lines.add(line);
+                    if (lines.size() >= maxLines) {
+                        // Enough. Whatever git still has to say would be thrown away, so it is
+                        // not read; the kill is what ends git, not a full pipe.
+                        cut = true;
+                        process.destroyForcibly();
+                        break;
+                    }
+                }
             }
             int exit = process.waitFor();
             watchdog.interrupt();
+            if (cut) {
+                // Killed by this side with the answer in hand: the exit code says only that, and
+                // so does the watchdog if the deadline fell on the same instant. A block cut in
+                // the middle is dropped — its separator is where the last complete one ended.
+                int lastSeparator = lines.lastIndexOf("--");
+                return lastSeparator < 0 ? lines : lines.subList(0, lastSeparator);
+            }
             if (timedOut.get()) {
-                log.warn("Git command killed after {}: {}", GREP_TIMEOUT, command);
-                throw new IllegalStateException(
-                        "git grep did not finish within " + GREP_TIMEOUT.toSeconds() + "s");
+                log.warn("Git command killed after {}: {}", timeout, command);
+                throw timedOut(command);
             }
             if (exit > 1) {
                 String output = String.join("\n", lines);
                 log.warn("Git command exited {}: {} → {}", exit, command, output);
-                if (exit == 128) {
-                    throw new IllegalArgumentException(gitFatalLine(lines));
+                String badPattern = exit == 128 ? patternComplaint(lines) : null;
+                if (badPattern != null) {
+                    throw new IllegalArgumentException(badPattern);
                 }
                 throw new IllegalStateException("git grep exited " + exit + ": " + output);
             }
@@ -237,17 +299,27 @@ final class GitGrepRunner {
         }
     }
 
+    private GitGrepTimeoutException timedOut(List<String> command) {
+        return new GitGrepTimeoutException(
+                "git grep did not finish within "
+                        + timeout.toSeconds()
+                        + "s: "
+                        + String.join(" ", command));
+    }
+
     /**
-     * Git's own explanation of a refused command line, without the {@code fatal:} prefix and the
-     * "-e option," it puts before the offending regex — the pattern travels as {@code -e}'s value,
-     * so that is how git names it. Falls back to a generic message when git said nothing readable.
+     * Git's complaint about the pattern, if that is what it refused: the {@code fatal:} line that
+     * names the {@code -e} option, without the prefix and without the "-e option," git puts before
+     * the offending regex — the pattern travels as {@code -e}'s value, so that is how git names it.
+     * {@code null} when git refused something else.
      */
-    private static String gitFatalLine(List<String> output) {
+    private static @Nullable String patternComplaint(List<String> output) {
         return output.stream()
                 .filter(line -> line.startsWith("fatal:"))
                 .map(line -> line.substring("fatal:".length()).strip())
-                .map(line -> line.startsWith("-e option, ") ? line.substring(11) : line)
+                .filter(line -> line.startsWith("-e option, "))
+                .map(line -> line.substring("-e option, ".length()))
                 .findFirst()
-                .orElse("git grep refused the pattern");
+                .orElse(null);
     }
 }

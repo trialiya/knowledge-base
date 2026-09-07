@@ -82,7 +82,8 @@ const chatApi = {
 
   /**
    * Тот же поиск для страницы поиска: чат один раз со всеми совпавшими сообщениями (хронологически).
-   * Возвращает { total, chats: [{ conversationId, topic, updatedAt, titleMatched, messages: [{ id, role, createdAt, snippet }] }] }.
+   * Возвращает { total, truncated, chats: [{ conversationId, topic, updatedAt, titleMatched, messages: [{ id, role, createdAt, snippet }] }] };
+   * truncated — просмотр совпадений упёрся в предел, у части чатов сообщения показаны не все.
    */
   searchChatsGrouped: (q, limit = 20, signal) => {
     const params = new URLSearchParams({ q, limit: String(limit) });

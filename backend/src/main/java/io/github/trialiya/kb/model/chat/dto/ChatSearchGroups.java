@@ -9,10 +9,17 @@ import org.jspecify.annotations.Nullable;
  * Порядок чатов — как у {@code GET /api/chats/search}: по времени последнего изменения, новые
  * первыми.
  *
- * @param total сколько сообщений с совпадениями во всех чатах вместе
+ * <p>Сообщения берутся из просмотра самых свежих совпадений по всем чатам пользователя — того же
+ * ограниченного просмотра, по которому {@code /api/chats/search} считает {@code messageMatchCount}.
+ * Когда просмотр упёрся в свой предел, у старых чатов (или у чата с очень многими совпадениями)
+ * здесь не все сообщения — об этом говорит {@code truncated}.
+ *
+ * @param total сколько сообщений с совпадениями в чатах, вошедших в ответ
+ * @param truncated просмотр совпадений упёрся в предел: у каких-то чатов сообщения показаны не все,
+ *     а какие-то старые чаты могли не попасть вовсе
  * @param chats найденные чаты
  */
-public record ChatSearchGroups(int total, List<Group> chats) {
+public record ChatSearchGroups(int total, boolean truncated, List<Group> chats) {
 
     /**
      * Один чат с его совпадениями.

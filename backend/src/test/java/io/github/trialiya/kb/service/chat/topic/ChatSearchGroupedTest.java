@@ -80,6 +80,7 @@ class ChatSearchGroupedTest {
         ChatSearchGroups groups = service.searchChatsGrouped(USER, "жирафы", 20);
 
         assertThat(groups.total()).isEqualTo(2);
+        assertThat(groups.truncated()).isFalse();
         ChatSearchGroups.Group group = groups.chats().getFirst();
         assertThat(group.topic()).isEqualTo("Про животных");
         assertThat(group.titleMatched()).isFalse();
@@ -152,9 +153,39 @@ class ChatSearchGroupedTest {
                 .containsExactly("q first", "q latest");
     }
 
+    /**
+     * Репозиторий отдаёт ровно столько строк, сколько его просили: значит, дальше есть ещё, и ответ
+     * обязан сказать, что сообщений показано не все.
+     */
+    @Test
+    void aFullScanMarksTheAnswerTruncated() {
+        when(topics.searchByTopic(USER, "q")).thenReturn(List.of());
+        when(messages.searchForUser(eq(USER), eq("q"), anyInt()))
+                .thenAnswer(
+                        inv -> {
+                            int scan = inv.getArgument(2);
+                            return java.util.stream.IntStream.range(0, scan)
+                                    .mapToObj(
+                                            i ->
+                                                    message(
+                                                            scan - i,
+                                                            "c",
+                                                            MessageType.USER,
+                                                            "q",
+                                                            scan - i))
+                                    .toList();
+                        });
+        when(topics.findAllById(List.of("c"))).thenReturn(List.of(topic("c", "C", T0)));
+
+        ChatSearchGroups groups = service.searchChatsGrouped(USER, "q", 20);
+
+        assertThat(groups.truncated()).isTrue();
+        assertThat(groups.total()).isEqualTo(groups.chats().getFirst().messages().size());
+    }
+
     @Test
     void aBlankQueryFindsNothingWithoutTouchingTheRepositories() {
         assertThat(service.searchChatsGrouped(USER, "  ", 20))
-                .isEqualTo(new ChatSearchGroups(0, List.of()));
+                .isEqualTo(new ChatSearchGroups(0, false, List.of()));
     }
 }
