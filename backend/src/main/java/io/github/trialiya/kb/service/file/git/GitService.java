@@ -205,10 +205,18 @@ public class GitService {
      *     HEAD~2}
      */
     public List<GitFileNode> getFileTreeAt(@NonNull String rev, @Nullable String subPath) {
-        CommitFiles.Snapshot snapshot = CommitFiles.tree(repository, rev.strip());
-        try (ObjectReader reader = repository.newObjectReader()) {
-            return RepoBrowse.tree(committed(snapshot, reader), RepoPaths.normalizeDir(subPath));
-        }
+        return RepoBrowse.ordered(
+                CommitFiles.children(repository, rev.strip(), RepoPaths.normalizeDir(subPath))
+                        .stream()
+                        .map(GitService::committedNode)
+                        .toList());
+    }
+
+    /** Потомок каталога коммита как узел дерева: в коммите отслеживается всё. */
+    private static GitFileNode committedNode(CommitFiles.Child child) {
+        return child.directory()
+                ? new GitFileNode(child.path(), child.name(), FileEntryType.DIRECTORY, null)
+                : new GitFileNode(child.path(), child.name(), FileEntryType.FILE, child.size());
     }
 
     /** The working tree as the browser lists it: the index widened by {@code allow-globs}. */
@@ -272,9 +280,7 @@ public class GitService {
                     target,
                     includeAncestors,
                     snapshot.commit(),
-                    // Уже прочитанный снимок содержимого не несёт, а второе чтение того же коммита
-                    // отвечает тем же: getFileContentAt берёт блоб по пути в дереве этого же хеша.
-                    tracked -> contentAt(snapshot.commit(), target));
+                    tracked -> contentAt(snapshot, reader, target));
         }
     }
 
@@ -286,11 +292,13 @@ public class GitService {
      * имеют, а без них браузер показал бы одну ошибку вместо панели — и починить адрес было бы
      * негде. Что именно нечитаемо, видно по {@code file: null} у типа {@code FILE}.
      */
-    private @Nullable GitFileContent contentAt(String commit, String path) {
+    private @Nullable GitFileContent contentAt(
+            CommitFiles.Snapshot snapshot, ObjectReader reader, String path) {
         try {
-            return getFileContentAt(commit, path, null, null);
+            CommitFiles.Blob blob = snapshot.blobAt(reader, path);
+            return FileViews.of(path, true, blob.commit(), blob.bytes(), blob.size(), null, null);
         } catch (IllegalArgumentException e) {
-            log.debug("No content for {} at {}: {}", path, commit, e.getMessage());
+            log.debug("No content for {} at {}: {}", path, snapshot.commit(), e.getMessage());
             return null;
         }
     }

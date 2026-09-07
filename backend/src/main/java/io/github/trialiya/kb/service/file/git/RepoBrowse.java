@@ -43,6 +43,11 @@ final class RepoBrowse {
      */
     record Snapshot(List<String> paths, Set<String> tracked, ToLongFunction<String> sizeOf) {}
 
+    /** Узлы одного листинга в порядке браузера: каталоги, потом файлы, внутри — по имени. */
+    static List<GitFileNode> ordered(List<GitFileNode> nodes) {
+        return nodes.stream().sorted(NODE_ORDER).toList();
+    }
+
     /** Прямые потомки одного каталога ({@code ""} — корень). */
     static List<GitFileNode> tree(Snapshot snapshot, String base) {
         return listDirectories(snapshot, Set.of(base)).getOrDefault(base, List.of());

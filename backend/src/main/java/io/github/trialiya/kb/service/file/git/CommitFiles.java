@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.file.git;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.TreeWalk;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Чтение файла из дерева коммита — то, что в командной строке пишется {@code git show
@@ -67,30 +69,7 @@ final class CommitFiles {
                     throw new IllegalArgumentException(
                             "Not a file in " + commit.name() + ": " + path);
                 }
-                ObjectLoader loader = repository.open(tree.getObjectId(0), Constants.OBJ_BLOB);
-                long size = loader.getSize();
-                if (size > MAX_BLOB_SIZE) {
-                    // Отказ, а не усечение: ответ строится из начала И конца файла, и прочитать
-                    // конец, не подняв в память всё остальное, нельзя. Размер объекта известен до
-                    // чтения, поэтому граница проходит здесь, а не по факту нехватки памяти.
-                    throw new IllegalArgumentException(
-                            "Too large to read from history: "
-                                    + path
-                                    + " at "
-                                    + commit.name()
-                                    + " is "
-                                    + size
-                                    + " bytes (limit "
-                                    + MAX_BLOB_SIZE
-                                    + ")");
-                }
-                // Через поток, а не getBytes(): тот отказывает по своему порогу
-                // (core.streamFileThreshold), то есть по настройке репозитория, а не по нашей.
-                // Поток закрывается: у большого объекта за ним стоит окно пака и inflater из
-                // пула JGit, и они возвращаются в пул только по close().
-                try (ObjectStream stream = loader.openStream()) {
-                    return new Blob(commit.name(), stream.readAllBytes(), size);
-                }
+                return load(walk.getObjectReader(), tree.getObjectId(0), commit.name(), path);
             }
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + rev, e);
@@ -141,6 +120,108 @@ final class CommitFiles {
     }
 
     /**
+     * Прямые потомки одного каталога в дереве коммита — то, что запрашивает шеврон в браузере.
+     *
+     * <p>Читается только сам каталог: раскрытие одного узла не должно стоить обхода всего дерева
+     * коммита, иначе N раскрытий — это N полных обходов. Порядок здесь git'овый, порядок выдачи
+     * назначает {@link RepoBrowse}.
+     *
+     * @param dir нормализованный путь каталога, {@code ""} — корень
+     * @return потомки каталога; пустой список, если такого каталога в коммите нет или по этому пути
+     *     лежит файл
+     * @throws IllegalArgumentException коммит не найден или неоднозначен
+     */
+    // Читатель ниже принадлежит RevWalk и закрывается вместе с ним: закрыть его здесь значило бы
+    // вынуть его из-под ещё живого обхода.
+    @SuppressWarnings("PMD.CloseResource")
+    static List<Child> children(Repository repository, String rev, String dir) {
+        try (RevWalk walk = new RevWalk(repository)) {
+            RevCommit commit = walk.parseCommit(resolve(repository, rev));
+            // Один читатель на весь ответ: иначе их набирается по одному на каждый подкаталог,
+            // ради проверки, есть ли под ним файл.
+            ObjectReader reader = walk.getObjectReader();
+            ObjectId root = dir.isEmpty() ? commit.getTree() : subtree(reader, commit, dir);
+            if (root == null) {
+                return List.of();
+            }
+            List<Child> children = new ArrayList<>();
+            try (TreeWalk tree = new TreeWalk(reader)) {
+                tree.addTree(root);
+                tree.setRecursive(false);
+                while (tree.next()) {
+                    String name = tree.getNameString();
+                    String path = dir.isEmpty() ? name : dir + "/" + name;
+                    FileMode mode = tree.getFileMode(0);
+                    if (mode == FileMode.TREE) {
+                        // Каталог показывается по тому же правилу, что и в снимке всего дерева
+                        // (см. tree()): он там виден ровно потому, что под ним лежит файл, который
+                        // мы умеем открыть. Каталог из одних символьных ссылок и подмодулей
+                        // раскрылся бы пустым — обещание, которого не сдержать.
+                        if (holdsFile(reader, tree.getObjectId(0))) {
+                            children.add(new Child(path, name, true, -1));
+                        }
+                    } else if (mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE) {
+                        children.add(
+                                new Child(path, name, false, size(reader, tree.getObjectId(0))));
+                    }
+                }
+            }
+            return List.copyOf(children);
+        } catch (MissingObjectException | IncorrectObjectTypeException e) {
+            throw new IllegalArgumentException("Commit not found: " + rev, e);
+        } catch (AmbiguousObjectException e) {
+            throw new IllegalArgumentException("Ambiguous commit reference: " + rev, e);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed listing " + dir + " at " + rev, e);
+        }
+    }
+
+    /** Объект дерева по пути внутри коммита, либо null — такого каталога там нет. */
+    private static @Nullable ObjectId subtree(ObjectReader reader, RevCommit commit, String dir)
+            throws IOException {
+        try (TreeWalk tree = TreeWalk.forPath(reader, dir, commit.getTree())) {
+            if (tree == null || tree.getFileMode(0) != FileMode.TREE) {
+                return null;
+            }
+            return tree.getObjectId(0);
+        }
+    }
+
+    /**
+     * Лежит ли под этим деревом хоть один файл, который мы умеем открыть. Обход прерывается на
+     * первом же таком файле, поэтому у обычного каталога это несколько записей, а не всё поддерево.
+     */
+    private static boolean holdsFile(ObjectReader reader, ObjectId treeId) throws IOException {
+        try (TreeWalk tree = new TreeWalk(reader)) {
+            tree.addTree(treeId);
+            tree.setRecursive(true);
+            while (tree.next()) {
+                FileMode mode = tree.getFileMode(0);
+                if (mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /** Размер блоба по данным git, или -1, если его не удалось спросить. */
+    private static long size(ObjectReader reader, ObjectId id) {
+        try {
+            return reader.getObjectSize(id, Constants.OBJ_BLOB);
+        } catch (IOException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Потомок каталога в дереве коммита.
+     *
+     * @param size размер файла в байтах, у каталога -1
+     */
+    record Child(String path, String name, boolean directory, long size) {}
+
+    /**
      * Дерево коммита целиком: пути в порядке обхода (он же порядок git — по путям) и объект за
      * каждым из них.
      *
@@ -157,11 +238,28 @@ final class CommitFiles {
          */
         long sizeOf(ObjectReader reader, String path) {
             ObjectId id = blobs.get(path);
-            if (id == null) return -1;
+            return id == null ? -1 : CommitFiles.size(reader, id);
+        }
+
+        /**
+         * Содержимое файла из этого же снимка: объект найден обходом дерева, поэтому ни коммит, ни
+         * дерево второй раз не разбираются — в отличие от {@link CommitFiles#read}, которому
+         * ревизию нужно ещё разрешить.
+         *
+         * <p>Читатель, как и в {@link #sizeOf}, приходит снаружи и им же закрывается.
+         *
+         * @throws IllegalArgumentException такого файла в снимке нет или объект больше {@code
+         *     MAX_BLOB_SIZE}
+         */
+        Blob blobAt(ObjectReader reader, String path) {
+            ObjectId id = blobs.get(path);
+            if (id == null) {
+                throw new IllegalArgumentException("File not found in " + commit + ": " + path);
+            }
             try {
-                return reader.getObjectSize(id, Constants.OBJ_BLOB);
+                return load(reader, id, commit, path);
             } catch (IOException e) {
-                return -1;
+                throw new IllegalStateException("Failed reading " + path + " at " + commit, e);
             }
         }
     }
@@ -180,6 +278,41 @@ final class CommitFiles {
             throw new IllegalArgumentException("Ambiguous commit reference: " + rev, e);
         } catch (IOException e) {
             throw new IllegalStateException("Failed resolving " + rev, e);
+        }
+    }
+
+    /**
+     * Блоб по уже найденному объекту.
+     *
+     * @param reader читатель объектов; закрывает его тот, кто открыл
+     * @param commit полный хеш коммита, из дерева которого взят объект
+     * @throws IllegalArgumentException объект больше {@link #MAX_BLOB_SIZE}
+     */
+    private static Blob load(ObjectReader reader, ObjectId id, String commit, String path)
+            throws IOException {
+        ObjectLoader loader = reader.open(id, Constants.OBJ_BLOB);
+        long size = loader.getSize();
+        if (size > MAX_BLOB_SIZE) {
+            // Отказ, а не усечение: ответ строится из начала И конца файла, и прочитать конец, не
+            // подняв в память всё остальное, нельзя. Размер объекта известен до чтения, поэтому
+            // граница проходит здесь, а не по факту нехватки памяти.
+            throw new IllegalArgumentException(
+                    "Too large to read from history: "
+                            + path
+                            + " at "
+                            + commit
+                            + " is "
+                            + size
+                            + " bytes (limit "
+                            + MAX_BLOB_SIZE
+                            + ")");
+        }
+        // Через поток, а не getBytes(): тот отказывает по своему порогу
+        // (core.streamFileThreshold), то есть по настройке репозитория, а не по нашей. Поток
+        // закрывается: у большого объекта за ним стоит окно пака и inflater из пула JGit, и они
+        // возвращаются в пул только по close().
+        try (ObjectStream stream = loader.openStream()) {
+            return new Blob(commit, stream.readAllBytes(), size);
         }
     }
 

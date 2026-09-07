@@ -205,6 +205,66 @@ class GitServiceCommitBrowseTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /**
+     * Каталог, в котором нет ни одного открываемого файла, в дереве не показывается: раскрылся бы
+     * он пустым — по тому же правилу, по которому в снимок не попала сама символьная ссылка.
+     */
+    @Test
+    void aDirectoryHoldingOnlySymlinksIsNotListedEither() throws IOException {
+        Files.createDirectories(repoDir.resolve("links"));
+        Files.createSymbolicLink(repoDir.resolve("links/readme.md"), Path.of("../README.md"));
+        commitAll("links");
+
+        assertThat(names(service.getFileTreeAt(head(), ""))).doesNotContain("links");
+        assertThat(names(service.getFileTreeAt(head(), "links"))).isEmpty();
+        assertThat(names(service.browsePathAt(head(), "", false).nodes())).doesNotContain("links");
+    }
+
+    /** Размер в листинге — тоже из коммита: правка на диске его не меняет. */
+    @Test
+    void theListedSizeIsTheCommittedOne() {
+        String first = head();
+        write("README.md", "a much longer line than the committed one\n");
+
+        GitFileNode node =
+                service.getFileTreeAt(first, "").stream()
+                        .filter(n -> "README.md".equals(n.path()))
+                        .findFirst()
+                        .orElseThrow();
+
+        assertThat(node.size()).isEqualTo("first\n".length());
+        assertThat(node.type()).isEqualTo(FileEntryType.FILE);
+    }
+
+    /**
+     * Листинг спрашивают у каталога; файл и несуществующий путь отвечают пустотой, а не отказом.
+     */
+    @Test
+    void aPathThatIsNotADirectoryListsNothing() {
+        assertThat(service.getFileTreeAt(head(), "README.md")).isEmpty();
+        assertThat(service.getFileTreeAt(head(), "no/such/dir")).isEmpty();
+    }
+
+    /**
+     * Содержимое в этом режиме приходит из того же снимка, что и дерево, и проходит те же правила
+     * показа, что чтение с диска: двоичный файл помечается флагом и отдаётся без текста.
+     */
+    @Test
+    void aBinaryFileOfTheCommitIsFlaggedWithoutContent() {
+        byte[] bytes = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x01, 0x02};
+        writeBytes("assets/blob.bin", bytes);
+        commitAll("binary");
+
+        GitPathView view = service.browsePathAt(head(), "assets/blob.bin", false);
+
+        assertThat(view.type()).isEqualTo(FileEntryType.FILE);
+        assertThat(view.file()).isNotNull();
+        assertThat(view.file().binary()).isTrue();
+        assertThat(view.file().content()).isNull();
+        assertThat(view.file().sizeBytes()).isEqualTo(bytes.length);
+        assertThat(view.file().commit()).isEqualTo(head());
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static List<String> names(@org.jspecify.annotations.Nullable List<GitFileNode> nodes) {
@@ -222,6 +282,18 @@ class GitServiceCommitBrowseTest {
                 Files.createDirectories(file.getParent());
             }
             Files.writeString(file, content);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private void writeBytes(String relativePath, byte[] content) {
+        try {
+            Path file = repoDir.resolve(relativePath);
+            if (file.getParent() != null) {
+                Files.createDirectories(file.getParent());
+            }
+            Files.write(file, content);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
