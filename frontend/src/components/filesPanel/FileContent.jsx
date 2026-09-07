@@ -137,7 +137,13 @@ const FileContent = ({ content, path, loading, onNavigate, diff = null, showDiff
         {!loading && content?.type === 'directory' && (
           <DirectoryListing nodes={content.nodes} onNavigate={onNavigate} />
         )}
-        {!loading && content?.type === 'file' && (
+        {/* Файл без содержимого — снимок ревизии с блобом, который больше предела
+            чтения из истории. Тип пути известен, дерево на месте, показать нечего
+            только здесь. */}
+        {!loading && content?.type === 'file' && !content.file && (
+          <div className="file-content__empty">{t('file.contentUnavailable')}</div>
+        )}
+        {!loading && content?.type === 'file' && !!content.file && (
           <FileView
             file={content.file}
             path={content.path}

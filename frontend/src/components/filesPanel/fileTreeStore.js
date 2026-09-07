@@ -25,11 +25,24 @@ const TTL_MS = 60_000;
 // Кэш — по проекту, а не один на всех: путь `backend/build.gradle` есть в каждом
 // репозитории, и общий кэш показал бы дерево одного проекта в другом. Ошибка
 // такого рода не бросается в глаза — файлы выглядят настоящими, просто не те.
-const projects = new Map(); // projectId → { dirs, expanded, at }
+//
+// Ревизия входит в ключ по той же причине: у `src/` в рабочем дереве и в снимке
+// коммита один и тот же путь и разное содержимое. Отсюда и то, что возврат из
+// снимка в рабочее дерево ничего не выкачивает заново, — у каждого свой кэш.
+const projects = new Map(); // scope → { dirs, expanded, at }
 
-/** Состояние одного проекта; заводится при первом обращении. */
-function projectStore(project) {
-  const key = project || '';
+/**
+ * Ключ кэша: проект плюс ревизия, в которой его смотрят ('' — рабочее дерево).
+ * Перевод строки — потому что в имени ветки он единственный запрещённый git'ом
+ * символ, а значит два разных `(проект, ревизия)` не могут дать один ключ.
+ */
+export function treeScope(project, rev) {
+  return `${project || ''}\n${rev || ''}`;
+}
+
+/** Состояние одной области; заводится при первом обращении. */
+function projectStore(scope) {
+  const key = scope || '';
   let store = projects.get(key);
   if (!store) {
     store = { dirs: new Map(), expanded: new Set(['']), at: 0 };
@@ -47,8 +60,8 @@ function expireIfStale(store) {
 }
 
 /** Снимок кэша листингов в виде объекта, каким его ждёт дерево: dirPath → nodes. */
-export function readDirs(project) {
-  return Object.fromEntries(projectStore(project).dirs);
+export function readDirs(scope) {
+  return Object.fromEntries(projectStore(scope).dirs);
 }
 
 /**
@@ -56,26 +69,26 @@ export function readDirs(project) {
  * запрашивать этот каталог» без снимка всего кэша: спрашивают из колбэков и
  * эффектов, где состояние компонента было бы лишним зеркалом.
  */
-export function readDir(project, dir) {
-  return projectStore(project).dirs.get(dir);
+export function readDir(scope, dir) {
+  return projectStore(scope).dirs.get(dir);
 }
 
 /** Раскрытые каталоги на момент прошлого визита в раздел. */
-export function readExpanded(project) {
-  return new Set(projectStore(project).expanded);
+export function readExpanded(scope) {
+  return new Set(projectStore(scope).expanded);
 }
 
 /** Кладёт в кэш листинги нескольких каталогов: { dirPath: nodes }. */
-export function putDirs(project, entries) {
-  const store = projectStore(project);
+export function putDirs(scope, entries) {
+  const store = projectStore(scope);
   for (const [dir, nodes] of Object.entries(entries)) {
     store.dirs.set(dir, nodes);
   }
   store.at = Date.now();
 }
 
-export function putExpanded(project, expanded) {
-  projectStore(project).expanded = new Set(expanded);
+export function putExpanded(scope, expanded) {
+  projectStore(scope).expanded = new Set(expanded);
 }
 
 /** Только для тестов: очистить кэш между кейсами (модуль живёт дольше рендера). */
@@ -116,7 +129,7 @@ export function ancestorsOf(path) {
  * каталог, которого раньше не было в листинге его родителя. Сам путь `path`
  * (не будучи каталогом) в кэше не лежит — трогать нечего.
  */
-export function invalidatePath(project, path) {
-  const { dirs } = projectStore(project);
+export function invalidatePath(scope, path) {
+  const { dirs } = projectStore(scope);
   ancestorsOf(path).forEach((dir) => dirs.delete(dir));
 }

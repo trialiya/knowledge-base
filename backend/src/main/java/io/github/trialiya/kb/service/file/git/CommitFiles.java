@@ -1,6 +1,9 @@
 package io.github.trialiya.kb.service.file.git;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
@@ -9,6 +12,7 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.ObjectStream;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -97,6 +101,89 @@ final class CommitFiles {
         }
     }
 
+    /**
+     * Все файлы дерева коммита — то, из чего файловый браузер строит дерево на ревизии.
+     *
+     * <p>Размеры здесь не читаются: у блоба размер лежит в заголовке объекта, но спрашивать его у
+     * каждого файла репозитория ради листинга одного каталога — это тысячи обращений к базе
+     * объектов на запрос. Поэтому снимок несёт id объектов, а размер узнаётся у тех путей, которые
+     * действительно попали в выдачу (см. {@link Snapshot#sizeOf}).
+     *
+     * @param rev что угодно, что git понимает как коммит: хеш, ветка, тег, {@code HEAD~2}
+     * @throws IllegalArgumentException коммит не найден или неоднозначен
+     */
+    static Snapshot tree(Repository repository, String rev) {
+        try (RevWalk walk = new RevWalk(repository)) {
+            RevCommit commit = walk.parseCommit(resolve(repository, rev));
+            Map<String, ObjectId> blobs = new LinkedHashMap<>();
+            try (TreeWalk tree = new TreeWalk(repository)) {
+                tree.addTree(commit.getTree());
+                tree.setRecursive(true);
+                while (tree.next()) {
+                    // В снимок попадает ровно то, что read() умеет отдать файлом. Подмодуль
+                    // (GITLINK) содержимого в этом репозитории не имеет вовсе; у символьной
+                    // ссылки блоб — это путь, на который она указывает, а не содержимое цели,
+                    // и открыть её как файл нельзя. Показать их в дереве и отказать по клику
+                    // было бы обещанием, которого не сдержать: отказ уносит и само дерево.
+                    FileMode mode = tree.getFileMode(0);
+                    if (mode != FileMode.REGULAR_FILE && mode != FileMode.EXECUTABLE_FILE) continue;
+                    blobs.put(tree.getPathString(), tree.getObjectId(0));
+                }
+            }
+            return new Snapshot(commit.name(), List.copyOf(blobs.keySet()), Map.copyOf(blobs));
+        } catch (MissingObjectException | IncorrectObjectTypeException e) {
+            throw new IllegalArgumentException("Commit not found: " + rev, e);
+        } catch (AmbiguousObjectException e) {
+            throw new IllegalArgumentException("Ambiguous commit reference: " + rev, e);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed listing the tree at " + rev, e);
+        }
+    }
+
+    /**
+     * Дерево коммита целиком: пути в порядке обхода (он же порядок git — по путям) и объект за
+     * каждым из них.
+     *
+     * @param commit полный хеш коммита, отдавшего снимок
+     */
+    record Snapshot(String commit, List<String> paths, Map<String, ObjectId> blobs) {
+
+        /**
+         * Размер файла по данным git, или -1 у пути, которого в этом коммите нет.
+         *
+         * <p>Читатель приходит снаружи и им же закрывается: размеры спрашивают по одному, для
+         * каждого пути в листинге, и свой читатель на путь означал бы их открытие и закрытие
+         * десятками на запрос вместо одного.
+         */
+        long sizeOf(ObjectReader reader, String path) {
+            ObjectId id = blobs.get(path);
+            if (id == null) return -1;
+            try {
+                return reader.getObjectSize(id, Constants.OBJ_BLOB);
+            } catch (IOException e) {
+                return -1;
+            }
+        }
+    }
+
+    /**
+     * Ревизия в коммит: тем же отказом, что и обзор дерева, если названное коммитом не является.
+     * Без этого дерево (у него разбор идёт через {@code parseCommit}) отвечало бы на хеш дерева или
+     * блоба 400, а история на тот же вход — 500.
+     */
+    static ObjectId commitOf(Repository repository, String rev) {
+        try (RevWalk walk = new RevWalk(repository)) {
+            return walk.parseCommit(resolve(repository, rev));
+        } catch (MissingObjectException | IncorrectObjectTypeException e) {
+            throw new IllegalArgumentException("Commit not found: " + rev, e);
+        } catch (AmbiguousObjectException e) {
+            throw new IllegalArgumentException("Ambiguous commit reference: " + rev, e);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed resolving " + rev, e);
+        }
+    }
+
+    /** Ревизия в объект, либо {@link IllegalArgumentException} — «такой ревизии нет». */
     private static ObjectId resolve(Repository repository, String rev) throws IOException {
         ObjectId id;
         try {

@@ -7,9 +7,11 @@ import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
+import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import java.util.List;
+import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,15 +67,22 @@ public class GitController {
             @RequestParam("path") String path,
             @RequestParam(name = "from", required = false) @Nullable Integer from,
             @RequestParam(name = "to", required = false) @Nullable Integer to,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         requireSafePath(path);
-        return git(project).getFileContent(path, from, to);
+        GitService git = git(project);
+        String at = revision(rev);
+        return at == null
+                ? git.getFileContent(path, from, to)
+                : atRevision(() -> git.getFileContentAt(at, path, from, to));
     }
 
     /**
      * Commit history, newest first — optionally narrowed to one file or directory. The file
      * browser's "Info" panel asks for {@code limit=1} to show who last changed the selected path
-     * and when; omit {@code path} for the repository's own history.
+     * and when; omit {@code path} for the repository's own history. With {@code rev} the walk
+     * starts there instead of HEAD — the browser's revision mode asks for it, so the panel
+     * describes a path by the history of the snapshot it shows.
      *
      * <p>{@code body} is opt-in because it scales with the page: one commit's message body is
      * nothing, twenty of them are the bulk of the response, and a caller that only prints subjects
@@ -84,11 +93,16 @@ public class GitController {
             @RequestParam(name = "path", required = false) @Nullable String path,
             @RequestParam(name = "limit", defaultValue = "20") int limit,
             @RequestParam(name = "body", defaultValue = "false") boolean body,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return git(project).getCommitLog(limit, path, body);
+        GitService git = git(project);
+        String at = revision(rev);
+        return at == null
+                ? git.getCommitLog(limit, path, body)
+                : atRevision(() -> git.getCommitLog(limit, path, body, at));
     }
 
     /**
@@ -134,11 +148,16 @@ public class GitController {
     public GitPathView browse(
             @RequestParam(name = "path", required = false) @Nullable String path,
             @RequestParam(name = "ancestors", defaultValue = "true") boolean ancestors,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return git(project).browsePath(path, ancestors);
+        GitService git = git(project);
+        String at = revision(rev);
+        return at == null
+                ? git.browsePath(path, ancestors)
+                : atRevision(() -> git.browsePathAt(at, path, ancestors));
     }
 
     /**
@@ -170,11 +189,25 @@ public class GitController {
     @GetMapping("/tree")
     public List<GitFileNode> getTree(
             @RequestParam(name = "path", required = false) @Nullable String path,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return git(project).getFileTree(path);
+        GitService git = git(project);
+        String at = revision(rev);
+        return at == null ? git.getFileTree(path) : atRevision(() -> git.getFileTreeAt(at, path));
+    }
+
+    /**
+     * The named revisions the browser offers as snapshots — local branches and tags. Commit hashes
+     * are not listed here: they are searched for ({@code GET /commits/search}), because a
+     * repository's history has no useful "all of it" answer.
+     */
+    @GetMapping("/refs")
+    public GitRefs refs(
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return git(project).refs();
     }
 
     /**
@@ -222,6 +255,28 @@ public class GitController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         } catch (IllegalStateException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Ревизия запроса, либо null — «рабочее дерево». Пустая {@code rev} значит именно это, а не
+     * отказ: клиент, оставивший параметр в адресе пустым при выходе из режима ревизии, должен
+     * получить обычный ответ.
+     */
+    private static @Nullable String revision(@Nullable String rev) {
+        return rev == null || rev.isBlank() ? null : rev;
+    }
+
+    /**
+     * Ответ по ревизии, у которого неизвестная или неоднозначная ревизия — 400, а не 500. Ревизию
+     * печатает пользователь (поле ввода в переключателе, ссылка из чата), и опечатка в ней — ошибка
+     * запроса, ровно как неизвестный проект выше.
+     */
+    private static <T> T atRevision(Supplier<T> answer) {
+        try {
+            return answer.get();
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }
     }
 

@@ -13,10 +13,13 @@ import org.jspecify.annotations.Nullable;
  *
  * @param path запрошенный путь (нормализованный; "" — корень репозитория)
  * @param type тип записи (FILE, DIRECTORY, или null для missing)
- * @param file содержимое файла — только для {@code type=FILE}
+ * @param file содержимое файла — только для {@code type=FILE}, и даже там null, если отдать его
+ *     нельзя: в снимке ревизии так отвечает блоб крупнее предела чтения из истории
  * @param nodes прямые потомки — только для {@code type=DIRECTORY}
  * @param tree листинги каталогов-предков (от корня до родителя пути); пуст, если клиент их не
  *     запрашивал (уже есть в его кэше) либо путь лежит в корне
+ * @param commit хеш коммита, из которого прочитан снимок, либо null — путь взят из рабочего дерева
+ *     вместе с незакоммиченными правками. Полный хеш, как бы ревизию ни назвали в запросе
  * @param tracked отслеживается ли путь git — см. {@link GitFileNode#tracked()}. Тот же признак, что
  *     у узла дерева, но браузер открывает путь и по прямой ссылке, когда узла в кэше ещё нет
  */
@@ -26,4 +29,5 @@ public record GitPathView(
         @Nullable GitFileContent file,
         @Nullable List<GitFileNode> nodes,
         List<GitTreeLevel> tree,
+        @Nullable String commit,
         boolean tracked) {}

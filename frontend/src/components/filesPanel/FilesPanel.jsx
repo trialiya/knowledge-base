@@ -39,7 +39,9 @@ const FilesPanelForProject = ({
   projectOptions,
   path,
   changes,
+  rev,
   onChangesToggle,
+  onRevChange,
   onPathChange,
   onProjectChange,
   refreshToken,
@@ -49,14 +51,22 @@ const FilesPanelForProject = ({
   panels,
 }) => {
   const { t } = useTranslation('files');
+  // Снимок ревизии — режим только для чтения: незакоммиченного в нём нет, и
+  // команды, которые двигают рабочее дерево, к тому, что показано, отношения
+  // не имеют. Поэтому режим изменений в нём выключен целиком, а не спрятан из
+  // тулбара: адрес с `?changes=1&rev=…` мог пережить переключение.
+  const snapshot = !!rev;
+  const showChanges = changes && !snapshot;
+
   const { treeCache, loadingDirs, expanded, toggleExpand, content, contentLoading, selectNode } = useFileTree({
     project,
+    rev,
     path,
     onPathChange,
     refreshToken,
   });
 
-  const diff = useChangeDiff({ project, path, refreshToken, enabled: changes });
+  const diff = useChangeDiff({ project, path, refreshToken, enabled: showChanges });
   const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
 
   // Одно уведомление на панель: git-команда отказывает словами самого git
@@ -71,7 +81,7 @@ const FilesPanelForProject = ({
   const changeList = useUncommittedChanges({
     project,
     refreshToken,
-    enabled: changes || actions.dialog === 'commit',
+    enabled: showChanges || actions.dialog === 'commit',
   });
   // Панель дополняет контракт окон тем, чего сам `useGitActions` собрать не мог:
   // список спрашивается лениво, по открытому окну.
@@ -99,7 +109,7 @@ const FilesPanelForProject = ({
   // в рендере под своим prev-стражем (см. правила хуков), а не эффектом,
   // который дорисовал бы кадр с выбором, сделанным для прошлого файла.
   const [diffChoice, setDiffChoice] = useState(null);
-  const choiceKey = `${changes ? 1 : 0} ${path}`;
+  const choiceKey = `${showChanges ? 1 : 0} ${path}`;
   const [prevChoiceKey, setPrevChoiceKey] = useState(choiceKey);
   if (prevChoiceKey !== choiceKey) {
     setPrevChoiceKey(choiceKey);
@@ -110,8 +120,8 @@ const FilesPanelForProject = ({
   // сначала показал бы исходник, а потом сам себя перерисовал в diff. По той же
   // причине центр ждёт этот ответ наравне с содержимым — иначе кадр между ними
   // показывает не то, на что кликнули (у удалённого файла — «не найдено»).
-  const diffPending = changes && !!path && diff.loading;
-  const showDiff = changes && (diffChoice ?? (!!diff.entry && diff.entry.status !== UNTRACKED_STATUS));
+  const diffPending = showChanges && !!path && diff.loading;
+  const showDiff = showChanges && (diffChoice ?? (!!diff.entry && diff.entry.status !== UNTRACKED_STATUS));
 
   const rightTabs = useMemo(
     () => [
@@ -119,10 +129,10 @@ const FilesPanelForProject = ({
         key: RIGHT_TAB.INFO,
         label: t('tabs.info'),
         icon: <IconInfo size={15} />,
-        content: <FileInfo content={content} loading={contentLoading} path={path} project={project} />,
+        content: <FileInfo content={content} loading={contentLoading} path={path} project={project} rev={rev} />,
       },
     ],
-    [t, content, contentLoading, path, project],
+    [t, content, contentLoading, path, project, rev],
   );
 
   return (
@@ -140,11 +150,14 @@ const FilesPanelForProject = ({
             ) : (
               t('panel.tree')
             ),
-          ariaLabel: t(changes ? 'panel.changes' : 'panel.tree'),
+          ariaLabel: t(showChanges ? 'panel.changes' : 'panel.tree'),
           toolbar: (
             <FilesToolbar
               project={project}
-              changes={changes}
+              changes={showChanges}
+              rev={rev}
+              onRevChange={onRevChange}
+              gitRefsToken={gitRefsToken}
               onChangesToggle={onChangesToggle}
               flat={flat}
               onFlatToggle={changeFlat}
@@ -158,7 +171,7 @@ const FilesPanelForProject = ({
           bodyScroll: false,
           children: (
             <div className="files-panel-tree">
-              {changes ? (
+              {showChanges ? (
                 <ChangesList
                   tracked={changeList.tracked}
                   untracked={changeList.untracked}
@@ -192,7 +205,7 @@ const FilesPanelForProject = ({
             onNavigate={onPathChange}
             // Тумблер «оригинал ↔ diff» показываем только там, где есть что
             // переключать: панель в режиме изменений и открыт какой-то путь.
-            diff={changes && path ? diff : null}
+            diff={showChanges && path ? diff : null}
             showDiff={showDiff}
             onToggleDiff={setDiffChoice}
           />
@@ -235,13 +248,19 @@ const FilesPanelForProject = ({
  * Смена проекта перемонтирует панель по `key`: дерево, раскрытые узлы,
  * содержимое, запросы в полёте и ключ ответа — пять состояний, и любое забытое
  * при сбросе показало бы файлы прежнего репозитория. Кэши при этом не теряются:
- * они живут в модуле и разложены по проектам (fileTreeStore).
+ * они живут в модуле и разложены по паре (проект, ревизия) — fileTreeStore.
+ *
+ * Ревизия входит в тот же ключ и по той же причине: снимок коммита — это другой
+ * набор тех же путей, и любое состояние, пережившее переключение, показало бы
+ * файлы не того снимка.
  */
 const FilesPanel = ({
   project,
   path,
   changes,
+  rev,
   onChangesToggle,
+  onRevChange,
   onPathChange,
   refreshToken,
   gitRefsToken,
@@ -265,12 +284,14 @@ const FilesPanel = ({
 
   return (
     <FilesPanelForProject
-      key={current}
+      key={`${current}\n${rev || ''}`}
       project={current}
       projectOptions={projectOptions}
       path={path}
       changes={changes}
+      rev={rev || ''}
       onChangesToggle={onChangesToggle}
+      onRevChange={onRevChange}
       onPathChange={onPathChange}
       // Путь из одного репозитория в другом ничего не значит — уходим в корень.
       // Дефолтный проект в адрес не пишем: пустое значение и означает его.

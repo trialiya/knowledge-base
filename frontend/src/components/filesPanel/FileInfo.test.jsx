@@ -53,6 +53,15 @@ describe('FileInfo', () => {
     expect(value).toHaveClass('info-list__value-text--pre');
   });
 
+  test('в снимке ревизии историю просит от неё, а не от HEAD', async () => {
+    gitApi.getCommits.mockResolvedValue([commit()]);
+
+    render(<FileInfo content={CONTENT} loading={false} path="src/App.jsx" project="kb" rev="v1.2" />);
+
+    await waitFor(() => expect(gitApi.getCommits).toHaveBeenCalled());
+    expect(gitApi.getCommits).toHaveBeenCalledWith('src/App.jsx', expect.objectContaining({ rev: 'v1.2' }));
+  });
+
   test('без тела строки для него нет', async () => {
     gitApi.getCommits.mockResolvedValue([commit()]);
 

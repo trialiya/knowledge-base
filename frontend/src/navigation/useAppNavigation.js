@@ -35,6 +35,7 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, SEARCH_PAT
  *
  *   ?q=, ?mode=     запрос и режим поиска KB (дефолт режима — hybrid)
  *   ?changes=1      файлы: слева список незакоммиченных изменений (дефолт — дерево)
+ *   ?rev=<ревизия>  файлы: показывать снимок коммита/ветки/тега (дефолт — рабочее дерево)
  *   ?left=0         левая панель свёрнута (дефолт — раскрыта)
  *   ?right=<tab>    правая панель раскрыта на вкладке (дефолт — свёрнута)
  *
@@ -122,12 +123,16 @@ function readUrl() {
   let filePath = '';
   let fileProject = '';
   let fileChanges = false;
+  let fileRev = '';
   if (view === 'files') {
     filePath = segs.length > 1 ? segs.slice(1).join('/') : p.get('path') || '';
     fileProject = p.get('project') || '';
     // Режим левого блока — состояние экрана, а не ресурс: путь в адресе один и
     // тот же независимо от того, из дерева его открыли или из списка изменений.
     fileChanges = p.get('changes') === '1';
+    // Ревизия — тоже состояние экрана: путь в адресе один и тот же, меняется
+    // только снимок, в котором его читают. Пусто — рабочее дерево.
+    fileRev = p.get('rev') || '';
   }
 
   // Legacy `?tab=`: раньше это была вкладка ЦЕНТРА. Те из них, что переехали в
@@ -145,6 +150,7 @@ function readUrl() {
     filePath,
     fileProject,
     fileChanges,
+    fileRev,
     leftCollapsed: p.get('left') === '0',
     rightTab: p.get('right') || legacyRightTab,
     // Есть ли в адресе явная раскладка панелей. Если нет — берём запомненную
@@ -179,6 +185,7 @@ function buildUrl(nav) {
       // в этой схеме; адрес без проекта означает именно его.
       if (nav.fileProject) p.set('project', nav.fileProject);
       if (nav.fileChanges) p.set('changes', '1');
+      if (nav.fileRev) p.set('rev', nav.fileRev);
       break;
     case 'chat':
       path = chatPath(nav.chatId);
@@ -219,6 +226,7 @@ function initialNav() {
     filePath: u.filePath,
     fileProject: u.fileProject,
     fileChanges: u.fileChanges,
+    fileRev: u.fileRev,
     leftCollapsed: panels.leftCollapsed,
     rightTab: panels.rightTab,
   };
@@ -330,6 +338,7 @@ export default function useAppNavigation() {
         filePath: u.filePath,
         fileProject: u.fileProject,
         fileChanges: u.fileChanges,
+        fileRev: u.fileRev,
         leftCollapsed: u.leftCollapsed,
         rightTab: u.rightTab,
       });
@@ -399,16 +408,20 @@ export default function useAppNavigation() {
    */
   const openFilePath = useCallback(
     (path, project, options) => {
-      pushNav((prev) => ({
-        ...prev,
-        view: 'files',
-        filePath: path || '',
-        fileProject: project === undefined ? prev.fileProject : project || '',
-        // Режим левого блока — часть этого же перехода, а не отдельная запись:
-        // отдельным setFileChanges (он через replaceNav) переход превратился бы
-        // в замену, и «Назад» не вернуло бы туда, откуда ссылку нажали.
-        fileChanges: options?.changes === undefined ? prev.fileChanges : !!options.changes,
-      }));
+      pushNav((prev) => {
+        const nextProject = project === undefined ? prev.fileProject : project || '';
+        return {
+          ...prev,
+          view: 'files',
+          filePath: path || '',
+          fileProject: nextProject,
+          // Режим левого блока — часть этого же перехода, а не отдельная запись:
+          // отдельным setFileChanges (он через replaceNav) переход превратился бы
+          // в замену, и «Назад» не вернуло бы туда, откуда ссылку нажали.
+          fileChanges: options?.changes === undefined ? prev.fileChanges : !!options.changes,
+          fileRev: nextFileRev(prev, nextProject, options),
+        };
+      });
     },
     [pushNav],
   );
@@ -479,6 +492,19 @@ export default function useAppNavigation() {
     [replaceNav],
   );
 
+  /**
+   * Какую ревизию показывает файловый браузер: '' — рабочее дерево, иначе имя
+   * ветки, тега или хеш. Через replaceNav по той же причине, что и режим
+   * левого блока: путь остаётся тем же, меняется только снимок, и возврат в
+   * рабочее дерево не должен стоить двух «Назад».
+   */
+  const setFileRev = useCallback(
+    (rev) => {
+      replaceNav((prev) => (prev.fileRev === (rev || '') ? prev : { ...prev, fileRev: rev || '' }));
+    },
+    [replaceNav],
+  );
+
   return {
     nav,
     switchView,
@@ -487,9 +513,34 @@ export default function useAppNavigation() {
     openChat,
     openFilePath,
     setFileChanges,
+    setFileRev,
     toggleLeftPanel,
     setRightTab,
   };
+}
+
+/**
+ * Ревизия следующего перехода в «Файлах».
+ *
+ * По умолчанию она переезжает вместе с путём: ссылка на файл, нажатая в снимке
+ * коммита, открывает его в том же снимке. Уводит из снимка явный выбор ревизии
+ * (`setFileRev`, он же `options.rev`) — и два перехода, в которых прежняя
+ * ревизия означала бы не то, о чём просили:
+ *
+ * - смена репозитория: имя ветки или тега принадлежит своему репозиторию, в
+ *   другом его либо нет (400 вместо дерева), либо оно называет чужой коммит.
+ *   Сравнение идёт по тому, что стоит в адресе, а дефолтный проект в него не
+ *   пишется — поэтому явно названный дефолтный (`project=kb` при пустом
+ *   значении в адресе) читается как смена и ревизию сбрасывает. Это уход в
+ *   рабочее дерево, а не чужой снимок, — ошибка в безопасную сторону;
+ * - переход в режим изменений: незакоммиченные правки есть только у рабочего
+ *   дерева, и панель, оставшись в снимке, молча показала бы вместо них файл на
+ *   старой ревизии.
+ */
+function nextFileRev(prev, nextProject, options) {
+  if (options?.rev !== undefined) return options.rev || '';
+  if (options?.changes) return '';
+  return nextProject === prev.fileProject ? prev.fileRev : '';
 }
 
 /*

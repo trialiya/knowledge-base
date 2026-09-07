@@ -78,10 +78,11 @@ const gitApi = {
    * Содержимое файла (опц. диапазон строк, 1-based включительно).
    * Возвращает GitFileContent { path, content, binary, sizeBytes, language, totalLines, ... }.
    */
-  getFileContent: (path, { from, to, project, signal } = {}) => {
+  getFileContent: (path, { from, to, rev, project, signal } = {}) => {
     const params = new URLSearchParams({ path });
     if (from != null) params.set('from', String(from));
     if (to != null) params.set('to', String(to));
+    if (rev) params.set('rev', rev);
     const [qs, init] = opts(params, project, signal);
     return request(`/api/git/files/content${qs}`, init);
   },
@@ -96,11 +97,15 @@ const gitApi = {
    * nodes?, tree: [{ path, nodes }] }.
    *
    * @param {boolean} ancestors — false, если листинги предков уже в кэше клиента.
+   * @param {string} rev — показать путь в снимке этой ревизии (хеш, ветка, тег)
+   *   вместо рабочего дерева; ответ несёт `commit` — полный хеш ответившего
+   *   коммита.
    */
-  browse: (path, { ancestors = true, project, signal } = {}) => {
+  browse: (path, { ancestors = true, rev, project, signal } = {}) => {
     const params = new URLSearchParams();
     if (path) params.set('path', path);
     if (!ancestors) params.set('ancestors', 'false');
+    if (rev) params.set('rev', rev);
     const [qs, init] = opts(params, project, signal);
     return request(`/api/git/browse${qs}`, init);
   },
@@ -110,9 +115,10 @@ const gitApi = {
    * path='' или omitted — корень репозитория. Возвращает GitFileNode[], каталоги
    * отсортированы перед файлами, затем по алфавиту.
    */
-  getTree: (path, { project, signal } = {}) => {
+  getTree: (path, { rev, project, signal } = {}) => {
     const params = new URLSearchParams();
     if (path) params.set('path', path);
+    if (rev) params.set('rev', rev);
     const [qs, init] = opts(params, project, signal);
     return request(`/api/git/tree${qs}`, init);
   },
@@ -148,6 +154,17 @@ const gitApi = {
   getBranches: ({ project, signal } = {}) => {
     const [qs, init] = opts(new URLSearchParams(), project, signal);
     return request(`/api/git/branches${qs}`, init);
+  },
+
+  /**
+   * Именованные ревизии, из которых выбирают снимок для просмотра: { branches,
+   * tags }. Отдельно от getBranches — тот отвечает, где стоит рабочее дерево, а
+   * это ответ на «что вообще можно открыть». Хеши коммитов здесь не
+   * перечисляются: их ищут через searchCommits.
+   */
+  getRefs: ({ project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams(), project, signal);
+    return request(`/api/git/refs${qs}`, init);
   },
 
   /**
@@ -264,10 +281,11 @@ const gitApi = {
    * не у каждого коммита, зато у больших правок идёт на десятки строк, и в
    * листинге на двадцать записей весит больше всего остального ответа.
    */
-  getCommits: (path, { limit = 20, body = false, project, signal } = {}) => {
+  getCommits: (path, { limit = 20, body = false, rev, project, signal } = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (path) params.set('path', path);
     if (body) params.set('body', 'true');
+    if (rev) params.set('rev', rev);
     const [qs, init] = opts(params, project, signal);
     return request(`/api/git/commits${qs}`, init);
   },
