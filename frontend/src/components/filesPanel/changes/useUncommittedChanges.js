@@ -28,24 +28,33 @@ export default function useUncommittedChanges({ project, refreshToken, enabled }
     const controller = new AbortController();
     gitApi
       .getStatus({ project, signal: controller.signal })
-      .then((entries) => setAnswer({ key: requestKey, entries }))
+      .then((entries) => setAnswer({ key: requestKey, project, entries }))
       .catch((error) => {
         if (controller.signal.aborted) return;
-        setAnswer({ key: requestKey, entries: [], error });
+        setAnswer({ key: requestKey, project, entries: [], error });
       });
     return () => controller.abort();
   }, [requestKey, project]);
 
   const fresh = answer?.key === requestKey ? answer : null;
+  // Пока перезапрос не вернулся, на экране остаётся прежний список — как в
+  // useGitBranch, и по той же причине: сигнал обновления поднимает каждая правка
+  // файла инструментом чата, и список, обнуляемый на время round-trip'а, мигал
+  // бы на каждую из них. Но только про тот же репозиторий: ответ другого
+  // проекта не устаревший, а чужой.
+  const known = fresh ?? (answer?.project === project ? answer : null);
 
   return useMemo(() => {
-    const entries = fresh?.entries ?? [];
+    const entries = known?.entries ?? [];
     return {
       loading: !!requestKey && !fresh,
       error: fresh?.error ?? null,
+      // Был ли ответ вообще: «ещё не знаем» и «изменений нет» — разные вещи, и
+      // отличить их по пустому списку нельзя.
+      answered: !!known,
       entries,
       tracked: entries.filter((e) => e.status !== UNTRACKED_STATUS),
       untracked: entries.filter((e) => e.status === UNTRACKED_STATUS),
     };
-  }, [fresh, requestKey]);
+  }, [known, fresh, requestKey]);
 }

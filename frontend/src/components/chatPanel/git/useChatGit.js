@@ -38,10 +38,16 @@ export default function useChatGit({
   // запроса на каждый тик обновления. Пока вкладку не открыли, спрашивать
   // нечего: ветка и права нужны и закрытой (по ним решается, быть ли вкладке
   // вообще и гореть ли на ней точке), а список — нет.
+  //
+  // От `chatId` он при этом не зависит, в отличие от команд ниже: рабочее
+  // дерево у репозитория одно, кто бы на него ни смотрел. В черновике команд
+  // нет (записывать их вывод некуда), но незакоммиченные изменения там ровно
+  // те же — и вкладка, отвечавшая в нём «изменений нет», говорила неправду
+  // как раз тогда, когда её открывают чаще всего.
   const changes = useUncommittedChanges({
     project,
     refreshToken,
-    enabled: !!visible && !!chatId && !!branch.capabilities?.commands,
+    enabled: !!visible && !!branch.capabilities?.commands,
   });
   // Последняя команда — то, что вкладка показывает одной строкой. Журнала нет:
   // вывод целиком лежит в ленте чата, где команда и оставила свой ряд.
@@ -104,6 +110,10 @@ export default function useChatGit({
       running: branch.running,
       changes: changes.entries,
       changesLoading: changes.loading,
+      // Был ли ответ вообще — не то же, что «идёт ли запрос»: на перезапросе
+      // прежний список остаётся, и пустым он выглядит только пока не ответили
+      // ни разу (см. useUncommittedChanges).
+      changesAnswered: changes.answered,
       changesError: changes.error,
       last,
       failure,
@@ -122,6 +132,7 @@ export default function useChatGit({
       branch,
       changes.entries,
       changes.loading,
+      changes.answered,
       changes.error,
       last,
       failure,

@@ -182,6 +182,20 @@ describe('useChatGit', () => {
   });
 
   /**
+   * Рабочее дерево у репозитория одно, и от того, есть ли уже чат, оно не
+   * зависит. В черновике вкладка отвечала «изменений нет», не спросив, — а
+   * открывают её там чаще всего.
+   */
+  test('the uncommitted list is read in a draft chat too, where no command may run', async () => {
+    gitApi.getStatus.mockResolvedValue([{ path: 'src/App.jsx', status: 'M', additions: 1, deletions: 0 }]);
+
+    const { result } = await ready({ chatId: null });
+
+    await waitFor(() => expect(result.current.changes).toHaveLength(1));
+    expect(result.current.disabled).toBe(true);
+  });
+
+  /**
    * Из чата запускаются ровно две команды. Остальные — ветки, stash, pull, откат —
    * живут в панели «Файлы»: второй набор тех же кнопок обязан был бы с ней
    * разойтись, и этот тест — то, что не даёт им завестись здесь снова.

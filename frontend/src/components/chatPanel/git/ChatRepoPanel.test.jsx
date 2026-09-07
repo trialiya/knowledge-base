@@ -10,6 +10,9 @@ const change = (path, status = 'M') => ({ path, status, additions: 1, deletions:
 const git = ({ status, capabilities, ...rest } = {}) => ({
   loading: false,
   changes: [],
+  // Список уже отвечен: панель без ответа рисует загрузку, и по умолчанию
+  // тестам нужна именно та, у которой данные есть.
+  changesAnswered: true,
   last: null,
   disabled: false,
   project: 'kb',
@@ -49,6 +52,28 @@ describe('ChatRepoPanel', () => {
 
     expect(onOpenCommit).toHaveBeenCalled();
     expect(onOpenPush).toHaveBeenCalled();
+  });
+
+  /**
+   * Ноль — это утверждение «всё сохранено». Пока список не пришёл или не пришёл
+   * вовсе, вкладка его не делает: счётчика нет, «изменений нет» нет, и кнопка
+   * коммита не погашена по несуществующей причине.
+   */
+  test('an unanswered list is not reported as nothing to commit', () => {
+    const { rerender } = render(
+      <ChatRepoPanel git={git({ changesAnswered: false })} onOpenCommit={vi.fn()} onOpenPush={vi.fn()} />,
+    );
+
+    expect(screen.getByText('repo.uncommittedUnknown')).toBeInTheDocument();
+    expect(screen.queryByText('files:changes.empty')).toBeNull();
+    expect(screen.getByRole('button', { name: /repo.commit/ })).toBeEnabled();
+
+    rerender(
+      <ChatRepoPanel git={git({ changesError: new Error('нет связи') })} onOpenCommit={vi.fn()} onOpenPush={vi.fn()} />,
+    );
+
+    expect(screen.getByText('files:changes.loadError')).toBeInTheDocument();
+    expect(screen.queryByText('files:changes.empty')).toBeNull();
   });
 
   /** push — отдельное разрешение проекта: без него кнопки нет вовсе. */
