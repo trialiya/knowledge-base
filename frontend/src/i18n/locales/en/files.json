@@ -27,7 +27,7 @@
   "file": {
     "lines": "Lines: {{count}}",
     "truncated": "truncated",
-    "contentUnavailable": "Too large to show from history",
+    "contentUnavailable": "This content cannot be shown from history — the file may be too large",
     "binary": "Binary file — preview unavailable",
     "notFound": "File or directory not found",
     "loadError": "Failed to load content",
