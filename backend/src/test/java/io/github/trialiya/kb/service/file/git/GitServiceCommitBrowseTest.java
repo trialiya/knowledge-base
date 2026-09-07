@@ -159,6 +159,30 @@ class GitServiceCommitBrowseTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /**
+     * Символьная ссылка в снимок не попадает: её блоб — это путь, на который она указывает, и
+     * открыть её файлом нельзя, а отказ по клику унёс бы вместе с содержимым и дерево.
+     */
+    @Test
+    void aSymlinkIsNotListedAsAFileOfTheCommit() throws IOException {
+        Files.createSymbolicLink(repoDir.resolve("link.md"), Path.of("README.md"));
+        commitAll("link");
+
+        assertThat(names(service.getFileTreeAt(head(), ""))).doesNotContain("link.md");
+        assertThat(names(service.getFileTreeAt(head(), ""))).contains("README.md");
+    }
+
+    /** Ревизия, которая коммитом не является, отвергается и историей — так же, как обзором. */
+    @Test
+    void aRevisionThatIsNotACommitIsRefused() {
+        String treeHash = head() + "^{tree}";
+
+        assertThatThrownBy(() -> service.getCommitLog(1, null, false, treeHash))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.getFileTreeAt(treeHash, ""))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     /** История пути от ревизии: коммиты, сделанные после неё, в ответ не попадают. */
     @Test
     void theHistoryOfARevisionStopsAtIt() {

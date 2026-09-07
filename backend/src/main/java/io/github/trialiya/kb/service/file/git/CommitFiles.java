@@ -120,9 +120,13 @@ final class CommitFiles {
                 tree.addTree(commit.getTree());
                 tree.setRecursive(true);
                 while (tree.next()) {
-                    // Подмодуль приходит сюда как GITLINK: содержимого в этом репозитории у него
-                    // нет, и показывать его файлом было бы обещанием, которого не сдержать.
-                    if (tree.getFileMode(0) == FileMode.GITLINK) continue;
+                    // В снимок попадает ровно то, что read() умеет отдать файлом. Подмодуль
+                    // (GITLINK) содержимого в этом репозитории не имеет вовсе; у символьной
+                    // ссылки блоб — это путь, на который она указывает, а не содержимое цели,
+                    // и открыть её как файл нельзя. Показать их в дереве и отказать по клику
+                    // было бы обещанием, которого не сдержать: отказ уносит и само дерево.
+                    FileMode mode = tree.getFileMode(0);
+                    if (mode != FileMode.REGULAR_FILE && mode != FileMode.EXECUTABLE_FILE) continue;
                     blobs.put(tree.getPathString(), tree.getObjectId(0));
                 }
             }
@@ -162,8 +166,25 @@ final class CommitFiles {
         }
     }
 
+    /**
+     * Ревизия в коммит: тем же отказом, что и обзор дерева, если названное коммитом не является.
+     * Без этого дерево (у него разбор идёт через {@code parseCommit}) отвечало бы на хеш дерева или
+     * блоба 400, а история на тот же вход — 500.
+     */
+    static ObjectId commitOf(Repository repository, String rev) {
+        try (RevWalk walk = new RevWalk(repository)) {
+            return walk.parseCommit(resolve(repository, rev));
+        } catch (MissingObjectException | IncorrectObjectTypeException e) {
+            throw new IllegalArgumentException("Commit not found: " + rev, e);
+        } catch (AmbiguousObjectException e) {
+            throw new IllegalArgumentException("Ambiguous commit reference: " + rev, e);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed resolving " + rev, e);
+        }
+    }
+
     /** Ревизия в объект, либо {@link IllegalArgumentException} — «такой ревизии нет». */
-    static ObjectId resolve(Repository repository, String rev) throws IOException {
+    private static ObjectId resolve(Repository repository, String rev) throws IOException {
         ObjectId id;
         try {
             id = repository.resolve(rev);

@@ -126,7 +126,7 @@ final class RepoBrowse {
             String target,
             boolean includeAncestors,
             @Nullable String commit,
-            Function<Boolean, GitFileContent> contentOf) {
+            Function<Boolean, @Nullable GitFileContent> contentOf) {
         @Nullable FileEntryType type = resolvePathType(target, snapshot.paths());
 
         List<String> ancestors = includeAncestors ? ancestorDirs(target) : List.of();

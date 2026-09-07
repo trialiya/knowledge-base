@@ -274,7 +274,24 @@ public class GitService {
                     snapshot.commit(),
                     // Уже прочитанный снимок содержимого не несёт, а второе чтение того же коммита
                     // отвечает тем же: getFileContentAt берёт блоб по пути в дереве этого же хеша.
-                    tracked -> getFileContentAt(snapshot.commit(), target, null, null));
+                    tracked -> contentAt(snapshot.commit(), target));
+        }
+    }
+
+    /**
+     * Содержимое пути в коммите, либо null, если отдать его нельзя — блоб больше предела чтения из
+     * истории.
+     *
+     * <p>Отказ содержимого не уносит весь ответ: дерево и листинги предков к нему отношения не
+     * имеют, а без них браузер показал бы одну ошибку вместо панели — и починить адрес было бы
+     * негде. Что именно нечитаемо, видно по {@code file: null} у типа {@code FILE}.
+     */
+    private @Nullable GitFileContent contentAt(String commit, String path) {
+        try {
+            return getFileContentAt(commit, path, null, null);
+        } catch (IllegalArgumentException e) {
+            log.debug("No content for {} at {}: {}", path, commit, e.getMessage());
+            return null;
         }
     }
 
@@ -302,7 +319,7 @@ public class GitService {
         try (ObjectReader reader = repository.newObjectReader()) {
             var logCommand = git.log().setMaxCount(limit);
             if (rev != null && !rev.isBlank()) {
-                logCommand.add(CommitFiles.resolve(repository, rev.strip()));
+                logCommand.add(CommitFiles.commitOf(repository, rev.strip()));
             }
             if (filePath != null && !filePath.isBlank()) {
                 logCommand.addPath(RepoPaths.toForwardSlashes(filePath.strip()));

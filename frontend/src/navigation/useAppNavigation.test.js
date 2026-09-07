@@ -39,6 +39,29 @@ describe('чтение адреса', () => {
   });
 });
 
+describe('ревизия в «Файлах»', () => {
+  it('переезжает вместе с путём внутри одного репозитория', () => {
+    go('/files/a/b.md?rev=v1');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openFilePath('a/c.md'));
+    expect(url()).toBe('/files/a/c.md?rev=v1');
+  });
+
+  it('не переезжает в другой репозиторий: имя ветки там значит не то же самое', () => {
+    go('/files/a/b.md?rev=v1');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openFilePath('', 'other'));
+    expect(url()).toBe('/files?project=other');
+  });
+
+  it('уходит при переходе в режим изменений: у снимка их не бывает', () => {
+    go('/files/a/b.md?rev=v1');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openFilePath('a/b.md', undefined, { changes: true }));
+    expect(url()).toBe('/files/a/b.md?changes=1');
+  });
+});
+
 describe('построение адреса', () => {
   it('переносит ресурс в путь, а не в query', () => {
     const { result } = renderHook(() => useAppNavigation());

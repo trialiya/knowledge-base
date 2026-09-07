@@ -408,20 +408,20 @@ export default function useAppNavigation() {
    */
   const openFilePath = useCallback(
     (path, project, options) => {
-      pushNav((prev) => ({
-        ...prev,
-        view: 'files',
-        filePath: path || '',
-        fileProject: project === undefined ? prev.fileProject : project || '',
-        // Режим левого блока — часть этого же перехода, а не отдельная запись:
-        // отдельным setFileChanges (он через replaceNav) переход превратился бы
-        // в замену, и «Назад» не вернуло бы туда, откуда ссылку нажали.
-        fileChanges: options?.changes === undefined ? prev.fileChanges : !!options.changes,
-        // Ревизия переезжает вместе с путём: ссылка на файл, нажатая в снимке
-        // коммита, открывает его в том же снимке. Уводит из него только явный
-        // выбор ревизии (setFileRev).
-        fileRev: options?.rev === undefined ? prev.fileRev : options.rev || '',
-      }));
+      pushNav((prev) => {
+        const nextProject = project === undefined ? prev.fileProject : project || '';
+        return {
+          ...prev,
+          view: 'files',
+          filePath: path || '',
+          fileProject: nextProject,
+          // Режим левого блока — часть этого же перехода, а не отдельная запись:
+          // отдельным setFileChanges (он через replaceNav) переход превратился бы
+          // в замену, и «Назад» не вернуло бы туда, откуда ссылку нажали.
+          fileChanges: options?.changes === undefined ? prev.fileChanges : !!options.changes,
+          fileRev: nextFileRev(prev, nextProject, options),
+        };
+      });
     },
     [pushNav],
   );
@@ -517,6 +517,26 @@ export default function useAppNavigation() {
     toggleLeftPanel,
     setRightTab,
   };
+}
+
+/**
+ * Ревизия следующего перехода в «Файлах».
+ *
+ * По умолчанию она переезжает вместе с путём: ссылка на файл, нажатая в снимке
+ * коммита, открывает его в том же снимке. Уводит из снимка явный выбор ревизии
+ * (`setFileRev`, он же `options.rev`) — и два перехода, в которых прежняя
+ * ревизия означала бы не то, о чём просили:
+ *
+ * - смена репозитория: имя ветки или тега принадлежит своему репозиторию, в
+ *   другом его либо нет (400 вместо дерева), либо оно называет чужой коммит;
+ * - переход в режим изменений: незакоммиченные правки есть только у рабочего
+ *   дерева, и панель, оставшись в снимке, молча показала бы вместо них файл на
+ *   старой ревизии.
+ */
+function nextFileRev(prev, nextProject, options) {
+  if (options?.rev !== undefined) return options.rev || '';
+  if (options?.changes) return '';
+  return nextProject === prev.fileProject ? prev.fileRev : '';
 }
 
 /*
