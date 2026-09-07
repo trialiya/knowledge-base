@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.chat.topic;
 
+import io.github.trialiya.kb.model.chat.dto.ChatSearchGroups;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -8,8 +9,8 @@ import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -80,7 +81,91 @@ public class ChatSearchService {
         if (pattern.isEmpty()) {
             return List.of();
         }
+        Hits hits = collect(user, pattern);
+        return hits.topics().stream()
+                .map(
+                        topic -> {
+                            String id = topic.getConversationId();
+                            List<ChatMessageEntity> messages =
+                                    hits.messagesByConversation().getOrDefault(id, List.of());
+                            // От новых к старым: первое и есть самое свежее.
+                            ChatMessageEntity latest =
+                                    messages.isEmpty() ? null : messages.getFirst();
+                            return new ChatSearchResult(
+                                    id,
+                                    topic.getDisplayTopic(),
+                                    topic.getUpdatedAt(),
+                                    hits.titleMatchIds().contains(id),
+                                    messages.size(),
+                                    latest != null
+                                            ? buildSnippet(latest.getContent(), pattern)
+                                            : null);
+                        })
+                .limit(limit)
+                .toList();
+    }
 
+    /**
+     * Тот же поиск, что {@link #searchChats}, но с каждым совпавшим сообщением, а не только самым
+     * свежим — для страницы поиска, где чат раскрывается в список своих сообщений.
+     */
+    public ChatSearchGroups searchChatsGrouped(String user, String q, int limit) {
+        String pattern = q == null ? "" : q.trim();
+        if (pattern.isEmpty()) {
+            return new ChatSearchGroups(0, false, List.of());
+        }
+        Hits hits = collect(user, pattern);
+        List<ChatSearchGroups.Group> groups =
+                hits.topics().stream()
+                        .limit(limit)
+                        .map(
+                                topic -> {
+                                    String id = topic.getConversationId();
+                                    List<ChatSearchGroups.Message> messages =
+                                            hits
+                                                    .messagesByConversation()
+                                                    .getOrDefault(id, List.of())
+                                                    .reversed()
+                                                    .stream()
+                                                    .map(e -> message(e, pattern))
+                                                    .toList();
+                                    return new ChatSearchGroups.Group(
+                                            id,
+                                            topic.getDisplayTopic(),
+                                            topic.getUpdatedAt(),
+                                            hits.titleMatchIds().contains(id),
+                                            messages);
+                                })
+                        .toList();
+        int total = groups.stream().mapToInt(g -> g.messages().size()).sum();
+        return new ChatSearchGroups(total, hits.scanCapped(), groups);
+    }
+
+    private static ChatSearchGroups.Message message(ChatMessageEntity e, String pattern) {
+        return new ChatSearchGroups.Message(
+                e.getId(),
+                e.getType().name(),
+                e.getCreatedAt(),
+                buildSnippet(e.getContent(), pattern));
+    }
+
+    /**
+     * Что нашлось по запросу, до отбора и лимита.
+     *
+     * @param topics найденные чаты, новые первыми — общий порядок обоих поисков
+     * @param titleMatchIds чаты, у которых совпало название
+     * @param messagesByConversation совпавшие сообщения каждого чата от новых к старым; чат,
+     *     найденный только по названию, здесь отсутствует
+     * @param scanCapped просмотр сообщений упёрся в {@link #MESSAGE_SEARCH_SCAN_LIMIT}: списки
+     *     неполны, и более старые совпадения в них не попали
+     */
+    private record Hits(
+            List<ChatTopicEntity> topics,
+            Set<String> titleMatchIds,
+            Map<String, List<ChatMessageEntity>> messagesByConversation,
+            boolean scanCapped) {}
+
+    private Hits collect(String user, String pattern) {
         List<ChatTopicEntity> titleHits = chatTopicRepository.searchByTopic(user, pattern);
         Set<String> titleMatchIds = new LinkedHashSet<>();
         Map<String, ChatTopicEntity> topicsById = new LinkedHashMap<>();
@@ -91,19 +176,19 @@ public class ChatSearchService {
 
         List<ChatMessageEntity> rawHits =
                 chatMessageRepository.searchForUser(user, pattern, MESSAGE_SEARCH_SCAN_LIMIT);
-        // rawHits идёт от новых к старым — первое сообщение на conversationId и есть самое свежее.
-        Map<String, ChatMessageEntity> latestHitByConversation = new LinkedHashMap<>();
-        Map<String, Integer> countByConversation = new HashMap<>();
+        // rawHits идёт от новых к старым — списки по чату наследуют этот порядок.
+        Map<String, List<ChatMessageEntity>> messagesByConversation = new LinkedHashMap<>();
         for (ChatMessageEntity e : rawHits) {
             if (!isSearchable(e)) {
                 continue;
             }
-            latestHitByConversation.putIfAbsent(e.getConversationId(), e);
-            countByConversation.merge(e.getConversationId(), 1, Integer::sum);
+            messagesByConversation
+                    .computeIfAbsent(e.getConversationId(), id -> new ArrayList<>())
+                    .add(e);
         }
 
         List<String> missingTopics =
-                latestHitByConversation.keySet().stream()
+                messagesByConversation.keySet().stream()
                         .filter(id -> !topicsById.containsKey(id))
                         .toList();
         if (!missingTopics.isEmpty()) {
@@ -115,32 +200,24 @@ public class ChatSearchService {
         }
 
         Set<String> allIds = new LinkedHashSet<>(titleMatchIds);
-        allIds.addAll(latestHitByConversation.keySet());
-
-        return allIds.stream()
-                .map(topicsById::get)
-                .filter(Objects::nonNull)
-                .map(
-                        topic -> {
-                            ChatMessageEntity hit =
-                                    latestHitByConversation.get(topic.getConversationId());
-                            return new ChatSearchResult(
-                                    topic.getConversationId(),
-                                    topic.getDisplayTopic(),
-                                    topic.getUpdatedAt(),
-                                    titleMatchIds.contains(topic.getConversationId()),
-                                    countByConversation.getOrDefault(topic.getConversationId(), 0),
-                                    hit != null ? buildSnippet(hit.getContent(), pattern) : null);
-                        })
-                .sorted(
-                        Comparator.comparing(
-                                        (ChatSearchResult r) ->
-                                                r.updatedAt() != null
-                                                        ? r.updatedAt()
-                                                        : LocalDateTime.MIN)
-                                .reversed())
-                .limit(limit)
-                .toList();
+        allIds.addAll(messagesByConversation.keySet());
+        List<ChatTopicEntity> topics =
+                allIds.stream()
+                        .map(topicsById::get)
+                        .filter(Objects::nonNull)
+                        .sorted(
+                                Comparator.comparing(
+                                                (ChatTopicEntity t) ->
+                                                        t.getUpdatedAt() != null
+                                                                ? t.getUpdatedAt()
+                                                                : LocalDateTime.MIN)
+                                        .reversed())
+                        .toList();
+        return new Hits(
+                topics,
+                titleMatchIds,
+                messagesByConversation,
+                rawHits.size() >= MESSAGE_SEARCH_SCAN_LIMIT);
     }
 
     /**

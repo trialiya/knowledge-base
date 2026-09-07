@@ -18,17 +18,22 @@ final class GitGrep {
 
     /**
      * One {@code git grep} invocation: {@code git grep -n -i [--untracked --no-exclude-standard]
-     * [--fixed-strings|-E] [-C ctx] -- <pattern> [-- <pathspec>…]}.
+     * [--fixed-strings|-E] [-C ctx] -e <pattern> [<commit>] [-- <pathspec>…]}.
      *
      * @param roots when non-null, the run covers untracked and {@code .gitignore}d files under
      *     these directories instead of the index
+     * @param commit when non-null, the tree of this commit is searched instead of the index; git
+     *     then prefixes every output line with {@code <commit>:}, which {@link
+     *     #withoutCommitPrefix} strips before parsing. Callers pass a resolved hash, never user
+     *     input: an argument starting with {@code -} would be read as an option
      */
     static List<String> args(
             String pattern,
             @Nullable String pathspec,
             boolean regex,
             int ctx,
-            @Nullable List<String> roots) {
+            @Nullable List<String> roots,
+            @Nullable String commit) {
         List<String> args = new ArrayList<>(List.of("git", "grep", "-n", "-i"));
         if (roots != null) {
             args.add("--untracked");
@@ -39,10 +44,15 @@ final class GitGrep {
             args.add("-C");
             args.add(String.valueOf(ctx));
         }
-        args.add("--");
+        // -e rather than a bare `--`: a commit has to follow the pattern, and after `--` git would
+        // take it for a path.
+        args.add("-e");
         args.add(pattern);
+        if (commit != null) {
+            args.add(commit);
+        }
         if (pathspec != null || roots != null) {
-            args.add("--"); // second -- separates the pattern from pathspecs
+            args.add("--"); // separates the pattern (and commit) from pathspecs
         }
         if (pathspec != null) {
             args.add(pathspec);
@@ -51,6 +61,18 @@ final class GitGrep {
             args.addAll(roots);
         }
         return args;
+    }
+
+    /**
+     * The output of a run over a commit, with the {@code <commit>:} git puts before every line
+     * removed, so that {@link #parse} reads it exactly like a run over the index. Lines that do not
+     * carry the prefix (the {@code --} block separators) are left alone.
+     */
+    static List<String> withoutCommitPrefix(List<String> lines, String commit) {
+        String prefix = commit + ":";
+        return lines.stream()
+                .map(line -> line.startsWith(prefix) ? line.substring(prefix.length()) : line)
+                .toList();
     }
 
     /**

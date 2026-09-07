@@ -6,8 +6,11 @@ import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
+import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
+import io.github.trialiya.kb.service.file.git.GitGrepTimeoutException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import java.util.List;
@@ -59,6 +62,43 @@ public class GitController {
         String sanitized = query.replaceAll("[^\\p{L}\\p{N}_.\\-]", "");
         if (sanitized.isBlank()) return List.of();
         return git(project).searchFiles(sanitized, limit);
+    }
+
+    /**
+     * Content search for the search page: {@code git grep} over the working tree (or, with {@code
+     * rev}, over a commit), matches grouped by file. The pattern is literal unless {@code
+     * regex=true}; matching is always case-insensitive, the same way the {@code grepContent} tool
+     * searches. A search git could not finish in time is {@code 503}, like a repository that did
+     * not open: the server is fine, this one answer is not available right now. Any other failure
+     * of git stays the {@code 500} it is.
+     */
+    @GetMapping("/grep")
+    public GitGrepResult grep(
+            @RequestParam("q") String query,
+            @RequestParam(name = "path", required = false) @Nullable String pathGlob,
+            @RequestParam(name = "regex", defaultValue = "false") boolean regex,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
+            @RequestParam(name = "untracked", defaultValue = "false") boolean untracked,
+            @RequestParam(name = "limit", defaultValue = "200") int limit,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        if (query.isBlank()) return new GitGrepResult(0, false, List.of());
+        if (pathGlob != null && !pathGlob.isBlank()) requireSafePath(pathGlob);
+        int cap = Math.clamp(limit, 1, 200);
+        GitService git = git(project);
+        @Nullable String revision = revision(rev);
+        try {
+            List<GitGrepMatch> matches =
+                    atRevision(
+                            () ->
+                                    revision == null
+                                            ? git.grepContent(
+                                                    query, pathGlob, regex, 0, cap, untracked)
+                                            : git.grepContentAt(
+                                                    revision, query, pathGlob, regex, 0, cap));
+            return GitGrepResult.group(matches, cap);
+        } catch (GitGrepTimeoutException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
+        }
     }
 
     /** File content for chip preview/expansion; {@code from}/{@code to} are 1-based inclusive. */

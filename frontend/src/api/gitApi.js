@@ -75,6 +75,21 @@ const gitApi = {
   },
 
   /**
+   * Поиск по содержимому файлов для страницы поиска (git grep, совпадения сгруппированы по файлу).
+   * Возвращает GitGrepResult { total, truncated, files: [{ path, lines: [{ line, text }] }] }.
+   * rev — искать в этой ревизии, а не в рабочем дереве; untracked — заходить и в allow-globs-зону.
+   */
+  grep: (q, { path, regex = false, rev, untracked = false, limit = 200, project, signal } = {}) => {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    if (path) params.set('path', path);
+    if (regex) params.set('regex', 'true');
+    if (rev) params.set('rev', rev);
+    if (untracked) params.set('untracked', 'true');
+    const [qs, init] = opts(params, project, signal);
+    return request(`/api/git/grep${qs}`, init);
+  },
+
+  /**
    * Содержимое файла (опц. диапазон строк, 1-based включительно).
    * Возвращает GitFileContent { path, content, binary, sizeBytes, language, totalLines, ... }.
    */

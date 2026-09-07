@@ -216,6 +216,7 @@ untracked. В выдаче инструментов они помечены `[un
 - **Параметры:** `pattern` (String), `pathGlob` (String|null — по правилам git pathspec: без wildcard это префикс пути (`notes` — весь каталог), а wildcard переходит через `/` (`*.java` — любой `.java` на любой глубине)), `regex` (Boolean|null, default true), `contextLines` (Integer|null, default 1), `maxResults` (Integer|null, default 50), `includeUntracked` (Boolean|null, default false — искать ещё и в untracked-файлах, разрешённых проекту `allow-globs`), `project` (String|null — искать в другом репозитории вместо проекта чата, см. «Проект в аргументах» ниже)
 - **Возвращает:** `ToolResult` с id репозитория и списком `GitGrepMatch` в `result`; поля совпадения: `path`, `matchLine` (int — номер строки совпадения), `text` (строка с совпадением)
 - **Предупреждение:** если pattern содержит regex-символы (`|`, `.*`, `^`, `$` и др.) но `regex=false` — возвращается предупреждение
+- **Ошибки:** невалидное регулярное выражение — ошибка инструмента с формулировкой самого git (`'foo(': Unmatched ( or \(`), а не пустой список: модель чинит шаблон, а не гадает, почему ничего не нашлось. На вызов целиком (с `includeUntracked` это два прогона `git grep`) отведено 20 с, дальше — ошибка; вывод git читается только до нужного числа совпадений
 
 ### `getCommitLog`
 История коммитов.
