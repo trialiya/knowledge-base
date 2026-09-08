@@ -72,9 +72,11 @@ export default function useFindMatches({ rootRef, query, regex = false, active =
     setSeeking(false);
   });
 
+  // И по пересбору, и по новому ожиданию: другой раздел при том же запросе
+  // совпадений не пересобирает (запрос в их ключе тот же), а якорь искать надо.
   useEffect(() => {
     seekAnchor();
-  }, [matches]);
+  }, [matches, seeking]);
 
   // Подсветка: активное совпадение — отдельным, более контрастным стилем.
   useEffect(() => {

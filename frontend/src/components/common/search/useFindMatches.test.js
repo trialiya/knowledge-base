@@ -167,6 +167,25 @@ describe('начало с якоря', () => {
     expect(unknown.result.current.activeIndex).toBe(0);
   });
 
+  // Клик по другому разделу того же документа в выдаче: запрос тот же,
+  // совпадения не пересобираются, а встать надо на новый раздел.
+  test('другой якорь при том же запросе переставляет активное совпадение', async () => {
+    const root = withHeadings();
+    const { result, rerender } = renderHook(
+      ({ anchor }) => {
+        const ref = useRef(root);
+        return useFindMatches({ rootRef: ref, query: 'needle', active: true, anchor, resolveAnchor });
+      },
+      { initialProps: { anchor: 'a' } },
+    );
+    await act(async () => {});
+    expect(result.current.activeIndex).toBe(1);
+
+    rerender({ anchor: 'b' });
+    await act(async () => {});
+    expect(result.current.activeIndex).toBe(3);
+  });
+
   test('якорь применяется, когда совпадения доехали позже', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
