@@ -183,16 +183,36 @@ final class RepoPaths {
     }
 
     private static void requireSafe(String path) {
+        @Nullable String refusal = refusal(path);
+        if (refusal != null) {
+            throw new IllegalArgumentException(refusal);
+        }
+    }
+
+    /**
+     * Whether a path can be named back to the API at all.
+     *
+     * <p>Listings ask it, reads and writes throw on it: a picker or a file tree offering a name the
+     * reader cannot then open would answer a click with a refusal, which is worse than never
+     * showing the file. Both sides therefore go through {@link #refusal} and cannot drift apart.
+     */
+    static boolean isNameable(String path) {
+        return refusal(path) == null;
+    }
+
+    /** Why this path is refused, or {@code null} when it is not. */
+    private static @Nullable String refusal(String path) {
         if (path.isBlank()) {
-            throw new IllegalArgumentException("Path must not be blank");
+            return "Path must not be blank";
         }
         // Лидирующий дефис git прочёл бы как ключ команды, а не как имя файла.
         if (path.startsWith("/") || path.startsWith("-") || path.contains("..")) {
-            throw new IllegalArgumentException("Invalid path: " + path);
+            return "Invalid path: " + path;
         }
         if (REFUSED_CHARACTER.matcher(path).find()) {
-            throw new IllegalArgumentException("Path contains unsupported characters: " + path);
+            return "Path contains unsupported characters: " + path;
         }
+        return null;
     }
 
     static String toForwardSlashes(String path) {

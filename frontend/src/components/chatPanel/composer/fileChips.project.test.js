@@ -35,6 +35,9 @@ describe('project in a chip token', () => {
       to: 9,
       refOnly: false,
     });
+    // Обратная сторона той же грамматики: путь, сам кончающийся на `#N-M`, читается как
+    // диапазон. Диапазоны в чипах обычны, а такое имя — нет, и выбор сделан в их пользу.
+    expect(parseToken('⟦file:docs/rfc#1-2⟧')).toMatchObject({ path: 'docs/rfc', from: 1, to: 2 });
   });
 
   it('round-trips a range and a ref', () => {

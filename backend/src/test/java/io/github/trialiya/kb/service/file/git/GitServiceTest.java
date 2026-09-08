@@ -726,4 +726,23 @@ class GitServiceTest {
                 .extracting(GitFileNode::path)
                 .containsExactly("git.md", "git/tools/verylongfilename.md");
     }
+
+    /**
+     * Имя, которое нельзя назвать обратно в API, из листингов выпадает целиком: и из дерева, и из
+     * поиска. Показанный, но не открывающийся файл — отказ в ответ на клик, и объяснить его
+     * пользователю нечем.
+     */
+    @Test
+    void aFileWhoseNameCannotBeNamedBackIsNotOffered() {
+        writeFile("docs/plain.md", "a\n");
+        writeFile("docs/a\"b.md", "b\n");
+        commitAll();
+
+        assertThat(service.getFileTree("docs"))
+                .extracting(GitFileNode::path)
+                .containsExactly("docs/plain.md");
+        assertThat(service.searchFiles("md", 5))
+                .extracting(GitFileNode::path)
+                .containsExactly("docs/plain.md");
+    }
 }
