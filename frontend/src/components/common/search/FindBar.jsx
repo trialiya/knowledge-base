@@ -17,6 +17,8 @@ import './findBar.css';
  *
  * props:
  *   note     — приписка справа от счётчика: чем найденное неполно (обрезанный файл)
+ *   loading  — совпадения ещё ищутся: у ленты чата их считает бэкенд, и счётчик
+ *              до ответа относился бы к прошлому запросу
  *   onCommit — необязательный: запрос набран окончательно (Enter, уход фокуса)
  */
 const FindBar = ({
@@ -28,6 +30,7 @@ const FindBar = ({
   total,
   activeIndex,
   note,
+  loading = false,
   onCommit,
   onPrev,
   onNext,
@@ -47,7 +50,7 @@ const FindBar = ({
     }
   };
 
-  const counter = query.trim() ? `${total ? activeIndex + 1 : 0}/${total}` : '';
+  const counter = loading ? t('find.searching') : query.trim() ? `${total ? activeIndex + 1 : 0}/${total}` : '';
 
   return (
     <div className={`find-bar${className ? ` ${className}` : ''}`} data-find-bar="">

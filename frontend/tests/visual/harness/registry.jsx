@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatHeader from '@/components/chatPanel/center/ChatHeader';
+import MessageList from '@/components/chatPanel/messages/MessageList';
+import FindBar from '@/components/common/search/FindBar';
 import ChatUsage from '@/components/chatPanel/center/ChatUsage';
 import ComposerToolbar from '@/components/chatPanel/composer/ComposerToolbar';
 import PhraseFillModal from '@/components/chatPanel/composer/PhraseFillModal';
@@ -42,6 +44,7 @@ import { DOC_TAB } from '@/constants/docTabs';
 import { SEARCH_SCOPE, SEARCH_SCOPES } from '@/constants/searchScope';
 import { IconRefresh, IconUpload } from '@/icons/index';
 import * as aiConfig from '../fixtures/aiConfig';
+import * as chatFind from '../fixtures/chatFind';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
 import * as chatUsage from '../fixtures/chatUsage';
@@ -236,6 +239,24 @@ const EmptyStates = ({ query, states }) => (
   </>
 );
 
+// Центр чата с открытым find-баром — так его складывает ChatCenter.
+const ChatFeedWithFind = ({ messages, query, activeMid }) => (
+  <>
+    <FindBar
+      className="find-bar--chat"
+      placeholder="Поиск в этом чате…"
+      query={query}
+      onQueryChange={noop}
+      total={3}
+      activeIndex={2}
+      onPrev={noop}
+      onNext={noop}
+      onClose={noop}
+    />
+    <MessageList conversationId="chat-1" messages={messages} searchQuery={query} activeSearchMid={activeMid} />
+  </>
+);
+
 const REGISTRY = [
   // ── Чат ──
   {
@@ -247,6 +268,16 @@ const REGISTRY = [
     id: 'chatHeader.js#activeChatWithContextProps',
     frame: 'center',
     render: (p) => <ChatHeader {...p} onToggleSearch={noop} onRename={noop} onDelete={noop} />,
+  },
+  // Переход к найденному: чат открыт из единого поиска, запрос стоит в адресе.
+  // Проверяемое — что бар подставлен, а активное совпадение подсвечено целым
+  // сообщением, а не одним вхождением: `steps` тут нет намеренно.
+  {
+    id: 'chatFind.js#openedFromSearch',
+    frame: 'center',
+    render: (p) => (
+      <ChatFeedWithFind messages={p} query={chatFind.query} activeMid={chatFind.activeMid} />
+    ),
   },
   { id: 'chatUsage.js#measuredChat', frame: 'panel', render: (p) => <ChatUsage {...p} /> },
   { id: 'chatUsage.js#subagentSpending', frame: 'panel', render: (p) => <ChatUsage {...p} /> },
@@ -619,6 +650,7 @@ const REGISTRY = [
 const MODULES = {
   'aiConfig.js': aiConfig,
   'chatHeader.js': chatHeader,
+  'chatFind.js': chatFind,
   'chatRepo.js': chatRepo,
   'detailHeader.js': detailHeader,
   'detailPanel.js': detailPanel,

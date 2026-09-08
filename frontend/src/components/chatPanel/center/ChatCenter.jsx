@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { UPLOAD_ACCEPT } from '@/constants/uploadAccept';
 import ChatHeader from './ChatHeader';
-import ChatSearchBar from './ChatSearchBar';
+import FindBar from '@/components/common/search/FindBar';
 import MessageList from '../messages/MessageList';
 import { runInputGrowth } from '../messages/tokenUsage';
 import MessageInput from '../composer/MessageInput';
@@ -89,7 +89,9 @@ const ChatCenter = ({
       )}
 
       {search.open && search.canSearch && (
-        <ChatSearchBar
+        <FindBar
+          className="find-bar--chat"
+          placeholder={t('inChatSearch.placeholder')}
           inputRef={search.inputRef}
           query={search.query}
           onQueryChange={search.setQuery}

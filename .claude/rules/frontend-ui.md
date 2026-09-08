@@ -188,9 +188,14 @@ Panel open/closed state is **controlled state that lives in the URL**
   `useCopyFeedback` for any copy-to-clipboard button (`writeText` plus the
   transient "copied" state and its timer), `useDismissable`
   (`common/layout/`) for anything that closes on outside click or Escape —
-  header menus, popovers — and `useFindMatches`/`FindBar` (`common/search/`)
-  for find-and-walk over rendered content: matches, highlight (CSS Custom
-  Highlight API, so the DOM stays React's), scroll-to-active and prev/next.
+  header menus, popovers — and `common/search/` for find-over-rendered-content:
+  `useFindMatches`/`FindBar` when the matches ARE the ranges found in the DOM
+  (files, modals), or the layers under it — `useMatchRanges` (ranges, recollected
+  on mutation) plus `useMatchHighlight` (the shared highlight registry) — when
+  the surface owns its own match list, as the chat feed does with its
+  server-side one. Never write `CSS.highlights` directly: the names are
+  document-global and the registry is what keeps two surfaces from erasing each
+  other.
   Who owns the query is the surface's business — `useModalFind` keeps it while
   a dialog is open, `useFileFind` reads it off the URL — and a surface that
   installs its own Ctrl+F stands down while `hasOpenModal()`
