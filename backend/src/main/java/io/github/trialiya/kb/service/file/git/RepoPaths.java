@@ -18,17 +18,24 @@ import org.jspecify.annotations.Nullable;
 final class RepoPaths {
 
     /**
-     * The two kinds of character a path may not contain. Control characters (NUL included) make git
+     * What a path may not contain — three kinds of character, each for its own reason.
+     *
+     * <p>Control characters (C0 and C1, NUL among them) and the Unicode line separators make git
      * print the name quoted and escaped, so the path stops matching itself between the index, the
-     * API and the disk. Format characters — the bidi overrides above all — leave the name spelled
-     * one way and displayed another, and the review list where a commit is ticked off is exactly
-     * the place that must not lie about which file it names.
+     * API and the disk. A double quote does the same on its own, whatever {@code core.quotePath} is
+     * set to: {@code git grep} reports such a file as {@code "docs/a\"b.md"}, and a search hit that
+     * cannot be opened is worse than one that is never offered.
+     *
+     * <p>Format characters — the bidi overrides above all — leave the name spelled one way and
+     * displayed another, and the review list where a commit is ticked off is exactly the place that
+     * must not lie about which file it names.
      *
      * <p>Everything else is a legal file name: a comma, a parenthesis, {@code + @ # %} and an
      * apostrophe occur in real repositories, and a path reaches git as one argument of a process or
      * as a literal JGit path filter — never as a shell word or a pathspec.
      */
-    private static final Pattern REFUSED_CHARACTER = Pattern.compile("[\\p{Cntrl}\\p{Cf}]");
+    private static final Pattern REFUSED_CHARACTER =
+            Pattern.compile("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\"]");
 
     /** File names to always exclude from results (OS/IDE junk). */
     private static final Set<String> IGNORED_FILES =

@@ -1336,7 +1336,8 @@ public class GitService {
         // файл из трёх строк показывал бы «+4» и лишний «+» в конце патча — не так, как те же
         // три строки считает git у отслеживаемого файла.
         String body = text.endsWith("\n") ? text.substring(0, text.length() - 1) : text;
-        List<String> lines = body.isEmpty() ? List.of() : List.of(body.split("\n", -1));
+        // Пустой файл и файл из одного перевода строки — разное: во втором есть строка, пустая.
+        List<String> lines = text.isEmpty() ? List.of() : List.of(body.split("\n", -1));
         String patchHeader = null;
         String patch = null;
         if (includePatch) {

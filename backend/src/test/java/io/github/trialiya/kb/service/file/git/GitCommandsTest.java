@@ -273,6 +273,11 @@ class GitCommandsTest {
         assertThatThrownBy(() -> service.commit("nope", List.of("docs/gnp\u202Esj.md")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("unsupported characters");
+        // Кавычку git экранирует в выводе сам, независимо от core.quotePath: путь из его вывода
+        // приходил бы обратно с кавычками и обратным слэшем и не открывался бы.
+        assertThatThrownBy(() -> service.commit("nope", List.of("docs/a\"b.md")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported characters");
         assertThat(changedPaths()).containsExactly("README.md");
     }
 

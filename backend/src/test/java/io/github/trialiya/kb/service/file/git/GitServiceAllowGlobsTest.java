@@ -338,6 +338,23 @@ class GitServiceAllowGlobsTest {
                         });
     }
 
+    /**
+     * Файл из одного перевода строки — не пустой файл: строка в нём есть, пустая, и счётчик обязан
+     * показать её так же, как показал бы git у отслеживаемого файла.
+     */
+    @Test
+    void anUntrackedFileOfOneEmptyLineCountsThatLine() {
+        writeFile("notes/blank.md", "\n");
+
+        assertThat(service.getUncommittedChanges(true, "notes/blank.md"))
+                .singleElement()
+                .satisfies(
+                        entry -> {
+                            assertThat(entry.additions()).isEqualTo(1);
+                            assertThat(entry.patch()).isEqualTo("+\n");
+                        });
+    }
+
     /** Сборочный артефакт читается, но изменением не является — в ревью ему делать нечего. */
     @Test
     void gitignoredFilesAreReadableButStayOutOfTheUncommittedChanges() {

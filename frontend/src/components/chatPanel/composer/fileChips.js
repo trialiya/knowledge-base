@@ -81,7 +81,9 @@ export function makeRefToken(path, project) {
  * токен старого образца: он о репозитории чата, чей это черновик.
  */
 export function parseToken(token) {
-  const fileRe = new RegExp(`^${OPEN}file${AT_PROJECT}:([^#${CLOSE}]+)(?:#(\\d+)-(\\d+))?${CLOSE}$`);
+  // Путь берётся нежадно, а диапазон прижат к концу: `#` — законный знак в имени файла, и
+  // `release#1.md` без этого разбирался бы как путь `release` с испорченным диапазоном.
+  const fileRe = new RegExp(`^${OPEN}file${AT_PROJECT}:([^${CLOSE}]+?)(?:#(\\d+)-(\\d+))?${CLOSE}$`);
   const fm = token.match(fileRe);
   if (fm) {
     return {

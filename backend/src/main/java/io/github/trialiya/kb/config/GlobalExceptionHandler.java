@@ -60,9 +60,19 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
+    /**
+     * Статус проставил сам код — значит про случай уже всё известно, и в лог идёт то, что от него
+     * останется полезного. Ошибка клиента (4xx) — одна строка WARN: стектрейс ведёт в место,
+     * которое эту ошибку осознанно вернуло, и на устаревшей ссылке или чипе на удалённый файл
+     * сыпался бы на каждый запрос. Отказ сервера (5xx) — ERROR со стеком, как и всё остальное.
+     */
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
-        log.error(ex.getMessage(), ex);
+        if (ex.getStatusCode().is4xxClientError()) {
+            log.warn("{}: {}", ex.getStatusCode(), ex.getMessage());
+        } else {
+            log.error(ex.getMessage(), ex);
+        }
         ErrorResponse error =
                 new ErrorResponse(
                         Objects.requireNonNullElse(
