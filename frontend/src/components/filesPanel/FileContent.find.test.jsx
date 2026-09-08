@@ -1,7 +1,9 @@
+import { useRef } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FileContent from './FileContent';
 import ModalShell from '@/components/common/modal/ModalShell';
+import useDismissable from '@/components/common/layout/useDismissable';
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -170,6 +172,40 @@ describe('поиск в открытом файле', () => {
     pressEscape();
 
     expect(document.querySelector('.find-bar')).not.toBeNull();
+    expect(onFindChange).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Escape закрывает открытый поповер (меню git над деревом) — и только его.
+   * Слушатели меню висят на всплытии, наш — на перехвате, иначе к нашей очереди
+   * меню уже закрылось бы и бар уехал бы вместе с ним.
+   */
+  test('Escape при открытом поповере закрывает поповер, а не бар', () => {
+    const onFindChange = vi.fn();
+    const onClosePopover = vi.fn();
+    const Popover = () => {
+      const ref = useRef(null);
+      useDismissable(true, ref, onClosePopover);
+      return <div ref={ref}>меню</div>;
+    };
+    render(
+      <>
+        <FileContent
+          content={{ type: 'file', path: 'a.js', file: FILE }}
+          path="a.js"
+          loading={false}
+          find="needle"
+          findRegex={false}
+          onFindChange={onFindChange}
+        />
+        <Popover />
+      </>,
+    );
+
+    pressEscape();
+
+    expect(onClosePopover).toHaveBeenCalled();
+    expect(bar()).not.toBeNull();
     expect(onFindChange).not.toHaveBeenCalled();
   });
 

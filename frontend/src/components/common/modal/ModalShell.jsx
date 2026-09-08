@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import useEscape from './useEscape';
 import useModalFind from './useModalFind';
-import { isTopmostModal, nextModalId, pushModal } from './modalStack';
+import { isTopmostModal, nextModalId, pushModal } from '@/components/common/layout/overlayStack';
 import FindBar from '@/components/common/search/FindBar';
 import './modalShell.css';
 

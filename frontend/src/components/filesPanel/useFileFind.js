@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import useFindMatches from '@/components/common/search/useFindMatches';
-import useEscape from '@/components/common/modal/useEscape';
-import { hasOpenModal } from '@/components/common/modal/modalStack';
+import { hasOverlay } from '@/components/common/layout/overlayStack';
 
 /**
  * Find-бар над открытым файлом: то же, что Ctrl+F в модалке, но запрос приносит
@@ -49,10 +48,15 @@ export default function useFileFind({ rootRef, find, regex, onCommit }) {
   const onQueryChange = useCallback((value) => setQuery(value), []);
 
   // Ctrl+F открывает бар и в файле — искать по открытому файлу, а не по всему
-  // интерфейсу вокруг него. Пока поверх открыт диалог, шорткат его: там ищут по
-  // тому, что на экране, а экран сейчас — модалка.
-  const onFindKey = useEffectEvent((e) => {
-    if (hasOpenModal()) return;
+  // интерфейсу вокруг него; Escape его закрывает, как и в модалке. И то и другое
+  // молчит, пока поверх открыт диалог или поповер: этими клавишами закрывают и
+  // ищут в том, что видно, а видно сейчас не файл.
+  const onKey = useEffectEvent((e) => {
+    if (hasOverlay()) return;
+    if (e.key === 'Escape') {
+      if (open) close();
+      return;
+    }
     e.preventDefault();
     setOpen(true);
     if (open) {
@@ -61,22 +65,22 @@ export default function useFileFind({ rootRef, find, regex, onCommit }) {
     }
   });
 
-  // Escape закрывает бар — привычно и симметрично модалке. Пока поверх открыт
-  // диалог, Escape его: закрывать бар под оверлеем, которого не видно, значило
-  // бы съесть нажатие, которым закрывают диалог.
-  useEscape(() => {
-    if (open && !hasOpenModal()) close();
-  });
-
+  // Перехват, а не всплытие: свои слушатели оверлеи вешают на всплытие, и к
+  // моменту, когда очередь дошла бы до нас, меню от этого же Escape уже
+  // закрылось — hasOverlay() ответил бы «чисто», и бар закрылся бы заодно с ним.
   useEffect(() => {
     const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onKey(e);
+        return;
+      }
       if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
       // e.code — физическая клавиша: на нелатинской раскладке e.key даёт «а».
       if (e.key !== 'f' && e.key !== 'F' && e.code !== 'KeyF') return;
-      onFindKey(e);
+      onKey(e);
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, []);
 
   return {

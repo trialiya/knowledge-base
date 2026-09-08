@@ -13,6 +13,8 @@ const NO_MATCHES = [];
 // пересобираем совпадения по MutationObserver, склеивая пачку правок одним таймером.
 const RECOLLECT_MS = 120;
 
+let nextOwnerId = 0;
+
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
@@ -75,15 +77,34 @@ const isInBar = (node) => {
   return !!el?.closest?.('[data-find-bar]');
 };
 
-const setHighlight = (name, ranges) => {
-  if (ranges.length) window.CSS.highlights.set(name, new window.Highlight(...ranges));
-  else window.CSS.highlights.delete(name);
+// Имена подсветки глобальны для документа, а хуков на экране может быть
+// несколько: бар открытого файла и бар модалки, вставшей поверх него. Поэтому
+// каждый экземпляр не пишет в имена напрямую, а объявляет здесь свои Range'и —
+// в имена уходит объединение. Иначе закрытый бар модалки (совпадений ноль)
+// стирал бы подсветку файла под собой, и вернуть её было бы нечем.
+const owners = new Map();
+
+const paint = () => {
+  const all = [];
+  const active = [];
+  for (const own of owners.values()) {
+    all.push(...own.all);
+    active.push(...own.active);
+  }
+  for (const [name, ranges] of [
+    [HL_ALL, all],
+    [HL_ACTIVE, active],
+  ]) {
+    if (ranges.length) window.CSS.highlights.set(name, new window.Highlight(...ranges));
+    else window.CSS.highlights.delete(name);
+  }
 };
 
-const clearHighlights = () => {
+const publishHighlights = (id, all, active) => {
   if (!window.CSS?.highlights) return;
-  window.CSS.highlights.delete(HL_ALL);
-  window.CSS.highlights.delete(HL_ACTIVE);
+  if (all.length || active.length) owners.set(id, { all, active });
+  else owners.delete(id);
+  paint();
 };
 
 // У Range нет scrollIntoView, а ближайший к нему элемент может быть выше экрана
@@ -122,6 +143,9 @@ const scrollRangeIntoView = (range, root) => {
 export default function useFindMatches({ rootRef, query, regex = false, active = true }) {
   const [matches, setMatches] = useState(NO_MATCHES);
   const [index, setIndex] = useState(0);
+  // Кто мы в общем реестре подсветки (см. owners выше). useState, а не ref:
+  // писать в ref во время рендера нельзя.
+  const [ownerId] = useState(() => ++nextOwnerId);
 
   // Новый запрос — снова с первого совпадения. Подстройка в рендере, а не в
   // эффекте: это состояние, следующее за пропом (см. frontend-ui.md).
@@ -168,18 +192,13 @@ export default function useFindMatches({ rootRef, query, regex = false, active =
 
   // Подсветка: активное совпадение — отдельным, более контрастным стилем.
   useEffect(() => {
-    if (!window.CSS?.highlights) return undefined;
-    if (!total) {
-      clearHighlights();
-      return undefined;
-    }
-    setHighlight(
-      HL_ALL,
+    publishHighlights(
+      ownerId,
       matches.filter((_, i) => i !== activeIndex),
+      activeIndex >= 0 ? [matches[activeIndex]] : [],
     );
-    setHighlight(HL_ACTIVE, activeIndex >= 0 ? [matches[activeIndex]] : []);
-    return clearHighlights;
-  }, [matches, total, activeIndex]);
+    return () => publishHighlights(ownerId, NO_MATCHES, NO_MATCHES);
+  }, [ownerId, matches, activeIndex]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -190,7 +209,10 @@ export default function useFindMatches({ rootRef, query, regex = false, active =
   return {
     total,
     activeIndex,
-    goNext: () => setIndex((i) => (total ? (i + 1) % total : 0)),
-    goPrev: () => setIndex((i) => (total ? (i - 1 + total) % total : 0)),
+    // Шагаем от ПОКАЗАННОГО совпадения, а не от сырого index: после пересбора,
+    // который нашёл меньше (переключили markdown, diff, догрузилось содержимое),
+    // они расходятся — и стрелка прыгала бы не с того, что видно на экране.
+    goNext: () => setIndex(total ? (activeIndex + 1) % total : 0),
+    goPrev: () => setIndex(total ? (activeIndex - 1 + total) % total : 0),
   };
 }
