@@ -17,6 +17,10 @@ const ROLE_KEY = { USER: 'chats.roleUser', ASSISTANT: 'chats.roleAssistant', TOO
  * Переход уносит запрос в адрес чата — там его подхватит find-бар и сядет на
  * совпадение. У карточки без совпавших сообщений запроса в адресе нет: бар
  * открылся бы с честным «0/0», а искать в этом чате нечего.
+ *
+ * Строка сообщения называет вдобавок и его само (`?msg=`): бар сядет именно на
+ * ту строку, по которой кликнули, а не на самое свежее совпадение. Заголовок
+ * карточки сообщения не называет — «открыть чат» значит открыть его на свежем.
  */
 const ChatResults = ({ result, query, onOpenChat }) => {
   const { t, i18n } = useTranslation('search');
@@ -34,6 +38,8 @@ const ChatResults = ({ result, query, onOpenChat }) => {
         subtitle={chat.titleMatched && <span className="search-group__badge">{t('chats.titleMatched')}</span>}
         rows={chat.messages.map((message) => ({
           key: message.id,
+          href: chatUrl(chat.conversationId, { find, msg: message.id }),
+          onOpen: () => onOpenChat(chat.conversationId, { find, msg: message.id }),
           node: (
             <>
               <span className="search-line__where">

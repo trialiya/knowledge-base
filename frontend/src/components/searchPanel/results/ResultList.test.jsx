@@ -104,6 +104,7 @@ test('пустой запрос ничего не ищет и говорит, ч
 });
 
 test('чаты показывают автора и время каждого совпавшего сообщения', () => {
+  const onOpenChat = vi.fn();
   render(
     <ResultList
       scope="chats"
@@ -130,14 +131,19 @@ test('чаты показывают автора и время каждого с
       project=""
       onOpenFile={vi.fn()}
       onOpenDoc={vi.fn()}
-      onOpenChat={vi.fn()}
+      onOpenChat={onOpenChat}
     />,
   );
 
   // Запрос уходит в адрес чата: там его подхватит find-бар и сядет на совпадение.
+  // Заголовок карточки ведёт в чат целиком, строка — в своё сообщение.
   expect(screen.getByRole('link', { name: 'Тема' })).toHaveAttribute('href', '/chat/c1?find=needle');
   expect(screen.getByText('chats.roleAssistant')).toBeInTheDocument();
   expect(screen.getByText(/needle/)).toBeInTheDocument();
+  expect(screen.getByText('chats.roleAssistant').closest('a')).toHaveAttribute('href', '/chat/c1?find=needle&msg=5');
+
+  fireEvent.click(screen.getByText('chats.roleAssistant').closest('a'));
+  expect(onOpenChat).toHaveBeenCalledWith('c1', { find: 'needle', msg: 5 });
 });
 
 /** Совпало только название — искать в сообщениях нечего, и бар открывать незачем. */

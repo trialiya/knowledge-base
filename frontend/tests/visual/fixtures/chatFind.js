@@ -38,3 +38,12 @@ const matched = openedFromSearch.filter((m) => new RegExp(query, 'i').test(m.tex
 export const total = matched.length;
 export const activeIndex = total - 1;
 export const activeMid = matched[activeIndex].mid;
+
+/**
+ * Та же лента, но пришли по ссылке на КОНКРЕТНОЕ сообщение (`?msg=`) — клик по
+ * строке карточки результата, а не по её заголовку. Активно не самое свежее
+ * совпадение, а названное: здесь первое из совпавших.
+ */
+export const openedOnMessage = openedFromSearch;
+export const messageIndex = 0;
+export const messageMid = matched[messageIndex].mid;

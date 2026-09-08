@@ -243,7 +243,7 @@ const EmptyStates = ({ query, states }) => (
 // Центр чата с открытым find-баром — так его складывает ChatCenter. Счётчик и
 // активное сообщение приходят из фикстуры, а не заданы числом: иначе снимок
 // уверенно показывал бы «3/3» при любой правке её текстов.
-const ChatFeedWithFind = ({ messages }) => {
+const ChatFeedWithFind = ({ messages, activeIndex = chatFind.activeIndex, activeMid = chatFind.activeMid }) => {
   const { t } = useTranslation('chat');
   return (
     <>
@@ -253,7 +253,7 @@ const ChatFeedWithFind = ({ messages }) => {
         query={chatFind.query}
         onQueryChange={noop}
         total={chatFind.total}
-        activeIndex={chatFind.activeIndex}
+        activeIndex={activeIndex}
         onPrev={noop}
         onNext={noop}
         onClose={noop}
@@ -262,7 +262,7 @@ const ChatFeedWithFind = ({ messages }) => {
         conversationId="chat-1"
         messages={messages}
         searchQuery={chatFind.query}
-        activeSearchMid={chatFind.activeMid}
+        activeSearchMid={activeMid}
       />
     </>
   );
@@ -286,8 +286,15 @@ const REGISTRY = [
   {
     id: 'chatFind.js#openedFromSearch',
     frame: 'center',
+    render: (p) => <ChatFeedWithFind messages={p} />,
+  },
+  // Ссылка на конкретное сообщение (?msg=): активно НЕ самое свежее совпадение,
+  // а то, по строке которого кликнули в карточке результата.
+  {
+    id: 'chatFind.js#openedOnMessage',
+    frame: 'center',
     render: (p) => (
-      <ChatFeedWithFind messages={p} />
+      <ChatFeedWithFind messages={p} activeIndex={chatFind.messageIndex} activeMid={chatFind.messageMid} />
     ),
   },
   { id: 'chatUsage.js#measuredChat', frame: 'panel', render: (p) => <ChatUsage {...p} /> },

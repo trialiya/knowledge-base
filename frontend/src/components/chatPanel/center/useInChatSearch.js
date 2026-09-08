@@ -6,7 +6,7 @@
 // хуком useChatMessages.loadOlderMessages, пока сообщение не появится в DOM
 // (см. MessageList: именно оно делает финальный скролл и подсветку по mid).
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import chatApi from '@/api/chatApi';
 import { DRAFT_CHAT_ID } from '@/constants/storage';
 
@@ -89,13 +89,11 @@ export default function useInChatSearch({
 
   // Какое сообщение из адреса ещё не применено. Применяем не сразу: список
   // совпадений серверный и приезжает после запроса, а до него садиться некуда.
-  // Зеркало в ref нужно ответу уже отправленного запроса: он приходит позже
-  // шага стрелкой, а стейт на тот момент читать неоткуда.
   const [pendingMsg, setPendingMsg] = useState(msg);
-  const pendingMsgRef = useRef(msg);
-  useEffect(() => {
-    pendingMsgRef.current = pendingMsg;
-  }, [pendingMsg]);
+  // Счётчик шагов стрелками. Ответ уже отправленного запроса приходит позже
+  // шага, и сравнение счётчика — единственный способ узнать, что человек за это
+  // время выбрал совпадение сам.
+  const stepsRef = useRef(0);
 
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
@@ -121,10 +119,11 @@ export default function useInChatSearch({
   // Ссылку на сообщение отрабатываем в момент ответа поиска, а не эффектом
   // поверх готового списка: иначе остаётся кадр, где активно самое свежее
   // совпадение — лента успевала бы прокрутиться к нему и уехать обратно.
-  const runSearch = useCallback((chatId, q) => {
+  const runSearch = useCallback((chatId, q, target) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const steps = stepsRef.current;
     setSearching(true);
     chatApi
       .searchMessages(chatId, q, controller.signal)
@@ -134,9 +133,8 @@ export default function useInChatSearch({
         // Сообщения из адреса среди совпадений может не быть: чат успели
         // почистить, запрос в баре — не тот, с которым пришли, или человек уже
         // ушёл стрелкой. Тогда, как и без ссылки, встаём на самое свежее.
-        const at = indexOfMessage(list, pendingMsgRef.current);
+        const at = stepsRef.current === steps ? indexOfMessage(list, target) : -1;
         setActiveIndex(at >= 0 ? at : list.length ? list.length - 1 : -1);
-        pendingMsgRef.current = '';
         setPendingMsg('');
         setSearching(false);
       })
@@ -208,6 +206,11 @@ export default function useInChatSearch({
     }
   }
 
+  // Сообщение из адреса читается на момент запроса, а не через зависимости
+  // эффекта: в них оно означало бы перезапуск поиска на каждое его применение,
+  // а тот сбросил бы активное совпадение обратно на самое свежее.
+  const fireSearch = useEffectEvent((chatId, q) => runSearch(chatId, q, pendingMsg));
+
   // Поиск по дебаунсу при изменении запроса (и при открытии с готовым query).
   // Пустой запрос и закрытый бар гасят и дебаунс, и висящий запрос — сюда же
   // приходит смена чата, которая выше уже стёрла query и закрыла бар.
@@ -218,20 +221,20 @@ export default function useInChatSearch({
       abortRef.current?.abort();
       return undefined;
     }
-    debounceRef.current = setTimeout(() => runSearch(activeChatId, q), DEBOUNCE_MS);
+    debounceRef.current = setTimeout(() => fireSearch(activeChatId, q), DEBOUNCE_MS);
     return () => clearTimeout(debounceRef.current);
-  }, [open, activeChatId, query, runSearch]);
+  }, [open, activeChatId, query]);
 
   // Шаг стрелкой — человек выбрал сам: ждать сообщение из адреса больше не надо
   // (ответ поиска, доехавший после шага, иначе увёл бы обратно на ссылку).
   const goPrev = useCallback(() => {
-    pendingMsgRef.current = '';
+    stepsRef.current += 1;
     setPendingMsg('');
     setActiveIndex((i) => (matches.length ? (i - 1 + matches.length) % matches.length : -1));
   }, [matches.length]);
 
   const goNext = useCallback(() => {
-    pendingMsgRef.current = '';
+    stepsRef.current += 1;
     setPendingMsg('');
     setActiveIndex((i) => (matches.length ? (i + 1) % matches.length : -1));
   }, [matches.length]);
