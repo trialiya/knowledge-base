@@ -40,7 +40,8 @@ final class GitGrepRunner {
      * repository writes the repository, and holding it to keep a handful of blocks is what this
      * prevents. With no context a block is one line, so the cap is exact there; with context the
      * ceiling is generous enough that no realistic answer reaches it, and a run that does ends at
-     * its last complete block.
+     * its last complete block — and with nothing from that run at all when its whole output turned
+     * out to be one block that never finished.
      */
     static final int MAX_OUTPUT_LINES = 20_000;
 
@@ -116,6 +117,7 @@ final class GitGrepRunner {
                 GitGrep.parse(
                         exec(
                                 GitGrep.args(pattern, glob, regex, ctx, null, null),
+                                ctx,
                                 outputLines(ctx, limit),
                                 deadline),
                         ctx,
@@ -138,6 +140,7 @@ final class GitGrepRunner {
                         exec(
                                 GitGrep.args(
                                         pattern, null, regex, ctx, visible.allowGlobRoots(), null),
+                                ctx,
                                 MAX_OUTPUT_LINES,
                                 deadline),
                         ctx,
@@ -187,6 +190,7 @@ final class GitGrepRunner {
         List<String> lines =
                 exec(
                         GitGrep.args(pattern, glob, regex, ctx, null, commit),
+                        ctx,
                         outputLines(ctx, limit),
                         System.nanoTime() + timeout.toNanos());
         return GitGrep.parse(GitGrep.withoutCommitPrefix(lines, commit), ctx, limit);
@@ -208,12 +212,14 @@ final class GitGrepRunner {
      * so the caller can show why nothing came back instead of an empty list; anything else git
      * refuses — a repository it cannot read — is a failure of this side.
      *
+     * @param ctx the context lines the command asks for; with none, output has no block separators
+     *     and the cut falls on a block boundary by itself
      * @param deadline {@link System#nanoTime()} past which the run is killed
      * @throws IllegalArgumentException if git refused the pattern
      * @throws GitGrepTimeoutException if git did not answer by {@code deadline}
      * @throws IllegalStateException if git failed in any other way
      */
-    private List<String> exec(List<String> command, int maxLines, long deadline) {
+    private List<String> exec(List<String> command, int ctx, int maxLines, long deadline) {
         long budget = deadline - System.nanoTime();
         if (budget <= 0) {
             throw timedOut(command);
@@ -271,10 +277,23 @@ final class GitGrepRunner {
             watchdog.interrupt();
             if (cut) {
                 // Killed by this side with the answer in hand: the exit code says only that, and
-                // so does the watchdog if the deadline fell on the same instant. A block cut in
-                // the middle is dropped — its separator is where the last complete one ended.
+                // so does the watchdog if the deadline fell on the same instant. Without context
+                // every line is a block of its own and all of them stand. With context the run
+                // ended inside a block, and that block is dropped — its separator is where the
+                // last complete one ended, and a buffer without a separator holds no complete
+                // block at all.
+                if (ctx == 0) {
+                    return lines;
+                }
                 int lastSeparator = lines.lastIndexOf("--");
-                return lastSeparator < 0 ? lines : lines.subList(0, lastSeparator);
+                if (lastSeparator < 0) {
+                    log.warn(
+                            "Git command filled {} lines with one unfinished block: {}",
+                            maxLines,
+                            command);
+                    return List.of();
+                }
+                return lines.subList(0, lastSeparator);
             }
             if (timedOut.get()) {
                 log.warn("Git command killed after {}: {}", timeout, command);

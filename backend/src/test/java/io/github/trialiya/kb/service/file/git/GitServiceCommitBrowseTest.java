@@ -220,6 +220,24 @@ class GitServiceCommitBrowseTest {
         assertThat(names(service.browsePathAt(head(), "", false).nodes())).doesNotContain("links");
     }
 
+    /**
+     * Имя, которое нельзя назвать обратно в API, из снимка коммита выпадает по тому же правилу, что
+     * и из рабочего дерева: показать его значило бы предложить файл, который на клик ответит
+     * отказом, — а отказ унёс бы вместе с содержимым и дерево.
+     */
+    @Test
+    void aNameTheApiCannotTakeBackIsNotListedInTheCommitEither() {
+        write("qu\"ote.md", "quoted\n");
+        write("odd/qu\"ote.md", "quoted\n");
+        commitAll("odd names");
+
+        assertThat(names(service.getFileTreeAt(head(), ""))).doesNotContain("qu\"ote.md", "odd");
+        assertThat(names(service.getFileTreeAt(head(), "odd"))).isEmpty();
+        assertThat(names(service.browsePathAt(head(), "", false).nodes()))
+                .doesNotContain("qu\"ote.md", "odd");
+        assertThat(names(service.getFileTree(""))).doesNotContain("qu\"ote.md", "odd");
+    }
+
     /** Размер в листинге — тоже из коммита: правка на диске его не меняет. */
     @Test
     void theListedSizeIsTheCommittedOne() {
