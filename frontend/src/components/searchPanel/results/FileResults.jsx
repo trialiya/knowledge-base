@@ -29,8 +29,8 @@ const FileResults = ({ result, query, regex, rev, project, onOpenFile }) => {
         key={file.path}
         icon={<IconFileText size={14} />}
         title={name}
-        href={filesUrl(file.path, project, rev)}
-        onOpen={() => onOpenFile(file.path, project, { rev })}
+        href={filesUrl(file.path, project, { rev, find: query, findRegex: regex })}
+        onOpen={() => onOpenFile(file.path, project, { rev, find: query, findRegex: regex })}
         meta={t('files.matches', { count: file.lines.length })}
         subtitle={dir && <span className="search-group__path">{dir}</span>}
         rows={file.lines.map((line) => ({

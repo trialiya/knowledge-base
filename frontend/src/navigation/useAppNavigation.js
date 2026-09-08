@@ -137,6 +137,8 @@ export default function useAppNavigation() {
         fileProject: u.fileProject,
         fileChanges: u.fileChanges,
         fileRev: u.fileRev,
+        fileFind: u.fileFind,
+        fileFindRegex: u.fileFindRegex,
         searchQuery: u.searchQuery,
         searchScope: normalizeScope(u.searchScope),
         searchPath: u.searchPath,
@@ -248,9 +250,10 @@ export default function useAppNavigation() {
    * @param project репозиторий пути; не передан — остаёмся в том, что открыт
    *   (клик по дереву не должен уводить в другой проект), а переход по ссылке из
    *   чата проект называет и панель переключает
-   * @param options `{ changes }` — каким показать левый блок: ссылка из вкладки
-   *   «Репозиторий» ведёт к незакоммиченному, ссылка на файл — в дерево. Не
-   *   передан — режим остаётся тем, что был
+   * @param options `{ changes, rev, find, findRegex }` — `changes`: каким показать
+   *   левый блок (ссылка из вкладки «Репозиторий» ведёт к незакоммиченному,
+   *   ссылка на файл — в дерево; не передан — режим остаётся тем, что был);
+   *   `find`: что подсветить в открытом файле — его приносит переход из поиска
    */
   const openFilePath = useCallback(
     (path, project, options) => {
@@ -266,6 +269,10 @@ export default function useAppNavigation() {
           // в замену, и «Назад» не вернуло бы туда, откуда ссылку нажали.
           fileChanges: options?.changes === undefined ? prev.fileChanges : !!options.changes,
           fileRev: nextFileRev(prev, nextProject, options),
+          // Подсветка принадлежит переходу, а не файлу: открыли файл откуда-то
+          // ещё — искать в нём нечего, и прежний запрос красил бы случайное.
+          fileFind: options?.find || '',
+          fileFindRegex: !!options?.find && !!options?.findRegex,
         };
       });
     },
@@ -351,6 +358,23 @@ export default function useAppNavigation() {
     [replaceNav],
   );
 
+  /**
+   * Что подсвечено в открытом файле ('' — ничего, бар закрыт). Через replaceNav
+   * по той же причине, что режим левого блока и ревизия: файл остаётся тем же,
+   * и набранный в баре запрос не должен стоить «Назад» на каждую букву.
+   */
+  const setFileFind = useCallback(
+    (find, regex) => {
+      const next = find || '';
+      replaceNav((prev) =>
+        prev.fileFind === next && prev.fileFindRegex === !!regex
+          ? prev
+          : { ...prev, fileFind: next, fileFindRegex: !!next && !!regex },
+      );
+    },
+    [replaceNav],
+  );
+
   return {
     nav,
     switchView,
@@ -362,6 +386,7 @@ export default function useAppNavigation() {
     openFilePath,
     setFileChanges,
     setFileRev,
+    setFileFind,
     toggleLeftPanel,
     setRightTab,
   };

@@ -1,30 +1,26 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import useEscape from './useEscape';
 import useModalFind from './useModalFind';
-import ModalFindBar from './ModalFindBar';
+import { isTopmostModal, nextModalId, pushModal } from './modalStack';
+import FindBar from '@/components/common/search/FindBar';
 import './modalShell.css';
 
-// Stack of currently-open modal instance ids, topmost last. Lets a stacked
-// modal's Escape handler ignore the keypress when it isn't the frontmost one,
-// so one Escape closes only the modal on top instead of every open modal.
-let openStack = [];
-let nextId = 0;
-
+// Пока модалка открыта, она стоит в общей стопке (modalStack): Escape достаётся
+// только верхней — вложенный диалог не уносит с собой родительский, — а
+// поверхности под оверлеем по той же стопке узнают, что диалог открыт, и молчат
+// со своими шорткатами.
 function useTopmost(active) {
   const idRef = useRef(null);
-  if (idRef.current === null) idRef.current = ++nextId;
+  if (idRef.current === null) idRef.current = nextModalId();
 
   useEffect(() => {
     if (!active) return undefined;
-    const id = idRef.current;
-    openStack.push(id);
-    return () => {
-      openStack = openStack.filter((x) => x !== id);
-    };
+    return pushModal(idRef.current);
   }, [active]);
 
-  return useCallback(() => openStack[openStack.length - 1] === idRef.current, []);
+  return useCallback(() => isTopmostModal(idRef.current), []);
 }
 
 // A mousedown-to-close is followed by a native `click` on mouseup. React flushes the
@@ -56,6 +52,7 @@ function swallowNextClick() {
  *   className — extra class(es) for the dialog box, for component-specific sizing/chrome
  */
 const ModalShell = ({ open = true, onClose, variant, role = 'dialog', className = '', children }) => {
+  const { t } = useTranslation();
   const isTopmost = useTopmost(open);
   const dialogRef = useRef(null);
   const find = useModalFind({ dialogRef, active: open, isTopmost });
@@ -100,7 +97,9 @@ const ModalShell = ({ open = true, onClose, variant, role = 'dialog', className 
         onClick={(e) => e.stopPropagation()}
       >
         {find.open && (
-          <ModalFindBar
+          <FindBar
+            className="find-bar--modal"
+            placeholder={t('find.inModal')}
             inputRef={find.inputRef}
             query={find.query}
             onQueryChange={find.onQueryChange}

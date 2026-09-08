@@ -62,6 +62,46 @@ describe('ревизия в «Файлах»', () => {
   });
 });
 
+describe('подсветка в открытом файле', () => {
+  it('читает запрос и пометку «это выражение» из адреса', () => {
+    go('/files/a/b.md?find=needle&re=1');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav).toMatchObject({ filePath: 'a/b.md', fileFind: 'needle', fileFindRegex: true });
+  });
+
+  it('переход из поиска приносит запрос в адрес файла вместе с ревизией', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openFilePath('a/b.md', undefined, { rev: 'v1', find: 'needle' }));
+    expect(url()).toBe('/files/a/b.md?rev=v1&find=needle');
+  });
+
+  // Иначе прежний запрос красил бы в новом файле случайные слова.
+  it('не переезжает на файл, открытый не из поиска', () => {
+    go('/files/a/b.md?find=needle');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openFilePath('a/c.md'));
+    expect(url()).toBe('/files/a/c.md');
+  });
+
+  // Набранное в баре — не переход: возврат «Назад» из файла обязан вести в
+  // выдачу, а не отматывать поиск по буквам.
+  it('запрос из самого бара заменяет запись истории, а не добавляет', () => {
+    go('/files/a/b.md');
+    const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
+    act(() => result.current.setFileFind('needle', false));
+    expect(url()).toBe('/files/a/b.md?find=needle');
+    expect(window.history.length).toBe(before);
+  });
+
+  it('пометка «выражение» без запроса в адрес не пишется', () => {
+    go('/files/a/b.md');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.setFileFind('', true));
+    expect(url()).toBe('/files/a/b.md');
+  });
+});
+
 describe('единый поиск', () => {
   it('разбирает запрос, категорию и фильтры категории «файлы»', () => {
     go('/search?q=needle&in=files&path=backend%2F**&rev=v1&regex=1&untracked=1');

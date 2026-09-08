@@ -1,0 +1,89 @@
+/* ═══════════════════════════════════════════════
+   FIND BAR — поиск по содержимому: внутри открытой модалки и над открытым
+   файлом (см. FindBar.jsx). Как бар ложится в свою поверхность, задаёт она
+   сама модификатором: .find-bar--modal в modalShell.css, .find-bar--file — в
+   стилях «Файлов».
+═══════════════════════════════════════════════ */
+
+.find-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 0.3rem 0.55rem;
+  border-bottom: 1px solid var(--kb-border);
+  background: var(--kb-bg);
+  /* .modal-shell--sm центрирует свой текст — поле ввода должно остаться слева. */
+  text-align: left;
+}
+
+.find-bar__icon {
+  display: flex;
+  align-items: center;
+  color: var(--kb-muted);
+  flex-shrink: 0;
+  padding-left: 4px;
+}
+
+.find-bar__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-size: 0.86rem;
+  color: var(--kb-text);
+}
+
+.find-bar__input::placeholder {
+  color: var(--kb-muted);
+}
+
+.find-bar__count {
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  color: var(--kb-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.find-bar .icon-btn {
+  width: 24px;
+  height: 24px;
+}
+
+.find-bar .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.find-bar .icon-btn:disabled:hover {
+  background: none;
+  color: var(--kb-muted);
+}
+
+/* Приписка о неполноте найденного (обрезанный файл) — рядом со счётчиком,
+   потому что оговаривает именно его. */
+.find-bar__note {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+  white-space: nowrap;
+}
+
+/* Вхождения запроса в содержимом (CSS Custom Highlight API, см.
+   useFindMatches). Неактивные красятся тем же --kb-match-bg, что и подсветка в
+   результатах поиска: одно совпадение обязано выглядеть одинаково и в карточке
+   выдачи, и в открытом файле. Тёмный текст задан явно — подсветка ложится и на
+   цветные плашки. В браузерах без поддержки правила игнорируются: остаются
+   счётчик и прокрутка к совпадению. */
+::highlight(kb-find) {
+  background-color: var(--kb-match-bg);
+  color: #1f1f1f;
+}
+::highlight(kb-find-active) {
+  background-color: var(--kb-match-active-bg);
+  color: #1f1f1f;
+}

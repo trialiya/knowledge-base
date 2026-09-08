@@ -188,8 +188,13 @@ Panel open/closed state is **controlled state that lives in the URL**
   `useCopyFeedback` for any copy-to-clipboard button (`writeText` plus the
   transient "copied" state and its timer), `useDismissable`
   (`common/layout/`) for anything that closes on outside click or Escape —
-  header menus, popovers — and `useModalFind`/`ModalFindBar` (`common/modal/`)
-  for Ctrl+F find scoped to an open dialog. Several components still inline
+  header menus, popovers — and `useFindMatches`/`FindBar` (`common/search/`)
+  for find-and-walk over rendered content: matches, highlight (CSS Custom
+  Highlight API, so the DOM stays React's), scroll-to-active and prev/next.
+  Who owns the query is the surface's business — `useModalFind` keeps it while
+  a dialog is open, `useFileFind` reads it off the URL — and a surface that
+  installs its own Ctrl+F must stand down while `hasOpenModal()`
+  (`common/modal/modalStack.js`) is true. Several components still inline
   the copy hook's body — migrate one when you touch it, don't add another.
 - Async effects must be cancellation-aware (a `cancelled` flag or an AbortSignal
   in cleanup), matching the existing preview hooks.

@@ -91,6 +91,13 @@
   overflow: auto;
 }
 
+/* Find-бар над содержимым файла: он сосед прокручиваемого тела, а не его
+   первая строка, — липкая полоса внутри прокрутки закрывала бы верхнее
+   совпадение, к которому сама же и промотала. */
+.find-bar--file {
+  border-top: 1px solid var(--kb-border-light);
+}
+
 .file-content__empty {
   padding: 2.5rem 1.5rem;
   text-align: center;
