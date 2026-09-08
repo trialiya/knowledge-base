@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm';
 import { IconFolder, IconDoc } from '@/icons/index';
 import { formatFileSize } from '@/utils/formatting';
 import FindBar from '@/components/common/search/FindBar';
-import useFileFind from './useFileFind';
+import useAddressFind from '@/components/common/search/useAddressFind';
 import Breadcrumb from './Breadcrumb';
 import ChangeDiffView from './changes/ChangeDiffView';
 
@@ -119,7 +119,7 @@ export const FileView = ({ file, path, diff = null, showDiff = false, onToggleDi
 /**
  * `find` (и `findRegex`) — что подсветить в открытом файле, из адреса; менять
  * его обратно в адрес — дело `onFindChange`. Пусто — файл открыли не из поиска:
- * бара нет, пока его не позовут Ctrl+F. Всё остальное — в useFileFind.
+ * бара нет, пока его не позовут Ctrl+F. Всё остальное — в useAddressFind.
  */
 const FileContent = ({
   content,
@@ -135,7 +135,7 @@ const FileContent = ({
 }) => {
   const { t } = useTranslation('files');
   const bodyRef = useRef(null);
-  const search = useFileFind({ rootRef: bodyRef, find, regex: findRegex, onCommit: onFindChange });
+  const search = useAddressFind({ rootRef: bodyRef, find, regex: findRegex, onCommit: onFindChange });
 
   // Крошки рисуем по запрошенному пути, а не по загруженному содержимому: путь
   // известен сразу из URL, и шапка центра появляется, не дожидаясь ответа

@@ -154,6 +154,51 @@ describe('подсветка в открытом чате', () => {
   });
 });
 
+describe('подсветка в открытом документе', () => {
+  it('читает запрос и раздел из адреса документа', () => {
+    go('/knowledge/doc/5?find=needle&section=%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0+%3E+Docker');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav).toMatchObject({
+      view: 'knowledge',
+      docId: '5',
+      docFind: 'needle',
+      docSection: 'Установка > Docker',
+    });
+  });
+
+  // Раздел ведёт к активному совпадению; без запроса совпадений нет и вести некуда.
+  it('раздел без запроса не читается и не пишется', () => {
+    go('/knowledge/doc/5?section=FAQ');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav.docSection).toBe('');
+    act(() => result.current.openDoc(6, { section: 'FAQ' }));
+    expect(url()).toBe('/knowledge/doc/6');
+  });
+
+  it('переход из поиска приносит запрос и раздел в адрес документа', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openDoc(5, { find: 'needle', section: 'FAQ > Вопрос[2]' }));
+    expect(url()).toBe('/knowledge/doc/5?find=needle&section=FAQ+%3E+%D0%92%D0%BE%D0%BF%D1%80%D0%BE%D1%81%5B2%5D');
+  });
+
+  it('не переезжает на документ, открытый не из поиска', () => {
+    go('/knowledge/doc/5?find=needle&section=FAQ');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openDoc(6));
+    expect(url()).toBe('/knowledge/doc/6');
+  });
+
+  // Набранный в баре запрос уже не тот, к которому относился раздел.
+  it('запрос из самого бара заменяет запись истории и снимает раздел', () => {
+    go('/knowledge/doc/5?find=needle&section=FAQ');
+    const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
+    act(() => result.current.setDocFind('other'));
+    expect(url()).toBe('/knowledge/doc/5?find=other');
+    expect(window.history.length).toBe(before);
+  });
+});
+
 describe('единый поиск', () => {
   it('разбирает запрос, категорию и фильтры категории «файлы»', () => {
     go('/search?q=needle&in=files&path=backend%2F**&rev=v1&regex=1&untracked=1');

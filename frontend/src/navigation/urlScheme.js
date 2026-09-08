@@ -67,6 +67,21 @@ export function docPath(docId) {
   return `/knowledge/doc/${encodeURIComponent(docId)}`;
 }
 
+/**
+ * Полный адрес документа с карточки поиска: путь плюс запрос find-бара и раздел,
+ * в котором нашлось. Оба — состояние экрана, но в адресе по той же причине, что
+ * у файла и чата: Ctrl+клик и ссылка, которой поделились, обязаны открыть
+ * документ на том же месте. Раздел без запроса не пишется — вести к нему
+ * некому.
+ */
+export function docUrl(docId, { find, section } = {}) {
+  const p = new URLSearchParams();
+  if (find) p.set('find', find);
+  if (find && section) p.set('section', section);
+  const qs = p.toString();
+  return docPath(docId) + (qs ? `?${qs}` : '');
+}
+
 /** `/knowledge` — база знаний без выбранного ресурса. */
 export const KNOWLEDGE_PATH = '/knowledge';
 

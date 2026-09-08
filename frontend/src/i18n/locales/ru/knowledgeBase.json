@@ -56,6 +56,9 @@
     "needDescription": "Сначала добавьте описание во вкладке Content",
     "generateError": "Не удалось сгенерировать summary."
   },
+  "find": {
+    "placeholder": "Поиск в документе…"
+  },
   "editor": {
     "placeholder": "# Markdown...",
     "heading": "Заголовок",

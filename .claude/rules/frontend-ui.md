@@ -197,7 +197,7 @@ Panel open/closed state is **controlled state that lives in the URL**
   document-global and the registry is what keeps two surfaces from erasing each
   other.
   Who owns the query is the surface's business — `useModalFind` keeps it while
-  a dialog is open, `useFileFind` reads it off the URL — and a surface that
+  a dialog is open, `useAddressFind` reads it off the URL — and a surface that
   installs its own Ctrl+F stands down while `hasOpenModal()`
   (`common/layout/overlayStack.js`) is true — a dialog has a find bar of its
   own; a popover does not, so yielding to one would hand the keypress to the

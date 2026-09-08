@@ -23,9 +23,13 @@ import useFolderChildren from './tree/useFolderChildren';
 import { buildDetailTabs } from './detail/detailSidebar';
 
 const KnowledgeBase = ({
+  isActive = true,
   docId,
   search,
   mode,
+  find = '',
+  section = '',
+  onFindChange = null,
   refreshSignal,
   onRefreshingChange,
   onOpenDoc,
@@ -125,7 +129,14 @@ const KnowledgeBase = ({
       selectedNode.type === 'folder' ? (
         <FolderDetail key={selectedNode.id} {...detailProps} />
       ) : (
-        <DocumentDetail key={selectedNode.id} {...detailProps} />
+        <DocumentDetail
+          key={selectedNode.id}
+          {...detailProps}
+          find={find}
+          section={section}
+          onFindChange={onFindChange}
+          findActive={isActive}
+        />
       )
     ) : (
       <div className="empty-preview">{t('empty.selectDocument')}</div>
