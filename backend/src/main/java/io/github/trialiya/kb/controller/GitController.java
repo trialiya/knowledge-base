@@ -58,10 +58,13 @@ public class GitController {
             @RequestParam("q") String query,
             @RequestParam(name = "limit", defaultValue = "10") int limit,
             @RequestParam(name = "project", required = false) @Nullable String project) {
-        // Allow only letters (any script incl. Cyrillic), digits, dot, dash, underscore.
-        String sanitized = query.replaceAll("[^\\p{L}\\p{N}_.\\-]", "");
+        // Allow only letters (any script incl. Cyrillic), digits, dot, dash, underscore and the
+        // path separator. The separator earns its place: naming the directory is how a file with a
+        // common name ("index.js") is picked out, and a stripped slash would make "service/git" one
+        // word that matches nothing.
+        String sanitized = query.replaceAll("[^\\p{L}\\p{N}_./\\-]", "");
         if (sanitized.isBlank()) return List.of();
-        return git(project).searchFiles(sanitized, limit);
+        return read(() -> git(project).searchFiles(sanitized, limit));
     }
 
     /**
@@ -88,7 +91,7 @@ public class GitController {
         @Nullable String revision = revision(rev);
         try {
             List<GitGrepMatch> matches =
-                    atRevision(
+                    read(
                             () ->
                                     revision == null
                                             ? git.grepContent(
@@ -112,9 +115,11 @@ public class GitController {
         requireSafePath(path);
         GitService git = git(project);
         String at = revision(rev);
-        return at == null
-                ? git.getFileContent(path, from, to)
-                : atRevision(() -> git.getFileContentAt(at, path, from, to));
+        return read(
+                () ->
+                        at == null
+                                ? git.getFileContent(path, from, to)
+                                : git.getFileContentAt(at, path, from, to));
     }
 
     /**
@@ -140,9 +145,11 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return at == null
-                ? git.getCommitLog(limit, path, body)
-                : atRevision(() -> git.getCommitLog(limit, path, body, at));
+        return read(
+                () ->
+                        at == null
+                                ? git.getCommitLog(limit, path, body)
+                                : git.getCommitLog(limit, path, body, at));
     }
 
     /**
@@ -157,7 +164,7 @@ public class GitController {
     public List<GitCommit> outgoing(
             @RequestParam(name = "limit", defaultValue = "20") int limit,
             @RequestParam(name = "project", required = false) @Nullable String project) {
-        return git(project).getOutgoingCommits(limit);
+        return read(() -> git(project).getOutgoingCommits(limit));
     }
 
     /**
@@ -172,7 +179,7 @@ public class GitController {
             @RequestParam(name = "project", required = false) @Nullable String project) {
         String sanitized = query.strip();
         if (sanitized.isBlank()) return List.of();
-        return git(project).searchCommits(sanitized, limit);
+        return read(() -> git(project).searchCommits(sanitized, limit));
     }
 
     /**
@@ -195,9 +202,11 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return at == null
-                ? git.browsePath(path, ancestors)
-                : atRevision(() -> git.browsePathAt(at, path, ancestors));
+        return read(
+                () ->
+                        at == null
+                                ? git.browsePath(path, ancestors)
+                                : git.browsePathAt(at, path, ancestors));
     }
 
     /**
@@ -219,7 +228,7 @@ public class GitController {
         if (scope != null) {
             requireSafePath(scope);
         }
-        return git(project).getUncommittedChanges(patch, scope);
+        return read(() -> git(project).getUncommittedChanges(patch, scope));
     }
 
     /**
@@ -236,7 +245,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return at == null ? git.getFileTree(path) : atRevision(() -> git.getFileTreeAt(at, path));
+        return read(() -> at == null ? git.getFileTree(path) : git.getFileTreeAt(at, path));
     }
 
     /**
@@ -308,11 +317,15 @@ public class GitController {
     }
 
     /**
-     * Ответ по ревизии, у которого неизвестная или неоднозначная ревизия — 400, а не 500. Ревизию
-     * печатает пользователь (поле ввода в переключателе, ссылка из чата), и опечатка в ней — ошибка
-     * запроса, ровно как неизвестный проект выше.
+     * Чтение того, что назвал клиент: спрошенного может не оказаться в репозитории, и тогда это
+     * 400, а не 500. Неизвестная или неоднозначная ревизия, путь, которого нет, имя с управляющим
+     * символом — всё это {@link IllegalArgumentException} из {@link GitService}, и всё это называет
+     * запрос: поле ввода в переключателе ревизий, ссылка из чата, устаревший чип на удалённый файл.
+     *
+     * <p>Через него идёт каждое чтение, а не только чтение по ревизии: ошибиться в имени можно в
+     * любом из них, а незавёрнутое обещало бы «внутреннюю ошибку» там, где сервер здоров.
      */
-    private static <T> T atRevision(Supplier<T> answer) {
+    private static <T> T read(Supplier<T> answer) {
         try {
             return answer.get();
         } catch (IllegalArgumentException e) {

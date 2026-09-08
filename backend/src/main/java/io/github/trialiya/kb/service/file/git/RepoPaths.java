@@ -17,8 +17,27 @@ import org.jspecify.annotations.Nullable;
  */
 final class RepoPaths {
 
-    private static final Pattern SAFE_GIT_RELATIVE_PATH =
-            Pattern.compile("^[\\p{L}\\p{N}._/\\- ]+$");
+    /**
+     * What a path may not contain — three kinds of character, each for its own reason.
+     *
+     * <p>Control characters (C0 and C1, NUL among them) and the Unicode line separators make git
+     * print the name quoted and escaped, so the path stops matching itself between the index, the
+     * API and the disk. A double quote does the same on its own, whatever {@code core.quotePath} is
+     * set to: {@code git grep} reports such a file as {@code "docs/a\"b.md"}, and a search hit that
+     * cannot be opened is worse than one that is never offered.
+     *
+     * <p>Format characters — the bidi overrides above all — leave the name spelled one way and
+     * displayed another, and the review list where a commit is ticked off is exactly the place that
+     * must not lie about which file it names. The composer's chip delimiters {@code ⟦⟧} go the same
+     * way: a path carrying one ends the chip early, and the message would quietly carry a different
+     * file's content than the chip names.
+     *
+     * <p>Everything else is a legal file name: a comma, a parenthesis, {@code + @ # %} and an
+     * apostrophe occur in real repositories, and a path reaches git as one argument of a process or
+     * as a literal JGit path filter — never as a shell word or a pathspec.
+     */
+    private static final Pattern REFUSED_CHARACTER =
+            Pattern.compile("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\"\u27E6\u27E7]");
 
     /** File names to always exclude from results (OS/IDE junk). */
     private static final Set<String> IGNORED_FILES =
@@ -164,18 +183,36 @@ final class RepoPaths {
     }
 
     private static void requireSafe(String path) {
+        @Nullable String refusal = refusal(path);
+        if (refusal != null) {
+            throw new IllegalArgumentException(refusal);
+        }
+    }
+
+    /**
+     * Whether a path can be named back to the API at all.
+     *
+     * <p>Listings ask it, reads and writes throw on it: a picker or a file tree offering a name the
+     * reader cannot then open would answer a click with a refusal, which is worse than never
+     * showing the file. Both sides therefore go through {@link #refusal} and cannot drift apart.
+     */
+    static boolean isNameable(String path) {
+        return refusal(path) == null;
+    }
+
+    /** Why this path is refused, or {@code null} when it is not. */
+    private static @Nullable String refusal(String path) {
         if (path.isBlank()) {
-            throw new IllegalArgumentException("Path must not be blank");
+            return "Path must not be blank";
         }
-        if (path.startsWith("/")
-                || path.startsWith("-")
-                || path.contains("..")
-                || path.indexOf('\0') >= 0) {
-            throw new IllegalArgumentException("Invalid path: " + path);
+        // Лидирующий дефис git прочёл бы как ключ команды, а не как имя файла.
+        if (path.startsWith("/") || path.startsWith("-") || path.contains("..")) {
+            return "Invalid path: " + path;
         }
-        if (!SAFE_GIT_RELATIVE_PATH.matcher(path).matches()) {
-            throw new IllegalArgumentException("Path contains unsupported characters: " + path);
+        if (REFUSED_CHARACTER.matcher(path).find()) {
+            return "Path contains unsupported characters: " + path;
         }
+        return null;
     }
 
     static String toForwardSlashes(String path) {

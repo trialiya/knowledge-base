@@ -696,4 +696,53 @@ class GitServiceTest {
         assertThat(service.searchCommits("zzz", 10)).isEmpty();
         assertThat(service.searchCommits("Subject", 10)).hasSize(1);
     }
+
+    /**
+     * Имя не совпало — совпасть может путь: так берут файл с частым именем, назвав его каталог.
+     * Слэш в запросе при этом не обязателен, буквы подряд читаются через границы сегментов.
+     */
+    @Test
+    void fileSearchFallsBackToTheWholePath() {
+        writeFile("service/git/GitService.java", "a\n");
+        commitAll();
+
+        assertThat(service.searchFiles("servicegit", 5))
+                .extracting(GitFileNode::path)
+                .containsExactly("service/git/GitService.java");
+    }
+
+    /**
+     * Путь длиннее имени и набирает очки уже поэтому: границ слов в нём больше. Значит имя
+     * выигрывает у пути местом в порядке, а не счётом, — иначе каталог с удачным названием вытеснял
+     * бы файл, который именно так и называется.
+     */
+    @Test
+    void aNameHitOutranksAPathHitWhateverTheScore() {
+        writeFile("git.md", "a\n");
+        writeFile("git/tools/verylongfilename.md", "b\n");
+        commitAll();
+
+        assertThat(service.searchFiles("git", 5))
+                .extracting(GitFileNode::path)
+                .containsExactly("git.md", "git/tools/verylongfilename.md");
+    }
+
+    /**
+     * Имя, которое нельзя назвать обратно в API, из листингов выпадает целиком: и из дерева, и из
+     * поиска. Показанный, но не открывающийся файл — отказ в ответ на клик, и объяснить его
+     * пользователю нечем.
+     */
+    @Test
+    void aFileWhoseNameCannotBeNamedBackIsNotOffered() {
+        writeFile("docs/plain.md", "a\n");
+        writeFile("docs/a\"b.md", "b\n");
+        commitAll();
+
+        assertThat(service.getFileTree("docs"))
+                .extracting(GitFileNode::path)
+                .containsExactly("docs/plain.md");
+        assertThat(service.searchFiles("md", 5))
+                .extracting(GitFileNode::path)
+                .containsExactly("docs/plain.md");
+    }
 }

@@ -18,6 +18,28 @@ describe('project in a chip token', () => {
     expect(parseToken(t)).toEqual({ project: 'kb', path: 'src/App.jsx', from: null, to: null, refOnly: false });
   });
 
+  // `#` — законный знак в имени файла, а не только разделитель диапазона: путь с ним обязан
+  // дойти до бэкенда целиком, иначе чип молча отправит собственный текст вместо содержимого.
+  it('keeps a hash inside the path and still reads a range after it', () => {
+    expect(parseToken('⟦file:docs/release#1.md⟧')).toEqual({
+      project: null,
+      path: 'docs/release#1.md',
+      from: null,
+      to: null,
+      refOnly: false,
+    });
+    expect(parseToken(makeToken('docs/release#1.md', { from: 3, to: 9 }))).toEqual({
+      project: null,
+      path: 'docs/release#1.md',
+      from: 3,
+      to: 9,
+      refOnly: false,
+    });
+    // Обратная сторона той же грамматики: путь, сам кончающийся на `#N-M`, читается как
+    // диапазон. Диапазоны в чипах обычны, а такое имя — нет, и выбор сделан в их пользу.
+    expect(parseToken('⟦file:docs/rfc#1-2⟧')).toMatchObject({ path: 'docs/rfc', from: 1, to: 2 });
+  });
+
   it('round-trips a range and a ref', () => {
     expect(parseToken(makeToken('a.js', { from: 10, to: 20, project: 'kb' }))).toEqual({
       project: 'kb',

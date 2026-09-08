@@ -552,7 +552,8 @@ public class GitService {
      * each file's name, so {@code "mgi"} matches {@code "MessageInput"}. Results are ranked by how
      * well the characters align to word boundaries (start of name, camelCase humps, and {@code - _
      * . /} separators) and by consecutive runs, so the most "intentional" match floats to the top.
-     * Falls back to matching the full path when the name alone doesn't match.
+     * A pattern the name does not match is tried against the whole path ({@code "servicegit"} finds
+     * {@code service/file/git/…}); such a hit ranks below every name hit, whatever its score.
      *
      * @param pattern partial file name; blank returns an empty list
      * @param maxResults capped at 50
@@ -566,28 +567,30 @@ public class GitService {
         List<String> allFiles = files.paths();
         Set<String> tracked = files.tracked();
 
-        record Scored(String path, String name, int score) {}
+        // byName отделяет попадания по имени от попаданий по пути: очки у них считаются одной
+        // мерой, но несравнимы между собой — путь длиннее имени и набирает больше просто потому,
+        // что в нём больше границ слов. Поэтому имя выигрывает у пути порядком сортировки, а не
+        // вычитанием из очков: любая такая скидка либо мала и не разделяет, либо велика и
+        // выбрасывает попадания по пути вовсе.
+        record Scored(String path, String name, int score, boolean byName) {}
         return allFiles.stream()
                 .map(
                         path -> {
                             String name = RepoPaths.fileName(path);
-                            int score = fuzzyScore(q, name);
-                            if (score < 0) {
-                                // Name alone didn't match — try the whole path, but rank it
-                                // below any name match so file-name hits always win.
-                                int pathScore = fuzzyScore(q, path);
-                                score = pathScore < 0 ? -1 : pathScore - 1000;
-                            }
+                            int nameScore = fuzzyScore(q, name);
+                            boolean byName = nameScore >= 0;
+                            int score = byName ? nameScore : fuzzyScore(q, path);
                             // Demote test files by ~30 % so production sources rank higher.
                             if (score > 0 && isTestPath(path)) {
                                 score = score * 7 / 10;
                             }
-                            return new Scored(path, name, score);
+                            return new Scored(path, name, score, byName);
                         })
                 .filter(s -> s.score() >= 0)
                 .sorted(
-                        Comparator.comparingInt(Scored::score)
+                        Comparator.comparing(Scored::byName)
                                 .reversed()
+                                .thenComparing(Comparator.comparingInt(Scored::score).reversed())
                                 .thenComparingInt(s -> s.path().length()))
                 .limit(limit)
                 .map(
@@ -1329,7 +1332,12 @@ public class GitService {
             return new GitDiffEntry(UNTRACKED_STATUS, path, null, 0, 0, null, null);
         }
         String text = new String(content, StandardCharsets.UTF_8);
-        List<String> lines = text.isEmpty() ? List.of() : List.of(text.split("\n", -1));
+        // Финальный перевод строки закрывает последнюю строку, а не начинает новую: без этого
+        // файл из трёх строк показывал бы «+4» и лишний «+» в конце патча — не так, как те же
+        // три строки считает git у отслеживаемого файла.
+        String body = text.endsWith("\n") ? text.substring(0, text.length() - 1) : text;
+        // Пустой файл и файл из одного перевода строки — разное: во втором есть строка, пустая.
+        List<String> lines = text.isEmpty() ? List.of() : List.of(body.split("\n", -1));
         String patchHeader = null;
         String patch = null;
         if (includePatch) {
