@@ -136,6 +136,27 @@ class GitServiceGrepTest {
     }
 
     /**
+     * With context the cap falls inside a block, and a cut block is dropped: its context is missing
+     * on one side, and a match shown with half of what surrounds it is worse than one not shown. A
+     * run whose whole output is a single unfinished block therefore answers with nothing — there is
+     * no complete block in it to keep.
+     */
+    @Test
+    void aBlockCutByTheOutputCapIsDroppedRatherThanShownHalfRead() {
+        String body =
+                IntStream.range(0, GitGrepRunner.MAX_OUTPUT_LINES + 5_000)
+                        .mapToObj(i -> "needle " + i)
+                        .collect(Collectors.joining("\n", "", "\n"));
+        writeFile("big.txt", body);
+        commitAll("first");
+
+        // Every line matches, so git grep -C1 prints one uninterrupted run with no "--" in it.
+        assertThat(service.grepContent("needle", null, false, 1, 3, false)).isEmpty();
+        // Without context every line is a block of its own, so the same cut keeps what it read.
+        assertThat(service.grepContent("needle", null, false, 0, 3, false)).hasSize(3);
+    }
+
+    /**
      * The deadline is the search's, not one run's: a run that starts with the budget already spent
      * (here, none at all) is refused as timed out before git is even asked. The kill of a run that
      * outlives its budget goes through the same {@code destroyForcibly} and {@code waitFor} as the

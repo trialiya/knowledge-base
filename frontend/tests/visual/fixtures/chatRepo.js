@@ -32,6 +32,10 @@ export const repoTabIdle = {
     loading: false,
     disabled: false,
     status: branch,
+    // Список изменений панель получает отдельным запросом: без этого флага она
+    // показывает «Загрузка…» вместо файлов (см. ChatRepoPanel).
+    changesAnswered: true,
+    changesError: null,
     capabilities: { project: 'kb', available: true, commands: true, push: true },
     changes: [
       { status: 'M', path: 'frontend/src/components/chatPanel/git/ChatRepoPanel.jsx' },

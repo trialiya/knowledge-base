@@ -106,7 +106,13 @@ final class CommitFiles {
                     // было бы обещанием, которого не сдержать: отказ уносит и само дерево.
                     FileMode mode = tree.getFileMode(0);
                     if (mode != FileMode.REGULAR_FILE && mode != FileMode.EXECUTABLE_FILE) continue;
-                    blobs.put(tree.getPathString(), tree.getObjectId(0));
+                    // Имя, которое нельзя назвать обратно в API, из снимка выпадает — по тому же
+                    // правилу, по которому оно выпадает из рабочего дерева (см.
+                    // VisibleFiles#all и RepoPaths#isNameable): показать его значило бы
+                    // предложить файл, который на клик ответит отказом.
+                    String path = tree.getPathString();
+                    if (!RepoPaths.isNameable(path)) continue;
+                    blobs.put(path, tree.getObjectId(0));
                 }
             }
             return new Snapshot(commit.name(), List.copyOf(blobs.keySet()), Map.copyOf(blobs));
@@ -155,12 +161,14 @@ final class CommitFiles {
                     if (mode == FileMode.TREE) {
                         // Каталог показывается по тому же правилу, что и в снимке всего дерева
                         // (см. tree()): он там виден ровно потому, что под ним лежит файл, который
-                        // мы умеем открыть. Каталог из одних символьных ссылок и подмодулей
-                        // раскрылся бы пустым — обещание, которого не сдержать.
-                        if (holdsFile(reader, tree.getObjectId(0))) {
+                        // мы умеем открыть и назвать обратно в API. Каталог из одних символьных
+                        // ссылок, подмодулей и неназываемых имён раскрылся бы пустым — обещание,
+                        // которого не сдержать.
+                        if (holdsFile(reader, tree.getObjectId(0), path)) {
                             children.add(new Child(path, name, true, -1));
                         }
-                    } else if (mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE) {
+                    } else if ((mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE)
+                            && RepoPaths.isNameable(path)) {
                         children.add(
                                 new Child(path, name, false, size(reader, tree.getObjectId(0))));
                     }
@@ -188,16 +196,21 @@ final class CommitFiles {
     }
 
     /**
-     * Лежит ли под этим деревом хоть один файл, который мы умеем открыть. Обход прерывается на
-     * первом же таком файле, поэтому у обычного каталога это несколько записей, а не всё поддерево.
+     * Лежит ли под этим деревом хоть один файл, который мы умеем открыть и назвать. Обход
+     * прерывается на первом же таком файле, поэтому у обычного каталога это несколько записей, а не
+     * всё поддерево.
+     *
+     * @param dir путь самого каталога: имя проверяется целиком, а обход знает только имена внутри
      */
-    private static boolean holdsFile(ObjectReader reader, ObjectId treeId) throws IOException {
+    private static boolean holdsFile(ObjectReader reader, ObjectId treeId, String dir)
+            throws IOException {
         try (TreeWalk tree = new TreeWalk(reader)) {
             tree.addTree(treeId);
             tree.setRecursive(true);
             while (tree.next()) {
                 FileMode mode = tree.getFileMode(0);
-                if (mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE) {
+                if ((mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE)
+                        && RepoPaths.isNameable(dir + "/" + tree.getPathString())) {
                     return true;
                 }
             }
