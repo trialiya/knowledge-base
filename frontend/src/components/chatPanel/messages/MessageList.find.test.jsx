@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import MessageList from './MessageList';
 
 vi.mock('react-i18next', async (importOriginal) => ({
@@ -117,6 +117,28 @@ describe('прокрутка к найденному во время прого�
     rerender(<MessageList conversationId="c1" messages={streamed} searchQuery="жираф" activeSearchMid="m1" />);
 
     expect(list.scrollTop).toBe(480);
+  });
+
+  // Совпадение в последнем сообщении: приехали к самому низу, и догонять ответ
+  // лента обязана снова — рост содержимого событий скролла не даёт, вернуть
+  // автопрокрутку было бы больше некому.
+  it('посадка у самого низа возвращает автоскролл, когда прокрутка успокоилась', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { container, rerender } = render(
+        <MessageList conversationId="c1" messages={messages} searchQuery="жираф" activeSearchMid="m1" />,
+      );
+      const list = container.querySelector('.message-list');
+      metrics(list);
+
+      fireEvent.scroll(list);
+      await act(async () => vi.advanceTimersByTime(300));
+      rerender(<MessageList conversationId="c1" messages={streamed} searchQuery="жираф" activeSearchMid="m1" />);
+
+      expect(list.scrollTop).toBe(1000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('прокрутка рукой возвращает автоскролл', () => {

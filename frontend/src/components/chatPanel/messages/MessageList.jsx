@@ -24,6 +24,8 @@ import {
 // кадра означает, что она доехала.
 const SEEK_IDLE_MS = 150;
 
+const isAtBottom = (el) => el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD;
+
 // onLoadMore: async () => boolean — true если что-то догрузилось (для UI-индикатора).
 // hasMore: есть ли ещё более старые сообщения на бэке.
 // canLoadMore: разрешена ли догрузка прямо сейчас (например, false во время стриминга).
@@ -87,8 +89,6 @@ const MessageList = ({
   // спрашивать это на каждой плашке значило бы обходить ленту столько раз, сколько в ней сжатий.
   const compactSavings = useMemo(() => compactSavingsIn(messages, hasMore), [messages, hasMore]);
 
-  const isAtBottom = (el) => el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD;
-
   const scrollToBottom = (smooth = false) => {
     const el = containerRef.current;
     if (!el) return;
@@ -143,18 +143,24 @@ const MessageList = ({
   // следующая прокрутка рукой (перетаскивание полосы, клавиши — ни того ни
   // другого wheel и touch не ловят) сошла бы за нашу, и ответ перестал бы
   // догонять низ автопрокруткой.
-  const armSeekIdle = () => {
-    clearTimeout(seekIdleRef.current);
-    seekIdleRef.current = setTimeout(() => {
-      seekingRef.current = false;
-    }, SEEK_IDLE_MS);
-  };
-
-  // Рука на ленте — прокрутка снова пользовательская, даже если наша ещё едет.
-  const endSeek = () => {
+  //
+  // Рука на ленте обрывает её сразу. Залипание
+  // при этом пересчитывается по тому, где встали: приехав к самому низу (совпадение в
+  // последнем сообщении), лента обязана снова догонять ответ — рост содержимого
+  // событий скролла не даёт, и вернуть автопрокрутку было бы больше некому.
+  // Кнопку «вниз» здесь не трогаем: её состояние уже поставил последний скролл,
+  // а без скролла и менять нечего — лента осталась там же, где была.
+  const endSeek = useCallback(() => {
     clearTimeout(seekIdleRef.current);
     seekingRef.current = false;
-  };
+    const el = containerRef.current;
+    if (el) stickRef.current = isAtBottom(el);
+  }, []);
+
+  const armSeekIdle = useCallback(() => {
+    clearTimeout(seekIdleRef.current);
+    seekIdleRef.current = setTimeout(endSeek, SEEK_IDLE_MS);
+  }, [endSeek]);
 
   // Новые сообщения, стриминг ответа ИИ и догрузка старых сверху.
   // useLayoutEffect — чтобы скорректировать scrollTop до отрисовки (без мерцания).
@@ -188,7 +194,7 @@ const MessageList = ({
     if (stickRef.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, endSeek]);
 
   // Держим низ при изменении размеров контейнера (ресайз окна,
   // открытие/закрытие боковых панелей). На рост контента не срабатывает —
@@ -236,7 +242,7 @@ const MessageList = ({
     } else {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
-  }, [activeSearchMid, searchQuery, messages]);
+  }, [activeSearchMid, searchQuery, messages, armSeekIdle]);
 
   // Подсветка вхождений запроса в тексте сообщений. Активным здесь считается не
   // одно вхождение, а всё активное сообщение: бар ходит по сообщениям, и
