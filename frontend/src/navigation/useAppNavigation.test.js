@@ -8,6 +8,12 @@ const url = () => window.location.pathname + window.location.search;
 /** Переставить DOM-окружение на нужный адрес до монтирования хука. */
 const go = (href) => window.history.replaceState({}, '', href);
 
+/** «Назад»/«Вперёд»: адрес меняет браузер, а хук узнаёт об этом из popstate. */
+const back = (href) => {
+  window.history.replaceState({}, '', href);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+};
+
 beforeEach(() => {
   localStorage.clear();
   go('/chat');
@@ -130,6 +136,21 @@ describe('подсветка в открытом чате', () => {
     act(() => result.current.setChatFind('needle'));
     expect(url()).toBe('/chat/c1?find=needle');
     expect(window.history.length).toBe(before);
+  });
+
+  // «Назад» на запись с запросом обязан вернуть и подсветку: иначе бар закроется,
+  // а канонизирующий replaceState следом сотрёт ?find= и из адреса.
+  it('«Назад» возвращает запрос вместе с адресом', () => {
+    go('/chat/c1');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openChat('c1', { find: 'needle' }));
+    expect(result.current.nav.chatFind).toBe('needle');
+
+    act(() => back('/chat/c1'));
+    expect(result.current.nav.chatFind).toBe('');
+
+    act(() => back('/chat/c1?find=needle'));
+    expect(result.current.nav.chatFind).toBe('needle');
   });
 });
 

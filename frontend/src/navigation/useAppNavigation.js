@@ -130,6 +130,7 @@ export default function useAppNavigation() {
         // запись без ресурса это вернуло бы устаревший экран, разъехавшийся с
         // адресом. «Куда вернуться» живёт в memoryRef и применяется в switchView.
         chatId: u.chatId,
+        chatFind: u.chatFind,
         docId: u.docId,
         search: u.search,
         mode: u.mode,
