@@ -93,14 +93,20 @@ const SearchFilters = ({
           <input type="checkbox" checked={regex} onChange={(e) => onRefine({ searchRegex: e.target.checked })} />
           <span>{t('filters.regex')}</span>
         </label>
-        <label className="search-filters__check">
+        {/* В снимке коммита неотслеживаемых файлов нет — их не было бы и в снимке.
+            Галочка при заданной ревизии выключена и снята, но из адреса не
+            стирается: сняли ревизию — вернулись к тому, что искали в рабочем
+            дереве. */}
+        <label className={`search-filters__check${rev ? ' search-filters__check--off' : ''}`}>
           <input
             type="checkbox"
-            checked={untracked}
+            checked={untracked && !rev}
+            disabled={!!rev}
             onChange={(e) => onRefine({ searchUntracked: e.target.checked })}
           />
           <span>{t('filters.untracked')}</span>
         </label>
+        {rev && <p className="search-filters__hint">{t('filters.untrackedInRev')}</p>}
       </div>
     );
   }

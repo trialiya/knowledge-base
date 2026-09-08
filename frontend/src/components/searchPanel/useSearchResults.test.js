@@ -115,3 +115,30 @@ test('прерванный запрос не перетирает выдачу �
   expect(gitApi.grep).toHaveBeenLastCalledWith('second', expect.anything());
   expect(result.current.files.entry.data.total).toBe(FILES.total);
 });
+
+test('стёртый запрос убирает выдачу — счётчику держаться не за что', async () => {
+  const { result, rerender } = renderHook((props) => useSearchResults(props), { initialProps: args });
+  await waitFor(() => expect(settled(result)).toBe(true));
+  expect(result.current.files.entry.data).toBe(FILES);
+
+  rerender({ ...args, query: '' });
+
+  expect(result.current.files.entry).toBeNull();
+  expect(result.current.docs.entry).toBeNull();
+  expect(result.current.chats.entry).toBeNull();
+  expect(result.current.files.loading).toBe(false);
+});
+
+test('с ревизией неотслеживаемые не запрашиваются: в снимке коммита их нет', async () => {
+  const withRev = { ...args, rev: 'v1.4.0', untracked: true };
+  const { result, rerender } = renderHook((props) => useSearchResults(props), { initialProps: withRev });
+  await waitFor(() => expect(settled(result)).toBe(true));
+
+  expect(gitApi.grep).toHaveBeenCalledWith('needle', expect.objectContaining({ rev: 'v1.4.0', untracked: false }));
+
+  // Снятая галочка при заданной ревизии ничего не меняет — и запрос не повторяется.
+  rerender({ ...withRev, untracked: false });
+
+  await waitFor(() => expect(settled(result)).toBe(true));
+  expect(gitApi.grep).toHaveBeenCalledTimes(1);
+});

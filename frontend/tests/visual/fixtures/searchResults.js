@@ -132,7 +132,9 @@ export const scopePanel = {
     ],
     rev: 'v1.4.0',
     regex: true,
-    untracked: false,
+    // Стоит вместе с ревизией: галочка при ней выключена и снята, хотя в адресе
+    // значение осталось — сняли ревизию, и она вернулась.
+    untracked: true,
     mode: 'hybrid',
   },
 };

@@ -16,6 +16,7 @@
     "revHint": "branch, tag or hash",
     "regex": "Regular expression",
     "untracked": "Include untracked files",
+    "untrackedInRev": "A commit snapshot has no untracked files.",
     "mode": "Search mode",
     "noneForChats": "Chat search has no filters."
   },

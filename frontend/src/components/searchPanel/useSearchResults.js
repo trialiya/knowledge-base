@@ -10,7 +10,9 @@ const CHAT_LIMIT = 20;
  * Ответ одной категории вместе с ключом запроса, которому он принадлежит.
  *
  * «Идёт поиск» — это несовпадение ключей, а не отдельный флаг: пока ответ на
- * новый ключ не пришёл, на экране остаётся предыдущий, а не пустота.
+ * новый ключ не пришёл, на экране остаётся предыдущий, а не пустота. Но искать
+ * перестали вовсе — ответа нет: счётчик от стёртого запроса утверждал бы, что
+ * найденное всё ещё где-то есть.
  *
  * Тело запроса замыкает свежие фильтры и потому меняется на каждый рендер, а
  * перезапускать поиск должен только ключ — отсюда useEffectEvent вместо
@@ -38,7 +40,7 @@ function useAnswer(key, enabled, load) {
     return () => ctrl.abort();
   }, [key, enabled]);
 
-  return { entry: answer, loading: enabled && answer?.key !== key };
+  return { entry: enabled ? answer : null, loading: enabled && answer?.key !== key };
 }
 
 /**
@@ -63,9 +65,13 @@ function useAnswer(key, enabled, load) {
  */
 export default function useSearchResults({ query, mode, path, project, rev, regex, untracked }) {
   const enabled = !!query;
+  // В снимке коммита неотслеживаемых файлов нет, и бэкенд с ревизией этот
+  // параметр не смотрит вовсе (GitController.grep уходит в grepContentAt).
+  // Отсюда же и ключ: иначе снятая галочка перезапрашивала бы тот же ответ.
+  const inTree = rev ? false : untracked;
 
-  const files = useAnswer(JSON.stringify([query, path, project, rev, regex, untracked]), enabled, (signal) =>
-    gitApi.grep(query, { path, project, rev, regex, untracked, signal }),
+  const files = useAnswer(JSON.stringify([query, path, project, rev, regex, inTree]), enabled, (signal) =>
+    gitApi.grep(query, { path, project, rev, regex, untracked: inTree, signal }),
   );
   const docs = useAnswer(JSON.stringify([query, mode]), enabled, (signal) =>
     documentsApi.searchGrouped(query, mode, signal),

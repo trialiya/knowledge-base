@@ -74,6 +74,19 @@
   cursor: pointer;
 }
 
+/* Фильтр, которого при заданной ревизии нет: почему — говорит подпись рядом. */
+.search-filters__check--off {
+  color: var(--kb-muted);
+  cursor: default;
+}
+
+.search-filters__hint {
+  margin: -4px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--kb-muted);
+}
+
 .search-filters__modes {
   display: flex;
   flex-wrap: wrap;
