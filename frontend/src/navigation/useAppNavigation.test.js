@@ -188,8 +188,17 @@ describe('подсветка в открытом документе', () => {
     expect(url()).toBe('/knowledge/doc/6');
   });
 
-  // Набранный в баре запрос уже не тот, к которому относился раздел.
-  it('запрос из самого бара заменяет запись истории и снимает раздел', () => {
+  // Бар фиксирует запрос по Enter и уходу фокуса — тот же запрос не должен
+  // уводить с совпадения в разделе, к которому пришли.
+  it('фиксация того же запроса из бара раздел не трогает', () => {
+    go('/knowledge/doc/5?find=needle&section=FAQ');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.setDocFind('needle'));
+    expect(url()).toBe('/knowledge/doc/5?find=needle&section=FAQ');
+  });
+
+  // Набранный в баре другой запрос уже не тот, к которому относился раздел.
+  it('другой запрос из бара заменяет запись истории и снимает раздел', () => {
     go('/knowledge/doc/5?find=needle&section=FAQ');
     const { result } = renderHook(() => useAppNavigation());
     const before = window.history.length;
