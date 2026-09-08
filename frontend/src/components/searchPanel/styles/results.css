@@ -166,7 +166,8 @@ a.search-group__section:hover {
   background: var(--kb-accent-light);
 }
 
-/* Подзаголовок группы совпадений: раздел документа, под которым они нашлись. */
+/* Подзаголовок совпадений: раздел документа, под которым они нашлись, или
+   автор и время сообщения чата. */
 .search-group__section {
   display: flex;
   align-items: center;
@@ -180,7 +181,7 @@ a.search-group__section:hover {
 .search-group__section:first-child {
   border-top: none;
 }
-/* Строка сразу под своим разделом — его продолжение, линия между ними лишняя. */
+/* Строка сразу под своей подписью — её продолжение, линия между ними лишняя. */
 .search-group__section + .search-group__row {
   border-top: none;
 }

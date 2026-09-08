@@ -136,13 +136,16 @@ test('чаты показывают автора и время каждого с
   );
 
   // Запрос уходит в адрес чата: там его подхватит find-бар и сядет на совпадение.
-  // Заголовок карточки ведёт в чат целиком, строка — в своё сообщение.
+  // Заголовок карточки ведёт в чат целиком, подпись сообщения и его текст — в
+  // само сообщение.
   expect(screen.getByRole('link', { name: 'Тема' })).toHaveAttribute('href', '/chat/c1?find=needle');
   expect(screen.getByText('chats.roleAssistant')).toBeInTheDocument();
   expect(screen.getByText(/needle/)).toBeInTheDocument();
   expect(screen.getByText('chats.roleAssistant').closest('a')).toHaveAttribute('href', '/chat/c1?find=needle&msg=5');
 
-  fireEvent.click(screen.getByText('chats.roleAssistant').closest('a'));
+  expect(screen.getByText(/needle/).closest('a')).toHaveAttribute('href', '/chat/c1?find=needle&msg=5');
+
+  fireEvent.click(screen.getByText(/needle/).closest('a'));
   expect(onOpenChat).toHaveBeenCalledWith('c1', { find: 'needle', msg: 5 });
 });
 
