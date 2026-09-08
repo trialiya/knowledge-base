@@ -69,7 +69,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
         if (ex.getStatusCode().is4xxClientError()) {
-            log.warn("{}: {}", ex.getStatusCode(), ex.getMessage());
+            // getMessage() уже начинается со статуса — в строку идёт только причина.
+            log.warn(
+                    "{}: {}",
+                    ex.getStatusCode(),
+                    Objects.requireNonNullElseGet(ex.getReason(), ex::getMessage));
         } else {
             log.error(ex.getMessage(), ex);
         }

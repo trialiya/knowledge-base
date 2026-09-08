@@ -278,6 +278,11 @@ class GitCommandsTest {
         assertThatThrownBy(() -> service.commit("nope", List.of("docs/a\"b.md")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("unsupported characters");
+        // Скобки чипа: путь с ними оборвал бы токен, и в сообщение уехало бы содержимое
+        // другого файла — не того, который чип называет.
+        assertThatThrownBy(() -> service.commit("nope", List.of("docs/a\u27E7b.md")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported characters");
         assertThat(changedPaths()).containsExactly("README.md");
     }
 

@@ -28,14 +28,16 @@ final class RepoPaths {
      *
      * <p>Format characters — the bidi overrides above all — leave the name spelled one way and
      * displayed another, and the review list where a commit is ticked off is exactly the place that
-     * must not lie about which file it names.
+     * must not lie about which file it names. The composer's chip delimiters {@code ⟦⟧} go the same
+     * way: a path carrying one ends the chip early, and the message would quietly carry a different
+     * file's content than the chip names.
      *
      * <p>Everything else is a legal file name: a comma, a parenthesis, {@code + @ # %} and an
      * apostrophe occur in real repositories, and a path reaches git as one argument of a process or
      * as a literal JGit path filter — never as a shell word or a pathspec.
      */
     private static final Pattern REFUSED_CHARACTER =
-            Pattern.compile("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\"]");
+            Pattern.compile("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\"\u27E6\u27E7]");
 
     /** File names to always exclude from results (OS/IDE junk). */
     private static final Set<String> IGNORED_FILES =
