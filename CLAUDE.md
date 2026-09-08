@@ -81,6 +81,11 @@ The wrapper deliberately does not cover:
   (`@SuppressWarnings("PMD.Rule")` plus a comment, or an addressed `<Match>`)
   only when the rule is wrong about that spot, and turn a rule off wholesale
   only when it is wrong about the project.
+- **Don't tidy Java imports by hand.** `spotlessApply` runs `importOrder()` and
+  `removeUnusedImports()`, so an import left in the wrong place — or left behind
+  by a deleted usage — is fixed by the formatter, not by an edit. Add the import
+  you need wherever it lands and move on; `spotlessCheck` in `pre-pr` is what
+  notices if you never ran the formatter.
 - **Dependency locking is on.** After changing dependencies run
   `./gradlew resolveAndLockAll --write-locks`.
 - **A schema change is four edits, not one.** Write the migration for both
