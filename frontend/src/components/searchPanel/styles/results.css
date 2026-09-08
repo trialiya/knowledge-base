@@ -155,6 +155,9 @@
 }
 
 .search-group__more {
+  /* У <button> border-box уже стоит от UA-стилей, но полагаться на это нельзя:
+     правило проекта — каждый размеренный бокс объявляет box-sizing сам. */
+  box-sizing: border-box;
   width: 100%;
   padding: 6px 12px;
   border: none;

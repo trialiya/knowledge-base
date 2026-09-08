@@ -14,6 +14,9 @@ const CHATS = { total: 1, truncated: false, chats: [{ conversationId: 'c1', mess
 
 const args = { query: 'needle', mode: 'hybrid', path: '', project: '', rev: '', regex: false, untracked: false };
 
+/** Все три категории ответили на текущие фильтры. */
+const settled = (r) => !r.current.files.loading && !r.current.docs.loading && !r.current.chats.loading;
+
 beforeEach(() => {
   gitApi.grep.mockResolvedValue(FILES);
   documentsApi.searchGrouped.mockResolvedValue(DOCS);
@@ -25,13 +28,13 @@ afterEach(() => vi.resetAllMocks());
 test('спрашивает все три категории разом — счётчики нужны и у невыбранных', async () => {
   const { result } = renderHook(() => useSearchResults(args));
 
-  await waitFor(() => expect(result.current.loading).toBe(false));
+  await waitFor(() => expect(settled(result)).toBe(true));
   expect(gitApi.grep).toHaveBeenCalledTimes(1);
   expect(documentsApi.searchGrouped).toHaveBeenCalledTimes(1);
   expect(chatApi.searchChatsGrouped).toHaveBeenCalledTimes(1);
-  expect(result.current.files.data).toBe(FILES);
-  expect(result.current.docs.data).toBe(DOCS);
-  expect(result.current.chats.data).toBe(CHATS);
+  expect(result.current.files.entry.data).toBe(FILES);
+  expect(result.current.docs.entry.data).toBe(DOCS);
+  expect(result.current.chats.entry.data).toBe(CHATS);
 });
 
 test('отказ одной категории не прячет остальные', async () => {
@@ -40,48 +43,75 @@ test('отказ одной категории не прячет остальн�
 
   const { result } = renderHook(() => useSearchResults(args));
 
-  await waitFor(() => expect(result.current.loading).toBe(false));
-  expect(result.current.files.error).toBe(refusal);
-  expect(result.current.files.data).toBeNull();
-  expect(result.current.docs.data).toBe(DOCS);
-  expect(result.current.chats.data).toBe(CHATS);
+  await waitFor(() => expect(settled(result)).toBe(true));
+  expect(result.current.files.entry.error).toBe(refusal);
+  expect(result.current.files.entry.data).toBeNull();
+  expect(result.current.docs.entry.data).toBe(DOCS);
+  expect(result.current.chats.entry.data).toBe(CHATS);
 });
 
 test('пустой запрос не ищет ничего и не показывает загрузку', () => {
   const { result } = renderHook(() => useSearchResults({ ...args, query: '' }));
 
   expect(gitApi.grep).not.toHaveBeenCalled();
-  expect(result.current.loading).toBe(false);
+  expect(result.current.files.loading).toBe(false);
 });
 
-test('смена фильтра перезапрашивает и до ответа держит прежнюю выдачу', async () => {
+test('фильтр файлов перезапрашивает только файлы', async () => {
   const { result, rerender } = renderHook((props) => useSearchResults(props), { initialProps: args });
-  await waitFor(() => expect(result.current.loading).toBe(false));
+  await waitFor(() => expect(settled(result)).toBe(true));
+
+  rerender({ ...args, untracked: true });
+
+  await waitFor(() => expect(settled(result)).toBe(true));
+  expect(gitApi.grep).toHaveBeenCalledTimes(2);
+  expect(gitApi.grep).toHaveBeenLastCalledWith('needle', expect.objectContaining({ untracked: true }));
+  // Документы и чаты про маску пути, ревизию и неотслеживаемые ничего не знают,
+  // а поиск по документам в hybrid — это ещё и эмбеддинг запроса.
+  expect(documentsApi.searchGrouped).toHaveBeenCalledTimes(1);
+  expect(chatApi.searchChatsGrouped).toHaveBeenCalledTimes(1);
+});
+
+test('смена режима перезапрашивает только документы', async () => {
+  const { result, rerender } = renderHook((props) => useSearchResults(props), { initialProps: args });
+  await waitFor(() => expect(settled(result)).toBe(true));
+
+  rerender({ ...args, mode: 'keyword' });
+
+  await waitFor(() => expect(settled(result)).toBe(true));
+  expect(documentsApi.searchGrouped).toHaveBeenLastCalledWith('needle', 'keyword', expect.anything());
+  expect(documentsApi.searchGrouped).toHaveBeenCalledTimes(2);
+  expect(gitApi.grep).toHaveBeenCalledTimes(1);
+  expect(chatApi.searchChatsGrouped).toHaveBeenCalledTimes(1);
+});
+
+test('до ответа на новый запрос на экране остаётся прежняя выдача', async () => {
+  const { result, rerender } = renderHook((props) => useSearchResults(props), { initialProps: args });
+  await waitFor(() => expect(settled(result)).toBe(true));
 
   let release;
   gitApi.grep.mockReturnValue(new Promise((resolve) => (release = resolve)));
   rerender({ ...args, untracked: true });
 
-  // Ответ ещё не пришёл: идёт поиск, но на экране остаётся то, что нашли раньше.
-  expect(result.current.loading).toBe(true);
-  expect(result.current.files.data).toBe(FILES);
-  expect(gitApi.grep).toHaveBeenLastCalledWith('needle', expect.objectContaining({ untracked: true }));
+  expect(result.current.files.loading).toBe(true);
+  expect(result.current.files.entry.data).toBe(FILES);
 
   release(FILES);
-  await waitFor(() => expect(result.current.loading).toBe(false));
+  await waitFor(() => expect(settled(result)).toBe(true));
 });
 
 test('прерванный запрос не перетирает выдачу следующего', async () => {
   const { result, rerender } = renderHook((props) => useSearchResults(props), { initialProps: args });
-  await waitFor(() => expect(result.current.loading).toBe(false));
+  await waitFor(() => expect(settled(result)).toBe(true));
 
   // Первый ответ приходит уже после того, как запрос отменили сменой запроса.
   let release;
   gitApi.grep.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
   rerender({ ...args, query: 'first' });
   rerender({ ...args, query: 'second' });
-  release(FILES);
+  release({ ...FILES, total: 999 });
 
-  await waitFor(() => expect(result.current.loading).toBe(false));
+  await waitFor(() => expect(settled(result)).toBe(true));
   expect(gitApi.grep).toHaveBeenLastCalledWith('second', expect.anything());
+  expect(result.current.files.entry.data.total).toBe(FILES.total);
 });

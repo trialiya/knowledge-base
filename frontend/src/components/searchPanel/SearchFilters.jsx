@@ -47,7 +47,18 @@ const FilterField = ({ id, label, hint, value, onCommit }) => {
  * уточнять нечего. Общего набора фильтров тут быть не может: категории ищут
  * разными эндпоинтами с разными параметрами.
  */
-const SearchFilters = ({ scope, path, project, projectOptions, rev, regex, untracked, mode, onRefine }) => {
+const SearchFilters = ({
+  scope,
+  path,
+  project,
+  projectOptions,
+  onProjectChange,
+  rev,
+  regex,
+  untracked,
+  mode,
+  onRefine,
+}) => {
   const { t } = useTranslation('search');
 
   if (scope === SEARCH_SCOPE.FILES) {
@@ -59,7 +70,7 @@ const SearchFilters = ({ scope, path, project, projectOptions, rev, regex, untra
             <ListboxSelect
               value={project}
               options={projectOptions}
-              onChange={(id) => onRefine({ searchProject: id })}
+              onChange={onProjectChange}
               ariaLabel={t('filters.project')}
             />
           </div>

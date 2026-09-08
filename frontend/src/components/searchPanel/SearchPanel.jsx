@@ -30,17 +30,23 @@ const SearchPanel = ({ query, scope, mode, filters, onRefine, onOpenFile, onOpen
   const { projectOptions, defaultProjectId } = useProjectConfig();
   // Проект из адреса может уже не существовать — тогда ищем в дефолтном, как и
   // панель «Файлы»: 400 вместо результатов не объяснил бы ничего.
-  const { selected: project } = resolveProjectChoice(filters.project, projectOptions, defaultProjectId);
+  const { selected: picked, missing } = resolveProjectChoice(filters.project, projectOptions, defaultProjectId);
+  // А вот в запрос и в ссылки уходит значение ИЗ АДРЕСА: пусто и означает
+  // дефолтный проект — так устроена вся схема адресов. Подставить сюда его id
+  // значило бы писать дефолт в ссылку на найденный файл, чего схема не делает;
+  // заодно ссылка не ждёт загрузки конфигурации, чтобы стать правильной.
+  const project = missing ? '' : filters.project;
 
   const results = useSearchResults({ query, mode, ...filters, project });
+  const { entry, loading } = results[scope];
 
   const counts = useMemo(
     () => ({
-      files: countOf(results.files, 'files'),
-      docs: countOf(results.docs, 'documents'),
-      chats: countOf(results.chats, 'chats'),
+      files: countOf(results.files.entry, 'files'),
+      docs: countOf(results.docs.entry, 'documents'),
+      chats: countOf(results.chats.entry, 'chats'),
     }),
-    [results.files, results.docs, results.chats],
+    [results.files.entry, results.docs.entry, results.chats.entry],
   );
 
   return (
@@ -54,8 +60,10 @@ const SearchPanel = ({ query, scope, mode, filters, onRefine, onOpenFile, onOpen
             <SearchFilters
               scope={scope}
               path={filters.path}
-              project={project}
+              project={picked}
               projectOptions={projectOptions}
+              // Дефолтный проект в адрес не пишем — его выбор это пустое значение.
+              onProjectChange={(id) => onRefine({ searchProject: id === defaultProjectId ? '' : id })}
               rev={filters.rev}
               regex={filters.regex}
               untracked={filters.untracked}
@@ -69,8 +77,8 @@ const SearchPanel = ({ query, scope, mode, filters, onRefine, onOpenFile, onOpen
         <ResultList
           scope={scope}
           query={query}
-          loading={results.loading}
-          entry={results[scope]}
+          loading={loading}
+          entry={entry}
           regex={filters.regex}
           rev={filters.rev}
           project={project}
