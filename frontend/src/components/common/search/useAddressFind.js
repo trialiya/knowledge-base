@@ -1,28 +1,41 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
-import useFindMatches from '@/components/common/search/useFindMatches';
+import useFindMatches from './useFindMatches';
 import { hasOpenModal, hasOverlay } from '@/components/common/layout/overlayStack';
-import { isFindShortcut, isTypingTarget } from '@/components/common/search/findShortcut';
+import { isFindShortcut, isTypingTarget } from './findShortcut';
 
 /**
- * Find-бар над открытым файлом: то же, что Ctrl+F в модалке, но запрос приносит
- * адрес.
+ * Find-бар над открытым файлом или документом: то же, что Ctrl+F в модалке, но
+ * запрос приносит адрес.
  *
- * Переход из единого поиска кладёт в адрес `find` (и `re=1`, если искали
- * регуляркой) — бар открывается сам, с подставленным запросом, и центр
- * проматывается к первому совпадению. Иначе клик по найденному открывал бы файл
- * на первой строке, и совпадение пришлось бы искать заново глазами.
+ * Переход из единого поиска кладёт в адрес `find` (у файла — и `re=1`, если
+ * искали регуляркой; у документа — `section`, раздел, где нашлось) — бар
+ * открывается сам, с подставленным запросом, и центр проматывается к первому
+ * совпадению. Иначе клик по найденному открывал бы файл на первой строке, и
+ * совпадение пришлось бы искать заново глазами.
  *
  * Набранное в поле живёт в локальном черновике, а в адрес уходит по Enter, уходу
  * фокуса и закрытию бара — как в фильтрах поиска: подсветка обязана идти за
  * каждой буквой, а вот history.replaceState на каждую букву браузеры считают
  * злоупотреблением (Safari — с ошибкой).
  *
- * @param rootRef  ref на прокручиваемое тело файла — область поиска
- * @param find     запрос из адреса ('' — файл открыт не из поиска)
+ * @param rootRef  ref на прокручиваемое тело — область поиска
+ * @param find     запрос из адреса ('' — открыли не из поиска)
  * @param regex    читать ли запрос как регулярное выражение
+ * @param anchor   откуда начать (см. useFindMatches): раздел из адреса у документа
+ * @param resolveAnchor (root, anchor) → отрезок якоря в области поиска (см. useFindMatches)
+ * @param active   слушать ли Ctrl+F и Escape: раздел, смонтированный, но скрытый
+ *                 (база знаний под вкладкой чата), перехватывал бы чужой поиск
  * @param onCommit (find, regex) — записать запрос в адрес
  */
-export default function useFileFind({ rootRef, find, regex, onCommit }) {
+export default function useAddressFind({
+  rootRef,
+  find,
+  regex = false,
+  anchor = '',
+  resolveAnchor,
+  active = true,
+  onCommit,
+}) {
   const [open, setOpen] = useState(!!find);
   const [query, setQuery] = useState(find);
   const inputRef = useRef(null);
@@ -36,7 +49,16 @@ export default function useFileFind({ rootRef, find, regex, onCommit }) {
     if (find) setOpen(true);
   }
 
-  const matches = useFindMatches({ rootRef, query, regex, active: open });
+  // Якорь относится к запросу из адреса: набранный поверх него другой запрос
+  // начинает с первого совпадения, как везде.
+  const matches = useFindMatches({
+    rootRef,
+    query,
+    regex,
+    active: open,
+    anchor: query === find ? anchor : '',
+    resolveAnchor,
+  });
 
   const commit = useCallback((value) => onCommit?.(value, regex), [onCommit, regex]);
 
@@ -48,7 +70,7 @@ export default function useFileFind({ rootRef, find, regex, onCommit }) {
 
   const onQueryChange = useCallback((value) => setQuery(value), []);
 
-  // Ctrl+F открывает бар и в файле — искать по открытому файлу, а не по всему
+  // Ctrl+F открывает бар и здесь — искать по открытому файлу, а не по всему
   // интерфейсу вокруг него; Escape его закрывает, как и в модалке. Условия у них
   // разные, и намеренно. Escape уступает любому оверлею (им закрывают верхнее, а
   // верхнее сейчас — диалог или поповер) и любому полю ввода (см. isTypingTarget:
@@ -75,12 +97,13 @@ export default function useFileFind({ rootRef, find, regex, onCommit }) {
   // моменту, когда очередь дошла бы до нас, меню от этого же Escape уже
   // закрылось — hasOverlay() ответил бы «чисто», и бар закрылся бы заодно с ним.
   useEffect(() => {
+    if (!active) return undefined;
     const onKeyDown = (e) => {
       if (e.key === 'Escape' || isFindShortcut(e)) onKey(e);
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, []);
+  }, [active]);
 
   return {
     open,

@@ -53,6 +53,7 @@ import * as composerToolbar from '../fixtures/composerToolbar';
 import * as detailHeader from '../fixtures/detailHeader';
 import * as fileChangeBlock from '../fixtures/fileChangeBlock';
 import * as detailPanel from '../fixtures/detailPanel';
+import * as docFind from '../fixtures/docFind';
 import * as fileFind from '../fixtures/fileFind';
 import * as filesBreadcrumb from '../fixtures/filesBreadcrumb';
 import * as gitMenu from '../fixtures/gitMenu';
@@ -526,6 +527,28 @@ const REGISTRY = [
     ),
   },
 
+  // Документ открыт из поиска по разделу: бар подставлен, активно первое
+  // совпадение в названном разделе, а не в документе — без шагов.
+  {
+    id: 'docFind.js#openedFromSearch',
+    frame: 'center',
+    render: (p) => (
+      <DocumentDetail
+        node={p.node}
+        path={p.path}
+        contentDraft={p.node.description}
+        setContentDraft={noop}
+        onUpdate={noop}
+        onDelete={noop}
+        onNavigate={noop}
+        onRename={noop}
+        find={docFind.query}
+        section={docFind.section}
+        onFindChange={noop}
+      />
+    ),
+  },
+
   // ── Общее: правая панель и модалки ──
   { id: 'infoList.js#chatRows', frame: 'panel', render: (p) => <InfoList rows={p} /> },
   { id: 'infoList.js#fileRows', frame: 'panel', render: (p) => <InfoList rows={p} /> },
@@ -669,6 +692,7 @@ const MODULES = {
   'gitMenu.js': gitMenu,
   'chatUsage.js': chatUsage,
   'infoList.js': infoList,
+  'docFind.js': docFind,
   'fileFind.js': fileFind,
   'modalFind.js': modalFind,
   'operationRow.js': operationRow,

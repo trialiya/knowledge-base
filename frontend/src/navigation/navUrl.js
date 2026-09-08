@@ -33,7 +33,9 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  *   ?q=, ?mode=     запрос и режим поиска по документам (дефолт режима — hybrid)
  *   ?in=<категория> единый поиск: файлы | документы | чаты (дефолта нет, см. buildUrl)
  *   ?path=, ?project=, ?regex=1, ?untracked=1  единый поиск: фильтры категории «файлы»
- *   ?find=<запрос>  что подсветить в открытом файле или чате (дефолт — ничего)
+ *   ?find=<запрос>  что подсветить в открытом файле, документе или чате (дефолт — ничего)
+ *   ?section=<путь> документ: раздел, к которому прокрутить, — путь заголовков
+ *                   в форме бэкенда («Установка > Docker»); только вместе с find
  *   ?changes=1      файлы: слева список незакоммиченных изменений (дефолт — дерево)
  *   ?rev=<ревизия>  снимок коммита/ветки/тега (дефолт — рабочее дерево): и в
  *                   файлах, и как фильтр единого поиска
@@ -94,9 +96,17 @@ export function readUrl() {
   // База знаний: /knowledge/doc/<id> | /knowledge/search?q= (legacy: ?doc= | ?search=).
   let docId = null;
   let search = '';
+  let docFind = '';
+  let docSection = '';
   if (view === 'knowledge') {
     if (segs[1] === 'doc' && segs[2]) {
       docId = segs[2];
+      // Запрос find-бара и раздел, с которых сюда пришли из поиска, — как у
+      // файла: состояние экрана, но в адресе, иначе ссылка на найденное и F5
+      // теряли бы место. Раздел без запроса смысла не имеет — к нему ведёт
+      // именно активное совпадение.
+      docFind = p.get('find') || '';
+      docSection = docFind ? p.get('section') || '' : '';
     } else if (segs[1] === 'search') {
       search = p.get('q') || '';
     } else {
@@ -168,6 +178,8 @@ export function readUrl() {
     chatId,
     chatFind,
     docId,
+    docFind,
+    docSection,
     search,
     mode: p.get('mode') || SEARCH_MODE.HYBRID,
     filePath,
@@ -203,6 +215,8 @@ export function buildUrl(nav) {
     case 'knowledge':
       if (nav.docId) {
         path = docPath(nav.docId);
+        if (nav.docFind) p.set('find', nav.docFind);
+        if (nav.docFind && nav.docSection) p.set('section', nav.docSection);
       } else if (nav.search) {
         path = KB_SEARCH_PATH;
         p.set('q', nav.search);
@@ -272,6 +286,8 @@ export function initialNav() {
     chatId: u.chatId,
     chatFind: u.chatFind,
     docId: u.docId,
+    docFind: u.docFind,
+    docSection: u.docSection,
     search: u.search,
     mode: u.mode,
     filePath: u.filePath,

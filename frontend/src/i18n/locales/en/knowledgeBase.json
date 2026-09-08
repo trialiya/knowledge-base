@@ -56,6 +56,9 @@
     "needDescription": "Add a description on the Content tab first",
     "generateError": "Failed to generate the summary."
   },
+  "find": {
+    "placeholder": "Search this document…"
+  },
   "editor": {
     "placeholder": "# Markdown...",
     "heading": "Heading",

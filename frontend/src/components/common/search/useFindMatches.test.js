@@ -116,3 +116,114 @@ describe('подсветка нескольких экземпляров', () =>
     expect(highlighted('kb-find') + highlighted('kb-find-active')).toBe(0);
   });
 });
+
+/**
+ * Переход из поиска называет раздел, где нашлось: активным становится первое
+ * совпадение после его заголовка, а не первое в документе. Якорь ищется по
+ * DOM, поэтому область собирается с заголовками, как превью markdown.
+ */
+describe('начало с якоря', () => {
+  // Отрезок раздела, как его отдаёт sectionAnchor: от заголовка до следующего.
+  const resolveAnchor = (root, anchor) => {
+    const from = root.querySelector(`[data-anchor="${anchor}"]`);
+    if (!from) return null;
+    let to = from.nextElementSibling;
+    while (to && !to.dataset.anchor) to = to.nextElementSibling;
+    return { from, to };
+  };
+  const mountOn = (root, anchor) =>
+    renderHook(() => {
+      const ref = useRef(root);
+      return useFindMatches({ rootRef: ref, query: 'needle', active: true, anchor, resolveAnchor });
+    });
+
+  const withHeadings = () => {
+    const root = document.createElement('div');
+    root.innerHTML = [
+      '<p>needle 1</p>',
+      '<h2 data-anchor="a">A</h2><p>needle 2</p><p>needle 3</p>',
+      '<h2 data-anchor="b">B</h2><p>needle 4</p>',
+      '<h2 data-anchor="c">C</h2><p>ничего</p>',
+      '<h2 data-anchor="d">D</h2><p>needle 5</p>',
+    ].join('');
+    document.body.appendChild(root);
+    return root;
+  };
+
+  test('активно первое совпадение после заголовка раздела', async () => {
+    const { result } = mountOn(withHeadings(), 'b');
+    await act(async () => {});
+    expect(result.current.total).toBe(5);
+    expect(result.current.activeIndex).toBe(3);
+  });
+
+  test('стрелки шагают от якоря', async () => {
+    const { result } = mountOn(withHeadings(), 'a');
+    await act(async () => {});
+    expect(result.current.activeIndex).toBe(1);
+    await act(async () => result.current.goNext());
+    expect(result.current.activeIndex).toBe(2);
+  });
+
+  // Раздел «c» пуст, но совпадение есть в следующем за ним «d»: остаться на
+  // первом в документе, а не уйти в чужой раздел ниже.
+  test('раздел без совпадений или без заголовка — с первого совпадения', async () => {
+    const noMatches = mountOn(withHeadings(), 'c');
+    await act(async () => {});
+    expect(noMatches.result.current.activeIndex).toBe(0);
+
+    const unknown = mountOn(withHeadings(), 'zzz');
+    await act(async () => {});
+    expect(unknown.result.current.activeIndex).toBe(0);
+  });
+
+  // Клик по другому разделу того же документа в выдаче: запрос тот же,
+  // совпадения не пересобираются, а встать надо на новый раздел.
+  test('другой якорь при том же запросе переставляет активное совпадение', async () => {
+    const root = withHeadings();
+    const { result, rerender } = renderHook(
+      ({ anchor }) => {
+        const ref = useRef(root);
+        return useFindMatches({ rootRef: ref, query: 'needle', active: true, anchor, resolveAnchor });
+      },
+      { initialProps: { anchor: 'a' } },
+    );
+    await act(async () => {});
+    expect(result.current.activeIndex).toBe(1);
+
+    rerender({ anchor: 'b' });
+    await act(async () => {});
+    expect(result.current.activeIndex).toBe(3);
+  });
+
+  // Совпадения появились, а якорь ещё не применён: активного нет, чтобы не
+  // подсветить и не прокрутить к первому на один коммит раньше якоря.
+  test('до применения якоря активного совпадения нет', async () => {
+    const root = withHeadings();
+    const seen = [];
+    renderHook(() => {
+      const ref = useRef(root);
+      const state = useFindMatches({ rootRef: ref, query: 'needle', active: true, anchor: 'b', resolveAnchor });
+      seen.push(state.activeIndex);
+      return state;
+    });
+    await act(async () => {});
+    expect(seen.at(-1)).toBe(3);
+    expect(seen.filter((i) => i >= 0 && i !== 3)).toEqual([]);
+  });
+
+  test('якорь применяется, когда совпадения доехали позже', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const { result } = mountOn(root, 'b');
+    await act(async () => {});
+    expect(result.current.total).toBe(0);
+
+    await act(async () => {
+      root.innerHTML = '<p>needle 1</p><h2 data-anchor="b">B</h2><p>needle 2</p>';
+      await new Promise((r) => setTimeout(r, 200));
+    });
+    expect(result.current.total).toBe(2);
+    expect(result.current.activeIndex).toBe(1);
+  });
+});

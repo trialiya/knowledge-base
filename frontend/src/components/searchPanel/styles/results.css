@@ -154,6 +154,43 @@
   border-top: none;
 }
 
+/* Строка-ссылка (раздел документа и его совпадения) выглядит как строка,
+   а не как ссылка: адрес у неё для средней кнопки и Ctrl+клика. */
+a.search-group__row,
+a.search-group__section {
+  color: inherit;
+  text-decoration: none;
+}
+a.search-group__row:hover,
+a.search-group__section:hover {
+  background: var(--kb-accent-light);
+}
+
+/* Подзаголовок группы совпадений: раздел документа, под которым они нашлись. */
+.search-group__section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 2px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--kb-muted);
+  border-top: 1px solid var(--kb-border-light);
+}
+.search-group__section:first-child {
+  border-top: none;
+}
+/* Строка сразу под своим разделом — его продолжение, линия между ними лишняя. */
+.search-group__section + .search-group__row {
+  border-top: none;
+}
+.search-line__section {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .search-group__more {
   /* У <button> border-box уже стоит от UA-стилей, но полагаться на это нельзя:
      правило проекта — каждый размеренный бокс объявляет box-sizing сам. */
@@ -191,7 +228,7 @@
 
 /* inline-block, а не flex: многоточие в конце обрезанного текста рисуется только
    в блочном контейнере — у flex-элемента анонимный текстовый узел просто
-   срезается по границе, и длинный путь раздела обрывался посреди слова. */
+   срезается по границе, и длинная подпись обрывалась бы посреди слова. */
 .search-line__where {
   display: inline-block;
   max-width: 180px;

@@ -319,3 +319,9 @@
 .workspace__side--right .contents-row__type {
   display: none;
 }
+
+/* Find-бар документа стоит между шапкой и телом, а не внутри прокрутки: липкая
+   полоса внутри неё закрывала бы верхнее совпадение, к которому сама промотала. */
+.find-bar--doc {
+  border-top: 1px solid var(--kb-border-light);
+}

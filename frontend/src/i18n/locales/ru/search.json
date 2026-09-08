@@ -47,7 +47,7 @@
     "matches_many": "{{count}} строк"
   },
   "docs": {
-    "snippet": "по смыслу"
+    "preamble": "до первого заголовка"
   },
   "chats": {
     "untitled": "Без темы",

@@ -45,6 +45,7 @@ function App() {
     setFileRev,
     setFileFind,
     setChatFind,
+    setDocFind,
     toggleLeftPanel,
     setRightTab,
   } = useAppNavigation();
@@ -266,9 +267,13 @@ function App() {
 
         <div className={`app-tab-panel ${view === 'knowledge' ? 'app-tab-panel--active' : 'app-tab-panel--hidden'}`}>
           <KnowledgeBase
+            isActive={view === 'knowledge'}
             docId={view === 'knowledge' ? nav.docId : null}
             search={view === 'knowledge' ? nav.search : ''}
             mode={nav.mode}
+            find={view === 'knowledge' ? nav.docFind : ''}
+            section={view === 'knowledge' ? nav.docSection : ''}
+            onFindChange={setDocFind}
             refreshSignal={refreshTick}
             onRefreshingChange={setKbRefreshing}
             onOpenDoc={openDoc}

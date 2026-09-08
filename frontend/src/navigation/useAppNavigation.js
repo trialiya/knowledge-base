@@ -132,6 +132,8 @@ export default function useAppNavigation() {
         chatId: u.chatId,
         chatFind: u.chatFind,
         docId: u.docId,
+        docFind: u.docFind,
+        docSection: u.docSection,
         search: u.search,
         mode: u.mode,
         filePath: u.filePath,
@@ -181,11 +183,26 @@ export default function useAppNavigation() {
     [pushNav],
   );
 
-  /** Открыть документ в KB (из чата, doc-ссылки, дерева). */
+  /**
+   * Открыть документ в KB (из чата, doc-ссылки, дерева, карточки поиска).
+   *
+   * `find` и `section` приносит только переход из поиска: запрос подсветится в
+   * документе, а раздел скажет find-бару, с какого совпадения начать. Открытый
+   * иначе документ их не наследует — подсвечивать в нём нечего.
+   */
   const openDoc = useCallback(
-    (docId) => {
+    (docId, { find, section } = {}) => {
       const id = docId == null ? null : String(docId);
-      pushNav((prev) => ({ ...prev, view: 'knowledge', docId: id, search: '', mode: prev.mode }));
+      const docFind = find || '';
+      pushNav((prev) => ({
+        ...prev,
+        view: 'knowledge',
+        docId: id,
+        docFind,
+        docSection: docFind ? section || '' : '',
+        search: '',
+        mode: prev.mode,
+      }));
     },
     [pushNav],
   );
@@ -388,6 +405,21 @@ export default function useAppNavigation() {
     [replaceNav],
   );
 
+  /**
+   * Что подсвечено в открытом документе — по тем же правилам. Другой запрос
+   * снимает раздел: тот относился к запросу, с которым пришли из поиска, а
+   * набранный в баре начинает с первого совпадения, как везде. Тот же запрос
+   * раздел оставляет — бар фиксирует его по Enter и уходу фокуса, и это не
+   * повод уводить с совпадения, на котором стоим.
+   */
+  const setDocFind = useCallback(
+    (find) => {
+      const next = find || '';
+      replaceNav((prev) => (prev.docFind === next ? prev : { ...prev, docFind: next, docSection: '' }));
+    },
+    [replaceNav],
+  );
+
   return {
     nav,
     switchView,
@@ -401,6 +433,7 @@ export default function useAppNavigation() {
     setFileRev,
     setFileFind,
     setChatFind,
+    setDocFind,
     toggleLeftPanel,
     setRightTab,
   };
