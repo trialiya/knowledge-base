@@ -41,7 +41,7 @@
     "matches_other": "{{count}} lines"
   },
   "docs": {
-    "snippet": "by meaning"
+    "preamble": "before the first heading"
   },
   "chats": {
     "untitled": "No topic",

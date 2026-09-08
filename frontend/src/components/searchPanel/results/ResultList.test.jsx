@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ResultList from './ResultList';
 
@@ -173,4 +173,89 @@ test('чат, найденный только по теме, уводит без
   );
 
   expect(screen.getByRole('link', { name: /needle в теме/ })).toHaveAttribute('href', '/chat/c2');
+});
+
+/**
+ * Совпадения документа сгруппированы по разделам, и раздел — ссылка на документ
+ * с запросом и путём раздела: find-бар там встанет на первое совпадение в нём.
+ */
+test('документ: совпадения по разделам, раздел ведёт к себе', () => {
+  const onOpenDoc = vi.fn();
+  render(
+    <ResultList
+      scope="docs"
+      query="needle"
+      loading={false}
+      entry={{
+        data: {
+          total: 3,
+          documents: [
+            {
+              id: 5,
+              title: 'Док',
+              updatedAt: '2026-01-02T10:00:00',
+              parentList: [],
+              fragments: [
+                { line: 2, sectionPath: '_preamble', text: 'needle до заголовка' },
+                { line: 10, sectionPath: 'FAQ > Вопрос', text: 'needle раз' },
+                { line: 12, sectionPath: 'FAQ > Вопрос', text: 'needle два' },
+              ],
+            },
+          ],
+        },
+        error: null,
+      }}
+      regex={false}
+      rev=""
+      project=""
+      onOpenFile={vi.fn()}
+      onOpenDoc={onOpenDoc}
+      onOpenChat={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByRole('link', { name: 'Док' })).toHaveAttribute('href', '/knowledge/doc/5?find=needle');
+  // Преамбула — не раздел: подписана, но ведёт в начало документа.
+  expect(screen.getByRole('link', { name: 'docs.preamble' })).toHaveAttribute('href', '/knowledge/doc/5?find=needle');
+  const section = screen.getByRole('link', { name: 'FAQ > Вопрос' });
+  expect(section).toHaveAttribute('href', '/knowledge/doc/5?find=needle&section=FAQ+%3E+%D0%92%D0%BE%D0%BF%D1%80%D0%BE%D1%81');
+  expect(screen.getAllByRole('link', { name: /needle/ })).toHaveLength(3);
+
+  fireEvent.click(section);
+  expect(onOpenDoc).toHaveBeenCalledWith(5, { find: 'needle', section: 'FAQ > Вопрос' });
+});
+
+/** Найден по смыслу: подстроки в тексте может не быть, и бар открылся бы с «0/0». */
+test('документ со сниппетом ранжирования уводит без запроса', () => {
+  render(
+    <ResultList
+      scope="docs"
+      query="needle"
+      loading={false}
+      entry={{
+        data: {
+          total: 1,
+          documents: [
+            {
+              id: 6,
+              title: 'Смысл',
+              updatedAt: '2026-01-02T10:00:00',
+              parentList: [],
+              fragments: [{ line: null, sectionPath: null, text: 'о том же, другими словами' }],
+            },
+          ],
+        },
+        error: null,
+      }}
+      regex={false}
+      rev=""
+      project=""
+      onOpenFile={vi.fn()}
+      onOpenDoc={vi.fn()}
+      onOpenChat={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByRole('link', { name: 'Смысл' })).toHaveAttribute('href', '/knowledge/doc/6');
+  expect(screen.getAllByRole('link')).toHaveLength(1);
 });
