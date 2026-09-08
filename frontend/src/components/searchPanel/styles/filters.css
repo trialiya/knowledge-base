@@ -1,0 +1,94 @@
+/* ═══════════════════════════════════════════════
+   ЕДИНЫЙ ПОИСК — левая панель: категории и фильтры
+═══════════════════════════════════════════════ */
+
+/* Число найденного стоит на месте, где у обычного списка была бы галочка:
+   категория выбирается ровно одна, выбирать нечего — а вот сколько там
+   нашлось, решает, стоит ли переключаться. */
+.search-scopes__count {
+  /* box-sizing — глобального border-box в проекте нет, и min-width считался бы
+     без горизонтальных полей: плашка была бы на 12px шире заявленного. */
+  box-sizing: border-box;
+  flex-shrink: 0;
+  margin-left: auto;
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: 20px;
+  background: var(--kb-border-light);
+  color: var(--kb-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+}
+.ws-item--active .search-scopes__count {
+  background: var(--kb-accent);
+  color: var(--kb-white);
+}
+
+.search-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px var(--ws-gutter);
+  border-top: 1px solid var(--kb-border-light);
+}
+
+.search-filters__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.search-filters__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--kb-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* box-sizing обязателен: глобального border-box в проекте нет, и поле с
+   padding вылезло бы за ширину панели. */
+.search-filters__input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--kb-border);
+  border-radius: 8px;
+  background: var(--kb-white);
+  color: var(--kb-text);
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+.search-filters__input:focus {
+  outline: 2px solid var(--kb-accent);
+  outline-offset: -1px;
+}
+
+.search-filters__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--kb-text);
+  cursor: pointer;
+}
+
+/* Фильтр, которого при заданной ревизии нет: почему — говорит подпись рядом. */
+.search-filters__check--off {
+  color: var(--kb-muted);
+  cursor: default;
+}
+
+.search-filters__hint {
+  margin: -4px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--kb-muted);
+}
+
+.search-filters__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

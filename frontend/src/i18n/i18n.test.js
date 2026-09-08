@@ -29,18 +29,34 @@ import ruChat from './locales/ru/chat.json';
 import ruKnowledgeBase from './locales/ru/knowledgeBase.json';
 import ruSettings from './locales/ru/settings.json';
 import ruFiles from './locales/ru/files.json';
+import ruSearch from './locales/ru/search.json';
 import enCommon from './locales/en/common.json';
 import enChat from './locales/en/chat.json';
 import enKnowledgeBase from './locales/en/knowledgeBase.json';
 import enSettings from './locales/en/settings.json';
 import enFiles from './locales/en/files.json';
+import enSearch from './locales/en/search.json';
 
 import { TOOL_META } from '@/components/common/ui/toolNames';
 
 // ── Ресурсы по неймспейсам ──────────────────────────────────────────────────
 const RESOURCES = {
-  ru: { common: ruCommon, chat: ruChat, knowledgeBase: ruKnowledgeBase, settings: ruSettings, files: ruFiles },
-  en: { common: enCommon, chat: enChat, knowledgeBase: enKnowledgeBase, settings: enSettings, files: enFiles },
+  ru: {
+    common: ruCommon,
+    chat: ruChat,
+    knowledgeBase: ruKnowledgeBase,
+    settings: ruSettings,
+    files: ruFiles,
+    search: ruSearch,
+  },
+  en: {
+    common: enCommon,
+    chat: enChat,
+    knowledgeBase: enKnowledgeBase,
+    settings: enSettings,
+    files: enFiles,
+    search: enSearch,
+  },
 };
 
 // fallbackNS из i18n/index.js — ключ, не найденный в дефолтном неймспейсе

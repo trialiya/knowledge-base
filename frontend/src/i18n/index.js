@@ -37,7 +37,7 @@ export const i18nReady = i18n
   .init({
     fallbackLng: 'ru',
     supportedLngs: ['ru', 'en'],
-    ns: ['common', 'chat', 'knowledgeBase', 'settings', 'files'],
+    ns: ['common', 'chat', 'knowledgeBase', 'settings', 'files', 'search'],
     defaultNS: 'common',
     fallbackNS: 'common',
     interpolation: { escapeValue: false },

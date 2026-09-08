@@ -1,0 +1,4 @@
+/* Барьер импортов раздела «Поиск»: сами правила — в styles/, по одной теме на
+   файл (см. .claude/rules/frontend-css.md). */
+@import './styles/filters.css';
+@import './styles/results.css';

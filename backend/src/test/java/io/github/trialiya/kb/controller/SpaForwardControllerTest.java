@@ -38,6 +38,7 @@ class SpaForwardControllerTest {
                 "/knowledge/search",
                 "/files",
                 "/files/backend/build.gradle",
+                "/search",
                 "/admin",
                 "/settings",
             })

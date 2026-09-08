@@ -1,0 +1,69 @@
+{
+  "panel": {
+    "title": "Search"
+  },
+  "scopes": "Where to search",
+  "scope": {
+    "files": "Files",
+    "docs": "Documents",
+    "chats": "Chats"
+  },
+  "filters": {
+    "project": "Repository",
+    "path": "Path",
+    "pathHint": "e.g. backend/**/*.java",
+    "rev": "Revision",
+    "revHint": "branch, tag or hash",
+    "regex": "Regular expression",
+    "untracked": "Include untracked files",
+    "untrackedInRev": "A commit snapshot has no untracked files.",
+    "mode": "Search mode",
+    "noneForChats": "Chat search has no filters."
+  },
+  "head": {
+    "matches_one": "{{count}} match",
+    "matches_other": "{{count}} matches",
+    "in": {
+      "files_one": "in {{count}} file",
+      "files_other": "in {{count}} files",
+      "docs_one": "in {{count}} document",
+      "docs_other": "in {{count}} documents",
+      "chats_one": "in {{count}} chat",
+      "chats_other": "in {{count}} chats"
+    }
+  },
+  "group": {
+    "more_one": "{{count}} more match",
+    "more_other": "{{count}} more matches",
+    "collapse": "Collapse"
+  },
+  "files": {
+    "matches_one": "{{count}} line",
+    "matches_other": "{{count}} lines"
+  },
+  "docs": {
+    "snippet": "by meaning"
+  },
+  "chats": {
+    "untitled": "No topic",
+    "titleMatched": "title matched",
+    "roleUser": "You",
+    "roleAssistant": "Assistant",
+    "roleTool": "Tool"
+  },
+  "truncated": {
+    "files": "Not every match is shown: the file search stopped at its limit. Refine the query or narrow the path.",
+    "docs": "Not every match is shown.",
+    "chats": "Not every message is shown: the search scans only the most recent matches. Refine the query."
+  },
+  "empty": {
+    "noQuery": "Type a query in the search box above.",
+    "noResults": "Nothing found.",
+    "searching": "Searching…"
+  },
+  "error": {
+    "badFilter": "The search was rejected: check the regular expression, path and revision.",
+    "timeout": "The file search did not finish in time. Refine the query or narrow the path.",
+    "generic": "The search failed."
+  }
+}

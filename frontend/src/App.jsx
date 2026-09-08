@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import ChatWindow from '@/components/chatPanel/ChatWindow';
 import KnowledgeBase from '@/components/knowledgeBasePanel/KnowledgeBase';
 import FilesPanel from '@/components/filesPanel/FilesPanel';
+import SearchPanel from '@/components/searchPanel/SearchPanel';
 import ConfirmModal from '@/components/common/modal/ConfirmModal';
 import useAppNavigation from '@/navigation/useAppNavigation';
 import useUnsavedViewGuard from '@/navigation/useUnsavedViewGuard';
@@ -11,7 +12,7 @@ import HeaderMenu from '@/components/common/layout/HeaderMenu';
 import GlobalSearch from '@/components/common/search/GlobalSearch';
 import AdminPanel from '@/components/adminPanel/AdminPanel';
 import SettingsPanel from '@/components/settingsPanel/SettingsPanel';
-import { SEARCH_MODE } from '@/constants/searchMode';
+import { scopeForView } from '@/constants/searchScope';
 import { invalidateDocPreviewCache } from '@/components/common/preview/useDocPreview';
 import { invalidateFilePreviewCache, invalidateAllFilePreviewCache } from '@/components/common/preview/useFilePreview';
 import {
@@ -35,6 +36,8 @@ function App() {
     nav,
     switchView,
     openDoc,
+    openSearch,
+    refineSearch,
     setSearch,
     openChat,
     openFilePath,
@@ -43,7 +46,7 @@ function App() {
     toggleLeftPanel,
     setRightTab,
   } = useAppNavigation();
-  const view = nav.view; // 'chat' | 'knowledge' | 'files' | 'admin' | 'settings'
+  const view = nav.view; // 'chat' | 'knowledge' | 'files' | 'search' | 'admin' | 'settings'
 
   // Раскладка панелей рабочей области. Живёт в URL (общая для всех разделов
   // пара left/right), поэтому передаётся разделам одним набором пропсов.
@@ -60,34 +63,47 @@ function App() {
   );
 
   // ── Глобальная строка поиска (живёт в шапке вкладок, видна всегда) ──────────
-  const [searchText, setSearchText] = useState(nav.search || '');
-  const [searchMode, setSearchMode] = useState(nav.mode || SEARCH_MODE.HYBRID);
+  // В поле стоит последний запрос, который где-то отработан. В самом поиске это
+  // его запрос; в базе знаний, открытой старой ссылкой на /knowledge/search, —
+  // её собственный. В остальных разделах — всё равно последний искомый: уйдя по
+  // ссылке из результатов, запрос хочется поправить, а не набирать заново.
+  const navQuery = view === 'search' ? nav.searchQuery : nav.search || nav.searchQuery;
+  const [searchText, setSearchText] = useState(navQuery || '');
 
   // Поле — локальный черновик, но URL меняется и снаружи (кнопка «назад»,
   // открытая ссылка), и тогда черновик надо подтянуть. Подстройка идёт прямо в
   // рендере, а не в эффекте: эффект дал бы второй проход рендера на каждую
   // навигацию, а App держит смонтированными все разделы сразу.
-  const [prevNavSearch, setPrevNavSearch] = useState(nav.search);
-  if (prevNavSearch !== nav.search) {
-    setPrevNavSearch(nav.search);
-    setSearchText(nav.search || '');
-  }
-  const [prevNavMode, setPrevNavMode] = useState(nav.mode);
-  if (prevNavMode !== nav.mode) {
-    setPrevNavMode(nav.mode);
-    setSearchMode(nav.mode || SEARCH_MODE.HYBRID);
+  const [prevNavQuery, setPrevNavQuery] = useState(navQuery);
+  if (prevNavQuery !== navQuery) {
+    setPrevNavQuery(navQuery);
+    setSearchText(navQuery || '');
   }
 
-  // Поиск всегда уводит в базу знаний (setSearch выставляет view=knowledge),
-  // поэтому отдельно «закрывать» admin/settings не нужно.
+  // Enter в строке поиска уводит в раздел «Поиск». Категория по умолчанию — та,
+  // на что человек смотрел: из чата ищут по чатам, из базы знаний по документам.
+  // Уже находясь в поиске, категорию не трогаем — её выбрали руками.
+  //
+  // Мимо goView намеренно: искать посреди правки документа — обычное дело, и
+  // спрашивать про несохранённое на каждый Enter незачем. База знаний
+  // смонтирована всегда, черновик её редактора переживает уход в поиск.
   const submitSearch = () => {
-    setSearch(searchText.trim(), searchMode);
+    openSearch(searchText.trim(), view === 'search' ? nav.searchScope : scopeForView(view));
   };
 
-  const handleSearchModeChange = (m) => {
-    setSearchMode(m);
-    if (searchText.trim()) setSearch(searchText.trim(), m);
-  };
+  // Фильтры единого поиска приходят разделу одним объектом — useMemo по той же
+  // причине, что и panels: раздел не должен перерисовываться на каждую букву,
+  // напечатанную в строке поиска.
+  const searchFilters = useMemo(
+    () => ({
+      path: nav.searchPath,
+      project: nav.searchProject,
+      rev: nav.searchRev,
+      regex: nav.searchRegex,
+      untracked: nav.searchUntracked,
+    }),
+    [nav.searchPath, nav.searchProject, nav.searchRev, nav.searchRegex, nav.searchUntracked],
+  );
 
   // ── Refresh документа (действие живёт в useKnowledgeBase) ────────────────────
   const [refreshTick, setRefreshTick] = useState(0);
@@ -167,6 +183,16 @@ function App() {
   // разделы через goView, а не через switchView напрямую.
   const { goView, pendingView, confirmLeave, cancelLeave } = useUnsavedViewGuard({ view, switchView });
 
+  // Ссылка на файл в результатах поиска ведёт в «Файлы»: раздел меняется вместе
+  // с открытым путём, одним переходом.
+  const openFileFromSearch = useCallback(
+    (path, project, options) => {
+      goView('files');
+      openFilePath(path, project, options);
+    },
+    [goView, openFilePath],
+  );
+
   // Регистрируем переход в Files для DocLinkTooltip (кнопка "Открыть" у
   // файловой ссылки) — компонент смонтирован в чате/KB, на много уровней
   // ниже App, поэтому проп сюда не прокинуть без прошивки всей цепочки
@@ -202,13 +228,7 @@ function App() {
         </div>
 
         {/* Центр — глобальный поиск по базе знаний */}
-        <GlobalSearch
-          value={searchText}
-          mode={searchMode}
-          onChange={setSearchText}
-          onModeChange={handleSearchModeChange}
-          onSubmit={submitSearch}
-        />
+        <GlobalSearch value={searchText} onChange={setSearchText} onSubmit={submitSearch} />
 
         {/* Правая зона — единое меню (обновить · язык · админ · настройки) */}
         <div className="app-tabs__right">
@@ -269,6 +289,21 @@ function App() {
               gitRefsToken={gitRefsTick}
               onRepoChanged={handleRepoChanged}
               onGitRefsChanged={handleGitRefsChanged}
+              panels={panels}
+            />
+          </div>
+        )}
+        {view === 'search' && (
+          <div className="app-tab-panel app-tab-panel--active">
+            <SearchPanel
+              query={nav.searchQuery}
+              scope={nav.searchScope}
+              mode={nav.mode}
+              filters={searchFilters}
+              onRefine={refineSearch}
+              onOpenFile={openFileFromSearch}
+              onOpenDoc={openDoc}
+              onOpenChat={openChat}
               panels={panels}
             />
           </div>

@@ -1,0 +1,224 @@
+/* ═══════════════════════════════════════════════
+   ЕДИНЫЙ ПОИСК — центр: результаты по сущностям
+═══════════════════════════════════════════════ */
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 1.2rem 1.8rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.search-results__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.search-results__count {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+
+.search-results__in,
+.search-results__pending {
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+}
+
+/* Предупреждение о неполной выдаче: бэкенд обрезал ответ по своему пределу. */
+.search-results__note {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--kb-accent-light);
+  color: var(--kb-muted);
+  font-size: 0.78rem;
+}
+
+.search-results__hint,
+.search-results__error {
+  padding: 2rem 1.8rem;
+  color: var(--kb-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+.search-results__error {
+  color: var(--kb-error);
+}
+
+.search-results__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Карточка сущности ── */
+
+.search-group {
+  border: 1.5px solid var(--kb-border);
+  border-radius: 12px;
+  background: var(--kb-white);
+  overflow: hidden;
+}
+
+.search-group__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--kb-border-light);
+  background: var(--kb-bg);
+}
+
+.search-group__icon {
+  display: flex;
+  align-items: center;
+  color: var(--kb-muted);
+}
+
+.search-group__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--kb-accent);
+  text-decoration: none;
+}
+.search-group__title:hover {
+  text-decoration: underline;
+}
+
+.search-group__meta {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+  white-space: nowrap;
+}
+
+.search-group__subtitle {
+  padding: 4px 12px;
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+}
+
+.search-group__crumbs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.search-group__crumb {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-group__path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.search-group__badge {
+  padding: 1px 8px;
+  border-radius: 20px;
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.search-group__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-group__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 12px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  border-top: 1px solid var(--kb-border-light);
+}
+.search-group__row:first-child {
+  border-top: none;
+}
+
+.search-group__more {
+  /* У <button> border-box уже стоит от UA-стилей, но полагаться на это нельзя:
+     правило проекта — каждый размеренный бокс объявляет box-sizing сам. */
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  border-top: 1px solid var(--kb-border-light);
+  background: none;
+  color: var(--kb-accent);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.search-group__more:hover {
+  background: var(--kb-accent-light);
+}
+
+/* ── Строка совпадения ── */
+
+.search-line__no,
+.search-line__where {
+  flex-shrink: 0;
+  color: var(--kb-muted);
+  font-size: 0.72rem;
+}
+
+.search-line__no {
+  min-width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* inline-block, а не flex: многоточие в конце обрезанного текста рисуется только
+   в блочном контейнере — у flex-элемента анонимный текстовый узел просто
+   срезается по границе, и длинный путь раздела обрывался посреди слова. */
+.search-line__where {
+  display: inline-block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-line__time {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Строка кода не переносится, а прокручивается: перенос ломает выравнивание по
+   номеру строки, а обрезка прячет как раз то, что нашлось. */
+.search-line__code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: pre;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  color: var(--kb-text);
+}
+
+.search-line__text {
+  flex: 1;
+  min-width: 0;
+  color: var(--kb-text);
+}

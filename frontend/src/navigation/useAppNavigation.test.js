@@ -62,6 +62,65 @@ describe('ревизия в «Файлах»', () => {
   });
 });
 
+describe('единый поиск', () => {
+  it('разбирает запрос, категорию и фильтры категории «файлы»', () => {
+    go('/search?q=needle&in=files&path=backend%2F**&rev=v1&regex=1&untracked=1');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav).toMatchObject({
+      view: 'search',
+      searchQuery: 'needle',
+      searchScope: 'files',
+      searchPath: 'backend/**',
+      searchRev: 'v1',
+      searchRegex: true,
+      searchUntracked: true,
+    });
+  });
+
+  it('незнакомую категорию из адреса заменяет дефолтной, а не показывает пустоту', () => {
+    go('/search?q=needle&in=bogus');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav.searchScope).toBe('files');
+  });
+
+  it('пишет категорию всегда, а фильтры — только заданные', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openSearch('needle', 'chats'));
+    expect(url()).toBe('/search?q=needle&in=chats');
+  });
+
+  it('поиск — переход, а уточнение фильтров — нет', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
+
+    act(() => result.current.openSearch('needle', 'files'));
+    act(() => result.current.refineSearch({ searchUntracked: true }));
+    act(() => result.current.refineSearch({ searchScope: 'docs' }));
+
+    expect(url()).toBe('/search?q=needle&in=docs&untracked=1');
+    // Один переход на весь подбор фильтров: «Назад» возвращает туда, откуда искали.
+    expect(window.history.length).toBe(before + 1);
+  });
+
+  it('уход фокуса без правки фильтра ничего не меняет', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openSearch('needle', 'files'));
+    const before = result.current.nav;
+
+    act(() => result.current.refineSearch({ searchPath: '' }));
+
+    // Тот же объект: перерисовывать все смонтированные разделы не из-за чего.
+    expect(result.current.nav).toBe(before);
+  });
+
+  it('не тащит запрос единого поиска в адреса других разделов', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openSearch('needle', 'docs'));
+    act(() => result.current.openDoc('7'));
+    expect(url()).toBe('/knowledge/doc/7');
+  });
+});
+
 describe('построение адреса', () => {
   it('переносит ресурс в путь, а не в query', () => {
     const { result } = renderHook(() => useAppNavigation());

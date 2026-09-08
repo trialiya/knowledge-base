@@ -41,8 +41,7 @@
     "close": "Close search"
   },
   "search": {
-    "placeholder": "Search the knowledge base…",
-    "modeTitle": "Search mode",
+    "placeholder": "Search files, documents and chats…",
     "hybrid": "Hybrid",
     "semantic": "Semantic",
     "keyword": "Keywords"
