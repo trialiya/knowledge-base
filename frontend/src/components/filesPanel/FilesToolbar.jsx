@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { IconList, IconFolder } from '@/icons/index';
+import RevisionPicker from '@/components/common/git/RevisionPicker';
 import FileSearch from './FileSearch';
 import GitBranchBar from './git/GitBranchBar';
-import RevisionPicker from './git/RevisionPicker';
 
 /**
  * Тулбар левой панели: какую ревизию показывает панель, на какой ветке

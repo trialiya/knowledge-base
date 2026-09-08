@@ -19,7 +19,7 @@ describe('RevisionPicker', () => {
     renderPicker();
     expect(gitApi.getRefs).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole('button', { name: /git.revision.workingTree/ }));
+    await userEvent.click(screen.getByRole('button', { name: /revision.workingTree/ }));
 
     await waitFor(() => expect(gitApi.getRefs).toHaveBeenCalledTimes(1));
     expect(screen.getByRole('menuitem', { name: 'feature' })).toBeInTheDocument();
@@ -30,7 +30,7 @@ describe('RevisionPicker', () => {
     const onChange = vi.fn();
     renderPicker({ onChange });
 
-    await userEvent.click(screen.getByRole('button', { name: /git.revision.workingTree/ }));
+    await userEvent.click(screen.getByRole('button', { name: /revision.workingTree/ }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'feature' }));
 
     expect(onChange).toHaveBeenCalledWith('feature');
@@ -45,8 +45,8 @@ describe('RevisionPicker', () => {
     const onChange = vi.fn();
     renderPicker({ onChange });
 
-    await userEvent.click(screen.getByRole('button', { name: /git.revision.workingTree/ }));
-    await userEvent.type(screen.getByLabelText('git.revision.typeLabel'), 'abc1234{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: /revision.workingTree/ }));
+    await userEvent.type(screen.getByLabelText('revision.typeLabel'), 'abc1234{Enter}');
 
     expect(onChange).toHaveBeenCalledWith('abc1234');
   });
@@ -57,7 +57,7 @@ describe('RevisionPicker', () => {
     renderPicker({ rev: 'v1', onChange });
 
     await userEvent.click(screen.getByRole('button', { name: /v1/ }));
-    await userEvent.type(screen.getByLabelText('git.revision.typeLabel'), '   {Enter}');
+    await userEvent.type(screen.getByLabelText('revision.typeLabel'), '   {Enter}');
 
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -70,7 +70,7 @@ describe('RevisionPicker', () => {
     const onChange = vi.fn();
     renderPicker({ rev: 'v1', onChange });
 
-    await userEvent.click(screen.getByRole('button', { name: 'git.revision.exit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'revision.exit' }));
 
     expect(onChange).toHaveBeenCalledWith('');
   });

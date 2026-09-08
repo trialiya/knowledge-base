@@ -18,7 +18,7 @@ import './revisionPicker.css';
  * ссылке из чата) — у истории нет полезного ответа «вот вся она».
  */
 const RevisionPicker = ({ project, rev, refsToken, onChange }) => {
-  const { t } = useTranslation('files');
+  const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const ref = useRef(null);
@@ -51,11 +51,11 @@ const RevisionPicker = ({ project, rev, refsToken, onChange }) => {
         className="rev-picker__trigger"
         aria-expanded={open}
         aria-haspopup="menu"
-        title={rev ? t('git.revision.viewingHint', { rev }) : t('git.revision.workingTreeHint')}
+        title={rev ? t('revision.viewingHint', { rev }) : t('revision.workingTreeHint')}
         onClick={() => setOpen((was) => !was)}
       >
         {rev ? <IconHistory size={13} /> : <IconBranch size={13} />}
-        <span className="rev-picker__label">{rev || t('git.revision.workingTree')}</span>
+        <span className="rev-picker__label">{rev || t('revision.workingTree')}</span>
         <IconChevronDown size={12} />
       </button>
 
@@ -65,8 +65,8 @@ const RevisionPicker = ({ project, rev, refsToken, onChange }) => {
         <button
           type="button"
           className="icon-btn rev-picker__exit"
-          title={t('git.revision.exit')}
-          aria-label={t('git.revision.exit')}
+          title={t('revision.exit')}
+          aria-label={t('revision.exit')}
           onClick={() => pick('')}
         >
           <IconX size={13} />
@@ -80,27 +80,27 @@ const RevisionPicker = ({ project, rev, refsToken, onChange }) => {
               className="rev-picker__input"
               value={typed}
               autoFocus
-              placeholder={t('git.revision.typePlaceholder')}
-              aria-label={t('git.revision.typeLabel')}
+              placeholder={t('revision.typePlaceholder')}
+              aria-label={t('revision.typeLabel')}
               onChange={(e) => setTyped(e.target.value)}
             />
           </form>
 
           {rev && (
             <button type="button" className="rev-picker__item" role="menuitem" onClick={() => pick('')}>
-              {t('git.revision.workingTree')}
+              {t('revision.workingTree')}
             </button>
           )}
 
-          {refs.loading && <p className="rev-picker__note">{t('git.revision.loading')}</p>}
-          {refs.error && <p className="rev-picker__note">{t('git.revision.loadError')}</p>}
+          {refs.loading && <p className="rev-picker__note">{t('revision.loading')}</p>}
+          {refs.error && <p className="rev-picker__note">{t('revision.loadError')}</p>}
           {!refs.loading && !refs.error && groups.length === 0 && (
-            <p className="rev-picker__note">{t('git.revision.empty')}</p>
+            <p className="rev-picker__note">{t('revision.empty')}</p>
           )}
 
           {groups.map((group) => (
             <div key={group.key} className="rev-picker__group">
-              <p className="rev-picker__group-title">{t(`git.revision.${group.key}`)}</p>
+              <p className="rev-picker__group-title">{t(`revision.${group.key}`)}</p>
               {group.items.map((name) => (
                 <button
                   key={name}
