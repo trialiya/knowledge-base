@@ -93,28 +93,44 @@ describe('подсветка совпадений в ленте чата', () =>
  */
 describe('прокрутка к найденному во время прогона', () => {
   const messages = [msg('m1', 'жираф раз'), msg('m2', 'ответ', 'ai')];
+  const streamed = [...messages, msg('m3', 'ещё чанк', 'ai')];
+
+  // happy-dom честно доезжает до цели своим таймером и ставит scrollTop сам —
+  // здесь проверяется не он, а наша реакция на прокрутку, поэтому обе прокрутки
+  // глушим ДО рендера: эффект зовёт их сразу, как только пузырь появился.
+  beforeEach(() => {
+    vi.spyOn(Element.prototype, 'scrollTo').mockImplementation(() => {});
+    vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
 
   // Лента у самого низа: 1000 - 480 - 500 = 20 < 60.
   const metrics = (el) => {
     Object.defineProperty(el, 'scrollHeight', { value: 1000, configurable: true });
     Object.defineProperty(el, 'clientHeight', { value: 500, configurable: true });
     el.scrollTop = 480;
-    el.scrollTo = vi.fn();
-    el.scrollIntoView = vi.fn();
+    el.getBoundingClientRect = () => ({ top: 0, bottom: 500 });
   };
 
-  const streamed = [...messages, msg('m3', 'ещё чанк', 'ai')];
+  /** Где стоит искомый пузырь относительно окна ленты. */
+  const placeTarget = (container, rect) => {
+    container.querySelector('[data-mid="m1"]').getBoundingClientRect = () => rect;
+  };
+
+  const mount = () =>
+    render(<MessageList conversationId="c1" messages={messages} searchQuery="жираф" activeSearchMid="m1" />);
+
+  const stream = (rerender) =>
+    rerender(<MessageList conversationId="c1" messages={streamed} searchQuery="жираф" activeSearchMid="m1" />);
 
   it('чанк ответа не утаскивает ленту вниз с найденного сообщения', () => {
-    const { container, rerender } = render(
-      <MessageList conversationId="c1" messages={messages} searchQuery="жираф" activeSearchMid="m1" />,
-    );
+    const { container, rerender } = mount();
     const list = container.querySelector('.message-list');
     metrics(list);
 
     // Кадр собственной прокрутки к совпадению.
     fireEvent.scroll(list);
-    rerender(<MessageList conversationId="c1" messages={streamed} searchQuery="жираф" activeSearchMid="m1" />);
+    stream(rerender);
 
     expect(list.scrollTop).toBe(480);
   });
@@ -125,15 +141,14 @@ describe('прокрутка к найденному во время прого�
   it('посадка у самого низа возвращает автоскролл, когда прокрутка успокоилась', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      const { container, rerender } = render(
-        <MessageList conversationId="c1" messages={messages} searchQuery="жираф" activeSearchMid="m1" />,
-      );
+      const { container, rerender } = mount();
       const list = container.querySelector('.message-list');
       metrics(list);
+      placeTarget(container, { top: 100, bottom: 300 });
 
       fireEvent.scroll(list);
       await act(async () => vi.advanceTimersByTime(300));
-      rerender(<MessageList conversationId="c1" messages={streamed} searchQuery="жираф" activeSearchMid="m1" />);
+      stream(rerender);
 
       expect(list.scrollTop).toBe(1000);
     } finally {
@@ -141,17 +156,24 @@ describe('прокрутка к найденному во время прого�
     }
   });
 
-  it('прокрутка рукой возвращает автоскролл', () => {
-    const { container, rerender } = render(
-      <MessageList conversationId="c1" messages={messages} searchQuery="жираф" activeSearchMid="m1" />,
-    );
-    const list = container.querySelector('.message-list');
-    metrics(list);
+  // Тишина в событиях не доказывает, что прокрутка доехала: в занятом чате
+  // главный поток встаёт между кадрами дольше таймера. Пока искомого сообщения
+  // не видно, это середина прокрутки, а не её конец.
+  it('пауза посреди прокрутки не возвращает автоскролл, пока сообщения не видно', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { container, rerender } = mount();
+      const list = container.querySelector('.message-list');
+      metrics(list);
+      placeTarget(container, { top: -400, bottom: -100 });
 
-    fireEvent.wheel(list);
-    fireEvent.scroll(list);
-    rerender(<MessageList conversationId="c1" messages={streamed} searchQuery="жираф" activeSearchMid="m1" />);
+      fireEvent.scroll(list);
+      await act(async () => vi.advanceTimersByTime(300));
+      stream(rerender);
 
-    expect(list.scrollTop).toBe(1000);
+      expect(list.scrollTop).toBe(480);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

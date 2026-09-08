@@ -105,6 +105,7 @@ export default function useInChatSearch({
     setMatches(NO_MATCHES);
     setActiveIndex(-1);
     setSearching(false);
+    setPendingMsg('');
   }, []);
 
   const close = useCallback(() => {
@@ -143,6 +144,10 @@ export default function useInChatSearch({
           setMatches([]);
           setActiveIndex(-1);
           setSearching(false);
+          // Сообщение из адреса относилось к этому запросу: отказ его не
+          // откладывает на следующий, набранный в баре, — тот садится на самое
+          // свежее совпадение, как любой набранный запрос.
+          setPendingMsg('');
         }
       });
   }, []);

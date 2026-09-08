@@ -268,6 +268,30 @@ describe('useInChatSearch — сообщение из адреса', () => {
     expect(result.current.activeIndex).toBe(0);
   });
 
+  // Отказ поиска не откладывает сообщение из адреса на следующий запрос:
+  // набранный в баре садится на самое свежее совпадение, как любой набранный.
+  it('после отказа поиска сообщение из адреса не переезжает на новый запрос', async () => {
+    chatApi.searchMessages.mockRejectedValueOnce(new Error('500'));
+    const props = {
+      activeChatId: 'chat-1',
+      getChats: () => [{ id: 'chat-1', messages: three, hasMore: false }],
+      loadOlderMessages: vi.fn(),
+      messages: three,
+      find: 'жираф',
+      msg: '10',
+    };
+    const { result } = renderHook((p) => useInChatSearch(p), { initialProps: props });
+    // Дожидаемся именно отказа: иначе следующий запрос отменил бы первый по
+    // дебаунсу, и проверять было бы нечего.
+    await waitFor(() => expect(chatApi.searchMessages).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    chatApi.searchMessages.mockResolvedValue(hits);
+    act(() => result.current.setQuery('жирафы'));
+    await waitFor(() => expect(result.current.total).toBe(3));
+    expect(result.current.activeIndex).toBe(2);
+  });
+
   // Стрелка — выбор человека: ответ поиска, доехавший после неё, не должен
   // вернуть на сообщение из ссылки.
   it('шаг стрелкой отменяет ожидание сообщения из адреса', async () => {
