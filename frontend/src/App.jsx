@@ -43,6 +43,7 @@ function App() {
     openFilePath,
     setFileChanges,
     setFileRev,
+    setFileFind,
     toggleLeftPanel,
     setRightTab,
   } = useAppNavigation();
@@ -282,8 +283,11 @@ function App() {
               path={nav.filePath}
               changes={nav.fileChanges}
               rev={nav.fileRev}
+              find={nav.fileFind}
+              findRegex={nav.fileFindRegex}
               onChangesToggle={setFileChanges}
               onRevChange={setFileRev}
+              onFindChange={setFileFind}
               onPathChange={openFilePath}
               refreshToken={filesRefreshTick}
               gitRefsToken={gitRefsTick}

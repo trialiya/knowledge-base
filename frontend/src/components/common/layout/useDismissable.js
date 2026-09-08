@@ -1,10 +1,15 @@
 import { useEffect } from 'react';
+import { pushPopover } from './overlayStack';
 
 /**
  * Закрывает открытый поповер по клику вне него и по Escape.
  *
  * `mousedown`, а не `click`: выделение текста, начатое внутри и отпущенное
  * снаружи, иначе схлопывало бы меню под курсором пользователя.
+ *
+ * Пока поповер открыт, он числится в overlayStack: поверхности под ним по этому
+ * признаку уступают ему Escape — иначе одно нажатие закрывало бы и меню, и
+ * что-нибудь ещё под ним заодно.
  *
  * @param {boolean} open — пока false, слушателей нет вовсе
  * @param {React.RefObject|React.RefObject[]} ref — элемент, клик внутри которого
@@ -23,9 +28,11 @@ export default function useDismissable(open, ref, onClose) {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();
     };
+    const release = pushPopover();
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('keydown', onKey);
     return () => {
+      release();
       document.removeEventListener('mousedown', onDocClick);
       document.removeEventListener('keydown', onKey);
     };

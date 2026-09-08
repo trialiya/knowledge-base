@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { IconFolder, IconDoc } from '@/icons/index';
 import { formatFileSize } from '@/utils/formatting';
+import FindBar from '@/components/common/search/FindBar';
+import useFileFind from './useFileFind';
 import Breadcrumb from './Breadcrumb';
 import ChangeDiffView from './changes/ChangeDiffView';
 
@@ -114,8 +116,26 @@ export const FileView = ({ file, path, diff = null, showDiff = false, onToggleDi
   );
 };
 
-const FileContent = ({ content, path, loading, onNavigate, diff = null, showDiff = false, onToggleDiff }) => {
+/**
+ * `find` (и `findRegex`) — что подсветить в открытом файле, из адреса; менять
+ * его обратно в адрес — дело `onFindChange`. Пусто — файл открыли не из поиска:
+ * бара нет, пока его не позовут Ctrl+F. Всё остальное — в useFileFind.
+ */
+const FileContent = ({
+  content,
+  path,
+  loading,
+  onNavigate,
+  diff = null,
+  showDiff = false,
+  onToggleDiff,
+  find = '',
+  findRegex = false,
+  onFindChange = null,
+}) => {
   const { t } = useTranslation('files');
+  const bodyRef = useRef(null);
+  const search = useFileFind({ rootRef: bodyRef, find, regex: findRegex, onCommit: onFindChange });
 
   // Крошки рисуем по запрошенному пути, а не по загруженному содержимому: путь
   // известен сразу из URL, и шапка центра появляется, не дожидаясь ответа
@@ -132,7 +152,25 @@ const FileContent = ({ content, path, loading, onNavigate, diff = null, showDiff
   return (
     <div className="file-content">
       <Breadcrumb path={crumbPath} onNavigate={onNavigate} />
-      <div className="file-content__body">
+      {/* Бар стоит НАД телом, а не внутри него: липкая полоса внутри прокрутки
+          закрывала бы верхнее совпадение, к которому сама же и промотала. */}
+      {search.open && (
+        <FindBar
+          className="find-bar--file"
+          placeholder={t('find.placeholder')}
+          inputRef={search.inputRef}
+          query={search.query}
+          onQueryChange={search.onQueryChange}
+          onCommit={search.onCommitQuery}
+          total={search.total}
+          activeIndex={search.activeIndex}
+          note={content?.file?.truncated ? t('find.truncated') : null}
+          onPrev={search.goPrev}
+          onNext={search.goNext}
+          onClose={search.close}
+        />
+      )}
+      <div className="file-content__body" ref={bodyRef}>
         {loading && <div className="file-content__empty">{t('loading')}</div>}
         {!loading && content?.type === 'directory' && (
           <DirectoryListing nodes={content.nodes} onNavigate={onNavigate} />

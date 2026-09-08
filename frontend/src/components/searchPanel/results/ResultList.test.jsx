@@ -53,12 +53,23 @@ test('совпадения одного файла остаются одной �
   expect(document.querySelectorAll('.search-group__row')).toHaveLength(7);
 });
 
-test('ссылка карточки ведёт на файл в той же ревизии, в которой его нашли', () => {
+test('ссылка карточки ведёт на файл в той же ревизии и с тем же запросом, с которыми его нашли', () => {
   renderFiles({ rev: 'v1' });
+
+  // find в адресе — то, что подсветит открытый файл: иначе переход к найденному
+  // высаживал бы на первой строке, и совпадение пришлось бы искать заново.
+  expect(screen.getByRole('link', { name: 'Main.java' })).toHaveAttribute(
+    'href',
+    '/files/backend/src/Main.java?rev=v1&find=needle',
+  );
+});
+
+test('регулярный запрос уезжает в адрес файла помеченным как выражение', () => {
+  renderFiles({ regex: true });
 
   expect(screen.getByRole('link', { name: 'Main.java' })).toHaveAttribute(
     'href',
-    '/files/backend/src/Main.java?rev=v1',
+    '/files/backend/src/Main.java?find=needle&re=1',
   );
 });
 

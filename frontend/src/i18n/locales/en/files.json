@@ -136,5 +136,9 @@
       "loadError": "Could not read the list of commits",
       "onlyBranch": "No commits of your own: push just publishes the branch"
     }
+  },
+  "find": {
+    "placeholder": "Search this file…",
+    "truncated": "the file is shown in part"
   }
 }

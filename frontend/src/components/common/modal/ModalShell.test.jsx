@@ -9,8 +9,8 @@ vi.mock('react-i18next', () => ({
 const pressCtrlF = () => fireEvent.keyDown(window, { key: 'f', code: 'KeyF', ctrlKey: true });
 const pressEscape = () => fireEvent.keyDown(document, { key: 'Escape' });
 
-const findBar = () => document.querySelector('.modal-find');
-const counter = () => document.querySelector('.modal-find__count')?.textContent;
+const findBar = () => document.querySelector('.find-bar');
+const counter = () => document.querySelector('.find-bar__count')?.textContent;
 
 /** Модалка с текстом внутри и таким же текстом на странице под ней. */
 function renderModal(onClose = vi.fn()) {
@@ -43,7 +43,7 @@ describe('ModalShell find bar', () => {
     renderModal();
     pressCtrlF();
 
-    await userEvent.type(screen.getByPlaceholderText('modalFind.placeholder'), 'отчёт');
+    await userEvent.type(screen.getByPlaceholderText('find.inModal'), 'отчёт');
 
     expect(counter()).toBe('1/2'); // «под оверлеем» — третье вхождение — не в счёт
   });
@@ -51,15 +51,15 @@ describe('ModalShell find bar', () => {
   it('walks matches with the nav buttons and wraps around', async () => {
     renderModal();
     pressCtrlF();
-    await userEvent.type(screen.getByPlaceholderText('modalFind.placeholder'), 'отчёт');
+    await userEvent.type(screen.getByPlaceholderText('find.inModal'), 'отчёт');
 
-    await userEvent.click(screen.getByTitle('modalFind.next'));
+    await userEvent.click(screen.getByTitle('find.next'));
     expect(counter()).toBe('2/2');
 
-    await userEvent.click(screen.getByTitle('modalFind.next'));
+    await userEvent.click(screen.getByTitle('find.next'));
     expect(counter()).toBe('1/2');
 
-    await userEvent.click(screen.getByTitle('modalFind.prev'));
+    await userEvent.click(screen.getByTitle('find.prev'));
     expect(counter()).toBe('2/2');
   });
 
@@ -67,7 +67,7 @@ describe('ModalShell find bar', () => {
     renderModal();
     pressCtrlF();
 
-    await userEvent.type(screen.getByPlaceholderText('modalFind.placeholder'), 'смета');
+    await userEvent.type(screen.getByPlaceholderText('find.inModal'), 'смета');
 
     expect(counter()).toBe('0/0');
   });

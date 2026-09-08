@@ -1,6 +1,6 @@
 /**
- * Фикстуры для find-бара модалки (components/common/ModalFindBar.jsx,
- * useModalFind.js, подключены в ModalShell).
+ * Фикстуры для find-бара модалки (общий components/common/search/FindBar.jsx
+ * поверх useModalFind.js, подключены в ModalShell).
  *
  * Кейс проверяет ровно одно: поиск идёт по содержимому диалога, а не по
  * странице под ним. Поэтому фикстура — пара «текст в модалке» + «текст под

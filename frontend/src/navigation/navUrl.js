@@ -111,6 +111,8 @@ export function readUrl() {
   let fileProject = '';
   let fileChanges = false;
   let fileRev = '';
+  let fileFind = '';
+  let fileFindRegex = false;
   if (view === 'files') {
     filePath = segs.length > 1 ? segs.slice(1).join('/') : p.get('path') || '';
     fileProject = p.get('project') || '';
@@ -120,6 +122,12 @@ export function readUrl() {
     // Ревизия — тоже состояние экрана: путь в адресе один и тот же, меняется
     // только снимок, в котором его читают. Пусто — рабочее дерево.
     fileRev = p.get('rev') || '';
+    // Что подсвечивать в открытом файле: запрос, с которым сюда пришли из
+    // поиска, или набранный в самом файле. Тоже состояние экрана — файл он не
+    // меняет, — но именно в адресе: ссылкой на найденное делятся, и после F5
+    // подсветка обязана остаться.
+    fileFind = p.get('find') || '';
+    fileFindRegex = p.get('re') === '1';
   }
 
   // Единый поиск: /search?q=…&in=… — запрос и категория, дальше фильтры этой
@@ -158,6 +166,8 @@ export function readUrl() {
     fileProject,
     fileChanges,
     fileRev,
+    fileFind,
+    fileFindRegex,
     searchQuery,
     searchScope,
     searchPath,
@@ -200,6 +210,9 @@ export function buildUrl(nav) {
       if (nav.fileProject) p.set('project', nav.fileProject);
       if (nav.fileChanges) p.set('changes', '1');
       if (nav.fileRev) p.set('rev', nav.fileRev);
+      if (nav.fileFind) p.set('find', nav.fileFind);
+      // Флаг регулярки без самого запроса подсвечивать нечему.
+      if (nav.fileFind && nav.fileFindRegex) p.set('re', '1');
       break;
     case 'search':
       path = SEARCH_PATH;
@@ -255,6 +268,8 @@ export function initialNav() {
     fileProject: u.fileProject,
     fileChanges: u.fileChanges,
     fileRev: u.fileRev,
+    fileFind: u.fileFind,
+    fileFindRegex: u.fileFindRegex,
     searchQuery: u.searchQuery,
     searchScope: normalizeScope(u.searchScope),
     searchPath: u.searchPath,

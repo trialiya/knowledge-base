@@ -40,8 +40,11 @@ const FilesPanelForProject = ({
   path,
   changes,
   rev,
+  find,
+  findRegex,
   onChangesToggle,
   onRevChange,
+  onFindChange,
   onPathChange,
   onProjectChange,
   refreshToken,
@@ -208,6 +211,9 @@ const FilesPanelForProject = ({
             diff={showChanges && path ? diff : null}
             showDiff={showDiff}
             onToggleDiff={setDiffChoice}
+            find={find}
+            findRegex={findRegex}
+            onFindChange={onFindChange}
           />
         }
         right={rightTabs}
@@ -259,8 +265,11 @@ const FilesPanel = ({
   path,
   changes,
   rev,
+  find,
+  findRegex,
   onChangesToggle,
   onRevChange,
+  onFindChange,
   onPathChange,
   refreshToken,
   gitRefsToken,
@@ -290,8 +299,11 @@ const FilesPanel = ({
       path={path}
       changes={changes}
       rev={rev || ''}
+      find={find || ''}
+      findRegex={!!findRegex}
       onChangesToggle={onChangesToggle}
       onRevChange={onRevChange}
+      onFindChange={onFindChange}
       onPathChange={onPathChange}
       // Путь из одного репозитория в другом ничего не значит — уходим в корень.
       // Дефолтный проект в адрес не пишем: пустое значение и означает его.

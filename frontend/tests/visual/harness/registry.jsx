@@ -15,6 +15,7 @@ import ToolCallDetailModal from '@/components/chatPanel/messages/ToolCallDetailM
 import ToolCallNotifications from '@/components/chatPanel/messages/ToolCallNotifications';
 import GitBranchBar from '@/components/filesPanel/git/GitBranchBar';
 import Breadcrumb from '@/components/filesPanel/Breadcrumb';
+import FileContent from '@/components/filesPanel/FileContent';
 import DetailHeader from '@/components/knowledgeBasePanel/detail/DetailHeader';
 import DocumentDetail from '@/components/knowledgeBasePanel/detail/DocumentDetail';
 import { buildDetailTabs } from '@/components/knowledgeBasePanel/detail/detailSidebar';
@@ -49,6 +50,7 @@ import * as composerToolbar from '../fixtures/composerToolbar';
 import * as detailHeader from '../fixtures/detailHeader';
 import * as fileChangeBlock from '../fixtures/fileChangeBlock';
 import * as detailPanel from '../fixtures/detailPanel';
+import * as fileFind from '../fixtures/fileFind';
 import * as filesBreadcrumb from '../fixtures/filesBreadcrumb';
 import * as gitMenu from '../fixtures/gitMenu';
 import * as infoList from '../fixtures/infoList';
@@ -465,6 +467,24 @@ const REGISTRY = [
   },
   { id: 'searchResults.js#emptyAndRefusal', frame: 'center', render: (p) => <EmptyStates {...p} /> },
 
+  // Переход к найденному: файл открыт из единого поиска, запрос стоит в адресе.
+  // Проверяемое — что бар подставлен и центр промотан к первому совпадению без
+  // единого шага: `steps` тут нет намеренно.
+  {
+    id: 'fileFind.js#openedFromSearch',
+    frame: 'center',
+    render: (p) => (
+      <FileContent
+        content={{ type: 'file', path: p.path, file: p.file }}
+        path={p.path}
+        loading={false}
+        onNavigate={noop}
+        find={fileFind.query}
+        onFindChange={noop}
+      />
+    ),
+  },
+
   // ── Общее: правая панель и модалки ──
   { id: 'infoList.js#chatRows', frame: 'panel', render: (p) => <InfoList rows={p} /> },
   { id: 'infoList.js#fileRows', frame: 'panel', render: (p) => <InfoList rows={p} /> },
@@ -607,6 +627,7 @@ const MODULES = {
   'gitMenu.js': gitMenu,
   'chatUsage.js': chatUsage,
   'infoList.js': infoList,
+  'fileFind.js': fileFind,
   'modalFind.js': modalFind,
   'operationRow.js': operationRow,
   'composerToolbar.js': composerToolbar,

@@ -34,8 +34,8 @@
     "empty": "Nothing found",
     "close": "Close search"
   },
-  "modalFind": {
-    "placeholder": "Search in this dialog…",
+  "find": {
+    "inModal": "Search this dialog…",
     "prev": "Previous match",
     "next": "Next match",
     "close": "Close search"
