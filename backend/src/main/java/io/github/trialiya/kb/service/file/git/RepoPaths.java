@@ -17,8 +17,18 @@ import org.jspecify.annotations.Nullable;
  */
 final class RepoPaths {
 
-    private static final Pattern SAFE_GIT_RELATIVE_PATH =
-            Pattern.compile("^[\\p{L}\\p{N}._/\\- ]+$");
+    /**
+     * The two kinds of character a path may not contain. Control characters (NUL included) make git
+     * print the name quoted and escaped, so the path stops matching itself between the index, the
+     * API and the disk. Format characters — the bidi overrides above all — leave the name spelled
+     * one way and displayed another, and the review list where a commit is ticked off is exactly
+     * the place that must not lie about which file it names.
+     *
+     * <p>Everything else is a legal file name: a comma, a parenthesis, {@code + @ # %} and an
+     * apostrophe occur in real repositories, and a path reaches git as one argument of a process or
+     * as a literal JGit path filter — never as a shell word or a pathspec.
+     */
+    private static final Pattern REFUSED_CHARACTER = Pattern.compile("[\\p{Cntrl}\\p{Cf}]");
 
     /** File names to always exclude from results (OS/IDE junk). */
     private static final Set<String> IGNORED_FILES =
@@ -167,13 +177,11 @@ final class RepoPaths {
         if (path.isBlank()) {
             throw new IllegalArgumentException("Path must not be blank");
         }
-        if (path.startsWith("/")
-                || path.startsWith("-")
-                || path.contains("..")
-                || path.indexOf('\0') >= 0) {
+        // Лидирующий дефис git прочёл бы как ключ команды, а не как имя файла.
+        if (path.startsWith("/") || path.startsWith("-") || path.contains("..")) {
             throw new IllegalArgumentException("Invalid path: " + path);
         }
-        if (!SAFE_GIT_RELATIVE_PATH.matcher(path).matches()) {
+        if (REFUSED_CHARACTER.matcher(path).find()) {
             throw new IllegalArgumentException("Path contains unsupported characters: " + path);
         }
     }

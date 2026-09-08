@@ -240,6 +240,42 @@ class GitCommandsTest {
                 .hasMessageContaining("Invalid path");
     }
 
+    /**
+     * Запятая, скобки и апостроф — обычные знаки в имени файла, и такой файл попадает в список
+     * изменений наравне с прочими. Отказ по одному отмеченному пути отменял бы коммит целиком,
+     * поэтому имя должно проходить до конца, а не только до списка.
+     */
+    @Test
+    void aSelectedPathWithPunctuationInItsNameIsCommitted() {
+        write("docs/a,b (draft)'s.md", "picked\n");
+
+        service.commit("odd name", List.of("docs/a,b (draft)'s.md"));
+
+        assertThat(changedPaths()).isEmpty();
+        assertThat(service.getCommitLog(1, "docs/a,b (draft)'s.md", false))
+                .extracting(GitCommit::message)
+                .containsExactly("odd name");
+    }
+
+    /**
+     * По составу имени отвергаются ровно две вещи. Управляющий символ git печатает в кавычках с
+     * escape-последовательностью, и путь перестаёт совпадать сам с собой между индексом, API и
+     * диском. Bidi-override пишет имя одним, а показывает другим — список, в котором файл отмечают
+     * галочкой, обязан называть именно тот файл, который уедет в коммит.
+     */
+    @Test
+    void aSelectedPathWithAnUnprintableCharacterIsRefused() {
+        write("README.md", "changed\n");
+
+        assertThatThrownBy(() -> service.commit("nope", List.of("docs/a\nb.md")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported characters");
+        assertThatThrownBy(() -> service.commit("nope", List.of("docs/gnp\u202Esj.md")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported characters");
+        assertThat(changedPaths()).containsExactly("README.md");
+    }
+
     /** Пустой выбор — не «всё отслеживаемое»: пустая строка отвергается как путь. */
     @Test
     void aBlankSelectedPathIsRefused() {

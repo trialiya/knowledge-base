@@ -328,9 +328,11 @@ class GitServiceAllowGlobsTest {
                         entry -> {
                             assertThat(entry.status()).isEqualTo("U");
                             // Файла вне git нет в индексе, поэтому «патч» — всё его содержимое
-                            // добавленными строками, без ханков.
-                            // Хвостовой перевод строки даёт последнюю пустую добавленную строку.
-                            assertThat(entry.patch()).isEqualTo("+remember the milk\n+\n");
+                            // добавленными строками, без ханков. Финальный перевод строки закрывает
+                            // последнюю строку, а не добавляет пустую: столько же строк насчитал бы
+                            // git, будь этот файл отслеживаемым.
+                            assertThat(entry.patch()).isEqualTo("+remember the milk\n");
+                            assertThat(entry.additions()).isEqualTo(1);
                             // Имя — такие же метаданные, как у остальных, и приходит тем же полем.
                             assertThat(entry.patchHeader()).isEqualTo("+++ b/notes/todo.md");
                         });
