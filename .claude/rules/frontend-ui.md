@@ -188,9 +188,14 @@ Panel open/closed state is **controlled state that lives in the URL**
   `useCopyFeedback` for any copy-to-clipboard button (`writeText` plus the
   transient "copied" state and its timer), `useDismissable`
   (`common/layout/`) for anything that closes on outside click or Escape —
-  header menus, popovers — and `useFindMatches`/`FindBar` (`common/search/`)
-  for find-and-walk over rendered content: matches, highlight (CSS Custom
-  Highlight API, so the DOM stays React's), scroll-to-active and prev/next.
+  header menus, popovers — and `common/search/` for find-over-rendered-content:
+  `useFindMatches`/`FindBar` when the matches ARE the ranges found in the DOM
+  (files, modals), or the layers under it — `useMatchRanges` (ranges, recollected
+  on mutation) plus `useMatchHighlight` (the shared highlight registry) — when
+  the surface owns its own match list, as the chat feed does with its
+  server-side one. Never write `CSS.highlights` directly: the names are
+  document-global and the registry is what keeps two surfaces from erasing each
+  other.
   Who owns the query is the surface's business — `useModalFind` keeps it while
   a dialog is open, `useFileFind` reads it off the URL — and a surface that
   installs its own Ctrl+F stands down while `hasOpenModal()`
@@ -199,7 +204,10 @@ Panel open/closed state is **controlled state that lives in the URL**
   browser's page-wide find. Its own Escape stands down for any overlay
   (`hasOverlay()`), popovers included — Escape closes the topmost thing.
   Listen on **capture**: overlays close on bubble, so by the surface's turn
-  the same Escape has already emptied the stack.
+  the same Escape has already emptied the stack — which also means the surface
+  sees Escape before every non-overlay that wants it (an inline rename, a
+  mention picker), so pass those through with `isTypingTarget` (`common/search/
+  findShortcut.js`, which also spells the shortcut itself).
   Several components still inline
   the copy hook's body — migrate one when you touch it, don't add another.
 - Async effects must be cancellation-aware (a `cancelled` flag or an AbortSignal

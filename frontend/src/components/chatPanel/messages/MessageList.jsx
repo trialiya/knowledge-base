@@ -11,6 +11,9 @@ import { IconArrowDown } from '@/icons/index';
 import { modelLabelOf } from '../run/useModelConfig';
 import { compactSavingsIn } from './tokenUsage';
 import { SENDER } from '@/constants/messageSender';
+import { buildMatcher, collectMatchRanges } from '@/components/common/search/findMatches';
+import useMatchRanges from '@/components/common/search/useMatchRanges';
+import useMatchHighlight from '@/components/common/search/useMatchHighlight';
 import {
   SCROLL_STICK_THRESHOLD as STICK_THRESHOLD,
   SCROLL_LOAD_THRESHOLD as LOAD_MORE_THRESHOLD,
@@ -25,36 +28,9 @@ import {
 // searchQuery: текущий запрос find-бара ('' — бар закрыт) — по нему подсвечиваются
 // вхождения в тексте сообщений.
 
-// Текстовые Range всех вхождений query (без учёта регистра) в текстовых узлах
-// пузырей .message внутри root. Совпадение, разорванное границей узлов
-// (например, markdown-форматированием), не находится — как и на бэке, где
-// поиск идёт по сырому тексту, это редкий краевой случай.
-const collectMatchRanges = (root, query) => {
-  const q = query.toLowerCase();
-  const ranges = [];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode: (node) =>
-      node.parentElement?.closest('.message') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
-  });
-  let node;
-  while ((node = walker.nextNode())) {
-    const lower = node.nodeValue.toLowerCase();
-    let i = lower.indexOf(q);
-    while (i !== -1) {
-      const r = document.createRange();
-      r.setStart(node, i);
-      r.setEnd(node, i + q.length);
-      ranges.push(r);
-      i = lower.indexOf(q, i + q.length);
-    }
-  }
-  return ranges;
-};
-
-const setHighlight = (name, ranges) => {
-  if (ranges.length) window.CSS.highlights.set(name, new window.Highlight(...ranges));
-  else window.CSS.highlights.delete(name);
-};
+// Совпадения ищутся по тексту пузырей: время отправки и карточки вызовов
+// инструментов в поиск по сообщениям не входят.
+const WITHIN_MESSAGES = '.message';
 
 const MessageList = ({
   conversationId,
@@ -206,7 +182,9 @@ const MessageList = ({
     stickRef.current = false; // не залипаем к низу при программной прокрутке к совпадению
     // Длинное сообщение может быть выше экрана — центрируем не пузырь целиком,
     // а первое вхождение запроса в нём.
-    const range = searchQuery ? collectMatchRanges(el, searchQuery)[0] : null;
+    // Собираем по одному пузырю, а не берём из общего списка: тот пересобирается
+    // с задержкой, а прокрутить надо в тот же кадр, в котором пузырь появился.
+    const range = collectMatchRanges(el, buildMatcher(searchQuery, false), { within: WITHIN_MESSAGES })[0];
     if (range) {
       const rect = range.getBoundingClientRect();
       const contRect = container.getBoundingClientRect();
@@ -219,30 +197,30 @@ const MessageList = ({
     }
   }, [activeSearchMid, searchQuery, messages]);
 
-  // Подсветка вхождений запроса в тексте сообщений (CSS Custom Highlight API,
-  // без вмешательства в DOM, которым управляет React). Вхождения в активном
-  // пузыре подсвечиваются отдельным, более контрастным стилем. В браузерах без
-  // поддержки подсветки нет — остаётся рамка вокруг активного пузыря.
+  // Подсветка вхождений запроса в тексте сообщений. Активным здесь считается не
+  // одно вхождение, а всё активное сообщение: бар ходит по сообщениям, и
+  // выделять внутри найденного пузыря одно слово из трёх было бы враньём.
+  // В браузерах без поддержки подсветки нет — остаётся рамка вокруг пузыря.
+  const matchRanges = useMatchRanges({
+    rootRef: containerRef,
+    query: searchQuery,
+    within: WITHIN_MESSAGES,
+  });
+  const publishHighlight = useMatchHighlight();
   useEffect(() => {
-    if (!window.CSS?.highlights) return undefined;
     const container = containerRef.current;
-    const q = searchQuery.trim();
-    if (!container || !q) {
-      window.CSS.highlights.delete('kb-chat-find');
-      window.CSS.highlights.delete('kb-chat-find-active');
-      return undefined;
-    }
-    const all = collectMatchRanges(container, q);
-    const activeEl = activeSearchMid != null ? container.querySelector(`[data-mid="${activeSearchMid}"]`) : null;
-    const active = activeEl ? all.filter((r) => activeEl.contains(r.startContainer)) : [];
-    const rest = activeEl ? all.filter((r) => !activeEl.contains(r.startContainer)) : all;
-    setHighlight('kb-chat-find', rest);
-    setHighlight('kb-chat-find-active', active);
-    return () => {
-      window.CSS.highlights.delete('kb-chat-find');
-      window.CSS.highlights.delete('kb-chat-find-active');
-    };
-  }, [searchQuery, activeSearchMid, messages]);
+    const activeEl = activeSearchMid != null ? container?.querySelector(`[data-mid="${activeSearchMid}"]`) : null;
+    // Активный пузырь обходим сами, а не берём его Range'и из общего списка: тот
+    // пересобирается с задержкой, и сообщение, к которому только что догребли
+    // пагинацией, кадр-другой стояло бы промотанным, но не подсвеченным.
+    const active = activeEl
+      ? collectMatchRanges(activeEl, buildMatcher(searchQuery, false), { within: WITHIN_MESSAGES })
+      : [];
+    publishHighlight(
+      matchRanges.filter((r) => !activeEl?.contains(r.startContainer)),
+      active,
+    );
+  }, [publishHighlight, matchRanges, activeSearchMid, searchQuery, messages]);
 
   // Откатывается только последний ответ чата: поверх более раннего обычно уже лежат другие
   // правки, и «вернуть как было» перестаёт быть однозначным (то же правило на сервере —

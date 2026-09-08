@@ -295,10 +295,7 @@
   },
   "inChatSearch": {
     "open": "Search in chat (Ctrl+F)",
-    "placeholder": "Search in this chat…",
-    "searching": "Searching…",
-    "prev": "Previous match",
-    "next": "Next match"
+    "placeholder": "Search in this chat…"
   },
   "sidebarSearch": {
     "open": "Search chats",

@@ -134,7 +134,43 @@ test('чаты показывают автора и время каждого с
     />,
   );
 
-  expect(screen.getByRole('link', { name: 'Тема' })).toHaveAttribute('href', '/chat/c1');
+  // Запрос уходит в адрес чата: там его подхватит find-бар и сядет на совпадение.
+  expect(screen.getByRole('link', { name: 'Тема' })).toHaveAttribute('href', '/chat/c1?find=needle');
   expect(screen.getByText('chats.roleAssistant')).toBeInTheDocument();
   expect(screen.getByText(/needle/)).toBeInTheDocument();
+});
+
+/** Совпало только название — искать в сообщениях нечего, и бар открывать незачем. */
+test('чат, найденный только по теме, уводит без запроса', () => {
+  render(
+    <ResultList
+      scope="chats"
+      query="needle"
+      loading={false}
+      entry={{
+        data: {
+          total: 1,
+          truncated: false,
+          chats: [
+            {
+              conversationId: 'c2',
+              topic: 'needle в теме',
+              updatedAt: '2026-01-02T10:00:00',
+              titleMatched: true,
+              messages: [],
+            },
+          ],
+        },
+        error: null,
+      }}
+      regex={false}
+      rev=""
+      project=""
+      onOpenFile={vi.fn()}
+      onOpenDoc={vi.fn()}
+      onOpenChat={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByRole('link', { name: /needle в теме/ })).toHaveAttribute('href', '/chat/c2');
 });

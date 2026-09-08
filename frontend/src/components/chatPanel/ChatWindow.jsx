@@ -32,6 +32,8 @@ import PushDialog from '@/components/common/git/PushDialog';
 import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
+import { hasOpenModal, hasOverlay } from '@/components/common/layout/overlayStack';
+import { isFindShortcut, isTypingTarget } from '@/components/common/search/findShortcut';
 import { IconPlus } from '@/icons/index';
 import './chatWindow.css';
 import ErrorModal from '@/components/common/modal/ErrorModal';
@@ -42,6 +44,8 @@ const ChatWindow = ({
   isActive = true,
   activeChatId: propActiveChatId = null,
   onSelectChat,
+  find = '',
+  onFindChange,
   onDocChanged,
   onFileChanged,
   filesRefreshToken,
@@ -218,6 +222,8 @@ const ChatWindow = ({
     getChats,
     loadOlderMessages,
     messages: activeChat?.messages,
+    find,
+    onFindChange,
   });
   const inChatSearchInputRef = useRef(null);
   const canSearchChat =
@@ -227,12 +233,22 @@ const ChatWindow = ({
   // внутри читает всегда свежие canSearchChat/inChatSearch. Держать их в
   // зависимостях эффекта нельзя — объект useInChatSearch пересоздаётся каждый
   // рендер, то есть слушатель переподписывался бы на каждый чанк стриминга.
-  const openChatSearch = useEffectEvent((e) => {
+  // Условия у Ctrl+F и Escape разные, и намеренно — те же, что у бара открытого
+  // файла (см. useFileFind). Escape уступает любому оверлею (им закрывают
+  // верхнее, а верхнее сейчас диалог или поповер) и любому полю ввода: в чате
+  // Escape ждут отмена инлайн-переименования и @mention-подсказка композера, а
+  // наш слушатель на перехвате видит нажатие раньше них (см. isTypingTarget).
+  // Ctrl+F уступает только диалогу, у которого есть свой бар (ModalShell →
+  // useModalFind); поповер искать не умеет, и уступив ему, мы отдали бы нажатие
+  // браузерному поиску по всей странице.
+  const onChatSearchKey = useEffectEvent((e) => {
     if (!canSearchChat) return;
-    // Модалка поверх чата (детали tool-call, подтверждения и т.п.) — не открываем
-    // find-бар чата под ней: Ctrl+F относится к тому, на что пользователь смотрит,
-    // и его берёт на себя find-бар самой модалки (ModalShell → useModalFind).
-    if (document.querySelector('[aria-modal="true"]')) return;
+    if (e.key === 'Escape') {
+      if (hasOverlay() || isTypingTarget(e)) return;
+      if (inChatSearch.open) inChatSearch.close();
+      return;
+    }
+    if (hasOpenModal()) return;
     e.preventDefault();
     if (inChatSearch.open) {
       inChatSearchInputRef.current?.focus();
@@ -243,18 +259,16 @@ const ChatWindow = ({
   });
 
   // Ctrl/Cmd+F открывает (или фокусирует уже открытый) find-бар текущего чата —
-  // только пока вкладка «Чат» активна, иначе перехватывали бы поиск в других вкладках.
+  // только пока вкладка «Чат» активна, иначе перехватывали бы поиск в других
+  // вкладках. Перехват, а не всплытие: свои слушатели оверлеи вешают на
+  // всплытие, и к очереди чата меню от этого же Escape уже закрылось бы.
   useEffect(() => {
     if (!isActive) return undefined;
     const onKeyDown = (e) => {
-      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
-      // e.code — физическая клавиша: на нелатинских раскладках (например, русской)
-      // e.key даёт символ раскладки («а»), и проверка только по key ломает шорткат.
-      if (e.key !== 'f' && e.key !== 'F' && e.code !== 'KeyF') return;
-      openChatSearch(e);
+      if (e.key === 'Escape' || isFindShortcut(e)) onChatSearchKey(e);
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [isActive]);
 
   // Список для сайдбара: черновик «new» не показываем, пока в нём нет сообщений.
@@ -420,10 +434,12 @@ const ChatWindow = ({
   );
 
   const handleSelectChat = useCallback(
-    (id) => {
-      if (id === activeChatId) return;
+    (id, opts) => {
+      // Тот же чат и без запроса — делать нечего. С запросом это всё-таки
+      // переход: пришли из поиска, и подсветить в уже открытом чате надо.
+      if (id === activeChatId && !opts?.find) return;
       flushDrafts(); // зафиксировать текущий черновик до ухода
-      selectChat(id);
+      selectChat(id, opts);
       // Счётчик вложений сбрасывать вручную не нужно: useAttachmentCount сам
       // обнуляет его при смене владельца и запрашивает новое число.
     },
@@ -431,16 +447,13 @@ const ChatWindow = ({
   );
 
   // Выбор результата поиска по чатам (сайдбар): открываем чат и, если совпадение
-  // было по сообщениям, сразу запускаем в нём find-бар с тем же запросом — он
-  // по умолчанию садится на самое свежее совпадение, то же, что дало сниппет.
+  // было по сообщениям, уносим запрос в адрес — оттуда его подхватит find-бар и
+  // сядет на самое свежее совпадение, то же, что дало сниппет.
   const handleChatSearchSelect = useCallback(
     (result, query) => {
-      handleSelectChat(result.conversationId);
-      if (result.messageMatchCount > 0 && query) {
-        inChatSearch.openWithQuery(query);
-      }
+      handleSelectChat(result.conversationId, { find: result.messageMatchCount > 0 ? query : '' });
     },
-    [handleSelectChat, inChatSearch],
+    [handleSelectChat],
   );
 
   const handleModelChange = useCallback((newId) => changeModel(activeChatId, newId), [activeChatId, changeModel]);

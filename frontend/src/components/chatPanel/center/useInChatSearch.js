@@ -55,9 +55,13 @@ export function resolveActiveMatchMid({ messages, matches, activeMatch, query })
   return freshBubbles[k]?.mid ?? null;
 }
 
-export default function useInChatSearch({ activeChatId, getChats, loadOlderMessages, messages }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
+/**
+ * @param find         запрос из адреса ('' — в чат пришли не из поиска)
+ * @param onFindChange записать запрос в адрес
+ */
+export default function useInChatSearch({ activeChatId, getChats, loadOlderMessages, messages, find, onFindChange }) {
+  const [open, setOpen] = useState(!!find);
+  const [query, setQuery] = useState(find || '');
   const [matches, setMatches] = useState(NO_MATCHES); // [{ id, createdAt }] хронологически (ASC)
   const [activeIndex, setActiveIndex] = useState(-1);
   const [searching, setSearching] = useState(false);
@@ -66,12 +70,6 @@ export default function useInChatSearch({ activeChatId, getChats, loadOlderMessa
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
   const navSeqRef = useRef(0); // гасит устаревшую навигацию (чат/индекс сменились по пути)
-  // Разовый флаг для openWithQuery: говорит сбросу по смене activeChatId «это
-  // переход из поиска по чатам, не закрывай/не стирай то, что мы только что
-  // открыли». Снимается либо самим сбросом (реальное переключение), либо
-  // таймером ниже (чат не менялся — сброс не сработает, а флаг не должен
-  // «дожить» до следующего, уже обычного переключения чата).
-  const [pendingOpen, setPendingOpen] = useState(false);
 
   const resetResults = useCallback(() => {
     clearTimeout(debounceRef.current);
@@ -85,22 +83,10 @@ export default function useInChatSearch({ activeChatId, getChats, loadOlderMessa
     resetResults();
     setOpen(false);
     setQuery('');
-  }, [resetResults]);
+    onFindChange?.('');
+  }, [resetResults, onFindChange]);
 
   const openBar = useCallback(() => setOpen(true), []);
-
-  // Открыть с уже готовым запросом (переход из поиска по чатам в сайдбаре).
-  // Дефолтная посадка на самое свежее совпадение — то же сообщение, из
-  // которого там же построен сниппет, так что переход выглядит бесшовным.
-  const openWithQuery = useCallback((q) => {
-    setPendingOpen(true);
-    setOpen(true);
-    setQuery(q);
-    // Если activeChatId фактически не меняется (выбран уже открытый чат), сброс
-    // ниже не сработает и не снимет флаг сам — снимаем его здесь с задержкой,
-    // чтобы он не «выстрелил» при следующем обычном переключении чата.
-    setTimeout(() => setPendingOpen(false), 0);
-  }, []);
 
   const runSearch = useCallback((chatId, q) => {
     abortRef.current?.abort();
@@ -138,19 +124,24 @@ export default function useInChatSearch({ activeChatId, getChats, loadOlderMessa
   }
 
   // Смена активного чата — бар больше не относится к нему, сбрасываем результаты целиком.
-  // Исключение: переход из openWithQuery — там открытие уже выставлено намеренно.
   const [prevChatId, setPrevChatId] = useState(activeChatId);
   if (prevChatId !== activeChatId) {
     setPrevChatId(activeChatId);
-    if (pendingOpen) {
-      setPendingOpen(false);
-    } else {
-      setMatches(NO_MATCHES);
-      setActiveIndex(-1);
-      setSearching(false);
-      setOpen(false);
-      setQuery('');
-    }
+    setMatches(NO_MATCHES);
+    setActiveIndex(-1);
+    setSearching(false);
+    setOpen(false);
+    setQuery('');
+  }
+
+  // Запрос сменился в адресе — пришли по ссылке, из карточки результата или
+  // нажали «Назад». Проверка стоит ПОСЛЕ сброса по смене чата: и то и другое
+  // приходит одним переходом, и выиграть должен запрос, ради которого он был.
+  const [prevFind, setPrevFind] = useState(find);
+  if (prevFind !== find) {
+    setPrevFind(find);
+    setQuery(find || '');
+    if (find) setOpen(true);
   }
 
   // Поиск по дебаунсу при изменении запроса (и при открытии с готовым query).
@@ -236,8 +227,10 @@ export default function useInChatSearch({ activeChatId, getChats, loadOlderMessa
     loading: searching || navigating,
     activeMatchMid: resolveActiveMatchMid({ messages, matches, activeMatch, query }),
     openBar,
-    openWithQuery,
     close,
+    // Enter и уход фокуса — точки фиксации: history.replaceState на каждую букву
+    // браузеры считают злоупотреблением (Safari — с ошибкой).
+    commitQuery: () => onFindChange?.(query.trim()),
     goPrev,
     goNext,
   };

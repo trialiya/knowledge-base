@@ -38,7 +38,8 @@
     "inModal": "Search this dialog…",
     "prev": "Previous match",
     "next": "Next match",
-    "close": "Close search"
+    "close": "Close search",
+    "searching": "Searching…"
   },
   "search": {
     "placeholder": "Search files, documents and chats…",

@@ -295,10 +295,7 @@
   },
   "inChatSearch": {
     "open": "Поиск в чате (Ctrl+F)",
-    "placeholder": "Поиск в этом чате…",
-    "searching": "Поиск…",
-    "prev": "Предыдущее совпадение",
-    "next": "Следующее совпадение"
+    "placeholder": "Поиск в этом чате…"
   },
   "sidebarSearch": {
     "open": "Поиск по чатам",

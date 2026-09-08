@@ -8,6 +8,12 @@ const url = () => window.location.pathname + window.location.search;
 /** Переставить DOM-окружение на нужный адрес до монтирования хука. */
 const go = (href) => window.history.replaceState({}, '', href);
 
+/** «Назад»/«Вперёд»: адрес меняет браузер, а хук узнаёт об этом из popstate. */
+const back = (href) => {
+  window.history.replaceState({}, '', href);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+};
+
 beforeEach(() => {
   localStorage.clear();
   go('/chat');
@@ -99,6 +105,52 @@ describe('подсветка в открытом файле', () => {
     const { result } = renderHook(() => useAppNavigation());
     act(() => result.current.setFileFind('', true));
     expect(url()).toBe('/files/a/b.md');
+  });
+});
+
+describe('подсветка в открытом чате', () => {
+  it('читает запрос из адреса чата', () => {
+    go('/chat/c1?find=needle');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav).toMatchObject({ view: 'chat', chatId: 'c1', chatFind: 'needle' });
+  });
+
+  it('переход из поиска приносит запрос в адрес чата', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openChat('c1', { find: 'needle' }));
+    expect(url()).toBe('/chat/c1?find=needle');
+  });
+
+  // Иначе прежний запрос открывал бы бар в чате, где искать нечего.
+  it('не переезжает на чат, открытый не из поиска', () => {
+    go('/chat/c1?find=needle');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openChat('c2'));
+    expect(url()).toBe('/chat/c2');
+  });
+
+  it('запрос из самого бара заменяет запись истории, а не добавляет', () => {
+    go('/chat/c1');
+    const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
+    act(() => result.current.setChatFind('needle'));
+    expect(url()).toBe('/chat/c1?find=needle');
+    expect(window.history.length).toBe(before);
+  });
+
+  // «Назад» на запись с запросом обязан вернуть и подсветку: иначе бар закроется,
+  // а канонизирующий replaceState следом сотрёт ?find= и из адреса.
+  it('«Назад» возвращает запрос вместе с адресом', () => {
+    go('/chat/c1');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openChat('c1', { find: 'needle' }));
+    expect(result.current.nav.chatFind).toBe('needle');
+
+    act(() => back('/chat/c1'));
+    expect(result.current.nav.chatFind).toBe('');
+
+    act(() => back('/chat/c1?find=needle'));
+    expect(result.current.nav.chatFind).toBe('needle');
   });
 });
 
