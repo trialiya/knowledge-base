@@ -42,6 +42,8 @@ const ChatWindow = ({
   isActive = true,
   activeChatId: propActiveChatId = null,
   onSelectChat,
+  find = '',
+  onFindChange,
   onDocChanged,
   onFileChanged,
   filesRefreshToken,
@@ -218,6 +220,8 @@ const ChatWindow = ({
     getChats,
     loadOlderMessages,
     messages: activeChat?.messages,
+    find,
+    onFindChange,
   });
   const inChatSearchInputRef = useRef(null);
   const canSearchChat =
@@ -420,10 +424,12 @@ const ChatWindow = ({
   );
 
   const handleSelectChat = useCallback(
-    (id) => {
-      if (id === activeChatId) return;
+    (id, opts) => {
+      // Тот же чат и без запроса — делать нечего. С запросом это всё-таки
+      // переход: пришли из поиска, и подсветить в уже открытом чате надо.
+      if (id === activeChatId && !opts?.find) return;
       flushDrafts(); // зафиксировать текущий черновик до ухода
-      selectChat(id);
+      selectChat(id, opts);
       // Счётчик вложений сбрасывать вручную не нужно: useAttachmentCount сам
       // обнуляет его при смене владельца и запрашивает новое число.
     },
@@ -431,16 +437,13 @@ const ChatWindow = ({
   );
 
   // Выбор результата поиска по чатам (сайдбар): открываем чат и, если совпадение
-  // было по сообщениям, сразу запускаем в нём find-бар с тем же запросом — он
-  // по умолчанию садится на самое свежее совпадение, то же, что дало сниппет.
+  // было по сообщениям, уносим запрос в адрес — оттуда его подхватит find-бар и
+  // сядет на самое свежее совпадение, то же, что дало сниппет.
   const handleChatSearchSelect = useCallback(
     (result, query) => {
-      handleSelectChat(result.conversationId);
-      if (result.messageMatchCount > 0 && query) {
-        inChatSearch.openWithQuery(query);
-      }
+      handleSelectChat(result.conversationId, { find: result.messageMatchCount > 0 ? query : '' });
     },
-    [handleSelectChat, inChatSearch],
+    [handleSelectChat],
   );
 
   const handleModelChange = useCallback((newId) => changeModel(activeChatId, newId), [activeChatId, changeModel]);

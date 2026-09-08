@@ -75,11 +75,10 @@ describe('useInChatSearch — догрузка старых страниц не 
     const loadOlderMessages = vi.fn().mockResolvedValue(true);
     chatApi.searchMessages.mockResolvedValue([{ id: 10, createdAt: '2026-01-01' }]);
 
+    // Запрос приходит из адреса — так открывает чат карточка результата.
     const { result } = renderHook(() =>
-      useInChatSearch({ activeChatId: 'chat-1', getChats, loadOlderMessages, messages }),
+      useInChatSearch({ activeChatId: 'chat-1', getChats, loadOlderMessages, messages, find: 'жираф' }),
     );
-
-    act(() => result.current.openWithQuery('жираф'));
 
     await waitFor(() => expect(result.current.activeMatchMid).toBe('m1'));
     expect(loadOlderMessages).not.toHaveBeenCalled();
@@ -101,17 +100,81 @@ describe('useInChatSearch — догрузка старых страниц не 
     ]);
 
     const { result, rerender } = renderHook((props) => useInChatSearch(props), {
-      initialProps: { activeChatId: 'chat-1', getChats, loadOlderMessages, messages },
+      initialProps: { activeChatId: 'chat-1', getChats, loadOlderMessages, messages, find: 'жираф' },
     });
 
-    act(() => result.current.openWithQuery('жираф'));
     await waitFor(() => expect(result.current.activeMatchMid).toBe('m1'));
 
     chatList = [{ id: 'chat-1', messages: undefined, hasMore: true }];
-    rerender({ activeChatId: 'chat-1', getChats, loadOlderMessages, messages: undefined });
+    rerender({ activeChatId: 'chat-1', getChats, loadOlderMessages, messages: undefined, find: 'жираф' });
     // Переход к совпадению вне ленты перезапускает первичную проверку по messages.
     act(() => result.current.goNext());
 
     await waitFor(() => expect(loadOlderMessages).toHaveBeenCalledWith('chat-1'));
+  });
+});
+
+/**
+ * Запрос find-бара живёт в адресе — как и у открытого файла: так его переживают
+ * Ctrl+клик по карточке результата, перезагрузка и ссылка, которой поделились.
+ */
+describe('useInChatSearch — запрос и адрес', () => {
+  afterEach(() => vi.resetAllMocks());
+
+  const mount = (props) => {
+    chatApi.searchMessages.mockResolvedValue([{ id: 10, createdAt: '2026-01-01' }]);
+    return renderHook((p) => useInChatSearch(p), {
+      initialProps: {
+        activeChatId: 'chat-1',
+        getChats: () => [{ id: 'chat-1', messages: [loaded('m1', 10, 'про жирафов')], hasMore: false }],
+        loadOlderMessages: vi.fn(),
+        messages: [loaded('m1', 10, 'про жирафов')],
+        find: '',
+        ...props,
+      },
+    });
+  };
+
+  it('запрос из адреса открывает бар сам', () => {
+    const { result } = mount({ find: 'жираф' });
+    expect(result.current.open).toBe(true);
+    expect(result.current.query).toBe('жираф');
+  });
+
+  it('без запроса в адресе бар закрыт — чат открыли не из поиска', () => {
+    expect(mount().result.current.open).toBe(false);
+  });
+
+  // «Назад» и переход по ссылке меняют адрес под уже открытым чатом.
+  it('следует за адресом, а не только за первым рендером', () => {
+    const { result, rerender } = mount();
+    rerender({
+      activeChatId: 'chat-1',
+      getChats: () => [{ id: 'chat-1', messages: [], hasMore: false }],
+      loadOlderMessages: vi.fn(),
+      messages: [],
+      find: 'слон',
+    });
+    expect(result.current.query).toBe('слон');
+    expect(result.current.open).toBe(true);
+  });
+
+  it('набранное уходит в адрес по фиксации, а не по букве', () => {
+    const onFindChange = vi.fn();
+    const { result } = mount({ onFindChange });
+    act(() => result.current.openBar());
+    act(() => result.current.setQuery('жираф'));
+    expect(onFindChange).not.toHaveBeenCalled();
+
+    act(() => result.current.commitQuery());
+    expect(onFindChange).toHaveBeenCalledWith('жираф');
+  });
+
+  it('закрытие бара стирает запрос из адреса', () => {
+    const onFindChange = vi.fn();
+    const { result } = mount({ find: 'жираф', onFindChange });
+    act(() => result.current.close());
+    expect(result.current.open).toBe(false);
+    expect(onFindChange).toHaveBeenCalledWith('');
   });
 });

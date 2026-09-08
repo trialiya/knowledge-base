@@ -48,6 +48,17 @@ export function chatPath(chatId) {
   return chatId ? `/chat/${encodeURIComponent(chatId)}` : '/chat';
 }
 
+/**
+ * Полный адрес чата: путь плюс запрос find-бара, если сюда пришли из поиска.
+ *
+ * Запрос — состояние экрана, а не часть идентичности чата, но живёт именно в
+ * адресе: ссылкой на найденное сообщение делятся, и Ctrl+клик с карточки
+ * результата обязан открыть чат с той же подсветкой, что была в выдаче.
+ */
+export function chatUrl(chatId, { find } = {}) {
+  return chatPath(chatId) + (find ? `?find=${encodeURIComponent(find)}` : '');
+}
+
 /** `/knowledge/doc/<id>` — документ или папка базы знаний. */
 export function docPath(docId) {
   return `/knowledge/doc/${encodeURIComponent(docId)}`;

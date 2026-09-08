@@ -96,6 +96,7 @@ const ChatCenter = ({
           total={search.total}
           activeIndex={search.activeIndex}
           loading={search.loading}
+          onCommit={search.commitQuery}
           onPrev={search.goPrev}
           onNext={search.goNext}
           onClose={search.close}

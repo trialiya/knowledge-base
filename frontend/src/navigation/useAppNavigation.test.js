@@ -102,6 +102,37 @@ describe('подсветка в открытом файле', () => {
   });
 });
 
+describe('подсветка в открытом чате', () => {
+  it('читает запрос из адреса чата', () => {
+    go('/chat/c1?find=needle');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav).toMatchObject({ view: 'chat', chatId: 'c1', chatFind: 'needle' });
+  });
+
+  it('переход из поиска приносит запрос в адрес чата', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openChat('c1', { find: 'needle' }));
+    expect(url()).toBe('/chat/c1?find=needle');
+  });
+
+  // Иначе прежний запрос открывал бы бар в чате, где искать нечего.
+  it('не переезжает на чат, открытый не из поиска', () => {
+    go('/chat/c1?find=needle');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openChat('c2'));
+    expect(url()).toBe('/chat/c2');
+  });
+
+  it('запрос из самого бара заменяет запись истории, а не добавляет', () => {
+    go('/chat/c1');
+    const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
+    act(() => result.current.setChatFind('needle'));
+    expect(url()).toBe('/chat/c1?find=needle');
+    expect(window.history.length).toBe(before);
+  });
+});
+
 describe('единый поиск', () => {
   it('разбирает запрос, категорию и фильтры категории «файлы»', () => {
     go('/search?q=needle&in=files&path=backend%2F**&rev=v1&regex=1&untracked=1');

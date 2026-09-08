@@ -6,7 +6,18 @@ import { IconSearch, IconX, IconChevronUp, IconChevronDown } from '@/icons/index
  * в шапке). Сам поиск и навигация — в useInChatSearch; этот компонент только
  * рендерит поле, счётчик и стрелки prev/next.
  */
-const ChatSearchBar = ({ inputRef, query, onQueryChange, total, activeIndex, loading, onPrev, onNext, onClose }) => {
+const ChatSearchBar = ({
+  inputRef,
+  query,
+  onQueryChange,
+  total,
+  activeIndex,
+  loading,
+  onCommit,
+  onPrev,
+  onNext,
+  onClose,
+}) => {
   const { t } = useTranslation('chat');
 
   const handleKeyDown = (e) => {
@@ -17,6 +28,7 @@ const ChatSearchBar = ({ inputRef, query, onQueryChange, total, activeIndex, loa
     }
     if (e.key === 'Enter') {
       e.preventDefault();
+      onCommit?.();
       if (e.shiftKey) onPrev();
       else onNext();
     }
@@ -38,6 +50,7 @@ const ChatSearchBar = ({ inputRef, query, onQueryChange, total, activeIndex, loa
         value={query}
         onChange={(e) => onQueryChange(e.target.value)}
         onKeyDown={handleKeyDown}
+        onBlur={() => onCommit?.()}
         autoFocus
       />
       {counter && <span className="chat-search-bar__count">{counter}</span>}

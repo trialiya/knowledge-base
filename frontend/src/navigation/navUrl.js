@@ -33,6 +33,7 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  *   ?q=, ?mode=     запрос и режим поиска по документам (дефолт режима — hybrid)
  *   ?in=<категория> единый поиск: файлы | документы | чаты (дефолта нет, см. buildUrl)
  *   ?path=, ?project=, ?regex=1, ?untracked=1  единый поиск: фильтры категории «файлы»
+ *   ?find=<запрос>  что подсветить в открытом файле или чате (дефолт — ничего)
  *   ?changes=1      файлы: слева список незакоммиченных изменений (дефолт — дерево)
  *   ?rev=<ревизия>  снимок коммита/ветки/тега (дефолт — рабочее дерево): и в
  *                   файлах, и как фильтр единого поиска
@@ -82,7 +83,13 @@ export function readUrl() {
 
   // Чат: /chat/<id> (legacy: ?chat=<id>).
   let chatId = null;
-  if (view === 'chat') chatId = segs[1] || p.get('chat') || null;
+  let chatFind = '';
+  if (view === 'chat') {
+    chatId = segs[1] || p.get('chat') || null;
+    // Запрос find-бара чата — как и в файлах: состояние экрана, но в адресе,
+    // иначе ссылка на найденное сообщение и F5 теряли бы подсветку.
+    chatFind = p.get('find') || '';
+  }
 
   // База знаний: /knowledge/doc/<id> | /knowledge/search?q= (legacy: ?doc= | ?search=).
   let docId = null;
@@ -159,6 +166,7 @@ export function readUrl() {
   return {
     view,
     chatId,
+    chatFind,
     docId,
     search,
     mode: p.get('mode') || SEARCH_MODE.HYBRID,
@@ -230,6 +238,7 @@ export function buildUrl(nav) {
       break;
     case 'chat':
       path = chatPath(nav.chatId);
+      if (nav.chatFind) p.set('find', nav.chatFind);
       break;
     case 'admin':
       path = '/admin';
@@ -261,6 +270,7 @@ export function initialNav() {
   return {
     view,
     chatId: u.chatId,
+    chatFind: u.chatFind,
     docId: u.docId,
     search: u.search,
     mode: u.mode,

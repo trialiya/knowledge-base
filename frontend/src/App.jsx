@@ -44,6 +44,7 @@ function App() {
     setFileChanges,
     setFileRev,
     setFileFind,
+    setChatFind,
     toggleLeftPanel,
     setRightTab,
   } = useAppNavigation();
@@ -250,6 +251,8 @@ function App() {
             isActive={view === 'chat'}
             activeChatId={nav.chatId}
             onSelectChat={openChat}
+            find={view === 'chat' ? nav.chatFind : ''}
+            onFindChange={setChatFind}
             onNavigateToDoc={openDoc}
             onDocChanged={handleDocChanged}
             onFileChanged={handleFileChanged}
