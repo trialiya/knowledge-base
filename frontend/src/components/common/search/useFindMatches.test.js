@@ -123,7 +123,14 @@ describe('подсветка нескольких экземпляров', () =>
  * DOM, поэтому область собирается с заголовками, как превью markdown.
  */
 describe('начало с якоря', () => {
-  const resolveAnchor = (root, anchor) => root.querySelector(`[data-anchor="${anchor}"]`);
+  // Отрезок раздела, как его отдаёт sectionAnchor: от заголовка до следующего.
+  const resolveAnchor = (root, anchor) => {
+    const from = root.querySelector(`[data-anchor="${anchor}"]`);
+    if (!from) return null;
+    let to = from.nextElementSibling;
+    while (to && !to.dataset.anchor) to = to.nextElementSibling;
+    return { from, to };
+  };
   const mountOn = (root, anchor) =>
     renderHook(() => {
       const ref = useRef(root);
@@ -137,6 +144,7 @@ describe('начало с якоря', () => {
       '<h2 data-anchor="a">A</h2><p>needle 2</p><p>needle 3</p>',
       '<h2 data-anchor="b">B</h2><p>needle 4</p>',
       '<h2 data-anchor="c">C</h2><p>ничего</p>',
+      '<h2 data-anchor="d">D</h2><p>needle 5</p>',
     ].join('');
     document.body.appendChild(root);
     return root;
@@ -145,7 +153,7 @@ describe('начало с якоря', () => {
   test('активно первое совпадение после заголовка раздела', async () => {
     const { result } = mountOn(withHeadings(), 'b');
     await act(async () => {});
-    expect(result.current.total).toBe(4);
+    expect(result.current.total).toBe(5);
     expect(result.current.activeIndex).toBe(3);
   });
 
@@ -157,6 +165,8 @@ describe('начало с якоря', () => {
     expect(result.current.activeIndex).toBe(2);
   });
 
+  // Раздел «c» пуст, но совпадение есть в следующем за ним «d»: остаться на
+  // первом в документе, а не уйти в чужой раздел ниже.
   test('раздел без совпадений или без заголовка — с первого совпадения', async () => {
     const noMatches = mountOn(withHeadings(), 'c');
     await act(async () => {});
@@ -184,6 +194,22 @@ describe('начало с якоря', () => {
     rerender({ anchor: 'b' });
     await act(async () => {});
     expect(result.current.activeIndex).toBe(3);
+  });
+
+  // Совпадения появились, а якорь ещё не применён: активного нет, чтобы не
+  // подсветить и не прокрутить к первому на один коммит раньше якоря.
+  test('до применения якоря активного совпадения нет', async () => {
+    const root = withHeadings();
+    const seen = [];
+    renderHook(() => {
+      const ref = useRef(root);
+      const state = useFindMatches({ rootRef: ref, query: 'needle', active: true, anchor: 'b', resolveAnchor });
+      seen.push(state.activeIndex);
+      return state;
+    });
+    await act(async () => {});
+    expect(seen.at(-1)).toBe(3);
+    expect(seen.filter((i) => i >= 0 && i !== 3)).toEqual([]);
   });
 
   test('якорь применяется, когда совпадения доехали позже', async () => {

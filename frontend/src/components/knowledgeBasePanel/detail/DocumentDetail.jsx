@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import FindBar from '@/components/common/search/FindBar';
 import useAddressFind from '@/components/common/search/useAddressFind';
-import { findSectionHeading } from '@/components/common/preview/sectionAnchor';
+import { findSection } from '@/components/common/preview/sectionAnchor';
 import DetailHeader from './DetailHeader';
 import MarkdownEditor from '../editor/MarkdownEditor';
 
@@ -45,7 +45,7 @@ const DocumentDetail = ({
     rootRef: bodyRef,
     find,
     anchor: section,
-    resolveAnchor: findSectionHeading,
+    resolveAnchor: findSection,
     active: findActive,
     onCommit: onFindChange,
   });

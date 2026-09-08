@@ -47,18 +47,27 @@ function headingPaths(root) {
 }
 
 /**
- * Заголовок раздела `sectionPath` в области `root`, либо null — раздела в
- * превью нет (заголовок с разметкой, которую нормализация не свела, setext-
- * заголовок, которого бэкенд не видит, или сам путь устарел вместе с текстом).
- * Преамбула заголовка не имеет: для неё тоже null, и поиск начинает сначала.
+ * Раздел `sectionPath` в области `root` как отрезок DOM: `from` — его заголовок,
+ * `to` — первый следующий заголовок не глубже (конец раздела вместе с его
+ * подразделами), null — раздел тянется до конца области. Целиком null —
+ * раздела в превью нет (заголовок с разметкой, которую нормализация не свела,
+ * setext-заголовок, которого бэкенд не видит, или сам путь устарел вместе с
+ * текстом). Преамбула заголовка не имеет: для неё тоже null, и поиск начинает
+ * сначала.
  *
  * Сравниваем нормализованные ПОЛНЫЕ пути, а не сегменты: заголовок может сам
- * содержать « > », и разбить путь бэкенда однозначно нельзя.
+ * содержать « > », и разбить путь бэкенда однозначно нельзя. По той же причине
+ * суффикс «[n]» не отделяется: «Примечание [2]» — законный заголовок, и только
+ * сравнение пути целиком отличает его от второго «Примечание».
  */
-export function findSectionHeading(root, sectionPath) {
+export function findSection(root, sectionPath) {
   if (!sectionPath || sectionPath === PREAMBLE_PATH) return null;
-  const suffix = sectionPath.match(/\[(\d+)\]$/);
-  const wanted =
-    normalizeTitle(suffix ? sectionPath.slice(0, -suffix[0].length) : sectionPath) + (suffix ? suffix[0] : '');
-  return headingPaths(root).find((h) => h.path === wanted)?.el ?? null;
+  const wanted = normalizeTitle(sectionPath);
+  const headings = headingPaths(root);
+  const at = headings.findIndex((h) => h.path === wanted);
+  if (at < 0) return null;
+  const from = headings[at].el;
+  const level = Number(from.tagName[1]);
+  const to = headings.slice(at + 1).find((h) => Number(h.el.tagName[1]) <= level)?.el ?? null;
+  return { from, to };
 }

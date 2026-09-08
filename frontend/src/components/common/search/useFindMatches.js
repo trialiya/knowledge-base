@@ -3,12 +3,21 @@ import { matchKey, scrollRangeIntoView } from './findMatches';
 import useMatchRanges from './useMatchRanges';
 import useMatchHighlight from './useMatchHighlight';
 
-/** Индекс первого совпадения, начинающегося не раньше элемента; -1, если такого нет. */
-function firstMatchAfter(matches, element) {
-  return matches.findIndex((range) => {
-    const position = element.compareDocumentPosition(range.startContainer);
-    return position === 0 || (position & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-  });
+/** Начинается ли совпадение не раньше элемента (сам элемент считается). */
+function startsAtOrAfter(range, element) {
+  const position = element.compareDocumentPosition(range.startContainer);
+  return position === 0 || (position & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+}
+
+/**
+ * Индекс первого совпадения на отрезке [from, to): не раньше `from` и, если `to`
+ * задан, раньше него; -1, если на отрезке совпадений нет. Отрезок, а не «всё
+ * после from»: у раздела без отрендеренных совпадений (нашлось в адресе ссылки
+ * или в комментарии, которых в превью нет) первое совпадение после заголовка
+ * лежало бы в чужом разделе ниже.
+ */
+function firstMatchWithin(matches, { from, to }) {
+  return matches.findIndex((range) => startsAtOrAfter(range, from) && !(to && startsAtOrAfter(range, to)));
 }
 
 /**
@@ -32,8 +41,9 @@ function firstMatchAfter(matches, element) {
  * @param active  включён ли поиск вообще (закрытый бар совпадений не держит)
  * @param anchor  откуда начать: непрозрачное значение (у документа — путь
  *                раздела из адреса), пусто — с первого совпадения
- * @param resolveAnchor (root, anchor) → элемент в области поиска, с которого
- *                начать, или null, когда его там нет
+ * @param resolveAnchor (root, anchor) → отрезок области поиска `{ from, to }`
+ *                (элементы; `to` null — до конца), внутри которого начать, или
+ *                null, когда якоря там нет
  */
 export default function useFindMatches({ rootRef, query, regex = false, active = true, anchor = '', resolveAnchor }) {
   const matches = useMatchRanges({ rootRef, query, regex, active });
@@ -56,7 +66,10 @@ export default function useFindMatches({ rootRef, query, regex = false, active =
   }
 
   const total = matches.length;
-  const activeIndex = total ? Math.min(index, total - 1) : -1;
+  // Пока якорь не применён, активного совпадения нет: иначе коммит, в котором
+  // совпадения появились, подсветил бы и прокрутил к первому, а следующий —
+  // к якорю. Ожидание длится ровно один коммит: seekAnchor снимает его ниже.
+  const activeIndex = total && !seeking ? Math.min(index, total - 1) : -1;
 
   // Совпадения живут в DOM, и якорь — тоже: искать его раньше эффекта неоткуда.
   // useEffectEvent, потому что читать rootRef и ставить состояние в самом
@@ -64,8 +77,8 @@ export default function useFindMatches({ rootRef, query, regex = false, active =
   const seekAnchor = useEffectEvent(() => {
     if (!seeking || !total) return;
     const root = rootRef.current;
-    const element = root && resolveAnchor ? resolveAnchor(root, anchor) : null;
-    const at = element ? firstMatchAfter(matches, element) : -1;
+    const section = root && resolveAnchor ? resolveAnchor(root, anchor) : null;
+    const at = section ? firstMatchWithin(matches, section) : -1;
     // Раздела в превью нет или совпадений в нём нет: остаёмся на первом — это
     // лучше, чем прокрутка к заголовку, спорящая с прокруткой к совпадению.
     setIndex(at >= 0 ? at : 0);

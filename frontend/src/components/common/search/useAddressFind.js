@@ -22,7 +22,7 @@ import { isFindShortcut, isTypingTarget } from './findShortcut';
  * @param find     запрос из адреса ('' — открыли не из поиска)
  * @param regex    читать ли запрос как регулярное выражение
  * @param anchor   откуда начать (см. useFindMatches): раздел из адреса у документа
- * @param resolveAnchor (root, anchor) → элемент якоря в области поиска
+ * @param resolveAnchor (root, anchor) → отрезок якоря в области поиска (см. useFindMatches)
  * @param active   слушать ли Ctrl+F и Escape: раздел, смонтированный, но скрытый
  *                 (база знаний под вкладкой чата), перехватывал бы чужой поиск
  * @param onCommit (find, regex) — записать запрос в адрес
