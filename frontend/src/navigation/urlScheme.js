@@ -56,8 +56,14 @@ export function docPath(docId) {
 /** `/knowledge` — база знаний без выбранного ресурса. */
 export const KNOWLEDGE_PATH = '/knowledge';
 
-/** `/knowledge/search` — результаты поиска (запрос и режим уходят в query). */
-export const SEARCH_PATH = '/knowledge/search';
+/** `/knowledge/search` — результаты поиска по базе знаний (запрос и режим уходят в query). */
+export const KB_SEARCH_PATH = '/knowledge/search';
+
+/**
+ * `/search` — единый поиск: файлы, документы и чаты в одном разделе.
+ * Запрос, выбранная категория и её фильтры уходят в query (см. useAppNavigation).
+ */
+export const SEARCH_PATH = '/search';
 
 /** `/files` | `/files/<path…>` — путь файла лежит в самом пути. */
 export function filesPath(path) {
@@ -75,9 +81,15 @@ export function filesPath(path) {
  * которые пишет модель (`/files?path=…&project=…`).
  *
  * Дефолтный проект не пишем — как и любое значение по умолчанию в этой схеме;
- * адрес без проекта означает именно его.
+ * адрес без проекта означает именно его. Так же и с ревизией: пусто — рабочее
+ * дерево.
  */
-export function filesUrl(path, project) {
-  const base = filesPath(path);
-  return project ? `${base}?project=${encodeURIComponent(project)}` : base;
+export function filesUrl(path, project, rev) {
+  const p = new URLSearchParams();
+  if (project) p.set('project', project);
+  // Ревизия — тоже часть адреса файла: ссылка на совпадение, найденное в снимке
+  // коммита, обязана открыть файл в том же снимке, а не в рабочем дереве.
+  if (rev) p.set('rev', rev);
+  const qs = p.toString();
+  return filesPath(path) + (qs ? `?${qs}` : '');
 }

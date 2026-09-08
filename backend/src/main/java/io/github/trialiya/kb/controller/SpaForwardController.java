@@ -5,8 +5,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 
 /**
  * Forwards SPA client-side routes to index.html so that direct links and browser refreshes on
- * /chat, /knowledge, /files, /admin and /settings are handled by the React router instead of
- * returning a 500 "No static resource" error.
+ * /chat, /knowledge, /files, /search, /admin and /settings are handled by the React router instead
+ * of returning a 500 "No static resource" error.
  *
  * <p>The nested wildcards matter: the frontend keeps the opened resource in the path itself
  * (/chat/&lt;id&gt;, /knowledge/doc/&lt;id&gt;, /files/&lt;path/to/file&gt;), so a plain "/chat"
@@ -25,6 +25,7 @@ public class SpaForwardController {
         "/knowledge/**",
         "/files",
         "/files/**",
+        "/search",
         "/admin",
         "/settings"
     })

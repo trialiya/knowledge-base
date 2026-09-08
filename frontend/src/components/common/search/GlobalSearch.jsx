@@ -1,47 +1,22 @@
-import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconSearch, IconSliders, IconCheck } from '@/icons/index';
-import { SEARCH_MODES } from '@/constants/searchMode';
+import { IconSearch } from '@/icons/index';
 import './globalSearch.css';
 
 /**
- * Глобальный поиск в шапке вкладок: единый визуальный контур
- * (лупа + input + подсказка Enter + выбор режима в поповере).
- * Заменяет прежнюю пару «input + select» из .app-search-row.
+ * Глобальная строка поиска в шапке вкладок: лупа, поле и подсказка про Enter.
+ *
+ * Видна во всех разделах и всегда уводит в раздел «Поиск» — искать одинаково
+ * нужно и из чата, и из базы знаний, и из файлов. Чем именно уточнять поиск,
+ * решает уже он сам: набор фильтров у каждой категории свой, и в одну строку
+ * шапки они не помещаются.
  *
  * props:
- *   value        — текст запроса (controlled)
- *   mode         — 'hybrid' | 'semantic' | 'keyword'
- *   onChange     — (text) => void
- *   onModeChange — (mode) => void
- *   onSubmit     — () => void (Enter в поле)
+ *   value    — текст запроса (controlled)
+ *   onChange — (text) => void
+ *   onSubmit — () => void (Enter в поле)
  */
-const GlobalSearch = ({ value, mode, onChange, onModeChange, onSubmit }) => {
+const GlobalSearch = ({ value, onChange, onSubmit }) => {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const modeRef = useRef(null);
-
-  // Закрытие поповера по клику снаружи и Escape (как в HeaderMenu)
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e) => {
-      if (modeRef.current && !modeRef.current.contains(e.target)) setOpen(false);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  const pickMode = (m) => {
-    setOpen(false);
-    onModeChange(m);
-  };
 
   return (
     <div className="global-search">
@@ -60,39 +35,6 @@ const GlobalSearch = ({ value, mode, onChange, onModeChange, onSubmit }) => {
       <span className="global-search__hint" aria-hidden="true">
         ↵ Enter
       </span>
-      <span className="global-search__divider" />
-      <div className="global-search__mode" ref={modeRef}>
-        <button
-          className="global-search__mode-btn"
-          onClick={() => setOpen((o) => !o)}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-label={t('search.modeTitle')}
-          title={t('search.modeTitle')}
-        >
-          <IconSliders size={15} />
-        </button>
-        {open && (
-          <div className="global-search__pop" role="menu">
-            {SEARCH_MODES.map((m) => (
-              <button
-                key={m}
-                role="menuitemradio"
-                aria-checked={mode === m}
-                className={`global-search__pop-item${mode === m ? ' global-search__pop-item--active' : ''}`}
-                onClick={() => pickMode(m)}
-              >
-                <span>{t(`search.${m}`)}</span>
-                {mode === m && (
-                  <span className="global-search__check">
-                    <IconCheck />
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 };
