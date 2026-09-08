@@ -27,11 +27,18 @@ import SearchSettings from '@/components/settingsPanel/SearchSettings';
 import ToolsSettings from '@/components/settingsPanel/ToolsSettings';
 import ScriptsSettings from '@/components/settingsPanel/ScriptsSettings';
 import ToolCatalog from '@/components/settingsPanel/ToolCatalog';
+import SearchScopeList from '@/components/searchPanel/SearchScopeList';
+import SearchFilters from '@/components/searchPanel/SearchFilters';
+import ResultList from '@/components/searchPanel/results/ResultList';
+import FileResults from '@/components/searchPanel/results/FileResults';
+import DocResults from '@/components/searchPanel/results/DocResults';
+import ChatResults from '@/components/searchPanel/results/ChatResults';
 import SystemInfo from '@/components/adminPanel/SystemInfo';
 import IndexOperations from '@/components/adminPanel/IndexOperations';
 import SyncDiffList from '@/components/adminPanel/SyncDiffList';
 import SyncLog from '@/components/adminPanel/SyncLog';
 import { DOC_TAB } from '@/constants/docTabs';
+import { SEARCH_SCOPE, SEARCH_SCOPES } from '@/constants/searchScope';
 import { IconRefresh, IconUpload } from '@/icons/index';
 import * as aiConfig from '../fixtures/aiConfig';
 import * as chatHeader from '../fixtures/chatHeader';
@@ -50,6 +57,7 @@ import * as operationRow from '../fixtures/operationRow';
 import * as phraseFill from '../fixtures/phraseFill';
 import * as projects from '../fixtures/projects';
 import * as runStatus from '../fixtures/runStatus';
+import * as searchResults from '../fixtures/searchResults';
 import * as syncDiff from '../fixtures/syncDiff';
 import * as systemInfo from '../fixtures/systemInfo';
 import * as toolCallDetail from '../fixtures/toolCallDetail';
@@ -82,7 +90,9 @@ import * as toolCatalog from '../fixtures/toolCatalog';
  *   `bare`     — сам себе рамка (модалка: у неё свой оверлей на всё окно);
  *   `left`     — колонка левой панели и центр рядом с ней: её выпадающие списки
  *                уходят порталом поверх центра, и без него не видно ни куда они
- *                попадают, ни сколько места им осталось.
+ *                попадают, ни сколько места им осталось;
+ *   `leftBody` — то же место, но тело панели, а не её тулбар: отступы у этих
+ *                двух обёрток разные.
  *
  * `api` — ответы сервера кейсу: `{ '<начало url>': данные }` или функция от
  * пропсов. Экран, который сам идёт за данными (группы «Настроек» и
@@ -169,6 +179,60 @@ const LiveToolCalls = ({ calls, next }) => {
     </div>
   );
 };
+
+/**
+ * Левая панель поиска целиком: категории со счётчиками и наборы фильтров всех
+ * трёх категорий подряд. В приложении виден набор ровно одной — кейс про то,
+ * чем они различаются, и стенд единственный, где их видно рядом.
+ */
+const SearchSidebar = ({ counts, filters }) => (
+  <>
+    <SearchScopeList scope={SEARCH_SCOPE.FILES} counts={counts} onSelect={noop} />
+    {SEARCH_SCOPES.map((scope) => (
+      <SearchFilters key={scope} scope={scope} {...filters} onProjectChange={noop} onRefine={noop} />
+    ))}
+  </>
+);
+
+/**
+ * Три формы карточки результата разом. Обёртка одна на все три: `.search-results`
+ * — растягивающаяся колонка со своей прокруткой, и три такие рядом поделили бы
+ * высоту центра на трети.
+ */
+const ResultCards = ({ query, files, docs, chats }) => (
+  <div className="search-results">
+    <div className="search-results__list">
+      <FileResults result={files.data} query={query} regex={false} rev="" project="" onOpenFile={noop} />
+      <DocResults result={docs.data} query={query} onOpenDoc={noop} />
+      <ChatResults result={chats.data} query={query} onOpenChat={noop} />
+    </div>
+  </div>
+);
+
+/**
+ * Центр без результатов — все четыре причины подряд, включая недостижимый вживую
+ * тайм-аут. Каждое состояние в своей обёртке: «ничего не нашлось» рисует
+ * растягивающуюся колонку `.search-results`, и без обёртки оно развело бы
+ * остальные три по краям кадра.
+ */
+const EmptyStates = ({ query, states }) => (
+  <>
+    {states.map((state) => (
+      <div key={state.key}>
+        <ResultList
+          scope={SEARCH_SCOPE.FILES}
+          query={state.query === undefined ? query : state.query}
+          loading={false}
+          entry={state.entry}
+          regex={false}
+          rev=""
+          project=""
+          onOpenFile={noop}
+        />
+      </div>
+    ))}
+  </>
+);
 
 const REGISTRY = [
   // ── Чат ──
@@ -388,6 +452,19 @@ const REGISTRY = [
     render: (p) => <GitBranchBar {...p} />,
   },
 
+  // ── Поиск ──
+  { id: 'searchResults.js#scopePanel', frame: 'leftBody', render: (p) => <SearchSidebar {...p} /> },
+  { id: 'searchResults.js#resultCards', frame: 'center', render: (p) => <ResultCards {...p} /> },
+  // «Ещё N» раскрыто: строки сверх пятой видно только так, а свернувшая их
+  // карточка — то, как выдача выглядит по умолчанию.
+  {
+    id: 'searchResults.js#resultCards@expanded',
+    frame: 'center',
+    steps: [{ click: '.search-group__more' }],
+    render: (p) => <ResultCards {...p} />,
+  },
+  { id: 'searchResults.js#emptyAndRefusal', frame: 'center', render: (p) => <EmptyStates {...p} /> },
+
   // ── Общее: правая панель и модалки ──
   { id: 'infoList.js#chatRows', frame: 'panel', render: (p) => <InfoList rows={p} /> },
   { id: 'infoList.js#fileRows', frame: 'panel', render: (p) => <InfoList rows={p} /> },
@@ -536,6 +613,7 @@ const MODULES = {
   'phraseFill.js': phraseFill,
   'compactNotice.js': compactNotice,
   'runStatus.js': runStatus,
+  'searchResults.js': searchResults,
   'syncDiff.js': syncDiff,
   'systemInfo.js': systemInfo,
   'toolCallDetail.js': toolCallDetail,

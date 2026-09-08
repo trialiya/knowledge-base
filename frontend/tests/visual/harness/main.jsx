@@ -12,12 +12,13 @@ import { cases, findCase } from './registry';
 // наверх, стенд показывает модалку 380px вместо настоящих 560.
 //
 // Порядок барелей между собой — как в App.jsx: чат, база знаний, файлы,
-// администрирование, настройки. Панель, чей барель поднят выше своего места,
+// поиск, администрирование, настройки. Панель, чей барель поднят выше своего места,
 // проигрывает соседям спор одинаковых специфичностей — ровно тот дефект, из-за
 // которого этот блок и стоит внизу файла.
 import '@/components/chatPanel/chatWindow.css';
 import '@/components/knowledgeBasePanel/KnowledgeBase.css';
 import '@/components/filesPanel/filesPanel.css';
+import '@/components/searchPanel/searchPanel.css';
 import '@/components/adminPanel/adminPanel.css';
 import '@/components/settingsPanel/settingsPanel.css';
 
@@ -47,6 +48,17 @@ const FRAMES = {
     <div className="workspace" style={{ height: '100vh' }}>
       <aside className="workspace__side workspace__side--left">
         <div className="workspace__side-toolbar">{node}</div>
+      </aside>
+      <div className="workspace__center" />
+    </div>
+  ),
+  // Тело левой панели: то, что раздел отдаёт в `left.children`. Отличается от
+  // `left` местом внутри колонки — тулбар и тело у неё разные обёртки с разными
+  // отступами, и список категорий поиска живёт именно в теле.
+  leftBody: (node) => (
+    <div className="workspace" style={{ height: '100vh' }}>
+      <aside className="workspace__side workspace__side--left">
+        <div className="workspace__side-body">{node}</div>
       </aside>
       <div className="workspace__center" />
     </div>
