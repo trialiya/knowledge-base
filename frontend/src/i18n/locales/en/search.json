@@ -13,7 +13,6 @@
     "path": "Path",
     "pathHint": "e.g. backend/**/*.java",
     "rev": "Revision",
-    "revHint": "branch, tag or hash",
     "regex": "Regular expression",
     "untracked": "Include untracked files",
     "untrackedInRev": "A commit snapshot has no untracked files.",

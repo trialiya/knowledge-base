@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { SEARCH_SCOPE } from '@/constants/searchScope';
 import { SEARCH_MODES } from '@/constants/searchMode';
 import ListboxSelect from '@/components/common/ui/ListboxSelect';
+import RevisionPicker from '@/components/common/git/RevisionPicker';
 
 /**
  * Текстовый фильтр с отложенным применением.
@@ -75,19 +76,18 @@ const SearchFilters = ({
             />
           </div>
         )}
+        {/* Тот же контрол, что и в «Файлах»: ревизию выбирают из веток и тегов, а
+            печатают только хеш — его в списке нет и быть не может. */}
+        <div className="search-filters__field">
+          <span className="search-filters__label">{t('filters.rev')}</span>
+          <RevisionPicker project={project} rev={rev} onChange={(next) => onRefine({ searchRev: next })} />
+        </div>
         <FilterField
           id="search-filter-path"
           label={t('filters.path')}
           hint={t('filters.pathHint')}
           value={path}
           onCommit={(v) => onRefine({ searchPath: v.trim() })}
-        />
-        <FilterField
-          id="search-filter-rev"
-          label={t('filters.rev')}
-          hint={t('filters.revHint')}
-          value={rev}
-          onCommit={(v) => onRefine({ searchRev: v.trim() })}
         />
         <label className="search-filters__check">
           <input type="checkbox" checked={regex} onChange={(e) => onRefine({ searchRegex: e.target.checked })} />
