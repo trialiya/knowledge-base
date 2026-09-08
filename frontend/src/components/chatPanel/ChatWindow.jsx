@@ -45,6 +45,7 @@ const ChatWindow = ({
   activeChatId: propActiveChatId = null,
   onSelectChat,
   find = '',
+  msg = '',
   onFindChange,
   onDocChanged,
   onFileChanged,
@@ -223,6 +224,7 @@ const ChatWindow = ({
     loadOlderMessages,
     messages: activeChat?.messages,
     find,
+    msg,
     onFindChange,
   });
   const inChatSearchInputRef = useRef(null);

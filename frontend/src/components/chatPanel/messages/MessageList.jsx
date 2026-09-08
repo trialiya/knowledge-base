@@ -19,6 +19,11 @@ import {
   SCROLL_LOAD_THRESHOLD as LOAD_MORE_THRESHOLD,
 } from '@/constants/ui';
 
+// Сколько тишины в событиях скролла считать концом собственной прокрутки к
+// совпадению: плавная прокрутка шлёт события кадр за кадром, пауза длиннее
+// кадра означает, что она доехала.
+const SEEK_IDLE_MS = 150;
+
 // onLoadMore: async () => boolean — true если что-то догрузилось (для UI-индикатора).
 // hasMore: есть ли ещё более старые сообщения на бэке.
 // canLoadMore: разрешена ли догрузка прямо сейчас (например, false во время стриминга).
@@ -67,6 +72,14 @@ const MessageList = ({
   // сообщений, чтобы после вставки вернуть прокрутку на тот же контент.
   // null — обычный апдейт (новое сообщение / стриминг), не восстанавливаем.
   const prependRef = useRef(null); // { prevScrollHeight, prevScrollTop } | null
+  // Идёт ли ПРОГРАММНАЯ прокрутка к совпадению. Пока идёт, положение ленты
+  // выбрали не мышью, и залипание к низу по нему не пересчитывается: плавная
+  // прокрутка вверх первые кадры ещё «у низа» (порог 60px), handleScroll вернул
+  // бы stick, и в занятом чате следующий чанк ответа уволок бы ленту обратно
+  // вниз — прокрутка к найденному пропадала бы тем вернее, чем быстрее печатает
+  // модель. Снимается, когда лента успокоилась или её тронули рукой.
+  const seekingRef = useRef(false);
+  const seekIdleRef = useRef(null);
   const loadingMoreRef = useRef(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -113,9 +126,34 @@ const MessageList = ({
     const el = containerRef.current;
     if (!el) return;
     const atBottom = isAtBottom(el);
-    stickRef.current = atBottom;
+    if (seekingRef.current) {
+      armSeekIdle(); // ещё кадр собственной прокрутки — конец отодвигается
+    } else {
+      stickRef.current = atBottom;
+    }
     setShowScrollButton(!atBottom);
     maybeLoadMore(el);
+  };
+
+  // Своя прокрутка считается законченной, когда события прекратились. Событие
+  // «scrollend» для этого не годится — в Safari оно появилось недавно, а тишина
+  // в ленте одинакова везде. Таймер заводится и на старте: прокрутка могла не
+  // сдвинуть ничего (сообщение уже по центру, лента короче экрана), и тогда ни
+  // одного события не придёт вовсе — без этого флаг остался бы висеть, а
+  // следующая прокрутка рукой (перетаскивание полосы, клавиши — ни того ни
+  // другого wheel и touch не ловят) сошла бы за нашу, и ответ перестал бы
+  //自动 догонять низ.
+  const armSeekIdle = () => {
+    clearTimeout(seekIdleRef.current);
+    seekIdleRef.current = setTimeout(() => {
+      seekingRef.current = false;
+    }, SEEK_IDLE_MS);
+  };
+
+  // Рука на ленте — прокрутка снова пользовательская, даже если наша ещё едет.
+  const endSeek = () => {
+    clearTimeout(seekIdleRef.current);
+    seekingRef.current = false;
   };
 
   // Новые сообщения, стриминг ответа ИИ и догрузка старых сверху.
@@ -141,6 +179,7 @@ const MessageList = ({
     // Пользователь отправил сообщение — снова включаем автопрокрутку,
     // даже если до этого он увёл список вверх.
     if (grew && last?.sender === 'user') {
+      endSeek();
       stickRef.current = true;
       setShowScrollButton(false);
     }
@@ -180,6 +219,8 @@ const MessageList = ({
     if (!el) return;
     scrolledSearchMidRef.current = activeSearchMid;
     stickRef.current = false; // не залипаем к низу при программной прокрутке к совпадению
+    seekingRef.current = true;
+    armSeekIdle();
     // Длинное сообщение может быть выше экрана — центрируем не пузырь целиком,
     // а первое вхождение запроса в нём.
     // Собираем по одному пузырю, а не берём из общего списка: тот пересобирается
@@ -233,7 +274,15 @@ const MessageList = ({
     <div className="message-list-container">
       {loadingMore && <div className="message-list-loading-older">{t('window.loadingMessages')}</div>}
 
-      <div className="message-list" ref={containerRef} onScroll={handleScroll}>
+      <div
+        className="message-list"
+        ref={containerRef}
+        onScroll={handleScroll}
+        onWheel={endSeek}
+        onTouchStart={endSeek}
+        onPointerDown={endSeek}
+        onKeyDown={endSeek}
+      >
         {messages.map((msg, index) => {
           // Блоки «изменения документов/файлов» — одним списком в конце всего ответа:
           // после последнего AI-пузыря непрерывной цепочки сегментов, по вызовам всей

@@ -18,6 +18,7 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  *
  *   /chat                                  чат, конкретный не выбран
  *   /chat/<chatId>                         конкретный чат ('new' — черновик)
+ *   /chat/<chatId>?find=&msg=<id>          запрос find-бара и сообщение, с которого начать
  *   /knowledge                             база знаний, ничего не выбрано
  *   /knowledge/doc/<docId>                 документ или папка
  *   /knowledge/search?q=<q>&mode=<m>       результаты поиска по базе знаний
@@ -86,11 +87,15 @@ export function readUrl() {
   // Чат: /chat/<id> (legacy: ?chat=<id>).
   let chatId = null;
   let chatFind = '';
+  let chatMsg = '';
   if (view === 'chat') {
     chatId = segs[1] || p.get('chat') || null;
     // Запрос find-бара чата — как и в файлах: состояние экрана, но в адресе,
-    // иначе ссылка на найденное сообщение и F5 теряли бы подсветку.
+    // иначе ссылка на найденное сообщение и F5 теряли бы подсветку. Сообщение,
+    // с которого пришли из поиска, — как раздел у документа: без запроса
+    // смысла не имеет, вести к нему некому.
     chatFind = p.get('find') || '';
+    chatMsg = chatFind ? p.get('msg') || '' : '';
   }
 
   // База знаний: /knowledge/doc/<id> | /knowledge/search?q= (legacy: ?doc= | ?search=).
@@ -177,6 +182,7 @@ export function readUrl() {
     view,
     chatId,
     chatFind,
+    chatMsg,
     docId,
     docFind,
     docSection,
@@ -253,6 +259,7 @@ export function buildUrl(nav) {
     case 'chat':
       path = chatPath(nav.chatId);
       if (nav.chatFind) p.set('find', nav.chatFind);
+      if (nav.chatFind && nav.chatMsg) p.set('msg', nav.chatMsg);
       break;
     case 'admin':
       path = '/admin';
@@ -285,6 +292,7 @@ export function initialNav() {
     view,
     chatId: u.chatId,
     chatFind: u.chatFind,
+    chatMsg: u.chatMsg,
     docId: u.docId,
     docFind: u.docFind,
     docSection: u.docSection,

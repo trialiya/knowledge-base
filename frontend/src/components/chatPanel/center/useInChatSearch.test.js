@@ -178,3 +178,118 @@ describe('useInChatSearch — запрос и адрес', () => {
     expect(onFindChange).toHaveBeenCalledWith('');
   });
 });
+
+/**
+ * Клик по строке карточки результата называет сообщение (`?msg=`): бар садится
+ * на него, а не на самое свежее совпадение запроса.
+ */
+describe('useInChatSearch — сообщение из адреса', () => {
+  afterEach(() => vi.resetAllMocks());
+
+  const three = [loaded('m1', 10, 'жирафы раз'), loaded('m2', 20, 'жирафы два'), loaded('m3', 30, 'жирафы три')];
+  const hits = [
+    { id: 10, createdAt: '2026-01-01' },
+    { id: 20, createdAt: '2026-01-02' },
+    { id: 30, createdAt: '2026-01-03' },
+  ];
+
+  const mount = (props) => {
+    chatApi.searchMessages.mockResolvedValue(hits);
+    return renderHook((p) => useInChatSearch(p), {
+      initialProps: {
+        activeChatId: 'chat-1',
+        getChats: () => [{ id: 'chat-1', messages: three, hasMore: false }],
+        loadOlderMessages: vi.fn(),
+        messages: three,
+        find: 'жираф',
+        msg: '',
+        ...props,
+      },
+    });
+  };
+
+  it('активным становится названное сообщение, а не самое свежее', async () => {
+    const { result } = mount({ msg: '20' });
+    await waitFor(() => expect(result.current.total).toBe(3));
+    expect(result.current.activeIndex).toBe(1);
+    expect(result.current.activeMatchMid).toBe('m2');
+  });
+
+  it('без сообщения в адресе остаётся самое свежее', async () => {
+    const { result } = mount();
+    await waitFor(() => expect(result.current.total).toBe(3));
+    expect(result.current.activeIndex).toBe(2);
+  });
+
+  // Сообщения может не быть среди совпадений: чат почистили, ссылку прислали
+  // старую. Открыться чат обязан, и бар — работать.
+  it('незнакомое сообщение не ломает бар — снова самое свежее', async () => {
+    const { result } = mount({ msg: '999' });
+    await waitFor(() => expect(result.current.total).toBe(3));
+    expect(result.current.activeIndex).toBe(2);
+  });
+
+  // Соседняя строка той же карточки: запрос тот же, поиск не перезапускается,
+  // и переставить активное совпадение больше некому.
+  it('другое сообщение при том же запросе переставляет активное совпадение', async () => {
+    const { result, rerender } = mount({ msg: '30' });
+    await waitFor(() => expect(result.current.activeIndex).toBe(2));
+
+    rerender({
+      activeChatId: 'chat-1',
+      getChats: () => [{ id: 'chat-1', messages: three, hasMore: false }],
+      loadOlderMessages: vi.fn(),
+      messages: three,
+      find: 'жираф',
+      msg: '10',
+    });
+    await waitFor(() => expect(result.current.activeIndex).toBe(0));
+  });
+
+  // «Назад» на ссылку с другим запросом в том же чате: совпадения на экране
+  // ещё от прежнего запроса, и садиться по ним нельзя — ждём новый поиск.
+  it('смена запроса и сообщения разом садится по новым совпадениям', async () => {
+    const { result, rerender } = mount({ msg: '30' });
+    await waitFor(() => expect(result.current.activeIndex).toBe(2));
+
+    chatApi.searchMessages.mockResolvedValue([
+      { id: 10, createdAt: '2026-01-01' },
+      { id: 20, createdAt: '2026-01-02' },
+    ]);
+    rerender({
+      activeChatId: 'chat-1',
+      getChats: () => [{ id: 'chat-1', messages: three, hasMore: false }],
+      loadOlderMessages: vi.fn(),
+      messages: three,
+      find: 'слон',
+      msg: '10',
+    });
+    await waitFor(() => expect(result.current.total).toBe(2));
+    expect(result.current.activeIndex).toBe(0);
+  });
+
+  // Стрелка — выбор человека: ответ поиска, доехавший после неё, не должен
+  // вернуть на сообщение из ссылки.
+  it('шаг стрелкой отменяет ожидание сообщения из адреса', async () => {
+    let resolveSearch;
+    chatApi.searchMessages.mockReturnValue(
+      new Promise((r) => {
+        resolveSearch = r;
+      }),
+    );
+    const { result } = renderHook((p) => useInChatSearch(p), {
+      initialProps: {
+        activeChatId: 'chat-1',
+        getChats: () => [{ id: 'chat-1', messages: three, hasMore: false }],
+        loadOlderMessages: vi.fn(),
+        messages: three,
+        find: 'жираф',
+        msg: '10',
+      },
+    });
+    await waitFor(() => expect(chatApi.searchMessages).toHaveBeenCalled());
+    act(() => result.current.goNext());
+    await act(async () => resolveSearch(hits));
+    expect(result.current.activeIndex).toBe(2);
+  });
+});

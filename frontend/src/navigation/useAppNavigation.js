@@ -131,6 +131,7 @@ export default function useAppNavigation() {
         // адресом. «Куда вернуться» живёт в memoryRef и применяется в switchView.
         chatId: u.chatId,
         chatFind: u.chatFind,
+        chatMsg: u.chatMsg,
         docId: u.docId,
         docFind: u.docFind,
         docSection: u.docSection,
@@ -317,17 +318,19 @@ export default function useAppNavigation() {
    * в локальном стейте), и кнопка выглядит нерабочей.
    */
   const openChat = useCallback(
-    (chatId, { navigate = true, find } = {}) => {
+    (chatId, { navigate = true, find, msg } = {}) => {
       const id = chatId == null ? null : String(chatId);
       if (id) memoryRef.current.chatId = id;
       // Запрос относится к тому чату, из-за которого сюда пришли: открывая
-      // другой, его не тащим — подсвечивать в нём нечего.
+      // другой, его не тащим — подсвечивать в нём нечего. Сообщение — тем более:
+      // оно из этого чата, и в соседнем такого id либо нет, либо он чужой.
       const chatFind = find || '';
+      const chatMsg = chatFind ? (msg == null ? '' : String(msg)) : '';
       if (!navigate) {
-        replaceNav((prev) => (prev.view !== 'chat' ? prev : { ...prev, chatId: id, chatFind }));
+        replaceNav((prev) => (prev.view !== 'chat' ? prev : { ...prev, chatId: id, chatFind, chatMsg }));
         return;
       }
-      pushNav((prev) => ({ ...prev, view: 'chat', chatId: id, chatFind }));
+      pushNav((prev) => ({ ...prev, view: 'chat', chatId: id, chatFind, chatMsg }));
     },
     [pushNav, replaceNav],
   );
@@ -396,11 +399,17 @@ export default function useAppNavigation() {
     [replaceNav],
   );
 
-  /** Что подсвечено в открытом чате — по тем же правилам, что и в файле. */
+  /**
+   * Что подсвечено в открытом чате — по тем же правилам, что и в файле. Другой
+   * запрос снимает сообщение (как раздел у документа): оно относилось к
+   * запросу, с которым пришли из поиска, а набранный в баре садится на самое
+   * свежее совпадение, как везде. Тот же запрос сообщение оставляет — бар
+   * фиксирует его по Enter и уходу фокуса, и это не переход к другому месту.
+   */
   const setChatFind = useCallback(
     (find) => {
       const next = find || '';
-      replaceNav((prev) => (prev.chatFind === next ? prev : { ...prev, chatFind: next }));
+      replaceNav((prev) => (prev.chatFind === next ? prev : { ...prev, chatFind: next, chatMsg: '' }));
     },
     [replaceNav],
   );

@@ -56,16 +56,46 @@ export function resolveActiveMatchMid({ messages, matches, activeMatch, query })
 }
 
 /**
+ * Индекс совпадения на сообщении `msg`; -1, если такого среди совпадений нет.
+ * Сравниваем по числу: из адреса id приходит строкой, у хита он числовой.
+ */
+export function indexOfMessage(matches, msg) {
+  const id = Number(msg);
+  if (!msg || !Number.isFinite(id)) return -1;
+  return matches.findIndex((m) => m.id === id);
+}
+
+/**
  * @param find         запрос из адреса ('' — в чат пришли не из поиска)
+ * @param msg          id сообщения из адреса: с него начать вместо самого
+ *                     свежего совпадения ('' — пришли не по ссылке на сообщение)
  * @param onFindChange записать запрос в адрес
  */
-export default function useInChatSearch({ activeChatId, getChats, loadOlderMessages, messages, find, onFindChange }) {
+export default function useInChatSearch({
+  activeChatId,
+  getChats,
+  loadOlderMessages,
+  messages,
+  find,
+  msg = '',
+  onFindChange,
+}) {
   const [open, setOpen] = useState(!!find);
   const [query, setQuery] = useState(find || '');
   const [matches, setMatches] = useState(NO_MATCHES); // [{ id, createdAt }] хронологически (ASC)
   const [activeIndex, setActiveIndex] = useState(-1);
   const [searching, setSearching] = useState(false);
   const [navigating, setNavigating] = useState(false);
+
+  // Какое сообщение из адреса ещё не применено. Применяем не сразу: список
+  // совпадений серверный и приезжает после запроса, а до него садиться некуда.
+  // Зеркало в ref нужно ответу уже отправленного запроса: он приходит позже
+  // шага стрелкой, а стейт на тот момент читать неоткуда.
+  const [pendingMsg, setPendingMsg] = useState(msg);
+  const pendingMsgRef = useRef(msg);
+  useEffect(() => {
+    pendingMsgRef.current = pendingMsg;
+  }, [pendingMsg]);
 
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
@@ -88,6 +118,9 @@ export default function useInChatSearch({ activeChatId, getChats, loadOlderMessa
 
   const openBar = useCallback(() => setOpen(true), []);
 
+  // Ссылку на сообщение отрабатываем в момент ответа поиска, а не эффектом
+  // поверх готового списка: иначе остаётся кадр, где активно самое свежее
+  // совпадение — лента успевала бы прокрутиться к нему и уехать обратно.
   const runSearch = useCallback((chatId, q) => {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -98,7 +131,13 @@ export default function useInChatSearch({ activeChatId, getChats, loadOlderMessa
       .then((data) => {
         const list = Array.isArray(data) ? data : [];
         setMatches(list);
-        setActiveIndex(list.length ? list.length - 1 : -1); // самое свежее по умолчанию
+        // Сообщения из адреса среди совпадений может не быть: чат успели
+        // почистить, запрос в баре — не тот, с которым пришли, или человек уже
+        // ушёл стрелкой. Тогда, как и без ссылки, встаём на самое свежее.
+        const at = indexOfMessage(list, pendingMsgRef.current);
+        setActiveIndex(at >= 0 ? at : list.length ? list.length - 1 : -1);
+        pendingMsgRef.current = '';
+        setPendingMsg('');
         setSearching(false);
       })
       .catch((err) => {
@@ -132,16 +171,41 @@ export default function useInChatSearch({ activeChatId, getChats, loadOlderMessa
     setSearching(false);
     setOpen(false);
     setQuery('');
+    // Сообщение из адреса относится к чату, в который переходим: у соседнего
+    // такого id либо нет, либо он чужой, поэтому ждём его заново.
+    setPendingMsg(msg);
   }
 
   // Запрос сменился в адресе — пришли по ссылке, из карточки результата или
   // нажали «Назад». Проверка стоит ПОСЛЕ сброса по смене чата: и то и другое
   // приходит одним переходом, и выиграть должен запрос, ради которого он был.
   const [prevFind, setPrevFind] = useState(find);
-  if (prevFind !== find) {
+  const findChanged = prevFind !== find;
+  if (findChanged) {
     setPrevFind(find);
     setQuery(find || '');
     if (find) setOpen(true);
+  }
+
+  // Другое сообщение в адресе (клик по соседней строке той же карточки). Запрос
+  // при этом мог не измениться — тогда поиск не перезапустится, и переставить
+  // активное совпадение больше некому. Совпадения уже есть — садимся сразу,
+  // иначе ждём ответа поиска. Подстройка в рендере: состояние следует за пропом.
+  //
+  // Сразу — только при неизменном запросе: если сменились оба (например «Назад»
+  // на ссылку в том же чате), совпадения на экране ещё от прежнего запроса, и
+  // сесть по ним значило бы занять место чужим id, а ответ нового поиска потом
+  // не нашёл бы, кого искали.
+  const [prevMsg, setPrevMsg] = useState(msg);
+  if (prevMsg !== msg) {
+    setPrevMsg(msg);
+    const at = findChanged ? -1 : indexOfMessage(matches, msg);
+    if (at >= 0) {
+      setActiveIndex(at);
+      setPendingMsg('');
+    } else {
+      setPendingMsg(msg);
+    }
   }
 
   // Поиск по дебаунсу при изменении запроса (и при открытии с готовым query).
@@ -158,11 +222,17 @@ export default function useInChatSearch({ activeChatId, getChats, loadOlderMessa
     return () => clearTimeout(debounceRef.current);
   }, [open, activeChatId, query, runSearch]);
 
+  // Шаг стрелкой — человек выбрал сам: ждать сообщение из адреса больше не надо
+  // (ответ поиска, доехавший после шага, иначе увёл бы обратно на ссылку).
   const goPrev = useCallback(() => {
+    pendingMsgRef.current = '';
+    setPendingMsg('');
     setActiveIndex((i) => (matches.length ? (i - 1 + matches.length) % matches.length : -1));
   }, [matches.length]);
 
   const goNext = useCallback(() => {
+    pendingMsgRef.current = '';
+    setPendingMsg('');
     setActiveIndex((i) => (matches.length ? (i + 1) % matches.length : -1));
   }, [matches.length]);
 
