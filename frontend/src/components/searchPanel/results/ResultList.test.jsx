@@ -218,7 +218,10 @@ test('документ: совпадения по разделам, раздел
   // Преамбула — не раздел: подписана, но ведёт в начало документа.
   expect(screen.getByRole('link', { name: 'docs.preamble' })).toHaveAttribute('href', '/knowledge/doc/5?find=needle');
   const section = screen.getByRole('link', { name: 'FAQ > Вопрос' });
-  expect(section).toHaveAttribute('href', '/knowledge/doc/5?find=needle&section=FAQ+%3E+%D0%92%D0%BE%D0%BF%D1%80%D0%BE%D1%81');
+  expect(section).toHaveAttribute(
+    'href',
+    '/knowledge/doc/5?find=needle&section=FAQ+%3E+%D0%92%D0%BE%D0%BF%D1%80%D0%BE%D1%81',
+  );
   expect(screen.getAllByRole('link', { name: /needle/ })).toHaveLength(3);
 
   fireEvent.click(section);

@@ -58,6 +58,7 @@ function headingPaths(root) {
 export function findSectionHeading(root, sectionPath) {
   if (!sectionPath || sectionPath === PREAMBLE_PATH) return null;
   const suffix = sectionPath.match(/\[(\d+)\]$/);
-  const wanted = normalizeTitle(suffix ? sectionPath.slice(0, -suffix[0].length) : sectionPath) + (suffix ? suffix[0] : '');
+  const wanted =
+    normalizeTitle(suffix ? sectionPath.slice(0, -suffix[0].length) : sectionPath) + (suffix ? suffix[0] : '');
   return headingPaths(root).find((h) => h.path === wanted)?.el ?? null;
 }
