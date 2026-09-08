@@ -40,7 +40,8 @@ final class GitGrepRunner {
      * repository writes the repository, and holding it to keep a handful of blocks is what this
      * prevents. With no context a block is one line, so the cap is exact there; with context the
      * ceiling is generous enough that no realistic answer reaches it, and a run that does ends at
-     * its last complete block.
+     * its last complete block — and with nothing from that run at all when its whole output turned
+     * out to be one block that never finished.
      */
     static final int MAX_OUTPUT_LINES = 20_000;
 
