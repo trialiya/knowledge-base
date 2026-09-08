@@ -7,7 +7,7 @@ import { isTopmostModal, nextModalId, pushModal } from '@/components/common/layo
 import FindBar from '@/components/common/search/FindBar';
 import './modalShell.css';
 
-// Пока модалка открыта, она стоит в общей стопке (modalStack): Escape достаётся
+// Пока модалка открыта, она стоит в общей стопке (overlayStack): Escape достаётся
 // только верхней — вложенный диалог не уносит с собой родительский, — а
 // поверхности под оверлеем по той же стопке узнают, что диалог открыт, и молчат
 // со своими шорткатами.

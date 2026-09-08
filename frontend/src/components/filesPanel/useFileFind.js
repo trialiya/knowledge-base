@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import useFindMatches from '@/components/common/search/useFindMatches';
-import { hasOverlay } from '@/components/common/layout/overlayStack';
+import { hasOpenModal, hasOverlay } from '@/components/common/layout/overlayStack';
 
 /**
  * Find-бар над открытым файлом: то же, что Ctrl+F в модалке, но запрос приносит
@@ -48,15 +48,18 @@ export default function useFileFind({ rootRef, find, regex, onCommit }) {
   const onQueryChange = useCallback((value) => setQuery(value), []);
 
   // Ctrl+F открывает бар и в файле — искать по открытому файлу, а не по всему
-  // интерфейсу вокруг него; Escape его закрывает, как и в модалке. И то и другое
-  // молчит, пока поверх открыт диалог или поповер: этими клавишами закрывают и
-  // ищут в том, что видно, а видно сейчас не файл.
+  // интерфейсу вокруг него; Escape его закрывает, как и в модалке. Условия у них
+  // разные, и намеренно. Escape уступает любому оверлею: им закрывают верхнее, а
+  // верхнее сейчас — диалог или поповер. Ctrl+F уступает только диалогу, у
+  // которого есть свой бар; поповер (меню git, выбор ревизии) искать не умеет, и
+  // уступив ему, мы отдали бы нажатие браузерному поиску по всей странице.
   const onKey = useEffectEvent((e) => {
-    if (hasOverlay()) return;
     if (e.key === 'Escape') {
+      if (hasOverlay()) return;
       if (open) close();
       return;
     }
+    if (hasOpenModal()) return;
     e.preventDefault();
     setOpen(true);
     if (open) {

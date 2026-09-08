@@ -193,10 +193,13 @@ Panel open/closed state is **controlled state that lives in the URL**
   Highlight API, so the DOM stays React's), scroll-to-active and prev/next.
   Who owns the query is the surface's business — `useModalFind` keeps it while
   a dialog is open, `useFileFind` reads it off the URL — and a surface that
-  installs its own Ctrl+F (and its own Escape) must stand down while
-  `hasOverlay()` (`common/layout/overlayStack.js`) is true — a dialog or a
-  popover is open above it. Listen on **capture**: overlays close on bubble,
-  so by the surface's turn the same Escape has already emptied the stack.
+  installs its own Ctrl+F stands down while `hasOpenModal()`
+  (`common/layout/overlayStack.js`) is true — a dialog has a find bar of its
+  own; a popover does not, so yielding to one would hand the keypress to the
+  browser's page-wide find. Its own Escape stands down for any overlay
+  (`hasOverlay()`), popovers included — Escape closes the topmost thing.
+  Listen on **capture**: overlays close on bubble, so by the surface's turn
+  the same Escape has already emptied the stack.
   Several components still inline
   the copy hook's body — migrate one when you touch it, don't add another.
 - Async effects must be cancellation-aware (a `cancelled` flag or an AbortSignal

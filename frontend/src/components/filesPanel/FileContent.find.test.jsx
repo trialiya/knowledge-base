@@ -209,6 +209,36 @@ describe('поиск в открытом файле', () => {
     expect(onFindChange).not.toHaveBeenCalled();
   });
 
+  /**
+   * А Ctrl+F поповеру не уступает: искать он не умеет, и нажатие ушло бы в
+   * браузерный поиск по всей странице. Уступаем только диалогу — у того бар свой.
+   */
+  test('Ctrl+F при открытом поповере всё равно достаётся файлу', () => {
+    const Popover = () => {
+      const ref = useRef(null);
+      useDismissable(true, ref, vi.fn());
+      return <div ref={ref}>меню</div>;
+    };
+    render(
+      <>
+        <FileContent
+          content={{ type: 'file', path: 'a.js', file: FILE }}
+          path="a.js"
+          loading={false}
+          find=""
+          findRegex={false}
+          onFindChange={vi.fn()}
+        />
+        <Popover />
+      </>,
+    );
+
+    const notPrevented = pressCtrlF();
+
+    expect(bar()).not.toBeNull();
+    expect(notPrevented).toBe(false);
+  });
+
   /** У обрезанного файла часть совпадений просто не загружена — счётчик про них не знает. */
   test('обрезанный файл оговаривает, что счётчик считает показанное', () => {
     renderFile({ find: 'needle', file: { ...FILE, truncated: true, fromLine: 1 } });

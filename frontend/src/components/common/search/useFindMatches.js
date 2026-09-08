@@ -212,7 +212,9 @@ export default function useFindMatches({ rootRef, query, regex = false, active =
     // Шагаем от ПОКАЗАННОГО совпадения, а не от сырого index: после пересбора,
     // который нашёл меньше (переключили markdown, diff, догрузилось содержимое),
     // они расходятся — и стрелка прыгала бы не с того, что видно на экране.
-    goNext: () => setIndex(total ? (activeIndex + 1) % total : 0),
-    goPrev: () => setIndex(total ? (activeIndex - 1 + total) % total : 0),
+    // Прижимаем внутри обновления, а не снаружи: два шага в одном батче обязаны
+    // дать два шага, а не схлопнуться в один.
+    goNext: () => setIndex((i) => (total ? (Math.min(i, total - 1) + 1) % total : 0)),
+    goPrev: () => setIndex((i) => (total ? (Math.min(i, total - 1) - 1 + total) % total : 0)),
   };
 }
