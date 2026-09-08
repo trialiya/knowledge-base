@@ -56,7 +56,10 @@ export function chatPath(chatId) {
  * результата обязан открыть чат с той же подсветкой, что была в выдаче.
  */
 export function chatUrl(chatId, { find } = {}) {
-  return chatPath(chatId) + (find ? `?find=${encodeURIComponent(find)}` : '');
+  const p = new URLSearchParams();
+  if (find) p.set('find', find);
+  const qs = p.toString();
+  return chatPath(chatId) + (qs ? `?${qs}` : '');
 }
 
 /** `/knowledge/doc/<id>` — документ или папка базы знаний. */

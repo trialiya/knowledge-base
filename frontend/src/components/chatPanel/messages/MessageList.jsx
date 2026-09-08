@@ -210,12 +210,17 @@ const MessageList = ({
   useEffect(() => {
     const container = containerRef.current;
     const activeEl = activeSearchMid != null ? container?.querySelector(`[data-mid="${activeSearchMid}"]`) : null;
-    const inActive = (r) => !!activeEl?.contains(r.startContainer);
+    // Активный пузырь обходим сами, а не берём его Range'и из общего списка: тот
+    // пересобирается с задержкой, и сообщение, к которому только что догребли
+    // пагинацией, кадр-другой стояло бы промотанным, но не подсвеченным.
+    const active = activeEl
+      ? collectMatchRanges(activeEl, buildMatcher(searchQuery, false), { within: WITHIN_MESSAGES })
+      : [];
     publishHighlight(
-      matchRanges.filter((r) => !inActive(r)),
-      matchRanges.filter(inActive),
+      matchRanges.filter((r) => !activeEl?.contains(r.startContainer)),
+      active,
     );
-  }, [publishHighlight, matchRanges, activeSearchMid]);
+  }, [publishHighlight, matchRanges, activeSearchMid, searchQuery, messages]);
 
   // Откатывается только последний ответ чата: поверх более раннего обычно уже лежат другие
   // правки, и «вернуть как было» перестаёт быть однозначным (то же правило на сервере —

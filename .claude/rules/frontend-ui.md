@@ -204,7 +204,10 @@ Panel open/closed state is **controlled state that lives in the URL**
   browser's page-wide find. Its own Escape stands down for any overlay
   (`hasOverlay()`), popovers included — Escape closes the topmost thing.
   Listen on **capture**: overlays close on bubble, so by the surface's turn
-  the same Escape has already emptied the stack.
+  the same Escape has already emptied the stack — which also means the surface
+  sees Escape before every non-overlay that wants it (an inline rename, a
+  mention picker), so pass those through with `isTypingTarget` (`common/search/
+  findShortcut.js`, which also spells the shortcut itself).
   Several components still inline
   the copy hook's body — migrate one when you touch it, don't add another.
 - Async effects must be cancellation-aware (a `cancelled` flag or an AbortSignal

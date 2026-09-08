@@ -239,23 +239,33 @@ const EmptyStates = ({ query, states }) => (
   </>
 );
 
-// Центр чата с открытым find-баром — так его складывает ChatCenter.
-const ChatFeedWithFind = ({ messages, query, activeMid }) => (
-  <>
-    <FindBar
-      className="find-bar--chat"
-      placeholder="Поиск в этом чате…"
-      query={query}
-      onQueryChange={noop}
-      total={3}
-      activeIndex={2}
-      onPrev={noop}
-      onNext={noop}
-      onClose={noop}
-    />
-    <MessageList conversationId="chat-1" messages={messages} searchQuery={query} activeSearchMid={activeMid} />
-  </>
-);
+// Центр чата с открытым find-баром — так его складывает ChatCenter. Счётчик и
+// активное сообщение приходят из фикстуры, а не заданы числом: иначе снимок
+// уверенно показывал бы «3/3» при любой правке её текстов.
+const ChatFeedWithFind = ({ messages }) => {
+  const { t } = useTranslation('chat');
+  return (
+    <>
+      <FindBar
+        className="find-bar--chat"
+        placeholder={t('inChatSearch.placeholder')}
+        query={chatFind.query}
+        onQueryChange={noop}
+        total={chatFind.total}
+        activeIndex={chatFind.activeIndex}
+        onPrev={noop}
+        onNext={noop}
+        onClose={noop}
+      />
+      <MessageList
+        conversationId="chat-1"
+        messages={messages}
+        searchQuery={chatFind.query}
+        activeSearchMid={chatFind.activeMid}
+      />
+    </>
+  );
+};
 
 const REGISTRY = [
   // ── Чат ──
@@ -276,7 +286,7 @@ const REGISTRY = [
     id: 'chatFind.js#openedFromSearch',
     frame: 'center',
     render: (p) => (
-      <ChatFeedWithFind messages={p} query={chatFind.query} activeMid={chatFind.activeMid} />
+      <ChatFeedWithFind messages={p} />
     ),
   },
   { id: 'chatUsage.js#measuredChat', frame: 'panel', render: (p) => <ChatUsage {...p} /> },

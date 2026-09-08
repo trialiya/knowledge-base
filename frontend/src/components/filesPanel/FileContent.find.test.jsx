@@ -239,6 +239,43 @@ describe('поиск в открытом файле', () => {
     expect(notPrevented).toBe(false);
   });
 
+  /**
+   * Слушатель бара стоит на перехвате и видит Escape раньше полей, которые ждут
+   * его на всплытии (отмена инлайн-правки, закрытие подсказки). Такое нажатие
+   * принадлежит полю: закрыв заодно бар, мы стёрли бы запрос из адреса.
+   */
+  test('Escape в поле ввода бар не трогает', () => {
+    const onFindChange = vi.fn();
+    render(
+      <>
+        <FileContent
+          content={{ type: 'file', path: 'a.js', file: FILE }}
+          path="a.js"
+          loading={false}
+          find="needle"
+          findRegex={false}
+          onFindChange={onFindChange}
+        />
+        <input aria-label="поле рядом" />
+      </>,
+    );
+
+    fireEvent.keyDown(screen.getByLabelText('поле рядом'), { key: 'Escape' });
+
+    expect(bar()).not.toBeNull();
+    expect(onFindChange).not.toHaveBeenCalled();
+  });
+
+  /** Поле самого бара — исключение: там Escape закрывает именно бар. */
+  test('Escape в поле бара его закрывает', () => {
+    const { onFindChange } = renderFile({ find: 'needle' });
+
+    fireEvent.keyDown(screen.getByPlaceholderText('find.placeholder'), { key: 'Escape' });
+
+    expect(bar()).toBeNull();
+    expect(onFindChange).toHaveBeenCalledWith('', false);
+  });
+
   /** У обрезанного файла часть совпадений просто не загружена — счётчик про них не знает. */
   test('обрезанный файл оговаривает, что счётчик считает показанное', () => {
     renderFile({ find: 'needle', file: { ...FILE, truncated: true, fromLine: 1 } });

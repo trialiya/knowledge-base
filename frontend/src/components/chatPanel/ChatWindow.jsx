@@ -33,6 +33,7 @@ import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
 import { hasOpenModal, hasOverlay } from '@/components/common/layout/overlayStack';
+import { isFindShortcut, isTypingTarget } from '@/components/common/search/findShortcut';
 import { IconPlus } from '@/icons/index';
 import './chatWindow.css';
 import ErrorModal from '@/components/common/modal/ErrorModal';
@@ -233,15 +234,17 @@ const ChatWindow = ({
   // зависимостях эффекта нельзя — объект useInChatSearch пересоздаётся каждый
   // рендер, то есть слушатель переподписывался бы на каждый чанк стриминга.
   // Условия у Ctrl+F и Escape разные, и намеренно — те же, что у бара открытого
-  // файла (см. useFileFind). Escape уступает любому оверлею: им закрывают
-  // верхнее, а верхнее сейчас диалог или поповер. Ctrl+F уступает только
-  // диалогу, у которого есть свой бар (ModalShell → useModalFind); поповер
-  // искать не умеет, и уступив ему, мы отдали бы нажатие браузерному поиску по
-  // всей странице.
+  // файла (см. useFileFind). Escape уступает любому оверлею (им закрывают
+  // верхнее, а верхнее сейчас диалог или поповер) и любому полю ввода: в чате
+  // Escape ждут отмена инлайн-переименования и @mention-подсказка композера, а
+  // наш слушатель на перехвате видит нажатие раньше них (см. isTypingTarget).
+  // Ctrl+F уступает только диалогу, у которого есть свой бар (ModalShell →
+  // useModalFind); поповер искать не умеет, и уступив ему, мы отдали бы нажатие
+  // браузерному поиску по всей странице.
   const onChatSearchKey = useEffectEvent((e) => {
     if (!canSearchChat) return;
     if (e.key === 'Escape') {
-      if (hasOverlay()) return;
+      if (hasOverlay() || isTypingTarget(e)) return;
       if (inChatSearch.open) inChatSearch.close();
       return;
     }
@@ -262,15 +265,7 @@ const ChatWindow = ({
   useEffect(() => {
     if (!isActive) return undefined;
     const onKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        onChatSearchKey(e);
-        return;
-      }
-      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
-      // e.code — физическая клавиша: на нелатинских раскладках (например, русской)
-      // e.key даёт символ раскладки («а»), и проверка только по key ломает шорткат.
-      if (e.key !== 'f' && e.key !== 'F' && e.code !== 'KeyF') return;
-      onChatSearchKey(e);
+      if (e.key === 'Escape' || isFindShortcut(e)) onChatSearchKey(e);
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);

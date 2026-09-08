@@ -5,11 +5,7 @@ import { highlightSubstring } from '@/components/common/search/highlightMatch';
 import ResultGroup from './ResultGroup';
 
 /** Автор сообщения: ключ перевода на роль, которую отдаёт бэкенд. */
-const ROLE_KEY = {
-  USER: 'chats.roleUser',
-  ASSISTANT: 'chats.roleAssistant',
-  TOOL: 'chats.roleTool',
-};
+const ROLE_KEY = { USER: 'chats.roleUser', ASSISTANT: 'chats.roleAssistant', TOOL: 'chats.roleTool' };
 
 /**
  * Совпадения в чатах: карточка на чат, внутри — сообщения по времени.

@@ -45,6 +45,33 @@ describe('подсветка совпадений в ленте чата', () =>
     await waitFor(() => expect(sizes()).toEqual({ all: 3, active: 0 }));
   });
 
+  /**
+   * Совпадение из незагруженной страницы бар догребает пагинацией, и пузырь
+   * появляется в ленте позже. Общий список Range'ей к этому моменту ещё старый
+   * (он пересобирается по MutationObserver с задержкой), поэтому активный пузырь
+   * обходится отдельно — иначе он кадр-другой стоял бы промотанным, но не
+   * подсвеченным.
+   */
+  it('догруженное сообщение подсвечено сразу, не дожидаясь пересбора', async () => {
+    const { rerender } = render(
+      <MessageList conversationId="c1" messages={messages} searchQuery="жираф" activeSearchMid="m0" />,
+    );
+    await waitFor(() => expect(sizes().all).toBe(3));
+
+    // Догрузили более старую страницу: пузырь m0 появился в ленте.
+    rerender(
+      <MessageList
+        conversationId="c1"
+        messages={[msg('m0', 'самый старый жираф'), ...messages]}
+        searchQuery="жираф"
+        activeSearchMid="m0"
+      />,
+    );
+
+    // Ни одного тика таймеров: пересбор общего списка ещё не случился.
+    expect(sizes().active).toBe(1);
+  });
+
   it('закрытый бар подсветку снимает', async () => {
     const { rerender } = render(
       <MessageList conversationId="c1" messages={messages} searchQuery="жираф" activeSearchMid="m1" />,

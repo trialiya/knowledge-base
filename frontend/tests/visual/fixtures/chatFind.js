@@ -12,9 +12,6 @@
 /** Запрос, с которым сюда пришли: он же стоит в адресе как `?find=`. */
 export const query = 'таймаут';
 
-/** Бар садится на самое свежее совпадение — то же, из которого сниппет карточки. */
-export const activeMid = 'm4';
-
 export const openedFromSearch = [
   { mid: 'm1', dbId: 101, sender: 'user', text: 'Почему падает индексация большого репозитория?' },
   {
@@ -31,3 +28,13 @@ export const openedFromSearch = [
     text: 'Ключ `kb.git.grep.timeout` в application.yml. Таймаут по умолчанию — 10 секунд; при нём же пишется предупреждение в лог.',
   },
 ];
+
+// Счётчик бара считает СООБЩЕНИЯ (список совпадений серверный), а не вхождения,
+// и по умолчанию бар садится на самое свежее из них. Выводим и то и другое из
+// самой ленты: захардкоженное «3/3» соврало бы при первой же правке текстов.
+const matched = openedFromSearch.filter((m) => new RegExp(query, 'i').test(m.text));
+
+/** Сколько сообщений совпало и на каком из них стоит бар. */
+export const total = matched.length;
+export const activeIndex = total - 1;
+export const activeMid = matched[activeIndex].mid;
