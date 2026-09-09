@@ -122,15 +122,17 @@ final class RepoBrowse {
      * Один путь со всем, что нужно браузеру, чтобы его открыть: чем путь является, его содержимое
      * или листинг, и листинги каталогов-предков для раскрытия дерева слева.
      *
+     * <p>Снимок здесь — рабочее дерево: у коммита нет ни плоского списка путей, ни признака
+     * «отслеживается», и {@code GitService#browsePathAt} собирает тот же {@link GitPathView} из
+     * точечных чтений дерева коммита, беря отсюда лишь порядок узлов и {@link #ancestorDirs}.
+     *
      * @param target нормализованный путь ({@code ""} — корень)
-     * @param commit хеш коммита, из которого читается снимок, либо null для рабочего дерева
      * @param contentOf содержимое файла — спрашивается, только если путь оказался файлом
      */
     static GitPathView browse(
             Snapshot snapshot,
             String target,
             boolean includeAncestors,
-            @Nullable String commit,
             Function<Boolean, @Nullable GitFileContent> contentOf) {
         @Nullable FileEntryType type = resolvePathType(target, snapshot.paths());
 
@@ -156,7 +158,7 @@ final class RepoBrowse {
                 type == FileEntryType.FILE ? contentOf.apply(targetTracked) : null,
                 isDirectory ? listings.getOrDefault(target, List.of()) : null,
                 tree,
-                commit,
+                null,
                 // The root and any missing path count as tracked: there is nothing to warn about.
                 target.isEmpty()
                         || type == null
@@ -187,7 +189,7 @@ final class RepoBrowse {
      * Directories from the repo root down to {@code path}'s parent; {@code path} itself is never
      * included — for the root that means no ancestors at all, not a self-reference.
      */
-    private static List<String> ancestorDirs(String path) {
+    static List<String> ancestorDirs(String path) {
         if (path.isEmpty()) return List.of();
         List<String> dirs = new ArrayList<>();
         dirs.add("");
