@@ -42,8 +42,8 @@ import ConfirmModal from '@/components/common/modal/ConfirmModal';
 const ChatWindow = ({
   onNavigateToDoc,
   isActive = true,
-  activeChatId: propActiveChatId = null,
-  onSelectChat,
+  activeChatId = null,
+  onSelectChat: selectChat,
   find = '',
   msg = '',
   onFindChange,
@@ -58,27 +58,15 @@ const ChatWindow = ({
   // Второй namespace — ради общего словаря git: названия команд и состояний
   // репозитория живут в `files` и дублировать их здесь незачем.
   const { t } = useTranslation(['chat', 'files']);
-  // Внутреннее зеркало активного чата. Источник правды — проп propActiveChatId
-  // (его держит useAppNavigation в App). Локальные выборы поднимаются наверх
-  // через onSelectChat и возвращаются сюда уже как проп.
-  const [activeChatId, setActiveChatId] = useState(
-    propActiveChatId || localStorage.getItem(STORAGE_KEY_ACTIVE_CHAT) || null,
-  );
-
-  // Поднять выбор чата наверх (в навигацию). Локальный стейт обновится, когда
-  // App вернёт новый propActiveChatId — но мы также обновляем его сразу, чтобы
-  // не зависеть от round-trip и сохранить мгновенную реакцию UI.
-  // `navigate: false` — выбор сделан не пользователем, а автоматикой загрузки:
-  // тогда навигация лишь запомнит чат, но не утащит с открытого раздела (панель
-  // чата смонтирована всегда, в том числе поверх /files и /knowledge).
-  const selectChat = useCallback(
-    (id, opts) => {
-      setActiveChatId(id);
-      if (id) localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, id);
-      if (onSelectChat) onSelectChat(id, opts);
-    },
-    [onSelectChat],
-  );
+  // Активный чат — только проп из навигации: выбор поднимается через
+  // selectChat (openChat стора) и в том же вызове возвращается сюда новым
+  // пропом, своего состояния у панели нет. `navigate: false` — выбор сделан не
+  // пользователем, а автоматикой: навигация запомнит чат, но не утащит с
+  // открытого раздела (панель смонтирована всегда, в том числе поверх /files).
+  // Чат, запомненный в localStorage, нужен один раз — первичной загрузке
+  // списка, когда адрес чата не называет; пишет его useChatMessages, убедившись,
+  // что чат существует.
+  const [rememberedChatId] = useState(() => localStorage.getItem(STORAGE_KEY_ACTIVE_CHAT) || null);
 
   // Создаёт объект черновика. model берём из последней использованной (localStorage),
   // иначе сработает фолбэк на дефолтную модель в selectedModelId/отправке.
@@ -132,25 +120,11 @@ const ChatWindow = ({
     changeProject,
     fetchAndUpdateTitle,
   } = useChatList({
-    initialActiveChatId: activeChatId,
-    initialPropChatId: propActiveChatId,
+    initialActiveChatId: activeChatId || rememberedChatId,
+    initialPropChatId: activeChatId,
     makeDraft,
     selectChat,
   });
-
-  // Источник правды — проп из навигации. Когда он меняется (клик по вкладке,
-  // popstate, восстановление из URL), подхватываем активный чат — в рендере, а
-  // не эффектом: иначе кадр между сменой адреса и подхватом рисует прошлый чат.
-  const [prevPropChatId, setPrevPropChatId] = useState(propActiveChatId);
-  if (prevPropChatId !== propActiveChatId) {
-    setPrevPropChatId(propActiveChatId);
-    if (propActiveChatId && propActiveChatId !== activeChatId) setActiveChatId(propActiveChatId);
-  }
-
-  // Запоминание активного чата — побочный эффект, в рендере ему не место.
-  useEffect(() => {
-    if (propActiveChatId) localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, propActiveChatId);
-  }, [propActiveChatId]);
 
   // Вернуть в поле ввода то, что там было. Текст поле стирает на отправке, а сама отправка
   // может и не состояться (команда чату во время ответа) — черновик при этом не тронут, и
