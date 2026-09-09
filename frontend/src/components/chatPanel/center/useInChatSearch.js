@@ -246,6 +246,13 @@ export default function useInChatSearch({
 
   const activeMatch = activeIndex >= 0 ? matches[activeIndex] : null;
 
+  // Приехала ли история чата. Переход из поиска открывает чат и запускает поиск
+  // одним махом, а история идёт своим запросом: ответ поиска обгоняет её, и
+  // догружать в этот момент нечего и нечем — чата нет ещё и в getChats. Признак
+  // в зависимостях догрузки даёт ей второй заход, уже по настоящей ленте; на
+  // дальнейший рост ленты он не меняется, и цикл догрузки этим не рвётся.
+  const historyLoaded = (messages?.length ?? 0) > 0;
+
   // Догрузка старых страниц, пока активное совпадение не окажется в загруженной истории.
   useEffect(() => {
     if (!activeMatch || !activeChatId) return undefined;
@@ -277,6 +284,11 @@ export default function useInChatSearch({
     let cancelled = false;
     (async () => {
       setNavigating(true);
+      // Зеркало списка чатов обновляет эффект родителя (useChatList), а он идёт
+      // после эффектов детей: сразу после перехода из поиска чата в зеркале ещё
+      // нет, и hasMore по нему читался бы как «истории больше нет». Микротаска
+      // хватает — к ней все эффекты коммита уже отработали.
+      if (!getChats().some((c) => c.id === activeChatId)) await Promise.resolve();
       for (let i = 0; i < MAX_LOAD_STEPS; i++) {
         if (cancelled || navSeqRef.current !== seq) return;
         const chat = getChats().find((c) => c.id === activeChatId);
@@ -290,11 +302,13 @@ export default function useInChatSearch({
     return () => {
       cancelled = true;
     };
-    // messages не в deps намеренно: нужен лишь свежий снимок в момент срабатывания
-    // эффекта (смена activeMatch/activeChatId) — реагировать на его последующие
-    // изменения не нужно, догрузку уже ведёт цикл внутри эффекта через getChats.
+    // Сами messages не в deps намеренно: нужен лишь свежий снимок в момент
+    // срабатывания эффекта — реагировать на каждое их изменение не нужно,
+    // догрузку уже ведёт цикл внутри эффекта через getChats. Из них взят один
+    // переход, historyLoaded: пустая лента не даёт ни искать, ни судить о
+    // hasMore, и появление истории обязано дать эффекту второй заход.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMatch, activeChatId, getChats, loadOlderMessages]);
+  }, [activeMatch, activeChatId, getChats, loadOlderMessages, historyLoaded]);
 
   return {
     open,

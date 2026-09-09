@@ -112,6 +112,57 @@ describe('useInChatSearch — догрузка старых страниц не 
 
     await waitFor(() => expect(loadOlderMessages).toHaveBeenCalledWith('chat-1'));
   });
+
+  // Регрессия: переход из поиска открывает чат и запускает поиск сразу, а история
+  // приезжает отдельным запросом. Ответ поиска обгоняет её, и первый заход эффекта
+  // видит пустую ленту (чата нет и в getChats) — догрузка обязана начаться, когда
+  // лента появилась, иначе ссылка на старое сообщение не доводит никуда.
+  it('чат открыт из поиска раньше истории: догрузка идёт, когда лента приехала', async () => {
+    let chatList = [];
+    const getChats = () => chatList;
+    const loadOlderMessages = vi.fn().mockResolvedValue(true);
+    chatApi.searchMessages.mockResolvedValue([
+      { id: 3, createdAt: '2026-01-01' }, // старое — вне последней страницы
+      { id: 10, createdAt: '2026-01-02' },
+    ]);
+    const props = { activeChatId: 'chat-1', getChats, loadOlderMessages, find: 'жираф', msg: '3' };
+
+    const { rerender } = renderHook((p) => useInChatSearch(p), {
+      initialProps: { ...props, messages: [] },
+    });
+    await waitFor(() => expect(chatApi.searchMessages).toHaveBeenCalled());
+
+    const page = [loaded('m1', 10, 'про жирафов')];
+    chatList = [{ id: 'chat-1', messages: page, hasMore: true }];
+    rerender({ ...props, messages: page });
+
+    await waitFor(() => expect(loadOlderMessages).toHaveBeenCalledWith('chat-1'));
+  });
+
+  // Второй разрыв того же перехода: лента уже в пропсах, а зеркало списка чатов
+  // обновляется эффектом родителя и отстаёт на кадр. Отсутствие чата в зеркале
+  // значит «ещё не синхронизировано», а не «истории больше нет».
+  it('зеркало списка чатов отстаёт от ленты: догрузка дожидается его', async () => {
+    let chatList = [];
+    const getChats = () => chatList;
+    const loadOlderMessages = vi.fn().mockResolvedValue(true);
+    chatApi.searchMessages.mockResolvedValue([
+      { id: 3, createdAt: '2026-01-01' },
+      { id: 10, createdAt: '2026-01-02' },
+    ]);
+    const props = { activeChatId: 'chat-1', getChats, loadOlderMessages, find: 'жираф', msg: '3' };
+
+    const { rerender } = renderHook((p) => useInChatSearch(p), {
+      initialProps: { ...props, messages: [] },
+    });
+    await waitFor(() => expect(chatApi.searchMessages).toHaveBeenCalled());
+
+    const page = [loaded('m1', 10, 'про жирафов')];
+    rerender({ ...props, messages: page });
+    chatList = [{ id: 'chat-1', messages: page, hasMore: true }];
+
+    await waitFor(() => expect(loadOlderMessages).toHaveBeenCalledWith('chat-1'));
+  });
 });
 
 /**
