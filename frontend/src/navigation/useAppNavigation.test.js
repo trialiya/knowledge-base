@@ -89,6 +89,20 @@ describe('подсветка в открытом файле', () => {
     expect(url()).toBe('/files/a/c.md');
   });
 
+  // Карточка файла в выдаче зовёт один openFilePath — раздел он ставит сам, и
+  // «Назад» из открытого файла обязано вернуть в выдачу.
+  it('файл из поиска открывается одной записью истории', () => {
+    go('/search?q=needle&in=files');
+    const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
+
+    act(() => result.current.openFilePath('a/b.md', '', { find: 'needle' }));
+
+    expect(result.current.nav.view).toBe('files');
+    expect(url()).toBe('/files/a/b.md?find=needle');
+    expect(window.history.length).toBe(before + 1);
+  });
+
   // Набранное в баре — не переход: возврат «Назад» из файла обязан вести в
   // выдачу, а не отматывать поиск по буквам.
   it('запрос из самого бара заменяет запись истории, а не добавляет', () => {
