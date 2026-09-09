@@ -193,9 +193,12 @@ export default function useChatRun({
         return [updatedChat, ...otherChats];
       });
 
-      // Поднимаем реальный id в URL/навигацию: '/new' → '/<uuid>'.
+      // Поднимаем реальный id в URL/навигацию: '/new' → '/<uuid>'. Это не
+      // переход пользователя, а смена id у уже открытого чата: ответ сервера
+      // приходит позже нажатия, и человек мог успеть уйти в другой раздел —
+      // возвращать его в чат (и спрашивать про несохранённые правки) незачем.
       if (isDraft) {
-        selectChat(conversationId);
+        selectChat(conversationId, { navigate: false });
       }
       const send = {
         text,

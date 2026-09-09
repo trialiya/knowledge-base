@@ -13,8 +13,8 @@
 --    getDocumentSection. That last pair is what makes the "Обзор" mode of the
 --    tool-call detail modal reachable at all: every captured call returns a list or
 --    a tree, and those stay on plain JSON. The second (4 rows, hand-added, no tool
---    calls) exists so the list has two chats — switching between them, the active
---    row without a delete button — and so a chat search ("grep") hits several
+--    calls) exists so the list has two chats — switching between them, the delete
+--    button on the rows (absent with a single chat) — and so a chat search ("grep") hits several
 --    chats, with several matching lines inside one message.
 --    Exercises USER/ASSISTANT/TOOL message types, the meta column (ChatMessageMeta:
 --    runId/toolCalls/invocations/model/usage) and the tool_data column (ToolData: tool call
@@ -71,8 +71,8 @@
 INSERT INTO chat_topic (conversation_id, "user", user_topic, ai_topic, model, project, created_at, updated_at) VALUES
     ('c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'admin', NULL, 'История коммитов backend/build.gradle', NULL, 'default', '2026-07-18 20:59:02.915088', '2026-07-18 21:01:19.071770'),
     -- Второй чат (hand-added): без вызовов инструментов, зато два прогона подряд.
-    -- Нужен списку из двух и более строк (переход между чатами, строка активного
-    -- чата без кнопки удаления) и поиску по чатам с совпадениями в нескольких
+    -- Нужен списку из двух и более строк (переход между чатами, кнопка удаления
+    -- в строках — при одном чате её нет) и поиску по чатам с совпадениями в нескольких
     -- чатах: слово «grep» стоит в обоих, в ответе 1659 — на нескольких строках,
     -- так что карточка результата показывает по строке на каждое вхождение.
     ('e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13', 'admin', NULL, 'Поиск по репозиторию: grep и семантический', NULL, 'default', '2026-07-19 09:12:40.118206', '2026-07-19 09:15:05.402911');
