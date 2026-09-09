@@ -26,10 +26,12 @@ const ROLE = {
  * совпадение. У карточки без совпавших сообщений запроса в адресе нет: бар
  * открылся бы с честным «0/0», а искать в этом чате нечего.
  *
- * Обе строки сообщения называют вдобавок и его само (`?msg=`): бар сядет
- * именно на то, по которому кликнули, а не на самое свежее совпадение.
- * Заголовок карточки сообщения не называет — «открыть чат» значит открыть его
- * на свежем.
+ * Ссылка на сообщении одна — его подпись, и она называет вдобавок само
+ * сообщение (`?msg=`): бар сядет именно на то, по которому кликнули, а не на
+ * самое свежее совпадение. Строки вхождений под подписью никуда не ведут:
+ * внутри сообщения баром некуда попасть — список совпадений в чате серверный и
+ * живёт по сообщениям, так что все они вели бы в одно и то же место. Заголовок
+ * карточки сообщения не называет — «открыть чат» значит открыть его на свежем.
  */
 const ChatResults = ({ result, query, onOpenChat }) => {
   const { t, i18n } = useTranslation('search');
@@ -39,15 +41,12 @@ const ChatResults = ({ result, query, onOpenChat }) => {
     const rows = chat.messages.flatMap((message) => {
       const { key, Icon } = ROLE[message.role] || ROLE.USER;
       const target = { find, msg: message.id };
-      const link = {
-        href: chatUrl(chat.conversationId, target),
-        onOpen: () => onOpenChat(chat.conversationId, target),
-      };
       return [
         {
           key: `m:${message.id}`,
           heading: true,
-          ...link,
+          href: chatUrl(chat.conversationId, target),
+          onOpen: () => onOpenChat(chat.conversationId, target),
           node: (
             <>
               <Icon size={11} />
@@ -65,7 +64,6 @@ const ChatResults = ({ result, query, onOpenChat }) => {
         },
         ...message.fragments.map((text, i) => ({
           key: `${message.id}:${i}`,
-          ...link,
           node: (
             <>
               <span className="search-line__no" />
