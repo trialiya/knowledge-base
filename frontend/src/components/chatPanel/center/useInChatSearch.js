@@ -246,6 +246,13 @@ export default function useInChatSearch({
 
   const activeMatch = activeIndex >= 0 ? matches[activeIndex] : null;
 
+  // Приехала ли история чата. Переход из поиска открывает чат и запускает поиск
+  // одним махом, а история идёт своим запросом: ответ поиска обгоняет её, и
+  // догружать в этот момент нечего и нечем — чата нет ещё и в getChats. Признак
+  // в зависимостях догрузки даёт ей второй заход, уже по настоящей ленте; на
+  // дальнейший рост ленты он не меняется, и цикл догрузки этим не рвётся.
+  const historyLoaded = (messages?.length ?? 0) > 0;
+
   // Догрузка старых страниц, пока активное совпадение не окажется в загруженной истории.
   useEffect(() => {
     if (!activeMatch || !activeChatId) return undefined;
@@ -280,7 +287,14 @@ export default function useInChatSearch({
       for (let i = 0; i < MAX_LOAD_STEPS; i++) {
         if (cancelled || navSeqRef.current !== seq) return;
         const chat = getChats().find((c) => c.id === activeChatId);
-        if (!chat?.hasMore) break;
+        // Зеркало списка чатов обновляется эффектом родителя и отстаёт от ленты
+        // на кадр: сразу после перехода из поиска чата в нём может ещё не быть.
+        // Это не «история кончилась» — ждём, пока зеркало догонит.
+        if (!chat) {
+          await Promise.resolve();
+          continue;
+        }
+        if (!chat.hasMore) break;
         const got = await loadOlderMessages(activeChatId);
         if (cancelled || navSeqRef.current !== seq) return;
         if (!got || hasLocally()) break;
@@ -294,7 +308,7 @@ export default function useInChatSearch({
     // эффекта (смена activeMatch/activeChatId) — реагировать на его последующие
     // изменения не нужно, догрузку уже ведёт цикл внутри эффекта через getChats.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMatch, activeChatId, getChats, loadOlderMessages]);
+  }, [activeMatch, activeChatId, getChats, loadOlderMessages, historyLoaded]);
 
   return {
     open,
