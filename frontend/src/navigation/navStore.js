@@ -59,10 +59,6 @@ import { readUrl, buildUrl, currentUrl, initialNav, popNav } from './navUrl';
  */
 export function createNavStore({ canLeave = () => true } = {}) {
   let nav = initialNav();
-  // Раскладка, с которой раздел открыли (в том числе принесённая ссылкой),
-  // запоминается сразу: иначе первый же уход в другой раздел и возврат
-  // подставили бы вместо неё запомненную ранее.
-  savePanelState(nav.view, { leftCollapsed: nav.leftCollapsed, rightTab: nav.rightTab });
 
   // ── Память «последнего открытого» в каждом разделе (вне URL) ────────────────
   // Адрес описывает только текущую запись истории, поэтому «Назад» на /chat
@@ -411,6 +407,11 @@ export function createNavStore({ canLeave = () => true } = {}) {
     canonicalize() {
       const url = buildUrl(nav);
       if (url !== currentUrl()) window.history.replaceState({}, '', url);
+      // Раскладка, с которой раздел открыли (в том числе принесённая ссылкой),
+      // запоминается сразу: иначе первый же уход в другой раздел и возврат
+      // подставили бы вместо неё запомненную ранее. Здесь, а не при создании
+      // стора: стор создаётся в рендере, а это побочный эффект.
+      savePanelState(nav.view, { leftCollapsed: nav.leftCollapsed, rightTab: nav.rightTab });
     },
     /** «Назад»/«Вперёд»: адрес уже сменил браузер, состояние читается из него. */
     onPopState() {
