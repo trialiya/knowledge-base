@@ -19,6 +19,20 @@ import {
   SCROLL_LOAD_THRESHOLD as LOAD_MORE_THRESHOLD,
 } from '@/constants/ui';
 
+// Сколько тишины в событиях скролла считать концом собственной прокрутки к
+// совпадению: плавная прокрутка шлёт события кадр за кадром, пауза длиннее
+// кадра означает, что она доехала.
+const SEEK_IDLE_MS = 150;
+
+const isAtBottom = (el) => el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD;
+
+/** Видно ли элемент в прокручиваемом контейнере хотя бы частью. */
+const isInView = (el, container) => {
+  const rect = el.getBoundingClientRect();
+  const box = container.getBoundingClientRect();
+  return rect.bottom > box.top && rect.top < box.bottom;
+};
+
 // onLoadMore: async () => boolean — true если что-то догрузилось (для UI-индикатора).
 // hasMore: есть ли ещё более старые сообщения на бэке.
 // canLoadMore: разрешена ли догрузка прямо сейчас (например, false во время стриминга).
@@ -67,14 +81,21 @@ const MessageList = ({
   // сообщений, чтобы после вставки вернуть прокрутку на тот же контент.
   // null — обычный апдейт (новое сообщение / стриминг), не восстанавливаем.
   const prependRef = useRef(null); // { prevScrollHeight, prevScrollTop } | null
+  // Идёт ли ПРОГРАММНАЯ прокрутка к совпадению. Пока идёт, положение ленты
+  // выбрали не мышью, и залипание к низу по нему не пересчитывается: плавная
+  // прокрутка вверх первые кадры ещё «у низа» (порог 60px), handleScroll вернул
+  // бы stick, и в занятом чате следующий чанк ответа уволок бы ленту обратно
+  // вниз — прокрутка к найденному пропадала бы тем вернее, чем быстрее печатает
+  // модель. Снимается, когда лента успокоилась или её тронули рукой.
+  const seekingRef = useRef(false);
+  const seekIdleRef = useRef(null);
+  const seekMidRef = useRef(null);
   const loadingMoreRef = useRef(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Экономия каждого сжатия — одним проходом по ленте: «после» плашка ищет вперёд по ней, и
   // спрашивать это на каждой плашке значило бы обходить ленту столько раз, сколько в ней сжатий.
   const compactSavings = useMemo(() => compactSavingsIn(messages, hasMore), [messages, hasMore]);
-
-  const isAtBottom = (el) => el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD;
 
   const scrollToBottom = (smooth = false) => {
     const el = containerRef.current;
@@ -113,10 +134,47 @@ const MessageList = ({
     const el = containerRef.current;
     if (!el) return;
     const atBottom = isAtBottom(el);
-    stickRef.current = atBottom;
+    if (seekingRef.current) {
+      armSeekIdle(); // ещё кадр собственной прокрутки — конец отодвигается
+    } else {
+      stickRef.current = atBottom;
+    }
     setShowScrollButton(!atBottom);
     maybeLoadMore(el);
   };
+
+  // Своя прокрутка считается законченной, когда события скролла прекратились.
+  // Событие «scrollend» для этого не годится — в Safari оно появилось недавно, а
+  // тишина в ленте одинакова везде. Таймер заводится и на старте: прокрутка
+  // могла не сдвинуть ничего (сообщение уже по центру, лента короче экрана), и
+  // тогда ни одного события не придёт вовсе, а флаг остался бы висеть.
+  //
+  // Залипание к низу возвращаем, только если И встали у низа, И искомое
+  // сообщение видно. Тишина не доказывает, что прокрутка доехала: в занятом
+  // чате — ровно там, где эта защита и нужна, — главный поток встаёт между
+  // кадрами дольше таймера. Пока сообщение не показалось, такая пауза — это
+  // середина прокрутки, и вернуть на ней автоскролл значило бы отдать ленту
+  // следующему чанку ответа. Кнопку «вниз» не трогаем: её ставит скролл, а без
+  // скролла и менять нечего.
+  const endSeek = useCallback(() => {
+    clearTimeout(seekIdleRef.current);
+    seekingRef.current = false;
+    const el = containerRef.current;
+    const target = seekMidRef.current && el?.querySelector(`[data-mid="${seekMidRef.current}"]`);
+    if (el && target) stickRef.current = isAtBottom(el) && isInView(target, el);
+  }, []);
+
+  // Прокрутка к совпадению больше не наша: отправку своего сообщения человек
+  // ждёт внизу, и залипание там ставится своё.
+  const cancelSeek = useCallback(() => {
+    clearTimeout(seekIdleRef.current);
+    seekingRef.current = false;
+  }, []);
+
+  const armSeekIdle = useCallback(() => {
+    clearTimeout(seekIdleRef.current);
+    seekIdleRef.current = setTimeout(endSeek, SEEK_IDLE_MS);
+  }, [endSeek]);
 
   // Новые сообщения, стриминг ответа ИИ и догрузка старых сверху.
   // useLayoutEffect — чтобы скорректировать scrollTop до отрисовки (без мерцания).
@@ -141,6 +199,7 @@ const MessageList = ({
     // Пользователь отправил сообщение — снова включаем автопрокрутку,
     // даже если до этого он увёл список вверх.
     if (grew && last?.sender === 'user') {
+      cancelSeek();
       stickRef.current = true;
       setShowScrollButton(false);
     }
@@ -149,7 +208,7 @@ const MessageList = ({
     if (stickRef.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, cancelSeek]);
 
   // Держим низ при изменении размеров контейнера (ресайз окна,
   // открытие/закрытие боковых панелей). На рост контента не срабатывает —
@@ -180,6 +239,9 @@ const MessageList = ({
     if (!el) return;
     scrolledSearchMidRef.current = activeSearchMid;
     stickRef.current = false; // не залипаем к низу при программной прокрутке к совпадению
+    seekingRef.current = true;
+    seekMidRef.current = activeSearchMid;
+    armSeekIdle();
     // Длинное сообщение может быть выше экрана — центрируем не пузырь целиком,
     // а первое вхождение запроса в нём.
     // Собираем по одному пузырю, а не берём из общего списка: тот пересобирается
@@ -195,7 +257,7 @@ const MessageList = ({
     } else {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
-  }, [activeSearchMid, searchQuery, messages]);
+  }, [activeSearchMid, searchQuery, messages, armSeekIdle]);
 
   // Подсветка вхождений запроса в тексте сообщений. Активным здесь считается не
   // одно вхождение, а всё активное сообщение: бар ходит по сообщениям, и

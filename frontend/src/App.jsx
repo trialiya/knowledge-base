@@ -253,6 +253,7 @@ function App() {
             activeChatId={nav.chatId}
             onSelectChat={openChat}
             find={view === 'chat' ? nav.chatFind : ''}
+            msg={view === 'chat' ? nav.chatMsg : ''}
             onFindChange={setChatFind}
             onNavigateToDoc={openDoc}
             onDocChanged={handleDocChanged}

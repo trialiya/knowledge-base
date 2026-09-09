@@ -208,6 +208,52 @@ describe('подсветка в открытом документе', () => {
   });
 });
 
+describe('подсветка в открытом чате', () => {
+  it('читает запрос и сообщение из адреса чата', () => {
+    go('/chat/7?find=needle&msg=42');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav).toMatchObject({ view: 'chat', chatId: '7', chatFind: 'needle', chatMsg: '42' });
+  });
+
+  // Сообщение ведёт к активному совпадению; без запроса совпадений нет.
+  it('сообщение без запроса не читается и не пишется', () => {
+    go('/chat/7?msg=42');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav.chatMsg).toBe('');
+    act(() => result.current.openChat(8, { msg: 42 }));
+    expect(url()).toBe('/chat/8');
+  });
+
+  it('переход из поиска приносит запрос и сообщение в адрес чата', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openChat(7, { find: 'needle', msg: 42 }));
+    expect(url()).toBe('/chat/7?find=needle&msg=42');
+  });
+
+  it('не переезжает на чат, открытый не из поиска', () => {
+    go('/chat/7?find=needle&msg=42');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openChat(8));
+    expect(url()).toBe('/chat/8');
+  });
+
+  it('фиксация того же запроса из бара сообщение не трогает', () => {
+    go('/chat/7?find=needle&msg=42');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.setChatFind('needle'));
+    expect(url()).toBe('/chat/7?find=needle&msg=42');
+  });
+
+  it('другой запрос из бара заменяет запись истории и снимает сообщение', () => {
+    go('/chat/7?find=needle&msg=42');
+    const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
+    act(() => result.current.setChatFind('other'));
+    expect(url()).toBe('/chat/7?find=other');
+    expect(window.history.length).toBe(before);
+  });
+});
+
 describe('единый поиск', () => {
   it('разбирает запрос, категорию и фильтры категории «файлы»', () => {
     go('/search?q=needle&in=files&path=backend%2F**&rev=v1&regex=1&untracked=1');
