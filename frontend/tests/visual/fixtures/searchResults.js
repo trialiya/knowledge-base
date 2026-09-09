@@ -82,7 +82,7 @@ export const docEntry = {
 /** Чат, совпавший и названием, и двумя сообщениями разных ролей. */
 export const chatEntry = {
   data: {
-    total: 2,
+    total: 3,
     truncated: false,
     chats: [
       {
@@ -95,13 +95,16 @@ export const chatEntry = {
             id: 811,
             role: 'USER',
             createdAt: '2026-07-18T20:41:00',
-            snippet: '…почему grep не находит файл, которого нет в индексе?…',
+            fragments: ['…почему grep не находит файл, которого нет в индексе?…'],
           },
           {
             id: 812,
             role: 'ASSISTANT',
             createdAt: '2026-07-18T20:59:00',
-            snippet: '…git grep без --untracked ходит только по отслеживаемым…',
+            fragments: [
+              '…git grep без --untracked ходит только по отслеживаемым…',
+              '…добавь --untracked, и grep увидит новые файлы тоже…',
+            ],
           },
         ],
       },
