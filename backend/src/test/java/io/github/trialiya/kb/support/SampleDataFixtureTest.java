@@ -6,6 +6,7 @@ import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.util.List;
@@ -51,27 +52,76 @@ class SampleDataFixtureTest {
      * no project shows the selector's fallback rather than a real selection.
      */
     @Test
-    void theFixtureChatNamesItsProject() {
-        assertThat(
-                        jdbc.queryForObject(
-                                "select project from chat_topic where conversation_id = ?",
-                                String.class,
-                                "c5dfa618-0ad2-4845-a976-ada46c50f9a4"))
-                .isEqualTo("default");
+    void theFixtureChatsNameTheirProject() {
+        assertThat(jdbc.queryForList("select project from chat_topic", String.class))
+                .hasSize(2)
+                .containsOnly("default");
+    }
+
+    /**
+     * The second chat is what makes a chat search hit several chats at once, and several lines of
+     * one message: the search card shows one row per matching line. Asserted on the data, not on
+     * the search service — a row edited to lose the word would only show up as an empty card.
+     */
+    @Test
+    void secondChatCarriesTheSearchWordOnSeveralLinesOfOneAnswer() {
+        List<ChatMessageEntity> messages =
+                chatMessageRepo
+                        .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                                "e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13");
+
+        assertThat(messages).hasSize(4);
+        assertThat(messages).allSatisfy(m -> assertThat(m.getToolData()).isNull());
+        long linesWithGrep =
+                messages.stream()
+                        .filter(m -> m.getId() == 1659)
+                        .findFirst()
+                        .orElseThrow()
+                        .getContent()
+                        .lines()
+                        .filter(line -> line.toLowerCase().contains("grep"))
+                        .count();
+        assertThat(linesWithGrep).isGreaterThan(1);
+    }
+
+    /**
+     * The tree the fixture must keep: a folder inside a folder (a folder header with crumbs), a
+     * document four levels deep (three ancestors — an ancestor path that overflows one row) and the
+     * only system document (lock instead of delete). Each is the one row of its kind — the detail
+     * header's variants are unreachable without them.
+     */
+    @Test
+    void nestedFoldersAndSystemDocumentAreInPlace() {
+        assertThat(documentRepo.findById(78L).orElseThrow())
+                .satisfies(
+                        folder -> {
+                            assertThat(folder.getType()).isEqualTo(DocumentType.FOLDER);
+                            assertThat(folder.getParentId()).isEqualTo(75L);
+                        });
+        assertThat(documentRepo.findById(79L).orElseThrow().getParentId()).isEqualTo(78L);
+        assertThat(documentRepo.findById(81L).orElseThrow())
+                .satisfies(
+                        folder -> {
+                            assertThat(folder.getType()).isEqualTo(DocumentType.FOLDER);
+                            assertThat(folder.getParentId()).isEqualTo(78L);
+                        });
+        assertThat(documentRepo.findById(82L).orElseThrow().getParentId()).isEqualTo(81L);
+        assertThat(jdbc.queryForList("select id from documents where is_system = true", Long.class))
+                .containsExactly(80L);
     }
 
     @Test
     void loadsAllFixtureTables() {
         assertThat(jdbc.queryForObject("select count(*) from chat_topic", Integer.class))
-                .isEqualTo(1);
+                .isEqualTo(2);
         assertThat(jdbc.queryForObject("select count(*) from chat_message", Integer.class))
-                .isEqualTo(20);
+                .isEqualTo(24);
         assertThat(jdbc.queryForObject("select count(*) from tool_call_index", Integer.class))
                 .isEqualTo(10);
         assertThat(jdbc.queryForObject("select count(*) from documents", Integer.class))
-                .isEqualTo(3);
+                .isEqualTo(8);
         assertThat(jdbc.queryForObject("select count(*) from document_history", Integer.class))
-                .isEqualTo(3);
+                .isEqualTo(8);
         assertThat(jdbc.queryForObject("select count(*) from attachments", Integer.class))
                 .isEqualTo(2);
         assertThat(jdbc.queryForObject("select count(*) from embedding_tasks", Integer.class))

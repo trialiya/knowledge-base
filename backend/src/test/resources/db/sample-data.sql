@@ -6,12 +6,16 @@
 -- real db/migration (Postgres) schema as-is (vector/array column types differ).
 --
 -- Contents:
---  * chat_topic + chat_message (20 rows) — a real captured conversation asking the
---    AI to summarize backend/build.gradle's commit history and create documents for
---    it (documents 75/76 below), plus a hand-added closing exchange (rows 1654-1657)
---    whose tools return TEXT — getFileContent and getDocumentSection. That last pair
---    is what makes the "Обзор" mode of the tool-call detail modal reachable at all:
---    every captured call returns a list or a tree, and those stay on plain JSON.
+--  * chat_topic + chat_message — two chats. The first (20 rows) is a real captured
+--    conversation asking the AI to summarize backend/build.gradle's commit history
+--    and create documents for it (documents 75/76 below), plus a hand-added closing
+--    exchange (rows 1654-1657) whose tools return TEXT — getFileContent and
+--    getDocumentSection. That last pair is what makes the "Обзор" mode of the
+--    tool-call detail modal reachable at all: every captured call returns a list or
+--    a tree, and those stay on plain JSON. The second (4 rows, hand-added, no tool
+--    calls) exists so the list has two chats — switching between them, the active
+--    row without a delete button — and so a chat search ("grep") hits several
+--    chats, with several matching lines inside one message.
 --    Exercises USER/ASSISTANT/TOOL message types, the meta column (ChatMessageMeta:
 --    runId/toolCalls/invocations/model/usage) and the tool_data column (ToolData: tool call
 --    args / tool responses) with realistic JSON. meta.model is deliberately set on the
@@ -30,9 +34,13 @@
 --    clickable — without it canShowDetail is false and the modal cannot be opened.
 --  * documents/document_history — folder 75 ('анализ') and document 76 (the
 --    AI-authored chronology, full markdown content) from the captured conversation,
---    plus a hand-added document 77 exercising file links (/files?path=...), doc
+--    plus hand-added rows: document 77 exercising file links (/files?path=...), doc
 --    links (/?doc=76), a doc link with an anchor (/?doc=76#...) and an external
---    link — the cases DocLinkTooltip/ChatDocLink branch on.
+--    link — the cases DocLinkTooltip/ChatDocLink branch on; folder 78 inside 75
+--    with document 79 in it (a folder header with crumbs), folder 81 inside 78 with
+--    document 82 in it (three long-named ancestors — a crumb row that overflows);
+--    document 80 at the root with is_system = TRUE (lock instead of delete, title
+--    not editable).
 --  * attachments — one hand-added chat attachment (owner_type='chat', a build error
 --    log) and one document attachment (owner_type='document', on doc 77), covering
 --    both FK branches of the chk_attachment_owner constraint.
@@ -61,7 +69,13 @@
 -- в которой фикстуру и гоняют вручную (PROJECT_PATH=. на h2-профиле). Чужой id здесь
 -- показывал бы предупреждение «проект недоступен» на каждом открытии чата.
 INSERT INTO chat_topic (conversation_id, "user", user_topic, ai_topic, model, project, created_at, updated_at) VALUES
-    ('c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'admin', NULL, 'История коммитов backend/build.gradle', NULL, 'default', '2026-07-18 20:59:02.915088', '2026-07-18 21:01:19.071770');
+    ('c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'admin', NULL, 'История коммитов backend/build.gradle', NULL, 'default', '2026-07-18 20:59:02.915088', '2026-07-18 21:01:19.071770'),
+    -- Второй чат (hand-added): без вызовов инструментов, зато два прогона подряд.
+    -- Нужен списку из двух и более строк (переход между чатами, строка активного
+    -- чата без кнопки удаления) и поиску по чатам с совпадениями в нескольких
+    -- чатах: слово «grep» стоит в обоих, в ответе 1659 — на нескольких строках,
+    -- так что карточка результата показывает по строке на каждое вхождение.
+    ('e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13', 'admin', NULL, 'Поиск по репозиторию: grep и семантический', NULL, 'default', '2026-07-19 09:12:40.118206', '2026-07-19 09:15:05.402911');
 
 -- ── chat_message (captured conversation, position 1..16) ────────────────────
 INSERT INTO chat_message (id, conversation_id, content, created_at, position, summarized, summary, type, meta, tool_data) VALUES
@@ -157,7 +171,24 @@ Spring AI 1.1.5 → **1.1.6**.
     (1655, 'c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'Читаю файл и нужный раздел документа:', '2026-07-18 21:04:14.882640', 18, FALSE, FALSE, 'ASSISTANT', '{"runId":"7b41c0de-5a92-4e18-8f30-1c6d2b7ae904","model":"deepseek-chat","toolCalls":false,"invocations":[{"name":"getFileContent","arguments":{"path":"backend/build.gradle","fromLine":"1","toLine":"14"},"status":"OK","error":null,"resultMeta":{},"hasDetails":true,"callIndex":0,"callId":"call_00_Rn3KpVQxL7mB2sTdWfYc4812","resultGist":"file:backend/build.gradle lang=groovy lines=161 range=1-14 truncated=1\nplugins {\n    id ''java''\n    id ''org.spring…(+312)"},{"name":"getDocumentSection","arguments":{"id":"76","path":"Хронология изменений backend/build.gradle > 9. Tree-sitter для file outline"},"status":"OK","error":null,"resultMeta":{"id":76,"path":"Хронология изменений backend/build.gradle > 9. Tree-sitter для file outline","descriptionVersion":1},"hasDetails":true,"callIndex":1,"callId":"call_01_Zt8HmDbNQ4vKp1LrXgEs7305","resultGist":"section:76 path=\"Хронология изменений backend/build.gradle > 9. Tree-sitter для file outline\" descVer=1\n## 9. Tree-sitter для file outline\n**`5998209`…(+298)"}]}', '{"toolCalls":[{"id":"call_00_Rn3KpVQxL7mB2sTdWfYc4812","type":"function","name":"getFileContent","arguments":"{\"path\": \"backend/build.gradle\", \"fromLine\": 1, \"toLine\": 14}"},{"id":"call_01_Zt8HmDbNQ4vKp1LrXgEs7305","type":"function","name":"getDocumentSection","arguments":"{\"id\": 76, \"path\": \"Хронология изменений backend/build.gradle > 9. Tree-sitter для file outline\"}"}],"responses":null}'),
     (1656, 'c5dfa618-0ad2-4845-a976-ada46c50f9a4', '', '2026-07-18 21:04:15.031884', 19, FALSE, FALSE, 'TOOL', NULL, '{"toolCalls":null,"responses":[{"id":"call_00_Rn3KpVQxL7mB2sTdWfYc4812","name":"getFileContent","responseData":"{\"path\":\"backend/build.gradle\",\"content\":\"plugins {\\n    id ''java''\\n    id ''org.springframework.boot'' version ''4.1.0''\\n    id ''io.spring.dependency-management'' version ''1.1.7''\\n    id ''com.diffplug.spotless''\\n    id ''net.ltgt.errorprone''\\n}\\n\\ngroup = ''io.github.trialiya.kb''\\nversion = ''1.0-SNAPSHOT''\\n\\njava {\\n    toolchain {\\n        languageVersion = JavaLanguageVersion.of(25)\",\"binary\":false,\"sizeBytes\":5218,\"language\":\"groovy\",\"lineCount\":161,\"truncated\":true,\"fromLine\":1,\"toLine\":14}"},{"id":"call_01_Zt8HmDbNQ4vKp1LrXgEs7305","name":"getDocumentSection","responseData":"{\"id\":76,\"path\":\"Хронология изменений backend/build.gradle > 9. Tree-sitter для file outline\",\"descriptionVersion\":1,\"content\":\"## 9. Tree-sitter для file outline\\n**`5998209`** — 25.05.2026 — *feature: add file outline tool with tree-sitter and regex fallback*\\n\\n- ➕ `io.github.bonede:tree-sitter:0.26.6`\\n- ➕ `tree-sitter-java:0.23.5`\\n- ➕ `tree-sitter-javascript:0.23.1`\\n- ➕ `tree-sitter-typescript:0.23.2`\\n- ➕ `tree-sitter-python:0.25.0`\\n- Стиль кавычек унифицирован (двойные → одинарные)\"}"}]}'),
     (1657, 'c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'Начало [`backend/build.gradle`](/files?path=backend/build.gradle) — плагины и toolchain на Java 25; раздел про tree-sitter взят из документа [Хронология изменений](/?doc=76): пять зависимостей парсера появились в `5998209`.', '2026-07-18 21:04:19.640225', 20, FALSE, FALSE, 'ASSISTANT', '{"runId":"7b41c0de-5a92-4e18-8f30-1c6d2b7ae904","model":"deepseek-chat","toolCalls":false,"invocations":[],"usage":{"contextTokens":21050,"toolTokens":2140,"outputTokens":260,"promptTokens":40890,"cacheReadTokens":33600,"cacheWriteTokens":420,"modelCalls":2}}', NULL);
-ALTER TABLE chat_message ALTER COLUMN id RESTART WITH 1658;
+-- Второй чат: два прогона без инструментов. meta.usage — на последнем ряду каждого
+-- прогона, как его пишет markRunResult; model на обоих ответах.
+INSERT INTO chat_message (id, conversation_id, content, created_at, position, summarized, summary, type, meta, tool_data) VALUES
+    (1658, 'e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13', 'Как искать по репозиторию: чем grep отличается от семантического поиска по базе знаний?', '2026-07-19 09:12:40.118206', 1, FALSE, FALSE, 'USER', NULL, NULL),
+    (1659, 'e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13', 'Это два разных инструмента под разные вопросы.
+
+**grep по репозиторию** ищет точную подстроку или регулярное выражение в файлах:
+- `grep -rn "ChatSearchService" backend/src` — все упоминания класса с номерами строк;
+- `grep -rni "todo" --include=*.java` — без учёта регистра и только по Java-файлам;
+- в приложении то же делает категория «Файлы» единого поиска — под капотом там тот же grep по рабочему дереву или снимку коммита.
+
+**Семантический поиск** по базе знаний работает по смыслу: запрос и разделы документов переводятся в векторы (pgvector), и находится ближайшее по смыслу, даже если слов из запроса в тексте нет. Он не заменяет grep: имя метода или сообщение об ошибке надёжнее искать точным совпадением.
+
+Практическое правило: знаешь точную строку — grep; помнишь только, о чём шла речь, — семантический поиск.', '2026-07-19 09:12:58.734552', 2, FALSE, FALSE, 'ASSISTANT', '{"runId":"3f9c2d71-8e4b-4a05-b6c3-d17e5a9f0b28","model":"deepseek-chat","toolCalls":false,"invocations":[],"usage":{"contextTokens":9840,"toolTokens":0,"outputTokens":410,"promptTokens":9430,"cacheReadTokens":8200,"cacheWriteTokens":640,"modelCalls":1}}', NULL),
+    (1660, 'e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13', 'А если нужно найти все вызовы grep в тестах, но не в документации?', '2026-07-19 09:14:31.006318', 3, FALSE, FALSE, 'USER', NULL, NULL),
+    (1661, 'e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13', 'Ограничь область поиска путём: в категории «Файлы» единого поиска задай фильтр пути `backend/src/test` (или `frontend/src` с маской `*.test.js`), и документация в `docs/` в выдачу не попадёт. В терминале это `grep -rn "grep" backend/src/test frontend/src --include=*.test.js`.', '2026-07-19 09:15:05.402911', 4, FALSE, FALSE, 'ASSISTANT', '{"runId":"a61d0e8f-2c7b-4f39-9d15-70b4c3e2a8d6","model":"deepseek-chat","toolCalls":false,"invocations":[],"usage":{"contextTokens":10620,"toolTokens":0,"outputTokens":150,"promptTokens":10310,"cacheReadTokens":9800,"cacheWriteTokens":210,"modelCalls":1}}', NULL);
+
+ALTER TABLE chat_message ALTER COLUMN id RESTART WITH 1662;
 
 -- ── tool_call_index (callId -> chat_message id, see ToolCallService#findToolCallDetail) ──
 INSERT INTO tool_call_index (id, conversation_id, call_id, message_id, response_message_id) VALUES
@@ -352,7 +383,51 @@ INSERT INTO documents (id, title, type, parent_id, created_at, updated_at, descr
 К документу также прикреплён файл-вложение — фрагмент `build.gradle` (см. вкладку «Вложения»).
 ', 1, FALSE, 1, NULL, NULL, 1);
 
-ALTER TABLE documents ALTER COLUMN id RESTART WITH 78;
+-- Hand-added: папка внутри папки (78 в 75) и документ на третьем уровне (79) —
+-- у шапки папки появляются крошки; ещё одна папка глубже (81 в 78) и документ
+-- на четвёртом уровне (82) — три предка с длинными именами, которым тесно в
+-- одну строку крошек; системный документ (80) — единственная строка с
+-- is_system = TRUE: замок вместо кнопки удаления, имя не открывает правку.
+INSERT INTO documents (id, title, type, parent_id, created_at, updated_at, description, position, is_system, version, summary, summary_source_version, description_version) VALUES
+    (78, 'Черновики и рабочие заметки по сборке проекта', 'folder', 75, '2026-07-19 09:20:00.000000+00:00', '2026-07-19 09:20:00.000000+00:00', NULL, 2, FALSE, 1, NULL, NULL, 1),
+    (79, 'Чек-лист обновления зависимостей Gradle', 'document', 78, '2026-07-19 09:21:30.000000+00:00', '2026-07-19 09:21:30.000000+00:00', '# Чек-лист обновления зависимостей Gradle
+
+Порядок действий при поднятии версии любой зависимости в [`backend/build.gradle`](/files?path=backend/build.gradle).
+
+## Перед обновлением
+
+- Найти все места, где зависимость используется напрямую: `grep -rn "<пакет>" backend/src`.
+- Прочитать release notes — особенно раздел про несовместимые изменения.
+- Свериться с [хронологией изменений](/?doc=76): не откатывали ли эту версию раньше.
+
+## Обновление
+
+1. Поменять версию в `build.gradle`.
+2. Перезаписать lock-файлы: `./gradlew resolveAndLockAll --write-locks`.
+3. Прогнать `./run/test.sh pre-pr`.
+
+## После обновления
+
+- Проверить, что `spotlessCheck` не сломался из-за новой версии форматтера.
+- Записать итог в хронологию — один абзац: что подняли и что пришлось поправить.
+', 0, FALSE, 1, NULL, NULL, 1),
+    (80, 'Правила работы ассистента', 'document', NULL, '2026-07-19 09:25:00.000000+00:00', '2026-07-19 09:25:00.000000+00:00', '# Правила работы ассистента
+
+Системный документ: переименование и удаление недоступны, содержимое правится как обычно.
+
+- Отвечать на языке вопроса.
+- Прежде чем менять файл, показать, что именно изменится.
+- Ссылки на файлы репозитория оформлять как `/files?path=<путь>`, на документы — как `/?doc=<id>`.
+', 6, TRUE, 1, NULL, NULL, 1),
+    (81, 'Регламенты обновления инструментов сборки и зависимостей', 'folder', 78, '2026-07-19 09:30:00.000000+00:00', '2026-07-19 09:30:00.000000+00:00', NULL, 1, FALSE, 1, NULL, NULL, 1),
+    (82, 'Порядок поднятия версии Gradle Wrapper', 'document', 81, '2026-07-19 09:31:00.000000+00:00', '2026-07-19 09:31:00.000000+00:00', '# Порядок поднятия версии Gradle Wrapper
+
+1. `./gradlew wrapper --gradle-version <версия>` — обновляет `gradle/wrapper/gradle-wrapper.properties` и сам jar обёртки.
+2. Прогнать `./run/test.sh pre-pr`: новая версия Gradle может изменить поведение плагинов.
+3. Сверить с [чек-листом зависимостей](/?doc=79) — поднятие обёртки часто тянет за собой версию Spotless.
+', 0, FALSE, 1, NULL, NULL, 1);
+
+ALTER TABLE documents ALTER COLUMN id RESTART WITH 83;
 
 -- ── document_history ─────────────────────────────────────────────────────
 INSERT INTO document_history (id, document_id, version, title, type, description, updated_at, summary, summary_source_version, description_version) VALUES
@@ -531,7 +606,46 @@ INSERT INTO document_history (id, document_id, version, title, type, description
 К документу также прикреплён файл-вложение — фрагмент `build.gradle` (см. вкладку «Вложения»).
 ', '2026-07-18 18:05:00.000000+00:00', NULL, NULL, 1);
 
-ALTER TABLE document_history ALTER COLUMN id RESTART WITH 378;
+INSERT INTO document_history (id, document_id, version, title, type, description, updated_at, summary, summary_source_version, description_version) VALUES
+    (378, 78, 1, 'Черновики и рабочие заметки по сборке проекта', 'folder', NULL, '2026-07-19 09:20:00.000000+00:00', NULL, NULL, 1),
+    (379, 79, 1, 'Чек-лист обновления зависимостей Gradle', 'document', '# Чек-лист обновления зависимостей Gradle
+
+Порядок действий при поднятии версии любой зависимости в [`backend/build.gradle`](/files?path=backend/build.gradle).
+
+## Перед обновлением
+
+- Найти все места, где зависимость используется напрямую: `grep -rn "<пакет>" backend/src`.
+- Прочитать release notes — особенно раздел про несовместимые изменения.
+- Свериться с [хронологией изменений](/?doc=76): не откатывали ли эту версию раньше.
+
+## Обновление
+
+1. Поменять версию в `build.gradle`.
+2. Перезаписать lock-файлы: `./gradlew resolveAndLockAll --write-locks`.
+3. Прогнать `./run/test.sh pre-pr`.
+
+## После обновления
+
+- Проверить, что `spotlessCheck` не сломался из-за новой версии форматтера.
+- Записать итог в хронологию — один абзац: что подняли и что пришлось поправить.
+', '2026-07-19 09:21:30.000000+00:00', NULL, NULL, 1),
+    (380, 80, 1, 'Правила работы ассистента', 'document', '# Правила работы ассистента
+
+Системный документ: переименование и удаление недоступны, содержимое правится как обычно.
+
+- Отвечать на языке вопроса.
+- Прежде чем менять файл, показать, что именно изменится.
+- Ссылки на файлы репозитория оформлять как `/files?path=<путь>`, на документы — как `/?doc=<id>`.
+', '2026-07-19 09:25:00.000000+00:00', NULL, NULL, 1),
+    (381, 81, 1, 'Регламенты обновления инструментов сборки и зависимостей', 'folder', NULL, '2026-07-19 09:30:00.000000+00:00', NULL, NULL, 1),
+    (382, 82, 1, 'Порядок поднятия версии Gradle Wrapper', 'document', '# Порядок поднятия версии Gradle Wrapper
+
+1. `./gradlew wrapper --gradle-version <версия>` — обновляет `gradle/wrapper/gradle-wrapper.properties` и сам jar обёртки.
+2. Прогнать `./run/test.sh pre-pr`: новая версия Gradle может изменить поведение плагинов.
+3. Сверить с [чек-листом зависимостей](/?doc=79) — поднятие обёртки часто тянет за собой версию Spotless.
+', '2026-07-19 09:31:00.000000+00:00', NULL, NULL, 1);
+
+ALTER TABLE document_history ALTER COLUMN id RESTART WITH 383;
 
 -- ── attachments (hand-added: one chat attachment, one document attachment) ──
 INSERT INTO attachments (id, owner_type, document_id, conversation_id, file_name, content_type, file_size, content, summary, source_url, created_at, updated_at) VALUES
