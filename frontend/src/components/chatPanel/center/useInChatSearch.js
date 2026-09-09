@@ -284,17 +284,15 @@ export default function useInChatSearch({
     let cancelled = false;
     (async () => {
       setNavigating(true);
+      // Зеркало списка чатов обновляет эффект родителя (useChatList), а он идёт
+      // после эффектов детей: сразу после перехода из поиска чата в зеркале ещё
+      // нет, и hasMore по нему читался бы как «истории больше нет». Микротаска
+      // хватает — к ней все эффекты коммита уже отработали.
+      if (!getChats().some((c) => c.id === activeChatId)) await Promise.resolve();
       for (let i = 0; i < MAX_LOAD_STEPS; i++) {
         if (cancelled || navSeqRef.current !== seq) return;
         const chat = getChats().find((c) => c.id === activeChatId);
-        // Зеркало списка чатов обновляется эффектом родителя и отстаёт от ленты
-        // на кадр: сразу после перехода из поиска чата в нём может ещё не быть.
-        // Это не «история кончилась» — ждём, пока зеркало догонит.
-        if (!chat) {
-          await Promise.resolve();
-          continue;
-        }
-        if (!chat.hasMore) break;
+        if (!chat?.hasMore) break;
         const got = await loadOlderMessages(activeChatId);
         if (cancelled || navSeqRef.current !== seq) return;
         if (!got || hasLocally()) break;
@@ -304,9 +302,11 @@ export default function useInChatSearch({
     return () => {
       cancelled = true;
     };
-    // messages не в deps намеренно: нужен лишь свежий снимок в момент срабатывания
-    // эффекта (смена activeMatch/activeChatId) — реагировать на его последующие
-    // изменения не нужно, догрузку уже ведёт цикл внутри эффекта через getChats.
+    // Сами messages не в deps намеренно: нужен лишь свежий снимок в момент
+    // срабатывания эффекта — реагировать на каждое их изменение не нужно,
+    // догрузку уже ведёт цикл внутри эффекта через getChats. Из них взят один
+    // переход, historyLoaded: пустая лента не даёт ни искать, ни судить о
+    // hasMore, и появление истории обязано дать эффекту второй заход.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMatch, activeChatId, getChats, loadOlderMessages, historyLoaded]);
 
