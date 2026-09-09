@@ -54,6 +54,16 @@ record Pathspec(@Nullable Pattern pattern, String literal) {
         return new Pathspec(Pattern.compile(regex.toString()), glob);
     }
 
+    /**
+     * A path matched as itself and nothing else — for a caller that has one file in hand rather
+     * than a pattern. The prefix rule above is wrong there: the files panel asks by the path
+     * currently selected, and a directory would answer with the diff of the first changed file
+     * under it, shown under the directory's own name. Wildcards in the path are literal.
+     */
+    static Pathspec exact(String path) {
+        return new Pathspec(Pattern.compile(Pattern.quote(path)), path);
+    }
+
     boolean matches(String path) {
         if (pattern == null) {
             return path.equals(literal) || path.startsWith(literal + "/");

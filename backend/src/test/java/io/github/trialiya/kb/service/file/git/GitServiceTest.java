@@ -337,6 +337,79 @@ class GitServiceTest {
                 .satisfies(entry -> assertThat(entry.path()).isEqualTo("a.txt"));
     }
 
+    /**
+     * Фильтр — это pathspec git, а не имя файла: без wildcard он префикс пути, поэтому каталог
+     * отбирает всё под собой, а wildcard идёт через «/» и достаёт файлы на любой глубине.
+     */
+    @Test
+    void uncommittedChangesNarrowedByDirectoryAndByGlob() {
+        writeFile("docs/a.md", "one\n");
+        writeFile("src/main/A.java", "class A {}\n");
+        writeFile("src/main/deep/B.java", "class B {}\n");
+        writeFile("root.txt", "one\n");
+        commitAll();
+        writeFile("docs/a.md", "one\ntwo\n");
+        writeFile("src/main/A.java", "class A { int x; }\n");
+        writeFile("src/main/deep/B.java", "class B { int x; }\n");
+        writeFile("root.txt", "one\ntwo\n");
+
+        assertThat(service.getUncommittedChanges(false, List.of("docs")))
+                .extracting(GitDiffEntry::path)
+                .containsExactly("docs/a.md");
+        assertThat(service.getUncommittedChanges(false, List.of("*.java")))
+                .extracting(GitDiffEntry::path)
+                .containsExactlyInAnyOrder("src/main/A.java", "src/main/deep/B.java");
+    }
+
+    /**
+     * Одиночный путь — это путь, а не pathspec: панель спрашивает тем, что выбрано в URL, а выбран
+     * бывает и каталог, и префиксное совпадение показало бы под его именем дифф первого файла
+     * внутри.
+     */
+    @Test
+    void uncommittedChangesNarrowedToASinglePathMatchThatPathOnly() {
+        writeFile("docs/a.md", "one\n");
+        commitAll();
+        writeFile("docs/a.md", "one\ntwo\n");
+
+        assertThat(service.getUncommittedChanges(true, "docs")).isEmpty();
+        assertThat(service.getUncommittedChanges(true, "docs/a.md")).hasSize(1);
+    }
+
+    /**
+     * «.» — это корень дерева, а не путь: фильтр из него значит то же, что пропущенный аргумент.
+     */
+    @Test
+    void uncommittedChangesFilteredByTheRepoRootIsTheWholeTree() {
+        writeFile("a.txt", "one\n");
+        commitAll();
+        writeFile("a.txt", "one\ntwo\n");
+
+        assertThat(service.getUncommittedChanges(false, List.of(".")))
+                .extracting(GitDiffEntry::path)
+                .containsExactly("a.txt");
+    }
+
+    /** Несколько фильтров складываются как несколько pathspec'ов в команде git — по ИЛИ. */
+    @Test
+    void uncommittedChangesNarrowedToSeveralFiltersUnionsThem() {
+        writeFile("docs/a.md", "one\n");
+        writeFile("src/A.java", "class A {}\n");
+        writeFile("root.txt", "one\n");
+        commitAll();
+        writeFile("docs/a.md", "one\ntwo\n");
+        writeFile("src/A.java", "class A { int x; }\n");
+        writeFile("root.txt", "one\ntwo\n");
+
+        assertThat(service.getUncommittedChanges(false, List.of("docs", "root.txt")))
+                .extracting(GitDiffEntry::path)
+                .containsExactlyInAnyOrder("docs/a.md", "root.txt");
+        // Пустой список — весь список изменений, как и вызов без фильтра вовсе.
+        assertThat(service.getUncommittedChanges(false, List.of()))
+                .extracting(GitDiffEntry::path)
+                .containsExactlyInAnyOrder("docs/a.md", "src/A.java", "root.txt");
+    }
+
     @Test
     void uncommittedChangesNarrowedToARenameKeepsStatusRUnderEitherName() {
         writeFile("old-name.txt", "one\ntwo\nthree\n");

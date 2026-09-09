@@ -1233,19 +1233,61 @@ public class GitService {
      * @param includePatch whether to include unified diff text for modified files
      */
     public List<GitDiffEntry> getUncommittedChanges(boolean includePatch) {
-        return getUncommittedChanges(includePatch, null);
+        return changes(includePatch, List.of());
     }
 
     /**
-     * The same list narrowed to one path — what the files panel asks for when it opens a single
+     * The same list narrowed to one file — what the files panel asks for when it opens a single
      * change: the list it already drew needs no patches, and computing every file's patch to show
      * one of them is the whole working tree's diff per click.
      *
-     * @param onlyPath a file path, or {@code null} for the whole working tree
+     * <p>The path is matched as itself, not as a pathspec: the panel asks by whatever the URL has
+     * selected, a directory among it, and a prefix match would answer that with the first changed
+     * file under it — a diff shown under a name that is not its own.
+     *
+     * @param onlyPath a file path, or {@code null}/blank for the whole working tree
      */
     public List<GitDiffEntry> getUncommittedChanges(
             boolean includePatch, @Nullable String onlyPath) {
-        @Nullable String wanted = onlyPath == null ? null : normalizePath(onlyPath);
+        return changes(
+                includePatch,
+                onlyPath == null || onlyPath.isBlank()
+                        ? List.of()
+                        : List.of(Pathspec.exact(normalizePath(onlyPath))));
+    }
+
+    /**
+     * The same list narrowed to the paths asked for, matched as git matches a pathspec ({@link
+     * Pathspec}): a name without a wildcard is a path prefix, so {@code docs} means everything
+     * under {@code docs/}, and a wildcard crosses {@code /}, so {@code *.java} reaches every {@code
+     * .java} in the tree. Several filters combine as OR, the way several pathspecs do on a git
+     * command line.
+     *
+     * <p>A renamed file matches under either of its names: the model asking about the path it knows
+     * gets the rename rather than nothing.
+     *
+     * @param pathFilters paths, directories or globs to keep; empty for the whole working tree
+     * @throws IllegalArgumentException if a filter is not a spellable repo-relative path
+     */
+    public List<GitDiffEntry> getUncommittedChanges(
+            boolean includePatch, List<String> pathFilters) {
+        return changes(
+                includePatch,
+                pathFilters.stream()
+                        .map(filter -> filter == null ? "" : filter.strip())
+                        // "." and "./" name the repo root, which normalizePath refuses and which
+                        // means here what an omitted filter means: the whole working tree.
+                        .filter(
+                                filter ->
+                                        !filter.isEmpty()
+                                                && !filter.equals(".")
+                                                && !filter.equals("./"))
+                        .map(filter -> Pathspec.of(normalizePath(filter)))
+                        .filter(Objects::nonNull)
+                        .toList());
+    }
+
+    private List<GitDiffEntry> changes(boolean includePatch, List<Pathspec> wanted) {
         Status status;
         try {
             status = git.status().call();
@@ -1281,9 +1323,8 @@ public class GitService {
                         // rename detection needs both sides, and narrowing the path filter would
                         // report a renamed file as an unrelated add. Both sides are matched so
                         // that a rename opens under either of its names.
-                        if (wanted != null
-                                && !wanted.equals(entry.getNewPath())
-                                && !wanted.equals(entry.getOldPath())) continue;
+                        if (!admits(wanted, entry.getNewPath())
+                                && !admits(wanted, entry.getOldPath())) continue;
                         GitDiffEntry mapped =
                                 toGitDiffEntry(entry, formatter, includePatch, patchOut);
                         if (RepoPaths.isJunkFile(mapped.path())) continue;
@@ -1299,13 +1340,22 @@ public class GitService {
         // untracked and not ignored, so the globs are the only question left to ask about it —
         // walking the allow-glob area again would answer nothing this does not.
         status.getUntracked().stream()
-                .filter(path -> wanted == null || wanted.equals(path))
+                .filter(path -> admits(wanted, path))
                 .filter(path -> !RepoPaths.isJunkFile(path))
                 .filter(visible::matchesAllowGlobs)
                 .sorted()
                 .forEach(path -> entries.add(untrackedDiffEntry(path, includePatch)));
 
         return entries;
+    }
+
+    /**
+     * Whether the caller's filters keep this path. No filters keeps everything — the unnarrowed
+     * call is the common one, and it must not depend on any spec matching.
+     */
+    private static boolean admits(List<Pathspec> filters, @Nullable String path) {
+        return filters.isEmpty()
+                || (path != null && filters.stream().anyMatch(filter -> filter.matches(path)));
     }
 
     /**
