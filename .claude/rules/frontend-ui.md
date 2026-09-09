@@ -74,9 +74,10 @@ never in big-bang rewrites.
 
 ## URL scheme
 
-`useAppNavigation` is the only owner of navigation state and the only writer of
-`window.history`. The **path carries the opened resource**, the **query carries
-screen state**:
+`navigation/navStore.js` is the only owner of navigation state and the only
+writer of `window.history`; `useAppNavigation` is the React adapter over it
+(`useSyncExternalStore`, `popstate`, canonicalizing the address on mount). The
+**path carries the opened resource**, the **query carries screen state**:
 
 ```
 /chat/<chatId>                   /knowledge/doc/<docId>
@@ -92,9 +93,16 @@ mean waiting for the project list before the address can be read at all. Old que
 links (`?view=`, `?doc=`, `?path=`, `?chat=`, `?tab=`) still open and are
 canonicalized on load — keep that fallback when touching `readUrl`. Panel toggles
 use `replaceState` (they are not navigation); real transitions use `pushState`.
-The write mode is set by whoever triggers the change (`pushNav`/`replaceNav`) and
-is never reset from the write effect — a `setNav` that bails out would otherwise
-leak the mode into the next real transition. Adding a new top-level path means
+The address is written **synchronously inside the call** (`navigate(updater,
+history)` in the store), never from an effect: the write mode is an argument of
+that one write, so nothing can slip in between and change it, and a call whose
+updater returns the previous state writes nothing. One transition call is exactly
+one history entry — a transition that is more than a view switch (a file from
+search, a chat message) is one method (`openFilePath`, `openChat`), never
+"switch the view, then open". The unsaved-draft question is asked by the store
+itself before every change of view (`canLeave` from `App`) and defers the whole
+transition as a value until `confirmLeave` — do not add a guard wrapper around
+individual callers. Adding a new top-level path means
 updating `SpaForwardController` too; its mappings must cover nested paths.
 
 Panel open/closed state is **controlled state that lives in the URL**

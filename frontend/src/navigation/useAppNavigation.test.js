@@ -152,10 +152,10 @@ describe('подсветка в открытом чате', () => {
     expect(window.history.length).toBe(before);
   });
 
-  it('фиксация запроса из бара в том же кадре не превращает переход в замену', () => {
+  it('фиксация запроса из бара следом за переходом не превращает его в замену', () => {
     // Переход из поиска в тот же чат открывает бар с autoFocus, а поле ввода
     // сообщения тут же забирает фокус: blur бара фиксирует запрос через
-    // setChatFind раньше, чем эффект записал адрес перехода. «Назад» обязано
+    // setChatFind в том же обработчике. Переход уже записан — «Назад» обязано
     // вернуть на страницу поиска, а не на чат, открытый до неё.
     go('/search?q=needle&in=chats');
     const { result } = renderHook(() => useAppNavigation());
@@ -168,7 +168,7 @@ describe('подсветка в открытом чате', () => {
     expect(window.history.length).toBe(before + 1);
   });
 
-  it('уточнение раскладки, пришедшее вместе с переходом, едет его записью', () => {
+  it('уточнение раскладки следом за переходом не добавляет записи', () => {
     go('/search?q=needle&in=chats');
     const { result } = renderHook(() => useAppNavigation());
     const before = window.history.length;
@@ -512,9 +512,8 @@ describe('раскладка панелей', () => {
 
   it('холостое раскрытие панели не съедает следующую запись истории', () => {
     // «Раскрыть уже раскрытую вкладку» (так делает загрузка вложения при
-    // открытой панели) не вызывает ре-рендер, и след от такого вызова, если бы
-    // он оставался, протёк бы в следующий переход — тот записался бы поверх
-    // текущей записи.
+    // открытой панели) ничего не пишет — и не оставляет следа, который мог бы
+    // изменить способ записи следующего перехода.
     const { result } = renderHook(() => useAppNavigation());
     act(() => result.current.setRightTab('attachments'));
     act(() => result.current.setRightTab('attachments')); // холостой вызов
@@ -540,5 +539,87 @@ describe('раскладка панелей', () => {
     go('/files?left=1');
     const { result } = renderHook(() => useAppNavigation());
     expect(result.current.nav.leftCollapsed).toBe(false);
+  });
+});
+
+describe('уход с несохранёнными правками', () => {
+  // Вопрос задаёт навигация перед каждым переходом в другой раздел, а не тот,
+  // кто вспомнил про гарду: ссылка на файл защищена так же, как вкладка.
+  const mount = (canLeave) => renderHook(() => useAppNavigation({ canLeave }));
+
+  it('без запрета переключает раздел сразу', () => {
+    const { result } = mount(() => true);
+    act(() => result.current.switchView('files'));
+    expect(url()).toBe('/files');
+    expect(result.current.pendingView).toBeNull();
+  });
+
+  it('с запретом откладывает переход и проигрывает его после подтверждения', () => {
+    go('/knowledge/doc/5');
+    const { result } = mount((prev) => prev.view !== 'knowledge');
+    const before = window.history.length;
+    act(() => result.current.switchView('chat'));
+    expect(url()).toBe('/knowledge/doc/5');
+    expect(result.current.nav.view).toBe('knowledge');
+    expect(result.current.pendingView).toBe('chat');
+
+    act(() => result.current.confirmLeave());
+    expect(url()).toBe('/chat');
+    expect(result.current.pendingView).toBeNull();
+    expect(window.history.length).toBe(before + 1);
+  });
+
+  it('отказ оставляет на месте', () => {
+    go('/knowledge/doc/5');
+    const { result } = mount(() => false);
+    act(() => result.current.switchView('chat'));
+    act(() => result.current.cancelLeave());
+    expect(url()).toBe('/knowledge/doc/5');
+    expect(result.current.pendingView).toBeNull();
+  });
+
+  // Ссылка на файл открывает «Файлы» сразу на пути — один переход. С правками
+  // он обязан ждать ответа целиком: иначе вопрос задан, а в файл ушли всё равно.
+  it('переход к файлу откладывается целиком и остаётся одной записью', () => {
+    go('/knowledge/doc/5');
+    const { result } = mount((prev) => prev.view !== 'knowledge');
+    const before = window.history.length;
+    act(() => result.current.openFilePath('a/b.md', '', { changes: true }));
+    expect(url()).toBe('/knowledge/doc/5');
+    expect(result.current.pendingView).toBe('files');
+
+    act(() => result.current.confirmLeave());
+    expect(url()).toBe('/files/a/b.md?changes=1');
+    expect(window.history.length).toBe(before + 1);
+  });
+
+  it('спрашивает только про смену раздела: раскладка и бар идут мимо вопроса', () => {
+    go('/knowledge/doc/5');
+    const { result } = mount(() => false);
+    act(() => result.current.setRightTab('attachments'));
+    act(() => result.current.setDocFind('needle'));
+    expect(url()).toBe('/knowledge/doc/5?find=needle&right=attachments');
+    expect(result.current.pendingView).toBeNull();
+  });
+
+  it('«Назад» браузера снимает вопрос: запись, с которой уходили, уже позади', () => {
+    go('/knowledge/doc/5');
+    const { result } = mount(() => false);
+    act(() => result.current.switchView('chat'));
+    expect(result.current.pendingView).toBe('chat');
+    act(() => back('/chat/c1'));
+    expect(result.current.pendingView).toBeNull();
+    expect(result.current.nav).toMatchObject({ view: 'chat', chatId: 'c1' });
+  });
+
+  it('подтверждение проигрывает переход от текущего состояния', () => {
+    // Пока вопрос открыт, состояние экрана могло сдвинуться (панель раскрыло
+    // действие) — переход берёт его, а не снимок на момент вопроса.
+    go('/knowledge/doc/5');
+    const { result } = mount((prev) => prev.view !== 'knowledge');
+    act(() => result.current.openChat('c1'));
+    act(() => result.current.setRightTab('attachments'));
+    act(() => result.current.confirmLeave());
+    expect(url()).toBe('/chat/c1?right=attachments');
   });
 });

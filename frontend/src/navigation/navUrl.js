@@ -279,15 +279,8 @@ export function buildUrl(nav) {
   return path + (qs ? `?${qs}` : '');
 }
 
-/** Начальное состояние: из URL, с разумными дефолтами. */
-export function initialNav() {
-  const u = readUrl();
-  // view из пути приоритетен. Если его нет — инферим из наличия doc/search
-  // (это всегда про базу знаний), иначе чат.
-  const view = u.view || (u.docId || u.search ? 'knowledge' : 'chat');
-  // Раскладка панелей: явная из адреса, иначе — запомненная для этого раздела.
-  const panels = u.hasPanelParams ? { leftCollapsed: u.leftCollapsed, rightTab: u.rightTab } : readPanelState(view);
-
+/** Состояние из разобранного адреса; раскладку панелей называет вызывающий. */
+function toNav(u, view, panels) {
   return {
     view,
     chatId: u.chatId,
@@ -314,6 +307,38 @@ export function initialNav() {
     leftCollapsed: panels.leftCollapsed,
     rightTab: panels.rightTab,
   };
+}
+
+/**
+ * Раздел из адреса. Без раздела в пути — по ресурсу: doc/search — это всегда
+ * база знаний, иначе чат.
+ */
+function viewOf(u) {
+  return u.view || (u.docId || u.search ? 'knowledge' : 'chat');
+}
+
+/**
+ * Начальное состояние: из URL, с разумными дефолтами. Раскладка панелей —
+ * явная из адреса, иначе запомненная для этого раздела: ссылка без параметров
+ * не должна сбрасывать то, как раздел настроили.
+ */
+export function initialNav() {
+  const u = readUrl();
+  const view = viewOf(u);
+  const panels = u.hasPanelParams ? { leftCollapsed: u.leftCollapsed, rightTab: u.rightTab } : readPanelState(view);
+  return toNav(u, view, panels);
+}
+
+/**
+ * Состояние записи истории, на которую вернулся браузер («Назад»/«Вперёд»).
+ * Всё СТРОГО из адреса: раскладка панелей записана в него только когда
+ * отличается от дефолта, поэтому её отсутствие — это именно дефолт для той
+ * записи, а ресурс без подмешивания памяти — иначе возврат на запись без
+ * ресурса показал бы устаревший экран, разъехавшийся с адресом.
+ */
+export function popNav() {
+  const u = readUrl();
+  return toNav(u, viewOf(u), { leftCollapsed: u.leftCollapsed, rightTab: u.rightTab });
 }
 
 /*
