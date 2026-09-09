@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -91,7 +92,7 @@ class GitFunctionTest {
                 .thenReturn(new GitFileOutline("Foo.java", "java", 10, "regex", List.of()));
         when(billing.getCommitLog(anyInt(), any(), anyBoolean())).thenReturn(List.of(commit()));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
-        when(billing.getUncommittedChanges(anyBoolean()))
+        when(billing.getUncommittedChanges(anyBoolean(), anyList()))
                 .thenReturn(List.of(new GitDiffEntry("M", "pom.xml", null, 1, 0, null, null)));
         when(gitRegistry.forProject("billing")).thenReturn(billing);
     }
@@ -174,7 +175,7 @@ class GitFunctionTest {
                                 function.getFileOutline(context, "Foo.java", "billing"),
                                 function.getCommitLog(context, null, null, null, "billing"),
                                 function.getCommitDiff(context, "abc1234", null, null, "billing"),
-                                function.getUncommittedChanges(context, null, "billing")))
+                                function.getUncommittedChanges(context, null, null, "billing")))
                 .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"))
                 .allSatisfy(r -> assertThat(r.result()).isNotNull());
 
@@ -244,6 +245,25 @@ class GitFunctionTest {
         function.getFileContent(context, "pom.xml", null, null, "  ", null);
         function.getFileContent(context, "pom.xml", null, null, null, null);
         verify(billing, times(2)).getFileContent("pom.xml", null, null);
+    }
+
+    /**
+     * Список путей модель шлёт одной строкой, и разбирает её инструмент: запятая — заявленный
+     * разделитель, перенос строки принимается заодно, пустой аргумент значит «всё дерево».
+     */
+    @Test
+    void thePathsArgumentArrivesAtTheServiceAsAList() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+
+        function.getUncommittedChanges(context, null, " docs , *.java ", null);
+        verify(billing).getUncommittedChanges(false, List.of("docs", "*.java"));
+
+        function.getUncommittedChanges(context, null, "docs\nsrc", null);
+        verify(billing).getUncommittedChanges(false, List.of("docs", "src"));
+
+        function.getUncommittedChanges(context, null, "  ", null);
+        function.getUncommittedChanges(context, null, null, null);
+        verify(billing, times(2)).getUncommittedChanges(false, List.of());
     }
 
     @Test

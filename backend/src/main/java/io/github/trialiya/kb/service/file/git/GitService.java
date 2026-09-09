@@ -1233,7 +1233,7 @@ public class GitService {
      * @param includePatch whether to include unified diff text for modified files
      */
     public List<GitDiffEntry> getUncommittedChanges(boolean includePatch) {
-        return getUncommittedChanges(includePatch, null);
+        return getUncommittedChanges(includePatch, List.of());
     }
 
     /**
@@ -1241,11 +1241,37 @@ public class GitService {
      * change: the list it already drew needs no patches, and computing every file's patch to show
      * one of them is the whole working tree's diff per click.
      *
-     * @param onlyPath a file path, or {@code null} for the whole working tree
+     * @param onlyPath a file path, a directory, or a glob; {@code null} or blank for the whole
+     *     working tree
      */
     public List<GitDiffEntry> getUncommittedChanges(
             boolean includePatch, @Nullable String onlyPath) {
-        @Nullable String wanted = onlyPath == null ? null : normalizePath(onlyPath);
+        return getUncommittedChanges(
+                includePatch,
+                onlyPath == null || onlyPath.isBlank() ? List.of() : List.of(onlyPath));
+    }
+
+    /**
+     * The same list narrowed to the paths asked for, matched as git matches a pathspec ({@link
+     * Pathspec}): a name without a wildcard is a path prefix, so {@code docs} means everything
+     * under {@code docs/}, and a wildcard crosses {@code /}, so {@code *.java} reaches every {@code
+     * .java} in the tree. Several filters combine as OR, the way several pathspecs do on a git
+     * command line.
+     *
+     * <p>A renamed file matches under either of its names: the model asking about the path it knows
+     * gets the rename rather than nothing.
+     *
+     * @param pathFilters paths, directories or globs to keep; empty for the whole working tree
+     * @throws IllegalArgumentException if a filter is not a spellable repo-relative path
+     */
+    public List<GitDiffEntry> getUncommittedChanges(
+            boolean includePatch, List<String> pathFilters) {
+        List<Pathspec> wanted =
+                pathFilters.stream()
+                        .filter(filter -> filter != null && !filter.isBlank())
+                        .map(filter -> Pathspec.of(normalizePath(filter)))
+                        .filter(Objects::nonNull)
+                        .toList();
         Status status;
         try {
             status = git.status().call();
@@ -1281,9 +1307,8 @@ public class GitService {
                         // rename detection needs both sides, and narrowing the path filter would
                         // report a renamed file as an unrelated add. Both sides are matched so
                         // that a rename opens under either of its names.
-                        if (wanted != null
-                                && !wanted.equals(entry.getNewPath())
-                                && !wanted.equals(entry.getOldPath())) continue;
+                        if (!admits(wanted, entry.getNewPath())
+                                && !admits(wanted, entry.getOldPath())) continue;
                         GitDiffEntry mapped =
                                 toGitDiffEntry(entry, formatter, includePatch, patchOut);
                         if (RepoPaths.isJunkFile(mapped.path())) continue;
@@ -1299,13 +1324,22 @@ public class GitService {
         // untracked and not ignored, so the globs are the only question left to ask about it —
         // walking the allow-glob area again would answer nothing this does not.
         status.getUntracked().stream()
-                .filter(path -> wanted == null || wanted.equals(path))
+                .filter(path -> admits(wanted, path))
                 .filter(path -> !RepoPaths.isJunkFile(path))
                 .filter(visible::matchesAllowGlobs)
                 .sorted()
                 .forEach(path -> entries.add(untrackedDiffEntry(path, includePatch)));
 
         return entries;
+    }
+
+    /**
+     * Whether the caller's filters keep this path. No filters keeps everything — the unnarrowed
+     * call is the common one, and it must not depend on any spec matching.
+     */
+    private static boolean admits(List<Pathspec> filters, @Nullable String path) {
+        return filters.isEmpty()
+                || (path != null && filters.stream().anyMatch(filter -> filter.matches(path)));
     }
 
     /**

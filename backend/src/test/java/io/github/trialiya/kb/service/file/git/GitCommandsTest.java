@@ -458,7 +458,7 @@ class GitCommandsTest {
 
     /** Пути, которые рабочее дерево показывает незакоммиченными — тот же список, что и панель. */
     private List<String> changedPaths() {
-        return service.getUncommittedChanges(false, null).stream()
+        return service.getUncommittedChanges(false).stream()
                 .map(io.github.trialiya.kb.model.git.dto.GitDiffEntry::path)
                 .toList();
     }

@@ -15,6 +15,7 @@ import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.ProjectContext;
+import java.util.Arrays;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -77,6 +78,22 @@ public class GitFunction {
      */
     private static <T> ToolResult<T> answer(GitService git, T payload) {
         return new ToolResult<>(git.project().id(), payload);
+    }
+
+    /**
+     * Список путей из одного строкового аргумента: запятая — заявленный разделитель, перевод строки
+     * принимается заодно, потому что модель, которой сказали «через запятую», всё равно иногда
+     * перечисляет пути столбиком, и такой вызов должен работать, а не искать файл с переносом в
+     * имени. Пустой список означает «всё дерево» — так же, как пропущенный аргумент.
+     */
+    private static List<String> pathList(@Nullable String paths) {
+        if (paths == null || paths.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(paths.split("[,\\n]"))
+                .map(String::strip)
+                .filter(path -> !path.isEmpty())
+                .toList();
     }
 
     // ── File tree ────────────────────────────────────────────────────────────
@@ -385,12 +402,18 @@ public class GitFunction {
      * untracked file (including everything {@code .gitignore} matches) is not reported — same rule
      * the read tools enforce.
      *
+     * <p>With {@code paths} the answer is narrowed to what those filters match — a whole-tree diff
+     * is what makes this tool expensive, and a question about one area should not pay for the rest
+     * of it. Each filter is a git pathspec, so a plain name is a path prefix and a wildcard crosses
+     * {@code /}; see {@link GitService#getUncommittedChanges(boolean, List)}.
+     *
      * @param includePatch whether to include unified diff text for modified files (default false)
+     * @param paths comma-separated paths, directories or globs to keep; null for the whole tree
      */
     @Tool(
             name = "getUncommittedChanges",
             description =
-                    "Uncommitted changes in working tree (staged and unstaged), plus any untracked file the project's allow-globs admit. Status: A/M/D/R for tracked files, U for an untracked one (not in git, will not be committed with the rest). Optional: include unified diff.",
+                    "Uncommitted changes in working tree (staged and unstaged), plus any untracked file the project's allow-globs admit. Status: A/M/D/R for tracked files, U for an untracked one (not in git, will not be committed with the rest). Optional: include unified diff, and narrow to given paths.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitDiffEntry>> getUncommittedChanges(
             ToolContext context,
@@ -401,6 +424,15 @@ public class GitFunction {
                     @Nullable Boolean includePatch,
             @ToolParam(
                             description =
+                                    "Optional: comma-separated files, directories or globs to"
+                                            + " narrow to (git pathspec rules: no wildcard is a"
+                                            + " path prefix, a wildcard crosses \"/\"; e.g."
+                                            + " \"backend/src,*.java\"). Omit for the whole"
+                                            + " working tree.",
+                            required = false)
+                    @Nullable String paths,
+            @ToolParam(
+                            description =
                                     "Optional: another project (repository id) to read instead of"
                                             + " the chat's active one; the response's"
                                             + " top-level \"project\" field says which"
@@ -408,9 +440,14 @@ public class GitFunction {
                             required = false)
                     @Nullable String project) {
         final boolean patch = orDefault(includePatch, false);
-        log.info("getUncommittedChanges called: includePatch='{}', project='{}'", patch, project);
+        final List<String> filters = pathList(paths);
+        log.info(
+                "getUncommittedChanges called: includePatch='{}', paths={}, project='{}'",
+                patch,
+                filters,
+                project);
         GitService git = git(context, project);
-        List<GitDiffEntry> gitDiffEntries = git.getUncommittedChanges(patch);
+        List<GitDiffEntry> gitDiffEntries = git.getUncommittedChanges(patch, filters);
         log.info("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
         return answer(git, gitDiffEntries);
     }
