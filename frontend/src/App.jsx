@@ -34,7 +34,9 @@ const TABS = [
 // панели смонтированы всегда, правки физически не теряются. Навигация
 // спрашивает перед каждым переходом в другой раздел и откладывает его до
 // ответа — откуда бы переход ни пришёл, вкладкой или ссылкой на файл.
-const canLeaveView = (prev) => prev.view !== 'knowledge' || !isEditorDirty();
+// Поиск — исключение: искать посреди правки документа — обычное дело, и
+// спрашивать про несохранённое на каждый Enter незачем.
+const canLeaveView = (prev, next) => prev.view !== 'knowledge' || next.view === 'search' || !isEditorDirty();
 
 function App() {
   const { t } = useTranslation();
