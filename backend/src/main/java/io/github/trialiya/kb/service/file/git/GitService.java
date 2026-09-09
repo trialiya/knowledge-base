@@ -265,43 +265,53 @@ public class GitService {
         String target = RepoPaths.normalizeDir(path);
         try (CommitFiles.Commit commit = CommitFiles.Commit.open(repository, rev.strip())) {
             CommitFiles.Entry entry = commit.entry(target);
+            // Каталог, под которым нет ни одного открываемого файла, — missing, как и в листинге.
+            // Ответ на это даёт сам листинг, поэтому он читается до выбора типа: отдельный обход
+            // поддерева ради того же ответа стоил бы второго чтения. Корень остаётся каталогом
+            // и пустым: сказать «такого пути нет» про корень коммита было бы неправдой.
+            List<GitFileNode> nodes = listingAt(commit, entry, target);
+            boolean directory =
+                    entry.kind() == CommitFiles.Kind.DIRECTORY
+                            && (!nodes.isEmpty() || target.isEmpty());
             List<GitTreeLevel> tree =
                     includeAncestors
                             ? RepoBrowse.ancestorDirs(target).stream()
                                     .map(dir -> new GitTreeLevel(dir, listingAt(commit, dir)))
                                     .toList()
                             : List.of();
-            return switch (entry.kind()) {
-                case FILE ->
-                        new GitPathView(
-                                target,
-                                FileEntryType.FILE,
-                                contentAt(commit, entry, target),
-                                null,
-                                tree,
-                                commit.name(),
-                                true);
-                case DIRECTORY ->
-                        new GitPathView(
-                                target,
-                                FileEntryType.DIRECTORY,
-                                null,
-                                listingAt(commit, target),
-                                tree,
-                                commit.name(),
-                                true);
-                // Путь, которого в коммите нет, — missing, а не отказ: браузер так и рисует, а
-                // предупреждать об «отслеживании» тут не о чем.
-                case MISSING ->
-                        new GitPathView(target, null, null, null, tree, commit.name(), true);
-            };
+            if (entry.kind() == CommitFiles.Kind.FILE) {
+                return new GitPathView(
+                        target,
+                        FileEntryType.FILE,
+                        contentAt(commit, entry, target),
+                        null,
+                        tree,
+                        commit.name(),
+                        true);
+            }
+            if (directory) {
+                return new GitPathView(
+                        target, FileEntryType.DIRECTORY, null, nodes, tree, commit.name(), true);
+            }
+            // Путь, которого в коммите нет, — missing, а не отказ: браузер так и рисует, а
+            // предупреждать об «отслеживании» тут не о чем.
+            return new GitPathView(target, null, null, null, tree, commit.name(), true);
         }
     }
 
     /** Листинг каталога коммита в порядке браузера. */
     private static List<GitFileNode> listingAt(CommitFiles.Commit commit, String dir) {
-        return RepoBrowse.ordered(
-                commit.children(dir).stream().map(GitService::committedNode).toList());
+        return ordered(commit.children(dir));
+    }
+
+    /** Листинг каталога, который уже нашёл {@code entry}: дерево второй раз не читается. */
+    private static List<GitFileNode> listingAt(
+            CommitFiles.Commit commit, CommitFiles.Entry entry, String dir) {
+        return ordered(commit.children(entry, dir));
+    }
+
+    private static List<GitFileNode> ordered(List<CommitFiles.Child> children) {
+        return RepoBrowse.ordered(children.stream().map(GitService::committedNode).toList());
     }
 
     /**

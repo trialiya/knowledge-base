@@ -133,6 +133,21 @@ class GitServiceCommitContentTest {
                 .hasMessageContaining("Not a file in");
     }
 
+    /**
+     * Каталог отказывает как каталог, даже если открывать под ним нечего: браузер такой путь не
+     * показывает, но чтение файла по нему всё равно спрашивают именем каталога, а не пропажей.
+     */
+    @Test
+    void aDirectoryOfNothingOpenableIsStillRefusedAsADirectory() throws IOException {
+        Files.createDirectories(repoDir.resolve("links"));
+        Files.createSymbolicLink(repoDir.resolve("links/readme.md"), Path.of("../src/App.java"));
+        commitAll("links");
+
+        assertThatThrownBy(() -> service.getFileContentAt(head(), "links", null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Not a file in");
+    }
+
     @Test
     void anUnknownRevisionIsRefused() {
         assertThatThrownBy(

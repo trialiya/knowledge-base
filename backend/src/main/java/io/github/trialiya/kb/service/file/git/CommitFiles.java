@@ -47,8 +47,9 @@ final class CommitFiles {
      *     {@code HEAD~2}
      * @return байты объекта и хеш коммита, который их отдал
      * @throws IllegalArgumentException коммит не найден или неоднозначен; такого пути в этом
-     *     коммите нет; по пути лежит каталог или подмодуль, а не файл; объект больше {@code
-     *     MAX_BLOB_SIZE}
+     *     коммите нет — в том числе когда по нему лежит символьная ссылка, подмодуль или
+     *     неназываемое имя, которых для браузера не существует; по пути лежит каталог, а не файл;
+     *     объект больше {@code MAX_BLOB_SIZE}
      */
     static Blob read(Repository repository, String rev, String path) {
         try (Commit commit = Commit.open(repository, rev)) {
@@ -58,8 +59,7 @@ final class CommitFiles {
                         "File not found in " + commit.name() + ": " + path);
             }
             if (entry.kind() != Kind.FILE) {
-                // Каталог, подмодуль или символьная ссылка: содержимого, которое имеет смысл
-                // показывать как файл, у них нет.
+                // Каталог: содержимого, которое имеет смысл показывать как файл, у него нет.
                 throw new IllegalArgumentException("Not a file in " + commit.name() + ": " + path);
             }
             return commit.blob(entry, path);
@@ -114,10 +114,11 @@ final class CommitFiles {
         }
 
         /**
-         * Что лежит по пути: файл, каталог или ничего. Символьная ссылка, подмодуль, неназываемое
-         * имя и каталог без единого открываемого файла отвечают «ничего» — по тому же правилу, по
-         * которому они не показываются в листингах: обещать путь, который на клик ответит отказом,
-         * нельзя.
+         * Что лежит по пути: файл, каталог или ничего. Символьная ссылка, подмодуль и неназываемое
+         * имя отвечают «ничего» — по тому же правилу, по которому они не показываются в листингах:
+         * обещать путь, который на клик ответит отказом, нельзя. Каталог отвечает каталогом, даже
+         * если открывать под ним нечего: это видно по его пустому {@link #children листингу}, и
+         * платить за отдельный обход поддерева здесь незачем.
          *
          * @param path нормализованный путь, {@code ""} — корень
          */
@@ -132,9 +133,7 @@ final class CommitFiles {
                 FileMode mode = tree.getFileMode(0);
                 ObjectId id = tree.getObjectId(0);
                 if (mode == FileMode.TREE) {
-                    return holdsFile(reader(), id, path)
-                            ? new Entry(Kind.DIRECTORY, id)
-                            : Entry.MISSING;
+                    return new Entry(Kind.DIRECTORY, id);
                 }
                 if ((mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE)
                         && RepoPaths.isNameable(path)) {
@@ -157,42 +156,62 @@ final class CommitFiles {
          *     пути лежит файл
          */
         List<Child> children(String dir) {
-            ObjectReader reader = reader();
             try {
-                ObjectId root = dir.isEmpty() ? rev.getTree() : subtree(reader, rev, dir);
-                if (root == null) {
-                    return List.of();
-                }
-                List<Child> children = new ArrayList<>();
-                try (TreeWalk tree = new TreeWalk(reader)) {
-                    tree.addTree(root);
-                    tree.setRecursive(false);
-                    while (tree.next()) {
-                        String name = tree.getNameString();
-                        String path = dir.isEmpty() ? name : dir + "/" + name;
-                        FileMode mode = tree.getFileMode(0);
-                        if (mode == FileMode.TREE) {
-                            // Каталог показывается по тому же правилу, что и в entry(): он виден
-                            // ровно потому, что под ним лежит файл, который мы умеем открыть и
-                            // назвать обратно в API. Каталог из одних символьных ссылок,
-                            // подмодулей и неназываемых имён раскрылся бы пустым — обещание,
-                            // которого не сдержать.
-                            if (holdsFile(reader, tree.getObjectId(0), path)) {
-                                children.add(new Child(path, name, true, -1));
-                            }
-                        } else if ((mode == FileMode.REGULAR_FILE
-                                        || mode == FileMode.EXECUTABLE_FILE)
-                                && RepoPaths.isNameable(path)) {
-                            children.add(
-                                    new Child(
-                                            path, name, false, size(reader, tree.getObjectId(0))));
-                        }
-                    }
-                }
-                return List.copyOf(children);
+                ObjectId root = dir.isEmpty() ? rev.getTree() : subtree(reader(), rev, dir);
+                return root == null ? List.of() : list(root, dir);
             } catch (IOException e) {
                 throw new IllegalStateException("Failed listing " + dir + " at " + rev.name(), e);
             }
+        }
+
+        /**
+         * То же самое для каталога, который уже нашёл {@link #entry}: его объект известен, дерево
+         * второй раз не читается.
+         *
+         * @return потомки каталога; пустой список, если запись — не каталог
+         */
+        List<Child> children(Entry entry, String dir) {
+            ObjectId tree = entry.blob();
+            if (entry.kind() != Kind.DIRECTORY) {
+                return List.of();
+            }
+            if (tree == null) {
+                return children(dir);
+            }
+            try {
+                return list(tree, dir);
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed listing " + dir + " at " + rev.name(), e);
+            }
+        }
+
+        /** Потомки каталога, объект которого уже известен. */
+        private List<Child> list(ObjectId root, String dir) throws IOException {
+            ObjectReader reader = reader();
+            List<Child> children = new ArrayList<>();
+            try (TreeWalk tree = new TreeWalk(reader)) {
+                tree.addTree(root);
+                tree.setRecursive(false);
+                while (tree.next()) {
+                    String name = tree.getNameString();
+                    String path = dir.isEmpty() ? name : dir + "/" + name;
+                    FileMode mode = tree.getFileMode(0);
+                    if (mode == FileMode.TREE) {
+                        // Каталог виден ровно потому, что под ним лежит файл, который мы умеем
+                        // открыть и назвать обратно в API. Каталог из одних символьных ссылок,
+                        // подмодулей и неназываемых имён раскрылся бы пустым — обещание,
+                        // которого не сдержать.
+                        if (holdsFile(reader, tree.getObjectId(0), path)) {
+                            children.add(new Child(path, name, true, -1));
+                        }
+                    } else if ((mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE)
+                            && RepoPaths.isNameable(path)) {
+                        children.add(
+                                new Child(path, name, false, size(reader, tree.getObjectId(0))));
+                    }
+                }
+            }
+            return List.copyOf(children);
         }
 
         /**
