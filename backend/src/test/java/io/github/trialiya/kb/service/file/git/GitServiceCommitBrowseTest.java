@@ -221,6 +221,20 @@ class GitServiceCommitBrowseTest {
     }
 
     /**
+     * По прямому адресу ссылка и каталог из одних ссылок — missing, как и в листинге: тип пути
+     * читается точечно, и отвечать он обязан по тому же правилу, по которому строится дерево.
+     */
+    @Test
+    void aSymlinkOpenedByAddressIsMissingLikeInTheListing() throws IOException {
+        Files.createDirectories(repoDir.resolve("links"));
+        Files.createSymbolicLink(repoDir.resolve("links/readme.md"), Path.of("../README.md"));
+        commitAll("links");
+
+        assertThat(service.browsePathAt(head(), "links/readme.md", true).type()).isNull();
+        assertThat(service.browsePathAt(head(), "links", false).type()).isNull();
+    }
+
+    /**
      * Имя, которое нельзя назвать обратно в API, из снимка коммита выпадает по тому же правилу, что
      * и из рабочего дерева: показать его значило бы предложить файл, который на клик ответит
      * отказом, — а отказ унёс бы вместе с содержимым и дерево.

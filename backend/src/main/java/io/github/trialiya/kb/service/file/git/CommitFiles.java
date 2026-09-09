@@ -2,9 +2,7 @@ package io.github.trialiya.kb.service.file.git;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
@@ -22,8 +20,8 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Чтение файла из дерева коммита — то, что в командной строке пишется {@code git show
- * <rev>:<path>}.
+ * Дерево коммита для файлового браузера и инструментов: содержимое файла ({@code git show
+ * <rev>:<path>}), листинг каталога и тип пути — всё точечными чтениями, без обхода дерева целиком.
  *
  * <p>История отвечает не так, как рабочее дерево: файл существует в одних коммитах и отсутствует в
  * других, у него нет ни размера на диске, ни статуса «отслеживается» (в коммите он по определению
@@ -53,135 +51,194 @@ final class CommitFiles {
      *     MAX_BLOB_SIZE}
      */
     static Blob read(Repository repository, String rev, String path) {
-        try (RevWalk walk = new RevWalk(repository)) {
-            RevCommit commit = walk.parseCommit(resolve(repository, rev));
-            // forPath идёт по дереву коммита и встаёт ровно на этот путь (или возвращает null) —
-            // обходить дерево целиком, как делает listing, здесь нечего.
-            try (TreeWalk tree = TreeWalk.forPath(repository, path, commit.getTree())) {
+        try (Commit commit = Commit.open(repository, rev)) {
+            Entry entry = commit.entry(path);
+            if (entry.kind() == Kind.MISSING) {
+                throw new IllegalArgumentException(
+                        "File not found in " + commit.name() + ": " + path);
+            }
+            if (entry.kind() != Kind.FILE) {
+                // Каталог, подмодуль или символьная ссылка: содержимого, которое имеет смысл
+                // показывать как файл, у них нет.
+                throw new IllegalArgumentException("Not a file in " + commit.name() + ": " + path);
+            }
+            return commit.blob(entry, path);
+        }
+    }
+
+    /**
+     * Коммит, открытый на время одного ответа: ревизия разобрана один раз, и один читатель объектов
+     * обслуживает все обращения — тип пути, листинги каталогов-предков, содержимое. Иначе ответ
+     * браузера на глубокий путь набирал бы по разбору ревизии и читателю на каждый уровень.
+     *
+     * <p>Ничего из дерева заранее не читается: каждый вопрос стоит ровно того, о чём спросили —
+     * {@code forPath} встаёт на путь, листинг читает один каталог, — и цена ответа не зависит от
+     * размера репозитория.
+     */
+    static final class Commit implements AutoCloseable {
+        private final RevWalk walk;
+        private final RevCommit rev;
+
+        private Commit(RevWalk walk, RevCommit rev) {
+            this.walk = walk;
+            this.rev = rev;
+        }
+
+        /**
+         * @param rev что угодно, что git понимает как коммит: хеш, ветка, тег, {@code HEAD~2}
+         * @throws IllegalArgumentException коммит не найден или неоднозначен
+         */
+        // RevWalk живёт столько же, сколько этот объект: его закрывает close().
+        static Commit open(Repository repository, String rev) {
+            RevWalk walk = new RevWalk(repository);
+            try {
+                return new Commit(walk, walk.parseCommit(resolve(repository, rev)));
+            } catch (MissingObjectException | IncorrectObjectTypeException e) {
+                walk.close();
+                throw new IllegalArgumentException("Commit not found: " + rev, e);
+            } catch (AmbiguousObjectException e) {
+                walk.close();
+                throw new IllegalArgumentException("Ambiguous commit reference: " + rev, e);
+            } catch (IOException e) {
+                walk.close();
+                throw new IllegalStateException("Failed resolving " + rev, e);
+            } catch (RuntimeException e) {
+                walk.close();
+                throw e;
+            }
+        }
+
+        /** Полный хеш коммита. */
+        String name() {
+            return rev.name();
+        }
+
+        /**
+         * Что лежит по пути: файл, каталог или ничего. Символьная ссылка, подмодуль, неназываемое
+         * имя и каталог без единого открываемого файла отвечают «ничего» — по тому же правилу, по
+         * которому они не показываются в листингах: обещать путь, который на клик ответит отказом,
+         * нельзя.
+         *
+         * @param path нормализованный путь, {@code ""} — корень
+         */
+        Entry entry(String path) {
+            if (path.isEmpty()) {
+                return new Entry(Kind.DIRECTORY, null);
+            }
+            try (TreeWalk tree = TreeWalk.forPath(reader(), path, rev.getTree())) {
                 if (tree == null) {
-                    throw new IllegalArgumentException(
-                            "File not found in " + commit.name() + ": " + path);
+                    return Entry.MISSING;
                 }
                 FileMode mode = tree.getFileMode(0);
-                if (mode != FileMode.REGULAR_FILE && mode != FileMode.EXECUTABLE_FILE) {
-                    // Каталог, подмодуль или символьная ссылка: содержимого, которое имеет смысл
-                    // показывать как файл, у них нет.
-                    throw new IllegalArgumentException(
-                            "Not a file in " + commit.name() + ": " + path);
+                ObjectId id = tree.getObjectId(0);
+                if (mode == FileMode.TREE) {
+                    return holdsFile(reader(), id, path)
+                            ? new Entry(Kind.DIRECTORY, id)
+                            : Entry.MISSING;
                 }
-                return load(walk.getObjectReader(), tree.getObjectId(0), commit.name(), path);
-            }
-        } catch (MissingObjectException | IncorrectObjectTypeException e) {
-            throw new IllegalArgumentException("Commit not found: " + rev, e);
-        } catch (AmbiguousObjectException e) {
-            throw new IllegalArgumentException("Ambiguous commit reference: " + rev, e);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed reading " + path + " at " + rev, e);
-        }
-    }
-
-    /**
-     * Все файлы дерева коммита — то, из чего файловый браузер строит дерево на ревизии.
-     *
-     * <p>Размеры здесь не читаются: у блоба размер лежит в заголовке объекта, но спрашивать его у
-     * каждого файла репозитория ради листинга одного каталога — это тысячи обращений к базе
-     * объектов на запрос. Поэтому снимок несёт id объектов, а размер узнаётся у тех путей, которые
-     * действительно попали в выдачу (см. {@link Snapshot#sizeOf}).
-     *
-     * @param rev что угодно, что git понимает как коммит: хеш, ветка, тег, {@code HEAD~2}
-     * @throws IllegalArgumentException коммит не найден или неоднозначен
-     */
-    static Snapshot tree(Repository repository, String rev) {
-        try (RevWalk walk = new RevWalk(repository)) {
-            RevCommit commit = walk.parseCommit(resolve(repository, rev));
-            Map<String, ObjectId> blobs = new LinkedHashMap<>();
-            try (TreeWalk tree = new TreeWalk(repository)) {
-                tree.addTree(commit.getTree());
-                tree.setRecursive(true);
-                while (tree.next()) {
-                    // В снимок попадает ровно то, что read() умеет отдать файлом. Подмодуль
-                    // (GITLINK) содержимого в этом репозитории не имеет вовсе; у символьной
-                    // ссылки блоб — это путь, на который она указывает, а не содержимое цели,
-                    // и открыть её как файл нельзя. Показать их в дереве и отказать по клику
-                    // было бы обещанием, которого не сдержать: отказ уносит и само дерево.
-                    FileMode mode = tree.getFileMode(0);
-                    if (mode != FileMode.REGULAR_FILE && mode != FileMode.EXECUTABLE_FILE) continue;
-                    // Имя, которое нельзя назвать обратно в API, из снимка выпадает — по тому же
-                    // правилу, по которому оно выпадает из рабочего дерева (см.
-                    // VisibleFiles#all и RepoPaths#isNameable): показать его значило бы
-                    // предложить файл, который на клик ответит отказом.
-                    String path = tree.getPathString();
-                    if (!RepoPaths.isNameable(path)) continue;
-                    blobs.put(path, tree.getObjectId(0));
+                if ((mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE)
+                        && RepoPaths.isNameable(path)) {
+                    return new Entry(Kind.FILE, id);
                 }
+                return Entry.MISSING;
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed reading " + path + " at " + rev.name(), e);
             }
-            return new Snapshot(commit.name(), List.copyOf(blobs.keySet()), Map.copyOf(blobs));
-        } catch (MissingObjectException | IncorrectObjectTypeException e) {
-            throw new IllegalArgumentException("Commit not found: " + rev, e);
-        } catch (AmbiguousObjectException e) {
-            throw new IllegalArgumentException("Ambiguous commit reference: " + rev, e);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed listing the tree at " + rev, e);
         }
-    }
 
-    /**
-     * Прямые потомки одного каталога в дереве коммита — то, что запрашивает шеврон в браузере.
-     *
-     * <p>Читается только сам каталог: раскрытие одного узла не должно стоить обхода всего дерева
-     * коммита, иначе N раскрытий — это N полных обходов. Порядок здесь git'овый, порядок выдачи
-     * назначает {@link RepoBrowse}.
-     *
-     * @param dir нормализованный путь каталога, {@code ""} — корень
-     * @return потомки каталога; пустой список, если такого каталога в коммите нет или по этому пути
-     *     лежит файл
-     * @throws IllegalArgumentException коммит не найден или неоднозначен
-     */
-    // Читатель ниже принадлежит RevWalk и закрывается вместе с ним: закрыть его здесь значило бы
-    // вынуть его из-под ещё живого обхода.
-    @SuppressWarnings("PMD.CloseResource")
-    static List<Child> children(Repository repository, String rev, String dir) {
-        try (RevWalk walk = new RevWalk(repository)) {
-            RevCommit commit = walk.parseCommit(resolve(repository, rev));
-            // Один читатель на весь ответ: иначе их набирается по одному на каждый подкаталог,
-            // ради проверки, есть ли под ним файл.
-            ObjectReader reader = walk.getObjectReader();
-            ObjectId root = dir.isEmpty() ? commit.getTree() : subtree(reader, commit, dir);
-            if (root == null) {
-                return List.of();
-            }
-            List<Child> children = new ArrayList<>();
-            try (TreeWalk tree = new TreeWalk(reader)) {
-                tree.addTree(root);
-                tree.setRecursive(false);
-                while (tree.next()) {
-                    String name = tree.getNameString();
-                    String path = dir.isEmpty() ? name : dir + "/" + name;
-                    FileMode mode = tree.getFileMode(0);
-                    if (mode == FileMode.TREE) {
-                        // Каталог показывается по тому же правилу, что и в снимке всего дерева
-                        // (см. tree()): он там виден ровно потому, что под ним лежит файл, который
-                        // мы умеем открыть и назвать обратно в API. Каталог из одних символьных
-                        // ссылок, подмодулей и неназываемых имён раскрылся бы пустым — обещание,
-                        // которого не сдержать.
-                        if (holdsFile(reader, tree.getObjectId(0), path)) {
-                            children.add(new Child(path, name, true, -1));
+        /**
+         * Прямые потомки одного каталога — то, что запрашивает шеврон в браузере. Читается только
+         * сам каталог: раскрытие одного узла не должно стоить обхода всего дерева коммита, иначе N
+         * раскрытий — это N полных обходов. Порядок здесь git'овый, порядок выдачи назначает {@link
+         * RepoBrowse}.
+         *
+         * @param dir нормализованный путь каталога, {@code ""} — корень
+         * @return потомки каталога; пустой список, если такого каталога в коммите нет или по этому
+         *     пути лежит файл
+         */
+        List<Child> children(String dir) {
+            ObjectReader reader = reader();
+            try {
+                ObjectId root = dir.isEmpty() ? rev.getTree() : subtree(reader, rev, dir);
+                if (root == null) {
+                    return List.of();
+                }
+                List<Child> children = new ArrayList<>();
+                try (TreeWalk tree = new TreeWalk(reader)) {
+                    tree.addTree(root);
+                    tree.setRecursive(false);
+                    while (tree.next()) {
+                        String name = tree.getNameString();
+                        String path = dir.isEmpty() ? name : dir + "/" + name;
+                        FileMode mode = tree.getFileMode(0);
+                        if (mode == FileMode.TREE) {
+                            // Каталог показывается по тому же правилу, что и в entry(): он виден
+                            // ровно потому, что под ним лежит файл, который мы умеем открыть и
+                            // назвать обратно в API. Каталог из одних символьных ссылок,
+                            // подмодулей и неназываемых имён раскрылся бы пустым — обещание,
+                            // которого не сдержать.
+                            if (holdsFile(reader, tree.getObjectId(0), path)) {
+                                children.add(new Child(path, name, true, -1));
+                            }
+                        } else if ((mode == FileMode.REGULAR_FILE
+                                        || mode == FileMode.EXECUTABLE_FILE)
+                                && RepoPaths.isNameable(path)) {
+                            children.add(
+                                    new Child(
+                                            path, name, false, size(reader, tree.getObjectId(0))));
                         }
-                    } else if ((mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE)
-                            && RepoPaths.isNameable(path)) {
-                        children.add(
-                                new Child(path, name, false, size(reader, tree.getObjectId(0))));
                     }
                 }
+                return List.copyOf(children);
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed listing " + dir + " at " + rev.name(), e);
             }
-            return List.copyOf(children);
-        } catch (MissingObjectException | IncorrectObjectTypeException e) {
-            throw new IllegalArgumentException("Commit not found: " + rev, e);
-        } catch (AmbiguousObjectException e) {
-            throw new IllegalArgumentException("Ambiguous commit reference: " + rev, e);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed listing " + dir + " at " + rev, e);
         }
+
+        /**
+         * Содержимое файла, найденного {@link #entry}: объект уже известен, дерево второй раз не
+         * читается.
+         *
+         * @throws IllegalArgumentException объект больше {@code MAX_BLOB_SIZE}
+         */
+        Blob blob(Entry entry, String path) {
+            ObjectId id = entry.blob();
+            if (entry.kind() != Kind.FILE || id == null) {
+                throw new IllegalArgumentException("Not a file in " + rev.name() + ": " + path);
+            }
+            try {
+                return load(reader(), id, rev.name(), path);
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed reading " + path + " at " + rev.name(), e);
+            }
+        }
+
+        // Читатель принадлежит RevWalk и закрывается вместе с ним в close(): закрыть его раньше
+        // значило бы вынуть его из-под ещё живого обхода.
+        private ObjectReader reader() {
+            return walk.getObjectReader();
+        }
+
+        @Override
+        public void close() {
+            walk.close();
+        }
+    }
+
+    /** Чем путь является в коммите. */
+    enum Kind {
+        FILE,
+        DIRECTORY,
+        MISSING
+    }
+
+    /**
+     * Запись по пути в коммите.
+     *
+     * @param blob объект за путём: блоб у файла, дерево у каталога, null у корня и у отсутствующего
+     */
+    record Entry(Kind kind, @Nullable ObjectId blob) {
+        static final Entry MISSING = new Entry(Kind.MISSING, null);
     }
 
     /** Объект дерева по пути внутри коммита, либо null — такого каталога там нет. */
@@ -233,49 +290,6 @@ final class CommitFiles {
      * @param size размер файла в байтах, у каталога -1
      */
     record Child(String path, String name, boolean directory, long size) {}
-
-    /**
-     * Дерево коммита целиком: пути в порядке обхода (он же порядок git — по путям) и объект за
-     * каждым из них.
-     *
-     * @param commit полный хеш коммита, отдавшего снимок
-     */
-    record Snapshot(String commit, List<String> paths, Map<String, ObjectId> blobs) {
-
-        /**
-         * Размер файла по данным git, или -1 у пути, которого в этом коммите нет.
-         *
-         * <p>Читатель приходит снаружи и им же закрывается: размеры спрашивают по одному, для
-         * каждого пути в листинге, и свой читатель на путь означал бы их открытие и закрытие
-         * десятками на запрос вместо одного.
-         */
-        long sizeOf(ObjectReader reader, String path) {
-            ObjectId id = blobs.get(path);
-            return id == null ? -1 : CommitFiles.size(reader, id);
-        }
-
-        /**
-         * Содержимое файла из этого же снимка: объект найден обходом дерева, поэтому ни коммит, ни
-         * дерево второй раз не разбираются — в отличие от {@link CommitFiles#read}, которому
-         * ревизию нужно ещё разрешить.
-         *
-         * <p>Читатель, как и в {@link #sizeOf}, приходит снаружи и им же закрывается.
-         *
-         * @throws IllegalArgumentException такого файла в снимке нет или объект больше {@code
-         *     MAX_BLOB_SIZE}
-         */
-        Blob blobAt(ObjectReader reader, String path) {
-            ObjectId id = blobs.get(path);
-            if (id == null) {
-                throw new IllegalArgumentException("File not found in " + commit + ": " + path);
-            }
-            try {
-                return load(reader, id, commit, path);
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed reading " + path + " at " + commit, e);
-            }
-        }
-    }
 
     /**
      * Ревизия в коммит: тем же отказом, что и обзор дерева, если названное коммитом не является.

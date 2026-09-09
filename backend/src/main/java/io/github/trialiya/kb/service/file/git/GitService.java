@@ -14,6 +14,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
+import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
 import io.github.trialiya.kb.model.git.dto.OutlineResult;
 import io.github.trialiya.kb.model.git.dto.TextEdit;
 import io.github.trialiya.kb.model.project.Project;
@@ -208,11 +209,9 @@ public class GitService {
      *     HEAD~2}
      */
     public List<GitFileNode> getFileTreeAt(@NonNull String rev, @Nullable String subPath) {
-        return RepoBrowse.ordered(
-                CommitFiles.children(repository, rev.strip(), RepoPaths.normalizeDir(subPath))
-                        .stream()
-                        .map(GitService::committedNode)
-                        .toList());
+        try (CommitFiles.Commit commit = CommitFiles.Commit.open(repository, rev.strip())) {
+            return listingAt(commit, RepoPaths.normalizeDir(subPath));
+        }
     }
 
     /** Потомок каталога коммита как узел дерева: в коммите отслеживается всё. */
@@ -225,17 +224,6 @@ public class GitService {
     /** The working tree as the browser lists it: the index widened by {@code allow-globs}. */
     private RepoBrowse.Snapshot workingTree(VisibleFiles.Visible files) {
         return new RepoBrowse.Snapshot(files.paths(), files.tracked(), this::fileSize);
-    }
-
-    /**
-     * A commit's tree as the browser lists it. Everything in a commit is tracked by definition, so
-     * the two halves are the same set and no node is greyed out.
-     */
-    private RepoBrowse.Snapshot committed(CommitFiles.Snapshot snapshot, ObjectReader reader) {
-        return new RepoBrowse.Snapshot(
-                snapshot.paths(),
-                Set.copyOf(snapshot.paths()),
-                path -> snapshot.sizeOf(reader, path));
     }
 
     // ── Opening a path in the file browser ───────────────────────────────────
@@ -257,7 +245,6 @@ public class GitService {
                 workingTree(files),
                 target,
                 includeAncestors,
-                null,
                 tracked -> getFileContent(target, null, null, tracked));
     }
 
@@ -276,15 +263,45 @@ public class GitService {
     public GitPathView browsePathAt(
             @NonNull String rev, @Nullable String path, boolean includeAncestors) {
         String target = RepoPaths.normalizeDir(path);
-        CommitFiles.Snapshot snapshot = CommitFiles.tree(repository, rev.strip());
-        try (ObjectReader reader = repository.newObjectReader()) {
-            return RepoBrowse.browse(
-                    committed(snapshot, reader),
-                    target,
-                    includeAncestors,
-                    snapshot.commit(),
-                    tracked -> contentAt(snapshot, reader, target));
+        try (CommitFiles.Commit commit = CommitFiles.Commit.open(repository, rev.strip())) {
+            CommitFiles.Entry entry = commit.entry(target);
+            List<GitTreeLevel> tree =
+                    includeAncestors
+                            ? RepoBrowse.ancestorDirs(target).stream()
+                                    .map(dir -> new GitTreeLevel(dir, listingAt(commit, dir)))
+                                    .toList()
+                            : List.of();
+            return switch (entry.kind()) {
+                case FILE ->
+                        new GitPathView(
+                                target,
+                                FileEntryType.FILE,
+                                contentAt(commit, entry, target),
+                                null,
+                                tree,
+                                commit.name(),
+                                true);
+                case DIRECTORY ->
+                        new GitPathView(
+                                target,
+                                FileEntryType.DIRECTORY,
+                                null,
+                                listingAt(commit, target),
+                                tree,
+                                commit.name(),
+                                true);
+                // Путь, которого в коммите нет, — missing, а не отказ: браузер так и рисует, а
+                // предупреждать об «отслеживании» тут не о чем.
+                case MISSING ->
+                        new GitPathView(target, null, null, null, tree, commit.name(), true);
+            };
         }
+    }
+
+    /** Листинг каталога коммита в порядке браузера. */
+    private static List<GitFileNode> listingAt(CommitFiles.Commit commit, String dir) {
+        return RepoBrowse.ordered(
+                commit.children(dir).stream().map(GitService::committedNode).toList());
     }
 
     /**
@@ -295,13 +312,13 @@ public class GitService {
      * имеют, а без них браузер показал бы одну ошибку вместо панели — и починить адрес было бы
      * негде. Что именно нечитаемо, видно по {@code file: null} у типа {@code FILE}.
      */
-    private @Nullable GitFileContent contentAt(
-            CommitFiles.Snapshot snapshot, ObjectReader reader, String path) {
+    private static @Nullable GitFileContent contentAt(
+            CommitFiles.Commit commit, CommitFiles.Entry entry, String path) {
         try {
-            CommitFiles.Blob blob = snapshot.blobAt(reader, path);
+            CommitFiles.Blob blob = commit.blob(entry, path);
             return FileViews.of(path, true, blob.commit(), blob.bytes(), blob.size(), null, null);
         } catch (IllegalArgumentException e) {
-            log.debug("No content for {} at {}: {}", path, snapshot.commit(), e.getMessage());
+            log.debug("No content for {} at {}: {}", path, commit.name(), e.getMessage());
             return null;
         }
     }
