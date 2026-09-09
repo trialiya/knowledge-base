@@ -193,9 +193,11 @@ export default function useChatRun({
         return [updatedChat, ...otherChats];
       });
 
-      // Поднимаем реальный id в URL/навигацию: '/new' → '/<uuid>'.
+      // Поднимаем реальный id в URL/навигацию: '/new' → '/<uuid>'. Это не
+      // переход пользователя, а смена id у уже открытого чата: записи истории
+      // она не добавляет — «Назад» вело бы на черновик, которого уже нет.
       if (isDraft) {
-        selectChat(conversationId);
+        selectChat(conversationId, { navigate: false });
       }
       const send = {
         text,

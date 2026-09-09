@@ -8,9 +8,9 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  * navUrl — кодек адреса: URL ⇄ объект `nav`.
  * ──────────────────────────────────────────────────────────────────────────
  *
- * Разбор и сборка адреса вынесены из useAppNavigation: хук отвечает за историю
- * и за то, КОГДА адрес меняется, а здесь — только КАК он выглядит. Пишет в
- * window.history по-прежнему один лишь хук; отсюда никто в неё не ходит.
+ * navStore.js отвечает за историю и за то, КОГДА адрес меняется, а здесь —
+ * только КАК он выглядит. Пишет в window.history один лишь стор; отсюда никто
+ * в неё не ходит.
  *
  * ── URL-схема ───────────────────────────────────────────────────────────────
  * ПУТЬ — это «что открыто» (идентичность ресурса), QUERY — «как показано»
@@ -45,8 +45,8 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  *
  * ── Почему chat/doc/path больше НЕ висят в query всех разделов ──────────────
  * Адрес описывает ровно то, что открыто, а «последнее открытое» каждого раздела
- * помнит memoryRef в самом хуке (вне URL) и подставляет switchView: URL —
- * состояние ЭТОЙ записи истории, memoryRef — «куда вернуться».
+ * помнит navStore (вне URL) и подставляет switchView: URL — состояние ЭТОЙ
+ * записи истории, память стора — «куда вернуться».
  *
  * Строго из URL берутся и docId/chatId/filePath: подмешивать сюда память нельзя,
  * иначе «Назад» на запись без ресурса вернул бы устаревший экран, разъехавшийся
@@ -279,15 +279,8 @@ export function buildUrl(nav) {
   return path + (qs ? `?${qs}` : '');
 }
 
-/** Начальное состояние: из URL, с разумными дефолтами. */
-export function initialNav() {
-  const u = readUrl();
-  // view из пути приоритетен. Если его нет — инферим из наличия doc/search
-  // (это всегда про базу знаний), иначе чат.
-  const view = u.view || (u.docId || u.search ? 'knowledge' : 'chat');
-  // Раскладка панелей: явная из адреса, иначе — запомненная для этого раздела.
-  const panels = u.hasPanelParams ? { leftCollapsed: u.leftCollapsed, rightTab: u.rightTab } : readPanelState(view);
-
+/** Состояние из разобранного адреса; раскладку панелей называет вызывающий. */
+function toNav(u, view, panels) {
   return {
     view,
     chatId: u.chatId,
@@ -314,6 +307,38 @@ export function initialNav() {
     leftCollapsed: panels.leftCollapsed,
     rightTab: panels.rightTab,
   };
+}
+
+/**
+ * Раздел из адреса. Без раздела в пути — по ресурсу: doc/search — это всегда
+ * база знаний, иначе чат.
+ */
+function viewOf(u) {
+  return u.view || (u.docId || u.search ? 'knowledge' : 'chat');
+}
+
+/**
+ * Начальное состояние: из URL, с разумными дефолтами. Раскладка панелей —
+ * явная из адреса, иначе запомненная для этого раздела: ссылка без параметров
+ * не должна сбрасывать то, как раздел настроили.
+ */
+export function initialNav() {
+  const u = readUrl();
+  const view = viewOf(u);
+  const panels = u.hasPanelParams ? { leftCollapsed: u.leftCollapsed, rightTab: u.rightTab } : readPanelState(view);
+  return toNav(u, view, panels);
+}
+
+/**
+ * Состояние записи истории, на которую вернулся браузер («Назад»/«Вперёд»).
+ * Всё СТРОГО из адреса: раскладка панелей записана в него только когда
+ * отличается от дефолта, поэтому её отсутствие — это именно дефолт для той
+ * записи, а ресурс без подмешивания памяти — иначе возврат на запись без
+ * ресурса показал бы устаревший экран, разъехавшийся с адресом.
+ */
+export function popNav() {
+  const u = readUrl();
+  return toNav(u, viewOf(u), { leftCollapsed: u.leftCollapsed, rightTab: u.rightTab });
 }
 
 /*

@@ -152,6 +152,34 @@ describe('подсветка в открытом чате', () => {
     expect(window.history.length).toBe(before);
   });
 
+  it('фиксация запроса из бара следом за переходом не превращает его в замену', () => {
+    // Переход из поиска в тот же чат открывает бар с autoFocus, а поле ввода
+    // сообщения тут же забирает фокус: blur бара фиксирует запрос через
+    // setChatFind в том же обработчике. Переход уже записан — «Назад» обязано
+    // вернуть на страницу поиска, а не на чат, открытый до неё.
+    go('/search?q=needle&in=chats');
+    const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
+    act(() => {
+      result.current.openChat('c1', { find: 'needle', msg: '7' });
+      result.current.setChatFind('needle');
+    });
+    expect(url()).toBe('/chat/c1?find=needle&msg=7');
+    expect(window.history.length).toBe(before + 1);
+  });
+
+  it('уточнение раскладки следом за переходом не добавляет записи', () => {
+    go('/search?q=needle&in=chats');
+    const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
+    act(() => {
+      result.current.openChat('c1', { find: 'needle' });
+      result.current.setRightTab('attachments');
+    });
+    expect(url()).toBe('/chat/c1?find=needle&right=attachments');
+    expect(window.history.length).toBe(before + 1);
+  });
+
   // «Назад» на запись с запросом обязан вернуть и подсветку: иначе бар закроется,
   // а канонизирующий replaceState следом сотрёт ?find= и из адреса.
   it('«Назад» возвращает запрос вместе с адресом', () => {
@@ -483,10 +511,9 @@ describe('раскладка панелей', () => {
   });
 
   it('холостое раскрытие панели не съедает следующую запись истории', () => {
-    // Режим записи ставит инициатор изменения. Если бы его сбрасывал эффект,
-    // «раскрыть уже раскрытую вкладку» (так делает загрузка вложения при
-    // открытой панели) не вызвало бы ре-рендер, и 'replace' протёк бы в
-    // следующий переход — тот записался бы поверх текущей записи.
+    // «Раскрыть уже раскрытую вкладку» (так делает загрузка вложения при
+    // открытой панели) ничего не пишет — и не оставляет следа, который мог бы
+    // изменить способ записи следующего перехода.
     const { result } = renderHook(() => useAppNavigation());
     act(() => result.current.setRightTab('attachments'));
     act(() => result.current.setRightTab('attachments')); // холостой вызов

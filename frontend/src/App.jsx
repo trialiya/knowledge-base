@@ -1,4 +1,4 @@
-import { useState, useEffect, useEffectEvent, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatWindow from '@/components/chatPanel/ChatWindow';
 import KnowledgeBase from '@/components/knowledgeBasePanel/KnowledgeBase';
@@ -6,7 +6,7 @@ import FilesPanel from '@/components/filesPanel/FilesPanel';
 import SearchPanel from '@/components/searchPanel/SearchPanel';
 import ConfirmModal from '@/components/common/modal/ConfirmModal';
 import useAppNavigation from '@/navigation/useAppNavigation';
-import useUnsavedViewGuard from '@/navigation/useUnsavedViewGuard';
+import { isEditorDirty } from '@/components/knowledgeBasePanel/editor/editorDirtyStore';
 import { registerFileNavigator } from '@/navigation/fileNavigationBus';
 import HeaderMenu from '@/components/common/layout/HeaderMenu';
 import GlobalSearch from '@/components/common/search/GlobalSearch';
@@ -30,10 +30,21 @@ const TABS = [
   { view: 'files', icon: '📁', labelKey: 'nav.files' },
 ];
 
+// Уход из базы знаний с несохранёнными правками — вопрос, а не запрет: обе
+// панели смонтированы всегда, правки физически не теряются. Навигация
+// спрашивает перед каждым переходом в другой раздел и откладывает его до
+// ответа — откуда бы переход ни пришёл, вкладкой или ссылкой на файл.
+// Поиск — исключение: искать посреди правки документа — обычное дело, и
+// спрашивать про несохранённое на каждый Enter незачем.
+const canLeaveView = (prev, next) => prev.view !== 'knowledge' || next.view === 'search' || !isEditorDirty();
+
 function App() {
   const { t } = useTranslation();
   const {
     nav,
+    pendingView,
+    confirmLeave,
+    cancelLeave,
     switchView,
     openDoc,
     openSearch,
@@ -48,7 +59,7 @@ function App() {
     setDocFind,
     toggleLeftPanel,
     setRightTab,
-  } = useAppNavigation();
+  } = useAppNavigation({ canLeave: canLeaveView });
   const view = nav.view; // 'chat' | 'knowledge' | 'files' | 'search' | 'admin' | 'settings'
 
   // Раскладка панелей рабочей области. Живёт в URL (общая для всех разделов
@@ -86,10 +97,6 @@ function App() {
   // Enter в строке поиска уводит в раздел «Поиск». Категория по умолчанию — та,
   // на что человек смотрел: из чата ищут по чатам, из базы знаний по документам.
   // Уже находясь в поиске, категорию не трогаем — её выбрали руками.
-  //
-  // Мимо goView намеренно: искать посреди правки документа — обычное дело, и
-  // спрашивать про несохранённое на каждый Enter незачем. База знаний
-  // смонтирована всегда, черновик её редактора переживает уход в поиск.
   const submitSearch = () => {
     openSearch(searchText.trim(), view === 'search' ? nav.searchScope : scopeForView(view));
   };
@@ -182,31 +189,13 @@ function App() {
   const [gitRefsTick, setGitRefsTick] = useState(0);
   const handleGitRefsChanged = useCallback(() => setGitRefsTick((n) => n + 1), []);
 
-  // Уход из KB с несохранёнными правками спрашивает подтверждение — переключаем
-  // разделы через goView, а не через switchView напрямую.
-  const { goView, pendingView, confirmLeave, cancelLeave } = useUnsavedViewGuard({ view, switchView });
-
-  // Ссылка на файл в результатах поиска ведёт в «Файлы»: раздел меняется вместе
-  // с открытым путём, одним переходом — его и делает `openFilePath`, сам ставя
-  // раздел. Переключать раздел перед ним нечем: `goView` спрашивает про
-  // несохранённые правки, а уходят здесь из поиска, не из базы знаний.
-  const openFileFromSearch = openFilePath;
-
   // Регистрируем переход в Files для DocLinkTooltip (кнопка "Открыть" у
   // файловой ссылки) — компонент смонтирован в чате/KB, на много уровней
   // ниже App, поэтому проп сюда не прокинуть без прошивки всей цепочки
-  // (Message/ChatWindow, MarkdownEditor/DetailModals/...).
-  //
-  // Тело — useEffectEvent: обработчик живёт в модуле сколько угодно долго и
-  // обязан видеть свежие goView/openFilePath, но перерегистрировать его на
-  // каждое их изменение незачем.
-  const navigateToFile = useEffectEvent((path, project, options) => {
-    goView('files');
-    // Режим левого блока едет тем же переходом: ссылка на файл из чата ведёт в
-    // дерево, ссылка из вкладки «Репозиторий» — к незакоммиченному.
-    openFilePath(path, project, options);
-  });
-  useEffect(() => registerFileNavigator((path, project, options) => navigateToFile(path, project, options)), []);
+  // (Message/ChatWindow, MarkdownEditor/DetailModals/...). Режим левого блока
+  // едет тем же переходом: ссылка на файл из чата ведёт в дерево, ссылка из
+  // вкладки «Репозиторий» — к незакоммиченному.
+  useEffect(() => registerFileNavigator(openFilePath), [openFilePath]);
 
   return (
     <div className="App">
@@ -217,7 +206,7 @@ function App() {
             <button
               key={tab.view}
               className={`app-tab-icon${view === tab.view ? ' app-tab-icon--active' : ''}`}
-              onClick={() => goView(tab.view)}
+              onClick={() => switchView(tab.view)}
               aria-label={t(tab.labelKey)}
               data-tooltip={t(tab.labelKey)}
             >
@@ -235,8 +224,8 @@ function App() {
             showRefresh={showRefresh}
             refreshing={kbRefreshing}
             onRefresh={() => setRefreshTick((n) => n + 1)}
-            onOpenAdmin={() => goView('admin')}
-            onOpenSettings={() => goView('settings')}
+            onOpenAdmin={() => switchView('admin')}
+            onOpenSettings={() => switchView('settings')}
           />
         </div>
       </div>
@@ -310,7 +299,7 @@ function App() {
               mode={nav.mode}
               filters={searchFilters}
               onRefine={refineSearch}
-              onOpenFile={openFileFromSearch}
+              onOpenFile={openFilePath}
               onOpenDoc={openDoc}
               onOpenChat={openChat}
               panels={panels}

@@ -127,3 +127,44 @@ describe('useChatRun — отправка во время прогона', () =>
     expect(restoreDraft).toHaveBeenCalled();
   });
 });
+
+/**
+ * Черновик получает настоящий id при первой отправке. Это смена id у уже открытого
+ * чата, а не переход: записи истории быть не должно — «Назад» вело бы на черновик,
+ * которого уже нет.
+ */
+describe('useChatRun — продвижение черновика', () => {
+  test('реальный id уходит в навигацию фоном, без перехода', async () => {
+    let chats = [{ id: 'new', runId: null, messages: [] }];
+    const selectChat = vi.fn();
+    chatApi.startRun.mockResolvedValue({ runId: 'r1', messageId: 1 });
+    const { result } = renderHook(() =>
+      useChatRun({
+        activeChatId: 'new',
+        getChats: () => chats,
+        setChats: vi.fn((fn) => {
+          chats = typeof fn === 'function' ? fn(chats) : fn;
+        }),
+        patchChat: vi.fn(),
+        patchMessages: vi.fn(),
+        selectChat,
+        clearDraft: vi.fn(),
+        clearDraftText: vi.fn(),
+        restoreDraft: vi.fn(),
+        getStagedFor: () => [],
+        modelConfig: { defaultModel: { id: 'gpt' } },
+        modelOptions: [{ id: 'gpt' }],
+        modeOptions: [],
+        projectOptions: [{ id: 'kb' }],
+        defaultProjectId: 'kb',
+        notify: vi.fn(),
+      }),
+    );
+
+    await act(() => result.current.sendMessage('первый вопрос'));
+
+    expect(selectChat).toHaveBeenCalledTimes(1);
+    expect(selectChat).toHaveBeenCalledWith(expect.any(String), { navigate: false });
+    expect(selectChat.mock.calls[0][0]).not.toBe('new');
+  });
+});

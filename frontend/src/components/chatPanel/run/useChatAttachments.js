@@ -69,7 +69,9 @@ export default function useChatAttachments({
             ];
           });
           moveDraft(DRAFT_CHAT_ID, conversationId);
-          selectChat(conversationId);
+          // Смена id у открытого чата, не переход: загрузка завершается позже
+          // клика, и уводить человека из раздела, куда он успел уйти, нельзя.
+          selectChat(conversationId, { navigate: false });
           // Счётчик бейджа не трогаем: у чата сменился id, и useAttachmentCount
           // перечитает его сам — иначе прибавка либо потеряется, либо задвоится.
         } else {
