@@ -89,7 +89,7 @@ class ChatSearchGroupedTest {
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(10L, "USER"),
                         org.assertj.core.groups.Tuple.tuple(30L, "ASSISTANT"));
-        assertThat(group.messages().getFirst().snippet()).isEqualTo("расскажи про жирафы");
+        assertThat(group.messages().getFirst().fragments()).containsExactly("расскажи про жирафы");
     }
 
     /**
@@ -149,7 +149,7 @@ class ChatSearchGroupedTest {
                 .extracting(ChatSearchGroups.Group::conversationId)
                 .isEqualTo("a");
         assertThat(grouped.chats().getFirst().messages())
-                .extracting(ChatSearchGroups.Message::snippet)
+                .flatExtracting(ChatSearchGroups.Message::fragments)
                 .containsExactly("q first", "q latest");
     }
 
@@ -181,6 +181,31 @@ class ChatSearchGroupedTest {
 
         assertThat(groups.truncated()).isTrue();
         assertThat(groups.total()).isEqualTo(groups.chats().getFirst().messages().size());
+    }
+
+    /**
+     * Страница поиска показывает не одно вхождение на сообщение, а каждое: строка сообщения с
+     * запросом даёт свой фрагмент, и порядок фрагментов — порядок строк.
+     */
+    @Test
+    void everyMatchingLineOfAMessageBecomesItsOwnFragment() {
+        when(topics.searchByTopic(USER, "жирафы")).thenReturn(List.of());
+        when(messages.searchForUser(eq(USER), eq("жирафы"), anyInt()))
+                .thenReturn(
+                        List.of(
+                                message(
+                                        10,
+                                        "c1",
+                                        MessageType.ASSISTANT,
+                                        "Жирафы высокие.\n\nА ещё жирафы пятнистые.\nЗебры полосатые.",
+                                        10)));
+        when(topics.findAllById(List.of("c1"))).thenReturn(List.of(topic("c1", "Звери", T0)));
+
+        ChatSearchGroups groups = service.searchChatsGrouped(USER, "жирафы", 20);
+
+        assertThat(groups.chats().getFirst().messages().getFirst().fragments())
+                .containsExactly("Жирафы высокие.", "А ещё жирафы пятнистые.");
+        assertThat(groups.total()).isEqualTo(2);
     }
 
     @Test

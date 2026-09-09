@@ -103,7 +103,7 @@ test('пустой запрос ничего не ищет и говорит, ч
   expect(screen.getByText('empty.noQuery')).toBeInTheDocument();
 });
 
-test('чаты показывают автора и время каждого совпавшего сообщения', () => {
+test('чаты показывают автора, время и все совпадения каждого сообщения', () => {
   const onOpenChat = vi.fn();
   render(
     <ResultList
@@ -112,7 +112,7 @@ test('чаты показывают автора и время каждого с
       loading={false}
       entry={{
         data: {
-          total: 1,
+          total: 2,
           truncated: false,
           chats: [
             {
@@ -120,7 +120,14 @@ test('чаты показывают автора и время каждого с
               topic: 'Тема',
               updatedAt: '2026-01-02T10:00:00',
               titleMatched: false,
-              messages: [{ id: 5, role: 'ASSISTANT', createdAt: '2026-01-02T10:00:00', snippet: 'needle here' }],
+              messages: [
+                {
+                  id: 5,
+                  role: 'ASSISTANT',
+                  createdAt: '2026-01-02T10:00:00',
+                  fragments: ['needle here', 'needle again'],
+                },
+              ],
             },
           ],
         },
@@ -140,12 +147,14 @@ test('чаты показывают автора и время каждого с
   // само сообщение.
   expect(screen.getByRole('link', { name: 'Тема' })).toHaveAttribute('href', '/chat/c1?find=needle');
   expect(screen.getByText('chats.roleAssistant')).toBeInTheDocument();
-  expect(screen.getByText(/needle/)).toBeInTheDocument();
   expect(screen.getByText('chats.roleAssistant').closest('a')).toHaveAttribute('href', '/chat/c1?find=needle&msg=5');
 
-  expect(screen.getByText(/needle/).closest('a')).toHaveAttribute('href', '/chat/c1?find=needle&msg=5');
+  // Строка на каждое вхождение в сообщении, а не одна на сообщение.
+  const hits = screen.getAllByText('needle');
+  expect(hits).toHaveLength(2);
+  hits.forEach((hit) => expect(hit.closest('a')).toHaveAttribute('href', '/chat/c1?find=needle&msg=5'));
 
-  fireEvent.click(screen.getByText(/needle/).closest('a'));
+  fireEvent.click(hits[1].closest('a'));
   expect(onOpenChat).toHaveBeenCalledWith('c1', { find: 'needle', msg: 5 });
 });
 

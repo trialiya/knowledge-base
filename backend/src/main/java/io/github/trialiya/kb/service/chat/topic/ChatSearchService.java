@@ -44,6 +44,13 @@ public class ChatSearchService {
 
     private static final int SNIPPET_SUFFIX = 90;
 
+    /**
+     * Сколько строк одного сообщения показывает страница поиска. Ответ модели на несколько экранов,
+     * где запрос встречается в каждой строке, иначе вытеснил бы из выдачи все остальные сообщения;
+     * дальше этого числа важно уже не «где именно», а что совпадений много.
+     */
+    private static final int FRAGMENTS_PER_MESSAGE = 10;
+
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMessageRepository chatMessageRepository;
 
@@ -106,8 +113,9 @@ public class ChatSearchService {
     }
 
     /**
-     * Тот же поиск, что {@link #searchChats}, но с каждым совпавшим сообщением, а не только самым
-     * свежим — для страницы поиска, где чат раскрывается в список своих сообщений.
+     * Тот же поиск, что {@link #searchChats}, но с каждым совпавшим сообщением и каждым вхождением
+     * внутри него, а не только самым свежим сообщением — для страницы поиска, где чат раскрывается
+     * в список своих сообщений.
      */
     public ChatSearchGroups searchChatsGrouped(String user, String q, int limit) {
         String pattern = q == null ? "" : q.trim();
@@ -137,7 +145,11 @@ public class ChatSearchService {
                                             messages);
                                 })
                         .toList();
-        int total = groups.stream().mapToInt(g -> g.messages().size()).sum();
+        int total =
+                groups.stream()
+                        .flatMap(g -> g.messages().stream())
+                        .mapToInt(m -> m.fragments().size())
+                        .sum();
         return new ChatSearchGroups(total, hits.scanCapped(), groups);
     }
 
@@ -146,7 +158,40 @@ public class ChatSearchService {
                 e.getId(),
                 e.getType().name(),
                 e.getCreatedAt(),
-                buildSnippet(e.getContent(), pattern));
+                fragments(e.getContent(), pattern));
+    }
+
+    /**
+     * Все вхождения запроса в сообщении — по фрагменту на строку, как страница поиска показывает
+     * строки документа. Строка целиком сюда не годится: сообщение чата пишут абзацами, и один абзац
+     * занял бы всю карточку, поэтому у каждой строки берётся тот же сниппет вокруг вхождения.
+     */
+    private static List<String> fragments(@Nullable String content, String query) {
+        if (content == null) {
+            return List.of();
+        }
+        String needle = query.toLowerCase(Locale.ROOT);
+        List<String> found = new ArrayList<>();
+        for (String line : content.split("\n")) {
+            if (found.size() >= FRAGMENTS_PER_MESSAGE) {
+                break;
+            }
+            if (line.toLowerCase(Locale.ROOT).contains(needle)) {
+                addIfPresent(found, buildSnippet(line, query));
+            }
+        }
+        if (found.isEmpty()) {
+            // Ни одна строка не содержит запрос целиком: он совпал в БД через перенос строки.
+            // Показываем начало сообщения — то же, что делает сниппет в этом случае.
+            addIfPresent(found, buildSnippet(content, query));
+        }
+        return List.copyOf(found);
+    }
+
+    private static void addIfPresent(List<String> target, @Nullable String fragment) {
+        if (fragment != null && !fragment.isBlank()) {
+            target.add(fragment);
+        }
     }
 
     /**

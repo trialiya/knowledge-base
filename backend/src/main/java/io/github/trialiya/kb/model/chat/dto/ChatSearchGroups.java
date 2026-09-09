@@ -14,7 +14,7 @@ import org.jspecify.annotations.Nullable;
  * Когда просмотр упёрся в свой предел, у старых чатов (или у чата с очень многими совпадениями)
  * здесь не все сообщения — об этом говорит {@code truncated}.
  *
- * @param total сколько сообщений с совпадениями в чатах, вошедших в ответ
+ * @param total сколько строк с совпадениями в чатах, вошедших в ответ
  * @param truncated просмотр совпадений упёрся в предел: у каких-то чатов сообщения показаны не все,
  *     а какие-то старые чаты могли не попасть вовсе
  * @param chats найденные чаты
@@ -36,12 +36,12 @@ public record ChatSearchGroups(int total, boolean truncated, List<Group> chats) 
             List<Message> messages) {}
 
     /**
-     * Одно сообщение с совпадением.
+     * Одно сообщение с совпадениями.
      *
      * @param role кто писал — {@code USER}, {@code ASSISTANT} или {@code TOOL}, как в истории чата
-     * @param snippet фрагмент вокруг первого вхождения, той же формы, что сниппет в {@link
-     *     ChatSearchResult}
+     * @param fragments вхождения запроса по порядку в тексте сообщения — по фрагменту на строку, в
+     *     форме сниппета из {@link ChatSearchResult}; сообщение, совпавшее только через перенос
+     *     строки, несёт один фрагмент от своего начала
      */
-    public record Message(
-            long id, String role, LocalDateTime createdAt, @Nullable String snippet) {}
+    public record Message(long id, String role, LocalDateTime createdAt, List<String> fragments) {}
 }
