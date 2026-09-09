@@ -187,14 +187,10 @@ function App() {
   const { goView, pendingView, confirmLeave, cancelLeave } = useUnsavedViewGuard({ view, switchView });
 
   // Ссылка на файл в результатах поиска ведёт в «Файлы»: раздел меняется вместе
-  // с открытым путём, одним переходом.
-  const openFileFromSearch = useCallback(
-    (path, project, options) => {
-      goView('files');
-      openFilePath(path, project, options);
-    },
-    [goView, openFilePath],
-  );
+  // с открытым путём, одним переходом — его и делает `openFilePath`, сам ставя
+  // раздел. Переключать раздел перед ним нечем: `goView` спрашивает про
+  // несохранённые правки, а уходят здесь из поиска, не из базы знаний.
+  const openFileFromSearch = openFilePath;
 
   // Регистрируем переход в Files для DocLinkTooltip (кнопка "Открыть" у
   // файловой ссылки) — компонент смонтирован в чате/KB, на много уровней
