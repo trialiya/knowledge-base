@@ -5,33 +5,43 @@ import { isEditorDirty } from '@/components/knowledgeBasePanel/editor/editorDirt
  * Предупреждение о несохранённых правках при уходе из базы знаний в любой другой
  * раздел. Возвращает `goView` — им и переключают разделы вместо `switchView`.
  *
- * `pendingView` помнит, КУДА хотел уйти пользователь, чтобы после подтверждения
- * перейти именно туда (chat / files / admin / settings), а не только в чат.
+ * `goView(target, go)`: `go` делает сам переход, когда тот не сводится к смене
+ * раздела — ссылка на файл открывает «Файлы» сразу на пути, одной записью
+ * истории (`openFilePath`). Без `go` переход — `switchView(target)`. Пока
+ * человек отвечает на вопрос, отложен переход целиком: раздел не меняется, и
+ * действие ждёт подтверждения вместе с ним. Вызывать его следом за `goView`
+ * нельзя — вопрос был бы задан, а уход случился бы всё равно.
+ *
+ * `pendingView` помнит, КУДА хотел уйти пользователь: по нему открыт диалог, а
+ * после подтверждения переход идёт именно туда (chat / files / admin / settings).
  *
  * @param {object}   p
  * @param {string}   p.view        текущий раздел
  * @param {Function} p.switchView  переход без вопросов (из useAppNavigation)
  */
 export default function useUnsavedViewGuard({ view, switchView }) {
-  const [pendingView, setPendingView] = useState(null);
+  // { view, go } — отложенный переход; null — вопроса нет. Объект, а не сама
+  // функция: функцию setState принял бы за апдейтер.
+  const [pending, setPending] = useState(null);
 
   const goView = useCallback(
-    (target) => {
+    (target, go) => {
+      const run = go || (() => switchView(target));
       if (view === 'knowledge' && target !== 'knowledge' && isEditorDirty()) {
-        setPendingView(target);
+        setPending({ view: target, go: run });
         return;
       }
-      switchView(target);
+      run();
     },
     [view, switchView],
   );
 
   const confirmLeave = useCallback(() => {
-    setPendingView(null);
-    if (pendingView) switchView(pendingView);
-  }, [pendingView, switchView]);
+    setPending(null);
+    pending?.go();
+  }, [pending]);
 
-  const cancelLeave = useCallback(() => setPendingView(null), []);
+  const cancelLeave = useCallback(() => setPending(null), []);
 
-  return { goView, pendingView, confirmLeave, cancelLeave };
+  return { goView, pendingView: pending?.view ?? null, confirmLeave, cancelLeave };
 }

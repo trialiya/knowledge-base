@@ -49,8 +49,8 @@
   },
   "unsaved": {
     "title": "Unsaved changes",
-    "message": "The knowledge base editor has unsaved changes. Switch to chat? They will stay in the editor but will not be saved.",
-    "confirm": "Switch to chat",
+    "message": "The knowledge base editor has unsaved changes. Leave the knowledge base? They will stay in the editor but will not be saved.",
+    "confirm": "Leave",
     "cancel": "Stay"
   },
   "attachments": {
