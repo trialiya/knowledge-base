@@ -297,6 +297,33 @@ describe('useInChatSearch — сообщение из адреса', () => {
     await waitFor(() => expect(result.current.activeIndex).toBe(0));
   });
 
+  // Переход из поиска в ДРУГОЙ чат приходит двумя рендерами: адрес меняется
+  // сразу, а активный чат догоняет его отдельным состоянием чат-панели. К
+  // моменту смены чата запрос из адреса уже применён, и сброс по смене чата не
+  // имеет права его стирать — иначе бар не откроется вовсе.
+  it('смена чата вслед за запросом не гасит бар', async () => {
+    chatApi.searchMessages.mockResolvedValue(hits);
+    const base = {
+      getChats: () => [{ id: 'chat-1', messages: three, hasMore: false }],
+      loadOlderMessages: vi.fn(),
+      messages: three,
+    };
+    // Открыт другой чат (черновик), запроса нет.
+    const { result, rerender } = renderHook((p) => useInChatSearch(p), {
+      initialProps: { ...base, activeChatId: 'new', find: '', msg: '' },
+    });
+
+    // Кадр 1: адрес уже про новый чат, activeChatId ещё прежний.
+    rerender({ ...base, activeChatId: 'new', find: 'жираф', msg: '20' });
+    // Кадр 2: чат догнал адрес.
+    rerender({ ...base, activeChatId: 'chat-1', find: 'жираф', msg: '20' });
+
+    expect(result.current.open).toBe(true);
+    expect(result.current.query).toBe('жираф');
+    await waitFor(() => expect(result.current.activeIndex).toBe(1));
+    expect(result.current.activeMatchMid).toBe('m2');
+  });
+
   // «Назад» на ссылку с другим запросом в том же чате: совпадения на экране
   // ещё от прежнего запроса, и садиться по ним нельзя — ждём новый поиск.
   it('смена запроса и сообщения разом садится по новым совпадениям', async () => {
