@@ -59,10 +59,6 @@ import { readUrl, buildUrl, currentUrl, initialNav, popNav } from './navUrl';
  */
 export function createNavStore({ canLeave = () => true } = {}) {
   let nav = initialNav();
-  // Раскладка, с которой раздел открыли (в том числе принесённая ссылкой),
-  // запоминается сразу: иначе первый же уход в другой раздел и возврат
-  // подставили бы вместо неё запомненную ранее.
-  savePanelState(nav.view, { leftCollapsed: nav.leftCollapsed, rightTab: nav.rightTab });
 
   // ── Память «последнего открытого» в каждом разделе (вне URL) ────────────────
   // Адрес описывает только текущую запись истории, поэтому «Назад» на /chat
@@ -279,9 +275,8 @@ export function createNavStore({ canLeave = () => true } = {}) {
      * попасть в адрес, иначе открытый чат нельзя скопировать ссылкой. Но это не
      * ПЕРЕХОД пользователя, поэтому пишем на месте: иначе автовыбор при каждой
      * свежей загрузке /chat плодил бы лишнюю запись истории (/chat → /chat/<id>),
-     * которую «Назад» не отличить от настоящего перехода — экран при возврате на
-     * /chat визуально не меняется (ChatWindow держит свой выбор в локальном
-     * стейте), и кнопка выглядит нерабочей.
+     * на которой возврат «Назад» показал бы /chat без чата — и тут же снова
+     * автовыбор: кнопка выглядела бы нерабочей.
      */
     openChat(chatId, { navigate = true, find, msg } = {}) {
       const id = chatId == null ? null : String(chatId);
@@ -412,6 +407,11 @@ export function createNavStore({ canLeave = () => true } = {}) {
     canonicalize() {
       const url = buildUrl(nav);
       if (url !== currentUrl()) window.history.replaceState({}, '', url);
+      // Раскладка, с которой раздел открыли (в том числе принесённая ссылкой),
+      // запоминается сразу: иначе первый же уход в другой раздел и возврат
+      // подставили бы вместо неё запомненную ранее. Здесь, а не при создании
+      // стора: стор создаётся в рендере, а это побочный эффект.
+      savePanelState(nav.view, { leftCollapsed: nav.leftCollapsed, rightTab: nav.rightTab });
     },
     /** «Назад»/«Вперёд»: адрес уже сменил браузер, состояние читается из него. */
     onPopState() {
