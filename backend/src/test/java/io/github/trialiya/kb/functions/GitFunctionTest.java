@@ -258,10 +258,10 @@ class GitFunctionTest {
         function.getUncommittedChanges(context, null, " docs , *.java ", null);
         verify(billing).getUncommittedChanges(false, List.of("docs", "*.java"));
 
-        // Перечисление столбиком делится только по строкам: запятая — законный символ имени файла,
-        // и разделитель здесь виден без неё.
-        function.getUncommittedChanges(context, null, "docs/a,b.md\nsrc", null);
-        verify(billing).getUncommittedChanges(false, List.of("docs/a,b.md", "src"));
+        // Смешанный список — самый частый вид списка у модели: разбор обязан понять его целиком,
+        // а не половину.
+        function.getUncommittedChanges(context, null, "docs,\nsrc\nbuild.gradle", null);
+        verify(billing).getUncommittedChanges(false, List.of("docs", "src", "build.gradle"));
 
         function.getUncommittedChanges(context, null, "  ", null);
         function.getUncommittedChanges(context, null, null, null);
