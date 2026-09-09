@@ -1233,22 +1233,27 @@ public class GitService {
      * @param includePatch whether to include unified diff text for modified files
      */
     public List<GitDiffEntry> getUncommittedChanges(boolean includePatch) {
-        return getUncommittedChanges(includePatch, List.of());
+        return changes(includePatch, List.of());
     }
 
     /**
-     * The same list narrowed to one path — what the files panel asks for when it opens a single
+     * The same list narrowed to one file — what the files panel asks for when it opens a single
      * change: the list it already drew needs no patches, and computing every file's patch to show
      * one of them is the whole working tree's diff per click.
      *
-     * @param onlyPath a file path, a directory, or a glob; {@code null} or blank for the whole
-     *     working tree
+     * <p>The path is matched as itself, not as a pathspec: the panel asks by whatever the URL has
+     * selected, a directory among it, and a prefix match would answer that with the first changed
+     * file under it — a diff shown under a name that is not its own.
+     *
+     * @param onlyPath a file path, or {@code null}/blank for the whole working tree
      */
     public List<GitDiffEntry> getUncommittedChanges(
             boolean includePatch, @Nullable String onlyPath) {
-        return getUncommittedChanges(
+        return changes(
                 includePatch,
-                onlyPath == null || onlyPath.isBlank() ? List.of() : List.of(onlyPath));
+                onlyPath == null || onlyPath.isBlank()
+                        ? List.of()
+                        : List.of(Pathspec.exact(normalizePath(onlyPath))));
     }
 
     /**
@@ -1266,12 +1271,23 @@ public class GitService {
      */
     public List<GitDiffEntry> getUncommittedChanges(
             boolean includePatch, List<String> pathFilters) {
-        List<Pathspec> wanted =
+        return changes(
+                includePatch,
                 pathFilters.stream()
-                        .filter(filter -> filter != null && !filter.isBlank())
+                        .map(filter -> filter == null ? "" : filter.strip())
+                        // "." and "./" name the repo root, which normalizePath refuses and which
+                        // means here what an omitted filter means: the whole working tree.
+                        .filter(
+                                filter ->
+                                        !filter.isEmpty()
+                                                && !filter.equals(".")
+                                                && !filter.equals("./"))
                         .map(filter -> Pathspec.of(normalizePath(filter)))
                         .filter(Objects::nonNull)
-                        .toList();
+                        .toList());
+    }
+
+    private List<GitDiffEntry> changes(boolean includePatch, List<Pathspec> wanted) {
         Status status;
         try {
             status = git.status().call();

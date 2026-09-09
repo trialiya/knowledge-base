@@ -258,8 +258,10 @@ class GitFunctionTest {
         function.getUncommittedChanges(context, null, " docs , *.java ", null);
         verify(billing).getUncommittedChanges(false, List.of("docs", "*.java"));
 
-        function.getUncommittedChanges(context, null, "docs\nsrc", null);
-        verify(billing).getUncommittedChanges(false, List.of("docs", "src"));
+        // Перечисление столбиком делится только по строкам: запятая — законный символ имени файла,
+        // и разделитель здесь виден без неё.
+        function.getUncommittedChanges(context, null, "docs/a,b.md\nsrc", null);
+        verify(billing).getUncommittedChanges(false, List.of("docs/a,b.md", "src"));
 
         function.getUncommittedChanges(context, null, "  ", null);
         function.getUncommittedChanges(context, null, null, null);

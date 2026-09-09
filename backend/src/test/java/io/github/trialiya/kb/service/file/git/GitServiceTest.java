@@ -353,12 +353,41 @@ class GitServiceTest {
         writeFile("src/main/deep/B.java", "class B { int x; }\n");
         writeFile("root.txt", "one\ntwo\n");
 
-        assertThat(service.getUncommittedChanges(false, "docs"))
+        assertThat(service.getUncommittedChanges(false, List.of("docs")))
                 .extracting(GitDiffEntry::path)
                 .containsExactly("docs/a.md");
-        assertThat(service.getUncommittedChanges(false, "*.java"))
+        assertThat(service.getUncommittedChanges(false, List.of("*.java")))
                 .extracting(GitDiffEntry::path)
                 .containsExactlyInAnyOrder("src/main/A.java", "src/main/deep/B.java");
+    }
+
+    /**
+     * Одиночный путь — это путь, а не pathspec: панель спрашивает тем, что выбрано в URL, а выбран
+     * бывает и каталог, и префиксное совпадение показало бы под его именем дифф первого файла
+     * внутри.
+     */
+    @Test
+    void uncommittedChangesNarrowedToASinglePathMatchThatPathOnly() {
+        writeFile("docs/a.md", "one\n");
+        commitAll();
+        writeFile("docs/a.md", "one\ntwo\n");
+
+        assertThat(service.getUncommittedChanges(true, "docs")).isEmpty();
+        assertThat(service.getUncommittedChanges(true, "docs/a.md")).hasSize(1);
+    }
+
+    /**
+     * «.» — это корень дерева, а не путь: фильтр из него значит то же, что пропущенный аргумент.
+     */
+    @Test
+    void uncommittedChangesFilteredByTheRepoRootIsTheWholeTree() {
+        writeFile("a.txt", "one\n");
+        commitAll();
+        writeFile("a.txt", "one\ntwo\n");
+
+        assertThat(service.getUncommittedChanges(false, List.of(".")))
+                .extracting(GitDiffEntry::path)
+                .containsExactly("a.txt");
     }
 
     /** Несколько фильтров складываются как несколько pathspec'ов в команде git — по ИЛИ. */
