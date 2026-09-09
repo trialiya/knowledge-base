@@ -1340,11 +1340,14 @@ public class GitService {
                     formatter.setRepository(repository);
                     // Переименование — это пара из удаления и добавления, поэтому искать его
                     // незачем, когда сканировать нечего кроме правок: детектор всё равно грузит
-                    // содержимое кандидатов, а пар среди одних правок не бывает.
+                    // содержимое кандидатов, а пар среди одних правок не бывает. Незакрытый
+                    // конфликт слияния тут заодно с ними: чем он окажется в сравнении с HEAD,
+                    // по набору из status не видно.
                     formatter.setDetectRenames(
                             !status.getAdded().isEmpty()
                                     || !status.getRemoved().isEmpty()
-                                    || !status.getMissing().isEmpty());
+                                    || !status.getMissing().isEmpty()
+                                    || !status.getConflicting().isEmpty());
                     formatter.setPathFilter(PathFilterGroup.createFromStrings(changedPaths));
 
                     for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
