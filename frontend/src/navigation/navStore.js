@@ -38,8 +38,14 @@ import { readUrl, buildUrl, currentUrl, initialNav, popNav } from './navUrl';
  * ── Уход с несохранёнными правками ─────────────────────────────────────────
  * `canLeave(prev, next)` спрашивают перед каждым переходом в другой раздел.
  * Отказ откладывает переход ЦЕЛИКОМ — как значение, до confirmLeave: раздел
- * не меняется, и то, что должно было открыться вместе с ним, ждёт ответа
- * вместе с ним. Спросить и уйти всё равно поэтому нельзя.
+ * не меняется, память не трогается, и то, что должно было открыться вместе с
+ * ним, ждёт ответа вместе с ним. Спросить и уйти всё равно поэтому нельзя.
+ * Ушли из раздела другим путём (в поиск, «Назад») — вопрос снят.
+ *
+ * ── Переход в другой раздел приносит его раскладку ─────────────────────────
+ * Любой переход, меняющий раздел (вкладка, файл из чата, документ из поиска),
+ * подставляет запомненную для целевого раздела раскладку панелей — иначе
+ * раскладка раздела-источника утекла бы в адрес и в память нового.
  *
  * ⚠️ Деплой: путь-роутинг требует SPA-fallback на index.html, включая ВЛОЖЕННЫЕ
  * пути (/chat/<id>, /knowledge/doc/<id>, /files/<path…>). См. примечание в конце
@@ -53,6 +59,10 @@ import { readUrl, buildUrl, currentUrl, initialNav, popNav } from './navUrl';
  */
 export function createNavStore({ canLeave = () => true } = {}) {
   let nav = initialNav();
+  // Раскладка, с которой раздел открыли (в том числе принесённая ссылкой),
+  // запоминается сразу: иначе первый же уход в другой раздел и возврат
+  // подставили бы вместо неё запомненную ранее.
+  savePanelState(nav.view, { leftCollapsed: nav.leftCollapsed, rightTab: nav.rightTab });
 
   // ── Память «последнего открытого» в каждом разделе (вне URL) ────────────────
   // Адрес описывает только текущую запись истории, поэтому «Назад» на /chat
@@ -67,8 +77,8 @@ export function createNavStore({ canLeave = () => true } = {}) {
     fileProject: nav.fileProject || '',
   };
 
-  // Отложенный переход: { updater, history } — ждёт ответа на вопрос
-  // canLeave; null — вопроса нет.
+  // Отложенный переход: { updater, history, view } — ждёт ответа на вопрос
+  // canLeave; view — раздел, в который просятся; null — вопроса нет.
   let pending = null;
 
   const listeners = new Set();
@@ -77,7 +87,7 @@ export function createNavStore({ canLeave = () => true } = {}) {
   let snapshot = { nav, pendingView: null };
 
   function emit() {
-    snapshot = { nav, pendingView: pending ? pending.updater(nav).view : null };
+    snapshot = { nav, pendingView: pending ? pending.view : null };
     listeners.forEach((cb) => cb());
   }
 
@@ -98,6 +108,9 @@ export function createNavStore({ canLeave = () => true } = {}) {
   function commit(next, history) {
     const prev = nav;
     nav = next;
+    // Вопрос об уходе был про раздел prev.view: ушли из него другим путём
+    // (например, в поиск, который не спрашивает) — вопрос снят.
+    if (next.view !== prev.view) pending = null;
     const url = buildUrl(next);
     // Адрес не изменился — записи истории не плодим (например, изменилось
     // лишь то, что в адрес не пишется).
@@ -110,12 +123,19 @@ export function createNavStore({ canLeave = () => true } = {}) {
     const next = updater(nav);
     if (next === nav) return;
     if (next.view !== nav.view && !canLeave(nav, next)) {
-      pending = { updater, history };
+      pending = { updater, history, view: next.view };
       emit();
       return;
     }
     commit(next, history);
   }
+
+  /**
+   * Состояние для перехода в раздел `view`: при смене раздела раскладка
+   * панелей — запомненная для него, а не та, что была в разделе-источнике
+   * (иначе она утекла бы в адрес и в память нового раздела).
+   */
+  const entering = (prev, view) => (prev.view === view ? prev : { ...prev, ...readPanelState(view) });
 
   /** Переход: новая запись в истории. */
   const push = (updater) => navigate(updater, 'push');
@@ -131,7 +151,7 @@ export function createNavStore({ canLeave = () => true } = {}) {
     switchView(view) {
       push((prev) => {
         if (prev.view === view) return prev;
-        const next = { ...prev, ...readPanelState(view), view };
+        const next = { ...entering(prev, view), view };
         if (view === 'chat') next.chatId = prev.chatId || memory.chatId || null;
         if (view === 'knowledge' && !prev.docId && !prev.search && memory.docId) next.docId = memory.docId;
         if (view === 'files' && !prev.filePath) {
@@ -153,7 +173,7 @@ export function createNavStore({ canLeave = () => true } = {}) {
       const id = docId == null ? null : String(docId);
       const docFind = find || '';
       push((prev) => ({
-        ...prev,
+        ...entering(prev, 'knowledge'),
         view: 'knowledge',
         docId: id,
         docFind,
@@ -166,7 +186,7 @@ export function createNavStore({ canLeave = () => true } = {}) {
     /** Запустить поиск в KB (сбрасывает выбранный документ). */
     setSearch(search, mode) {
       push((prev) => ({
-        ...prev,
+        ...entering(prev, 'knowledge'),
         view: 'knowledge',
         docId: search ? null : prev.docId, // при активном поиске документ не выбран
         search,
@@ -184,7 +204,7 @@ export function createNavStore({ canLeave = () => true } = {}) {
      */
     openSearch(query, scope) {
       push((prev) => ({
-        ...prev,
+        ...entering(prev, 'search'),
         view: 'search',
         searchQuery: query || '',
         searchScope: normalizeScope(scope || prev.searchScope),
@@ -227,7 +247,7 @@ export function createNavStore({ canLeave = () => true } = {}) {
       push((prev) => {
         const nextProject = project === undefined ? prev.fileProject : project || '';
         return {
-          ...prev,
+          ...entering(prev, 'files'),
           view: 'files',
           filePath: path || '',
           fileProject: nextProject,
@@ -265,17 +285,23 @@ export function createNavStore({ canLeave = () => true } = {}) {
      */
     openChat(chatId, { navigate = true, find, msg } = {}) {
       const id = chatId == null ? null : String(chatId);
-      if (id) memory.chatId = id;
       // Запрос относится к тому чату, из-за которого сюда пришли: открывая
       // другой, его не тащим — подсвечивать в нём нечего. Сообщение — тем более:
       // оно из этого чата, и в соседнем такого id либо нет, либо он чужой.
       const chatFind = find || '';
       const chatMsg = chatFind ? (msg == null ? '' : String(msg)) : '';
       if (!navigate) {
-        replace((prev) => (prev.view !== 'chat' ? prev : { ...prev, chatId: id, chatFind, chatMsg }));
+        // Состояние чата меняется и в другом разделе: адрес его там не пишет,
+        // но возврат в чат берёт chatId из состояния, и черновик, ставший
+        // настоящим чатом, пока открыты «Файлы», не должен вернуть /chat/new.
+        replace((prev) =>
+          prev.chatId === id && prev.chatFind === chatFind && prev.chatMsg === chatMsg
+            ? prev
+            : { ...prev, chatId: id, chatFind, chatMsg },
+        );
         return;
       }
-      push((prev) => ({ ...prev, view: 'chat', chatId: id, chatFind, chatMsg }));
+      push((prev) => ({ ...entering(prev, 'chat'), view: 'chat', chatId: id, chatFind, chatMsg }));
     },
 
     // ── Состояние экрана (не переход) ──────────────────────────────────────

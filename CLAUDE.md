@@ -10,8 +10,8 @@ PostgreSQL 17 + pgvector, H2 for local runs and tests) and a React 19 frontend
 
 One SPA over one API. The frontend has four sections — chat, knowledge base,
 files, settings/admin — all rendered through the shared `WorkspaceLayout`; the
-URL is the navigation state and `navigation/useAppNavigation.js` is its only
-writer. Most controllers are a plain `controller → service → Spring Data JDBC`
+URL is the navigation state and `navigation/navStore.js` is its only writer
+(`useAppNavigation.js` is the React adapter over it). Most controllers are a plain `controller → service → Spring Data JDBC`
 stack (documents, attachments, phrases, …); chat is the one path where the
 service layer also drives Spring AI, which calls back into services through
 `@Tool` functions (`functions/`) to read and write the knowledge base and the

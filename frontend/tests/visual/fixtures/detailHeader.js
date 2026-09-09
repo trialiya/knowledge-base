@@ -32,7 +32,8 @@ export const documentInFolder = {
 /**
  * Документ на глубине, где крошки заведомо шире шапки: проверяет, что строка не
  * переносится, а уезжает в горизонтальный скролл, прижатый к концу пути.
- * В db/sample-data.sql такого дерева нет — данные собраны специально под кейс.
+ * Повторяет документ 82 из db/sample-data.sql (четвёртый уровень, три предка)
+ * с синтетическими id.
  */
 export const documentDeepPath = {
   node: {
@@ -52,7 +53,7 @@ export const documentDeepPath = {
 
 /**
  * Системный узел: переименование и удаление запрещены, вместо кнопок замок.
- * В db/sample-data.sql строк с is_system = TRUE нет — фикстура закрывает эту дыру.
+ * Повторяет документ 80 из db/sample-data.sql — единственный с is_system = TRUE.
  */
 export const systemDocument = {
   node: {
