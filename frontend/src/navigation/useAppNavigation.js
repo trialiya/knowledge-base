@@ -76,12 +76,20 @@ export default function useAppNavigation() {
 
   // Флаг: изменение пришло из popstate — значит URL уже актуален, писать НЕ нужно.
   const fromPopRef = useRef(false);
-  // Способ записи следующего адреса. Ставится ТЕМ, кто инициирует изменение
-  // (pushNav / replaceNav), а не эффектом: setNav может вернуть прежнее
-  // состояние (например, раскрытие уже раскрытой вкладки), тогда эффект не
-  // запустится — и режим, сброшенный только в нём, протёк бы в следующий,
-  // настоящий переход, съев запись истории.
-  const historyModeRef = useRef('push');
+  // Переход, ещё не записанный в историю. Ставит его апдейтер pushNav — и
+  // только когда состояние действительно меняется, — а снимает эффект записи
+  // адреса. Ни «режим последнего вызова», ни сброс одним эффектом не годятся:
+  //   • режим последнего вызова перебивается чужим replaceNav, успевшим между
+  //     setNav перехода и его эффектом. Так уход фокуса из find-бара фиксирует
+  //     запрос (setChatFind) в том же коммите, где переход из поиска открыл бар
+  //     с autoFocus, а поле ввода сообщения фокус тут же отобрало, — и переход
+  //     записывался бы поверх страницы поиска;
+  //   • флаг, поставленный до апдейтера, пережил бы холостой переход (клик по
+  //     уже открытой вкладке: setNav вернул прежнее состояние, эффект не
+  //     запустился) и превратил бы следующий тумблер панели в запись истории.
+  // Запись в ref из апдейтера безвредна: он идемпотентен, а читает флаг только
+  // эффект коммита, к которому апдейтер уже отработал.
+  const pendingPushRef = useRef(false);
   // Первую запись адреса всегда делаем через replaceState: на старте мы лишь
   // канонизируем то, что уже открыто (legacy-ссылка → новая схема), а не
   // переходим куда-то. Иначе «Назад» возвращал бы на исходный legacy-адрес,
@@ -90,25 +98,30 @@ export default function useAppNavigation() {
 
   /** Переход: новая запись в истории. */
   const pushNav = useCallback((updater) => {
-    historyModeRef.current = 'push';
-    setNav(updater);
+    setNav((prev) => {
+      const next = updater(prev);
+      if (next !== prev) pendingPushRef.current = true;
+      return next;
+    });
   }, []);
 
-  /** Не переход (раскладка панелей): адрес обновляется на месте. */
-  const replaceNav = useCallback((updater) => {
-    historyModeRef.current = 'replace';
-    setNav(updater);
-  }, []);
+  /**
+   * Не переход (раскладка панелей, фиксация запроса бара): адрес обновляется
+   * на месте. Пришедший вместе с переходом — в одном коммите — едет его записью.
+   */
+  const replaceNav = useCallback((updater) => setNav(updater), []);
 
   // ── Запись URL при изменении состояния ────────────────────────────────────
   useEffect(() => {
+    const pushed = pendingPushRef.current;
+    pendingPushRef.current = false;
     if (fromPopRef.current) {
       // Это состояние выставлено обработчиком popstate — URL уже совпадает.
       fromPopRef.current = false;
       wroteUrlRef.current = true;
       return;
     }
-    const mode = wroteUrlRef.current ? historyModeRef.current : 'replace';
+    const mode = wroteUrlRef.current && pushed ? 'push' : 'replace';
     const next = buildUrl(nav);
     wroteUrlRef.current = true;
     if (next === currentUrl()) return; // нет изменений — не плодим записи истории
