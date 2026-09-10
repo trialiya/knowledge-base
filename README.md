@@ -4,6 +4,9 @@ An AI assistant for working with a Git repository: search across code and
 change history, answers to questions about the project, and a knowledge base
 that lives alongside the code.
 
+Current version: **1.0.0-RC1** — see the [changelog](CHANGELOG.md) for the full
+feature set and the known limitations of this release candidate.
+
 ## What it is
 
 You point it at a local Git repository (requires `git` to be installed) — and
@@ -34,13 +37,24 @@ history, documentation that doesn't drift from the code.
 
 - 🤖 **AI chat over the code** — natural-language questions about files,
   commits, and architecture; ready-made modes (Analyst / Developer / Tester)
-  and model selection
+  and model selection. An answer runs in the background and streams over SSE,
+  so it survives a page reload
+- 🗜️ **Context compaction** — the chat summarizes its own history in the
+  background, and `/compact` (or an automatic pass near the model's context
+  limit) keeps a long conversation from dying on request length
 - 🐙 **Git analysis** — reading files, commit history, diffs, grep across the
   repository, structural code analysis (tree-sitter)
 - 📂 **"Files" panel** — browse the repository (tree, contents, latest
   commit) in a GitHub-like style, insert files into the chat
-- 🔍 **Hybrid search** — keyword + semantic (vector), across the knowledge
-  base and across chats
+- 🔍 **Hybrid search** — keyword + semantic (vector), across three
+  categories: repository files, knowledge-base documents and chats; a result
+  opens straight at the match
+- 📜 **Scripted search** — instead of a dozen round-trips the model can write
+  a short JavaScript program that walks the repository in one call. It has no
+  filesystem: files are reached only through an injected API, under the same
+  rules and explicit budgets. Disabled by default (`kb.script.enabled`)
+- 🗂️ **Several repositories at once** — the project is chosen per chat and
+  travels with file links and tool calls
 
 ### Knowledge base
 
@@ -51,6 +65,16 @@ history, documentation that doesn't drift from the code.
 - 📎 **Attachments** — uploading files to documents and chats
 - 📤 **Export and import** — exchanging the knowledge base with the file
   system
+
+### Git commands — optional
+
+- 🔀 **Run git from the UI, not through the model** — branch with ahead/behind
+  counters, fetch, switch and branch creation, stash, commit, reverting a
+  file, `merge --abort`, pull. Disabled by default
+  (`kb.projects[].git-commands.enabled`)
+- ⬆️ **Push is a separate grant** on top of that
+  (`kb.projects[].git-commands.push-enabled`) — it is the one command that
+  publishes the repository outside the deployment
 
 ### Code editing — optional
 
@@ -67,9 +91,12 @@ history, documentation that doesn't drift from the code.
 - 🔌 **Any OpenAI-compatible API** — including local models: your code
   never has to leave your machine
 - 🧩 **MCP** — connect external tools via MCP servers (disabled by default)
-- 🐳 **Docker** — a ready-made compose file for quick deployment
+- 🐳 **Docker** — ready-made compose files for both database options:
+  PostgreSQL 17 + pgvector for the full stack, or the bundled H2 for a run
+  without a database and without semantic search
 - ⚙️ **Administration** — AI/search configuration snapshots, a phrase
   library, reindexing, system information
+- 🌍 **English and Russian** interface, switchable in the header
 
 ## Quick start
 
@@ -85,7 +112,9 @@ docker compose -f docker-compose-h2.yaml up
 
 Open http://localhost:8080 — default login/password is `admin` / `admin`
 (change it in settings if the app is reachable from more than just
-localhost).
+localhost). Note that this profile also serves the H2 console at
+`/h2-console` outside HTTP Basic: it is meant for local development and
+demos, not for a public deployment.
 
 > This option uses the built-in H2 — PostgreSQL isn't needed. For the full
 > stack with semantic search, run `docker compose up` and add the
@@ -97,7 +126,7 @@ from `run/` —
 ```bash
 ./gradlew :backend:bootJar
 # Edit run/application.yaml: api-key, base-url, model,
-# kb.git.project-path (path to the repository to analyze)
+# kb.projects[].path (path to the repository to analyze)
 ./run/run.sh
 ```
 
@@ -121,14 +150,17 @@ overview of the features and a full table of contents. Key documents:
 | [Installation Guide](docs/проект/руководство-по-установке.md) [RU] | Requirements, running, troubleshooting |
 | [Chat — User Guide](docs/features/чат-руководство-пользователя.md) [RU] | How to use the chat |
 | [Knowledge Base — User Guide](docs/features/база-знаний-руководство-пользователя.md) [RU] | Navigation, search, AI summarization |
+| [Search — User Guide](docs/features/поиск-руководство-пользователя.md) [RU] | Modes, categories, how matches are ranked |
 | [Development and Contributing](docs/проект/разработка-и-контрибьюция.md) [RU] | Building, testing, code style |
+| [Changelog](CHANGELOG.md) | Release notes — this one is in English |
 
 ## Tech stack
 
 | Component | Technologies |
 |---|---|
-| Backend | Java 25, Spring Boot 4.1, Spring AI, PostgreSQL 17 + pgvector |
-| Frontend | React 19, CSS |
-| Infrastructure | Docker, docker-compose |
+| Backend | Java 25, Spring Boot 4.1, Spring AI, virtual threads |
+| Database | PostgreSQL 17 + pgvector, or bundled H2 (no semantic search) |
+| Frontend | React 19, Vite, i18next, CSS |
+| Infrastructure | Docker, docker-compose, Flyway, tree-sitter |
 
 Details — [Architecture](docs/проект/архитектура.md) [RU]
