@@ -26,11 +26,12 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 # Имя JAR несёт версию проекта (backend/build.gradle), поэтому оно ищется маской,
-# а не пишется буквально: иначе смена версии молча ломает запуск. `-original` —
-# это исходный JAR, который оставляет после себя bootJar; он не запускается.
+# а не пишется буквально: иначе смена версии молча ломает запуск.
+# `-plain`/`-original` — это несамостоятельные JAR'ы, которые оставляет рядом сборка
+# (plain у Spring Boot 4, original — у прежних версий); запускается не они.
 $Libs      = [IO.Path]::GetFullPath((Join-Path $ScriptDir '..\backend\build\libs'))
 $Jar       = Get-ChildItem -Path $Libs -Filter 'backend-*.jar' -ErrorAction SilentlyContinue |
-             Where-Object { $_.Name -notlike '*-original.jar' } |
+             Where-Object { $_.Name -notlike '*-plain.jar' -and $_.Name -notlike '*-original.jar' } |
              Select-Object -First 1 -ExpandProperty FullName
 
 if (-not $Jar) {

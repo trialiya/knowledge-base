@@ -24,12 +24,13 @@ rem Remove trailing backslash
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
 rem Имя JAR несёт версию проекта (backend/build.gradle), поэтому оно ищется маской,
-rem а не пишется буквально: иначе смена версии молча ломает запуск. `-original` —
-rem это исходный JAR, который оставляет после себя bootJar; он не запускается.
+rem а не пишется буквально: иначе смена версии молча ломает запуск.
+rem `-plain`/`-original` — это несамостоятельные JAR'ы, которые оставляет рядом сборка
+rem (plain у Spring Boot 4, original — у прежних версий); запускается не они.
 set "LIBS=%SCRIPT_DIR%\..\backend\build\libs"
 set "JAR="
 for %%F in ("%LIBS%\backend-*.jar") do (
-    echo %%~nxF | findstr /E /C:"-original.jar" >nul || if not defined JAR set "JAR=%%~fF"
+    echo %%~nxF | findstr /E /C:"-plain.jar" /C:"-original.jar" >nul || if not defined JAR set "JAR=%%~fF"
 )
 
 if "%~1"=="" (
