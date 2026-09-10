@@ -113,8 +113,8 @@ docker compose -f docker-compose-h2.yaml up
 Open http://localhost:8080 — default login/password is `admin` / `admin`
 (change it in settings if the app is reachable from more than just
 localhost). Note that this profile also serves the H2 console at
-`/h2-console` outside HTTP Basic: it is meant for local development and
-demos, not for a public deployment.
+`/h2-console` outside HTTP Basic — behind the database login of its own, but
+still meant for local development and demos rather than a public deployment.
 
 > This option uses the built-in H2 — PostgreSQL isn't needed. For the full
 > stack with semantic search, run `docker compose up` and add the

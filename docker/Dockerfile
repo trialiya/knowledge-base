@@ -6,13 +6,15 @@ WORKDIR /workspace
 RUN apk add --no-cache nodejs npm yarn
 
 # Копируем Gradle wrapper и базовые конфиги
-COPY gradlew settings.gradle build.gradle ./
+# gradle.lockfile — вместе с build.gradle: локи в проекте нестрогие, и без них сборка
+# образа молча резолвит другие версии, чем те, которые проверил CI.
+COPY gradlew settings.gradle build.gradle gradle.lockfile ./
 COPY gradle/ gradle/
 
 # Копируем конфигурации подпроектов отдельно для изоляции кэша
-COPY backend/build.gradle backend/
+COPY backend/build.gradle backend/gradle.lockfile backend/
 COPY frontend/build.gradle frontend/package.json frontend/yarn.lock frontend/
-COPY frontend/vite.config.js frontend/postcss.config.js frontend/eslint.config.js frontend/
+COPY frontend/vite.config.js frontend/eslint.config.js frontend/
 
 # Копируем исходники.
 # index.html лежит в корне модуля — для Vite это точка входа сборки, а не

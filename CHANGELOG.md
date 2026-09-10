@@ -101,17 +101,19 @@ release.
   are roughly 40% faster (`KB_AOT=0` disables it).
 - Admin panel: server and schema information, AI/search configuration
   snapshots, the phrase library, and reindexing.
-- HTTP Basic authentication for a single configured user; `/actuator/health` is
-  the only unauthenticated endpoint.
+- HTTP Basic authentication for a single configured user. `/actuator/health` is
+  the only endpoint outside it — plus the H2 console under the `h2` profile,
+  which has a database login of its own (see Known limitations).
 - Interface in English and Russian, switchable in the header.
 
 ### Known limitations
 
 - The default credentials are `admin` / `admin` (`kb.security`). Change them
   before exposing the application beyond localhost.
-- The `h2` profile — the one the README's quick start uses — enables the H2
-  console at `/h2-console` outside HTTP Basic; it is meant for local
-  development and demos, not for a public deployment.
+- The `h2` profile — the one the README's quick start uses — serves the H2
+  console at `/h2-console` outside HTTP Basic. The console has a database login
+  of its own (`spring.datasource.username` / `password`), but the profile is
+  meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
 [Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0-RC1...HEAD
