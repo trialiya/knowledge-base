@@ -41,6 +41,7 @@ import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.api.StatusCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.diff.DiffEntry;
@@ -1315,12 +1316,7 @@ public class GitService {
     }
 
     private List<GitDiffEntry> changes(boolean includePatch, List<Pathspec> wanted) {
-        Status status;
-        try {
-            status = git.status().call();
-        } catch (GitAPIException e) {
-            throw new IllegalStateException("Failed to compute working tree status", e);
-        }
+        Status status = status(wanted);
 
         Set<String> changedPaths = new LinkedHashSet<>();
         changedPaths.addAll(status.getAdded());
@@ -1342,7 +1338,16 @@ public class GitService {
                 var patchOut = new ByteArrayOutputStream();
                 try (DiffFormatter formatter = new DiffFormatter(patchOut)) {
                     formatter.setRepository(repository);
-                    formatter.setDetectRenames(true);
+                    // Переименование — это пара из удаления и добавления, поэтому искать его
+                    // незачем, когда сканировать нечего кроме правок: детектор всё равно грузит
+                    // содержимое кандидатов, а пар среди одних правок не бывает. Незакрытый
+                    // конфликт слияния тут заодно с ними: чем он окажется в сравнении с HEAD,
+                    // по набору из status не видно.
+                    formatter.setDetectRenames(
+                            !status.getAdded().isEmpty()
+                                    || !status.getRemoved().isEmpty()
+                                    || !status.getMissing().isEmpty()
+                                    || !status.getConflicting().isEmpty());
                     formatter.setPathFilter(PathFilterGroup.createFromStrings(changedPaths));
 
                     for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
@@ -1352,10 +1357,13 @@ public class GitService {
                         // that a rename opens under either of its names.
                         if (!admits(wanted, entry.getNewPath())
                                 && !admits(wanted, entry.getOldPath())) continue;
-                        GitDiffEntry mapped =
-                                toGitDiffEntry(entry, formatter, includePatch, patchOut);
-                        if (RepoPaths.isJunkFile(mapped.path())) continue;
-                        entries.add(mapped);
+                        // Мусорный путь отсеивается до разбора: собрать его патч, чтобы тут же
+                        // его выбросить, — работа целиком впустую.
+                        if (RepoPaths.isJunkFile(
+                                DiffEntry.ChangeType.DELETE == entry.getChangeType()
+                                        ? entry.getOldPath()
+                                        : entry.getNewPath())) continue;
+                        entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
                     }
                 }
             } catch (IOException e) {
@@ -1374,6 +1382,49 @@ public class GitService {
                 .forEach(path -> entries.add(untrackedDiffEntry(path, includePatch)));
 
         return entries;
+    }
+
+    /**
+     * The working tree's status, read of one path when the caller asked about one path and nothing
+     * about that path can turn out to be half of a rename.
+     *
+     * <p>Status is the expensive half of this call — it stats the whole working tree, and the diff
+     * that follows only re-reads the paths it named. A single-file question (the files panel opens
+     * one change, a tool asks about one path) does not need the rest of the tree stat'ed, and git's
+     * own {@code status -- <path>} narrows the same way.
+     *
+     * <p>The exception is a rename: it is a pair, and a pair is only visible when both of its
+     * halves are in the same scan. So a narrowed answer is kept only while it holds nothing added,
+     * removed or missing — a modification can never be one half of a rename, and everything else
+     * falls back to the full status the rename detector needs. A pathspec with a wildcard is not
+     * narrowed at all: git resolves those against the whole tree anyway.
+     */
+    private Status status(List<Pathspec> wanted) {
+        String only = wanted.size() == 1 ? wanted.get(0).literal() : null;
+        if (only != null && RepoPaths.indexOfWildcard(only) < 0) {
+            Status narrow = statusOf(only);
+            if (narrow.getAdded().isEmpty()
+                    && narrow.getRemoved().isEmpty()
+                    && narrow.getMissing().isEmpty()) {
+                return narrow;
+            }
+        }
+        return statusOf(null);
+    }
+
+    /**
+     * @param only a path or path prefix to limit the walk to, or null for the whole tree
+     */
+    private Status statusOf(@Nullable String only) {
+        StatusCommand command = git.status();
+        if (only != null) {
+            command.addPath(only);
+        }
+        try {
+            return command.call();
+        } catch (GitAPIException e) {
+            throw new IllegalStateException("Failed to compute working tree status", e);
+        }
     }
 
     /**
@@ -1408,16 +1459,21 @@ public class GitService {
         if (content == null || RepoFiles.isBinary(content)) {
             return new GitDiffEntry(UNTRACKED_STATUS, path, null, 0, 0, null, null);
         }
-        String text = new String(content, StandardCharsets.UTF_8);
-        // Финальный перевод строки закрывает последнюю строку, а не начинает новую: без этого
-        // файл из трёх строк показывал бы «+4» и лишний «+» в конце патча — не так, как те же
-        // три строки считает git у отслеживаемого файла.
-        String body = text.endsWith("\n") ? text.substring(0, text.length() - 1) : text;
-        // Пустой файл и файл из одного перевода строки — разное: во втором есть строка, пустая.
-        List<String> lines = text.isEmpty() ? List.of() : List.of(body.split("\n", -1));
+        // Список изменений считает строки у каждого допущенного файла, поэтому строки считаются
+        // по байтам: раскладывать в строки то, чего никто не покажет, — работа на весь размер
+        // файла ради одного числа.
+        int lineCount = countLines(content);
         String patchHeader = null;
         String patch = null;
         if (includePatch) {
+            String text = new String(content, StandardCharsets.UTF_8);
+            // Финальный перевод строки закрывает последнюю строку, а не начинает новую: без этого
+            // файл из трёх строк показывал бы «+4» и лишний «+» в конце патча — не так, как те же
+            // три строки считает git у отслеживаемого файла.
+            String body = text.endsWith("\n") ? text.substring(0, text.length() - 1) : text;
+            // Пустой файл и файл из одного перевода строки — разное: во втором есть строка,
+            // пустая.
+            List<String> lines = text.isEmpty() ? List.of() : List.of(body.split("\n", -1));
             // Шапка тут не отделяется, а собирается: у файла вне git нет ханков, зато имя его
             // такие же метаданные, как и у остальных, и приходит оно тем же полем.
             patchHeader = "+++ b/" + path;
@@ -1432,7 +1488,24 @@ public class GitService {
             // блоком читалась бы как сломанный патч.
             patch = sb.isEmpty() ? null : sb.toString();
         }
-        return new GitDiffEntry(UNTRACKED_STATUS, path, null, lines.size(), 0, patchHeader, patch);
+        return new GitDiffEntry(UNTRACKED_STATUS, path, null, lineCount, 0, patchHeader, patch);
+    }
+
+    /**
+     * Сколько строк в этих байтах по счёту git: последний перевод строки закрывает строку, а не
+     * начинает новую, и у пустого файла строк нет.
+     */
+    private static int countLines(byte[] content) {
+        if (content.length == 0) {
+            return 0;
+        }
+        int lines = 0;
+        for (byte b : content) {
+            if (b == '\n') {
+                lines++;
+            }
+        }
+        return content[content.length - 1] == '\n' ? lines : lines + 1;
     }
 
     /** HEAD's tree, or an empty tree when the branch is unborn (no commits yet). */

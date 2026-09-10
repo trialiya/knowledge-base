@@ -355,6 +355,19 @@ class GitServiceAllowGlobsTest {
                         });
     }
 
+    /**
+     * Незакрытая последняя строка — тоже строка: список без патчей считает её так же, как считал бы
+     * git, хотя раскладывать файл ради этого ему не приходится.
+     */
+    @Test
+    void anUntrackedFileWithoutATrailingNewlineCountsItsLastLine() {
+        writeFile("notes/tail.md", "one\ntwo");
+
+        assertThat(service.getUncommittedChanges(false, "notes/tail.md"))
+                .singleElement()
+                .satisfies(entry -> assertThat(entry.additions()).isEqualTo(2));
+    }
+
     /** Сборочный артефакт читается, но изменением не является — в ревью ему делать нечего. */
     @Test
     void gitignoredFilesAreReadableButStayOutOfTheUncommittedChanges() {

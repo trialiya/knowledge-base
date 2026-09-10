@@ -427,6 +427,24 @@ class GitServiceTest {
         }
     }
 
+    /**
+     * Сузить список до одного пути — про этот путь, а не про то, что рядом: переименование другого
+     * файла в тот же ответ не попадает, хотя ради него список изменений и читается целиком.
+     */
+    @Test
+    void uncommittedChangesNarrowedToOneFileLeaveARenameOfAnotherOut() {
+        writeFile("old-name.txt", "one\ntwo\nthree\n");
+        writeFile("edited.txt", "before\n");
+        commitAll();
+        runGit("mv", "old-name.txt", "new-name.txt");
+        writeFile("edited.txt", "after\n");
+
+        List<GitDiffEntry> changes = service.getUncommittedChanges(false, "edited.txt");
+        assertThat(changes).hasSize(1);
+        assertThat(changes.get(0).status()).isEqualTo("M");
+        assertThat(changes.get(0).path()).isEqualTo("edited.txt");
+    }
+
     @Test
     void uncommittedChangesReportsStagedNewFileAsAdded() {
         writeFile("tracked.txt", "hello\n");
