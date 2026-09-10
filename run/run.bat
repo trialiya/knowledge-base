@@ -23,15 +23,9 @@ set "SCRIPT_DIR=%~dp0"
 rem Remove trailing backslash
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-rem Имя JAR несёт версию проекта (backend/build.gradle), поэтому оно ищется маской,
-rem а не пишется буквально: иначе смена версии молча ломает запуск.
-rem `-plain`/`-original` — это несамостоятельные JAR'ы, которые оставляет рядом сборка
-rem (plain у Spring Boot 4, original — у прежних версий); запускается не они.
-set "LIBS=%SCRIPT_DIR%\..\backend\build\libs"
-set "JAR="
-for %%F in ("%LIBS%\backend-*.jar") do (
-    echo %%~nxF | findstr /E /C:"-plain.jar" /C:"-original.jar" >nul || if not defined JAR set "JAR=%%~fF"
-)
+rem Имя задано в backend/build.gradle (bootJar.archiveFileName) и намеренно не несёт
+rem версии — иначе каждый релиз правил бы этот путь здесь и в документации.
+set "JAR=%SCRIPT_DIR%\..\backend\build\libs\kb.jar"
 
 if "%~1"=="" (
     set "PROFILE=h2"
@@ -39,8 +33,8 @@ if "%~1"=="" (
     set "PROFILE=%~1"
 )
 
-if not defined JAR (
-    echo ERROR: JAR not found in %LIBS%
+if not exist "%JAR%" (
+    echo ERROR: JAR not found: %JAR%
     echo Build first:  gradlew.bat :backend:bootJar
     exit /b 1
 )

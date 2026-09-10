@@ -33,7 +33,10 @@ RUN --mount=type=cache,target=/root/.gradle \
 # Распаковываем слоистый JAR на отдельные директории по слоям.
 FROM eclipse-temurin:25-jre-alpine AS extract
 WORKDIR /workspace
-COPY --from=build /workspace/backend/build/libs/*.jar app.jar
+# Имя фиксировано в backend/build.gradle (bootJar.archiveFileName), поэтому берём его
+# явно, а не маской: маска здесь молча ловила бы и backend-<version>-plain.jar, попади он
+# в libs, и COPY на двух совпадениях требует каталог назначения, а не имя файла.
+COPY --from=build /workspace/backend/build/libs/kb.jar app.jar
 RUN java -Djarmode=tools -jar app.jar extract --layers --destination extracted
 
 # ── Stage 3: Runtime ─────────────────────────────────────────────

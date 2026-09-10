@@ -31,21 +31,9 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..');
 const TEST_SH = path.join(ROOT, 'run/test.sh');
 const RUN_SH = path.join(ROOT, 'run/run.sh');
-const LIBS = path.join(ROOT, 'backend/build/libs');
-// Имя JAR несёт версию проекта (backend/build.gradle), поэтому оно ищется маской,
-// а не пишется буквально: иначе смена версии молча ломает smoke.
-// `-plain`/`-original` — это несамостоятельные JAR'ы, которые оставляет рядом сборка
-// (plain у Spring Boot 4, original — у прежних версий); запускается не они.
-const findJar = () =>
-  (fs.existsSync(LIBS) ? fs.readdirSync(LIBS) : [])
-    .filter(
-      (n) =>
-        n.startsWith('backend-') &&
-        n.endsWith('.jar') &&
-        !n.endsWith('-plain.jar') &&
-        !n.endsWith('-original.jar'),
-    )
-    .map((n) => path.join(LIBS, n))[0] || null;
+// Имя задано в backend/build.gradle (bootJar.archiveFileName) и намеренно не несёт
+// версии — иначе каждый релиз правил бы этот путь здесь и в документации.
+const JAR = path.join(ROOT, 'backend/build/libs/kb.jar');
 const SAMPLE_DATA = path.join(ROOT, 'backend/src/test/resources/db/sample-data.sql');
 const SMOKE_DB = path.join(ROOT, 'local-db/h2-smoke'); // disposable — never local-db/h2
 const BASE_URL = 'http://localhost:8080';
@@ -107,10 +95,8 @@ function waitForHealth(timeoutMs = 60000) {
 async function main() {
   if (build) {
     buildJar();
-  } else if (!findJar()) {
-    throw new Error(
-      `--no-build given, but no ${path.relative(ROOT, LIBS)}/backend-*.jar exists yet.`,
-    );
+  } else if (!fs.existsSync(JAR)) {
+    throw new Error(`--no-build given, but ${path.relative(ROOT, JAR)} does not exist yet.`);
   }
 
   // local-db/ is gitignored, so on a fresh clone it does not exist yet — and H2

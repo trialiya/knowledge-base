@@ -231,6 +231,7 @@ tasks.named('test') {
 def frontendStatic = project(':frontend').layout.buildDirectory.dir('static')
 
 bootJar {
+    archiveFileName = 'kb.jar'
     dependsOn ':frontend:copyFrontend'
     from(frontendStatic) {
         into 'BOOT-INF/classes/static'

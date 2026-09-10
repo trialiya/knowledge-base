@@ -26,15 +26,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Имя JAR несёт версию проекта (backend/build.gradle), поэтому оно ищется маской,
-# а не пишется буквально: иначе смена версии молча ломает запуск.
-# `-plain`/`-original` — это несамостоятельные JAR'ы, которые оставляет рядом сборка
-# (plain у Spring Boot 4, original — у прежних версий); запускается не они.
-JAR="$(ls -1 "$SCRIPT_DIR"/../backend/build/libs/backend-*.jar 2>/dev/null | grep -vE -- '-(plain|original)\.jar$' | head -n 1 || true)"
+# Имя задано в backend/build.gradle (bootJar.archiveFileName) и намеренно не несёт
+# версии — иначе каждый релиз правил бы этот путь здесь и в документации.
+JAR="$SCRIPT_DIR/../backend/build/libs/kb.jar"
 PROFILE="${1:-h2}"
 
-if [ -z "$JAR" ] || [ ! -f "$JAR" ]; then
-  echo "ERROR: JAR not found in $SCRIPT_DIR/../backend/build/libs" >&2
+if [ ! -f "$JAR" ]; then
+  echo "ERROR: JAR not found: $JAR" >&2
   echo "Build first:  ./gradlew :backend:bootJar" >&2
   exit 1
 fi
