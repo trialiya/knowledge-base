@@ -23,7 +23,14 @@ set "SCRIPT_DIR=%~dp0"
 rem Remove trailing backslash
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-set "JAR=%SCRIPT_DIR%\..\backend\build\libs\backend-1.0-SNAPSHOT.jar"
+rem Имя JAR несёт версию проекта (backend/build.gradle), поэтому оно ищется маской,
+rem а не пишется буквально: иначе смена версии молча ломает запуск. `-original` —
+rem это исходный JAR, который оставляет после себя bootJar; он не запускается.
+set "LIBS=%SCRIPT_DIR%\..\backend\build\libs"
+set "JAR="
+for %%F in ("%LIBS%\backend-*.jar") do (
+    echo %%~nxF | findstr /E /C:"-original.jar" >nul || if not defined JAR set "JAR=%%~fF"
+)
 
 if "%~1"=="" (
     set "PROFILE=h2"
@@ -31,8 +38,8 @@ if "%~1"=="" (
     set "PROFILE=%~1"
 )
 
-if not exist "%JAR%" (
-    echo ERROR: JAR not found: %JAR%
+if not defined JAR (
+    echo ERROR: JAR not found in %LIBS%
     echo Build first:  gradlew.bat :backend:bootJar
     exit /b 1
 )

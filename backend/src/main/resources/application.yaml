@@ -1,6 +1,6 @@
 spring:
   application:
-    name: kb-demo
+    name: knowledge-base
   autoconfigure:
     # Auto-configurations that match on a classpath this application does not
     # choose. Every one of them costs class loading and bean definitions at

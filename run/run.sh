@@ -26,11 +26,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-JAR="$SCRIPT_DIR/../backend/build/libs/backend-1.0-SNAPSHOT.jar"
+# Имя JAR несёт версию проекта (backend/build.gradle), поэтому оно ищется маской,
+# а не пишется буквально: иначе смена версии молча ломает запуск. `-original` —
+# это исходный JAR, который оставляет после себя bootJar; он не запускается.
+JAR="$(ls -1 "$SCRIPT_DIR"/../backend/build/libs/backend-*.jar 2>/dev/null | grep -v -- '-original\.jar$' | head -n 1 || true)"
 PROFILE="${1:-h2}"
 
-if [ ! -f "$JAR" ]; then
-  echo "ERROR: JAR not found: $JAR" >&2
+if [ -z "$JAR" ] || [ ! -f "$JAR" ]; then
+  echo "ERROR: JAR not found in $SCRIPT_DIR/../backend/build/libs" >&2
   echo "Build first:  ./gradlew :backend:bootJar" >&2
   exit 1
 fi

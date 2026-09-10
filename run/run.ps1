@@ -25,10 +25,16 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Jar       = [IO.Path]::GetFullPath((Join-Path $ScriptDir '..\backend\build\libs\backend-1.0-SNAPSHOT.jar'))
+# Имя JAR несёт версию проекта (backend/build.gradle), поэтому оно ищется маской,
+# а не пишется буквально: иначе смена версии молча ломает запуск. `-original` —
+# это исходный JAR, который оставляет после себя bootJar; он не запускается.
+$Libs      = [IO.Path]::GetFullPath((Join-Path $ScriptDir '..\backend\build\libs'))
+$Jar       = Get-ChildItem -Path $Libs -Filter 'backend-*.jar' -ErrorAction SilentlyContinue |
+             Where-Object { $_.Name -notlike '*-original.jar' } |
+             Select-Object -First 1 -ExpandProperty FullName
 
-if (-not (Test-Path $Jar)) {
-    Write-Error "JAR not found: $Jar`nBuild first:  .\gradlew.bat :backend:bootJar"
+if (-not $Jar) {
+    Write-Error "JAR not found in $Libs`nBuild first:  .\gradlew.bat :backend:bootJar"
     exit 1
 }
 

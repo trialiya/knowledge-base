@@ -31,7 +31,14 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..');
 const TEST_SH = path.join(ROOT, 'run/test.sh');
 const RUN_SH = path.join(ROOT, 'run/run.sh');
-const JAR = path.join(ROOT, 'backend/build/libs/backend-1.0-SNAPSHOT.jar');
+const LIBS = path.join(ROOT, 'backend/build/libs');
+// Имя JAR несёт версию проекта (backend/build.gradle), поэтому оно ищется маской,
+// а не пишется буквально: иначе смена версии молча ломает smoke. `-original` — это
+// исходный JAR, который оставляет после себя bootJar; он не запускается.
+const findJar = () =>
+  (fs.existsSync(LIBS) ? fs.readdirSync(LIBS) : [])
+    .filter((n) => n.startsWith('backend-') && n.endsWith('.jar') && !n.endsWith('-original.jar'))
+    .map((n) => path.join(LIBS, n))[0] || null;
 const SAMPLE_DATA = path.join(ROOT, 'backend/src/test/resources/db/sample-data.sql');
 const SMOKE_DB = path.join(ROOT, 'local-db/h2-smoke'); // disposable — never local-db/h2
 const BASE_URL = 'http://localhost:8080';
@@ -93,8 +100,10 @@ function waitForHealth(timeoutMs = 60000) {
 async function main() {
   if (build) {
     buildJar();
-  } else if (!fs.existsSync(JAR)) {
-    throw new Error(`--no-build given, but ${path.relative(ROOT, JAR)} does not exist yet.`);
+  } else if (!findJar()) {
+    throw new Error(
+      `--no-build given, but no ${path.relative(ROOT, LIBS)}/backend-*.jar exists yet.`,
+    );
   }
 
   // local-db/ is gitignored, so on a fresh clone it does not exist yet — and H2
