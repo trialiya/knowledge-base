@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.config;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitEditFunction;
@@ -9,12 +10,21 @@ import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
 import io.github.trialiya.kb.functions.SkillFunction;
 import io.github.trialiya.kb.functions.TopicFunction;
+import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.tool.execution.DefaultToolCallResultConverter;
+import org.springframework.aot.hint.ExecutableMode;
 import org.springframework.aot.hint.MemberCategory;
 import org.springframework.aot.hint.RuntimeHints;
 import org.springframework.aot.hint.RuntimeHintsRegistrar;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.type.AnnotationMetadata;
+import org.springframework.core.type.classreading.CachingMetadataReaderFactory;
+import org.springframework.core.type.classreading.MetadataReaderFactory;
+import org.springframework.util.ClassUtils;
 
 /**
  * Метаданные для native-image, которые статический анализ вывести не может.
@@ -53,6 +63,9 @@ public class NativeHints implements RuntimeHintsRegistrar {
                     SkillFunction.class,
                     TopicFunction.class);
 
+    /** Классы SDK OpenAI, которые вообще могут прийти из ответа модели. */
+    private static final String OPENAI_CLASSES = "classpath*:com/openai/**/*.class";
+
     @Override
     public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
         for (Class<?> holder : TOOL_HOLDERS) {
@@ -69,5 +82,55 @@ public class NativeHints implements RuntimeHintsRegistrar {
                 .registerType(
                         DefaultToolCallResultConverter.class,
                         MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+        registerOpenAiAnySetters(hints, classLoader);
+    }
+
+    /**
+     * Приёмники неизвестных полей в моделях SDK OpenAI.
+     *
+     * <p>Своих метаданных SDK поставляет много ({@code META-INF/native-image/reflect-config.json}
+     * на несколько мегабайт), но сняты они агентом трассировки, и вызываемыми объявлены только те
+     * методы, которые прогон агента задел. Приватный {@code putAdditionalProperty} под
+     * {@code @JsonAnySetter} в этот список не попал: он срабатывает лишь тогда, когда ответ
+     * содержит поле, которого в модели SDK нет. С самим OpenAI такого может не случиться никогда, а
+     * вот OpenAI-совместимые провайдеры кладут в ответ свои поля постоянно — и тогда образ падает с
+     * {@code MissingReflectionRegistrationError} посреди стрима.
+     *
+     * <p>Ищем по аннотации, а не по имени метода, и только в пакете SDK: имя — деталь его
+     * реализации, а аннотация — контракт Jackson, по которому этот метод и вызывается.
+     */
+    private void registerOpenAiAnySetters(RuntimeHints hints, @Nullable ClassLoader classLoader) {
+        ClassLoader loader = classLoader == null ? ClassUtils.getDefaultClassLoader() : classLoader;
+        PathMatchingResourcePatternResolver resolver =
+                new PathMatchingResourcePatternResolver(loader);
+        MetadataReaderFactory metadataReaders = new CachingMetadataReaderFactory(resolver);
+        try {
+            for (Resource resource : resolver.getResources(OPENAI_CLASSES)) {
+                AnnotationMetadata metadata =
+                        metadataReaders.getMetadataReader(resource).getAnnotationMetadata();
+                if (metadata.getAnnotatedMethods(JsonAnySetter.class.getName()).isEmpty()) {
+                    continue;
+                }
+                registerAnySetters(hints, metadata.getClassName(), loader);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to scan OpenAI SDK classes", e);
+        }
+    }
+
+    private void registerAnySetters(
+            RuntimeHints hints, String className, @Nullable ClassLoader loader) {
+        final Class<?> type;
+        try {
+            type = ClassUtils.forName(className, loader);
+        } catch (ClassNotFoundException | LinkageError e) {
+            // Класс из необязательной части SDK: нет зависимости — нет и вызова через рефлексию.
+            return;
+        }
+        for (Method method : type.getDeclaredMethods()) {
+            if (method.isAnnotationPresent(JsonAnySetter.class)) {
+                hints.reflection().registerMethod(method, ExecutableMode.INVOKE);
+            }
+        }
     }
 }
