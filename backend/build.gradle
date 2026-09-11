@@ -258,6 +258,12 @@ tasks.named('processAot') {
 }
 graalvmNative {
     toolchainDetection = false
+    binaries.named('main') {
+        // Сборщик определяет размер своей кучи по памяти хоста, а не по лимиту cgroup,
+        // в котором он на самом деле живёт: увидел 16 ГБ при лимите 13.3 ГБ и вместе
+        // с демоном Gradle был убит OOM-killer на стадии 5 из 8. Предел задаём явно.
+        buildArgs.add('-J-Xmx9g')
+    }
 }
 // Сгенерированные AOT-исходники Spring — не наш код, NullAway на них не запускаем.
 tasks.named('compileAotJava') {
