@@ -31,7 +31,9 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..');
 const TEST_SH = path.join(ROOT, 'run/test.sh');
 const RUN_SH = path.join(ROOT, 'run/run.sh');
-const JAR = path.join(ROOT, 'backend/build/libs/backend-1.0-SNAPSHOT.jar');
+// Имя задано в backend/build.gradle (bootJar.archiveFileName) и намеренно не несёт
+// версии — иначе каждый релиз правил бы этот путь здесь и в документации.
+const JAR = path.join(ROOT, 'backend/build/libs/kb.jar');
 const SAMPLE_DATA = path.join(ROOT, 'backend/src/test/resources/db/sample-data.sql');
 const SMOKE_DB = path.join(ROOT, 'local-db/h2-smoke'); // disposable — never local-db/h2
 const BASE_URL = 'http://localhost:8080';

@@ -52,6 +52,5 @@ public abstract class AbstractPostgresIntegrationTest {
         // прогоняем именно постгресовые миграции, а не migration-h2
         registry.add("spring.flyway.enabled", () -> "true");
         registry.add("spring.flyway.locations", () -> "classpath:db/migration");
-        registry.add("spring.flyway.validate-on-migrate", () -> "false");
     }
 }

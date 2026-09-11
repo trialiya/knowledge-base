@@ -26,7 +26,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-JAR="$SCRIPT_DIR/../backend/build/libs/backend-1.0-SNAPSHOT.jar"
+# Имя задано в backend/build.gradle (bootJar.archiveFileName) и намеренно не несёт
+# версии — иначе каждый релиз правил бы этот путь здесь и в документации.
+JAR="$SCRIPT_DIR/../backend/build/libs/kb.jar"
 PROFILE="${1:-h2}"
 
 if [ ! -f "$JAR" ]; then

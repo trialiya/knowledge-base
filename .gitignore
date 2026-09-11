@@ -41,7 +41,9 @@ out/
 hs_err_pid*
 replay_pid*
 
-frontend/node_modules/
+# Каталог yarn/vite: в корне его создаёт vitest под свой кэш, во frontend/ — сам
+# yarn. В git не попадает ни один из них.
+node_modules/
 backend/local-db
 local-db/
 

@@ -6,13 +6,15 @@ WORKDIR /workspace
 RUN apk add --no-cache nodejs npm yarn
 
 # Копируем Gradle wrapper и базовые конфиги
-COPY gradlew settings.gradle build.gradle ./
+# gradle.lockfile — вместе с build.gradle: локи в проекте нестрогие, и без них сборка
+# образа молча резолвит другие версии, чем те, которые проверил CI.
+COPY gradlew settings.gradle build.gradle gradle.lockfile ./
 COPY gradle/ gradle/
 
 # Копируем конфигурации подпроектов отдельно для изоляции кэша
-COPY backend/build.gradle backend/
+COPY backend/build.gradle backend/gradle.lockfile backend/
 COPY frontend/build.gradle frontend/package.json frontend/yarn.lock frontend/
-COPY frontend/vite.config.js frontend/postcss.config.js frontend/eslint.config.js frontend/
+COPY frontend/vite.config.js frontend/eslint.config.js frontend/
 
 # Копируем исходники.
 # index.html лежит в корне модуля — для Vite это точка входа сборки, а не
@@ -33,7 +35,10 @@ RUN --mount=type=cache,target=/root/.gradle \
 # Распаковываем слоистый JAR на отдельные директории по слоям.
 FROM eclipse-temurin:25-jre-alpine AS extract
 WORKDIR /workspace
-COPY --from=build /workspace/backend/build/libs/*.jar app.jar
+# Имя фиксировано в backend/build.gradle (bootJar.archiveFileName), поэтому берём его
+# явно, а не маской: маска здесь молча ловила бы и backend-<version>-plain.jar, попади он
+# в libs, и COPY на двух совпадениях требует каталог назначения, а не имя файла.
+COPY --from=build /workspace/backend/build/libs/kb.jar app.jar
 RUN java -Djarmode=tools -jar app.jar extract --layers --destination extracted
 
 # ── Stage 3: Runtime ─────────────────────────────────────────────

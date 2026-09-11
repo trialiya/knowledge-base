@@ -122,9 +122,9 @@ AI_BASE_URL=https://api.openai.com/ \
 AI_API_KEY=your-key \
 AI_MODEL=gpt-4o \
 PROJECT_PATH=./ \
-java -jar backend/build/libs/backend-1.0-SNAPSHOT.jar
+java -jar backend/build/libs/kb.jar
 ```
 
-Готовый артефакт — `backend/build/libs/backend-1.0-SNAPSHOT.jar`, данные H2 — в каталоге `local-db/` рядом с процессом. Требуется JDK/JRE 25.
+Готовый артефакт — `backend/build/libs/kb.jar`, данные H2 — в каталоге `local-db/` рядом с процессом. Требуется JDK/JRE 25.
 
 > Подробнее — см. [Руководство по установке](руководство-по-установке.md), раздел 4.

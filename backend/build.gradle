@@ -9,7 +9,7 @@ plugins {
 }
 
 group = 'io.github.trialiya.kb'
-version = '1.0-SNAPSHOT'
+version = '1.0.0'
 
 java {
     toolchain {
@@ -231,6 +231,11 @@ tasks.named('test') {
 def frontendStatic = project(':frontend').layout.buildDirectory.dir('static')
 
 bootJar {
+    archiveFileName = 'kb.jar'
+    // Имя не зависит от версии, а манифест Gradle входом задачи не считает: без этой
+    // строки после смены версии bootJar остаётся UP-TO-DATE и отдаёт kb.jar со старой
+    // Implementation-Version — тем самым числом, которое показывает админ-панель.
+    inputs.property('projectVersion', providers.provider { project.version.toString() })
     dependsOn ':frontend:copyFrontend'
     from(frontendStatic) {
         into 'BOOT-INF/classes/static'

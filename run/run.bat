@@ -23,7 +23,9 @@ set "SCRIPT_DIR=%~dp0"
 rem Remove trailing backslash
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-set "JAR=%SCRIPT_DIR%\..\backend\build\libs\backend-1.0-SNAPSHOT.jar"
+rem Имя задано в backend/build.gradle (bootJar.archiveFileName) и намеренно не несёт
+rem версии — иначе каждый релиз правил бы этот путь здесь и в документации.
+set "JAR=%SCRIPT_DIR%\..\backend\build\libs\kb.jar"
 
 if "%~1"=="" (
     set "PROFILE=h2"

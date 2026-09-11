@@ -93,6 +93,13 @@ The wrapper deliberately does not cover:
   `db/sample-data.sql` and `SampleDataFixtureTest` to match.
 - **Keep documentation in sync.** When adding or modifying functionality,
   update the relevant documentation in `docs/` as part of the same change.
+- **A change that costs the upgrader something goes into `UPDATING.md`** —
+  under `## Unreleased`, in the same change that causes it. That is anything
+  breaking, deprecated, or needing a migration step or a restart with downtime:
+  what stops working as before, and what to do about it. Not a second
+  changelog — a feature that simply works after the upgrade belongs in
+  `CHANGELOG.md` at release time, not here. The pull-request template asks
+  about this entry, and at release the file is what the notes are built from.
 - **A comment says how the code works now, never how it got that way.** No
   "previously / раньше / used to be", no account of what was renamed, merged or
   deleted — `git log` holds that, and a header that narrates its own

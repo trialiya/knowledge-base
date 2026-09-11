@@ -25,7 +25,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Jar       = [IO.Path]::GetFullPath((Join-Path $ScriptDir '..\backend\build\libs\backend-1.0-SNAPSHOT.jar'))
+# Имя задано в backend/build.gradle (bootJar.archiveFileName) и намеренно не несёт
+# версии — иначе каждый релиз правил бы этот путь здесь и в документации.
+$Jar       = [IO.Path]::GetFullPath((Join-Path $ScriptDir '..\backend\build\libs\kb.jar'))
 
 if (-not (Test-Path $Jar)) {
     Write-Error "JAR not found: $Jar`nBuild first:  .\gradlew.bat :backend:bootJar"
