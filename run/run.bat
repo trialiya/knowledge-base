@@ -14,7 +14,7 @@ rem Edit application.yaml and application-<profile>.yaml before running.
 rem
 rem Environment:
 rem   JAVA_OPTS      JVM options for both the application and the AOT training
-rem                  run below (default -Xmx150m)
+rem                  run below (default -Xmx256m)
 rem   KB_AOT         0 disables the AOT cache entirely
 rem   KB_AOT_CACHE   path of the cache file, instead of local-db\aot\kb.aot
 setlocal EnableDelayedExpansion
@@ -50,7 +50,7 @@ if "%JAVA_HOME%"=="" (
     set "JAVA_BIN=%JAVA_HOME%\bin\java"
 )
 
-if "%JAVA_OPTS%"=="" set "JAVA_OPTS=-Xmx150m"
+if "%JAVA_OPTS%"=="" set "JAVA_OPTS=-Xmx256m"
 
 rem -- AOT cache --------------------------------------------------------------
 rem Starting from a cache of already loaded and linked classes (JDK 24+) is

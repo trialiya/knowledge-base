@@ -20,7 +20,7 @@
 #
 # Environment:
 #   JAVA_OPTS      JVM options for both the application and the AOT training run
-#                  below (default -Xmx150m)
+#                  below (default -Xmx256m)
 #   KB_AOT         0 disables the AOT cache entirely
 #   KB_AOT_CACHE   path of the cache file, instead of local-db/aot/kb.aot
 set -euo pipefail
@@ -50,7 +50,7 @@ fi
 export LANG="${LANG:-C.utf8}"
 export LC_ALL="${LC_ALL:-C.utf8}"
 
-JAVA_OPTS="${JAVA_OPTS:--Xmx150m}"
+JAVA_OPTS="${JAVA_OPTS:--Xmx256m}"
 
 # ── AOT cache ─────────────────────────────────────────────────────────────────
 # Starting from a cache of already loaded and linked classes (JDK 24+) is worth

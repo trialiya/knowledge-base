@@ -128,17 +128,16 @@ spring:
     multipart:
       max-file-size: 1MB
       max-request-size: 2MB
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
   mvc:
     async:
       request-timeout: 30m
 
 server:
   port: 8080
-  servlet:
-    encoding:
-      charset: UTF-8
-      enabled: true
-      force: true
 
 kb:
   security:

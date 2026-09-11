@@ -13,7 +13,7 @@
 #
 # Environment:
 #   JAVA_OPTS      JVM options for both the application and the AOT training run
-#                  below (default -Xmx150m)
+#                  below (default -Xmx256m)
 #   KB_AOT         0 disables the AOT cache entirely
 #   KB_AOT_CACHE   path of the cache file, instead of local-db\aot\kb.aot
 #Requires -Version 5.1
@@ -40,7 +40,7 @@ if (-not (Test-Path (Join-Path $ScriptDir 'application.yaml'))) {
 }
 
 $JavaBin  = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { 'java' }
-$JavaOpts = if ($env:JAVA_OPTS)  { $env:JAVA_OPTS -split '\s+' } else { @('-Xmx150m') }
+$JavaOpts = if ($env:JAVA_OPTS)  { $env:JAVA_OPTS -split '\s+' } else { @('-Xmx256m') }
 
 # ── AOT cache ─────────────────────────────────────────────────────────────────
 # Starting from a cache of already loaded and linked classes (JDK 24+) is worth
