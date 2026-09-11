@@ -251,23 +251,46 @@ jar {
 }
 
 // Эксперимент: native-image. processAot поднимает контекст на этапе сборки, и без
-// профиля Flyway гонит Postgres-миграции на встроенной H2 — даём ему тот же профиль,
-// с которым JAR запускает run/run.sh.
+// профиля Flyway гонит Postgres-миграции на встроенной H2.
+//
+// Профиль здесь выбирает не только это: Spring AOT запекает активные профили в образ
+// (addActiveProfile в сгенерированном KnowledgeBaseApplication__EnvironmentPostProcessor),
+// поэтому образ получается ровно под один профиль и при запуске добавляет его к любому
+// заданному. Образ под Postgres — это -Pkb.aot.profile=external и отдельная сборка.
+def aotProfile = findProperty('kb.aot.profile') ?: 'h2'
 tasks.named('processAot') {
-    args '--spring.profiles.active=h2', '--spring.aot.repositories.enabled=false'
+    args '--spring.profiles.active=' + aotProfile, '--spring.aot.repositories.enabled=false'
 }
+// Предел кучи сборщика образа. По умолчанию не задаём: native-image берёт 85% доступной
+// памяти, и на обычной машине это правильный выбор — зажатая куча загоняет сборку в GC
+// (замер: 73% времени сборки при -Xmx9g на машине с 16 ГБ). Задавать нужно там, где процесс
+// живёт в cgroup с лимитом меньше памяти хоста, иначе его снимает OOM-killer:
+// -Pkb.native.heap=9g.
+def nativeHeap = findProperty('kb.native.heap')
 graalvmNative {
     toolchainDetection = false
     binaries.named('main') {
-        // Сборщик определяет размер своей кучи по памяти хоста, а не по лимиту cgroup,
-        // в котором он на самом деле живёт: увидел 16 ГБ при лимите 13.3 ГБ и вместе
-        // с демоном Gradle был убит OOM-killer на стадии 5 из 8. Предел задаём явно.
-        buildArgs.add('-J-Xmx9g')
+        // Промпты (prompt/**) читаются по имени из конфигурации, статика фронтенда — из
+        // каталога: оба пути собираются в рантайме, и статический анализ их не видит, а
+        // Spring AOT регистрирует только db/migration/** и application*.yaml. Перечислять
+        // шаблоны поштучно значит ловить по одному отсутствующему файлу за сборку, поэтому
+        // берём всё, что лежит в ресурсах.
+        resources.autodetect()
+        if (nativeHeap) {
+            buildArgs.add('-J-Xmx' + nativeHeap)
+        }
         // Быстрый режим сборки: меньше оптимизаций, заметно меньше времени и памяти.
         // Для замера старта годится — время старта нативного образа определяется
         // предзаполненной кучей, а не уровнем оптимизации кода.
         buildArgs.add('-Ob')
     }
+}
+// Плагин native-image заводит ещё и тестовую половину AOT, а она поднимает контекст
+// интеграционных тестов — то есть требует Docker и падает без него. Задача попадает в
+// граф любой обычной сборки (spotlessApply тянет её через исходники aotTest), так что
+// без этого ./run/test.sh перестаёт работать. nativeTest мы не запускаем.
+tasks.named('processTestAot') {
+    enabled = false
 }
 // Сгенерированные AOT-исходники Spring — не наш код, NullAway на них не запускаем.
 tasks.named('compileAotJava') {
