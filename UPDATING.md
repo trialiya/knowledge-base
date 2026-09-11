@@ -21,7 +21,7 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 Nothing yet.
 
-## 1.0.0-RC1
+## 1.0.0
 
 The first release. Both entries below matter to deployments that were already
 running from `main`, not to a fresh install.

@@ -11,11 +11,10 @@ you* — breaking changes, deprecations, migration steps — is in
 
 ## [Unreleased]
 
-## [1.0.0-RC1] — 2026-09-10
+## [1.0.0] — 2026-09-11
 
-First release candidate. This is the initial public version, so the sections
-below describe the feature set as a whole rather than changes against an earlier
-release.
+The initial public version, so the sections below describe the feature set as a
+whole rather than changes against an earlier release.
 
 ### Chat over a Git repository
 
@@ -108,6 +107,19 @@ release.
   which has a database login of its own (see Known limitations).
 - Interface in English and Russian, switchable in the header.
 
+### Changed since the pre-release `main`
+
+Assembled from [`UPDATING.md`](UPDATING.md), which is where each of these says
+what to do about it. Neither affects a fresh install — they matter only to a
+deployment that was already running from `main` before this release.
+
+- The built JAR is `backend/build/libs/kb.jar`: the artefact name no longer
+  carries the version, so nothing that references it by path breaks on the next
+  release.
+- Flyway validates applied migrations again — `spring.flyway.validate-on-migrate`
+  is back to its default `true`, so a migration edited after it was applied
+  fails the start instead of letting the schema drift.
+
 ### Known limitations
 
 - The default credentials are `admin` / `admin` (`kb.security`). Change them
@@ -118,5 +130,5 @@ release.
   meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
-[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0-RC1...HEAD
-[1.0.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC1
+[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0
