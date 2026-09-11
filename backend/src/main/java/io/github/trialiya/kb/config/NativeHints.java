@@ -12,9 +12,13 @@ import io.github.trialiya.kb.functions.SkillFunction;
 import io.github.trialiya.kb.functions.TopicFunction;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
+import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.execution.DefaultToolCallResultConverter;
+import org.springframework.aot.hint.BindingReflectionHintsRegistrar;
 import org.springframework.aot.hint.ExecutableMode;
 import org.springframework.aot.hint.MemberCategory;
 import org.springframework.aot.hint.RuntimeHints;
@@ -66,6 +70,8 @@ public class NativeHints implements RuntimeHintsRegistrar {
     /** Классы SDK OpenAI, которые вообще могут прийти из ответа модели. */
     private static final String OPENAI_CLASSES = "classpath*:com/openai/**/*.class";
 
+    private final BindingReflectionHintsRegistrar binding = new BindingReflectionHintsRegistrar();
+
     @Override
     public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
         for (Class<?> holder : TOOL_HOLDERS) {
@@ -74,6 +80,7 @@ public class NativeHints implements RuntimeHintsRegistrar {
                             holder,
                             MemberCategory.INVOKE_DECLARED_METHODS,
                             MemberCategory.INVOKE_PUBLIC_METHODS);
+            registerToolSignatures(hints, holder);
         }
         hints.reflection()
                 .registerType(
@@ -83,6 +90,37 @@ public class NativeHints implements RuntimeHintsRegistrar {
                         DefaultToolCallResultConverter.class,
                         MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
         registerOpenAiAnySetters(hints, classLoader);
+    }
+
+    /**
+     * Типы в сигнатурах {@code @Tool}: что инструмент принимает и что возвращает.
+     *
+     * <p>Через них ходит Jackson — разбирает аргументы вызова и сериализует результат, — и ходит
+     * рефлексией, а Spring AOT их не видит: в сигнатурах бинов этих типов нет, они только здесь.
+     * Для записей это ощущается особенно резко: {@code getRecordComponents()} в образе не просто
+     * возвращает пустое, а бросает {@code UnsupportedFeatureError}, и ответ модели обрывается на
+     * первом же вызове инструмента.
+     *
+     * <p>{@code BindingReflectionHintsRegistrar} обходит тип целиком, включая параметры дженериков
+     * ({@code ToolResult<T>} бесполезен без своего {@code T}) и вложенные записи. {@code
+     * ToolContext} пропускаем: он приходит от Spring AI, в схему инструмента не входит и через JSON
+     * не проходит.
+     */
+    private void registerToolSignatures(RuntimeHints hints, Class<?> holder) {
+        for (Method method : holder.getDeclaredMethods()) {
+            if (!method.isAnnotationPresent(Tool.class)) {
+                continue;
+            }
+            if (method.getReturnType() != void.class) {
+                binding.registerReflectionHints(hints.reflection(), method.getGenericReturnType());
+            }
+            for (Parameter parameter : method.getParameters()) {
+                if (parameter.getType() != ToolContext.class) {
+                    binding.registerReflectionHints(
+                            hints.reflection(), parameter.getParameterizedType());
+                }
+            }
+        }
     }
 
     /**
