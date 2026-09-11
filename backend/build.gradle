@@ -267,6 +267,12 @@ tasks.named('processAot') {
 // живёт в cgroup с лимитом меньше памяти хоста, иначе его снимает OOM-killer:
 // -Pkb.native.heap=9g.
 def nativeHeap = findProperty('kb.native.heap')
+// Потоки сборщика. По умолчанию берутся все ядра. Уменьшать имеет смысл ровно в одном
+// случае: когда куче тесно. Каждый поток аллоцирует, а паузы Parallel GC останавливают
+// все потоки разом, поэтому при зажатой памяти лишние ядра не ускоряют сборку, а только
+// приближают следующую паузу (замер на 8 ядрах: полезной загрузки 3.38). Проверяется по
+// строке «thread(s)» в отчёте сборки: -Pkb.native.threads=4.
+def nativeThreads = findProperty('kb.native.threads')
 graalvmNative {
     toolchainDetection = false
     binaries.named('main') {
@@ -278,6 +284,9 @@ graalvmNative {
         resources.autodetect()
         if (nativeHeap) {
             buildArgs.add('-J-Xmx' + nativeHeap)
+        }
+        if (nativeThreads) {
+            buildArgs.add('--parallelism=' + nativeThreads)
         }
         // Быстрый режим сборки: меньше оптимизаций, заметно меньше времени и памяти.
         // Для замера старта годится — время старта нативного образа определяется
