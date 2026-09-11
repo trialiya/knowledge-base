@@ -153,6 +153,7 @@ overview of the features and a full table of contents. Key documents:
 | [Search — User Guide](docs/features/поиск-руководство-пользователя.md) [RU] | Modes, categories, how matches are ranked |
 | [Development and Contributing](docs/проект/разработка-и-контрибьюция.md) [RU] | Building, testing, code style |
 | [Changelog](CHANGELOG.md) | Release notes — this one is in English |
+| [Updating](UPDATING.md) | What an upgrade asks of you: breaking changes, migration steps — English |
 
 ## Tech stack
 

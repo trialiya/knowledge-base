@@ -5,7 +5,9 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Product documentation is in Russian and lives in [`docs/`](docs/); this file and
-the [README](README.md) are the English entry points.
+the [README](README.md) are the English entry points. What an upgrade *asks of
+you* — breaking changes, deprecations, migration steps — is in
+[`UPDATING.md`](UPDATING.md) instead.
 
 ## [Unreleased]
 
