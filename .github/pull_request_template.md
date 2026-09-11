@@ -50,5 +50,4 @@
 - [ ] Ломающее изменение, простой при обновлении, deprecation или крупная
       правка — запись есть в
       [UPDATING.md](https://github.com/trialiya/knowledge-base/blob/main/UPDATING.md),
-      в разделе `Unreleased`. Из этих записей собираются релизные заметки, и
-      написать их сейчас дешевле, чем вспоминать перед тегом
+      в разделе `Unreleased`
