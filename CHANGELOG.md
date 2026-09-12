@@ -11,10 +11,13 @@ you* — breaking changes, deprecations, migration steps — is in
 
 ## [Unreleased]
 
-## [1.0.0] — 2026-09-11
+## [1.0.0-RC1] — 2026-09-12
 
-The initial public version, so the sections below describe the feature set as a
-whole rather than changes against an earlier release.
+The first release candidate, and the first version shipped at all — so the
+sections below describe the feature set as a whole rather than changes against
+an earlier release. The feature set is what 1.0.0 will carry; the candidate is
+here to be installed somewhere other than the machine it was built on before
+that tag is cut.
 
 ### Chat over a Git repository
 
@@ -102,6 +105,11 @@ whole rather than changes against an earlier release.
   are roughly 40% faster (`KB_AOT=0` disables it).
 - Admin panel: server and schema information, AI/search configuration
   snapshots, the phrase library, and reindexing.
+- An experimental GraalVM native image, off by default and built only when
+  asked for (`-Pkb.native`, or `KB_NATIVE=1`): it starts in a fraction of a
+  second and takes far less memory, at the price of a long build and the
+  scripting engine running interpreted. The ordinary JVM build is unaffected —
+  see [Нативный образ GraalVM](docs/проект/нативный-образ-graalvm.md).
 - HTTP Basic authentication for a single configured user. `/actuator/health` is
   the only endpoint outside it — plus the H2 console under the `h2` profile,
   which has a database login of its own (see Known limitations).
@@ -110,8 +118,8 @@ whole rather than changes against an earlier release.
 ### Changed since the pre-release `main`
 
 Assembled from [`UPDATING.md`](UPDATING.md), which is where each of these says
-what to do about it. Neither affects a fresh install — they matter only to a
-deployment that was already running from `main` before this release.
+what to do about it. None of them affects a fresh install — they matter only to
+a deployment that was already running from `main` before this release.
 
 - The built JAR is `backend/build/libs/kb.jar`: the artefact name no longer
   carries the version, so nothing that references it by path breaks on the next
@@ -119,6 +127,11 @@ deployment that was already running from `main` before this release.
 - Flyway validates applied migrations again — `spring.flyway.validate-on-migrate`
   is back to its default `true`, so a migration edited after it was applied
   fails the start instead of letting the schema drift.
+- Forced UTF-8 encoding works again: the keys moved to the
+  `spring.servlet.encoding.*` prefix, the only one Spring Boot 4 binds. Rename
+  them if you override them.
+- The scripting engine is pinned to GraalJS 25.0, the version that matches the
+  GraalVM building the native image. Nothing in the scripting API changes.
 
 ### Known limitations
 
@@ -130,5 +143,5 @@ deployment that was already running from `main` before this release.
   meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
-[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0
+[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0-RC1...HEAD
+[1.0.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC1

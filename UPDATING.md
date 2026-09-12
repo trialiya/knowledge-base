@@ -19,27 +19,10 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
-### Forced UTF-8 encoding is applied again
+## 1.0.0-RC1
 
-The encoding keys in `application.yaml` moved to `spring.servlet.encoding.*`,
-the only prefix Spring Boot 4 binds (`force: true` had quietly stopped working)
-— rename yours if you override them, e.g. `SERVER_SERVLET_ENCODING_FORCE` →
-`SPRING_SERVLET_ENCODING_FORCE`.
-
-### The script engine is pinned to GraalJS 25.0
-
-`org.graalvm.polyglot:polyglot` and `js-community` go from `25.3.4.1` back to
-`25.0.4.1`. The polyglot artefacts have to match the GraalVM that builds the
-native image (25.0.4), and the version is shared with the ordinary JVM build —
-there is one version for both. Scripts run on a slightly older JS engine as a
-result; nothing in the scripting API changes. See
-[Нативный образ GraalVM](docs/проект/нативный-образ-graalvm.md) for the version
-coupling.
-
-## 1.0.0
-
-The first release. Both entries below matter to deployments that were already
-running from `main`, not to a fresh install.
+The first release. All four entries below matter to deployments that were
+already running from `main`, not to a fresh install.
 
 ### The built JAR is now `backend/build/libs/kb.jar`
 
@@ -63,3 +46,20 @@ No migration in this repository has ever been edited after being applied, so a
 deployment that only ever ran released code is unaffected. If your database
 does carry a checksum mismatch, the start will name the migration: repair it
 with `flyway repair`, do not turn the setting back off.
+
+### Forced UTF-8 encoding is applied again
+
+The encoding keys in `application.yaml` moved to `spring.servlet.encoding.*`,
+the only prefix Spring Boot 4 binds (`force: true` had quietly stopped working)
+— rename yours if you override them, e.g. `SERVER_SERVLET_ENCODING_FORCE` →
+`SPRING_SERVLET_ENCODING_FORCE`.
+
+### The script engine is pinned to GraalJS 25.0
+
+`org.graalvm.polyglot:polyglot` and `js-community` go from `25.3.4.1` back to
+`25.0.4.1`. The polyglot artefacts have to match the GraalVM that builds the
+native image (25.0.4), and the version is shared with the ordinary JVM build —
+there is one version for both. Scripts run on a slightly older JS engine as a
+result; nothing in the scripting API changes. See
+[Нативный образ GraalVM](docs/проект/нативный-образ-graalvm.md) for the version
+coupling.
