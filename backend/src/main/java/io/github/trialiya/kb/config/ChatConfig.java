@@ -67,6 +67,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 import org.springframework.security.concurrent.DelegatingSecurityContextExecutorService;
+import reactor.core.scheduler.Schedulers;
 
 @Configuration
 @Slf4j
@@ -500,6 +501,12 @@ public class ChatConfig {
         advisors.add(
                 MessageChatMemoryAdvisor.builder(chatMemory)
                         .order(ToolCallingAdvisor.DEFAULT_ORDER + 100)
+                        // The scheduler is spelled out because the builder's default is
+                        // BaseAdvisor.DEFAULT_SCHEDULER — a static field of an interface, which a
+                        // native image reads as null, so the advisor refuses to build and takes
+                        // the whole context with it (spring-projects/spring-ai#4714). This is the
+                        // very instance that default hands over on the JVM.
+                        .scheduler(Schedulers.boundedElastic())
                         .build());
         advisors.add(new InterjectionAdvisor(pendingMessageService));
         advisors.add(new TokenUsageAdvisor(chatEventService, runRegistry));

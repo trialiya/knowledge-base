@@ -87,7 +87,10 @@ The wrapper deliberately does not cover:
   you need wherever it lands and move on; `spotlessCheck` in `pre-pr` is what
   notices if you never ran the formatter.
 - **Dependency locking is on.** After changing dependencies run
-  `./gradlew resolveAndLockAll --write-locks`.
+  `./gradlew resolveAndLockAll --write-locks -Pkb.native`. Keep the flag:
+  without it the native-image configurations are never resolved, so their
+  entries are not dropped but not refreshed either — they go stale, and the
+  next native build fails on the mismatch.
 - **A schema change is four edits, not one.** Write the migration for both
   `db/migration` (Postgres) and `db/migration-h2`, then update
   `db/sample-data.sql` and `SampleDataFixtureTest` to match.

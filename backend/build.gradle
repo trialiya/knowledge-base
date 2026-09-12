@@ -6,6 +6,8 @@ plugins {
     id 'net.ltgt.errorprone'
     id 'pmd'
     id 'com.github.spotbugs' version '6.5.11'
+    // apply false: плагин включается по флагу ниже, иначе он меняет обычный bootJar.
+    id 'org.graalvm.buildtools.native' version '1.1.12' apply false
 }
 
 group = 'io.github.trialiya.kb'
@@ -92,8 +94,8 @@ dependencies {
     // since Thread.stop is gone (JDK 20) and the Security Manager is permanently disabled
     // (JEP 486, JDK 24). On a stock JDK this runs interpreted — fine for glue code, which is why
     // kb.script.limits exists.
-    implementation 'org.graalvm.polyglot:polyglot:25.3.4.1'
-    implementation 'org.graalvm.polyglot:js-community:25.3.4.1'
+    implementation 'org.graalvm.polyglot:polyglot:25.0.4.1'
+    implementation 'org.graalvm.polyglot:js-community:25.0.4.1'
 
     implementation 'org.jspecify:jspecify:1.0.1'
     errorprone 'com.google.errorprone:error_prone_core:2.50.0'
@@ -146,7 +148,23 @@ pmd {
     consoleOutput = true
 }
 
+// Сгенерированные AOT-исходники Spring — не наш код: ни PMD, ни NullAway на них не гоняем.
+// Отбор по имени задачи, а не tasks.named: aot-наборы появляются только с -Pkb.native, и в
+// обычной сборке искать их по имени нечего, а с флагом сюда попадёт и третий набор, если он
+// когда-нибудь заведётся.
+tasks.withType(JavaCompile).configureEach {
+    if (name.startsWith('compileAot')) {
+        options.errorprone.enabled = false
+    }
+}
+
 tasks.withType(Pmd).configureEach {
+    // Задача pmdAot* создаётся без classpath, на котором падает фильтр ниже, поэтому выходим
+    // раньше него.
+    if (name.startsWith('pmdAot')) {
+        enabled = false
+        return
+    }
     // org.graalvm.js:js-community is a pom-packaging module, so its .pom lands on the compile
     // classpath as the artifact itself. PMD's auxClasspath loader opens every non-directory entry
     // as a zip and dies on the first one ("zip END header not found"), so keep jars and class
@@ -246,5 +264,96 @@ jar {
     dependsOn ':frontend:copyFrontend'
     from(frontendStatic) {
         into 'static'
+    }
+}
+
+// Экспериментальная сборка в нативный образ. Как собирать, что при этом ломается и почему —
+// docs/проект/нативный-образ-graalvm.md; здесь только сами ручки.
+//
+// Всё выключено по умолчанию, и нативная ветка — тоже: плагин подключает Spring AOT, и bootJar
+// начинает собираться из aot-набора — с определениями бинов, запечёнными под один профиль.
+// Без -Dspring.aot.enabled=true на запуске они мертвы, так что kb.jar остаётся прежним, но
+// сборка дорожает на processAot, а с kb.native.tests требует ещё и Docker.
+// Флаг-переключатель: свойство Gradle или переменная окружения, в обоих случаях '0' и 'false'
+// читаются как «выключено». Без этого -Pkb.native=false включал бы ветку, потому что Gradle
+// отдаёт значение свойства, а не его истинность.
+// Пустое значение у двух источников значит разное, поэтому и разбираются они порознь:
+// -Pkb.native без значения — это пустая строка и «включить», а KB_NATIVE= — это переменная,
+// которую CI подставил из незаданного входа, и включать по ней нечего.
+def switchedOn = { name, envName ->
+    def property = findProperty(name)
+    if (property != null) {
+        return property != '0' && property != 'false'
+    }
+    def env = System.getenv(envName)
+    env && env != '0' && env != 'false'
+}
+def nativeBuild = switchedOn('kb.native', 'KB_NATIVE')
+// Профиль, под который снимается AOT и который запекается в образ. Без него processAot гонит
+// Postgres-миграции на встроенной H2. Образ под Postgres — отдельная сборка.
+def aotProfile = findProperty('kb.aot.profile') ?: 'h2'
+// Предел кучи и число потоков сборщика образа. По умолчанию не задаём: native-image берёт
+// 85% памяти хоста и все ядра. Задавать нужно там, где процесс живёт в cgroup с лимитом
+// меньше памяти хоста, — лимита он не видит, и его снимает OOM-killer.
+def nativeHeap = findProperty('kb.native.heap')
+def nativeThreads = findProperty('kb.native.threads')
+// Быстрая сборка ценой скорости образа: для отладочной итерации, где проверяется не
+// производительность, а работоспособность.
+def nativeQuick = switchedOn('kb.native.quick', 'KB_NATIVE_QUICK')
+// Строгий режим метаданных. На всё приложение (-Pkb.native.exact или =true) сборка на
+// GraalVM 25.0.4 падает на инициализации (oracle/graal#13316), поэтому на деле задаётся
+// списком пакетов: -Pkb.native.exact=io.github.trialiya.kb. Значение уходит в аргумент
+// native-image как есть, а тот принимает только имена пакетов и классов, так что 'true'
+// без этой развилки молча включил бы строгость для пакета с именем «true».
+def nativeExactRaw = findProperty('kb.native.exact')
+def nativeExactOn = nativeExactRaw != null && nativeExactRaw != '0' && nativeExactRaw != 'false'
+def nativeExactScope = (nativeExactRaw in [null, '', 'true', '1']) ? null : nativeExactRaw
+// Тестовая половина Spring AOT — она же предусловие nativeTest. Выключена не из экономии:
+// плагин втягивает её в граф любой обычной сборки через исходники aotTest, а она поднимает
+// контекст интеграционных тестов и требует Docker.
+def nativeTests = switchedOn('kb.native.tests', 'KB_NATIVE_TESTS')
+
+if (nativeBuild) {
+    apply plugin: 'org.graalvm.buildtools.native'
+
+    // repositories.enabled=false: генератор репозиториев Spring Data JDBC на этапе AOT
+    // требует живую схему БД, которой в сборке нет.
+    tasks.named('processAot') {
+        args '--spring.profiles.active=' + aotProfile, '--spring.aot.repositories.enabled=false'
+    }
+    graalvmNative {
+        // GraalVM берётся из GRAALVM_HOME, иначе из JAVA_HOME.
+        toolchainDetection = false
+        // Каталог для вывода агента трассировки — build/, а не ресурсы: сырой вывод агента
+        // в исходники не кладётся, из него руками переносится нужное в NativeHints.
+        agent {
+            metadataCopy {
+                outputDirectories.add('build/native-agent-metadata')
+                mergeWithExisting = false
+            }
+        }
+        binaries.named('main') {
+            // Spring AOT регистрирует только db/migration/** и application*.yaml, а промпты
+            // и статика фронтенда собираются по имени в рантайме. Перечислять их поштучно
+            // значит ловить по одному отсутствующему файлу за сборку.
+            resources.autodetect()
+            if (nativeHeap) {
+                buildArgs.add('-J-Xmx' + nativeHeap)
+            }
+            if (nativeThreads) {
+                buildArgs.add('--parallelism=' + nativeThreads)
+            }
+            if (nativeExactOn) {
+                buildArgs.add(nativeExactScope
+                        ? '--exact-reachability-metadata=' + nativeExactScope
+                        : '--exact-reachability-metadata')
+            }
+            if (nativeQuick) {
+                buildArgs.add('-Ob')
+            }
+        }
+    }
+    tasks.named('processTestAot') {
+        enabled = nativeTests
     }
 }

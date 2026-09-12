@@ -18,6 +18,13 @@ updates:
     ignore:
       - dependency-name: "org.springframework.boot"
         update-types: ["version-update:semver-major"]
+      # Версия polyglot обязана совпадать с GraalVM, которой собирается нативный образ
+      # (docs/проект/нативный-образ-graalvm.md, раздел 2.1). Обновление пройдёт все проверки —
+      # они идут на Temurin, где polyglot работает сам по себе, — и сломает nativeCompile.
+      # Без update-types: закрыты все обновления, включая патч — 25.0.4.1 → 25.0.5.x для
+      # Dependabot патч, а для Truffle уже рассинхрон. Версия поднимается руками, вместе с той
+      # GraalVM, которой собирают образ.
+      - dependency-name: "org.graalvm.polyglot:*"
     groups:
       spring:
         patterns:

@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
+import org.springframework.aot.hint.BindingReflectionHintsRegistrar;
+import org.springframework.aot.hint.RuntimeHints;
+import org.springframework.aot.hint.RuntimeHintsRegistrar;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.data.convert.ReadingConverter;
 import org.springframework.data.convert.WritingConverter;
@@ -138,6 +141,30 @@ public final class ChatMessageMetaToJsonConverter {
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
+        }
+    }
+
+    /**
+     * Метаданные native-image для проекции. Обе записи приватны и не встречаются ни в одной
+     * сигнатуре бина, поэтому Spring AOT про них не знает: в образе они есть, а конструктора и
+     * аксессоров для Jackson у них нет, и чтение любой строки {@code chat_message.meta} падает с
+     * {@code InvalidDefinitionException} («no delegate- or property-based Creator»). Регистратор
+     * живёт здесь, а не в {@code config.NativeHints}: из соседнего пакета приватные записи не
+     * назвать, да и список полей проекции правится тут же. Подключено через {@code
+     * META-INF/spring/aot.factories}.
+     *
+     * <p>Доменные типы ({@link ChatMessageMeta} и соседи) регистрирует сам Spring — они видны в
+     * сигнатурах контроллеров.
+     */
+    public static class Hints implements RuntimeHintsRegistrar {
+
+        private final BindingReflectionHintsRegistrar binding =
+                new BindingReflectionHintsRegistrar();
+
+        @Override
+        public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
+            binding.registerReflectionHints(
+                    hints.reflection(), MetaJson.class, ContextItemJson.class);
         }
     }
 

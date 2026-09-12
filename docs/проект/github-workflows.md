@@ -36,7 +36,7 @@ CI/CD построен на GitHub Actions. Три workflow + Dependabot для 
 
 **Триггер:** push в ветки `dependabot/gradle/**` (только от бота `dependabot[bot]`).
 
-**Что делает:** после того как Dependabot обновляет версию в `build.gradle`, Gradle lock-файлы (`gradle.lockfile`) могут рассинхронизироваться. Этот workflow запускает `./gradlew resolveAndLockAll --write-locks` и коммитит обновлённые lock-файлы в ту же ветку.
+**Что делает:** после того как Dependabot обновляет версию в `build.gradle`, Gradle lock-файлы (`gradle.lockfile`) могут рассинхронизироваться. Этот workflow запускает `./gradlew resolveAndLockAll --write-locks -Pkb.native` и коммитит обновлённые lock-файлы в ту же ветку. Флаг нужен, чтобы вместе с остальными обновились и записи конфигураций нативной сборки — см. [Нативный образ](нативный-образ-graalvm.md).
 
 **Права:** `contents: write` (для коммита и пуша).
 

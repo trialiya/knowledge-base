@@ -24,8 +24,11 @@ jobs:
           java-version: "25"
 
       - name: Regenerate Gradle Lockfiles
-        # This forces Gradle to rewrite the lockfiles with updated dependencies
-        run: ./gradlew resolveAndLockAll --write-locks
+        # This forces Gradle to rewrite the lockfiles with updated dependencies.
+        # -Pkb.native applies the GraalVM plugin: without it the native-image
+        # configurations are never resolved, so their lockfile entries keep the versions
+        # of the previous run while every other configuration moves on.
+        run: ./gradlew resolveAndLockAll --write-locks -Pkb.native
 
       - name: Commit updated lockfiles
         run: |

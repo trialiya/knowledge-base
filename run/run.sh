@@ -20,9 +20,14 @@
 #
 # Environment:
 #   JAVA_OPTS      JVM options for both the application and the AOT training run
-#                  below (default -Xmx150m)
+#                  below (default -Xmx256m)
 #   KB_AOT         0 disables the AOT cache entirely
 #   KB_AOT_CACHE   path of the cache file, instead of local-db/aot/kb.aot
+#
+# The cache here is the JVM's own (loaded and linked classes).  Spring AOT --
+# bean definitions generated at build time -- is a separate lever that stacks on
+# top of it; it takes a JAR built for one profile and a flag this script does not
+# pass, so it lives in run-spring-aot.sh.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,7 +55,10 @@ fi
 export LANG="${LANG:-C.utf8}"
 export LC_ALL="${LC_ALL:-C.utf8}"
 
-JAVA_OPTS="${JAVA_OPTS:--Xmx150m}"
+# 256m rather than a tighter 150m: at 150m the startup spends its way through 14
+# collections before the context is up, against 10 here, and the process never
+# grows to the ceiling anyway.  Containers size themselves -- docker/example.env.
+JAVA_OPTS="${JAVA_OPTS:--Xmx256m}"
 
 # ── AOT cache ─────────────────────────────────────────────────────────────────
 # Starting from a cache of already loaded and linked classes (JDK 24+) is worth
