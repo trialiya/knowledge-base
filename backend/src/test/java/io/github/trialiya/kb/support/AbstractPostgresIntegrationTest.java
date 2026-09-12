@@ -28,11 +28,9 @@ import org.testcontainers.utility.DockerImageName;
 // disables everything not explicitly imported), so pull FlywayAutoConfiguration in for subclasses —
 // otherwise migrations never run and the schema is empty.
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-// Classes run in parallel (backend/src/test/resources/junit-platform.properties), and the one
-// container below is the one fixture the suite cannot hand each class a copy of: subclasses share
-// its tables, its sequences and the Flyway schema history. The lock is inherited, so it covers
-// every subclass and serialises them against each other — while they still run alongside the rest
-// of the suite, which is where the time goes anyway.
+// Classes run in parallel (src/test/resources/junit-platform.properties) and subclasses share this
+// container's tables, sequences and Flyway history. The lock is inherited: it serialises them
+// against each other, and against nothing else.
 @ResourceLock("postgres-container")
 public abstract class AbstractPostgresIntegrationTest {
 

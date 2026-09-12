@@ -84,27 +84,18 @@ Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`
 
 ## Test classes run in parallel
 
-`:backend:test` runs classes concurrently — methods inside one class still go
-one after another, classes do not wait for each other
-(`backend/src/test/resources/junit-platform.properties`). So a new test class
-has to be able to stand next to any other: no mutable static state, no fixed
-port, nothing written outside its own `@TempDir`, and an in-memory database
-name no other class uses — that is why they read
-`jdbc:h2:mem:kb-<what-it-checks>-test`, one per class.
+Classes run concurrently, methods inside a class do not
+(`backend/src/test/resources/junit-platform.properties`). A new test class has
+to stand next to any other: no mutable static state, no fixed port, nothing
+written outside its own `@TempDir`, an in-memory database name no one else uses
+(`jdbc:h2:mem:kb-<what-it-checks>-test`).
 
-A resource that genuinely cannot be split gets a `@ResourceLock` on the classes
-sharing it, never a retreat to sequential. There is one:
-`AbstractPostgresIntegrationTest` carries the lock for the single
-Testcontainers instance every `*IT` shares, and it is inherited — a new `*IT`
-that extends the base needs nothing of its own.
-
-The other shared thing is the JVM's logging, and it is taken out of the way
-rather than locked: the test JVM runs with Spring Boot's logging system off
-(`build.gradle`) so no context startup resets Logback under a neighbour, the
-levels come from `logback-test.xml`, and `Slf4jBinding` binds SLF4J before the
-first class so nobody is handed a `SubstituteLogger`. A test that reads log
-output relies on all three — check them before assuming the test itself is
-flaky.
+A resource that cannot be split gets a `@ResourceLock` on the classes sharing
+it, never a retreat to sequential — `AbstractPostgresIntegrationTest` carries
+one for the container every `*IT` shares, and subclasses inherit it. The JVM's
+logging is the exception, taken out of the way instead of locked (Spring Boot's
+logging system off in `build.gradle`, `logback-test.xml`, `Slf4jBinding`): a
+test that reads log output leans on those three before it leans on itself.
 
 ## H2 sample data
 
