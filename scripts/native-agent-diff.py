@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Shows what the GraalVM tracing agent found that the image's metadata does not cover.
 
-Usage:
-    ./gradlew :backend:bootJar -Pkb.aot.profile=external
+Usage (the whole procedure is written up in docs/проект/нативный-образ-graalvm.md):
+    KB_NATIVE=1 ./gradlew :backend:bootJar -Pkb.aot.profile=external
     cd run && KB_AOT=0 JAVA_OPTS="-Xmx256m -Dspring.aot.enabled=true \\
         -agentlib:native-image-agent=config-output-dir=/tmp/kb-agent,config-write-period-secs=10" \\
         ./run.sh external

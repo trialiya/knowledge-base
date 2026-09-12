@@ -35,6 +35,9 @@ import org.springframework.util.ClassUtils;
 /**
  * Метаданные для native-image, которые статический анализ вывести не может.
  *
+ * <p>Как собирается образ и чем он отличается от обычной сборки — {@code
+ * docs/проект/нативный-образ-graalvm.md}.
+ *
  * <p>Конвертеры результата. Spring AI создаёт тот, что назван в {@code @Tool(resultConverter =
  * ...)}, через {@code getDeclaredConstructor().newInstance()} (см. {@code
  * ToolUtils#getToolCallResultConverter}). Класс в образ попадает, но конструктор без регистрации не
