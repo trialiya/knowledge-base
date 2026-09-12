@@ -6,7 +6,7 @@ Usage (the whole procedure is written up in docs/проект/нативный-�
         -agentlib:native-image-agent=config-output-dir=/tmp/kb-agent,config-write-period-secs=10" \\
         ./run-spring-aot.sh external
     # ...exercise the app, then Ctrl+C
-    python3 scripts/native-agent-diff.py /tmp/kb-agent
+    python3 ../scripts/native-agent-diff.py /tmp/kb-agent
 
 The agent records every reflective access it observes, and nearly all of them are
 covered already — a raw dump is thousands of entries of which a handful matter.
@@ -16,8 +16,8 @@ the output is mostly false positives.  Spring AOT's own output is the default; t
 rest are passed as extra arguments, directories or jars alike (a jar is read for
 its META-INF/native-image entries):
 
-    python3 scripts/native-agent-diff.py /tmp/kb-agent \\
-        backend/build/generated/aotResources \\
+    python3 ../scripts/native-agent-diff.py /tmp/kb-agent \\
+        ../backend/build/generated/aotResources \\
         ~/.gradle/caches/modules-2/files-2.1/com.openai/openai-java-core/*/*/*.jar
 
 The third source, the GraalVM reachability-metadata repository the Gradle plugin

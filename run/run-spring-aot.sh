@@ -23,11 +23,14 @@
 # always on — docs/проект/нативный-образ-graalvm.md.
 #
 # Environment:
-#   JAVA_OPTS      as in run.sh
+#   JAVA_OPTS      as in run.sh -- options for the application.  Kept out of the
+#                  build below, which runs a JVM of its own that has no use for
+#                  them: an -agentlib for tracing belongs to the run
 #   KB_AOT         0 disables the JVM AOT cache (Spring AOT stays on)
-#   KB_AOT_CACHE   as in run.sh.  The cache is shared with it and retrained
-#                  whenever the JAR is rebuilt, which a switch between the two
-#                  scripts always implies
+#   KB_AOT_CACHE   as in run.sh, and the same file.  run.sh retrains it when the
+#                  JAR is newer, so a cache trained by the other script is reused
+#                  as it is -- valid either way, only short of the classes this
+#                  run reaches for and that one did not
 #   KB_BUILD       0 never builds, 1 always does.  By default the build runs
 #                  only when it has to: no kb.jar, one built for another
 #                  profile, or one another command has rebuilt since.  A repeat
@@ -44,17 +47,18 @@ JAR="$SCRIPT_DIR/../backend/build/libs/kb.jar"
 # says it, and the build that would answer the question is the one being avoided
 # here, so the script writes down what it built.  Under build/, so `clean` takes
 # it along; rewritten even when Gradle had nothing to do, which keeps it newer
-# than the JAR and makes a JAR rebuilt by anything else (a plain `test.sh jar`,
-# with no generated definitions in it at all) read as stale.
+# than the JAR and leaves a JAR rebuilt by anything else (a plain `test.sh jar`,
+# with no generated definitions in it at all) with no profile to its name.
 STAMP="$JAR.aot-profile"
+
+BUILT_FOR=""
+if [ -f "$JAR" ] && [ -f "$STAMP" ] && [ ! "$JAR" -nt "$STAMP" ]; then
+  BUILT_FOR="$(cat "$STAMP")"
+fi
 
 case "${KB_BUILD:-}" in
   0) build=no ;;
-  '') build=no
-      if [ ! -f "$JAR" ] || [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$PROFILE" ] \
-          || [ "$JAR" -nt "$STAMP" ]; then
-        build=yes
-      fi ;;
+  '') if [ "$BUILT_FOR" = "$PROFILE" ]; then build=no; else build=yes; fi ;;
   *) build=yes ;;
 esac
 
@@ -65,14 +69,34 @@ esac
 if [ "$build" = yes ]; then
   echo "Building the AOT JAR for profile '$PROFILE'..."
   echo ""
-  KB_NATIVE=1 "$SCRIPT_DIR/test.sh" jar -- -Pkb.aot.profile="$PROFILE"
+  # JAVA_OPTS is emptied for this one command: gradlew hands it to the JVM it
+  # starts itself, so an -agentlib meant for the application would attach to
+  # Gradle instead -- and abort it outright on a JDK that has no such library.
+  KB_NATIVE=1 JAVA_OPTS= "$SCRIPT_DIR/test.sh" jar -- -Pkb.aot.profile="$PROFILE"
   printf '%s\n' "$PROFILE" > "$STAMP"
   echo ""
 fi
 
-echo "Spring AOT: on — profile '$PROFILE' is baked into the JAR"
-if [ "$build" = no ] && [ "${KB_BUILD:-}" != "0" ]; then
-  echo "  (built earlier for this profile — KB_BUILD=1 to build it again)"
+# Nothing downstream checks that the JAR holds the profile announced here:
+# -Dspring.aot.enabled=true reads whatever generated definitions the JAR holds,
+# be they another profile's or none.  A start that skipped the build is the one
+# that can be wrong about it.
+if [ "$build" = no ] && [ -n "$BUILT_FOR" ] && [ "$BUILT_FOR" != "$PROFILE" ]; then
+  echo "ERROR: the JAR is built for profile '$BUILT_FOR', not '$PROFILE' —" >&2
+  echo "  starting it would raise the other profile's beans.  Drop KB_BUILD=0." >&2
+  exit 1
+fi
+
+if [ "$build" = no ] && [ -z "$BUILT_FOR" ]; then
+  echo "Spring AOT: on — but the profile the JAR was built for is unknown:" >&2
+  echo "  ${STAMP##*/} is missing or older than the JAR, so this script did not" >&2
+  echo "  build it and it may hold no generated definitions at all." >&2
+  echo "  KB_BUILD=1 builds it for '$PROFILE'." >&2
+else
+  echo "Spring AOT: on — profile '$PROFILE' is baked into the JAR"
+  if [ "$build" = no ]; then
+    echo "  (built earlier for this profile — KB_BUILD=1 to build it again)"
+  fi
 fi
 
 # AotDetector reads this before there is a context to read Spring properties
