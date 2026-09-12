@@ -251,7 +251,7 @@ jar {
     }
 }
 
-// Эксперимент: native-image. Как собирать, что при этом ломается и почему —
+// Экспериментальная сборка в нативный образ. Как собирать, что при этом ломается и почему —
 // docs/проект/нативный-образ-graalvm.md; здесь только сами ручки.
 //
 // Всё выключено по умолчанию, и нативная ветка — тоже: плагин подключает Spring AOT, а с ним
@@ -265,6 +265,9 @@ def aotProfile = findProperty('kb.aot.profile') ?: 'h2'
 // меньше памяти хоста, — лимита он не видит, и его снимает OOM-killer.
 def nativeHeap = findProperty('kb.native.heap')
 def nativeThreads = findProperty('kb.native.threads')
+// Быстрая сборка ценой скорости образа: для отладочной итерации, где проверяется не
+// производительность, а работоспособность.
+def nativeQuick = findProperty('kb.native.quick') != null
 // Строгий режим метаданных. Без значения включается на всё приложение, и на GraalVM 25.0.4
 // такая сборка падает на инициализации (oracle/graal#13316), поэтому на деле — по пакетам:
 // -Pkb.native.exact=io.github.trialiya.kb.
@@ -309,9 +312,9 @@ if (nativeBuild) {
                         ? '--exact-reachability-metadata=' + nativeExactMetadata
                         : '--exact-reachability-metadata')
             }
-            // Быстрый режим сборки: меньше оптимизаций, заметно меньше времени и памяти. Для
-            // замера старта годится, для замера пропускной способности флаг нужно снять.
-            buildArgs.add('-Ob')
+            if (nativeQuick) {
+                buildArgs.add('-Ob')
+            }
         }
     }
     tasks.named('processTestAot') {
