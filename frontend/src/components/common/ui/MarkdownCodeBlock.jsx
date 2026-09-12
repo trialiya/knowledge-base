@@ -1,9 +1,14 @@
 import { isValidElement } from 'react';
 import CodeBlock from './CodeBlock';
 
-/** Текст узла кода: у блока это одна строка, но children приходит и массивом. */
+/**
+ * Текст узла кода. Сейчас remark отдаёт блок одной строкой, но подсветка
+ * синтаксиса (rehype-плагин) разложила бы его на вложенные `<span>`: спуск в
+ * элементы — чтобы такой блок не оказался пустым и в разметке, и в буфере.
+ */
 const textOf = (value) => {
   if (Array.isArray(value)) return value.map(textOf).join('');
+  if (isValidElement(value)) return textOf(value.props.children);
   return typeof value === 'string' ? value : '';
 };
 
