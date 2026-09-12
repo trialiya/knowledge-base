@@ -59,7 +59,7 @@ frontend/tests/visual/harness/shots/
 
 # Gradle may extract Spring Boot 4.x spring.factories into the project root
 # during dependency resolution; this file is a build artifact, not project source.
-# Anchored to the root on purpose: unanchored, the pattern also swallowed
+# Anchored to the root on purpose: unanchored it would also match
 # backend/src/main/resources/META-INF, which is source.
 /META-INF/
 

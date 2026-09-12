@@ -148,10 +148,19 @@ pmd {
     consoleOutput = true
 }
 
+// Сгенерированные AOT-исходники Spring — не наш код: ни PMD, ни NullAway на них не гоняем.
+// Отбор по имени задачи, а не tasks.named: aot-наборы появляются только с -Pkb.native, и в
+// обычной сборке искать их по имени нечего, а с флагом сюда попадёт и третий набор, если он
+// когда-нибудь заведётся.
+tasks.withType(JavaCompile).configureEach {
+    if (name.startsWith('compileAot')) {
+        options.errorprone.enabled = false
+    }
+}
+
 tasks.withType(Pmd).configureEach {
-    // Сгенерированные AOT-исходники Spring — не наш код, как и для errorprone ниже. Выключаются
-    // здесь, а не отдельным tasks.named: задача появляется только с -Pkb.native и на момент
-    // создания идёт без classpath, на котором падает фильтр ниже.
+    // Задача pmdAot* создаётся без classpath, на котором падает фильтр ниже, поэтому выходим
+    // раньше него.
     if (name.startsWith('pmdAot')) {
         enabled = false
         return
@@ -263,8 +272,19 @@ jar {
 //
 // Всё выключено по умолчанию, и нативная ветка — тоже: плагин подключает Spring AOT, а с ним
 // bootJar собирается из aot-набора, и обычный kb.jar перестаёт быть профиле-независимым.
-def nativeEnv = System.getenv('KB_NATIVE')
-def nativeBuild = findProperty('kb.native') != null || (nativeEnv && nativeEnv != '0' && nativeEnv != 'false')
+// Флаг-переключатель: свойство Gradle или переменная окружения, в обоих случаях '0' и 'false'
+// читаются как «выключено». Без этого -Pkb.native=false включал бы ветку, потому что Gradle
+// отдаёт значение свойства, а не его истинность.
+def switchedOn = { name, envName ->
+    // Именно == null, а не ?:: у -Pkb.native без значения свойство пустая строка, а она в
+    // Groovy ложна, и проверка через ?: провалилась бы к переменной окружения.
+    def raw = findProperty(name)
+    if (raw == null) {
+        raw = System.getenv(envName)
+    }
+    raw != null && raw != '0' && raw != 'false'
+}
+def nativeBuild = switchedOn('kb.native', 'KB_NATIVE')
 // Профиль, под который снимается AOT и который запекается в образ. Без него processAot гонит
 // Postgres-миграции на встроенной H2. Образ под Postgres — отдельная сборка.
 def aotProfile = findProperty('kb.aot.profile') ?: 'h2'
@@ -275,15 +295,19 @@ def nativeHeap = findProperty('kb.native.heap')
 def nativeThreads = findProperty('kb.native.threads')
 // Быстрая сборка ценой скорости образа: для отладочной итерации, где проверяется не
 // производительность, а работоспособность.
-def nativeQuick = findProperty('kb.native.quick') != null
-// Строгий режим метаданных. Без значения включается на всё приложение, и на GraalVM 25.0.4
-// такая сборка падает на инициализации (oracle/graal#13316), поэтому на деле — по пакетам:
-// -Pkb.native.exact=io.github.trialiya.kb.
-def nativeExactMetadata = findProperty('kb.native.exact')
+def nativeQuick = switchedOn('kb.native.quick', 'KB_NATIVE_QUICK')
+// Строгий режим метаданных. На всё приложение (-Pkb.native.exact или =true) сборка на
+// GraalVM 25.0.4 падает на инициализации (oracle/graal#13316), поэтому на деле задаётся
+// списком пакетов: -Pkb.native.exact=io.github.trialiya.kb. Значение уходит в аргумент
+// native-image как есть, а тот принимает только имена пакетов и классов, так что 'true'
+// без этой развилки молча включил бы строгость для пакета с именем «true».
+def nativeExactRaw = findProperty('kb.native.exact')
+def nativeExactOn = nativeExactRaw != null && nativeExactRaw != '0' && nativeExactRaw != 'false'
+def nativeExactScope = (nativeExactRaw in [null, '', 'true', '1']) ? null : nativeExactRaw
 // Тестовая половина Spring AOT — она же предусловие nativeTest. Выключена не из экономии:
 // плагин втягивает её в граф любой обычной сборки через исходники aotTest, а она поднимает
 // контекст интеграционных тестов и требует Docker.
-def nativeTests = findProperty('kb.native.tests') != null
+def nativeTests = switchedOn('kb.native.tests', 'KB_NATIVE_TESTS')
 
 if (nativeBuild) {
     apply plugin: 'org.graalvm.buildtools.native'
@@ -315,9 +339,9 @@ if (nativeBuild) {
             if (nativeThreads) {
                 buildArgs.add('--parallelism=' + nativeThreads)
             }
-            if (nativeExactMetadata != null) {
-                buildArgs.add(nativeExactMetadata
-                        ? '--exact-reachability-metadata=' + nativeExactMetadata
+            if (nativeExactOn) {
+                buildArgs.add(nativeExactScope
+                        ? '--exact-reachability-metadata=' + nativeExactScope
                         : '--exact-reachability-metadata')
             }
             if (nativeQuick) {
@@ -327,12 +351,5 @@ if (nativeBuild) {
     }
     tasks.named('processTestAot') {
         enabled = nativeTests
-    }
-    // Сгенерированные AOT-исходники Spring — не наш код, NullAway на них не запускаем.
-    tasks.named('compileAotJava') {
-        options.errorprone.enabled = false
-    }
-    tasks.named('compileAotTestJava') {
-        options.errorprone.enabled = false
     }
 }

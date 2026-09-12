@@ -32,7 +32,9 @@ whose caller you cannot identify is usually one the agent saw on a path the imag
 never takes.
 
 Reads both metadata shapes: the single reachability-metadata.json of newer agents
-and the older reflect-config.json / jni-config.json set.
+and the older reflect-config.json.  Only reflection is compared -- the agent's JNI
+output is left out of both sides, so a JNI-only entry is neither reported as a gap
+nor counted as covering one.
 """
 
 import glob
@@ -42,7 +44,10 @@ import sys
 import zipfile
 
 AOT_OUTPUT = "backend/build/generated/aotResources"
-METADATA_FILES = ("reachability-metadata.json", "reflect-config.json", "jni-config.json")
+# jni-config.json is deliberately absent: the single-file shape is read through its
+# "reflection" section only, and taking the legacy JNI file would make the two shapes
+# disagree about what counts as covered.
+METADATA_FILES = ("reachability-metadata.json", "reflect-config.json")
 
 # Blanket flags. A type carrying one of these needs no per-member entry, so a
 # member the agent reports for it is already covered — miss this and every

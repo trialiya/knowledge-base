@@ -40,6 +40,9 @@ if (-not (Test-Path (Join-Path $ScriptDir 'application.yaml'))) {
 }
 
 $JavaBin  = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { 'java' }
+# 256m rather than a tighter 150m: at 150m the startup spends its way through 14
+# collections before the context is up, against 10 here, and the process never
+# grows to the ceiling anyway.  Containers size themselves -- docker/example.env.
 $JavaOpts = if ($env:JAVA_OPTS)  { $env:JAVA_OPTS -split '\s+' } else { @('-Xmx256m') }
 
 # ── AOT cache ─────────────────────────────────────────────────────────────────

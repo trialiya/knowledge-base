@@ -54,6 +54,9 @@ fi
 export LANG="${LANG:-C.utf8}"
 export LC_ALL="${LC_ALL:-C.utf8}"
 
+# 256m rather than a tighter 150m: at 150m the startup spends its way through 14
+# collections before the context is up, against 10 here, and the process never
+# grows to the ceiling anyway.  Containers size themselves -- docker/example.env.
 JAVA_OPTS="${JAVA_OPTS:--Xmx256m}"
 
 # ── AOT cache ─────────────────────────────────────────────────────────────────

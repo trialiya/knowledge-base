@@ -15,7 +15,6 @@ import org.springframework.aot.hint.RuntimeHints;
 import org.springframework.aot.hint.predicate.RuntimeHintsPredicates;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
-import org.springframework.core.type.filter.AssignableTypeFilter;
 import org.springframework.util.ClassUtils;
 
 /**
@@ -26,19 +25,24 @@ import org.springframework.util.ClassUtils;
  * {@code kb} — ведутся руками, поэтому обе проверки ищут кандидатов сканированием: новый класс
  * попадает под них в день, когда его написали, а не после того, как о нём споткнулись.
  *
- * <p>Хинты строятся один раз на класс: {@code registerHints} обходит classpath SDK OpenAI, и второй
- * вызов стоил бы столько же, сколько первый.
+ * <p>Вызываются только регистрации нашего кода, а не {@code registerHints} целиком: библиотечные
+ * части обходят classpath JGit и SDK OpenAI, а это секунды на каждом прогоне быстрых тестов и
+ * ничего сверх того, что здесь проверяется.
  */
 class NativeHintsTest {
 
     private static final String SCRIPT_PACKAGE = "io.github.trialiya.kb.service.chat.script";
     private static final String TOOL_PACKAGE = "io.github.trialiya.kb.functions";
+    private static final String PAYLOAD_PACKAGE = "io.github.trialiya.kb.model.chat.dto";
 
     private static final RuntimeHints HINTS = new RuntimeHints();
 
     @BeforeAll
     static void registerHints() {
-        new NativeHints().registerHints(HINTS, NativeHintsTest.class.getClassLoader());
+        NativeHints hints = new NativeHints();
+        hints.registerToolHolders(HINTS);
+        hints.registerScriptApis(HINTS);
+        hints.registerChatEventPayloads(HINTS, NativeHintsTest.class.getClassLoader());
     }
 
     /**
@@ -85,28 +89,61 @@ class NativeHintsTest {
                                         .accepts(HINTS));
     }
 
-    /** Нагрузка события объявлена как {@code Object}, поэтому Jackson идёт по фактическому типу. */
+    /**
+     * Нагрузка события объявлена как {@code Object}, поэтому Jackson идёт по фактическому типу, а
+     * ему нужен конструктор, а не одно лишь присутствие класса в образе.
+     *
+     * <p>Проверка держит шаблон пакета, а не полноту набора нагрузок: какой тип окажется в
+     * конверте, видно только в точке публикации, так что запись, положенная мимо {@code
+     * model/chat/dto}, не будет ни зарегистрирована, ни замечена здесь.
+     */
     @Test
     void chatEventPayloadsAreRegistered() {
-        assertThat(RuntimeHintsPredicates.reflection().onType(ChatEvent.class)).accepts(HINTS);
+        List<Class<?>> payloads = typesIn(PAYLOAD_PACKAGE);
+        assertThat(payloads).as("типы нагрузок событий чата").contains(ChatEvent.class);
+        assertThat(payloads)
+                .allSatisfy(
+                        payload ->
+                                assertThat(
+                                                RuntimeHintsPredicates.reflection()
+                                                        .onType(payload)
+                                                        .withMemberCategory(
+                                                                MemberCategory
+                                                                        .INVOKE_DECLARED_CONSTRUCTORS))
+                                        .as("%s", payload)
+                                        .accepts(HINTS));
     }
 
+    /**
+     * Методы с аннотацией во всём пакете.
+     *
+     * <p>Сканер отдаёт только самостоятельные конкретные классы, так что аннотированный метод,
+     * поднятый в абстрактную базу, сюда не попадёт. Сегодня таких баз нет — и держатели, и API
+     * скриптов конкретные, — но если появятся, проверку придётся расширять вместе с ними.
+     */
     private List<Method> annotatedMethods(
             String basePackage, Class<? extends java.lang.annotation.Annotation> annotation) {
-        ClassPathScanningCandidateComponentProvider scanner =
-                new ClassPathScanningCandidateComponentProvider(false);
-        scanner.addIncludeFilter(new AssignableTypeFilter(Object.class));
         List<Method> found = new ArrayList<>();
-        for (BeanDefinition definition : scanner.findCandidateComponents(basePackage)) {
-            Class<?> type =
-                    ClassUtils.resolveClassName(
-                            String.valueOf(definition.getBeanClassName()),
-                            getClass().getClassLoader());
+        for (Class<?> type : typesIn(basePackage)) {
             for (Method method : type.getDeclaredMethods()) {
                 if (method.isAnnotationPresent(annotation)) {
                     found.add(method);
                 }
             }
+        }
+        return found;
+    }
+
+    private List<Class<?>> typesIn(String basePackage) {
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter((reader, factory) -> true);
+        List<Class<?>> found = new ArrayList<>();
+        for (BeanDefinition definition : scanner.findCandidateComponents(basePackage)) {
+            found.add(
+                    ClassUtils.resolveClassName(
+                            String.valueOf(definition.getBeanClassName()),
+                            getClass().getClassLoader()));
         }
         return found;
     }

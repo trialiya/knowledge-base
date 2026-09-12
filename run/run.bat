@@ -50,6 +50,9 @@ if "%JAVA_HOME%"=="" (
     set "JAVA_BIN=%JAVA_HOME%\bin\java"
 )
 
+rem 256m rather than a tighter 150m: at 150m the startup spends its way through 14
+rem collections before the context is up, against 10 here, and the process never
+rem grows to the ceiling anyway.  Containers size themselves -- docker/example.env.
 if "%JAVA_OPTS%"=="" set "JAVA_OPTS=-Xmx256m"
 
 rem -- AOT cache --------------------------------------------------------------

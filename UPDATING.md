@@ -31,7 +31,9 @@ as UTF-8, and responses carry `charset=UTF-8`.
 **If you override any of these keys** — in your own `application.yaml`, an
 environment variable or a command-line argument — rename them
 (`SERVER_SERVLET_ENCODING_FORCE` → `SPRING_SERVLET_ENCODING_FORCE`, and so on).
-An override left under the old name has no effect at all.
+The application now refuses to start while an old name is still set and names
+the replacement, rather than ignoring it the way Spring Boot does;
+`server.servlet.encoding.mapping` is unaffected and keeps working.
 
 ### The script engine is pinned to GraalJS 25.0
 
