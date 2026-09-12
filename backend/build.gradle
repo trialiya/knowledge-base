@@ -119,7 +119,9 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.testcontainers:testcontainers-postgresql'
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // На compile-класспате ради LauncherSessionListener (Slf4jBinding): запустить код один
+    // раз до первого теста больше нечему.
+    testImplementation 'org.junit.platform:junit-platform-launcher'
 }
 
 dependencyManagement {
@@ -241,6 +243,11 @@ tasks.named('compileTestJava') {
 // свой контейнер, а набор тестов слишком короткий, чтобы эта плата окупилась.
 tasks.named('test') {
     useJUnitPlatform()
+    // Spring Boot настраивает Logback на старте каждого контекста, а настройка эта — сброс всего
+    // LoggerContext: снимаются и уровни, и аппендеры, чьи бы они ни были. При параллельных классах
+    // такой сброс приходится на середину соседнего теста. Выключаем: логирование в тестах задаёт
+    // src/test/resources/logback-test.xml, и задаёт один раз.
+    systemProperty 'org.springframework.boot.logging.LoggingSystem', 'none'
 }
 
 // Статику фронтенда упаковывают сами архивные задачи, читая её из build-каталога

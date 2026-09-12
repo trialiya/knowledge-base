@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logging for :backend:test, configured here instead of being left to Spring Boot.
+
+  Spring Boot re-initialises Logback for every application context it starts, and that
+  initialisation resets the whole LoggerContext — every appender and every level, not just its own.
+  With test classes running in parallel (junit-platform.properties) such a reset lands in the middle
+  of whatever else is running, so a test that reads log output loses its appender mid-assertion.
+  The test JVM therefore starts with org.springframework.boot.logging.LoggingSystem=none
+  (backend/build.gradle) and Logback configures itself from this file, once.
+
+  Level and destination match what application.yaml asks for, so a test run reads as it did before.
+-->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

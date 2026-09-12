@@ -98,6 +98,14 @@ sharing it, never a retreat to sequential. There is one:
 Testcontainers instance every `*IT` shares, and it is inherited — a new `*IT`
 that extends the base needs nothing of its own.
 
+The other shared thing is the JVM's logging, and it is taken out of the way
+rather than locked: the test JVM runs with Spring Boot's logging system off
+(`build.gradle`) so no context startup resets Logback under a neighbour, the
+levels come from `logback-test.xml`, and `Slf4jBinding` binds SLF4J before the
+first class so nobody is handed a `SubstituteLogger`. A test that reads log
+output relies on all three — check them before assuming the test itself is
+flaky.
+
 ## H2 sample data
 
 `backend/src/test/resources/db/sample-data.sql` is a ready-made H2 dataset — a
