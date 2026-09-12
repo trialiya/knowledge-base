@@ -6,7 +6,8 @@ plugins {
     id 'net.ltgt.errorprone'
     id 'pmd'
     id 'com.github.spotbugs' version '6.5.11'
-    id 'org.graalvm.buildtools.native' version '1.1.12'
+    // apply false: плагин включается по флагу ниже, иначе он меняет обычный bootJar.
+    id 'org.graalvm.buildtools.native' version '1.1.12' apply false
 }
 
 group = 'io.github.trialiya.kb'
@@ -250,17 +251,21 @@ jar {
     }
 }
 
-// Эксперимент: native-image. processAot поднимает контекст на этапе сборки, и без
-// профиля Flyway гонит Postgres-миграции на встроенной H2.
+// Эксперимент: native-image. Включается флагом — -Pkb.native или KB_NATIVE в окружении, —
+// и без него плагина в проекте нет вовсе: ни задач nativeCompile/nativeRun, ни ветки AOT.
 //
-// Профиль здесь выбирает не только это: Spring AOT запекает активные профили в образ
-// (addActiveProfile в сгенерированном KnowledgeBaseApplication__EnvironmentPostProcessor),
-// поэтому образ получается ровно под один профиль и при запуске добавляет его к любому
-// заданному. Образ под Postgres — это -Pkb.aot.profile=external и отдельная сборка.
+// Иначе за эксперимент платит обычная сборка. Плагин подключает Spring AOT, а bootJar с ним
+// собирается из aot-набора — и kb.jar перестаёт быть профиле-независимым: AOT запекает в
+// контекст активные на момент сборки профили (addActiveProfile в сгенерированном
+// KnowledgeBaseApplication__EnvironmentPostProcessor), и запечённый профиль добавляется к
+// любому заданному при запуске. Ещё AOT разрешает условия (@Profile, @ConditionalOnProperty)
+// на этапе сборки, поэтому переменной окружения такой jar уже не переключить: набор бинов
+// в нём зафиксирован. Один профиль — одна сборка, и это свойство образа, а не недосмотр.
+def nativeBuild = findProperty('kb.native') != null || System.getenv('KB_NATIVE') != null
+// Профиль, под который снимается AOT. processAot поднимает контекст на этапе сборки, и без
+// профиля Flyway гонит Postgres-миграции на встроенной H2. Образ под Postgres — это
+// -Pkb.aot.profile=external и отдельная сборка.
 def aotProfile = findProperty('kb.aot.profile') ?: 'h2'
-tasks.named('processAot') {
-    args '--spring.profiles.active=' + aotProfile, '--spring.aot.repositories.enabled=false'
-}
 // Предел кучи сборщика образа. По умолчанию не задаём: native-image берёт 85% доступной
 // памяти, и на обычной машине это правильный выбор — зажатая куча загоняет сборку в GC
 // (замер: 73% времени сборки при -Xmx9g на машине с 16 ГБ). Задавать нужно там, где процесс
@@ -294,45 +299,54 @@ def nativeExactMetadata = findProperty('kb.native.exact')
 // aotTest) — и ./run/test.sh без Docker перестаёт работать. Включается на время прогона:
 // -Pkb.native.tests.
 def nativeTests = findProperty('kb.native.tests') != null
-graalvmNative {
-    toolchainDetection = false
-    // Агент трассировки (./gradlew -Pagent <задача>, затем metadataCopy --task <задача>)
-    // складывает результат сюда, а не в ресурсы: сырой вывод агента в исходники не кладётся.
-    // Из него руками переносится нужное — в NativeHints, с объяснением, почему оно нужно.
-    agent {
-        metadataCopy {
-            outputDirectories.add('build/native-agent-metadata')
-            mergeWithExisting = false
+
+if (nativeBuild) {
+    apply plugin: 'org.graalvm.buildtools.native'
+
+    tasks.named('processAot') {
+        args '--spring.profiles.active=' + aotProfile, '--spring.aot.repositories.enabled=false'
+    }
+    graalvmNative {
+        toolchainDetection = false
+        // Агент трассировки (./gradlew -Pagent <задача>, затем metadataCopy --task <задача>)
+        // складывает результат сюда, а не в ресурсы: сырой вывод агента в исходники не
+        // кладётся. Из него руками переносится нужное — в NativeHints, с объяснением, почему
+        // оно нужно.
+        agent {
+            metadataCopy {
+                outputDirectories.add('build/native-agent-metadata')
+                mergeWithExisting = false
+            }
+        }
+        binaries.named('main') {
+            // Промпты (prompt/**) читаются по имени из конфигурации, статика фронтенда — из
+            // каталога: оба пути собираются в рантайме, и статический анализ их не видит, а
+            // Spring AOT регистрирует только db/migration/** и application*.yaml. Перечислять
+            // шаблоны поштучно значит ловить по одному отсутствующему файлу за сборку, поэтому
+            // берём всё, что лежит в ресурсах.
+            resources.autodetect()
+            if (nativeHeap) {
+                buildArgs.add('-J-Xmx' + nativeHeap)
+            }
+            if (nativeThreads) {
+                buildArgs.add('--parallelism=' + nativeThreads)
+            }
+            if (nativeExactMetadata != null) {
+                buildArgs.add(nativeExactMetadata
+                        ? '--exact-reachability-metadata=' + nativeExactMetadata
+                        : '--exact-reachability-metadata')
+            }
+            // Быстрый режим сборки: меньше оптимизаций, заметно меньше времени и памяти.
+            // Для замера старта годится — время старта нативного образа определяется
+            // предзаполненной кучей, а не уровнем оптимизации кода.
+            buildArgs.add('-Ob')
         }
     }
-    binaries.named('main') {
-        // Промпты (prompt/**) читаются по имени из конфигурации, статика фронтенда — из
-        // каталога: оба пути собираются в рантайме, и статический анализ их не видит, а
-        // Spring AOT регистрирует только db/migration/** и application*.yaml. Перечислять
-        // шаблоны поштучно значит ловить по одному отсутствующему файлу за сборку, поэтому
-        // берём всё, что лежит в ресурсах.
-        resources.autodetect()
-        if (nativeHeap) {
-            buildArgs.add('-J-Xmx' + nativeHeap)
-        }
-        if (nativeThreads) {
-            buildArgs.add('--parallelism=' + nativeThreads)
-        }
-        if (nativeExactMetadata != null) {
-            buildArgs.add(nativeExactMetadata
-                    ? '--exact-reachability-metadata=' + nativeExactMetadata
-                    : '--exact-reachability-metadata')
-        }
-        // Быстрый режим сборки: меньше оптимизаций, заметно меньше времени и памяти.
-        // Для замера старта годится — время старта нативного образа определяется
-        // предзаполненной кучей, а не уровнем оптимизации кода.
-        buildArgs.add('-Ob')
+    tasks.named('processTestAot') {
+        enabled = nativeTests
     }
-}
-tasks.named('processTestAot') {
-    enabled = nativeTests
-}
-// Сгенерированные AOT-исходники Spring — не наш код, NullAway на них не запускаем.
-tasks.named('compileAotJava') {
-    options.errorprone.enabled = false
+    // Сгенерированные AOT-исходники Spring — не наш код, NullAway на них не запускаем.
+    tasks.named('compileAotJava') {
+        options.errorprone.enabled = false
+    }
 }
