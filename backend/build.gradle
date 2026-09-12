@@ -275,14 +275,16 @@ jar {
 // Флаг-переключатель: свойство Gradle или переменная окружения, в обоих случаях '0' и 'false'
 // читаются как «выключено». Без этого -Pkb.native=false включал бы ветку, потому что Gradle
 // отдаёт значение свойства, а не его истинность.
+// Пустое значение у двух источников значит разное, поэтому и разбираются они порознь:
+// -Pkb.native без значения — это пустая строка и «включить», а KB_NATIVE= — это переменная,
+// которую CI подставил из незаданного входа, и включать по ней нечего.
 def switchedOn = { name, envName ->
-    // Именно == null, а не ?:: у -Pkb.native без значения свойство пустая строка, а она в
-    // Groovy ложна, и проверка через ?: провалилась бы к переменной окружения.
-    def raw = findProperty(name)
-    if (raw == null) {
-        raw = System.getenv(envName)
+    def property = findProperty(name)
+    if (property != null) {
+        return property != '0' && property != 'false'
     }
-    raw != null && raw != '0' && raw != 'false'
+    def env = System.getenv(envName)
+    env && env != '0' && env != 'false'
 }
 def nativeBuild = switchedOn('kb.native', 'KB_NATIVE')
 // Профиль, под который снимается AOT и который запекается в образ. Без него processAot гонит
