@@ -15,6 +15,7 @@ import io.github.trialiya.kb.service.chat.script.KbScriptApi;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ToolContext;
@@ -25,10 +26,13 @@ import org.springframework.aot.hint.ExecutableMode;
 import org.springframework.aot.hint.MemberCategory;
 import org.springframework.aot.hint.RuntimeHints;
 import org.springframework.aot.hint.RuntimeHintsRegistrar;
+import org.springframework.aot.hint.TypeReference;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.type.AnnotationMetadata;
+import org.springframework.core.type.ClassMetadata;
 import org.springframework.core.type.classreading.CachingMetadataReaderFactory;
+import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.core.type.classreading.MetadataReaderFactory;
 import org.springframework.util.ClassUtils;
 
@@ -59,6 +63,19 @@ import org.springframework.util.ClassUtils;
  * Spring AOT о нём не знает и не регистрирует ничего. Список выходит пустой, и любой вызов падает с
  * {@code Unknown identifier: <метод>} — притом уже в скрипте, а не на старте.
  *
+ * <p>Полезные нагрузки событий SSE. {@code payload} у {@code ChatEvent} объявлен как {@code
+ * Object}, поэтому Jackson сериализует фактический тип, а он не встречается ни в одной сигнатуре
+ * бина — Spring AOT такие записи не регистрирует, и событие молча не уходит в браузер ({@code
+ * ConversationHub#send} гасит ошибку отправки). Регистрируем пакет нагрузок целиком: какой тип
+ * окажется в конверте, видно только в точке публикации.
+ *
+ * <p>Перечисления JGit. Конфигурацию репозитория JGit читает через {@code Config.getEnum}, а тот
+ * зовёт {@code getEnumConstants()}, которому в образе нужен зарегистрированный {@code values()};
+ * без него чтение падает с «Enumerated values of type ... not available». Какое перечисление
+ * понадобится, решает конфигурация репозитория, а не наш код: метаданные GraalVM закрывают {@code
+ * core.autocrlf} и соседей, но не {@code diff.algorithm}. Поэтому регистрируем {@code values()} у
+ * всех перечислений JGit.
+ *
  * <p>Своих метаданных Spring AI не поставляет, поэтому и конвертеры, и держателей приходится
  * описывать здесь. Подключено через {@code META-INF/spring/aot.factories}, а не как
  * {@code @Configuration}: хинты нужны только на этапе сборки образа, и лишний бин в контексте ради
@@ -83,6 +100,13 @@ public class NativeHints implements RuntimeHintsRegistrar {
     private static final List<Class<?>> SCRIPT_APIS =
             List.of(KbScriptApi.class, KbEditScriptApi.class);
 
+    /** Полезные нагрузки событий чата — см. {@code ConversationHub}. */
+    private static final String CHAT_EVENT_PAYLOADS =
+            "classpath*:io/github/trialiya/kb/model/chat/dto/*.class";
+
+    /** Классы JGit, среди которых ищем перечисления. */
+    private static final String JGIT_CLASSES = "classpath*:org/eclipse/jgit/**/*.class";
+
     /** Классы SDK OpenAI, которые вообще могут прийти из ответа модели. */
     private static final String OPENAI_CLASSES = "classpath*:com/openai/**/*.class";
 
@@ -90,6 +114,7 @@ public class NativeHints implements RuntimeHintsRegistrar {
 
     @Override
     public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
+        ClassLoader loader = classLoader == null ? ClassUtils.getDefaultClassLoader() : classLoader;
         for (Class<?> holder : TOOL_HOLDERS) {
             hints.reflection()
                     .registerType(
@@ -108,7 +133,61 @@ public class NativeHints implements RuntimeHintsRegistrar {
         for (Class<?> api : SCRIPT_APIS) {
             hints.reflection().registerType(api, MemberCategory.INVOKE_PUBLIC_METHODS);
         }
-        registerOpenAiAnySetters(hints, classLoader);
+        registerChatEventPayloads(hints, loader);
+        registerJGitEnums(hints, loader);
+        registerOpenAiAnySetters(hints, loader);
+    }
+
+    /**
+     * Классы по шаблону ресурсов: читаем байт-код, не загружая их.
+     *
+     * <p>Сканирование, а не список: и нагрузки событий, и перечисления JGit — это «всё, что лежит
+     * там», а список пришлось бы сверять глазами при каждой правке соседнего кода.
+     */
+    private List<MetadataReader> scan(String pattern, @Nullable ClassLoader loader) {
+        PathMatchingResourcePatternResolver resolver =
+                new PathMatchingResourcePatternResolver(loader);
+        MetadataReaderFactory metadataReaders = new CachingMetadataReaderFactory(resolver);
+        List<MetadataReader> readers = new ArrayList<>();
+        try {
+            for (Resource resource : resolver.getResources(pattern)) {
+                readers.add(metadataReaders.getMetadataReader(resource));
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to scan " + pattern, e);
+        }
+        return readers;
+    }
+
+    /**
+     * Что кладётся в {@code payload} события чата.
+     *
+     * <p>Обходим тип целиком, как и сигнатуры инструментов: нагрузки — записи, а вложенные в них
+     * типы ({@code ToolInvocationMeta} и соседи) Jackson сериализует по той же рефлексии.
+     */
+    private void registerChatEventPayloads(RuntimeHints hints, @Nullable ClassLoader loader) {
+        for (MetadataReader reader : scan(CHAT_EVENT_PAYLOADS, loader)) {
+            String className = reader.getClassMetadata().getClassName();
+            if (className.endsWith("package-info")) {
+                continue;
+            }
+            binding.registerReflectionHints(
+                    hints.reflection(), ClassUtils.resolveClassName(className, loader));
+        }
+    }
+
+    /** {@code values()} у всех перечислений JGit — через них читается конфигурация репозитория. */
+    private void registerJGitEnums(RuntimeHints hints, @Nullable ClassLoader loader) {
+        for (MetadataReader reader : scan(JGIT_CLASSES, loader)) {
+            ClassMetadata metadata = reader.getClassMetadata();
+            if (!Enum.class.getName().equals(metadata.getSuperClassName())) {
+                continue;
+            }
+            hints.reflection()
+                    .registerType(
+                            TypeReference.of(metadata.getClassName()),
+                            type -> type.withMethod("values", List.of(), ExecutableMode.INVOKE));
+        }
     }
 
     /**
@@ -156,22 +235,13 @@ public class NativeHints implements RuntimeHintsRegistrar {
      * <p>Ищем по аннотации, а не по имени метода, и только в пакете SDK: имя — деталь его
      * реализации, а аннотация — контракт Jackson, по которому этот метод и вызывается.
      */
-    private void registerOpenAiAnySetters(RuntimeHints hints, @Nullable ClassLoader classLoader) {
-        ClassLoader loader = classLoader == null ? ClassUtils.getDefaultClassLoader() : classLoader;
-        PathMatchingResourcePatternResolver resolver =
-                new PathMatchingResourcePatternResolver(loader);
-        MetadataReaderFactory metadataReaders = new CachingMetadataReaderFactory(resolver);
-        try {
-            for (Resource resource : resolver.getResources(OPENAI_CLASSES)) {
-                AnnotationMetadata metadata =
-                        metadataReaders.getMetadataReader(resource).getAnnotationMetadata();
-                if (metadata.getAnnotatedMethods(JsonAnySetter.class.getName()).isEmpty()) {
-                    continue;
-                }
-                registerAnySetters(hints, metadata.getClassName(), loader);
+    private void registerOpenAiAnySetters(RuntimeHints hints, @Nullable ClassLoader loader) {
+        for (MetadataReader reader : scan(OPENAI_CLASSES, loader)) {
+            AnnotationMetadata metadata = reader.getAnnotationMetadata();
+            if (metadata.getAnnotatedMethods(JsonAnySetter.class.getName()).isEmpty()) {
+                continue;
             }
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to scan OpenAI SDK classes", e);
+            registerAnySetters(hints, metadata.getClassName(), loader);
         }
     }
 
