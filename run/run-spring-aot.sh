@@ -28,25 +28,52 @@
 #   KB_AOT_CACHE   as in run.sh.  The cache is shared with it and retrained
 #                  whenever the JAR is rebuilt, which a switch between the two
 #                  scripts always implies
-#   KB_BUILD       0 skips the build and starts whatever kb.jar is already
-#                  built — for a second run with no source change
+#   KB_BUILD       0 never builds, 1 always does.  By default the build runs
+#                  only when it has to: no kb.jar, one built for another
+#                  profile, or one another command has rebuilt since.  A repeat
+#                  of the same profile starts straight away, and a source change
+#                  is rebuilt the way run.sh expects it to be — by hand, or here
+#                  with KB_BUILD=1
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE="${1:-h2}"
 
+JAR="$SCRIPT_DIR/../backend/build/libs/kb.jar"
+# Which profile the JAR standing there was built for.  Nothing in the JAR's name
+# says it, and the build that would answer the question is the one being avoided
+# here, so the script writes down what it built.  Under build/, so `clean` takes
+# it along; rewritten even when Gradle had nothing to do, which keeps it newer
+# than the JAR and makes a JAR rebuilt by anything else (a plain `test.sh jar`,
+# with no generated definitions in it at all) read as stale.
+STAMP="$JAR.aot-profile"
+
+case "${KB_BUILD:-}" in
+  0) build=no ;;
+  '') build=no
+      if [ ! -f "$JAR" ] || [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$PROFILE" ] \
+          || [ "$JAR" -nt "$STAMP" ]; then
+        build=yes
+      fi ;;
+  *) build=yes ;;
+esac
+
 # The build goes through test.sh rather than ./gradlew: which Gradle to use and
 # the Java 21 fallback are decided there, and scripts/playwright-smoke.js
 # already builds its JAR the same way.  KB_NATIVE is what turns the AOT half of
 # backend/build.gradle on; nativeCompile is not run, so no GraalVM is needed.
-if [ "${KB_BUILD:-1}" != "0" ]; then
+if [ "$build" = yes ]; then
   echo "Building the AOT JAR for profile '$PROFILE'..."
   echo ""
   KB_NATIVE=1 "$SCRIPT_DIR/test.sh" jar -- -Pkb.aot.profile="$PROFILE"
+  printf '%s\n' "$PROFILE" > "$STAMP"
   echo ""
 fi
 
 echo "Spring AOT: on — profile '$PROFILE' is baked into the JAR"
+if [ "$build" = no ] && [ "${KB_BUILD:-}" != "0" ]; then
+  echo "  (built earlier for this profile — KB_BUILD=1 to build it again)"
+fi
 
 # AotDetector reads this before there is a context to read Spring properties
 # from, so it has to be a system property and cannot ride --spring.* on the

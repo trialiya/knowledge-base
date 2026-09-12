@@ -25,8 +25,9 @@
 #   KB_AOT_CACHE   path of the cache file, instead of local-db/aot/kb.aot
 #
 # The cache here is the JVM's own (loaded and linked classes).  Spring AOT --
-# bean definitions generated at build time -- is a separate lever that stacks
-# on top of it and costs the JAR its profile independence: run-spring-aot.sh.
+# bean definitions generated at build time -- is a separate lever that stacks on
+# top of it; it takes a JAR built for one profile and a flag this script does not
+# pass, so it lives in run-spring-aot.sh.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
