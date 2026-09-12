@@ -149,6 +149,13 @@ pmd {
 }
 
 tasks.withType(Pmd).configureEach {
+    // Сгенерированные AOT-исходники Spring — не наш код, как и для errorprone ниже. Выключаются
+    // здесь, а не отдельным tasks.named: задача появляется только с -Pkb.native и на момент
+    // создания идёт без classpath, на котором падает фильтр ниже.
+    if (name.startsWith('pmdAot')) {
+        enabled = false
+        return
+    }
     // org.graalvm.js:js-community is a pom-packaging module, so its .pom lands on the compile
     // classpath as the artifact itself. PMD's auxClasspath loader opens every non-directory entry
     // as a zip and dies on the first one ("zip END header not found"), so keep jars and class
@@ -256,7 +263,8 @@ jar {
 //
 // Всё выключено по умолчанию, и нативная ветка — тоже: плагин подключает Spring AOT, а с ним
 // bootJar собирается из aot-набора, и обычный kb.jar перестаёт быть профиле-независимым.
-def nativeBuild = findProperty('kb.native') != null || System.getenv('KB_NATIVE') != null
+def nativeEnv = System.getenv('KB_NATIVE')
+def nativeBuild = findProperty('kb.native') != null || (nativeEnv && nativeEnv != '0' && nativeEnv != 'false')
 // Профиль, под который снимается AOT и который запекается в образ. Без него processAot гонит
 // Postgres-миграции на встроенной H2. Образ под Postgres — отдельная сборка.
 def aotProfile = findProperty('kb.aot.profile') ?: 'h2'
@@ -322,6 +330,9 @@ if (nativeBuild) {
     }
     // Сгенерированные AOT-исходники Spring — не наш код, NullAway на них не запускаем.
     tasks.named('compileAotJava') {
+        options.errorprone.enabled = false
+    }
+    tasks.named('compileAotTestJava') {
         options.errorprone.enabled = false
     }
 }

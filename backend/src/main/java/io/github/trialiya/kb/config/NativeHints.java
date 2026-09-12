@@ -247,17 +247,16 @@ public class NativeHints implements RuntimeHintsRegistrar {
 
     private void registerAnySetters(
             RuntimeHints hints, String className, @Nullable ClassLoader loader) {
-        final Class<?> type;
         try {
-            type = ClassUtils.forName(className, loader);
-        } catch (ClassNotFoundException | LinkageError e) {
-            // Класс из необязательной части SDK: нет зависимости — нет и вызова через рефлексию.
-            return;
-        }
-        for (Method method : type.getDeclaredMethods()) {
-            if (method.isAnnotationPresent(JsonAnySetter.class)) {
-                hints.reflection().registerMethod(method, ExecutableMode.INVOKE);
+            // getDeclaredMethods внутри try не случайно: он разрешает типы сигнатур, и на классе
+            // из необязательной части SDK падает ровно так же, как загрузка самого класса.
+            for (Method method : ClassUtils.forName(className, loader).getDeclaredMethods()) {
+                if (method.isAnnotationPresent(JsonAnySetter.class)) {
+                    hints.reflection().registerMethod(method, ExecutableMode.INVOKE);
+                }
             }
+        } catch (ClassNotFoundException | LinkageError ignored) {
+            // Класс из необязательной части SDK: нет зависимости — нет и вызова через рефлексию.
         }
     }
 }

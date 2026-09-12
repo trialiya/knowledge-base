@@ -62,3 +62,6 @@ frontend/tests/visual/harness/shots/
 # Anchored to the root on purpose: unanchored, the pattern also swallowed
 # backend/src/main/resources/META-INF, which is source.
 /META-INF/
+
+# Python bytecode from scripts/ (native-agent-diff.py and friends)
+__pycache__/
