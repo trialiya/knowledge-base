@@ -32,20 +32,7 @@ public class RemovedPropertiesCheck {
                     "script visibility now follows the tracked-files rule; keep secrets out"
                             + " of the repository or in .gitignore",
                     "kb.script.allow-globs",
-                    "use kb.projects[].allow-globs to admit untracked files per project",
-                    // Spring Boot 4 deprecated these at error level: nothing binds them any more,
-                    // so an operator who set force=false gets forced UTF-8 and no warning.
-                    // server.servlet.encoding.mapping is not in the list — that one still binds.
-                    "server.servlet.encoding.charset",
-                    "use spring.servlet.encoding.charset",
-                    "server.servlet.encoding.enabled",
-                    "use spring.servlet.encoding.enabled",
-                    "server.servlet.encoding.force",
-                    "use spring.servlet.encoding.force",
-                    "server.servlet.encoding.force-request",
-                    "use spring.servlet.encoding.force-request",
-                    "server.servlet.encoding.force-response",
-                    "use spring.servlet.encoding.force-response");
+                    "use kb.projects[].allow-globs to admit untracked files per project");
 
     private final Environment environment;
 

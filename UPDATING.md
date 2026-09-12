@@ -21,19 +21,10 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ### Forced UTF-8 encoding is applied again
 
-The servlet encoding settings in `application.yaml` moved from
-`server.servlet.encoding.*` to `spring.servlet.encoding.*`. Spring Boot 4 binds
-only the latter prefix — the old keys are deprecated at error level since 4.0.0
-and are ignored without a warning — so `force: true` had quietly stopped doing
-anything. It works again: a request body that arrives without a charset is read
-as UTF-8, and responses carry `charset=UTF-8`.
-
-**If you override any of these keys** — in your own `application.yaml`, an
-environment variable or a command-line argument — rename them
-(`SERVER_SERVLET_ENCODING_FORCE` → `SPRING_SERVLET_ENCODING_FORCE`, and so on).
-The application now refuses to start while an old name is still set and names
-the replacement, rather than ignoring it the way Spring Boot does;
-`server.servlet.encoding.mapping` is unaffected and keeps working.
+The encoding keys in `application.yaml` moved to `spring.servlet.encoding.*`,
+the only prefix Spring Boot 4 binds (`force: true` had quietly stopped working)
+— rename yours if you override them, e.g. `SERVER_SERVLET_ENCODING_FORCE` →
+`SPRING_SERVLET_ENCODING_FORCE`.
 
 ### The script engine is pinned to GraalJS 25.0
 
