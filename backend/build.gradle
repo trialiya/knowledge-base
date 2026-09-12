@@ -235,6 +235,10 @@ tasks.named('compileTestJava') {
     options.errorprone.enabled = false
 }
 
+// Классы тестов идут параллельно; модель и то, что она требует от нового теста, — в
+// src/test/resources/junit-platform.properties. JVM при этом одна: maxParallelForks изолировал бы
+// надёжнее, но каждый форк заново строит контексты Spring (их кэш живёт внутри JVM) и поднимает
+// свой контейнер, а набор тестов слишком короткий, чтобы эта плата окупилась.
 tasks.named('test') {
     useJUnitPlatform()
 }

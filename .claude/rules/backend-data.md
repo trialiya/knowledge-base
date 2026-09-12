@@ -82,6 +82,22 @@ Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`
   Do not recompute `callIndex` by scanning the tail of the history: after a retry
   the tail also holds the failed run's segments, which that counter never saw.
 
+## Test classes run in parallel
+
+`:backend:test` runs classes concurrently — methods inside one class still go
+one after another, classes do not wait for each other
+(`backend/src/test/resources/junit-platform.properties`). So a new test class
+has to be able to stand next to any other: no mutable static state, no fixed
+port, nothing written outside its own `@TempDir`, and an in-memory database
+name no other class uses — that is why they read
+`jdbc:h2:mem:kb-<what-it-checks>-test`, one per class.
+
+A resource that genuinely cannot be split gets a `@ResourceLock` on the classes
+sharing it, never a retreat to sequential. There is one:
+`AbstractPostgresIntegrationTest` carries the lock for the single
+Testcontainers instance every `*IT` shares, and it is inherited — a new `*IT`
+that extends the base needs nothing of its own.
+
 ## H2 sample data
 
 `backend/src/test/resources/db/sample-data.sql` is a ready-made H2 dataset — a

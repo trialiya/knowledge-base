@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.support;
 
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -27,6 +28,12 @@ import org.testcontainers.utility.DockerImageName;
 // disables everything not explicitly imported), so pull FlywayAutoConfiguration in for subclasses —
 // otherwise migrations never run and the schema is empty.
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
+// Classes run in parallel (backend/src/test/resources/junit-platform.properties), and the one
+// container below is the one fixture the suite cannot hand each class a copy of: subclasses share
+// its tables, its sequences and the Flyway schema history. The lock is inherited, so it covers
+// every subclass and serialises them against each other — while they still run alongside the rest
+// of the suite, which is where the time goes anyway.
+@ResourceLock("postgres-container")
 public abstract class AbstractPostgresIntegrationTest {
 
     protected static final PostgreSQLContainer POSTGRES =
