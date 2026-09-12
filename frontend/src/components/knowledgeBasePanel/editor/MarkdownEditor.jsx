@@ -29,7 +29,7 @@ import {
 import DocLinkTooltip from '@/components/common/preview/DocLinkTooltip';
 import AtMentionDropdown from './AtMentionDropdown';
 import useAtMention from './useAtMention';
-import CodeBlock from '@/components/common/ui/CodeBlock';
+import MarkdownCodeBlock from '@/components/common/ui/MarkdownCodeBlock';
 import { setEditorDirty } from './editorDirtyStore';
 import { markdownToJira } from '@/utils/markdownToJira';
 import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
@@ -49,28 +49,14 @@ const REHYPE_PLUGINS = [rehypeSlug];
 
 function getMarkdownComponents(tree, onNavigate) {
   return {
-    a: ({ href, children, ...props }) => (
+    // `node` — служебный проп react-markdown: в спреде он уехал бы на DOM-узел
+    // атрибутом node="[object Object]".
+    a: ({ href, children, node: _node, ...props }) => (
       <DocLinkTooltip href={href} tree={tree} onNavigate={onNavigate} {...props}>
         {children}
       </DocLinkTooltip>
     ),
-    code({ inline, className, children, ...props }) {
-      const raw = String(children).replace(/\n$/, '');
-      const isBlock = !inline && (raw.includes('\n') || /language-(\w+)/.test(className || ''));
-
-      if (!isBlock) {
-        return (
-          <code className={className} {...props}>
-            {children}
-          </code>
-        );
-      }
-      return (
-        <CodeBlock code={raw} className={className} {...props}>
-          {raw}
-        </CodeBlock>
-      );
-    },
+    pre: MarkdownCodeBlock,
   };
 }
 
@@ -195,7 +181,8 @@ const MarkdownEditor = ({
   // Stable per-instance id for the shared dirty registry.
   const dirtyId = useId();
 
-  // Stable ReactMarkdown components map (was rebuilt every render before).
+  // Stable ReactMarkdown components map: a fresh `a` per render would recreate
+  // the link subtrees on every keystroke in the editor.
   const mdComponents = useMemo(() => getMarkdownComponents(tree, onNavigate), [tree, onNavigate]);
 
   // Контролируемый редактор: текущий текст живёт в `value` (черновик «поднят» к
