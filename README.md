@@ -4,8 +4,10 @@ An AI assistant for working with a Git repository: search across code and
 change history, answers to questions about the project, and a knowledge base
 that lives alongside the code.
 
-Current version: **1.0.0** — see the [changelog](CHANGELOG.md) for the full
-feature set and the known limitations of this release.
+Current version: **1.0.0-RC1** — a release candidate: the feature set of 1.0.0
+is complete, what is left is testing it outside the machine it was built on.
+See the [changelog](CHANGELOG.md) for the full feature set and the known
+limitations of this release.
 
 ## What it is
 
