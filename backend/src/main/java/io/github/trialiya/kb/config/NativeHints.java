@@ -10,6 +10,8 @@ import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
 import io.github.trialiya.kb.functions.SkillFunction;
 import io.github.trialiya.kb.functions.TopicFunction;
+import io.github.trialiya.kb.service.chat.script.KbEditScriptApi;
+import io.github.trialiya.kb.service.chat.script.KbScriptApi;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -47,10 +49,17 @@ import org.springframework.util.ClassUtils;
  * нет, и сборка инструментов падает с «No @Tool annotated methods found». Регистрируем весь
  * пакет-держатель целиком: дешевле, чем сверять список с условиями бинов при каждой правке.
  *
- * <p>Своих метаданных Spring AI не поставляет, поэтому обе группы приходится описывать здесь.
- * Подключено через {@code META-INF/spring/aot.factories}, а не как {@code @Configuration}: хинты
- * нужны только на этапе сборки образа, и лишний бин в контексте ради них заводить незачем. На
- * обычной JVM класс не исполняется вовсе.
+ * <p>Объект {@code kb} в скриптах. {@code HostAccess.EXPLICIT} собирает список того, что видно
+ * гостю, обходя рефлексией публичные методы связанного объекта и проверяя на каждом
+ * {@code @HostAccess.Export}. В образе этот обход видит только зарегистрированные методы, а {@code
+ * KbScriptApi} бином не является — его создаёт {@code ScriptRunner} через {@code new}, — так что
+ * Spring AOT о нём не знает и не регистрирует ничего. Список выходит пустой, и любой вызов падает с
+ * {@code Unknown identifier: <метод>} — притом уже в скрипте, а не на старте.
+ *
+ * <p>Своих метаданных Spring AI не поставляет, поэтому и конвертеры, и держателей приходится
+ * описывать здесь. Подключено через {@code META-INF/spring/aot.factories}, а не как
+ * {@code @Configuration}: хинты нужны только на этапе сборки образа, и лишний бин в контексте ради
+ * них заводить незачем. На обычной JVM класс не исполняется вовсе.
  */
 public class NativeHints implements RuntimeHintsRegistrar {
 
@@ -66,6 +75,10 @@ public class NativeHints implements RuntimeHintsRegistrar {
                     SearchAgentFunction.class,
                     SkillFunction.class,
                     TopicFunction.class);
+
+    /** Классы, чьи объекты связываются с гостевым {@code kb} — см. {@code ScriptRunner}. */
+    private static final List<Class<?>> SCRIPT_APIS =
+            List.of(KbScriptApi.class, KbEditScriptApi.class);
 
     /** Классы SDK OpenAI, которые вообще могут прийти из ответа модели. */
     private static final String OPENAI_CLASSES = "classpath*:com/openai/**/*.class";
@@ -89,6 +102,9 @@ public class NativeHints implements RuntimeHintsRegistrar {
                 .registerType(
                         DefaultToolCallResultConverter.class,
                         MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+        for (Class<?> api : SCRIPT_APIS) {
+            hints.reflection().registerType(api, MemberCategory.INVOKE_PUBLIC_METHODS);
+        }
         registerOpenAiAnySetters(hints, classLoader);
     }
 
