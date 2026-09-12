@@ -19,7 +19,29 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
-Nothing yet.
+### Forced UTF-8 encoding is applied again
+
+The servlet encoding settings in `application.yaml` moved from
+`server.servlet.encoding.*` to `spring.servlet.encoding.*`. Spring Boot 4 binds
+only the latter prefix — the old keys are deprecated at error level since 4.0.0
+and are ignored without a warning — so `force: true` had quietly stopped doing
+anything. It works again: a request body that arrives without a charset is read
+as UTF-8, and responses carry `charset=UTF-8`.
+
+**If you override any of these keys** — in your own `application.yaml`, an
+environment variable or a command-line argument — rename them
+(`SERVER_SERVLET_ENCODING_FORCE` → `SPRING_SERVLET_ENCODING_FORCE`, and so on).
+An override left under the old name has no effect at all.
+
+### The script engine is pinned to GraalJS 25.0
+
+`org.graalvm.polyglot:polyglot` and `js-community` go from `25.3.4.1` back to
+`25.0.4.1`. The polyglot artefacts have to match the GraalVM that builds the
+native image (25.0.4), and the version is shared with the ordinary JVM build —
+there is one version for both. Scripts run on a slightly older JS engine as a
+result; nothing in the scripting API changes. See
+[Нативный образ GraalVM](docs/проект/нативный-образ-graalvm.md) for the version
+coupling.
 
 ## 1.0.0
 
