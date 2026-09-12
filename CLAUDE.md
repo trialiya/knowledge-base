@@ -67,6 +67,8 @@ The wrapper deliberately does not cover:
 ```
 
 `*IT` suites use Testcontainers and need Docker; `*Test` (unit) suites don't.
+Both run in one JUnit pass with test classes in parallel — what that asks of a
+new test is in `.claude/rules/backend-data.md`.
 
 ## Rules that apply everywhere
 
