@@ -23,6 +23,10 @@
 #                  below (default -Xmx256m)
 #   KB_AOT         0 disables the AOT cache entirely
 #   KB_AOT_CACHE   path of the cache file, instead of local-db/aot/kb.aot
+#
+# The cache here is the JVM's own (loaded and linked classes).  Spring AOT --
+# bean definitions generated at build time -- is a separate lever that stacks
+# on top of it and costs the JAR its profile independence: run-spring-aot.sh.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

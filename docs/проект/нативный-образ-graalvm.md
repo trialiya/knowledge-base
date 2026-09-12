@@ -49,11 +49,13 @@ KB_NATIVE=1          # или переменная окружения — удо
 
 Без флага плагин не применяется: задач `nativeCompile`, `nativeRun`, `nativeTest` в проекте нет, `processAot` не существует, и `./gradlew :backend:bootJar` собирает обычный профиле-независимый `kb.jar`.
 
-**Почему это не включено постоянно.** Плагин GraalVM подключает Spring AOT, а с ним `bootJar` собирается из `aot`-набора исходников, и обычная сборка начинает платить за нативную трижды:
+**Почему это не включено постоянно.** Плагин GraalVM подключает Spring AOT, а с ним `bootJar` собирается из `aot`-набора исходников, и обычная сборка начинает платить за нативную:
 
-- в `kb.jar` попадает сгенерированный `KnowledgeBaseApplication__EnvironmentPostProcessor`, который добавляет запечённый профиль к любому заданному при запуске;
-- условия (`@Profile`, `@ConditionalOnProperty`) в таком jar уже разрешены, то есть `SPRING_PROFILES_ACTIVE` его больше не переключает — набор бинов зафиксирован;
-- `processAot` поднимает контекст приложения на этапе сборки, и делает это в любой сборке, которая задевает `aot`-исходники, включая `spotlessApply`.
+- `processAot` поднимает контекст приложения на этапе сборки, и делает это в любой сборке, которая задевает `aot`-исходники, включая `spotlessApply`. Профиль для этого прогона приходится выбирать в момент сборки — он же оказывается запечён в артефакт;
+- сгенерированный код едет в `kb.jar` вместе со всем остальным: три сотни `*__BeanDefinitions`, `KnowledgeBaseApplication__EnvironmentPostProcessor` и `reachability-metadata.json` на 1.3 МБ;
+- PMD и Error Prone пришлось бы объяснять, что сгенерированные исходники проверять не надо, — в сборке, которая нативной не занимается.
+
+Сам по себе такой `kb.jar` остаётся профиле-независимым: всё сгенерированное лежит мёртвым грузом, пока запуск не включит `-Dspring.aot.enabled=true`. Под этим флагом и запечённый профиль, и разрешённые на этапе сборки условия вступают в силу — а образ ставит его всегда. Запустить jar с флагом на обычной JVM можно и нарочно, ради быстрого старта: `run/run-spring-aot.sh`, раздел 5.1.
 
 ### 3.1. Свойства сборки
 
@@ -129,6 +131,27 @@ KB_NATIVE=1          # или переменная окружения — удо
 
 Сгенерированные метаданные — первый и главный источник того, что образ знает о рефлексии. Всё, что в них не попало, описывается руками.
 
+### 5.1. Тот же AOT без образа: `run/run-spring-aot.sh`
+
+`native-image` для Spring AOT не обязателен: сгенерированные определения бинов читает и обычная JVM, если запустить jar с `-Dspring.aot.enabled=true`. Скрипт проходит все три шага — собрать, обучить кэш JVM, запустить:
+
+```bash
+cd run
+./run-spring-aot.sh            # профиль h2
+./run-spring-aot.sh external   # под PostgreSQL
+```
+
+Первый шаг — `KB_NATIVE=1 ./test.sh jar -- -Pkb.aot.profile=<профиль>`; остальные два делает `run.sh`, которому скрипт передаёт флаг через `JDK_JAVA_OPTIONS`. GraalVM не нужен — `nativeCompile` не запускается. Скрипт есть только для Linux и macOS: у `run.bat` и `run.ps1` пары к нему нет.
+
+| Переменная | Что делает |
+|---|---|
+| `KB_BUILD=0` | Не пересобирать, запустить уже собранный `kb.jar` |
+| `KB_AOT=0` | Без кэша JVM; Spring AOT остаётся включён |
+
+Два ускорения не пересекаются и складываются: кэш JVM (`-XX:AOTCache`, см. [Руководство по установке](руководство-по-установке.md)) снимает работу загрузчика классов, Spring AOT — работу контейнера, который иначе выводит определения бинов из аннотаций на каждом старте. На шести запусках подряд Spring AOT дал около 15% и без кэша, и поверх него; абсолютные секунды зависят от машины, отношение держалось.
+
+Плата та же, что у образа: профиль запечён (раздел 8.1) — поэтому здесь он аргумент сборки, а не только запуска. Тот же `kb.jar`, запущенный обычным `run.sh`, снова профиле-независим: без флага сгенерированное не читается вовсе.
+
 ---
 
 ## 6. Метаданные рефлексии
@@ -169,18 +192,15 @@ KB_NATIVE=1          # или переменная окружения — удо
 Агент записывает каждое обращение через рефлексию, которое видит на реальном прогоне.
 
 ```bash
-# 1. Собрать AOT-jar под нужный профиль
-KB_NATIVE=1 ./gradlew :backend:bootJar -Pkb.aot.profile=external
-
-# 2. Прогнать приложение под агентом и поработать с ним руками
-cd run && KB_AOT=0 JAVA_OPTS="-Xmx256m -Dspring.aot.enabled=true \
+# 1. Собрать AOT-jar под нужный профиль и прогнать его под агентом, поработав руками
+cd run && KB_AOT=0 JAVA_OPTS="-Xmx256m \
     -agentlib:native-image-agent=config-output-dir=/tmp/kb-agent,config-write-period-secs=10" \
-    ./run.sh external
+    ./run-spring-aot.sh external
 #    ...пощёлкать чат, инструменты, скрипты, поиск, затем Ctrl+C
 
-# 3. Вычесть из вывода агента то, что уже покрыто
-python3 scripts/native-agent-diff.py /tmp/kb-agent \
-    backend/build/generated/aotResources \
+# 2. Вычесть из вывода агента то, что уже покрыто
+python3 ../scripts/native-agent-diff.py /tmp/kb-agent \
+    ../backend/build/generated/aotResources \
     ~/.gradle/caches/modules-2/files-2.1/com.openai/openai-java-core/*/*/*.jar
 ```
 
@@ -289,5 +309,6 @@ java.lang.IllegalArgumentException: scheduler cannot be null
 | `backend/src/main/java/io/github/trialiya/kb/config/NativeHints.java` | Метаданные, которые статический анализ вывести не может |
 | `backend/src/main/java/io/github/trialiya/kb/convert/ChatMessageMetaToJsonConverter.java` | Регистратор `Hints` рядом с приватной проекцией |
 | `backend/src/main/resources/META-INF/spring/aot.factories` | Подключение обоих регистраторов |
-| `backend/src/test/java/io/github/trialiya/kb/config/NativeHintsScriptApiTest.java` | Проверка покрытия методов `kb` |
+| `backend/src/test/java/io/github/trialiya/kb/config/NativeHintsTest.java` | Проверка, что списки в `NativeHints` ничего не потеряли |
+| `run/run-spring-aot.sh` | Сборка и запуск AOT-jar на обычной JVM, без образа |
 | `scripts/native-agent-diff.py` | Разбор вывода агента трассировки |
