@@ -32,6 +32,7 @@ import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ChatToolset;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
+import io.github.trialiya.kb.tools.UnknownToolCallbackResolver;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import java.util.ArrayList;
@@ -60,6 +61,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.execution.DefaultToolExecutionExceptionProcessor;
 import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
+import org.springframework.ai.tool.resolution.ToolCallbackResolver;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -127,12 +129,36 @@ public class ChatConfig {
      * tree) and {@code kb.script.edit-enabled}. When the tool is absent, {@code ScriptGuideService}
      * also yields an empty prompt fragment, so the model is never told about a tool it does not
      * have.
+     *
+     * <p>The gate is {@link ScriptProperties#enabled()} rather than {@code @ConditionalOnProperty},
+     * because the prompt side reads exactly that ({@code ScriptGuideService}, {@code SkillService})
+     * and the two must not be able to disagree. They could: property binding accepts {@code 1},
+     * {@code yes} and {@code on} for a boolean, none of which {@code havingValue = "true"} matches,
+     * so {@code KB_SCRIPT_ENABLED=1} used to produce a deployment whose system prompt carried the
+     * whole {@code runScript} handbook while the tool itself was missing — every script the model
+     * then wrote ended the run.
      */
     @Bean
-    @ConditionalOnProperty(prefix = "kb.script", name = "enabled", havingValue = "true")
-    public ScriptFunction scriptFunction(ScriptRunner scriptRunner, GitRegistry gitRegistry) {
+    @Nullable
+    public ScriptFunction scriptFunction(
+            ScriptProperties scriptProperties, ScriptRunner scriptRunner, GitRegistry gitRegistry) {
+        if (!scriptProperties.enabled()) {
+            log.info("Script tool is NOT exposed to the model: kb.script.enabled=false");
+            return null;
+        }
         log.info("Script tool enabled (runScript)");
         return ScriptFunction.forChat(scriptRunner, gitRegistry);
+    }
+
+    /**
+     * How a tool name the model invented is answered — see {@link UnknownToolCallbackResolver},
+     * which also explains why replacing the framework's resolver is the safe direction.
+     * Load-bearing only together with {@code spring.ai.tools.resolution.fallback.enabled=true} in
+     * {@code application.yaml}; {@code ToolCallLimitsConfigTest} pins that flag.
+     */
+    @Bean
+    public ToolCallbackResolver toolCallbackResolver() {
+        return new UnknownToolCallbackResolver();
     }
 
     /**

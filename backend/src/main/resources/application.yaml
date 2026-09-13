@@ -80,6 +80,15 @@ spring:
         # Превышение приходит модели ошибкой в ответе инструмента — она видит стену и сворачивает
         # ответ сама. Дефолтный THROW оборвал бы прогон исключением на середине.
         on-limit-exceeded: RETURN_ERROR_RESPONSE
+      resolution:
+        fallback:
+          # Имя, которого нет среди инструментов запроса, фреймворк ищет через ToolCallbackResolver
+          # только под этим флагом, иначе сразу бросает IllegalStateException и рвёт стрим на
+          # середине ответа. Наш резолвер (UnknownToolCallbackResolver) ничего не находит — он
+          # отвечает модели ошибкой, как на любой другой промах в вызове. Флаг и резолвер — один
+          # механизм: без флага резолвера не спросят, без резолвера флаг открыл бы имена в обход
+          # собранного набора инструментов (ChatToolset).
+          enabled: true
     # External MCP (Model Context Protocol) tool servers — see kb.mcp.enabled above, which gates
     # whether the tools these connections expose are actually merged into the chat model's tool
     # list. With no connections configured here, spring-ai-starter-mcp-client contributes zero
