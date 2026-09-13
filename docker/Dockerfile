@@ -25,11 +25,17 @@ COPY frontend/src frontend/src/
 COPY frontend/public frontend/public/
 
 # Собираем bootJar (включает frontend build через :frontend:copyFrontend)
+# -Pkb.build.time: записать в JAR время сборки. По умолчанию оно не пишется — меняющийся каждую
+# сборку файл делает JAR каждый раз новым и отправляет AOT-кэш JVM на переобучение (см.
+# backend/build.gradle). Здесь терять нечего: образ собирается с нуля, инкрементальной сборки
+# тут нет, а «когда собран» на работающем сервере спрашивают как раз про образ.
+# Коммита в этом JAR не будет: .git в стадию не копируется (рабочее дерево здесь неполное, и
+# git.dirty стал бы вечным true) — см. docs/проект/разработка-и-контрибьюция.md.
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=cache,target=/workspace/frontend/.gradle/nodejs \
     --mount=type=cache,target=/workspace/frontend/.gradle/yarn \
     --mount=type=cache,target=/workspace/frontend/node_modules \
-    ./gradlew -PuseSystemNode=true :backend:bootJar --no-daemon -x test
+    ./gradlew -PuseSystemNode=true -Pkb.build.time :backend:bootJar --no-daemon -x test
 
 # ── Stage 2: Extract layers ──────────────────────────────────────
 # Распаковываем слоистый JAR на отдельные директории по слоям.
