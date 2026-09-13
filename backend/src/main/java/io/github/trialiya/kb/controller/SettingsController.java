@@ -73,11 +73,12 @@ public class SettingsController {
     private final boolean scriptEditActive;
 
     /**
-     * Whether {@code runScript} is actually in the model's tool list, the same way {@link
-     * #gitEditActive} is the honest answer for the edit tools. {@code kb.script.enabled} alone is
-     * not that answer: it is the flag this process read, while the tool is a bean assembled from it
-     * — and a panel that reports the flag says «enabled» for a chat whose every script ends with
-     * "No ToolCallback found for tool name: runScript".
+     * Whether {@code runScript} was actually handed to the model, read off the bean the way {@link
+     * #gitEditActive} is — the row in the panel asks about the tool, so it is answered by the tool
+     * and not by {@code kb.script.enabled}, which is only what this process read on the way to it.
+     * Both sides of that derivation live in {@code ChatConfig#scriptFunction} and agree by
+     * construction; the panel reports the end of it rather than the beginning, and keeps saying the
+     * truth if a gate is ever added in between.
      */
     private final boolean scriptToolActive;
 
@@ -305,9 +306,8 @@ public class SettingsController {
      * configuration a reader of this panel can act on.
      *
      * @param enabled {@code kb.script.enabled} — the configured opt-in
-     * @param active whether {@code runScript} is in the model's tool list; the two disagree only
-     *     when the flag this process read and the assembled tool set came out different, which the
-     *     panel is the place to notice
+     * @param active whether {@code runScript} was actually handed to the model — the bean, not the
+     *     flag it is derived from (see {@link #scriptToolActive})
      * @param editEnabled {@code kb.script.edit-enabled} — the configured opt-in for writes
      * @param editActive whether {@code kb.edit}/{@code kb.create} are actually bound, i.e. all
      *     three gates of {@link ScriptEditPolicy} agree

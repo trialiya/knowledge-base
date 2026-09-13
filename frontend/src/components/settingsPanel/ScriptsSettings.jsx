@@ -38,12 +38,11 @@ const ScriptsSections = ({ config }) => {
       {/* ── Состояние ── */}
       <SettingsSection label={t('scripts.status.label')}>
         {/* Строка отвечает на вопрос «есть ли runScript у модели», а не «что стоит в конфиге»:
-            флаг и собранный набор инструментов — разные вещи, и расходятся они молча. */}
+            флаг — то, что прочитал процесс, active — то, что собралось из него. */}
         <ConfigStatusRow label={t('scripts.status.enabled')} on={script.active} />
         <ConfigBoolRow label={t('scripts.status.editEnabled')} value={script.editEnabled} />
         <ConfigBoolRow label={t('scripts.status.editActive')} value={script.editActive} />
         {!script.enabled && <p className="config-note">{t('scripts.status.disabledNote')}</p>}
-        {script.enabled && !script.active && <p className="config-note">{t('scripts.status.missingNote')}</p>}
         {/* Правка из скриптов требует трёх согласий (ScriptEditPolicy), поэтому
             разрешение в конфиге и фактическая привязка методов записи — разные строки. */}
         {script.editEnabled && !script.editActive && <p className="config-note">{t('scripts.status.readOnlyNote')}</p>}

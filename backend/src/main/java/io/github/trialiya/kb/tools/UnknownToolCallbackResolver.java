@@ -24,12 +24,12 @@ import org.springframework.ai.tool.resolution.ToolCallbackResolver;
  * are one mechanism in two places.
  *
  * <p>It replaces the resolver Spring Boot would contribute, and that is the point: the framework's
- * own scans the context for {@code ToolCallback} beans and {@code ToolCallbackProvider}s, which
- * would make a tool reachable by name that {@code ChatToolset} deliberately left out — an MCP
- * server's tool in a deployment with {@code kb.mcp.enabled=false}, say. Nothing here resolves
- * anything: the assembled toolset stays the only way to reach a tool. Nothing in this application
- * asks for a tool by name either ({@code toolNames} is never set — every caller passes callbacks),
- * so name resolution is a path with no legitimate traffic on it.
+ * own resolves a name against whatever the context happens to hold — {@code ToolCallback} beans and
+ * non-MCP {@code ToolCallbackProvider}s — which is the ambient tool source {@link ChatToolset} is
+ * shaped to avoid in the first place. Nothing here resolves anything, so the assembled toolset
+ * stays the only way to reach a tool. Nothing in this application asks for a tool by name either
+ * ({@code toolNames} is never set — every caller passes callbacks), so name resolution is a path
+ * with no legitimate traffic on it.
  */
 @Slf4j
 public class UnknownToolCallbackResolver implements ToolCallbackResolver {
@@ -54,13 +54,24 @@ public class UnknownToolCallbackResolver implements ToolCallbackResolver {
 
         @Override
         public ToolDefinition getToolDefinition() {
-            // The requested name, not a placeholder: the error message and the log plaque are keyed
-            // by it. The definition never reaches the model — it is built after the request.
             return DefaultToolDefinition.builder()
-                    .name(toolName)
+                    .name(displayName())
                     .description("Unknown tool")
                     .inputSchema("{\"type\":\"object\",\"properties\":{}}")
                     .build();
+        }
+
+        /**
+         * The name as asked for — it is what the error message and the log plaque are keyed by, and
+         * the definition never reaches the model, being built after the request.
+         *
+         * <p>Blank is the one name that cannot go through: {@code DefaultToolDefinition} rejects it
+         * with an {@code IllegalArgumentException}, and the first thing to ask for the definition
+         * is {@code RecordingToolCallback.call}, before its own {@code try} — so that throw would
+         * escape the tool loop and end the run, which is this class's whole job to prevent.
+         */
+        private String displayName() {
+            return toolName.isBlank() ? "(unnamed)" : toolName;
         }
 
         @Override
@@ -70,12 +81,12 @@ public class UnknownToolCallbackResolver implements ToolCallbackResolver {
 
         @Override
         public String call(String toolInput, @Nullable ToolContext toolContext) {
-            log.warn("Model called a tool it does not have: '{}'", toolName);
+            log.warn("Model called a tool it does not have: '{}'", displayName());
             throw new ToolExecutionException(
                     getToolDefinition(),
                     new IllegalArgumentException(
                             "There is no tool named '"
-                                    + toolName
+                                    + displayName()
                                     + "', and nothing was executed. The tools listed with this"
                                     + " request are the only ones that exist — call one of them by"
                                     + " its exact name, or answer without a tool. Do not retry"

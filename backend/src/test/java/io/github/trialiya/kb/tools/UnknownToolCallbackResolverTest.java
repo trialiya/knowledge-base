@@ -46,4 +46,19 @@ class UnknownToolCallbackResolverTest {
         assertThat(resolver.resolve("noSuchTool").getToolDefinition().name())
                 .isEqualTo("noSuchTool");
     }
+
+    /**
+     * A blank name is the one that cannot be passed through: the tool definition refuses it, and
+     * that refusal would be thrown from {@code RecordingToolCallback.call} before its own {@code
+     * try} — out of the tool loop, ending the run exactly as an unresolvable name used to.
+     */
+    @Test
+    void aBlankNameIsAnsweredLikeAnyOtherInsteadOfThrowingPastTheToolLoop() {
+        ToolCallback callback = resolver.resolve("  ");
+
+        Throwable failure = catchThrowable(() -> callback.call("{}", null));
+
+        assertThat(failure).isInstanceOf(ToolExecutionException.class);
+        assertThat(processor.process((ToolExecutionException) failure)).contains("no tool named");
+    }
 }
