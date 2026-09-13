@@ -7,6 +7,7 @@ import { generateUUID } from '@/utils/uuid';
 import { nextMessageId } from '../messages/messageId';
 import { getLastModel, getLastMode } from './lastChoiceStore';
 import { chatLoadErrorNotice, COMMAND_BLOCK_NOTICE } from './chatNotices';
+import { isChatEmpty } from '../messages/chatHistory';
 import { parseChatCommand, chatCommandBlock, CHAT_COMMAND } from './chatCommands';
 import useRunStarter from './useRunStarter';
 
@@ -127,17 +128,20 @@ export default function useChatRun({
         // отправке, и вернуть его можно только отсюда.
         const block = chatCommandBlock(command, {
           running: !!chatForSend?.runId,
-          chatStarted: activeChatId !== DRAFT_CHAT_ID,
+          chatStarted: activeChatId !== DRAFT_CHAT_ID && !isChatEmpty(chatForSend),
         });
         if (block) {
           notify(COMMAND_BLOCK_NOTICE[block]);
           restoreDraft?.();
           return;
         }
-        // Только текст: команда не уносит с собой отложенные вложения — они приложены
-        // к вопросу, который пользователь ещё задаст, и переживают сжатие.
-        clearDraftText(activeChatId);
-        await compactChat(activeChatId, text, command.args);
+        // Черновик чистим только после реального старта: отказать может и сервер
+        // (чат занят, сжимать нечего, запрос не дошёл), а черновик — единственное
+        // место, откуда вернуть набранное: поле стёрло текст ещё на отправке.
+        // Уходит из него только текст: отложенные вложения приложены к вопросу,
+        // который пользователь ещё задаст, и сжатие переживают.
+        if (await compactChat(activeChatId, text, command.args)) clearDraftText(activeChatId);
+        else restoreDraft?.();
         return;
       }
 

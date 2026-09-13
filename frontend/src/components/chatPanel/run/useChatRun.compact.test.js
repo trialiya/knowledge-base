@@ -19,6 +19,7 @@ describe('useChatRun — старт сжатия', () => {
   let chats;
 
   let restoreDraft;
+  let clearDraftText;
   let notify;
 
   const setup = (activeChatId = CHAT) => {
@@ -34,7 +35,7 @@ describe('useChatRun — старт сжатия', () => {
         patchMessages: vi.fn(),
         selectChat: vi.fn(),
         clearDraft: vi.fn(),
-        clearDraftText: vi.fn(),
+        clearDraftText,
         restoreDraft,
         getStagedFor: () => [],
         modelConfig: { defaultModel: { id: 'gpt' } },
@@ -50,8 +51,9 @@ describe('useChatRun — старт сжатия', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     restoreDraft = vi.fn();
+    clearDraftText = vi.fn();
     notify = vi.fn();
-    chats = [{ id: CHAT, runId: null, messages: [] }];
+    chats = [{ id: CHAT, runId: null, messages: [{ sender: 'user', text: 'привет' }] }];
   });
 
   // Ждать COMPACT_STARTED нельзя: событие идёт своим путём и может отстать, а плашка «сжимаю…»
@@ -91,5 +93,40 @@ describe('useChatRun — старт сжатия', () => {
     expect(chatApi.compact).not.toHaveBeenCalled();
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ messageKey: 'compact.draftMessage' }));
     expect(restoreDraft).toHaveBeenCalled();
+  });
+
+  // id у чата бывает и без единого сообщения: его выдаёт вложение, приложенное к ещё
+  // не заданному вопросу. Сжимать там нечего, и узнать это должен композер — а не
+  // ответ 422 после отправки.
+  test('в чате с id, но без сообщений сжатие отклонено на месте', async () => {
+    chats = [{ id: CHAT, runId: null, messages: [] }];
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('/compact ужми'));
+
+    expect(chatApi.compact).not.toHaveBeenCalled();
+    expect(restoreDraft).toHaveBeenCalled();
+  });
+
+  // Отказать может и сервер — тогда набранное возвращает он же. Черновик для этого
+  // чистится только после реального старта, иначе возвращать было бы нечего.
+  test('отказ сервера возвращает набранное и не трогает черновик', async () => {
+    chatApi.compact.mockRejectedValue({ status: 422 });
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('/compact ужми'));
+
+    expect(clearDraftText).not.toHaveBeenCalled();
+    expect(restoreDraft).toHaveBeenCalled();
+  });
+
+  test('удачный старт черновик чистит, а возвращать нечего', async () => {
+    chatApi.compact.mockResolvedValue({ runId: 'op-1', messageId: 9 });
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('/compact ужми'));
+
+    expect(clearDraftText).toHaveBeenCalledWith(CHAT);
+    expect(restoreDraft).not.toHaveBeenCalled();
   });
 });

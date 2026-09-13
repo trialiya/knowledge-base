@@ -133,7 +133,11 @@ const MessageInput = ({
   const command = parseChatCommand(text);
   const commandBlock = chatCommandBlock(command, {
     running: generating,
-    chatStarted: chatId !== DRAFT_CHAT_ID,
+    // «Есть что сжимать» — это не «у чата есть id»: id выдаёт и вложение, приложенное
+    // к первому, ещё не заданному вопросу. `isEmpty` считан тем же признаком, что
+    // спрашивает отправка (messages/chatHistory.js), и на незагруженной истории он
+    // false — подсказка не назовёт пустым чат, который просто не доехал.
+    chatStarted: chatId !== DRAFT_CHAT_ID && !isEmpty,
   });
   const sendDisabled = !text.trim() || sending;
 
