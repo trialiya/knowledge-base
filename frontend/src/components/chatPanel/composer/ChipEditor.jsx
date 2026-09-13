@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useImperativeHandle } from 'react';
 import {
   serialize,
-  makeChipEl,
+  breakLineAtCaret,
   renderValue,
   placeCaretEnd,
   normalizeTrailingSentinel,
@@ -11,11 +11,13 @@ import {
   placeCaretAtOffset,
 } from './fileChipEditorDom';
 import FilePickerDropdown from './FilePickerDropdown';
+import SlashMenuDropdown from './SlashMenuDropdown';
 import FileChipPreview from './FileChipPreview';
 import RichTextEditor from './RichTextEditor';
 import useChipPicker from './useChipPicker';
 import useChipPreview from './useChipPreview';
 import useCommandHighlight from './useCommandHighlight';
+import useSlashMenu from './useSlashMenu';
 
 // ── Компонент ─────────────────────────────────────────────────────────────────
 // Композер чата: rich-text редактор с чипами файлов и документов (/file, /doc).
@@ -23,14 +25,15 @@ import useCommandHighlight from './useCommandHighlight';
 // вставкой чипа в DOM; сам div рендерит RichTextEditor. Логику выпадающего
 // списка и превью чипа держат хуки useChipPicker / useChipPreview.
 
-function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, project, ref }) {
+// commandState — условия, по которым список со слэша гасит невыполнимую сейчас
+// команду (см. chatCommandBlock). Без него — пустые условия: список назовёт
+// невыполнимым то, что могло бы пройти, но не наоборот.
+function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, project, commandState = {}, ref }) {
   const editorRef = useRef(null);
   const internalRef = useRef(value);
   // Идёт программная вставка (handlePaste): её промежуточные input-события
   // пропускаем, см. handleInput.
   const pastingRef = useRef(false);
-
-  const { picker, triggerRef, detectTrigger, dismissPicker, moveSelection, tokenFor } = useChipPicker(project);
 
   useImperativeHandle(ref, () => ({
     focus: () => editorRef.current?.focus(),
@@ -85,6 +88,18 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
     onChange(v);
   }, [onChange]);
 
+  const { picker, detectTrigger, dismissPicker, moveSelection, insertItem, insertItemWithContent } = useChipPicker(
+    project,
+    editorRef,
+    emitChange,
+  );
+
+  // Список со слэша считается по набранному, а владение отдаётся поиску чипа,
+  // как только тот узнал полный триггер: два списка у одной каретки перекрыли бы
+  // друг друга. Стёрли до неполного — список вернулся.
+  const slash = useSlashMenu(value);
+  const slashOpen = slash.open && !picker.open;
+
   const {
     preview,
     openFromChip,
@@ -123,40 +138,28 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
     clearPreview();
   }, [emitChange, detectTrigger, clearPreview]);
 
-  const doInsert = useCallback(
-    (token) => {
-      const trig = triggerRef.current;
+  // Выбранное в списке со слэша дописывается обычным текстом: команда не чип, в
+  // токен ей разворачиваться не во что, а дальше её ведёт подсветка. Поле в этот
+  // момент состоит из одного набранного префикса (slashMenuItems), поэтому
+  // заменяем его целиком — execCommand поверх выделения, чтобы вставка попала в
+  // нативный стек отмены.
+  const insertSlashItem = useCallback(
+    (item) => {
       const root = editorRef.current;
-      if (!trig || !root) return;
-      const { node, start, cursorOffset } = trig;
-
-      const before = node.nodeValue.slice(0, start);
-      const after = node.nodeValue.slice(cursorOffset);
-
-      const chip = makeChipEl(token, project);
-      const tail = document.createTextNode(' ' + after);
-      node.nodeValue = before;
-      node.after(chip, tail);
-
+      if (!root) return;
+      root.focus();
       const sel = window.getSelection();
       const range = document.createRange();
-      range.setStart(tail, 1);
-      range.collapse(true);
+      range.selectNodeContents(root);
       sel.removeAllRanges();
       sel.addRange(range);
-
-      dismissPicker();
+      document.execCommand('insertText', false, `${item.trigger} `);
       emitChange();
-      root.focus();
+      // Триггер чипа дописан целиком — поиск открывается сразу, без лишнего символа.
+      detectTrigger();
     },
-    [triggerRef, dismissPicker, emitChange, project],
+    [emitChange, detectTrigger],
   );
-
-  // Вставить ссылку (по умолчанию: Enter / клик по строке)
-  const insertItem = useCallback((item) => doInsert(tokenFor(item, false)), [doInsert, tokenFor]);
-
-  // Вставить с содержимым (кнопка в дропдауне)
-  const insertItemWithContent = useCallback((item) => doInsert(tokenFor(item, true)), [doInsert, tokenFor]);
 
   // Сбрасываем форматирование при вставке — вставляем только plain text.
   // insertPlainText делает это через execCommand, поэтому вставка попадает в
@@ -211,6 +214,24 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
 
   const handleKeyDown = useCallback(
     (e) => {
+      if (slashOpen) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          slash.move(e.key === 'ArrowDown' ? 1 : -1);
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          insertSlashItem(slash.items[slash.idx]);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          slash.dismiss();
+          return;
+        }
+      }
+
       if (picker.open) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
@@ -242,47 +263,14 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
         }
       } else if (e.key === 'Enter' && e.shiftKey) {
         e.preventDefault();
-        const sel2 = window.getSelection();
-        if (sel2?.rangeCount) {
-          const r2 = sel2.getRangeAt(0);
-          r2.deleteContents();
-
-          const br = document.createElement('br');
-          r2.insertNode(br);
-
-          // Ставим курсор сразу после нового <br>. Sentinel (filler для видимой
-          // пустой строки) добавит emitChange → normalizeTrailingSentinel, но
-          // только если <br> оказался хвостовым; если за ним есть контент, он сам
-          // рисует новую строку и лишний sentinel не создаёт второй пустой строки.
-          const newRange = document.createRange();
-          newRange.setStartAfter(br);
-          newRange.collapse(true);
-          sel2.removeAllRanges();
-          sel2.addRange(newRange);
-
-          emitChange();
-
-          // Scroll the editor so the cursor line is visible.
-          // A collapsed range after a <br> returns zero rects, so we measure
-          // via a temporary inline span inserted at the cursor position.
-          requestAnimationFrame(() => {
-            const editorEl = editorRef.current;
-            if (!editorEl) return;
-            const tmp = document.createElement('span');
-            br.after(tmp);
-            const tmpRect = tmp.getBoundingClientRect();
-            tmp.remove();
-            const editorRect = editorEl.getBoundingClientRect();
-            if (tmpRect.bottom > editorRect.bottom - 4) {
-              editorEl.scrollTop += tmpRect.bottom - editorRect.bottom + 10;
-            }
-          });
-        } else {
-          emitChange();
-        }
+        breakLineAtCaret(editorRef.current);
+        emitChange();
       }
     },
     [
+      slashOpen,
+      slash,
+      insertSlashItem,
       picker.open,
       picker.results,
       picker.idx,
@@ -329,7 +317,12 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         onClick={handleClick}
-        onBlur={() => setTimeout(() => dismissPicker(), 120)}
+        onBlur={() =>
+          setTimeout(() => {
+            dismissPicker();
+            slash.dismiss();
+          }, 120)
+        }
       />
 
       {picker.open && (
@@ -343,6 +336,17 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
           onSelectWithContent={insertItemWithContent}
           onDismiss={dismissPicker}
           type={picker.type}
+        />
+      )}
+
+      {slashOpen && (
+        <SlashMenuDropdown
+          items={slash.items}
+          query={value}
+          selectedIdx={slash.idx}
+          commandState={commandState}
+          onSelect={insertSlashItem}
+          onDismiss={slash.dismiss}
         />
       )}
 

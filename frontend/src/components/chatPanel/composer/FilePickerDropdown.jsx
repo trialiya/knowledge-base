@@ -1,11 +1,26 @@
-import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import highlightMatch, { highlightFileMatch } from '@/components/common/search/highlightMatch';
 import { IconFileText } from '@/icons/index';
+import PickerDropdown from './PickerDropdown';
+
+/** Строка выдачи: чем документ отличается от файла — только подписями и иконкой. */
+const describe = (node, query, type) => {
+  if (type === 'doc') {
+    return {
+      key: node.id,
+      icon: node.type === 'folder' ? '📁' : '📋',
+      name: highlightMatch(node.title, query),
+      path: <>#{highlightMatch(String(node.id), query)}</>,
+    };
+  }
+  const { name, dir } = highlightFileMatch(node.name, node.path, query);
+  // Файл в корне репозитория: каталога нет, и во второй строке повторяется имя —
+  // тем же размеченным узлом, иначе на ней пропадает подсветка совпадения.
+  return { key: node.path, icon: <IconFileText size={13} />, name, path: dir || name, pathTitle: node.path };
+};
 
 /**
- * Плавающий список результатов поиска для триггеров `/file` и `/doc`.
- * Открывается НАД кареткой (композер прижат к низу окна).
+ * Результаты поиска по триггеру чипа (`/file`, `/doc`) — над кареткой.
  *
  * Props:
  *   results              — GitFileNode[] | DocumentNode[]
@@ -30,19 +45,6 @@ const FilePickerDropdown = ({
   type = 'file',
 }) => {
   const { t } = useTranslation('chat');
-  const listRef = useRef(null);
-
-  useEffect(() => {
-    listRef.current?.children[selectedIdx]?.scrollIntoView({ block: 'nearest' });
-  }, [selectedIdx]);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (!e.target.closest?.('.file-picker-dropdown')) onDismiss();
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onDismiss]);
 
   if (!anchorRect) return null;
 
@@ -53,111 +55,76 @@ const FilePickerDropdown = ({
     zIndex: 9100,
   };
 
-  const hintKey = query
-    ? type === 'doc'
-      ? t('docInput.hintQuery', { query })
-      : t('fileInput.hintQuery', { query })
-    : type === 'doc'
-    ? t('docInput.hintStart')
-    : t('fileInput.hintStart');
-
-  const searchingLabel = type === 'doc' ? t('docInput.searching') : t('fileInput.searching');
-  const emptyLabel = type === 'doc' ? t('docInput.empty') : t('fileInput.empty');
+  const ns = type === 'doc' ? 'docInput' : 'fileInput';
+  const hint = query ? t(`${ns}.hintQuery`, { query }) : t(`${ns}.hintStart`);
   const contentBtnLabel = t('fileInput.insertContent');
 
-  return (
-    <div className="file-picker-dropdown" style={style}>
-      <div className="file-picker-dropdown__header">
-        <span className="file-picker-dropdown__hint">{hintKey}</span>
-      </div>
-
+  const above = (
+    <>
       {loading && (
-        <div className="file-picker-dropdown__loading">
-          <span className="file-picker-dropdown__spinner" />
-          {searchingLabel}
+        <div className="picker-dropdown__loading">
+          <span className="picker-dropdown__spinner" />
+          {t(`${ns}.searching`)}
         </div>
       )}
-
       {!loading && results.length === 0 && query.length >= 1 && (
-        <div className="file-picker-dropdown__empty">{emptyLabel}</div>
+        <div className="picker-dropdown__empty">{t(`${ns}.empty`)}</div>
       )}
+    </>
+  );
 
-      <div className="file-picker-dropdown__list" ref={listRef}>
-        {type === 'doc'
-          ? results.map((node, i) => (
-              <div
-                key={node.id}
-                className={`file-picker-item ${i === selectedIdx ? 'file-picker-item--selected' : ''}`}
+  const footer = (
+    <>
+      <kbd>↑↓</kbd> {t('fileInput.navigate')} · <kbd>Enter</kbd> {t('fileInput.insertRef')} · <kbd>Esc</kbd>{' '}
+      {t('fileInput.dismiss')}
+    </>
+  );
+
+  return (
+    <PickerDropdown
+      style={style}
+      hint={hint}
+      above={above}
+      footer={footer}
+      selectedIdx={selectedIdx}
+      onDismiss={onDismiss}
+    >
+      {results.map((node, i) => {
+        const item = describe(node, query, type);
+        return (
+          <div
+            key={item.key}
+            className={`picker-item ${i === selectedIdx ? 'picker-item--selected' : ''}`}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onSelect(node);
+            }}
+          >
+            <span className="picker-item__icon">{item.icon}</span>
+            <span className="picker-item__body">
+              <span className="picker-item__name">{item.name}</span>
+              <span className="picker-item__path" title={item.pathTitle}>
+                {item.path}
+              </span>
+            </span>
+            <div className="picker-item__actions">
+              <button
+                type="button"
+                className="picker-item__content-btn"
+                title={contentBtnLabel}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  onSelect(node);
+                  e.stopPropagation();
+                  onSelectWithContent(node);
                 }}
               >
-                <span className="file-picker-item__icon">{node.type === 'folder' ? '📁' : '📋'}</span>
-                <span className="file-picker-item__body">
-                  <span className="file-picker-item__name">{highlightMatch(node.title, query)}</span>
-                  <span className="file-picker-item__path">#{highlightMatch(String(node.id), query)}</span>
-                </span>
-                <div className="file-picker-item__actions">
-                  <button
-                    type="button"
-                    className="file-picker-item__content-btn"
-                    title={contentBtnLabel}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onSelectWithContent(node);
-                    }}
-                  >
-                    📄 {contentBtnLabel}
-                  </button>
-                </div>
-              </div>
-            ))
-          : results.map((node, i) => {
-              const { name, dir } = highlightFileMatch(node.name, node.path, query);
-              return (
-                <div
-                  key={node.path}
-                  className={`file-picker-item ${i === selectedIdx ? 'file-picker-item--selected' : ''}`}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    onSelect(node);
-                  }}
-                >
-                  <span className="file-picker-item__icon">
-                    <IconFileText size={13} />
-                  </span>
-                  <span className="file-picker-item__body">
-                    <span className="file-picker-item__name">{name}</span>
-                    <span className="file-picker-item__path" title={node.path}>
-                      {dir || name}
-                    </span>
-                  </span>
-                  <div className="file-picker-item__actions">
-                    <button
-                      type="button"
-                      className="file-picker-item__content-btn"
-                      title={contentBtnLabel}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onSelectWithContent(node);
-                      }}
-                    >
-                      📄 {contentBtnLabel}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-      </div>
-
-      <div className="file-picker-dropdown__footer">
-        <kbd>↑↓</kbd> {t('fileInput.navigate')} · <kbd>Enter</kbd> {t('fileInput.insertRef')} · <kbd>Esc</kbd>{' '}
-        {t('fileInput.dismiss')}
-      </div>
-    </div>
+                📄 {contentBtnLabel}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </PickerDropdown>
   );
 };
 

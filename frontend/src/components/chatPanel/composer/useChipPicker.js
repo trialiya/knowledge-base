@@ -1,11 +1,12 @@
 // ─── Search picker for /file и /doc триггеров ────────────────────────────────
-// Хук владеет всем состоянием и async'ом выпадающего списка: детектирование
-// триггера у каретки, дебаунс-поиск с отменой, навигация по результатам и
-// разрешение выбранного элемента в токен. DOM-вставку чипа делает сам компонент
-// (ему принадлежит редактор), а хук только отдаёт триггер и токен.
+// Хук владеет всем выпадающим списком чипа: детектирование триггера у каретки,
+// дебаунс-поиск с отменой, навигация по результатам и вставка выбранного чипом
+// в поле. Триггер наружу не отдаётся — на нём держится и поиск, и вставка, и
+// разошлись бы они молча.
 
 import { useState, useRef, useCallback } from 'react';
 import { detectTriggerInText, tokenForItem, TRIGGER_TYPES } from './chipTriggers';
+import { makeChipEl } from './fileChipEditorDom';
 
 const DEBOUNCE_MS = 200;
 
@@ -23,8 +24,10 @@ const INITIAL = {
  * @param project репозиторий активного чата — в нём и ищет `/file`. Обычный
  *   параметр, а не зеркало в рефе: значение просто входит в зависимости
  *   runSearch, иначе колбэк застрял бы на проекте, открытом при монтировании.
+ * @param editorRef поле композера: вставка чипа правит его DOM на месте.
+ * @param emitChange снять значение с поля после вставки.
  */
-export default function useChipPicker(project) {
+export default function useChipPicker(project, editorRef, emitChange) {
   const [picker, setPicker] = useState(INITIAL);
   // Триггер, вокруг которого откроется список: узел, границы команды и тип.
   const triggerRef = useRef(null);
@@ -93,5 +96,41 @@ export default function useChipPicker(project) {
     [project],
   );
 
-  return { picker, triggerRef, detectTrigger, dismissPicker, moveSelection, tokenFor };
+  // Заменить набранный триггер чипом. Правим DOM на месте, а не через renderValue:
+  // та пересобирает поле целиком и стирает нативный стек отмены.
+  const doInsert = useCallback(
+    (token) => {
+      const trig = triggerRef.current;
+      const root = editorRef?.current;
+      if (!trig || !root) return;
+      const { node, start, cursorOffset } = trig;
+
+      const before = node.nodeValue.slice(0, start);
+      const after = node.nodeValue.slice(cursorOffset);
+
+      const chip = makeChipEl(token, project);
+      const tail = document.createTextNode(' ' + after);
+      node.nodeValue = before;
+      node.after(chip, tail);
+
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.setStart(tail, 1);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      dismissPicker();
+      emitChange();
+      root.focus();
+    },
+    [editorRef, dismissPicker, emitChange, project],
+  );
+
+  /** Вставить ссылку (Enter / клик по строке). */
+  const insertItem = useCallback((item) => doInsert(tokenFor(item, false)), [doInsert, tokenFor]);
+  /** Вставить с содержимым (кнопка в строке). */
+  const insertItemWithContent = useCallback((item) => doInsert(tokenFor(item, true)), [doInsert, tokenFor]);
+
+  return { picker, detectTrigger, dismissPicker, moveSelection, insertItem, insertItemWithContent };
 }

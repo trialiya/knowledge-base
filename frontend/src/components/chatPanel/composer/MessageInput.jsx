@@ -129,16 +129,19 @@ const MessageInput = ({
 
   // Набранное — команда чату, а не вопрос модели. И разбор, и правило «пройдёт ли
   // она сейчас» спрашиваем те же, что сработают на отправке (useChatRun), иначе
-  // поле обещало бы одно, а уходило другое.
+  // поле обещало бы одно, а уходило другое. По тому же правилу список со слэша
+  // гасит строку команды, которую сейчас не выполнить, — оттого и передаём его
+  // условия целиком, а не готовый ответ.
   const command = parseChatCommand(text);
-  const commandBlock = chatCommandBlock(command, {
+  const commandState = {
     running: generating,
     // «Есть что сжимать» — это не «у чата есть id»: id выдаёт и вложение, приложенное
     // к первому, ещё не заданному вопросу. `isEmpty` считан тем же признаком, что
     // спрашивает отправка (messages/chatHistory.js), и на незагруженной истории он
     // false — подсказка не назовёт пустым чат, который просто не доехал.
     chatStarted: chatId !== DRAFT_CHAT_ID && !isEmpty,
-  });
+  };
+  const commandBlock = chatCommandBlock(command, commandState);
   const sendDisabled = !text.trim() || sending;
 
   return (
@@ -182,6 +185,7 @@ const MessageInput = ({
           disabled={busy}
           placeholder={t('input.placeholder')}
           chatId={chatId}
+          commandState={commandState}
         />
       </div>
 
