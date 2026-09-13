@@ -69,9 +69,7 @@ describe('chatCommandBlock', () => {
   });
 
   it('в ещё не начатом чате сжимать нечего', () => {
-    expect(chatCommandBlock(compact, { running: false, chatStarted: false })).toBe(
-      COMMAND_BLOCK.NOTHING_TO_COMPACT,
-    );
+    expect(chatCommandBlock(compact, { running: false, chatStarted: false })).toBe(COMMAND_BLOCK.NOTHING_TO_COMPACT);
   });
 
   it('занятость важнее: она мешает любой команде, а не только сжатию', () => {
