@@ -1,5 +1,5 @@
 import { createRef } from 'react';
-import { render } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 import ChipEditor from './ChipEditor';
 import { getCaretOffset } from './fileChipEditorDom';
 
@@ -13,9 +13,9 @@ vi.mock('@/api/documentsApi', () => ({
 
 const editor = () => document.querySelector('.message-input--rich');
 
-function renderEditor(value) {
+function renderEditor(value, overrides = {}) {
   const ref = createRef();
-  const props = { onChange: () => {}, onSend: () => {}, placeholder: '' };
+  const props = { onChange: () => {}, onSend: () => {}, placeholder: '', ...overrides };
   const { rerender } = render(<ChipEditor ref={ref} value="" {...props} />);
   rerender(<ChipEditor ref={ref} value={value} {...props} />);
   return ref;
@@ -41,5 +41,20 @@ describe('ChipEditor', () => {
     ref.current.focusEnd();
 
     expect(getCaretOffset(editor())).toBe(value.length);
+  });
+
+  // Регрессия: список со слэша забирал себе любой Enter, и Shift+Enter в поле с
+  // одним набранным префиксом заменял его выбранной командой вместо переноса.
+  it('Shift+Enter при открытом списке со слэша переносит строку, а не вставляет пункт', () => {
+    const onChange = vi.fn();
+    const onSend = vi.fn();
+    const ref = renderEditor('/c', { onChange, onSend });
+
+    ref.current.focusEnd();
+    fireEvent.keyDown(editor(), { key: 'Enter', shiftKey: true });
+
+    expect(onChange).toHaveBeenCalledWith('/c\n');
+    expect(onSend).not.toHaveBeenCalled();
+    expect(editor().textContent).not.toContain('compact');
   });
 });

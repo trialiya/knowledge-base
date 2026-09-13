@@ -212,6 +212,9 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
     [onChange, handleInput, project],
   );
 
+  // Enter у каретки принадлежит открытому списку, Shift+Enter — нет: перенос
+  // строки в композере работает всегда. Списку он и не нужен — вставка со слэша
+  // заменяет поле целиком, так что набранное уехало бы молча, вместе с переносом.
   const handleKeyDown = useCallback(
     (e) => {
       if (slashOpen) {
@@ -220,7 +223,7 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
           slash.move(e.key === 'ArrowDown' ? 1 : -1);
           return;
         }
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           insertSlashItem(slash.items[slash.idx]);
           return;
@@ -243,7 +246,7 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
           moveSelection(-1);
           return;
         }
-        if (e.key === 'Enter' && picker.results.length > 0) {
+        if (e.key === 'Enter' && !e.shiftKey && picker.results.length > 0) {
           e.preventDefault();
           insertItem(picker.results[picker.idx]);
           return;
@@ -264,6 +267,9 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
       } else if (e.key === 'Enter' && e.shiftKey) {
         e.preventDefault();
         breakLineAtCaret(editorRef.current);
+        // Перенос уводит каретку от триггера, вокруг которого открыт поиск чипа,
+        // а detectTrigger по этому пути не зовётся — снимаем список сами.
+        dismissPicker();
         emitChange();
       }
     },
