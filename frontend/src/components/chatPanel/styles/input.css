@@ -161,3 +161,40 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* ── Команда чату в поле ввода (ChipEditor + CommandHint) ──
+   Сообщение, начинающееся с `/compact`, уйдёт не модели, а чату, и до отправки
+   ничем не отличается от вопроса со слэшем. Показываем это двумя способами:
+   строкой над полем — она есть везде — и подсветкой самого токена. Рамке поля
+   сказать тут нечего: набирают команду в поле с фокусом, а фокус уже красит
+   рамку акцентным цветом. */
+.composer-command {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.3rem 1rem 0;
+  font-size: 0.72rem;
+  background: var(--kb-bg);
+  flex-shrink: 0;
+  user-select: none;
+}
+.composer-command__label {
+  color: var(--kb-accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.composer-command__what {
+  color: var(--kb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Подсветка самого токена (composer/useCommandHighlight.js). Имена подсветки
+   глобальны для документа, поэтому правило лежит у той поверхности, которая имя
+   объявляет. Заливка непрозрачная — под ней белый фон поля. В браузерах без
+   Custom Highlight API правило игнорируется: остаётся строка над полем. */
+::highlight(kb-composer-command) {
+  background-color: var(--kb-accent-bg);
+  color: var(--kb-accent);
+}

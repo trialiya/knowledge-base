@@ -4,10 +4,12 @@ import Phrases from './Phrases';
 import RunStatus from './RunStatus';
 import PhraseFillModal from './PhraseFillModal';
 import ChipEditor from './ChipEditor';
+import CommandHint from './CommandHint';
 import ComposerToolbar from './ComposerToolbar';
 import ContextChips from './ContextChips';
 import { expandTokensForSend } from './fileChips';
 import { parsePlaceholders } from './phrasePlaceholders';
+import { parseChatCommand } from '../run/chatCommands';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки.
 // busy — писать некуда: идёт сжатие контекста или прогон ещё не назвал свой runId.
@@ -124,6 +126,10 @@ const MessageInput = ({
     else insertPhrase(phraseText);
   };
 
+  // Набранное — команда чату, а не вопрос модели. Спрашиваем тот же разбор, что
+  // сработает на отправке (useChatRun), иначе поле обещало бы одно, а уходило
+  // другое.
+  const command = parseChatCommand(text);
   const sendDisabled = !text.trim() || sending;
 
   return (
@@ -151,6 +157,8 @@ const MessageInput = ({
 
       {/* Детали идущего прогона — поле при нём не блокируется, и строка объясняет, чем чат занят. */}
       {run && <RunStatus startedAt={run.startedAt} inputGrowth={run.inputGrowth} />}
+
+      <CommandHint command={command} />
 
       <div className="message-input-wrapper">
         <ChipEditor

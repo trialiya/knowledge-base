@@ -15,6 +15,7 @@ import FileChipPreview from './FileChipPreview';
 import RichTextEditor from './RichTextEditor';
 import useChipPicker from './useChipPicker';
 import useChipPreview from './useChipPreview';
+import useCommandHighlight from './useCommandHighlight';
 
 // ── Компонент ─────────────────────────────────────────────────────────────────
 // Композер чата: rich-text редактор с чипами файлов и документов (/file, /doc).
@@ -66,6 +67,11 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
     if (editorRef.current) renderValue(editorRef.current, value, project);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Подсветка команды чату (`/compact`) — после эффектов, которые перерисовывают
+  // поле: её Range'и держат конкретные текстовые узлы и пережить их замену не
+  // могут, поэтому считаются по уже нарисованному DOM.
+  useCommandHighlight(editorRef, value);
 
   const emitChange = useCallback(() => {
     const root = editorRef.current;

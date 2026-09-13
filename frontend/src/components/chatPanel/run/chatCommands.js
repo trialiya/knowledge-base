@@ -19,16 +19,24 @@ const COMMANDS = [{ name: CHAT_COMMAND.COMPACT, triggers: ['/compact', '/сжа�
  * от хвоста пробелом или переносом: `/compactor` — это слово, а не команда с
  * хвостом `or`.
  *
- * @returns {{ name: string, args: string } | null} args — хвост без ведущих пробелов
+ * `start`/`end` — границы самого триггера в переданном тексте. По ним команду
+ * подсвечивают — в композере и в отправленном пузыре, — и это единственный
+ * способ показать ровно то, что сработает на отправке: разбирать текст второй
+ * раз своим правилом значит обещать одно, а отправить другое.
+ *
+ * @returns {{ name: string, args: string, start: number, end: number } | null}
+ *   args — хвост без ведущих пробелов
  */
 export function parseChatCommand(text) {
-  const trimmed = (text || '').trimStart();
+  const src = text || '';
+  const start = src.length - src.trimStart().length;
+  const trimmed = src.slice(start);
   for (const { name, triggers } of COMMANDS) {
     for (const trigger of triggers) {
       if (!trimmed.toLowerCase().startsWith(trigger)) continue;
       const rest = trimmed.slice(trigger.length);
       if (rest !== '' && !/^\s/.test(rest)) continue;
-      return { name, args: rest.trim() };
+      return { name, args: rest.trim(), start, end: start + trigger.length };
     }
   }
   return null;

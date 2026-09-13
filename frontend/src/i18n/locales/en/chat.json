@@ -238,7 +238,11 @@
     "sendDuringRun": "Send without waiting for the reply",
     "stop": "Stop",
     "runTokens": "+{{tokens}} input",
-    "runTokensTooltip": "How much the input grew during this reply — the question, attachments and everything the tools read"
+    "runTokensTooltip": "How much the input grew during this reply — the question, attachments and everything the tools read",
+    "command": {
+      "label": "Command:",
+      "compact": "compact the chat context — this goes to the chat, not the model"
+    }
   },
   "compact": {
     "running": "Compacting the chat context…",

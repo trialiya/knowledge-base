@@ -2559,3 +2559,41 @@
     на большом репозитории, поэтому в кейсе не снят.
     Отказ по файлам оставляет в консоли строку «Failed to load resource: 400» —
     это сам отказ API, а не ошибка страницы.
+
+- id: chat-composer-command-highlighted
+  component: MessageInput
+  path: frontend/src/components/chatPanel/composer/MessageInput.jsx
+  fixture: composerCommand.js#command
+  title: Композер — набранная команда чату видна до отправки
+  status: verified
+  origin:
+    - Сессия 2026-09-13, подсветка команды в композере
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - Над полем строка «Команда: сжать контекст чата — сообщение уйдёт чату, а не модели»
+    - Подсвечен ровно `/compact`; хвост «подробнее про миграции» — обычный текст
+    - Рамка поля обычная, фокусная: собственного цвета у режима команды нет
+  notes: |
+    Подсветка триггера идёт через CSS Custom Highlight API, поэтому на снимке она есть
+    только в браузере с его поддержкой (Chromium стенда — с ним); в остальных видимой
+    частью режима остаётся строка над полем. Соседний кейс с обычным вопросом ловит
+    обратное: слэш посреди текста командой не становится.
+
+- id: chat-composer-slash-mid-text-is-not-a-command
+  component: MessageInput
+  path: frontend/src/components/chatPanel/composer/MessageInput.jsx
+  fixture: composerCommand.js#question
+  title: Композер — слэш посреди вопроса командой не считается
+  status: verified
+  origin:
+    - Сессия 2026-09-13, подсветка команды в композере
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - Строки над полем нет — место под неё не зарезервировано, поле стоит выше
+    - '`/compact` в тексте ничем не выделен'
+  notes: |
+    Граница та же, что у разбора на отправке (`parseChatCommand`): команда обязана
+    начинать сообщение. Её словесные случаи — `/compactor`, ведущие пробелы — держит
+    chatCommands.test.js, сюда вынесен только видимый итог.

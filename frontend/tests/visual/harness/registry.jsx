@@ -5,6 +5,7 @@ import MessageList from '@/components/chatPanel/messages/MessageList';
 import FindBar from '@/components/common/search/FindBar';
 import ChatUsage from '@/components/chatPanel/center/ChatUsage';
 import ComposerToolbar from '@/components/chatPanel/composer/ComposerToolbar';
+import MessageInput from '@/components/chatPanel/composer/MessageInput';
 import PhraseFillModal from '@/components/chatPanel/composer/PhraseFillModal';
 import RunStatus from '@/components/chatPanel/composer/RunStatus';
 import ChatRepoPanel from '@/components/chatPanel/git/ChatRepoPanel';
@@ -50,6 +51,7 @@ import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
 import * as chatUsage from '../fixtures/chatUsage';
 import * as compactNotice from '../fixtures/compactNotice';
+import * as composerCommand from '../fixtures/composerCommand';
 import * as composerToolbar from '../fixtures/composerToolbar';
 import * as detailHeader from '../fixtures/detailHeader';
 import * as fileChangeBlock from '../fixtures/fileChangeBlock';
@@ -391,6 +393,14 @@ const REGISTRY = [
     render: (p) => <ComposerToolbar {...p} onAttach={noop} onSend={noop} onStop={noop} />,
   })),
 
+  // Композер в режиме команды и без него. Рамка `feed`: поле ввода живёт в
+  // колонке ленты и меряется её шириной.
+  ...['command', 'question'].map((name) => ({
+    id: `composerCommand.js#${name}`,
+    frame: 'feed',
+    render: (p) => <MessageInput {...p} onSend={noop} onStop={noop} onAttach={noop} />,
+  })),
+
   // Детали вызова инструмента — по виду результата на кейс (см. cases.yaml,
   // tool-call-detail-*).
   // Окно выше стандартного там, где результат длиннее модалки: тело модалки
@@ -712,6 +722,7 @@ const MODULES = {
   'fileFind.js': fileFind,
   'modalFind.js': modalFind,
   'operationRow.js': operationRow,
+  'composerCommand.js': composerCommand,
   'composerToolbar.js': composerToolbar,
   'phraseFill.js': phraseFill,
   'compactNotice.js': compactNotice,
