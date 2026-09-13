@@ -13,6 +13,7 @@ import io.github.trialiya.kb.tools.RecordingToolCallback;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -197,8 +198,13 @@ public class ToolCallService {
      * context} (строк той же страницы). Статус — UNKNOWN: исход вызова живёт только в мете, а её
      * тут нет; провалившийся вызов выглядит в {@code tool_data} ровно как успешный (текст ошибки
      * лежит на месте результата), и {@code OK} здесь был бы утверждением, которого никто не
-     * проверял. hasDetails=false — намеренно не предлагаем детали для этого синтезированного (не
-     * через {@link #runInvocations}) пути. {@code SKIP_TOOLS} вырезаны, как и там.
+     * проверял. Детали такая плашка предлагает наравне с обычной — {@code callId} лежит в {@code
+     * tool_data}, а {@link #findToolCallDetail} умеет отдать вызов без меты: аргументы, результат
+     * (у оборванного прогона это синтетический «[interrupted — no result]» от {@link
+     * ChatHistoryService#repairDanglingToolCalls}) и тот же UNKNOWN, — но только те, что знает
+     * {@code tool_call_index}: искать вызов больше нечем, и без строки индекса кликабельная плашка
+     * ответила бы одним 404 (история, написанная до самого индекса). {@code SKIP_TOOLS} вырезаны,
+     * как и там.
      */
     public @Nullable List<ToolInvocationMeta> invocationsFor(
             ChatMessageEntity entity, List<ChatMessageEntity> context) {
@@ -219,6 +225,17 @@ public class ToolCallService {
         if (entity.getToolData().toolCalls().stream().noneMatch(call -> hasDetails(call.name()))) {
             return stored;
         }
+        // Детали предлагаем только по вызовам, которые найдёт findToolCallDetail. Запрос — на
+        // синтезированный сегмент, то есть на оборванный прогон, а не на каждое сообщение
+        // страницы.
+        final Set<String> indexed =
+                new HashSet<>(
+                        toolCallIndexRepository.findIndexedCallIds(
+                                entity.getConversationId(),
+                                entity.getToolData().toolCalls().stream()
+                                        .filter(call -> hasDetails(call.name()))
+                                        .map(ToolData.Call::id)
+                                        .toList()));
         final Map<String, String> responseById = new HashMap<>();
         for (ChatMessageEntity row : context) {
             if (row.getType() == MessageType.TOOL
@@ -239,11 +256,11 @@ public class ToolCallService {
                                         ToolInvocationStatus.UNKNOWN,
                                         null,
                                         null,
-                                        false,
+                                        indexed.contains(call.id()),
                                         null,
                                         Compact.truncate(
                                                 responseById.get(call.id()), RESULT_GIST_MAX),
-                                        null))
+                                        call.id()))
                 .toList();
     }
 
