@@ -34,6 +34,7 @@ import ChatSearch from './list/ChatSearch';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
 import { hasOpenModal, hasOverlay } from '@/components/common/layout/overlayStack';
 import { isFindShortcut, isTypingTarget } from '@/components/common/search/findShortcut';
+import { isChatEmpty as chatIsEmpty } from './messages/chatHistory';
 import { IconPlus } from '@/icons/index';
 import './chatWindow.css';
 import ErrorModal from '@/components/common/modal/ErrorModal';
@@ -314,14 +315,9 @@ const ChatWindow = ({
     git.dismissFailure();
   }, [git]);
 
-  // Чат считается пустым ТОЛЬКО когда сообщения уже загружены (messages !== null)
-  // и среди них нет ни одного реального (с полем sender). Пока messages === null
-  // (идёт загрузка старого чата), блок не показываем — иначе он мелькает.
-  const isChatEmpty = useMemo(() => {
-    const msgs = activeChat?.messages;
-    if (!Array.isArray(msgs)) return false; // ещё не загружено
-    return !msgs.some((m) => m && m.sender);
-  }, [activeChat]);
+  // Тот же признак спрашивает отправка, отклоняя `/compact` в чате, который нечем
+  // сжимать, — поэтому он живёт в одном месте, а не двумя копиями условия.
+  const isChatEmpty = useMemo(() => chatIsEmpty(activeChat), [activeChat]);
 
   const handleNewChat = useCallback(() => {
     // Создаём черновик: реального id ещё нет (в URL будет 'new'), на бэк ничего

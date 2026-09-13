@@ -238,7 +238,18 @@
     "sendDuringRun": "Send without waiting for the reply",
     "stop": "Stop",
     "runTokens": "+{{tokens}} input",
-    "runTokensTooltip": "How much the input grew during this reply — the question, attachments and everything the tools read"
+    "runTokensTooltip": "How much the input grew during this reply — the question, attachments and everything the tools read",
+    "command": {
+      "label": "Command:",
+      "toChat": "this goes to the chat, not the model",
+      "name": {
+        "compact": "compact the chat context"
+      },
+      "blocked": {
+        "running": "a reply is in progress, the command will not run",
+        "nothingToCompact": "the chat has not started, there is nothing to compact"
+      }
+    }
   },
   "compact": {
     "running": "Compacting the chat context…",

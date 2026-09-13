@@ -6,8 +6,9 @@ import { RETRY_MODE } from '@/constants/retryMode';
 import { generateUUID } from '@/utils/uuid';
 import { nextMessageId } from '../messages/messageId';
 import { getLastModel, getLastMode } from './lastChoiceStore';
-import { chatLoadErrorNotice, RUN_BUSY_NOTICE, COMPACT_DRAFT_NOTICE } from './chatNotices';
-import { parseChatCommand, CHAT_COMMAND } from './chatCommands';
+import { chatLoadErrorNotice, COMMAND_BLOCK_NOTICE } from './chatNotices';
+import { isChatEmpty } from '../messages/chatHistory';
+import { parseChatCommand, chatCommandBlock, CHAT_COMMAND } from './chatCommands';
 import useRunStarter from './useRunStarter';
 
 /**
@@ -120,23 +121,27 @@ export default function useChatRun({
       // хотя в историю она, как и вопрос, попадает (см. compactChat).
       const command = parseChatCommand(text);
       if (command?.name === CHAT_COMMAND.COMPACT) {
-        // Очереди у сжатия нет: опустошает её терминальная обработка прогона, а у сжатия её не
-        // будет. Поэтому команда во время ответа — отказ, и отказ ДО очистки черновика: поле
-        // ввода уже стёрло текст на отправке, и вернуть его можно только оттуда.
-        if (chatForSend?.runId) {
-          notify(RUN_BUSY_NOTICE);
+        // Почему команда может не пройти, решает общее правило: его же спрашивает композер,
+        // чтобы написать это над полем ДО отправки. Очереди у сжатия нет — опустошает её
+        // терминальная обработка прогона, а у сжатия её не будет, — поэтому команда во время
+        // ответа тоже отказ. Черновик возвращаем на любом отказе: поле ввода стёрло текст на
+        // отправке, и вернуть его можно только отсюда.
+        const block = chatCommandBlock(command, {
+          running: !!chatForSend?.runId,
+          chatStarted: activeChatId !== DRAFT_CHAT_ID && !isChatEmpty(chatForSend),
+        });
+        if (block) {
+          notify(COMMAND_BLOCK_NOTICE[block]);
           restoreDraft?.();
           return;
         }
-        // В ещё не начатом чате сжимать нечего — и заводить его ради команды незачем.
-        if (activeChatId === DRAFT_CHAT_ID) {
-          notify(COMPACT_DRAFT_NOTICE);
-          return;
-        }
-        // Только текст: команда не уносит с собой отложенные вложения — они приложены
-        // к вопросу, который пользователь ещё задаст, и переживают сжатие.
-        clearDraftText(activeChatId);
-        await compactChat(activeChatId, text, command.args);
+        // Черновик чистим только после реального старта: отказать может и сервер
+        // (чат занят, сжимать нечего, запрос не дошёл), а черновик — единственное
+        // место, откуда вернуть набранное: поле стёрло текст ещё на отправке.
+        // Уходит из него только текст: отложенные вложения приложены к вопросу,
+        // который пользователь ещё задаст, и сжатие переживают.
+        if (await compactChat(activeChatId, text, command.args)) clearDraftText(activeChatId);
+        else restoreDraft?.();
         return;
       }
 

@@ -210,6 +210,7 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
   // сжатии), поэтому здесь тот же оптимистичный пузырь, что и у sendMessage: клиент не
   // ждёт эха, чтобы показать, что команда отправлена. Плашку «сжимаю…» заводит отдельное
   // событие COMPACT_STARTED, одинаково во всех вкладках.
+  /** @returns {Promise<boolean>} стартовало ли сжатие: на отказе вызывающий вернёт черновик. */
   const compactChat = useCallback(
     async (conversationId, text, instructions) => {
       const clientMsgId = generateUUID();
@@ -240,6 +241,7 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
               : c.messages,
           }));
         }
+        return true;
       } catch (error) {
         // 409/422 проверяются на бэке ДО сохранения команды — она точно не записалась,
         // откатываем оптимистичный пузырь.
@@ -250,20 +252,21 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
         if (error?.status === 409) {
           removeBubble();
           notify(RUN_BUSY_NOTICE);
-          return;
+          return false;
         }
         // 422 — сжимать нечего: живой контекст уже состоит из одной сводки.
         if (error?.status === 422) {
           removeBubble();
           notify(COMPACT_EMPTY_NOTICE);
-          return;
+          return false;
         }
         console.error('Failed to compact:', error);
         // Запрос мог не удаться уже ПОСЛЕ того, как бэк сохранил команду и начал раунд
         // (обрыв ответа) — тогда откатывать пузырь нельзя, сжатие всё равно идёт.
-        if (await hasActiveRun(conversationId)) return;
+        if (await hasActiveRun(conversationId)) return true;
         removeBubble();
         notify(COMPACT_START_ERROR_NOTICE);
+        return false;
       } finally {
         setPendingRunChatId((cur) => (cur === conversationId ? null : cur));
       }

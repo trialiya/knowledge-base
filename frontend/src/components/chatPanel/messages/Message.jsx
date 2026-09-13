@@ -6,6 +6,7 @@ import DocLinkTooltip from '@/components/common/preview/DocLinkTooltip';
 import '../styles/message.css';
 import MarkdownCodeBlock from '@/components/common/ui/MarkdownCodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
+import UserMessageText from './UserMessageText';
 import MessageContextItems from './MessageContextItems';
 import { formatTokens, hasUsage, usageTooltip } from './tokenUsage';
 import { IconCopySmall, IconCopied } from '@/icons/index';
@@ -133,7 +134,7 @@ const Message = ({
         )
       ) : (
         <>
-          <div className="user-message-text">{text}</div>
+          <UserMessageText text={text} />
           <MessageContextItems items={contextItems} />
           {queued && (
             <div className="message-queued-note" role="status">

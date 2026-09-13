@@ -5,6 +5,7 @@ import MessageList from '@/components/chatPanel/messages/MessageList';
 import FindBar from '@/components/common/search/FindBar';
 import ChatUsage from '@/components/chatPanel/center/ChatUsage';
 import ComposerToolbar from '@/components/chatPanel/composer/ComposerToolbar';
+import MessageInput from '@/components/chatPanel/composer/MessageInput';
 import PhraseFillModal from '@/components/chatPanel/composer/PhraseFillModal';
 import RunStatus from '@/components/chatPanel/composer/RunStatus';
 import ChatRepoPanel from '@/components/chatPanel/git/ChatRepoPanel';
@@ -45,11 +46,13 @@ import { SEARCH_SCOPE, SEARCH_SCOPES } from '@/constants/searchScope';
 import { IconRefresh, IconUpload } from '@/icons/index';
 import * as aiConfig from '../fixtures/aiConfig';
 import * as chatCodeBlocks from '../fixtures/chatCodeBlocks';
+import * as chatCommandMessage from '../fixtures/chatCommandMessage';
 import * as chatFind from '../fixtures/chatFind';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
 import * as chatUsage from '../fixtures/chatUsage';
 import * as compactNotice from '../fixtures/compactNotice';
+import * as composerCommand from '../fixtures/composerCommand';
 import * as composerToolbar from '../fixtures/composerToolbar';
 import * as detailHeader from '../fixtures/detailHeader';
 import * as fileChangeBlock from '../fixtures/fileChangeBlock';
@@ -288,6 +291,12 @@ const REGISTRY = [
     frame: 'center',
     render: (p) => <MessageList conversationId="chat-1" messages={p} />,
   },
+  // Команда в ленте: выделена плашкой, соседний вопрос со слэшем внутри — нет.
+  {
+    id: 'chatCommandMessage.js#sentCommand',
+    frame: 'center',
+    render: (p) => <MessageList conversationId="chat-1" messages={p} />,
+  },
   // Переход к найденному: чат открыт из единого поиска, запрос стоит в адресе.
   // Проверяемое — что бар подставлен, а активное совпадение подсвечено целым
   // сообщением, а не одним вхождением: `steps` тут нет намеренно.
@@ -389,6 +398,14 @@ const REGISTRY = [
     id: `composerToolbar.js#${name}`,
     frame: 'feed',
     render: (p) => <ComposerToolbar {...p} onAttach={noop} onSend={noop} onStop={noop} />,
+  })),
+
+  // Композер в режиме команды и без него. Рамка `feed`: поле ввода живёт в
+  // колонке ленты и меряется её шириной.
+  ...['command', 'question', 'commandBlocked'].map((name) => ({
+    id: `composerCommand.js#${name}`,
+    frame: 'feed',
+    render: (p) => <MessageInput {...p} onSend={noop} onStop={noop} onAttach={noop} />,
   })),
 
   // Детали вызова инструмента — по виду результата на кейс (см. cases.yaml,
@@ -702,6 +719,7 @@ const MODULES = {
   'chatHeader.js': chatHeader,
   'chatFind.js': chatFind,
   'chatCodeBlocks.js': chatCodeBlocks,
+  'chatCommandMessage.js': chatCommandMessage,
   'chatRepo.js': chatRepo,
   'detailHeader.js': detailHeader,
   'detailPanel.js': detailPanel,
@@ -714,6 +732,7 @@ const MODULES = {
   'fileFind.js': fileFind,
   'modalFind.js': modalFind,
   'operationRow.js': operationRow,
+  'composerCommand.js': composerCommand,
   'composerToolbar.js': composerToolbar,
   'phraseFill.js': phraseFill,
   'compactNotice.js': compactNotice,

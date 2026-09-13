@@ -10,6 +10,9 @@
 /** Сжатие контекста: `/compact` и `/сжать`, хвост — фокус сжатия. */
 export const CHAT_COMMAND = { COMPACT: 'compact' };
 
+/** Почему команду сейчас не выполнить (см. chatCommandBlock). */
+export const COMMAND_BLOCK = { RUNNING: 'running', NOTHING_TO_COMPACT: 'nothingToCompact' };
+
 const COMMANDS = [{ name: CHAT_COMMAND.COMPACT, triggers: ['/compact', '/сжать'] }];
 
 /**
@@ -19,17 +22,54 @@ const COMMANDS = [{ name: CHAT_COMMAND.COMPACT, triggers: ['/compact', '/сжа�
  * от хвоста пробелом или переносом: `/compactor` — это слово, а не команда с
  * хвостом `or`.
  *
- * @returns {{ name: string, args: string } | null} args — хвост без ведущих пробелов
+ * `start`/`end` — границы самого триггера в переданном тексте. По ним команду
+ * подсвечивают — в композере и в отправленном пузыре, — и это единственный
+ * способ показать ровно то, что сработает на отправке: разбирать текст второй
+ * раз своим правилом значит обещать одно, а отправить другое.
+ *
+ * @returns {{ name: string, args: string, start: number, end: number } | null}
+ *   args — хвост без ведущих пробелов
  */
 export function parseChatCommand(text) {
-  const trimmed = (text || '').trimStart();
+  const src = text || '';
+  const start = src.length - src.trimStart().length;
+  const trimmed = src.slice(start);
   for (const { name, triggers } of COMMANDS) {
     for (const trigger of triggers) {
       if (!trimmed.toLowerCase().startsWith(trigger)) continue;
       const rest = trimmed.slice(trigger.length);
       if (rest !== '' && !/^\s/.test(rest)) continue;
-      return { name, args: rest.trim() };
+      return { name, args: rest.trim(), start, end: start + trigger.length };
     }
   }
+  return null;
+}
+
+/**
+ * Что помешает выполнить команду прямо сейчас — или null, если ничего.
+ *
+ * Правило одно на двоих: по нему композер пишет над полем, что команда не
+ * сработает, и по нему же отправка отказывает. Разъехавшись, они дали бы поле,
+ * обещающее то, чего отправка не делает, — то же, от чего страхует общий
+ * `parseChatCommand`.
+ *
+ * `chatStarted` — «есть что сжимать», а не «у чата есть id»: id выдаёт и вложение,
+ * приложенное к ещё не заданному вопросу. Обе стороны считают его одинаково —
+ * не черновик и не пустая история (`messages/chatHistory.js`).
+ *
+ * `running` композер знает чуть шире, чем отправка: у него это «чат занят», а у
+ * отправки — «прогону уже выдан runId». Разница — доли секунды между отправкой
+ * вопроса и ответом сервера на неё, и в эту щель композер осторожнее, а не
+ * смелее: он скажет «не сработает» там, где отправка ещё пропустила бы.
+ *
+ * Гарантией это всё равно не делает: сжимать бывает нечего и по причине, которую
+ * знает только сервер (живой контекст уже состоит из одной сводки) — там отказ
+ * приходит ответом 422, и набранное возвращает в поле уже он.
+ */
+export function chatCommandBlock(command, { running, chatStarted }) {
+  if (!command) return null;
+  if (running) return COMMAND_BLOCK.RUNNING;
+  // В ещё не начатом чате сжимать нечего — и заводить его ради команды незачем.
+  if (command.name === CHAT_COMMAND.COMPACT && !chatStarted) return COMMAND_BLOCK.NOTHING_TO_COMPACT;
   return null;
 }

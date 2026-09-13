@@ -16,6 +16,7 @@
  *      используют useTranslation('chat'), а компоненты базы знаний —
  *      useTranslation('knowledgeBase').
  *   5. Каждый инструмент из TOOL_META имеет лейбл в tools.* (ru и en).
+ *   6. Каждая команда чата из CHAT_COMMAND названа в input.command.name.* (ru и en).
  *
  * Динамические ключи (шаблонные строки вроде `tools.${name}`) статически не
  * резолвятся — инструменты покрывает проверка (5).
@@ -38,6 +39,7 @@ import enFiles from './locales/en/files.json';
 import enSearch from './locales/en/search.json';
 
 import { TOOL_META } from '@/components/common/ui/toolNames';
+import { CHAT_COMMAND, COMMAND_BLOCK } from '@/components/chatPanel/run/chatCommands';
 
 // ── Ресурсы по неймспейсам ──────────────────────────────────────────────────
 const RESOURCES = {
@@ -274,6 +276,26 @@ describe('i18n: инструменты (TOOL_META) переведены', () => 
       const translated = Object.keys(RESOURCES[lang].chat.tools || {});
       const orphans = translated.filter((name) => !declared.has(name));
       expect(orphans).toEqual([]);
+    });
+  }
+});
+
+// Подсказку над полем ввода (CommandHint) команда получает по своему имени —
+// ключ там собирается шаблоном, и статической проверкой (4) не ловится.
+describe('i18n: команды чата (CHAT_COMMAND) названы', () => {
+  for (const lang of ['ru', 'en']) {
+    test(`${lang}: у каждой команды есть input.command.name.<name>`, () => {
+      const missing = Object.values(CHAT_COMMAND).filter(
+        (name) => getByPath(RESOURCES[lang].chat, `input.command.name.${name}`) === undefined,
+      );
+      expect(missing).toEqual([]);
+    });
+
+    test(`${lang}: у каждой причины отказа есть input.command.blocked.<reason>`, () => {
+      const missing = Object.values(COMMAND_BLOCK).filter(
+        (reason) => getByPath(RESOURCES[lang].chat, `input.command.blocked.${reason}`) === undefined,
+      );
+      expect(missing).toEqual([]);
     });
   }
 });

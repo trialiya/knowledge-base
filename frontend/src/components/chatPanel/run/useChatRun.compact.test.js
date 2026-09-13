@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { vi, describe, test, expect, beforeEach } from 'vitest';
 import chatApi from '@/api/chatApi';
 import { RUN_KIND } from '@/constants/runKind';
+import { DRAFT_CHAT_ID } from '@/constants/storage';
 import useChatRun from './useChatRun';
 
 vi.mock('@/api/chatApi', () => ({
@@ -17,35 +18,42 @@ describe('useChatRun — старт сжатия', () => {
   const CHAT = 'conv-1';
   let chats;
 
-  const setup = () => {
+  let restoreDraft;
+  let clearDraftText;
+  let notify;
+
+  const setup = (activeChatId = CHAT) => {
     const patchChat = vi.fn((id, patch) => {
       chats = chats.map((c) => (c.id === id ? { ...c, ...(typeof patch === 'function' ? patch(c) : patch) } : c));
     });
     return renderHook(() =>
       useChatRun({
-        activeChatId: CHAT,
+        activeChatId,
         getChats: () => chats,
         setChats: vi.fn(),
         patchChat,
         patchMessages: vi.fn(),
         selectChat: vi.fn(),
         clearDraft: vi.fn(),
-        clearDraftText: vi.fn(),
-        restoreDraft: vi.fn(),
+        clearDraftText,
+        restoreDraft,
         getStagedFor: () => [],
         modelConfig: { defaultModel: { id: 'gpt' } },
         modelOptions: [{ id: 'gpt' }],
         modeOptions: [],
         projectOptions: [{ id: 'kb' }],
         defaultProjectId: 'kb',
-        notify: vi.fn(),
+        notify,
       }),
     );
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    chats = [{ id: CHAT, runId: null, messages: [] }];
+    restoreDraft = vi.fn();
+    clearDraftText = vi.fn();
+    notify = vi.fn();
+    chats = [{ id: CHAT, runId: null, messages: [{ sender: 'user', text: 'привет' }] }];
   });
 
   // Ждать COMPACT_STARTED нельзя: событие идёт своим путём и может отстать, а плашка «сжимаю…»
@@ -72,5 +80,53 @@ describe('useChatRun — старт сжатия', () => {
     await act(() => result.current.sendMessage('/compact ужми'));
 
     expect(chats[0].runStartedAt).toBe(1000);
+  });
+
+  // Композер стирает текст на отправке, и вернуть его может только тот, кто отказал.
+  // Отказ, стоящий пользователю набранного, — худший вид отказа: в поле ввода после
+  // него пусто, а сделать команда ничего не сделала.
+  test('в ещё не начатом чате сжатие отклонено, и набранное возвращается в поле', async () => {
+    const { result } = setup(DRAFT_CHAT_ID);
+
+    await act(() => result.current.sendMessage('/compact ужми'));
+
+    expect(chatApi.compact).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ messageKey: 'compact.draftMessage' }));
+    expect(restoreDraft).toHaveBeenCalled();
+  });
+
+  // id у чата бывает и без единого сообщения: его выдаёт вложение, приложенное к ещё
+  // не заданному вопросу. Сжимать там нечего, и узнать это должен композер — а не
+  // ответ 422 после отправки.
+  test('в чате с id, но без сообщений сжатие отклонено на месте', async () => {
+    chats = [{ id: CHAT, runId: null, messages: [] }];
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('/compact ужми'));
+
+    expect(chatApi.compact).not.toHaveBeenCalled();
+    expect(restoreDraft).toHaveBeenCalled();
+  });
+
+  // Отказать может и сервер — тогда набранное возвращает он же. Черновик для этого
+  // чистится только после реального старта, иначе возвращать было бы нечего.
+  test('отказ сервера возвращает набранное и не трогает черновик', async () => {
+    chatApi.compact.mockRejectedValue({ status: 422 });
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('/compact ужми'));
+
+    expect(clearDraftText).not.toHaveBeenCalled();
+    expect(restoreDraft).toHaveBeenCalled();
+  });
+
+  test('удачный старт черновик чистит, а возвращать нечего', async () => {
+    chatApi.compact.mockResolvedValue({ runId: 'op-1', messageId: 9 });
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('/compact ужми'));
+
+    expect(clearDraftText).toHaveBeenCalledWith(CHAT);
+    expect(restoreDraft).not.toHaveBeenCalled();
   });
 });

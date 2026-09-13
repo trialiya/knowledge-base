@@ -2560,3 +2560,80 @@
     на большом репозитории, поэтому в кейсе не снят.
     Отказ по файлам оставляет в консоли строку «Failed to load resource: 400» —
     это сам отказ API, а не ошибка страницы.
+
+- id: chat-composer-command-highlighted
+  component: MessageInput
+  path: frontend/src/components/chatPanel/composer/MessageInput.jsx
+  fixture: composerCommand.js#command
+  title: Композер — набранная команда чату видна до отправки
+  status: verified
+  origin:
+    - Сессия 2026-09-13, подсветка команды в композере
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - Над полем строка «Команда: сжать контекст чата — сообщение уйдёт чату, а не модели»
+    - Подсвечен ровно `/compact`; хвост «подробнее про миграции» — обычный текст
+    - Рамка поля обычная, фокусная: собственного цвета у режима команды нет
+  notes: |
+    Подсветка триггера идёт через CSS Custom Highlight API, поэтому на снимке она есть
+    только в браузере с его поддержкой (Chromium стенда — с ним); в остальных видимой
+    частью режима остаётся строка над полем. Соседний кейс с обычным вопросом ловит
+    обратное: слэш посреди текста командой не становится.
+
+- id: chat-composer-slash-mid-text-is-not-a-command
+  component: MessageInput
+  path: frontend/src/components/chatPanel/composer/MessageInput.jsx
+  fixture: composerCommand.js#question
+  title: Композер — слэш посреди вопроса командой не считается
+  status: verified
+  origin:
+    - Сессия 2026-09-13, подсветка команды в композере
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - Строки над полем нет — место под неё не зарезервировано, поле стоит выше
+    - '`/compact` в тексте ничем не выделен'
+  notes: |
+    Граница та же, что у разбора на отправке (`parseChatCommand`): команда обязана
+    начинать сообщение. Её словесные случаи — `/compactor`, ведущие пробелы — держит
+    chatCommands.test.js, сюда вынесен только видимый итог.
+
+- id: chat-command-in-feed
+  component: UserMessageText
+  path: frontend/src/components/chatPanel/messages/UserMessageText.jsx
+  fixture: chatCommandMessage.js#sentCommand
+  title: Лента — отправленная команда выделена, а слово со слэшем нет
+  status: verified
+  origin:
+    - Сессия 2026-09-13, подсветка команды в композере
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - Во втором пузыре `/compact` стоит на тёмной плашке моноширинным шрифтом
+    - В первом пузыре `/compact` посреди вопроса ничем не выделен
+    - Плашка ЗАТЕМНЯЕТ пузырь: выделенное читается лучше соседнего текста, а не хуже
+  notes: |
+    Третий пункт — то, ради чего кейс снят: белая вуаль на синем пузыре опускает
+    контраст белого текста с 3.98:1 до 2.96:1, и выделение выходит боком. Тёмная
+    даёт 5.5:1. Цифры считаны по --kb-user-bubble-bg, и правило живёт в bubbles.css.
+
+- id: chat-composer-command-blocked
+  component: MessageInput
+  path: frontend/src/components/chatPanel/composer/MessageInput.jsx
+  fixture: composerCommand.js#commandBlocked
+  title: Композер — команда, которую сейчас не выполнить, названа вместе с причиной
+  status: verified
+  origin:
+    - Сессия 2026-09-13, подсветка команды в композере
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - Строка кончается не «уйдёт чату», а «чат ещё не начат, сжимать нечего»
+    - '«Команда:» набрано приглушённым, а не акцентным: режим назван, но не включён'
+    - Подсветка `/compact` на месте — команда разобрана, просто не выполнима здесь
+  notes: |
+    Причину называет `chatCommandBlock` — то же правило, по которому откажет отправка
+    (useChatRun), поэтому поле не обещает того, чего не будет. Цветом причина не
+    помечена намеренно: на 0.72rem ни красный, ни жёлтый на светлом фоне не дают
+    4.5:1, и сказано всё словами.
