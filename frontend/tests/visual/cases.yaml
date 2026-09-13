@@ -2618,6 +2618,66 @@
     контраст белого текста с 3.98:1 до 2.96:1, и выделение выходит боком. Тёмная
     даёт 5.5:1. Цифры считаны по --kb-user-bubble-bg, и правило живёт в bubbles.css.
 
+- id: chat-composer-slash-menu
+  component: MessageInput
+  path: frontend/src/components/chatPanel/composer/MessageInput.jsx
+  fixture: composerCommand.js#slashMenu
+  title: Композер — слэш открывает один список на два реестра
+  status: verified
+  origin:
+    - Сессия 2026-09-13, список команд в композере
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - 'Разделов два: «Команды чата» (`/compact`) и «Вставить в сообщение» (`/file`, `/doc`)'
+    - У `/compact` показан хвост `<фокус сжатия>`, справа — второй синоним `/сжать`
+    - Список стоит над полем, а не над кареткой, и в поле остаётся набранный слэш
+  notes: |
+    Список один, потому что слэш один: `/file` и `/doc` тоже срабатывают с первого
+    символа (`detectTriggerInText`), и второй дропдаун у той же каретки перекрывал бы
+    этот. Разделы — то самое различие, ради которого их свели вместе: команда уходит
+    чату целиком, триггер лишь дописывается в сообщение.
+
+- id: chat-composer-slash-menu-blocked-command
+  component: MessageInput
+  path: frontend/src/components/chatPanel/composer/MessageInput.jsx
+  fixture: composerCommand.js#slashMenuBlocked
+  title: Композер — невыполнимая команда остаётся в списке с причиной
+  status: verified
+  origin:
+    - Сессия 2026-09-13, список команд в композере
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - '`/compact` набран приглушённым, справа — «чат ещё не начат, сжимать нечего»'
+    - Строка из списка НЕ убрана, вставку она по-прежнему допускает
+    - Триггеры чипов рядом не погашены — им мешать нечему
+  notes: |
+    Ради этого кейса правило и вынесено в общий предикат: причину называет
+    `chatCommandBlock`, тот же, по которому откажет отправка. Прятать строку нельзя —
+    список открывают чаще всего в новом чате, и спрятанная команда оставила бы пустой
+    список ровно тому, кому он нужен.
+
+- id: chat-composer-slash-menu-synonym
+  component: MessageInput
+  path: frontend/src/components/chatPanel/composer/MessageInput.jsx
+  fixture: composerCommand.js#slashMenuFiltered
+  title: Композер — набранный синоним не подменяется каноническим
+  status: verified
+  origin:
+    - Сессия 2026-09-13, список команд в композере
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - 'Строка одна, и в ней `/сжать` — тот триггер, что совпал с набранным `/сж`'
+    - Справа приглушённым стоит второй синоним `/compact`
+    - В шапке — набранное, а не общая подсказка
+  notes: |
+    Команда в списке одна на все свои синонимы: две строки на `/compact` и `/сжать`
+    превратили бы список из двух команд в список из четырёх. Искать при этом надо по
+    всем триггерам, а вставлять совпавший — иначе выбор из списка переписывал бы
+    пользователю набранное.
+
 - id: chat-composer-command-blocked
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx

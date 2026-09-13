@@ -13,7 +13,16 @@ export const CHAT_COMMAND = { COMPACT: 'compact' };
 /** Почему команду сейчас не выполнить (см. chatCommandBlock). */
 export const COMMAND_BLOCK = { RUNNING: 'running', NOTHING_TO_COMPACT: 'nothingToCompact' };
 
-const COMMANDS = [{ name: CHAT_COMMAND.COMPACT, triggers: ['/compact', '/сжать'] }];
+/**
+ * Команды и их триггеры-синонимы. Первый триггер канонический: им команда
+ * называется там, где набранного ещё нет (список со слэша, см.
+ * composer/slashMenu.js).
+ *
+ * `args` — бывает ли у команды хвост-аргумент. Список показывает его подписью
+ * `input.command.args.<имя>`, и она обязательна ровно для таких команд (следит
+ * i18n.test.js): про хвост иначе неоткуда узнать, а пустые ключи заводить не за чем.
+ */
+export const COMMANDS = [{ name: CHAT_COMMAND.COMPACT, triggers: ['/compact', '/сжать'], args: true }];
 
 /**
  * Команда, которой является это сообщение, — или null, если это обычный вопрос.

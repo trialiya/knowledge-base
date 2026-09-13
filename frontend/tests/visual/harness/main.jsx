@@ -95,6 +95,14 @@ const FRAMES = {
       {node}
     </div>
   ),
+  // Композер на своём месте — прижатым к низу ленты. Списки у него открываются
+  // ВВЕРХ (места под полем нет), и в рамке `feed`, где он встаёт первым же
+  // элементом сверху, список уезжает за кромку кадра.
+  composer: (node) => (
+    <div className="message-list" style={{ height: '100vh', width: 860, justifyContent: 'flex-end' }}>
+      {node}
+    </div>
+  ),
   bare: (node) => node,
 };
 

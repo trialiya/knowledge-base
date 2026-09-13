@@ -1,0 +1,199 @@
+/* ── Выпадающий список композера (PickerDropdown) ──
+   Одна оболочка на два списка: поиск файлов и документов по триггеру чипа
+   (FilePickerDropdown) и список со слэша (SlashMenuDropdown). Открывается вверх
+   — композер прижат к низу окна. Позицию задаёт тот, кто список открыл: поиск
+   встаёт над кареткой (fixed по её прямоугольнику), список со слэша — над самим
+   полем (модификатор ниже). */
+.picker-dropdown {
+  width: 500px;
+  max-width: calc(100vw - 24px);
+  background: var(--kb-white);
+  border: 1.5px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
+  overflow: hidden;
+  animation: kb-fade-in-down 0.1s ease;
+}
+.picker-dropdown__header {
+  padding: 6px 12px 5px;
+  background: var(--kb-bg);
+  border-bottom: 1px solid var(--kb-border);
+}
+.picker-dropdown__hint {
+  font-size: 0.74rem;
+  color: var(--kb-muted);
+  font-style: italic;
+}
+.picker-dropdown__loading,
+.picker-dropdown__empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  color: var(--kb-muted);
+  font-style: italic;
+}
+.picker-dropdown__spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--kb-border);
+  border-top-color: var(--kb-accent);
+  border-radius: 50%;
+  animation: kb-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+.picker-dropdown__list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--kb-border-light);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.picker-item:last-child {
+  border-bottom: none;
+}
+.picker-item:hover,
+.picker-item--selected {
+  background: var(--kb-accent-light);
+}
+.picker-item__icon {
+  color: var(--kb-accent);
+  flex-shrink: 0;
+  display: flex;
+}
+.picker-item__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.picker-item__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.picker-item__content-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border: 1px solid var(--kb-border);
+  background: var(--kb-white);
+  border-radius: 3px;
+  font-size: 0.7rem;
+  color: var(--kb-muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s, background 0.1s;
+  white-space: nowrap;
+}
+.picker-item:hover .picker-item__content-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.picker-item__content-btn:hover {
+  color: var(--kb-accent);
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+.picker-item__name {
+  font-size: 0.84rem;
+  color: var(--kb-text);
+  font-weight: 500;
+}
+.picker-item__path {
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* начало пути видно справа → имя файла всегда читаемо */
+  text-align: left;
+}
+.picker-dropdown__footer {
+  padding: 6px 12px;
+  background: var(--kb-bg);
+  border-top: 1px solid var(--kb-border);
+  font-size: 0.7rem;
+  color: var(--kb-muted);
+}
+.picker-dropdown__footer kbd {
+  background: var(--kb-white);
+  border: 1px solid var(--kb-border);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-size: 0.68rem;
+}
+
+/* Список со слэша якорится к полю, а не к каретке: у пустого contenteditable
+   прямоугольник каретки бывает нулевым, и по нему список не нарисовать.
+   `.message-input-wrapper` для этого и position: relative. */
+.picker-dropdown--above-field {
+  position: absolute;
+  left: 1rem;
+  bottom: 100%;
+  max-width: calc(100% - 2rem);
+  z-index: 9100;
+}
+
+/* Заголовок раздела: команда чату или вставка в сообщение. Разделы и есть то
+   различие, ради которого списки сведены в один. */
+.picker-section {
+  padding: 6px 12px 5px;
+  background: var(--kb-bg);
+  border-top: 1px solid var(--kb-border);
+  border-bottom: 1px solid var(--kb-border);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--kb-muted);
+}
+.picker-section:first-child {
+  border-top: none;
+}
+
+/* Сам триггер — моноширинным: его набирают символ в символ, и читается он как
+   токен, а не как слово. */
+.picker-item__trigger {
+  font-family: var(--kb-font-mono);
+}
+
+/* Хвост-аргумент команды: подпись формы, а не справка — о том, что аргумент
+   бывает, иначе узнать неоткуда. */
+.picker-item__args {
+  font-family: var(--kb-font-mono);
+  color: var(--kb-muted);
+}
+/* Второй синоним команды — справа, приглушённым: вставится всё равно тот, что
+   совпал с набранным. */
+.picker-item__alt {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--kb-font-mono);
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+}
+/* Команду сейчас не выполнить. Строку не прячем: список открывают чаще всего в
+   новом чате, где /compact и заблокирован, — спрятанная строка оставила бы
+   пустой список ровно тому, кому он нужен. Набрать её при этом можно: отказ на
+   отправке набранного не съедает (useChatRun возвращает черновик). */
+.picker-item--blocked .picker-item__icon,
+.picker-item--blocked .picker-item__name {
+  color: var(--kb-muted);
+}
+.picker-item__reason {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--kb-muted);
+}

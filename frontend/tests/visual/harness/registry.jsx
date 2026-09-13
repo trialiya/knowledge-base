@@ -408,6 +408,14 @@ const REGISTRY = [
     render: (p) => <MessageInput {...p} onSend={noop} onStop={noop} onAttach={noop} />,
   })),
 
+  // Список со слэша. Рамка `composer`: список открывается вверх, и над полем ему
+  // нужно то же место, что в приложении даёт лента.
+  ...['slashMenu', 'slashMenuBlocked', 'slashMenuFiltered'].map((name) => ({
+    id: `composerCommand.js#${name}`,
+    frame: 'composer',
+    render: (p) => <MessageInput {...p} onSend={noop} onStop={noop} onAttach={noop} />,
+  })),
+
   // Детали вызова инструмента — по виду результата на кейс (см. cases.yaml,
   // tool-call-detail-*).
   // Окно выше стандартного там, где результат длиннее модалки: тело модалки

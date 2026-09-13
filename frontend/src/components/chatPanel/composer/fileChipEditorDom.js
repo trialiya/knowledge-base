@@ -348,3 +348,37 @@ export function placeCaretAtOffset(root, offset) {
   }
   placeCaretEnd(root);
 }
+
+/**
+ * Перенос строки по Shift+Enter: <br> в позицию каретки и курсор сразу за ним.
+ *
+ * Sentinel (filler, без которого пустая последняя строка не видна) добавит
+ * normalizeTrailingSentinel — но только если <br> оказался хвостовым; за ним
+ * есть контент — он и рисует новую строку, второй пустой не появится.
+ */
+export function breakLineAtCaret(root) {
+  const sel = window.getSelection();
+  if (!root || !sel?.rangeCount) return;
+
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  const br = document.createElement('br');
+  range.insertNode(br);
+
+  const after = document.createRange();
+  after.setStartAfter(br);
+  after.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(after);
+
+  // Прокручиваем поле к строке с курсором. Схлопнутый диапазон после <br> не
+  // даёт прямоугольников, поэтому меряем временным inline-узлом на его месте.
+  requestAnimationFrame(() => {
+    const tmp = document.createElement('span');
+    br.after(tmp);
+    const tmpRect = tmp.getBoundingClientRect();
+    tmp.remove();
+    const rootRect = root.getBoundingClientRect();
+    if (tmpRect.bottom > rootRect.bottom - 4) root.scrollTop += tmpRect.bottom - rootRect.bottom + 10;
+  });
+}

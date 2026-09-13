@@ -248,6 +248,19 @@
       "blocked": {
         "running": "a reply is in progress, the command will not run",
         "nothingToCompact": "the chat has not started, there is nothing to compact"
+      },
+      "args": {
+        "compact": "<what to focus on>"
+      },
+      "insert": {
+        "file": "a repository file — as a link or with its content",
+        "doc": "a knowledge base document"
+      },
+      "menu": {
+        "hint": "A chat command or an insertion into the message",
+        "hintQuery": "Search by slash: \"{{query}}\"",
+        "commands": "Chat commands",
+        "inserts": "Insert into the message"
       }
     }
   },

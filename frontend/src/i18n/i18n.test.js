@@ -16,7 +16,10 @@
  *      используют useTranslation('chat'), а компоненты базы знаний —
  *      useTranslation('knowledgeBase').
  *   5. Каждый инструмент из TOOL_META имеет лейбл в tools.* (ru и en).
- *   6. Каждая команда чата из CHAT_COMMAND названа в input.command.name.* (ru и en).
+ *   6. Каждая команда чата из CHAT_COMMAND названа в input.command.name.*, каждая
+ *      причина отказа — в input.command.blocked.*, а всё, что показывает список со
+ *      слэша (хвост команды, подпись триггера чипа), — в input.command.args.* и
+ *      input.command.insert.* (ru и en).
  *
  * Динамические ключи (шаблонные строки вроде `tools.${name}`) статически не
  * резолвятся — инструменты покрывает проверка (5).
@@ -39,7 +42,8 @@ import enFiles from './locales/en/files.json';
 import enSearch from './locales/en/search.json';
 
 import { TOOL_META } from '@/components/common/ui/toolNames';
-import { CHAT_COMMAND, COMMAND_BLOCK } from '@/components/chatPanel/run/chatCommands';
+import { CHAT_COMMAND, COMMAND_BLOCK, COMMANDS } from '@/components/chatPanel/run/chatCommands';
+import { TRIGGER_TYPES } from '@/components/chatPanel/composer/chipTriggers';
 
 // ── Ресурсы по неймспейсам ──────────────────────────────────────────────────
 const RESOURCES = {
@@ -294,6 +298,22 @@ describe('i18n: команды чата (CHAT_COMMAND) названы', () => {
     test(`${lang}: у каждой причины отказа есть input.command.blocked.<reason>`, () => {
       const missing = Object.values(COMMAND_BLOCK).filter(
         (reason) => getByPath(RESOURCES[lang].chat, `input.command.blocked.${reason}`) === undefined,
+      );
+      expect(missing).toEqual([]);
+    });
+
+    // Список со слэша (SlashMenuDropdown) собирает строку из тех же реестров, что
+    // разбирают набранное, — и подписи к ним тоже берёт по имени.
+    test(`${lang}: у команды с хвостом есть input.command.args.<name>`, () => {
+      const missing = COMMANDS.filter(
+        (c) => c.args && getByPath(RESOURCES[lang].chat, `input.command.args.${c.name}`) === undefined,
+      ).map((c) => c.name);
+      expect(missing).toEqual([]);
+    });
+
+    test(`${lang}: у каждого триггера чипа есть input.command.insert.<type>`, () => {
+      const missing = Object.keys(TRIGGER_TYPES).filter(
+        (type) => getByPath(RESOURCES[lang].chat, `input.command.insert.${type}`) === undefined,
       );
       expect(missing).toEqual([]);
     });
