@@ -146,6 +146,7 @@
       "editEnabled": "Script edits allowed in configuration",
       "editActive": "Write methods bound into the sandbox",
       "disabledNote": "The tool is off (kb.script.enabled=false) — the model is never told about scripts, and the test run below is refused.",
+      "missingNote": "kb.script.enabled=true, but runScript is not in the model's tool list — every script the model writes ends the run with «No ToolCallback found for tool name: runScript». The flag this process read and the assembled tool set disagree: check the startup log for «Script tool enabled (runScript)» and Settings → Tools.",
       "readOnlyNote": "Script edits are enabled in the configuration but have no effect: the project's kb.projects[].edit-enabled and a writable working tree are also required."
     },
     "time": {

@@ -80,6 +80,7 @@ export const defaultAiConfig = {
   // заблокированная кнопка запуска.
   script: {
     enabled: false,
+    active: false,
     editEnabled: true,
     editActive: false,
     timeoutSeconds: 10,
@@ -144,5 +145,5 @@ export const strongAndWeakModels = {
  */
 export const scriptEnabled = {
   ...defaultAiConfig,
-  script: { ...defaultAiConfig.script, enabled: true },
+  script: { ...defaultAiConfig.script, enabled: true, active: true },
 };

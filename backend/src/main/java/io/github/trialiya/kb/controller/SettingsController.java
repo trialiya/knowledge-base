@@ -12,6 +12,7 @@ import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.GitEditFunction;
+import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.service.chat.ToolCatalogService;
 import io.github.trialiya.kb.service.chat.ToolCatalogService.ToolInfo;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
@@ -71,6 +72,15 @@ public class SettingsController {
      */
     private final boolean scriptEditActive;
 
+    /**
+     * Whether {@code runScript} is actually in the model's tool list, the same way {@link
+     * #gitEditActive} is the honest answer for the edit tools. {@code kb.script.enabled} alone is
+     * not that answer: it is the flag this process read, while the tool is a bean assembled from it
+     * — and a panel that reports the flag says «enabled» for a chat whose every script ends with
+     * "No ToolCallback found for tool name: runScript".
+     */
+    private final boolean scriptToolActive;
+
     /** The default project's configured opt-in — may be true while the tools are absent. */
     private final boolean gitEditEnabled;
 
@@ -104,6 +114,7 @@ public class SettingsController {
             ScriptProperties scriptProperties,
             ToolCatalogService toolCatalogService,
             ScriptEditPolicy scriptEditPolicy,
+            ObjectProvider<ScriptFunction> scriptFunction,
             ObjectProvider<GitEditFunction> gitEditFunction,
             ObjectProvider<McpSseClientProperties> sseProperties,
             ObjectProvider<McpStreamableHttpClientProperties> streamableHttpProperties,
@@ -127,6 +138,7 @@ public class SettingsController {
         this.scriptProperties = scriptProperties;
         this.toolCatalogService = toolCatalogService;
         this.scriptEditActive = scriptEditPolicy.enabled();
+        this.scriptToolActive = scriptFunction.getIfAvailable() != null;
         this.gitEditEnabled = projectCatalog.defaultProject().editEnabled();
         this.gitEditActive = gitEditFunction.getIfAvailable() != null;
         this.requestTimeout = requestTimeout;
@@ -191,6 +203,7 @@ public class SettingsController {
         ScriptProperties.Limits limits = scriptProperties.limits();
         return new ScriptSection(
                 scriptProperties.enabled(),
+                scriptToolActive,
                 scriptProperties.editEnabled(),
                 scriptEditActive,
                 scriptProperties.timeout().toSeconds(),
@@ -291,13 +304,17 @@ public class SettingsController {
      * run may spend. The guide resources are deliberately absent: they are prompt text, not
      * configuration a reader of this panel can act on.
      *
-     * @param enabled {@code kb.script.enabled} — is {@code runScript} handed to the model at all
+     * @param enabled {@code kb.script.enabled} — the configured opt-in
+     * @param active whether {@code runScript} is in the model's tool list; the two disagree only
+     *     when the flag this process read and the assembled tool set came out different, which the
+     *     panel is the place to notice
      * @param editEnabled {@code kb.script.edit-enabled} — the configured opt-in for writes
      * @param editActive whether {@code kb.edit}/{@code kb.create} are actually bound, i.e. all
      *     three gates of {@link ScriptEditPolicy} agree
      */
     public record ScriptSection(
             boolean enabled,
+            boolean active,
             boolean editEnabled,
             boolean editActive,
             long timeoutSeconds,
