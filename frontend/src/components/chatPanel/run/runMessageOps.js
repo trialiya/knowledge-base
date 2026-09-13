@@ -6,6 +6,7 @@
 
 import { nextMessageId } from '../messages/messageId';
 import { SENDER } from '@/constants/messageSender';
+import { TOOL_STATUS } from '@/constants/toolStatus';
 
 // Совпадение вызовов. И живое событие TOOL_CALL, и итоговая мета прогона несут протокольный
 // callId и сквозной callIndex — по ним вызов опознаётся однозначно. Фолбэк на name+arguments
@@ -200,6 +201,24 @@ export const applyDelivered = (chat, msgs, { runId, payload }, waiting) => {
   return { ...chat, messages: msgs };
 };
 
+/**
+ * Вызовы, оставшиеся STARTED к концу прогона: закрыть их уже некому. Плашку закрывает либо
+ * живое TOOL_CALL по сохранённому ответу инструмента, либо итоговое TOOL_CALLS прогона — а у
+ * оборванного прогона последний вызов ответа не дождался, и в снимке коллектора, из которого
+ * собрано итоговое TOOL_CALLS, его нет вовсе. Без этого плашка крутилась бы «работает» до
+ * перезагрузки — при уже свободном чате.
+ *
+ * UNKNOWN, а не ошибка: инструмент мог и отработать, просто исход знала лишь несохранённая мета.
+ * Тот же статус ставит и бэк, синтезируя плашки сегмента без меты (ToolCallService#invocationsFor).
+ * Совпадения с перезагрузкой это не обещает: если прогон бросил один вызов из параллельного
+ * батча, мета сегмента записана по остальным, синтез не включается — и брошенной плашки в
+ * истории нет вовсе. Показанная «неизвестно» честнее крутящейся «работает» в любом случае.
+ */
+const settleToolCalls = (toolCalls) =>
+  (toolCalls || []).some((tc) => tc.status === TOOL_STATUS.STARTED)
+    ? toolCalls.map((tc) => (tc.status === TOOL_STATUS.STARTED ? { ...tc, status: TOOL_STATUS.UNKNOWN } : tc))
+    : toolCalls;
+
 // Снимает метку runId (для live-tracking) и транзиентный флаг sealed, сохраняет runId
 // как toolCallsRunId (для загрузки деталей tool call после завершения прогона).
 // Пустые пузыри без вызовов (например, хвостовой после границы сегмента) выбрасывает —
@@ -212,7 +231,7 @@ export const finalize = (msgs, runId) => {
       if (text === '' && !(rest.toolCalls || []).length && !rest.error && !rest.compact) {
         msgs.splice(i, 1);
       } else {
-        msgs[i] = { ...rest, text, toolCallsRunId: runId };
+        msgs[i] = { ...rest, text, toolCalls: settleToolCalls(rest.toolCalls), toolCallsRunId: runId };
       }
     }
   }
