@@ -1131,6 +1131,33 @@ describe('applyChatEvent', () => {
     expect(chat.runId).toBeNull();
   });
 
+  test('a tool call left STARTED by an interrupted run settles to UNKNOWN, not a spinner', () => {
+    // Прогон оборвался, пока инструмент работал: ответа его плашка не дождалась, а в итоговом
+    // TOOL_CALLS такого вызова нет вовсе — в снимке коллектора он не завершён. Закрыть плашку
+    // больше некому, и без этого она крутилась бы «работает» в уже свободном чате.
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'listFiles', status: 'OK', callId: 'c0' } } },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'runScript', status: 'STARTED', callId: 'c1' } } },
+      ctx,
+    );
+
+    chat = applyChatEvent(chat, { type: 'RUN_ERROR', runId: 'r1' }, ctx);
+
+    expect(chat.runId).toBeNull();
+    const calls = chat.messages.flatMap((m) => m.toolCalls || []);
+    // Закрытая плашка остаётся как была — «неизвестно» ставится только незакрытой.
+    expect(calls.map((tc) => [tc.callId, tc.status])).toEqual([
+      ['c0', 'OK'],
+      ['c1', 'UNKNOWN'],
+    ]);
+  });
+
   test('final TOOL_CALLS arriving after the run ended changes nothing', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
