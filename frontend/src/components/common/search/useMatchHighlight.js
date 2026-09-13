@@ -38,10 +38,35 @@ const paint = () => {
   painted = new Set(merged.keys());
 };
 
+// Тот же Range по содержанию: узлы и смещения те же. Новый объект на каждый
+// пересчёт — норма (их пересобирают целыми списками), и сравнивать их по ссылке
+// значило бы перекрашивать на каждую перерисовку.
+const sameRanges = (a, b) =>
+  a.length === b.length &&
+  a.every(
+    (r, i) =>
+      r.startContainer === b[i].startContainer &&
+      r.startOffset === b[i].startOffset &&
+      r.endContainer === b[i].endContainer &&
+      r.endOffset === b[i].endOffset,
+  );
+
+const sameOwner = (prev, next) => {
+  if (!prev) return false;
+  const names = Object.keys(next);
+  return names.length === Object.keys(prev).length && names.every((n) => prev[n] && sameRanges(prev[n], next[n]));
+};
+
 const publish = (id, byName) => {
   if (!window.CSS?.highlights) return;
-  const kept = Object.entries(byName).filter(([, ranges]) => ranges.length);
-  if (kept.length) owners.set(id, Object.fromEntries(kept));
+  const kept = Object.fromEntries(Object.entries(byName).filter(([, ranges]) => ranges.length));
+  // `paint` пересобирает Highlight по КАЖДОМУ имени, а не только по изменившемуся:
+  // объединение считается по всем владельцам сразу. Поэтому объявление, ничего не
+  // меняющее, сюда пускать нельзя — композер шлёт своё на каждый символ, и
+  // подсветка find-бара над длинным чатом пересобиралась бы на каждое нажатие.
+  const prev = owners.get(id);
+  if (Object.keys(kept).length ? sameOwner(prev, kept) : !prev) return;
+  if (Object.keys(kept).length) owners.set(id, kept);
   else owners.delete(id);
   paint();
 };

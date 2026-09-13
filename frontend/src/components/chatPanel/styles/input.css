@@ -168,14 +168,19 @@
    строкой над полем — она есть везде — и подсветкой самого токена. Рамке поля
    сказать тут нечего: набирают команду в поле с фокусом, а фокус уже красит
    рамку акцентным цветом. */
+/* Сам живой регион пуст, пока команды нет, и занимать место в этом состоянии не
+   должен — поэтому ни padding, ни фона у него нет: всё на внутренней строке.
+   Пустым он остаётся в разметке намеренно, см. CommandHint.jsx. */
 .composer-command {
+  flex-shrink: 0;
+}
+.composer-command__row {
   display: flex;
   align-items: baseline;
   gap: 0.4rem;
   padding: 0.3rem 1rem 0;
   font-size: 0.72rem;
   background: var(--kb-bg);
-  flex-shrink: 0;
   user-select: none;
 }
 .composer-command__label {
@@ -183,7 +188,17 @@
   font-weight: 600;
   white-space: nowrap;
 }
-.composer-command__what {
+/* Команду сейчас не выполнить: акцент с подписи снимаем — режим назван, но не
+   включён. Цветом причину не метим: на 0.72rem и красный, и жёлтый на светлом
+   фоне не дотягивают до 4.5:1, а сказано всё словами. */
+.composer-command__row--blocked .composer-command__label {
+  color: var(--kb-muted);
+}
+.composer-command__name {
+  color: var(--kb-text);
+  white-space: nowrap;
+}
+.composer-command__note {
   color: var(--kb-muted);
   overflow: hidden;
   text-overflow: ellipsis;

@@ -6,6 +6,8 @@
 // Ключи даны без префикса пространства имён: их резолвит `t` из ChatWindow,
 // а он привязан к `chat`.
 
+import { COMMAND_BLOCK } from './chatCommands';
+
 // Код статуса в скобках, если это не сетевой сбой (у того кода нет).
 const suffixOf = (status) => (status !== 'network' ? ` (${status})` : '');
 
@@ -40,6 +42,16 @@ export const COMPACT_DRAFT_NOTICE = {
   icon: '🗜️',
   titleKey: 'compact.unavailableTitle',
   messageKey: 'compact.draftMessage',
+};
+
+/**
+ * Отказ по причине, которую назвал `chatCommandBlock`. Композер пишет про ту же
+ * причину своей короткой строкой над полем — словарь у них разный (в строку не
+ * влезает абзац модалки), причина одна.
+ */
+export const COMMAND_BLOCK_NOTICE = {
+  [COMMAND_BLOCK.RUNNING]: RUN_BUSY_NOTICE,
+  [COMMAND_BLOCK.NOTHING_TO_COMPACT]: COMPACT_DRAFT_NOTICE,
 };
 
 /** `/compact` по контексту, который уже состоит из одной сводки (ответ 422). */

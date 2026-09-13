@@ -402,7 +402,7 @@ const REGISTRY = [
 
   // Композер в режиме команды и без него. Рамка `feed`: поле ввода живёт в
   // колонке ленты и меряется её шириной.
-  ...['command', 'question'].map((name) => ({
+  ...['command', 'question', 'commandBlocked'].map((name) => ({
     id: `composerCommand.js#${name}`,
     frame: 'feed',
     render: (p) => <MessageInput {...p} onSend={noop} onStop={noop} onAttach={noop} />,

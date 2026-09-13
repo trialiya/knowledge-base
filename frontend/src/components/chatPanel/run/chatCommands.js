@@ -10,6 +10,9 @@
 /** Сжатие контекста: `/compact` и `/сжать`, хвост — фокус сжатия. */
 export const CHAT_COMMAND = { COMPACT: 'compact' };
 
+/** Почему команду сейчас не выполнить (см. chatCommandBlock). */
+export const COMMAND_BLOCK = { RUNNING: 'running', NOTHING_TO_COMPACT: 'nothingToCompact' };
+
 const COMMANDS = [{ name: CHAT_COMMAND.COMPACT, triggers: ['/compact', '/сжать'] }];
 
 /**
@@ -39,5 +42,26 @@ export function parseChatCommand(text) {
       return { name, args: rest.trim(), start, end: start + trigger.length };
     }
   }
+  return null;
+}
+
+/**
+ * Что помешает выполнить команду прямо сейчас — или null, если ничего.
+ *
+ * Правило одно на двоих: по нему композер пишет над полем, что команда не
+ * сработает, и по нему же отправка отказывает. Разъехавшись, они дали бы поле,
+ * обещающее то, чего отправка не делает, — то же, от чего страхует общий
+ * `parseChatCommand`.
+ *
+ * `running` композер знает чуть шире, чем отправка: у него это «чат занят», а у
+ * отправки — «прогону уже выдан runId». Разница — доли секунды между отправкой
+ * вопроса и ответом сервера на неё, и в эту щель композер осторожнее, а не
+ * смелее: он скажет «не сработает» там, где отправка ещё пропустила бы.
+ */
+export function chatCommandBlock(command, { running, chatStarted }) {
+  if (!command) return null;
+  if (running) return COMMAND_BLOCK.RUNNING;
+  // В ещё не начатом чате сжимать нечего — и заводить его ради команды незачем.
+  if (command.name === CHAT_COMMAND.COMPACT && !chatStarted) return COMMAND_BLOCK.NOTHING_TO_COMPACT;
   return null;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseChatCommand, CHAT_COMMAND } from './chatCommands';
+import { parseChatCommand, chatCommandBlock, CHAT_COMMAND, COMMAND_BLOCK } from './chatCommands';
 
 describe('parseChatCommand', () => {
   it('распознаёт команду без хвоста', () => {
@@ -51,5 +51,34 @@ describe('parseChatCommand', () => {
   it('не срабатывает посреди сообщения', () => {
     expect(parseChatCommand('расскажи, что делает /compact')).toBeNull();
     expect(parseChatCommand('')).toBeNull();
+  });
+});
+
+// Одно правило про «пройдёт ли команда сейчас» — на композер и на отправку. Свои
+// поводы отказа есть у каждой из сторон, но названы они здесь, иначе поле обещало
+// бы то, чего отправка не делает.
+describe('chatCommandBlock', () => {
+  const compact = parseChatCommand('/compact');
+
+  it('в начатом свободном чате ничего не мешает', () => {
+    expect(chatCommandBlock(compact, { running: false, chatStarted: true })).toBeNull();
+  });
+
+  it('во время ответа команда не пройдёт', () => {
+    expect(chatCommandBlock(compact, { running: true, chatStarted: true })).toBe(COMMAND_BLOCK.RUNNING);
+  });
+
+  it('в ещё не начатом чате сжимать нечего', () => {
+    expect(chatCommandBlock(compact, { running: false, chatStarted: false })).toBe(
+      COMMAND_BLOCK.NOTHING_TO_COMPACT,
+    );
+  });
+
+  it('занятость важнее: она мешает любой команде, а не только сжатию', () => {
+    expect(chatCommandBlock(compact, { running: true, chatStarted: false })).toBe(COMMAND_BLOCK.RUNNING);
+  });
+
+  it('обычному вопросу не мешает ничто — он не команда', () => {
+    expect(chatCommandBlock(null, { running: true, chatStarted: false })).toBeNull();
   });
 });

@@ -9,7 +9,8 @@ import ComposerToolbar from './ComposerToolbar';
 import ContextChips from './ContextChips';
 import { expandTokensForSend } from './fileChips';
 import { parsePlaceholders } from './phrasePlaceholders';
-import { parseChatCommand } from '../run/chatCommands';
+import { parseChatCommand, chatCommandBlock } from '../run/chatCommands';
+import { DRAFT_CHAT_ID } from '@/constants/storage';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки.
 // busy — писать некуда: идёт сжатие контекста или прогон ещё не назвал свой runId.
@@ -126,10 +127,14 @@ const MessageInput = ({
     else insertPhrase(phraseText);
   };
 
-  // Набранное — команда чату, а не вопрос модели. Спрашиваем тот же разбор, что
-  // сработает на отправке (useChatRun), иначе поле обещало бы одно, а уходило
-  // другое.
+  // Набранное — команда чату, а не вопрос модели. И разбор, и правило «пройдёт ли
+  // она сейчас» спрашиваем те же, что сработают на отправке (useChatRun), иначе
+  // поле обещало бы одно, а уходило другое.
   const command = parseChatCommand(text);
+  const commandBlock = chatCommandBlock(command, {
+    running: generating,
+    chatStarted: chatId !== DRAFT_CHAT_ID,
+  });
   const sendDisabled = !text.trim() || sending;
 
   return (
@@ -158,7 +163,7 @@ const MessageInput = ({
       {/* Детали идущего прогона — поле при нём не блокируется, и строка объясняет, чем чат занят. */}
       {run && <RunStatus startedAt={run.startedAt} inputGrowth={run.inputGrowth} />}
 
-      <CommandHint command={command} />
+      <CommandHint command={command} block={commandBlock} />
 
       <div className="message-input-wrapper">
         <ChipEditor
