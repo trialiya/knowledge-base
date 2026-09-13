@@ -46,6 +46,7 @@ import { SEARCH_SCOPE, SEARCH_SCOPES } from '@/constants/searchScope';
 import { IconRefresh, IconUpload } from '@/icons/index';
 import * as aiConfig from '../fixtures/aiConfig';
 import * as chatCodeBlocks from '../fixtures/chatCodeBlocks';
+import * as chatCommandMessage from '../fixtures/chatCommandMessage';
 import * as chatFind from '../fixtures/chatFind';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
@@ -287,6 +288,12 @@ const REGISTRY = [
   // каждому, а рамка у блока одна — CodeBlock ставится вместо `pre` разметки.
   {
     id: 'chatCodeBlocks.js#variants',
+    frame: 'center',
+    render: (p) => <MessageList conversationId="chat-1" messages={p} />,
+  },
+  // Команда в ленте: выделена плашкой, соседний вопрос со слэшем внутри — нет.
+  {
+    id: 'chatCommandMessage.js#sentCommand',
     frame: 'center',
     render: (p) => <MessageList conversationId="chat-1" messages={p} />,
   },
@@ -710,6 +717,7 @@ const MODULES = {
   'chatHeader.js': chatHeader,
   'chatFind.js': chatFind,
   'chatCodeBlocks.js': chatCodeBlocks,
+  'chatCommandMessage.js': chatCommandMessage,
   'chatRepo.js': chatRepo,
   'detailHeader.js': detailHeader,
   'detailPanel.js': detailPanel,

@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { vi, describe, test, expect, beforeEach } from 'vitest';
 import chatApi from '@/api/chatApi';
 import { RUN_KIND } from '@/constants/runKind';
+import { DRAFT_CHAT_ID } from '@/constants/storage';
 import useChatRun from './useChatRun';
 
 vi.mock('@/api/chatApi', () => ({
@@ -17,13 +18,16 @@ describe('useChatRun — старт сжатия', () => {
   const CHAT = 'conv-1';
   let chats;
 
-  const setup = () => {
+  let restoreDraft;
+  let notify;
+
+  const setup = (activeChatId = CHAT) => {
     const patchChat = vi.fn((id, patch) => {
       chats = chats.map((c) => (c.id === id ? { ...c, ...(typeof patch === 'function' ? patch(c) : patch) } : c));
     });
     return renderHook(() =>
       useChatRun({
-        activeChatId: CHAT,
+        activeChatId,
         getChats: () => chats,
         setChats: vi.fn(),
         patchChat,
@@ -31,20 +35,22 @@ describe('useChatRun — старт сжатия', () => {
         selectChat: vi.fn(),
         clearDraft: vi.fn(),
         clearDraftText: vi.fn(),
-        restoreDraft: vi.fn(),
+        restoreDraft,
         getStagedFor: () => [],
         modelConfig: { defaultModel: { id: 'gpt' } },
         modelOptions: [{ id: 'gpt' }],
         modeOptions: [],
         projectOptions: [{ id: 'kb' }],
         defaultProjectId: 'kb',
-        notify: vi.fn(),
+        notify,
       }),
     );
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    restoreDraft = vi.fn();
+    notify = vi.fn();
     chats = [{ id: CHAT, runId: null, messages: [] }];
   });
 
@@ -72,5 +78,18 @@ describe('useChatRun — старт сжатия', () => {
     await act(() => result.current.sendMessage('/compact ужми'));
 
     expect(chats[0].runStartedAt).toBe(1000);
+  });
+
+  // Композер стирает текст на отправке, и вернуть его может только тот, кто отказал.
+  // Отказ, стоящий пользователю набранного, — худший вид отказа: в поле ввода после
+  // него пусто, а сделать команда ничего не сделала.
+  test('в ещё не начатом чате сжатие отклонено, и набранное возвращается в поле', async () => {
+    const { result } = setup(DRAFT_CHAT_ID);
+
+    await act(() => result.current.sendMessage('/compact ужми'));
+
+    expect(chatApi.compact).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ messageKey: 'compact.draftMessage' }));
+    expect(restoreDraft).toHaveBeenCalled();
   });
 });
