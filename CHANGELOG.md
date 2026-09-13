@@ -11,6 +11,53 @@ you* — breaking changes, deprecations, migration steps — is in
 
 ## [Unreleased]
 
+## [1.0.0-RC2] — 2026-09-13
+
+What the first candidate turned up, plus the chat-command work that landed
+alongside it. Nothing here asks anything of an upgrade: no breaking change, no
+migration step, no new configuration to set.
+
+### Added
+
+- The composer says what a slash command will do before it is sent: a line above
+  the field naming the command — or the reason it cannot run right now — the
+  trigger highlighted in place, and the command marked in the sent message. A
+  question that merely starts with a slash no longer looks like a command.
+- Typing `/` in an empty composer opens a list of what belongs there: chat
+  commands with their synonyms and arguments, and the chip triggers. `/compact`
+  is now discoverable instead of folklore.
+- A running server says what it was built from. Version, branch, commit and
+  build time travel in the JAR and are served by the system-information
+  endpoint, so the Admin panel shows the build rather than leaving it to be
+  guessed.
+
+### Fixed
+
+- A call to a tool the run does not have no longer kills the answer. The unknown
+  name comes back to the model as an error it can recover from, the way every
+  other tool mistake already did, instead of an exception thrown out of the
+  stream — which cost a half-written reply, a dangling `tool_calls` tail in the
+  history, and the whole prompt that produced it.
+- The badge of a tool call left behind by an interrupted run opens its details:
+  the arguments and the result were in the database all along, and an
+  interrupted call is exactly where one wants to look.
+- That badge also stops spinning "running" as soon as the run ends, instead of
+  waiting for a page reload to admit the run is over.
+- Code blocks in messages are drawn the same way in every variant — one frame, a
+  header with the language and a copy button on all of them — and selecting
+  inline code no longer drags an extra space into the clipboard.
+
+### Build
+
+- `run/run-spring-aot.sh` rebuilds when the sources change rather than when the
+  profile does, so after a `git pull` it no longer starts last week's JAR; a
+  repeat run of an unchanged tree now keeps its AOT cache instead of retraining
+  it, and the build time goes into the JAR only behind `-Pkb.build.time` (or
+  `KB_BUILD_TIME=1`), since a timestamp makes every build a new one.
+- `:frontend:yarnBuild` declares its outputs and is skipped when the frontend
+  has not changed.
+- js-yaml 4.3.1 → 4.3.2 in the frontend dependency tree.
+
 ## [1.0.0-RC1] — 2026-09-12
 
 The first release candidate, and the first version shipped at all — so the
@@ -143,5 +190,6 @@ a deployment that was already running from `main` before this release.
   meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
-[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0-RC1...HEAD
+[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0-RC2...HEAD
+[1.0.0-RC2]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC2
 [1.0.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC1
