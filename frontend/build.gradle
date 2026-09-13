@@ -79,6 +79,16 @@ tasks.register('yarnLint', YarnTask) {
 tasks.register('yarnBuild', YarnTask) {
     dependsOn('yarnInstall')
     args = ['run', 'build']
+    // Без объявленного выхода Gradle гоняет `vite build` на каждой сборке:
+    // «Task has not declared any outputs despite executing actions».
+    // node_modules во входах не нужен — за него отвечает выход yarnInstall,
+    // а версии зависимостей доезжают сюда через yarn.lock.
+    // src берём целиком, вместе с *.test.jsx: лишний прогон Vite дешевле
+    // пропущенной пересборки, и на выходе он всё равно ничего не меняет.
+    inputs.dir('src')
+    inputs.dir('public')
+    inputs.files('package.json', 'yarn.lock', 'vite.config.js', 'index.html')
+    outputs.dir('build/dist')
 }
 
 // Собранная статика остаётся в build-каталоге своего модуля; в JAR её кладёт
