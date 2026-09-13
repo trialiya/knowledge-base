@@ -25,12 +25,6 @@ const POLL_MIN_MS = 1000;
 const POLL_MAX_MS = 15000;
 /** Сколько раз повторяем сорвавшийся запрос, прежде чем оставить ошибку на экране. */
 const ERROR_RETRIES = 3;
-// Сколько раз переспрашиваем вызов с исходом UNKNOWN. У оборванного прогона это состояние
-// окончательное: меты, которая назвала бы исход, уже не будет никогда, а результат (в том числе
-// синтетический «[interrupted — no result]») на экране и так есть — вечный опрос ради него был бы
-// трафиком впустую. Живому прогону этих попыток хватает, а если исход всё же придёт позже, его
-// принесёт смена статуса плашки: она перезапускает эффект.
-const UNKNOWN_RETRIES = 5;
 
 /**
  * Переключатель «Обзор | JSON». Не рендерится, когда обзора для формы нет.
@@ -127,7 +121,6 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
     let timer = null;
     let delay = POLL_MIN_MS;
     let errors = 0;
-    let unknowns = 0;
 
     const again = () => {
       // Показанные аргументы не стираем: сорвавшийся перезапрос — повод повторить, а не
@@ -142,12 +135,10 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
         .then((data) => {
           if (cancelled) return;
           setAnswer({ details: data || null, failed: false });
-          // UNKNOWN здесь не обязательно окончательный: так отвечает вызов, ответ которого уже
-          // записан, а мета прогона — ещё нет (её пишет конец прогона), и статус плашки при этом
-          // меняться не обязан — переспросить некому, кроме нас. Но и не бесконечно: у
-          // оборванного прогона мета не придёт, отсюда UNKNOWN_RETRIES.
-          if (data?.status === TOOL_STATUS.STARTED) again();
-          else if (data?.status === TOOL_STATUS.UNKNOWN && ++unknowns <= UNKNOWN_RETRIES) again();
+          // UNKNOWN здесь не окончательный: так отвечает вызов, ответ которого уже записан, а
+          // мета прогона — ещё нет (её пишет конец прогона), и статус плашки при этом меняться
+          // не обязан — переспросить некому, кроме нас.
+          if (data?.status === TOOL_STATUS.STARTED || data?.status === TOOL_STATUS.UNKNOWN) again();
         })
         .catch(() => {
           if (cancelled) return;

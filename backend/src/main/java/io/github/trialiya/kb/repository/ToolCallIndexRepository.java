@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.repository;
 
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jdbc.repository.query.Modifying;
@@ -14,6 +15,21 @@ public interface ToolCallIndexRepository extends CrudRepository<ToolCallIndexEnt
             String conversationId, String callId);
 
     List<ToolCallIndexEntity> findAllByConversationId(String conversationId);
+
+    /**
+     * Which of these calls the index knows — the question {@link
+     * io.github.trialiya.kb.service.chat.memory.ToolCallService#invocationsFor} asks before
+     * offering details on a badge it synthesized from {@code tool_data}: a call the index never saw
+     * has no way to be looked up, and a clickable badge would only answer 404.
+     */
+    @Query(
+            """
+            select call_id from tool_call_index
+             where conversation_id = :conversationId and call_id in (:callIds)
+            """)
+    List<String> findIndexedCallIds(
+            @Param("conversationId") String conversationId,
+            @Param("callIds") Collection<String> callIds);
 
     /**
      * Links a call's TOOL response row once it lands. The {@code IS NULL OR <>} guard makes the

@@ -1,7 +1,10 @@
 package io.github.trialiya.kb.service.chat.memory;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
@@ -24,9 +27,15 @@ class ToolCallServiceTest {
     private static final String CONV = "conv-1";
     private static final String RUN = "run-1";
 
+    private final ToolCallIndexRepository indexRepo = mock(ToolCallIndexRepository.class);
+
     private final ToolCallService service =
-            new ToolCallService(
-                    mock(ChatMessageRepository.class), mock(ToolCallIndexRepository.class));
+            new ToolCallService(mock(ChatMessageRepository.class), indexRepo);
+
+    /** Индекс знает эти вызовы — только по ним синтезированная плашка предлагает детали. */
+    private void indexKnows(String... callIds) {
+        when(indexRepo.findIndexedCallIds(eq(CONV), any())).thenReturn(List.of(callIds));
+    }
 
     private static ChatMessageEntity entity(
             MessageType type, ChatMessageMeta meta, ToolData toolData) {
@@ -48,6 +57,7 @@ class ToolCallServiceTest {
                                                 "{\"q\": \"a\"}"),
                                         new ToolData.Call("id-1", "function", "getUserName", "{}")),
                                 null));
+        indexKnows("id-0");
         final ChatMessageEntity toolRow =
                 entity(
                         MessageType.TOOL,
@@ -74,6 +84,26 @@ class ToolCallServiceTest {
         assertThat(metas.get(0).callIndex()).isNull();
         assertThat(metas.get(0).arguments()).containsEntry("q", "a");
         assertThat(metas.get(0).resultGist()).contains("found 3 docs");
+    }
+
+    @Test
+    void synthesizedCallOutsideTheIndexOffersNoDetails() {
+        // История, написанная до самого tool_call_index: искать вызов нечем, и кликабельная
+        // плашка ответила бы одним 404 — предлагать детали по ней нельзя.
+        final ChatMessageEntity segment =
+                entity(
+                        MessageType.ASSISTANT,
+                        null,
+                        new ToolData(
+                                List.of(
+                                        new ToolData.Call(
+                                                "id-0", "function", "searchDocuments", "{}")),
+                                null));
+        indexKnows();
+
+        assertThat(service.invocationsFor(segment, List.of(segment)))
+                .singleElement()
+                .satisfies(meta -> assertThat(meta.hasDetails()).isFalse());
     }
 
     @Test
