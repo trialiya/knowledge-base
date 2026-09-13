@@ -72,9 +72,16 @@ JAVA_OPTS="${JAVA_OPTS:--Xmx256m}"
 # does not have is loaded the ordinary way, so the profile that trained it costs
 # the others nothing but the classes they alone need.
 #
-# The JVM rejects a cache only when the JVM itself changed, so a rebuilt JAR
-# keeping the same name would be started from a stale one.  Hence the timestamp
-# check: a cache older than the JAR is retrained rather than used.
+# The JVM ties the cache to the JAR it was trained on by timestamp, not by
+# content: a JAR merely touched is enough for it to report "This file is not the
+# one used while building the AOT cache ... timestamp has changed", drop the
+# cache and start the ordinary way -- a warning in a log nobody reads, and the
+# 40% quietly gone.  Hence the check below: a cache older than the JAR is
+# worthless, and retraining is the only way to get the fast start back.
+#
+# It is also why the build writes no build time into the JAR by default: that
+# one line would make every build, including one with nothing to do, rewrite
+# kb.jar and cost a training run here (see backend/build.gradle).
 AOT_CACHE="${KB_AOT_CACHE:-$SCRIPT_DIR/../local-db/aot/kb.aot}"
 AOT_OPTS=()
 

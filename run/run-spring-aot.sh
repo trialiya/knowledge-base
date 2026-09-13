@@ -31,60 +31,39 @@
 #                  JAR is newer, so a cache trained by the other script is reused
 #                  as it is -- valid either way, only short of the classes this
 #                  run reaches for and that one did not
-#   KB_BUILD       0 never builds, 1 always does.  By default the build runs
-#                  unless the JAR itself can show it is still the right one:
-#                  built for this profile, from the commit checked out now, with
-#                  no uncommitted changes on either side.  So a pull, a checkout
-#                  or an edit rebuilds, and starting the same thing twice starts
-#                  straight away.  Reading that proof needs `unzip`; without it
-#                  the JAR cannot be asked anything and every start rebuilds
+#   KB_BUILD       0 skips the build step entirely -- the JAR standing there is
+#                  started as it is, and the profile it was built for is read out
+#                  of it (that read needs `unzip`).  Anything else, including the
+#                  default, runs the build: Gradle is what knows whether the JAR
+#                  is current, and a run with nothing to do costs about two
+#                  seconds and leaves the JAR alone
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE="${1:-h2}"
 
 JAR="$SCRIPT_DIR/../backend/build/libs/kb.jar"
-REPO="$SCRIPT_DIR/.."
 
-# What the JAR standing there was built from — asked of the JAR itself, because
-# that is the only answer that cannot drift away from it.  The build writes both
-# files (see backend/build.gradle): `build.aot.profile` is the profile whose bean
-# definitions are baked in, and git.properties is the commit they were generated
-# from.  Neither exists in a JAR built by anything else — a plain `test.sh jar`,
-# with no generated definitions in it at all — and that reads as "unknown", which
-# is exactly what it is.
-jar_entry() {
-  unzip -p "$JAR" "$1" 2> /dev/null || true
-}
-
+# Which profile the JAR standing there was built for, read out of the JAR itself:
+# `build.aot.profile` in META-INF/build-info.properties, written only under
+# KB_NATIVE (see backend/build.gradle).  Only KB_BUILD=0 needs the answer -- every
+# other path gets it from the build it is about to run.
 JAR_PROFILE=""
-JAR_COMMIT=""
-JAR_DIRTY=""
 if [ -f "$JAR" ] && command -v unzip > /dev/null 2>&1; then
-  JAR_PROFILE="$(jar_entry META-INF/build-info.properties | sed -n 's/^build\.aot\.profile=//p')"
-  JAR_GIT="$(jar_entry BOOT-INF/classes/git.properties)"
-  JAR_COMMIT="$(printf '%s\n' "$JAR_GIT" | sed -n 's/^git\.commit\.id=//p')"
-  JAR_DIRTY="$(printf '%s\n' "$JAR_GIT" | sed -n 's/^git\.dirty=//p')"
+  JAR_PROFILE="$( (unzip -p "$JAR" META-INF/build-info.properties 2> /dev/null || true) \
+    | sed -n 's/^build\.aot\.profile=//p')"
 fi
 
-# Whether the sources still are the ones in the JAR.  This is what makes `git
-# pull` rebuild: the JAR remembers its commit, and a checkout that moves HEAD
-# away from it is visible here.  Uncommitted work on either side answers "no" —
-# a commit id says nothing about edits that were never committed, and the JAR
-# cannot be vouched for then.  Rebuilding is the safe answer, and a rebuild that
-# turns out to change nothing costs one warm Gradle run.
-CURRENT=""
-if [ -z "$(git -C "$REPO" status --porcelain 2> /dev/null)" ]; then
-  CURRENT="$(git -C "$REPO" rev-parse HEAD 2> /dev/null || true)"
-fi
-same_sources=no
-if [ -n "$CURRENT" ] && [ "$CURRENT" = "$JAR_COMMIT" ] && [ "$JAR_DIRTY" = false ]; then
-  same_sources=yes
-fi
-
+# Whether the JAR is still current is Gradle's question, not this script's.  It was
+# tried the other way once -- compare the JAR's own commit with HEAD and demand a
+# clean tree -- and the tree is never clean: run/application.yaml is tracked and
+# carries your own keys, so the check said "stale" every time and every start
+# rebuilt from scratch.  Gradle knows what the real inputs are, and a run with
+# nothing to do takes about two seconds and leaves the JAR untouched -- which is
+# what keeps run.sh's AOT cache valid, and why the build writes no build time into
+# the JAR by default (backend/build.gradle).
 case "${KB_BUILD:-}" in
   0) build=no ;;
-  '') if [ "$JAR_PROFILE" = "$PROFILE" ] && [ "$same_sources" = yes ]; then build=no; else build=yes; fi ;;
   *) build=yes ;;
 esac
 
@@ -119,14 +98,11 @@ if [ "$build" = no ] && [ -z "$JAR_PROFILE" ]; then
   echo "  KB_BUILD=1 builds it for '$PROFILE'." >&2
 else
   echo "Spring AOT: on — profile '$PROFILE' is baked into the JAR"
-  # Only the default path can promise the JAR matches the sources -- it is the
-  # promise that let it skip the build.  KB_BUILD=0 skips regardless, so there
-  # the same line would be a claim nobody checked.
-  if [ "$build" = no ] && [ "$same_sources" = yes ]; then
-    echo "  (built earlier from the commit checked out now — KB_BUILD=1 to build it again)"
-  elif [ "$build" = no ]; then
-    echo "  WARNING: it was built from other sources — another commit, or a tree" >&2
-    echo "  with uncommitted changes.  KB_BUILD=0 is what skipped the rebuild." >&2
+  # KB_BUILD=0 skips the build without asking anything about the sources, so the
+  # JAR may be older than the working tree.  Nothing here can tell -- that is the
+  # deal with KB_BUILD=0 -- and saying so is better than staying quiet.
+  if [ "$build" = no ]; then
+    echo "  (KB_BUILD=0: the build was skipped, so the JAR may be older than the sources)"
   fi
 fi
 
