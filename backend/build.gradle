@@ -6,6 +6,7 @@ plugins {
     id 'net.ltgt.errorprone'
     id 'pmd'
     id 'com.github.spotbugs' version '6.5.11'
+    id 'com.gorylenko.gradle-git-properties' version '4.0.1'
     // apply false: плагин включается по флагу ниже, иначе он меняет обычный bootJar.
     id 'org.graalvm.buildtools.native' version '1.1.12' apply false
 }
@@ -250,6 +251,51 @@ tasks.named('test') {
     systemProperty 'org.springframework.boot.logging.LoggingSystem', 'none'
 }
 
+// Из чего собран работающий сервер — двумя файлами внутри JAR, и оба поднимает сам Spring Boot
+// (ProjectInfoAutoConfiguration): `git.properties` даёт коммит, `META-INF/build-info.properties` —
+// версию и время сборки. Показывает их админ-панель.
+//
+// Время сборки идёт через buildInfo, а не через gitProperties: плагин пишет только то, что знает
+// git, и ключа с временем сборки у него нет.
+springBoot {
+    buildInfo()
+}
+
+// `keys` перечислен поимённо, потому что по умолчанию плагин пишет туда же хост, имя и почту
+// того, кто собирал, — в артефакт, который уезжает в релиз, им незачем. Версии здесь тоже нет:
+// её отдаёт build-info.properties, и хранить то же число дважды значит завести второй источник
+// правды.
+gitProperties {
+    // Плагин применён к `:backend`, а `.git` лежит в корне мультипроекта.
+    dotGitDirectory = rootProject.layout.projectDirectory.dir('.git')
+    // Сборка из распакованного архива или из образа, куда `.git` не попал, падать не должна:
+    // `git.properties` тогда просто нет, и панель показывает прочерк.
+    failOnNoGitDirectory = false
+    keys = [
+            'git.branch',
+            'git.commit.id',
+            'git.commit.id.abbrev',
+            'git.commit.time',
+            'git.dirty',
+    ]
+}
+
+// Время сборки меняется в каждой сборке, а оба файла пишутся в build/resources/main — то есть на
+// runtime-класспат и тестов, и bootRun. Без нормализации любая пересборка делала бы устаревшими
+// :backend:test и всё остальное, что читает класспат. В JAR файлы при этом попадают: нормализация
+// касается только сравнения входов задач.
+//
+// Упаковку она не покрывает и покрыть не может: bootJar и jar читают тот же каталог копированием,
+// а не как класспат, — UP-TO-DATE у них теперь не бывает вовсе. Это плата за записанное время
+// сборки, и снимается она только вместе с ним; что она стоит на деле — в
+// docs/проект/разработка-и-контрибьюция.md, раздел «Метаданные сборки».
+normalization {
+    runtimeClasspath {
+        ignore 'git.properties'
+        ignore 'META-INF/build-info.properties'
+    }
+}
+
 // Статику фронтенда упаковывают сами архивные задачи, читая её из build-каталога
 // :frontend. В build/resources/main она попасть не должна: этот каталог — выход
 // processResources, и всякая задача, которая его читает (jar, bootJar, test,
@@ -331,6 +377,20 @@ if (nativeBuild) {
     // требует живую схему БД, которой в сборке нет.
     tasks.named('processAot') {
         args '--spring.profiles.active=' + aotProfile, '--spring.aot.repositories.enabled=false'
+    }
+
+    // Профиль, под который сняты определения бинов, — в build-info.properties самого JAR
+    // (`build.aot.profile`). Отсюда его читает run/run-spring-aot.sh: по имени файла профиль
+    // не виден, а знать его нужно — запуск с -Dspring.aot.enabled=true поднимет запечённый
+    // набор бинов, каким бы он ни был. Ответ должен ехать внутри артефакта, а не лежать рядом
+    // с ним, где он разъезжается с JAR при первой же пересборке чем-нибудь другим.
+    //
+    // Ключ пишется только в этой ветке: в обычном JAR сгенерированных определений нет вовсе,
+    // и профиля у него нет тоже — пустое значение там честнее любого.
+    tasks.named('bootBuildInfo') {
+        properties {
+            additional.put('aot.profile', aotProfile)
+        }
     }
     graalvmNative {
         // GraalVM берётся из GRAALVM_HOME, иначе из JAVA_HOME.

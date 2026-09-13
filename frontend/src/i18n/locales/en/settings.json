@@ -299,7 +299,7 @@
     },
     "system": {
       "title": "System",
-      "subtitle": "Profile, database, indexed repository and access",
+      "subtitle": "Build, profile, database, indexed repository and access",
       "app": {
         "label": "Application",
         "name": "Application name",
@@ -308,6 +308,15 @@
         "java": "Java version",
         "startedAt": "Started",
         "uptime": "Uptime"
+      },
+      "build": {
+        "label": "Build",
+        "version": "Version",
+        "builtAt": "Built at",
+        "commit": "Commit",
+        "dirty": "uncommitted changes",
+        "branch": "Branch",
+        "commitTime": "Commit date"
       },
       "database": {
         "label": "Database",

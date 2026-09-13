@@ -24,7 +24,7 @@ const SystemInfo = () => {
 const SystemSections = ({ info }) => {
   const { t, i18n } = useTranslation('settings');
   const duration = useDurationFormat();
-  const { application, database, git, documents, security } = info;
+  const { application, build, database, git, documents, security } = info;
 
   return (
     <>
@@ -39,6 +39,30 @@ const SystemSections = ({ info }) => {
           value={formatDateTime(application.startedAt, i18n.language)}
         />
         <ConfigRow label={t('admin.system.app.uptime')} value={duration(application.uptimeSeconds)} />
+      </SettingsSection>
+
+      {/* ── Сборка ── */}
+      {/* Прочерки здесь — норма: git.properties и build-info.properties кладёт сборка, и
+          запуск прямо из классов (bootRun) не знает о себе ничего. */}
+      <SettingsSection label={t('admin.system.build.label')}>
+        <ConfigRow label={t('admin.system.build.version')} value={build.version} empty={t('config.unknown')} />
+        <ConfigRow
+          label={t('admin.system.build.builtAt')}
+          value={build.builtAt ? formatDateTime(build.builtAt, i18n.language) : null}
+          empty={t('config.unknown')}
+        />
+        <ConfigRow
+          label={t('admin.system.build.commit')}
+          value={build.commit}
+          empty={t('config.unknown')}
+          badge={build.dirty ? t('admin.system.build.dirty') : null}
+        />
+        <ConfigRow label={t('admin.system.build.branch')} value={build.branch} empty={t('config.unknown')} />
+        <ConfigRow
+          label={t('admin.system.build.commitTime')}
+          value={build.commitTime ? formatDateTime(build.commitTime, i18n.language) : null}
+          empty={t('config.unknown')}
+        />
       </SettingsSection>
 
       {/* ── База данных ── */}

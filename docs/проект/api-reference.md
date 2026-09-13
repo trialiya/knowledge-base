@@ -1381,29 +1381,39 @@ AI-суммаризация вложения (генерирует и сохра
 
 ## SystemInfoController — `/api/admin/system`
 
-Read-only вид конфигурации сервера для Admin-панели. Содержит информацию о профиле, БД, репозитории и параметрах поиска. **Внимание:** секреты (пароли, API-ключи) никогда не возвращаются.
+Read-only вид того, как настроен сам сервер, — для Admin-панели. **Внимание:** секреты (пароли,
+API-ключи) никогда не возвращаются, а JDBC URL проходит через очистку от учётных данных.
 
 ### GET `/api/admin/system`
-Получить полную информацию о конфигурации сервера.
 
-**Response:** `ServerInfo` со следующими полями:
+**Response:** `SystemInfoResponse` — объект из семи групп:
+
+| Группа | Поля |
+|---|---|
+| `application` | `name`, `profiles` (List), `port`, `javaVersion`, `startedAt` (ISO-8601), `uptimeSeconds` |
+| `build` | `version`, `builtAt`, `commit`, `branch`, `commitTime`, `dirty` — см. ниже |
+| `database` | `url` (без учётных данных), `driver`, `username`, `flywayLocations`, `schemaVersion` |
+| `git` | `projectPath`, `editEnabled`, `untrackedEditEnabled`, `writable` — про индексируемый репозиторий, не про сборку |
+| `documents` | `exportPath`, `replace` |
+| `security` | `username` (HTTP Basic) |
+| `indexing` | параметры очереди эмбеддингов (`kb.embedding.*`): `workers`, `pollBatchSize`, `pollIntervalMs`, `maxAttempts`, `retryBackoffSeconds`, `stuckTimeoutMinutes`, `stuckCheckMs`, `cleanupRetentionDays`, `cacheEnabled`, `cacheTtlDays`, `cacheCleanupCron` |
+
+**`build` — из чего собран работающий сервер.**
 
 | Поле | Тип | Описание |
 |---|---|---|
-| `profile` | String | Активный Spring profile (например, `h2` или `postgres`) |
-| `javaVersion` | String | Версия JDK (например, `25`) |
-| `springBootVersion` | String | Версия Spring Boot |
-| `springAiVersion` | String | Версия Spring AI |
-| `datasourceUrl` | String | URL БД (логины/пароли удаляются) |
-| `datasourceType` | String | Тип БД (например, `PostgreSQL 17` или `H2`) |
-| `gitProjectPath` | String | Путь к Git-репозиторию проекта |
-| `documentsExportPath` | String | Путь для экспорта документов |
-| `embeddingModel` | String | Модель эмбеддингов |
-| `embeddingCacheEnabled` | boolean | Кэширование эмбеддингов включено |
-| `semanticSearchEnabled` | boolean | Семантический поиск включён |
-| `searchKeywordLimit` | int | Лимит результатов keyword-поиска |
-| `searchSemanticThreshold` | double | Порог семантической схожести |
-| `flywayMigrations` | List | История миграций БД (версия, статус, описание) |
+| `version` | String? | Версия проекта из `META-INF/build-info.properties` |
+| `builtAt` | String? | Время сборки, ISO-8601 |
+| `commit` | String? | Сокращённый id коммита (`git.commit.id.abbrev`) |
+| `branch` | String? | Ветка, из которой собирали |
+| `commitTime` | String? | Дата коммита, ISO-8601 |
+| `dirty` | boolean? | В рабочем дереве были незакоммиченные правки |
+
+Оба источника кладёт сборка (`springBoot.buildInfo` и плагин `gradle-git-properties` в
+`backend/build.gradle`), поэтому **все поля группы могут быть `null`**: запуск прямо из
+скомпилированных классов (`bootRun`, тестовый слайс) не знает о себе ничего, а образ, собранный без
+`.git`, знает только версию и время. `dirty: null` — это «сборка не записала», а не «дерево было
+чистым».
 
 **Ошибки:**
 - `403` — требуется аутентификация (HTTP Basic)

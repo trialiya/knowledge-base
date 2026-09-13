@@ -32,33 +32,59 @@
 #                  as it is -- valid either way, only short of the classes this
 #                  run reaches for and that one did not
 #   KB_BUILD       0 never builds, 1 always does.  By default the build runs
-#                  only when it has to: no kb.jar, one built for another
-#                  profile, or one another command has rebuilt since.  A repeat
-#                  of the same profile starts straight away, and a source change
-#                  is rebuilt the way run.sh expects it to be — by hand, or here
-#                  with KB_BUILD=1
+#                  unless the JAR itself can show it is still the right one:
+#                  built for this profile, from the commit checked out now, with
+#                  no uncommitted changes on either side.  So a pull, a checkout
+#                  or an edit rebuilds, and starting the same thing twice starts
+#                  straight away.  Reading that proof needs `unzip`; without it
+#                  the JAR cannot be asked anything and every start rebuilds
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE="${1:-h2}"
 
 JAR="$SCRIPT_DIR/../backend/build/libs/kb.jar"
-# Which profile the JAR standing there was built for.  Nothing in the JAR's name
-# says it, and the build that would answer the question is the one being avoided
-# here, so the script writes down what it built.  Under build/, so `clean` takes
-# it along; rewritten even when Gradle had nothing to do, which keeps it newer
-# than the JAR and leaves a JAR rebuilt by anything else (a plain `test.sh jar`,
-# with no generated definitions in it at all) with no profile to its name.
-STAMP="$JAR.aot-profile"
+REPO="$SCRIPT_DIR/.."
 
-BUILT_FOR=""
-if [ -f "$JAR" ] && [ -f "$STAMP" ] && [ ! "$JAR" -nt "$STAMP" ]; then
-  BUILT_FOR="$(cat "$STAMP")"
+# What the JAR standing there was built from — asked of the JAR itself, because
+# that is the only answer that cannot drift away from it.  The build writes both
+# files (see backend/build.gradle): `build.aot.profile` is the profile whose bean
+# definitions are baked in, and git.properties is the commit they were generated
+# from.  Neither exists in a JAR built by anything else — a plain `test.sh jar`,
+# with no generated definitions in it at all — and that reads as "unknown", which
+# is exactly what it is.
+jar_entry() {
+  unzip -p "$JAR" "$1" 2> /dev/null || true
+}
+
+JAR_PROFILE=""
+JAR_COMMIT=""
+JAR_DIRTY=""
+if [ -f "$JAR" ] && command -v unzip > /dev/null 2>&1; then
+  JAR_PROFILE="$(jar_entry META-INF/build-info.properties | sed -n 's/^build\.aot\.profile=//p')"
+  JAR_GIT="$(jar_entry BOOT-INF/classes/git.properties)"
+  JAR_COMMIT="$(printf '%s\n' "$JAR_GIT" | sed -n 's/^git\.commit\.id=//p')"
+  JAR_DIRTY="$(printf '%s\n' "$JAR_GIT" | sed -n 's/^git\.dirty=//p')"
+fi
+
+# Whether the sources still are the ones in the JAR.  This is what makes `git
+# pull` rebuild: the JAR remembers its commit, and a checkout that moves HEAD
+# away from it is visible here.  Uncommitted work on either side answers "no" —
+# a commit id says nothing about edits that were never committed, and the JAR
+# cannot be vouched for then.  Rebuilding is the safe answer, and a rebuild that
+# turns out to change nothing costs one warm Gradle run.
+CURRENT=""
+if [ -z "$(git -C "$REPO" status --porcelain 2> /dev/null)" ]; then
+  CURRENT="$(git -C "$REPO" rev-parse HEAD 2> /dev/null || true)"
+fi
+same_sources=no
+if [ -n "$CURRENT" ] && [ "$CURRENT" = "$JAR_COMMIT" ] && [ "$JAR_DIRTY" = false ]; then
+  same_sources=yes
 fi
 
 case "${KB_BUILD:-}" in
   0) build=no ;;
-  '') if [ "$BUILT_FOR" = "$PROFILE" ]; then build=no; else build=yes; fi ;;
+  '') if [ "$JAR_PROFILE" = "$PROFILE" ] && [ "$same_sources" = yes ]; then build=no; else build=yes; fi ;;
   *) build=yes ;;
 esac
 
@@ -73,7 +99,6 @@ if [ "$build" = yes ]; then
   # starts itself, so an -agentlib meant for the application would attach to
   # Gradle instead -- and abort it outright on a JDK that has no such library.
   KB_NATIVE=1 JAVA_OPTS= "$SCRIPT_DIR/test.sh" jar -- -Pkb.aot.profile="$PROFILE"
-  printf '%s\n' "$PROFILE" > "$STAMP"
   echo ""
 fi
 
@@ -81,21 +106,27 @@ fi
 # -Dspring.aot.enabled=true reads whatever generated definitions the JAR holds,
 # be they another profile's or none.  A start that skipped the build is the one
 # that can be wrong about it.
-if [ "$build" = no ] && [ -n "$BUILT_FOR" ] && [ "$BUILT_FOR" != "$PROFILE" ]; then
-  echo "ERROR: the JAR is built for profile '$BUILT_FOR', not '$PROFILE' —" >&2
+if [ "$build" = no ] && [ -n "$JAR_PROFILE" ] && [ "$JAR_PROFILE" != "$PROFILE" ]; then
+  echo "ERROR: the JAR is built for profile '$JAR_PROFILE', not '$PROFILE' —" >&2
   echo "  starting it would raise the other profile's beans.  Drop KB_BUILD=0." >&2
   exit 1
 fi
 
-if [ "$build" = no ] && [ -z "$BUILT_FOR" ]; then
+if [ "$build" = no ] && [ -z "$JAR_PROFILE" ]; then
   echo "Spring AOT: on — but the profile the JAR was built for is unknown:" >&2
-  echo "  ${STAMP##*/} is missing or older than the JAR, so this script did not" >&2
-  echo "  build it and it may hold no generated definitions at all." >&2
+  echo "  it carries no build.aot.profile, so this script did not build it and it" >&2
+  echo "  may hold no generated definitions at all." >&2
   echo "  KB_BUILD=1 builds it for '$PROFILE'." >&2
 else
   echo "Spring AOT: on — profile '$PROFILE' is baked into the JAR"
-  if [ "$build" = no ]; then
-    echo "  (built earlier for this profile — KB_BUILD=1 to build it again)"
+  # Only the default path can promise the JAR matches the sources -- it is the
+  # promise that let it skip the build.  KB_BUILD=0 skips regardless, so there
+  # the same line would be a claim nobody checked.
+  if [ "$build" = no ] && [ "$same_sources" = yes ]; then
+    echo "  (built earlier from the commit checked out now — KB_BUILD=1 to build it again)"
+  elif [ "$build" = no ]; then
+    echo "  WARNING: it was built from other sources — another commit, or a tree" >&2
+    echo "  with uncommitted changes.  KB_BUILD=0 is what skipped the rebuild." >&2
   fi
 fi
 

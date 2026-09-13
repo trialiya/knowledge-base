@@ -5,6 +5,11 @@
  * строка с папкой экспорта в «Массовых операциях». Пароля в этих данных нет — и
  * не должно появиться: бэкенд собирает ответ по полям, а URL прогоняет через
  * sanitizeJdbcUrl (см. SystemInfoControllerTest).
+ *
+ * Группа `build` заполнена целиком — так выглядит запуск собранного JAR. У запуска
+ * прямо из классов (bootRun) там всюду null, и панель показывает «неизвестно»;
+ * поведение на null проверяет SystemInfoControllerTest, отдельного снимка под него
+ * нет.
  */
 
 /**
@@ -20,6 +25,14 @@ export const h2SystemInfo = {
     javaVersion: '21.0.10',
     startedAt: '2026-07-27T23:31:35.000Z',
     uptimeSeconds: 14,
+  },
+  build: {
+    version: '1.0.0-RC1',
+    builtAt: '2026-07-27T23:29:04.000Z',
+    commit: '15203dc',
+    branch: 'main',
+    commitTime: '2026-07-27T19:41:34.000Z',
+    dirty: false,
   },
   database: {
     url: 'jdbc:h2:./local-db/h2',
