@@ -299,7 +299,7 @@
     },
     "system": {
       "title": "System",
-      "subtitle": "Profile, database, indexed repository and access",
+      "subtitle": "Build, profile, database, indexed repository and access",
       "app": {
         "label": "Application",
         "name": "Application name",

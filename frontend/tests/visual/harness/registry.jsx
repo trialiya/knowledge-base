@@ -648,7 +648,9 @@ const REGISTRY = [
   {
     id: 'systemInfo.js#h2SystemInfo',
     frame: 'center',
-    viewport: [1440, 1210],
+    // Высота подобрана под всю карточку целиком: снимок обязан доходить до примечания
+    // под «Доступом» — ради него кейс и заведён. Появилась секция «Сборка» — выросла и она.
+    viewport: [1440, 1300],
     api: (p) => ({ '/api/admin/system': p }),
     render: () => <SystemInfo />,
   },

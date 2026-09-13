@@ -119,9 +119,14 @@ if [ "$build" = no ] && [ -z "$JAR_PROFILE" ]; then
   echo "  KB_BUILD=1 builds it for '$PROFILE'." >&2
 else
   echo "Spring AOT: on — profile '$PROFILE' is baked into the JAR"
-  if [ "$build" = no ]; then
-    echo "  (built earlier for this profile, from the commit checked out now —"
-    echo "   KB_BUILD=1 to build it again)"
+  # Only the default path can promise the JAR matches the sources -- it is the
+  # promise that let it skip the build.  KB_BUILD=0 skips regardless, so there
+  # the same line would be a claim nobody checked.
+  if [ "$build" = no ] && [ "$same_sources" = yes ]; then
+    echo "  (built earlier from the commit checked out now — KB_BUILD=1 to build it again)"
+  elif [ "$build" = no ]; then
+    echo "  WARNING: it was built from other sources — another commit, or a tree" >&2
+    echo "  with uncommitted changes.  KB_BUILD=0 is what skipped the rebuild." >&2
   fi
 fi
 
