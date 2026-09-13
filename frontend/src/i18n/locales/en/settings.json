@@ -309,6 +309,15 @@
         "startedAt": "Started",
         "uptime": "Uptime"
       },
+      "build": {
+        "label": "Build",
+        "version": "Version",
+        "builtAt": "Built at",
+        "commit": "Commit",
+        "dirty": "uncommitted changes",
+        "branch": "Branch",
+        "commitTime": "Commit date"
+      },
       "database": {
         "label": "Database",
         "url": "JDBC URL (credentials stripped)",

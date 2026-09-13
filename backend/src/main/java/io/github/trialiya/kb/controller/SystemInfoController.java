@@ -15,15 +15,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.jspecify.annotations.Nullable;
+import org.springframework.boot.info.BuildProperties;
+import org.springframework.boot.info.GitProperties;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Read-only view of how the server itself is wired — profile, database, indexed repository, export
- * folder and the embedding queue's tuning knobs — for the Admin panel. The AI-side configuration
- * lives in {@link SettingsController} instead; the split follows the panels: Settings answers "how
- * does the assistant think", Admin answers "how is this server set up".
+ * Read-only view of how the server itself is wired — build, profile, database, indexed repository,
+ * export folder and the embedding queue's tuning knobs — for the Admin panel. The AI-side
+ * configuration lives in {@link SettingsController} instead; the split follows the panels: Settings
+ * answers "how does the assistant think", Admin answers "how is this server set up".
  *
  * <p>Same rule as {@link SettingsController}: fields are assembled one by one and secrets are never
  * among them. Every value comes from a bound properties record — {@link ServerEnvironment} for the
@@ -44,6 +46,8 @@ public class SystemInfoController {
     private final Project project;
     private final GitService gitService;
     @Nullable private final Flyway flyway;
+    @Nullable private final BuildProperties buildProperties;
+    @Nullable private final GitProperties gitProperties;
 
     private volatile boolean schemaVersionResolved;
     @Nullable private String cachedSchemaVersion;
@@ -55,7 +59,9 @@ public class SystemInfoController {
             SecurityProperties securityProperties,
             ProjectCatalog projectCatalog,
             GitRegistry gitRegistry,
-            @Nullable Flyway flyway) {
+            @Nullable Flyway flyway,
+            @Nullable BuildProperties buildProperties,
+            @Nullable GitProperties gitProperties) {
         this.environment = environment;
         this.documentsConfiguration = documentsConfiguration;
         this.embeddingConfiguration = embeddingConfiguration;
@@ -63,6 +69,8 @@ public class SystemInfoController {
         this.project = projectCatalog.defaultProject();
         this.gitService = gitRegistry.defaultProject();
         this.flyway = flyway;
+        this.buildProperties = buildProperties;
+        this.gitProperties = gitProperties;
     }
 
     @GetMapping
@@ -76,6 +84,7 @@ public class SystemInfoController {
                         System.getProperty("java.version"),
                         Instant.ofEpochMilli(runtime.getStartTime()).toString(),
                         runtime.getUptime() / 1000),
+                buildInfo(buildProperties, gitProperties),
                 new DatabaseInfo(
                         sanitizeJdbcUrl(environment.datasourceUrl()),
                         environment.datasourceDriver(),
@@ -132,6 +141,40 @@ public class SystemInfoController {
     }
 
     /**
+     * What the running JAR was built from. Both sources are optional beans: {@code
+     * build-info.properties} and {@code git.properties} are written by the build (see {@code
+     * backend/build.gradle}), so a run straight from compiled classes — {@code bootRun}, a test
+     * slice — has neither, and an image assembled without the repository's {@code .git} has only
+     * the first. Every field is nullable for that reason; the panel shows a dash where a value is
+     * missing rather than pretending to know.
+     */
+    static BuildInfo buildInfo(@Nullable BuildProperties build, @Nullable GitProperties git) {
+        return new BuildInfo(
+                build == null ? null : build.getVersion(),
+                build == null ? null : asIsoString(build.getTime()),
+                git == null ? null : git.getShortCommitId(),
+                git == null ? null : git.getBranch(),
+                git == null ? null : asIsoString(git.getCommitTime()),
+                git == null ? null : parseBoolean(git.get("dirty")));
+    }
+
+    private static @Nullable String asIsoString(@Nullable Instant instant) {
+        return instant == null ? null : instant.toString();
+    }
+
+    /**
+     * {@code null} for anything that is not {@code true}/{@code false} — including an absent key.
+     * {@link Boolean#parseBoolean} would answer {@code false} there, which reads as "the tree was
+     * clean" instead of "nobody wrote it down".
+     */
+    private static @Nullable Boolean parseBoolean(@Nullable String value) {
+        if ("true".equals(value)) {
+            return Boolean.TRUE;
+        }
+        return "false".equals(value) ? Boolean.FALSE : null;
+    }
+
+    /**
      * Strips credentials from a JDBC URL: everything after {@code ?} (which may carry {@code
      * user=}/{@code password=}) and any {@code user:password@} authority prefix. What is left is
      * the host, port and database name — enough to tell Postgres from H2 and one environment from
@@ -152,6 +195,7 @@ public class SystemInfoController {
 
     public record SystemInfoResponse(
             ApplicationInfo application,
+            BuildInfo build,
             DatabaseInfo database,
             GitInfo git,
             DocumentsInfo documents,
@@ -172,6 +216,20 @@ public class SystemInfoController {
             String username,
             String flywayLocations,
             @Nullable String schemaVersion) {}
+
+    /**
+     * @param commit abbreviated commit id ({@code git.commit.id.abbrev}); the full one stays in
+     *     {@code git.properties} and is not worth a row in the panel.
+     * @param dirty whether the working tree had uncommitted changes at build time. {@code null}
+     *     means the build left no git data at all, which is not the same as a clean tree.
+     */
+    public record BuildInfo(
+            @Nullable String version,
+            @Nullable String builtAt,
+            @Nullable String commit,
+            @Nullable String branch,
+            @Nullable String commitTime,
+            @Nullable Boolean dirty) {}
 
     /**
      * @param editActive is not reported here — it is AI-side and lives in {@code /ai-config}.

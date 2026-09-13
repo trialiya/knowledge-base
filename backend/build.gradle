@@ -6,6 +6,7 @@ plugins {
     id 'net.ltgt.errorprone'
     id 'pmd'
     id 'com.github.spotbugs' version '6.5.11'
+    id 'com.gorylenko.gradle-git-properties' version '4.0.1'
     // apply false: плагин включается по флагу ниже, иначе он меняет обычный bootJar.
     id 'org.graalvm.buildtools.native' version '1.1.12' apply false
 }
@@ -248,6 +249,46 @@ tasks.named('test') {
     // такой сброс приходится на середину соседнего теста. Выключаем: логирование в тестах задаёт
     // src/test/resources/logback-test.xml, и задаёт один раз.
     systemProperty 'org.springframework.boot.logging.LoggingSystem', 'none'
+}
+
+// Из чего собран работающий сервер — двумя файлами внутри JAR, и оба поднимает сам Spring Boot
+// (ProjectInfoAutoConfiguration): `git.properties` даёт коммит, `META-INF/build-info.properties` —
+// версию и время сборки. Показывает их админ-панель.
+//
+// Время сборки идёт через buildInfo, а не через gitProperties: плагин пишет только то, что знает
+// git, и ключа с временем сборки у него нет.
+springBoot {
+    buildInfo()
+}
+
+// `keys` перечислен поимённо, потому что по умолчанию плагин пишет туда же хост, имя и почту
+// того, кто собирал, — в артефакт, который уезжает в релиз, им незачем. Версии здесь тоже нет:
+// её отдаёт build-info.properties, и хранить то же число дважды значит завести второй источник
+// правды.
+gitProperties {
+    // Плагин применён к `:backend`, а `.git` лежит в корне мультипроекта.
+    dotGitDirectory = rootProject.layout.projectDirectory.dir('.git')
+    // Сборка из распакованного архива или из образа, куда `.git` не попал, падать не должна:
+    // `git.properties` тогда просто нет, и панель показывает прочерк.
+    failOnNoGitDirectory = false
+    keys = [
+            'git.branch',
+            'git.commit.id',
+            'git.commit.id.abbrev',
+            'git.commit.time',
+            'git.dirty',
+    ]
+}
+
+// Время сборки меняется в каждой сборке, а оба файла пишутся в build/resources/main — то есть на
+// runtime-класспат и тестов, и bootRun. Без нормализации любая пересборка делала бы устаревшими
+// :backend:test и всё остальное, что читает класспат. В JAR файлы при этом попадают: нормализация
+// касается только сравнения входов задач.
+normalization {
+    runtimeClasspath {
+        ignore 'git.properties'
+        ignore 'META-INF/build-info.properties'
+    }
 }
 
 // Статику фронтенда упаковывают сами архивные задачи, читая её из build-каталога
