@@ -17,8 +17,8 @@ import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.ClassPathResource;
 
 /**
- * Пороги агентного цикла из {@code application.yaml} действительно доезжают до {@link
- * ToolCallingProperties}.
+ * Настройки агентного цикла из {@code application.yaml} — пороги и судьба вызова, который цикл
+ * выполнить не может, — действительно доезжают до {@link ToolCallingProperties}.
  *
  * <p>Ключи {@code spring.ai.tools.limits.*} принадлежат Spring AI, а не нам, и промах в имени
  * ничего не ломает: свойство просто игнорируется, а менеджер молча берёт дефолты фреймворка (40 на
@@ -39,6 +39,16 @@ class ToolCallLimitsConfigTest {
     void breachingALimitAnswersTheModelInsteadOfEndingTheRun() {
         assertThat(properties.getLimits().getOnLimitExceeded())
                 .isEqualTo(ToolCallLimitBehavior.RETURN_ERROR_RESPONSE);
+    }
+
+    /**
+     * Без флага {@code UnknownToolCallbackResolver} недостижим: резолвер спрашивают только под ним,
+     * а иначе неизвестное имя рвёт прогон исключением из стрима. Бин на месте, промах в ключе тихий
+     * — поэтому связка держится тестом, как и пороги выше.
+     */
+    @Test
+    void anInventedToolNameReachesOurResolverInsteadOfEndingTheRun() {
+        assertThat(properties.getResolution().getFallback().isEnabled()).isTrue();
     }
 
     /**

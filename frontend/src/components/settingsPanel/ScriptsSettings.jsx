@@ -37,7 +37,9 @@ const ScriptsSections = ({ config }) => {
     <>
       {/* ── Состояние ── */}
       <SettingsSection label={t('scripts.status.label')}>
-        <ConfigStatusRow label={t('scripts.status.enabled')} on={script.enabled} />
+        {/* Строка отвечает на вопрос «есть ли runScript у модели», а не «что стоит в конфиге»:
+            флаг — то, что прочитал процесс, active — то, что собралось из него. */}
+        <ConfigStatusRow label={t('scripts.status.enabled')} on={script.active} />
         <ConfigBoolRow label={t('scripts.status.editEnabled')} value={script.editEnabled} />
         <ConfigBoolRow label={t('scripts.status.editActive')} value={script.editActive} />
         {!script.enabled && <p className="config-note">{t('scripts.status.disabledNote')}</p>}
