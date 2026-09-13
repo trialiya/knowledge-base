@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import DocLinkTooltip from '@/components/common/preview/DocLinkTooltip';
 import '../styles/message.css';
-import CodeBlock from '@/components/common/ui/CodeBlock';
+import MarkdownCodeBlock from '@/components/common/ui/MarkdownCodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
 import MessageContextItems from './MessageContextItems';
 import { formatTokens, hasUsage, usageTooltip } from './tokenUsage';
@@ -34,28 +34,14 @@ const MessageCopyButton = ({ text }) => {
 
 function getMarkdownComponents(onNavigateToDoc) {
   return {
-    a: ({ href, children, ...props }) => (
+    // `node` — служебный проп react-markdown: в спреде он уехал бы на DOM-узел
+    // атрибутом node="[object Object]".
+    a: ({ href, children, node: _node, ...props }) => (
       <DocLinkTooltip href={href} onNavigate={onNavigateToDoc} {...props}>
         {children}
       </DocLinkTooltip>
     ),
-    code({ inline, className, children, ...props }) {
-      const raw = String(children).replace(/\n$/, '');
-      const isBlock = !inline && (raw.includes('\n') || /language-(\w+)/.test(className || ''));
-
-      if (!isBlock) {
-        return (
-          <code className={className} {...props}>
-            {children}
-          </code>
-        );
-      }
-      return (
-        <CodeBlock code={raw} className={className} {...props}>
-          {raw}
-        </CodeBlock>
-      );
-    },
+    pre: MarkdownCodeBlock,
   };
 }
 
@@ -121,12 +107,11 @@ const Message = ({
   const timeTitle = formatFullDatetime(timestamp, i18n.language);
 
   // Стабильные идентичности markdown-компонентов между рендерами (как в
-  // MarkdownEditor). Без useMemo каждый рендер создаёт новые функции `code`/`a`,
-  // React считает их другими типами и пересоздаёт DOM-поддеревья кода и ссылок
-  // с новыми текстовыми узлами. Это ломает CSS Highlight подсветку find-бара:
-  // её Range-ы держат ссылки на старые узлы, и совпадения в `код`-фрагментах
-  // гасли при любом ре-рендере списка (например, setShowScrollButton после
-  // плавного скролла к совпадению).
+  // MarkdownEditor). Без useMemo каждый рендер создаёт новую функцию `a`, React
+  // считает её другим типом и пересоздаёт DOM-поддеревья ссылок с новыми
+  // текстовыми узлами. Это ломает CSS Highlight подсветку find-бара: её Range-ы
+  // держат ссылки на старые узлы, и совпадения гасли при любом ре-рендере
+  // списка (например, setShowScrollButton после плавного скролла к совпадению).
   const mdComponents = useMemo(() => getMarkdownComponents(onNavigateToDoc), [onNavigateToDoc]);
 
   // Разбивка — в подсказке: в футере на неё нет места, а нужна она редко. Сверху три числа про

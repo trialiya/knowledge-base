@@ -26,7 +26,7 @@ const CodeBlock = ({ code, className, children, ...props }) => {
           {copied ? <IconCopied size={14} /> : <IconCopySmall size={14} />}
         </button>
       </div>
-      <pre>
+      <pre className="code-block__pre">
         <code className={className} {...props}>
           {children}
         </code>

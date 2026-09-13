@@ -44,6 +44,7 @@ import { DOC_TAB } from '@/constants/docTabs';
 import { SEARCH_SCOPE, SEARCH_SCOPES } from '@/constants/searchScope';
 import { IconRefresh, IconUpload } from '@/icons/index';
 import * as aiConfig from '../fixtures/aiConfig';
+import * as chatCodeBlocks from '../fixtures/chatCodeBlocks';
 import * as chatFind from '../fixtures/chatFind';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
@@ -279,6 +280,13 @@ const REGISTRY = [
     id: 'chatHeader.js#activeChatWithContextProps',
     frame: 'center',
     render: (p) => <ChatHeader {...p} onToggleSearch={noop} onRename={noop} onDelete={noop} />,
+  },
+  // Все формы блока кода в одном ответе: шапка с языком и копированием положена
+  // каждому, а рамка у блока одна — CodeBlock ставится вместо `pre` разметки.
+  {
+    id: 'chatCodeBlocks.js#variants',
+    frame: 'center',
+    render: (p) => <MessageList conversationId="chat-1" messages={p} />,
   },
   // Переход к найденному: чат открыт из единого поиска, запрос стоит в адресе.
   // Проверяемое — что бар подставлен, а активное совпадение подсвечено целым
@@ -691,6 +699,7 @@ const MODULES = {
   'aiConfig.js': aiConfig,
   'chatHeader.js': chatHeader,
   'chatFind.js': chatFind,
+  'chatCodeBlocks.js': chatCodeBlocks,
   'chatRepo.js': chatRepo,
   'detailHeader.js': detailHeader,
   'detailPanel.js': detailPanel,

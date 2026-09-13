@@ -146,7 +146,16 @@
   border-radius: 4px;
   color: var(--kb-accent);
 }
-.md-preview pre {
+/* Почему `all`, чем за него плачено (кусок плашки мышью уже не выделить) и
+   почему в Firefox он не сработает — см. тот же приём в
+   chatPanel/styles/markdown.css: плашка шире букв, и протяжка до её края уносит
+   в буфер соседний пробел. Правило достаётся и сводке `/compact`: своего
+   `.md-preview` у модалки нет, она живёт на этом. */
+.md-preview code:not(pre code) {
+  user-select: all;
+}
+/* Блок кода с шапкой рисует себя сам — см. common/ui/codeBlock.css. */
+.md-preview pre:not(.code-block__pre) {
   background: var(--kb-bg);
   border: 1px solid var(--kb-border);
   border-radius: 8px;
