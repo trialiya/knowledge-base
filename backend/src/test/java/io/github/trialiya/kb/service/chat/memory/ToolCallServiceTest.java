@@ -67,7 +67,10 @@ class ToolCallServiceTest {
         // Ответ инструмента есть, но чем вызов кончился, знала только несохранённая мета: провал
         // выглядит в tool_data ровно так же, поэтому UNKNOWN, а не OK.
         assertThat(metas.get(0).status()).isEqualTo(ToolInvocationStatus.UNKNOWN);
-        assertThat(metas.get(0).hasDetails()).isFalse();
+        // Детали доступны и здесь: callId из tool_data ведёт findToolCallDetail через
+        // tool_call_index, а callIndex синтезу взять негде — он жил только в мете прогона.
+        assertThat(metas.get(0).hasDetails()).isTrue();
+        assertThat(metas.get(0).callId()).isEqualTo("id-0");
         assertThat(metas.get(0).callIndex()).isNull();
         assertThat(metas.get(0).arguments()).containsEntry("q", "a");
         assertThat(metas.get(0).resultGist()).contains("found 3 docs");

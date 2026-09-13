@@ -403,6 +403,16 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         // прервали посреди инструмента, и чем тот кончился, не знает никто.
         assertThat(detail.get().status()).isEqualTo(ToolInvocationStatus.UNKNOWN);
         assertThat(detail.get().resultText()).contains("interrupted");
+
+        // И плашка, синтезированная для сегмента без меты, ведёт ровно к этой детали: без callId
+        // (и с hasDetails=false) фронт не дал бы её открыть, хотя открывать уже что.
+        assertThat(toolCalls().invocationsFor(segment, List.of(segment)))
+                .singleElement()
+                .satisfies(
+                        meta -> {
+                            assertThat(meta.callId()).isEqualTo("call_stopped");
+                            assertThat(meta.hasDetails()).isTrue();
+                        });
     }
 
     /** Оборванный прогон: ответ есть, меты нет — вызов отработал, но исход неизвестен. */

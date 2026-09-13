@@ -197,8 +197,11 @@ public class ToolCallService {
      * context} (строк той же страницы). Статус — UNKNOWN: исход вызова живёт только в мете, а её
      * тут нет; провалившийся вызов выглядит в {@code tool_data} ровно как успешный (текст ошибки
      * лежит на месте результата), и {@code OK} здесь был бы утверждением, которого никто не
-     * проверял. hasDetails=false — намеренно не предлагаем детали для этого синтезированного (не
-     * через {@link #runInvocations}) пути. {@code SKIP_TOOLS} вырезаны, как и там.
+     * проверял. Детали такая плашка предлагает наравне с обычной: {@code callId} лежит в {@code
+     * tool_data}, а {@link #findToolCallDetail} ищет по нему через {@code tool_call_index} и сам
+     * умеет отдать вызов без меты — аргументы, результат (у оборванного прогона это синтетический
+     * «[interrupted — no result]» из {@link ChatHistoryService#repairDanglingToolCalls}) и тот же
+     * UNKNOWN. {@code SKIP_TOOLS} вырезаны, как и там.
      */
     public @Nullable List<ToolInvocationMeta> invocationsFor(
             ChatMessageEntity entity, List<ChatMessageEntity> context) {
@@ -239,11 +242,11 @@ public class ToolCallService {
                                         ToolInvocationStatus.UNKNOWN,
                                         null,
                                         null,
-                                        false,
+                                        true,
                                         null,
                                         Compact.truncate(
                                                 responseById.get(call.id()), RESULT_GIST_MAX),
-                                        null))
+                                        call.id()))
                 .toList();
     }
 

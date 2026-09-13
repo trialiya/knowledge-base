@@ -89,6 +89,23 @@ describe('ToolCallDetailModal', () => {
     expect(chatApi.getToolCallDetails).toHaveBeenCalledTimes(calls);
   });
 
+  it('на оборванном прогоне опрос UNKNOWN не бесконечен', async () => {
+    // Прогон прервали: ответ у вызова синтетический, а меты, которая назвала бы исход, не
+    // будет никогда — переспрашивать вечно нечего.
+    chatApi.getToolCallDetails.mockResolvedValue(detail('UNKNOWN', '"[interrupted — no result]"'));
+
+    open({ ...tc, status: 'UNKNOWN' });
+
+    expect(await screen.findByText('toolCall.statusValue.UNKNOWN')).toBeInTheDocument();
+
+    await tick(120000);
+    const calls = chatApi.getToolCallDetails.mock.calls.length;
+    expect(calls).toBeLessThanOrEqual(6);
+
+    await tick(120000);
+    expect(chatApi.getToolCallDetails).toHaveBeenCalledTimes(calls);
+  });
+
   it('сорвавшийся перезапрос не стирает уже показанные аргументы', async () => {
     chatApi.getToolCallDetails
       .mockResolvedValueOnce(detail('STARTED', null))
