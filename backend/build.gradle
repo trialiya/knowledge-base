@@ -373,6 +373,20 @@ if (nativeBuild) {
     tasks.named('processAot') {
         args '--spring.profiles.active=' + aotProfile, '--spring.aot.repositories.enabled=false'
     }
+
+    // Профиль, под который сняты определения бинов, — в build-info.properties самого JAR
+    // (`build.aot.profile`). Отсюда его читает run/run-spring-aot.sh: по имени файла профиль
+    // не виден, а знать его нужно — запуск с -Dspring.aot.enabled=true поднимет запечённый
+    // набор бинов, каким бы он ни был. Ответ должен ехать внутри артефакта, а не лежать рядом
+    // с ним, где он разъезжается с JAR при первой же пересборке чем-нибудь другим.
+    //
+    // Ключ пишется только в этой ветке: в обычном JAR сгенерированных определений нет вовсе,
+    // и профиля у него нет тоже — пустое значение там честнее любого.
+    tasks.named('bootBuildInfo') {
+        properties {
+            additional.put('aot.profile', aotProfile)
+        }
+    }
     graalvmNative {
         // GraalVM берётся из GRAALVM_HOME, иначе из JAVA_HOME.
         toolchainDetection = false
