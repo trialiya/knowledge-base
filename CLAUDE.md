@@ -63,7 +63,7 @@ The wrapper deliberately does not cover:
 ```bash
 ./gradlew :backend:bootRun     # dev backend on :8080 (run/run.sh h2 runs the JAR)
 ./gradlew :frontend:yarnServe  # Vite dev server on :3000, proxies /api to :8080
-./gradlew spotlessApply        # format the backend (Google Java Format, AOSP)
+./gradlew spotlessApply        # format the backend (AOSP) and the Markdown docs
 ```
 
 `*IT` suites use Testcontainers and need Docker; `*Test` (unit) suites don't.
