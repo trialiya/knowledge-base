@@ -111,13 +111,21 @@
   color: var(--kb-text);
   font-weight: 500;
 }
-.picker-item__path {
+.picker-item__path,
+.picker-item__desc {
   font-size: 0.72rem;
   color: var(--kb-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  direction: rtl; /* начало пути видно справа → имя файла всегда читаемо */
+}
+/*
+ * Путь режется с начала: у длинного пути имя файла в конце и оно важнее корня.
+ * Фразе (picker-item__desc) такой разворот противопоказан — отрезанным оказалось бы
+ * начало, то есть как раз то, что называет пункт.
+ */
+.picker-item__path {
+  direction: rtl;
   text-align: left;
 }
 .picker-dropdown__footer {

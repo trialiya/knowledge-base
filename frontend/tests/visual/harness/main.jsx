@@ -103,6 +103,14 @@ const FRAMES = {
       {node}
     </div>
   ),
+  // Тот же композер в узкой колонке: на 860px в списке помещается всё, и как
+  // режется не влезающее, видно только здесь. Ширину задаёт рамка, а не вьюпорт —
+  // лента в приложении своей ширины экрану не отдаёт.
+  composerNarrow: (node) => (
+    <div className="message-list" style={{ height: '100vh', width: 300, justifyContent: 'flex-end' }}>
+      {node}
+    </div>
+  ),
   bare: (node) => node,
 };
 

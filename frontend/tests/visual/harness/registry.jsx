@@ -416,6 +416,14 @@ const REGISTRY = [
     render: (p) => <MessageInput {...p} onSend={noop} onStop={noop} onAttach={noop} />,
   })),
 
+  // Тот же список в узкой колонке: описание пункта перестаёт помещаться, и видно,
+  // с какого конца оно режется.
+  {
+    id: 'composerCommand.js#slashMenuNarrow',
+    frame: 'composerNarrow',
+    render: (p) => <MessageInput {...p} onSend={noop} onStop={noop} onAttach={noop} />,
+  },
+
   // Детали вызова инструмента — по виду результата на кейс (см. cases.yaml,
   // tool-call-detail-*).
   // Окно выше стандартного там, где результат длиннее модалки: тело модалки

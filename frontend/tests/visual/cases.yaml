@@ -2678,6 +2678,27 @@
     всем триггерам, а вставлять совпавший — иначе выбор из списка переписывал бы
     пользователю набранное.
 
+- id: chat-composer-slash-menu-narrow-description
+  component: MessageInput
+  path: frontend/src/components/chatPanel/composer/MessageInput.jsx
+  fixture: composerCommand.js#slashMenuNarrow
+  title: Композер — описание пункта списка режется с конца, а не с начала
+  status: verified
+  origin:
+    - Сессия 2026-09-14, обрезка описаний в списке со слэша
+  preconditions:
+    viewport: [1440, 900]
+    frame: composerNarrow — колонка 300px; на штатных 860 описания помещаются целиком
+  expected:
+    - У `/file` видно начало описания — «файл репозитория…», многоточие в конце
+    - Названия пунктов (`/compact`, `/file`, `/doc`) целы
+  notes: |
+    Путь в списке файлов (`picker-item__path`) развёрнут `direction: rtl` и режется
+    с начала: у длинного пути имя файла в конце и важнее корня. Фразе такой разворот
+    противопоказан — отрезанным оказалось бы как раз то, что называет пункт
+    («…ссылкой или содержимым»), — поэтому у описания свой класс `picker-item__desc`:
+    те же перенос и многоточие, но без разворота.
+
 - id: chat-composer-command-blocked
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
