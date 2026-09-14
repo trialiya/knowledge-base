@@ -35,6 +35,7 @@ source — but as orientation they are the fastest way in:
 | Endpoints / config keys / entities | `api-reference.md` · `конфигурация.md` · `модели-данных/` |
 | The `@Tool` catalogue | `ai-инструменты.md` |
 | Search internals | `архитектура-и-реализация-поиска.md` |
+| Git: projects, what the model reads and writes, user commands | `обзор-работы-с-git.md` |
 
 ## Running checks
 
