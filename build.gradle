@@ -4,6 +4,22 @@ plugins {
     id 'net.ltgt.errorprone' version '5.1.1' apply false
 }
 
+// Документация — такой же вход `spotlessCheck`, как код: хвостовые пробелы и отсутствие
+// перевода строки в конце файла не видны в ревью, но дают шум в каждом следующем диффе.
+// Prettier сюда не заведён намеренно: он переливает абзацы по своей ширине и перестраивает
+// таблицы, а docs/ свёрстаны руками — переформатирование скрыло бы содержательные правки.
+// Табы не трогаются: они есть внутри блоков кода (стек-трейсы), где значимы.
+apply plugin: 'com.diffplug.spotless'
+
+spotless {
+    format 'markdown', {
+        target 'docs/**/*.md', '*.md'
+
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
 group = 'io.github.trialiya.kb'
 version = '1.0.0-RC2'
 
