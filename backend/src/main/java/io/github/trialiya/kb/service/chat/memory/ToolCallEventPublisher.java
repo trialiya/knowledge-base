@@ -65,17 +65,20 @@ public class ToolCallEventPublisher {
         }
         if (toolData.toolCalls() != null) {
             for (ToolData.Call call : toolData.toolCalls()) {
-                // SKIP_TOOLS не показываем нигде: ни live, ни после перезагрузки
-                // (markRunResult их тоже вырезает); номер при этом занимают — он должен
-                // совпадать со счётчиком коллектора. Запоминать их не нужно: запомненное
-                // читает только ветка ответов ниже, а она SKIP_TOOLS отбрасывает.
+                // Номер занимают все вызовы: он должен совпадать со счётчиком коллектора.
+                // Запоминаются тоже все — по этой записи ремонт хвоста находит результат
+                // вызова, успевшего отработать в брошенном батче (см. {@link
+                // ChatHistoryService#repairDanglingToolCalls}), а протокольный ответ нужен
+                // модели и на скрытый вызов.
                 final int callIndex = scope.nextCallIndex();
-                if (!ToolCallService.hasDetails(call.name())) {
-                    continue;
-                }
                 final Map<Object, Object> arguments =
                         RecordingToolCallback.parseToolInput(call.arguments());
                 scope.rememberCall(call.id(), callIndex, arguments);
+                // SKIP_TOOLS не показываем нигде: ни live, ни после перезагрузки (markRunResult
+                // их тоже вырезает).
+                if (!ToolCallService.hasDetails(call.name())) {
+                    continue;
+                }
                 publish(
                         conversationId,
                         scope.runId(),
