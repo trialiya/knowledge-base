@@ -415,6 +415,68 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                         });
     }
 
+    /**
+     * Оборванный параллельный батч: снимок коллектора успел засчитать только первый вызов, и {@code
+     * markRunResult} записал мету сегмента по нему одному. Плашка второго вызова есть только в
+     * {@code tool_data} — живой чат её показывал, история обязана показать тоже.
+     */
+    @Test
+    void partialRunMetaIsToppedUpForTheAbandonedCallOfABatch() {
+        String conv = UUID.randomUUID().toString();
+        String runId = UUID.randomUUID().toString();
+
+        ChatMessageEntity segment =
+                save(
+                        conv,
+                        MessageType.ASSISTANT,
+                        new ChatMessageMeta(
+                                runId,
+                                false,
+                                List.of(
+                                        meta(
+                                                "searchCodebase",
+                                                ToolInvocationStatus.OK,
+                                                null,
+                                                null,
+                                                0,
+                                                "call_done"))),
+                        new ToolData(
+                                List.of(
+                                        new ToolData.Call(
+                                                "call_done",
+                                                "function",
+                                                "searchCodebase",
+                                                "{\"q\":\"кэш\"}"),
+                                        new ToolData.Call(
+                                                "call_lost",
+                                                "function",
+                                                "runScript",
+                                                "{\"script\":\"1+1\"}")),
+                                null));
+        index(conv, "call_done", segment.getId(), null);
+        index(conv, "call_lost", segment.getId(), null);
+
+        history().repairDanglingToolCalls(conv);
+
+        List<ChatMessageEntity> page = messageRepo.findByConversationIdOrderByPositionAsc(conv);
+        List<ToolInvocationMeta> metas = toolCalls().invocationsFor(segment, page);
+
+        assertThat(metas).hasSize(2);
+        // Сохранённая плашка остаётся ровно как записана — исход успевшего вызова известен.
+        assertThat(metas.get(0).status()).isEqualTo(ToolInvocationStatus.OK);
+        assertThat(metas.get(0).callIndex()).isZero();
+        // А брошенная добирается из tool_data: UNKNOWN и кликабельна — деталь по ней уже есть.
+        assertThat(metas.get(1).name()).isEqualTo("runScript");
+        assertThat(metas.get(1).callId()).isEqualTo("call_lost");
+        assertThat(metas.get(1).status()).isEqualTo(ToolInvocationStatus.UNKNOWN);
+        assertThat(metas.get(1).hasDetails()).isTrue();
+        assertThat(metas.get(1).resultGist()).contains("interrupted");
+        assertThat(toolCalls().findToolCallDetail(conv, "call_lost"))
+                .get()
+                .extracting(ToolCallDetail::status)
+                .isEqualTo(ToolInvocationStatus.UNKNOWN);
+    }
+
     /** Оборванный прогон: ответ есть, меты нет — вызов отработал, но исход неизвестен. */
     @Test
     void responseWithoutMetaIsUnknown() {
