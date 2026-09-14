@@ -24,10 +24,12 @@ import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.service.chat.runtime.RunScope;
 import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import io.github.trialiya.kb.support.ActiveProjectNotices;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
+import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -324,10 +326,64 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         ToolResponseMessage synthetic = (ToolResponseMessage) reloaded.get(2);
         assertThat(synthetic.getResponses()).hasSize(1);
         assertThat(synthetic.getResponses().getFirst().id()).isEqualTo("c1");
+        // Чинит чужой путь — новый вопрос, сжатие, восстановление после падения процесса:
+        // прогона уже нет, и результата ни одного вызова взять неоткуда.
+        assertThat(synthetic.getResponses().getFirst().responseData()).contains("interrupted");
 
         // Идемпотентность: целый хвост повторно не «чинится».
         memory.repairDanglingToolCalls(conv);
         assertThat(memory.promptMessages(conv)).hasSize(3);
+    }
+
+    @Test
+    void repairKeepsTheResultOfACallThatFinishedBeforeTheRunWasCut() {
+        String conv = newConversation();
+        ChatHistoryService memory = memory();
+
+        // Батч из двух вызовов: первый отработал, на втором прогон оборвали. Ответы на батч
+        // advisor-цепочка сохраняет одним сообщением в конце — результат успевшего пропал
+        // вместе с брошенным, и вернуть его может только область прогона.
+        AssistantMessage dangling =
+                AssistantMessage.builder()
+                        .content("зову инструменты")
+                        .toolCalls(
+                                List.of(
+                                        new AssistantMessage.ToolCall(
+                                                "c1", "function", "getDocument", "{}"),
+                                        new AssistantMessage.ToolCall(
+                                                "c2", "function", "searchDocs", "{}")))
+                        .build();
+        memory.append(conv, List.of(new UserMessage("вопрос"), dangling));
+
+        RunScope scope =
+                new RunRegistry().open(UUID.randomUUID().toString(), conv, "user", "gpt-5");
+        ToolInvocationCollector collector = new ToolInvocationCollector();
+        scope.attachCollector(collector);
+        scope.rememberCall("c1", 0, Map.of());
+        scope.rememberCall("c2", 1, Map.of());
+        collector.record(
+                new ToolInvocation(
+                        "getDocument",
+                        Map.of(),
+                        ToolInvocationStatus.OK,
+                        null,
+                        null,
+                        "текст документа",
+                        "{}",
+                        "полный текст документа",
+                        0,
+                        null));
+
+        memory.repairDanglingToolCalls(conv, scope);
+
+        List<Message> reloaded = memory.promptMessages(conv);
+        ToolResponseMessage synthetic = (ToolResponseMessage) reloaded.get(2);
+        assertThat(synthetic.getResponses()).hasSize(2);
+        // Успевший вызов отдаёт модели (и модалке деталей) то, что инструмент действительно
+        // вернул, — «результата нет» заслужил только брошенный.
+        assertThat(synthetic.getResponses().getFirst().responseData())
+                .isEqualTo("полный текст документа");
+        assertThat(synthetic.getResponses().get(1).responseData()).contains("interrupted");
     }
 
     @Test

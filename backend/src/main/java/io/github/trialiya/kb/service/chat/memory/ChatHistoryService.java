@@ -15,6 +15,7 @@ import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
+import io.github.trialiya.kb.service.chat.runtime.RunScope;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -52,6 +53,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 public class ChatHistoryService {
+
+    /** Пометка вызову, чей результат пропал вместе с прогоном. */
+    private static final String NO_RESULT = "[interrupted — no result]";
 
     private final ChatMessageRepository chatMessageRepository;
     private final ContextItemService contextItemService;
@@ -346,6 +350,16 @@ public class ChatHistoryService {
     }
 
     /**
+     * Чинит оборванную пару tool-сообщений в хвосте диалога — не зная ничего о прогоне, который её
+     * оставил: так его чинят чужие пути (новый вопрос, сжатие, восстановление после падения
+     * процесса), и результата ни одного из вызовов у них нет.
+     */
+    @Transactional
+    public void repairDanglingToolCalls(String conversationId) {
+        repairDanglingToolCalls(conversationId, null);
+    }
+
+    /**
      * Чинит оборванную пару tool-сообщений в хвосте диалога. Если прогон прервали (stop, ошибка,
      * падение процесса) во время выполнения инструментов, последняя строка — ASSISTANT с tool_calls
      * без парной TOOL-строки; следующий запрос к модели с таким хвостом получил бы 400
@@ -353,9 +367,20 @@ public class ChatHistoryService {
      *
      * <p>Оборванной может быть только последняя пара: цикл строго чередует assistant(tool_calls) →
      * tool, и всё, что раньше хвоста, уже сохранено парами.
+     *
+     * <p>Оборван не обязательно весь батч: инструменты сегмента исполняются по очереди, а
+     * протокольные ответы на них advisor-цепочка сохраняет одним сообщением в конце, — значит
+     * успевшие вызовы теряют результат вместе с брошенным. Их у прогона есть кому вспомнить:
+     * область прогона знает номер вызова по его {@code callId}, а коллектор по номеру — исход и сам
+     * текст ответа, который инструмент вернул (у провала это его сообщение об ошибке: ровно его
+     * получила бы модель, см. {@code ChatConfig#toolExecutionExceptionProcessor}). Пометку
+     * «результата нет» получает только тот вызов, который её заслужил.
+     *
+     * @param scope область прогона, который оставил хвост; {@code null} — чинит не он сам, и
+     *     результата ни одного вызова взять неоткуда
      */
     @Transactional
-    public void repairDanglingToolCalls(String conversationId) {
+    public void repairDanglingToolCalls(String conversationId, @Nullable RunScope scope) {
         chatMessageRepository
                 .findFirstByConversationIdOrderByPositionDesc(conversationId)
                 .filter(last -> last.getType() == MessageType.ASSISTANT)
@@ -376,7 +401,7 @@ public class ChatHistoryService {
                                                             new ToolData.Response(
                                                                     c.id(),
                                                                     c.name(),
-                                                                    "[interrupted — no result]"))
+                                                                    responseText(scope, c.id())))
                                             .toList();
                             log.info(
                                     "Repairing dangling tool_calls tail for {} ({} synthetic responses)",
@@ -401,6 +426,25 @@ public class ChatHistoryService {
                             // инструмент, который уже никогда не ответит.
                             toolCalls.index(conversationId, List.of(repaired));
                         });
+    }
+
+    /**
+     * Текст ответа для ремонтной строки: настоящий, если вызов всё-таки отработал и прогон его
+     * помнит, иначе пометка «результата нет» (см. {@link #repairDanglingToolCalls}).
+     */
+    private static String responseText(@Nullable RunScope scope, String callId) {
+        if (scope == null) {
+            return NO_RESULT;
+        }
+        final RunScope.StartedCall started = scope.startedCall(callId);
+        final ToolInvocation outcome =
+                started == null ? null : scope.completedCall(started.callIndex());
+        if (outcome == null) {
+            return NO_RESULT;
+        }
+        return outcome.resultText() != null
+                ? outcome.resultText()
+                : Objects.requireNonNullElse(outcome.error(), NO_RESULT);
     }
 
     /**

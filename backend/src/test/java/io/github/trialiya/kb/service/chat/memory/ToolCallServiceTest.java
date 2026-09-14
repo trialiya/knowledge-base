@@ -19,8 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.MessageType;
 
 /**
- * Синтез мет плашек из {@code tool_data} для сегментов без {@code meta.invocations} — оборванные и
- * старые прогоны (см. {@link ToolCallService#invocationsFor}).
+ * Синтез мет плашек из {@code tool_data} для сегментов, чьих {@code meta.invocations} нет или не
+ * хватает, — оборванные и старые прогоны (см. {@link ToolCallService#invocationsFor}).
  */
 class ToolCallServiceTest {
 
@@ -127,6 +127,92 @@ class ToolCallServiceTest {
                                 List.of(
                                         new ToolData.Call(
                                                 "id-0", "function", "searchDocuments", "{}")),
+                                null));
+
+        assertThat(service.invocationsFor(segment, List.of(segment))).containsExactly(stored);
+    }
+
+    @Test
+    void invocationsForTopsUpMetaLeftPartialByAnInterruptedBatch() {
+        // Параллельный батч, отработавший наполовину: снимок коллектора знает только первый вызов,
+        // и мета сегмента записана по нему одному. Без добора брошенный вызов после перезагрузки
+        // пропал бы из истории вовсе — хотя живой чат плашку показывал.
+        final ToolInvocationMeta stored =
+                new ToolInvocationMeta(
+                        "searchDocuments",
+                        Map.of(),
+                        ToolInvocationStatus.OK,
+                        null,
+                        null,
+                        true,
+                        0,
+                        null,
+                        "id-0");
+        final ChatMessageEntity segment =
+                entity(
+                        MessageType.ASSISTANT,
+                        new ChatMessageMeta(RUN, false, List.of(stored)),
+                        new ToolData(
+                                List.of(
+                                        new ToolData.Call(
+                                                "id-0", "function", "searchDocuments", "{}"),
+                                        new ToolData.Call(
+                                                "id-1",
+                                                "function",
+                                                "runScript",
+                                                "{\"script\": \"x\"}")),
+                                null));
+        indexKnows("id-0", "id-1");
+        final ChatMessageEntity repaired =
+                entity(
+                        MessageType.TOOL,
+                        null,
+                        new ToolData(
+                                null,
+                                List.of(
+                                        new ToolData.Response(
+                                                "id-1",
+                                                "runScript",
+                                                "[interrupted — no result]"))));
+
+        final List<ToolInvocationMeta> metas =
+                service.invocationsFor(segment, List.of(segment, repaired));
+
+        // Сохранённая плашка остаётся как была, добранная встаёт на своё место в порядке вызовов.
+        assertThat(metas).hasSize(2);
+        assertThat(metas.get(0)).isSameAs(stored);
+        assertThat(metas.get(1).name()).isEqualTo("runScript");
+        assertThat(metas.get(1).status()).isEqualTo(ToolInvocationStatus.UNKNOWN);
+        assertThat(metas.get(1).callId()).isEqualTo("id-1");
+        assertThat(metas.get(1).hasDetails()).isTrue();
+        assertThat(metas.get(1).arguments()).containsEntry("script", "x");
+        assertThat(metas.get(1).resultGist()).contains("interrupted");
+    }
+
+    @Test
+    void invocationsForKeepsPartialMetaWrittenWithoutCallIds() {
+        // Старая мета без callId: сопоставить её с вызовами нечем, и синтез подменил бы известный
+        // исход на UNKNOWN — отдаём как есть, пусть и не на каждый вызов сегмента.
+        final ToolInvocationMeta stored =
+                new ToolInvocationMeta(
+                        "searchDocuments",
+                        Map.of(),
+                        ToolInvocationStatus.OK,
+                        null,
+                        null,
+                        true,
+                        0,
+                        null,
+                        null);
+        final ChatMessageEntity segment =
+                entity(
+                        MessageType.ASSISTANT,
+                        new ChatMessageMeta(RUN, false, List.of(stored)),
+                        new ToolData(
+                                List.of(
+                                        new ToolData.Call(
+                                                "id-0", "function", "searchDocuments", "{}"),
+                                        new ToolData.Call("id-1", "function", "runScript", "{}")),
                                 null));
 
         assertThat(service.invocationsFor(segment, List.of(segment))).containsExactly(stored);

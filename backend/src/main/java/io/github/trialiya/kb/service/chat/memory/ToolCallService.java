@@ -192,50 +192,59 @@ public class ToolCallService {
     }
 
     /**
-     * Метаданные плашек вызовов для сегмента: сохранённые {@code meta.invocations}, а если их нет
-     * (прогон оборвался до записи меты, старые данные) — синтезированные из {@code tool_data}: имя
-     * и усечённые аргументы из toolCalls сегмента, гист — из ответа в TOOL-сообщениях среди {@code
-     * context} (строк той же страницы). Статус — UNKNOWN: исход вызова живёт только в мете, а её
-     * тут нет; провалившийся вызов выглядит в {@code tool_data} ровно как успешный (текст ошибки
-     * лежит на месте результата), и {@code OK} здесь был бы утверждением, которого никто не
-     * проверял. Детали такая плашка предлагает наравне с обычной — {@code callId} лежит в {@code
-     * tool_data}, а {@link #findToolCallDetail} умеет отдать вызов без меты: аргументы, результат
-     * (у оборванного прогона это синтетический «[interrupted — no result]» от {@link
-     * ChatHistoryService#repairDanglingToolCalls}) и тот же UNKNOWN, — но только те, что знает
-     * {@code tool_call_index}: искать вызов больше нечем, и без строки индекса кликабельная плашка
-     * ответила бы одним 404 (история, написанная до самого индекса). {@code SKIP_TOOLS} вырезаны,
-     * как и там.
+     * Метаданные плашек вызовов для сегмента: сохранённые {@code meta.invocations}, а чего в них
+     * нет — синтезированное из {@code tool_data}: имя и усечённые аргументы из toolCalls сегмента,
+     * гист — из ответа в TOOL-сообщениях среди {@code context} (строк той же страницы). Статус —
+     * UNKNOWN: исход вызова живёт только в мете, а её тут нет; провалившийся вызов выглядит в
+     * {@code tool_data} ровно как успешный (текст ошибки лежит на месте результата), и {@code OK}
+     * здесь был бы утверждением, которого никто не проверял. Детали такая плашка предлагает наравне
+     * с обычной — {@code callId} лежит в {@code tool_data}, а {@link #findToolCallDetail} умеет
+     * отдать вызов без меты: аргументы, результат (у брошенного вызова это синтетический
+     * «[interrupted — no result]» от {@link ChatHistoryService#repairDanglingToolCalls}) и тот же
+     * UNKNOWN, — но только те, что знает {@code tool_call_index}: искать вызов больше нечем, и без
+     * строки индекса кликабельная плашка ответила бы одним 404 (история, написанная до самого
+     * индекса). {@code SKIP_TOOLS} вырезаны, как и там.
+     *
+     * <p>Синтез добирает и <b>частичную</b> мету, а не только пустую. Оборванный прогон теряет
+     * плашки двумя способами: сегмент, до которого снимок коллектора не дотянулся вовсе, остаётся
+     * без меты — и сегмент, чей параллельный батч отработал лишь наполовину, получает мету по
+     * успевшим вызовам ({@link #runInvocations} раскладывает снимок позиционно и на брошенном
+     * вызове обрывается). Без добора у брошенного вызова из такого батча не было бы в истории
+     * плашки вовсе — а живой чат её показывает, переводя в UNKNOWN к концу прогона (finalize в
+     * {@code run/runMessageOps.js}).
      */
     public @Nullable List<ToolInvocationMeta> invocationsFor(
             ChatMessageEntity entity, List<ChatMessageEntity> context) {
         final List<ToolInvocationMeta> stored = entity.getInvocations();
-        if (stored != null && !stored.isEmpty()) {
-            return stored;
-        }
-        // Условие — «плашек нет», а не «меты нет»: мета есть у каждого ответа прогона (в ней
-        // модель, см. ChatHistoryService#markRunResult), и сегмент с сохранёнными tool_calls, но
-        // без плашек — это как раз оборванный прогон, ради которого синтез и нужен.
+        // Смотрим на плашки, а не на саму мету: мета есть у каждого ответа прогона (в ней модель,
+        // см. ChatHistoryService#markRunResult), и сегмент с сохранёнными tool_calls, но без
+        // плашки на какой-то из них — это как раз оборванный прогон, ради которого синтез и нужен.
         if (entity.getType() != MessageType.ASSISTANT
                 || entity.getToolData() == null
                 || entity.getToolData().toolCalls() == null) {
             return stored;
         }
-        // Сегменту из одних SKIP_TOOLS синтезировать нечего (фильтр ниже всё равно всё вырежет) —
-        // не сканируем ради него строки страницы на каждый показ.
-        if (entity.getToolData().toolCalls().stream().noneMatch(call -> hasDetails(call.name()))) {
+        // Сегменту из одних SKIP_TOOLS синтезировать нечего — не сканируем ради него строки
+        // страницы на каждый показ.
+        final List<ToolData.Call> calls =
+                entity.getToolData().toolCalls().stream()
+                        .filter(call -> hasDetails(call.name()))
+                        .toList();
+        if (calls.isEmpty()) {
+            return stored;
+        }
+        final Map<String, ToolInvocationMeta> storedByCallId = toTopUp(stored, calls);
+        if (storedByCallId == null) {
             return stored;
         }
         // Детали предлагаем только по вызовам, которые найдёт findToolCallDetail. Запрос — на
-        // синтезированный сегмент, то есть на оборванный прогон, а не на каждое сообщение
-        // страницы.
+        // сегмент, которому чего-то не хватает, то есть на оборванный прогон, а не на каждое
+        // сообщение страницы.
         final Set<String> indexed =
                 new HashSet<>(
                         toolCallIndexRepository.findIndexedCallIds(
                                 entity.getConversationId(),
-                                entity.getToolData().toolCalls().stream()
-                                        .filter(call -> hasDetails(call.name()))
-                                        .map(ToolData.Call::id)
-                                        .toList()));
+                                calls.stream().map(ToolData.Call::id).toList()));
         final Map<String, String> responseById = new HashMap<>();
         for (ChatMessageEntity row : context) {
             if (row.getType() == MessageType.TOOL
@@ -246,22 +255,50 @@ public class ToolCallService {
                 }
             }
         }
-        return entity.getToolData().toolCalls().stream()
-                .filter(call -> hasDetails(call.name()))
+        // Порядок — как в tool_data: он же и порядок плашек прогона, так что добранная встаёт
+        // ровно туда, где вызов был сделан.
+        return calls.stream()
                 .map(
-                        call ->
-                                new ToolInvocationMeta(
-                                        call.name(),
-                                        RecordingToolCallback.parseToolInput(call.arguments()),
-                                        ToolInvocationStatus.UNKNOWN,
-                                        null,
-                                        null,
-                                        indexed.contains(call.id()),
-                                        null,
-                                        Compact.truncate(
-                                                responseById.get(call.id()), RESULT_GIST_MAX),
-                                        call.id()))
+                        call -> {
+                            final ToolInvocationMeta saved = storedByCallId.get(call.id());
+                            return saved != null ? saved : synthesize(call, indexed, responseById);
+                        })
                 .toList();
+    }
+
+    /**
+     * Сохранённые плашки по {@code callId} — или {@code null}, если синтез не нужен либо
+     * невозможен: плашки есть на все вызовы сегмента, или хотя бы одна написана без {@code callId}
+     * (старые данные), и сопоставить её с вызовом нечем — тогда отдаём мету как есть, а не
+     * подменяем её синтезом.
+     */
+    private static @Nullable Map<String, ToolInvocationMeta> toTopUp(
+            @Nullable List<ToolInvocationMeta> stored, List<ToolData.Call> calls) {
+        if (stored == null || stored.isEmpty()) {
+            return Map.of();
+        }
+        final Map<String, ToolInvocationMeta> byCallId = new HashMap<>();
+        for (ToolInvocationMeta meta : stored) {
+            if (meta.callId() == null) {
+                return null;
+            }
+            byCallId.put(meta.callId(), meta);
+        }
+        return calls.stream().allMatch(call -> byCallId.containsKey(call.id())) ? null : byCallId;
+    }
+
+    private static ToolInvocationMeta synthesize(
+            ToolData.Call call, Set<String> indexed, Map<String, String> responseById) {
+        return new ToolInvocationMeta(
+                call.name(),
+                RecordingToolCallback.parseToolInput(call.arguments()),
+                ToolInvocationStatus.UNKNOWN,
+                null,
+                null,
+                indexed.contains(call.id()),
+                null,
+                Compact.truncate(responseById.get(call.id()), RESULT_GIST_MAX),
+                call.id());
     }
 
     /**
