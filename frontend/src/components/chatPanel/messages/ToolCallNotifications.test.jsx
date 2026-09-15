@@ -84,6 +84,22 @@ describe('ToolCallNotifications', () => {
     expect(plaques(container)).toHaveLength(1);
   });
 
+  it('не закрывает детали вызова, уехавшего из этой ленты в соседнюю', async () => {
+    // Ряды тоже перестраиваются: склейка соседних рядов из одних вызовов распадается, как
+    // только второму прогону становится что показать помимо вызовов, и его вызовы уезжают в
+    // свой ряд. Модалка открыта здесь — закрыться из-под читающего она не должна.
+    const user = userEvent.setup();
+    const { container, rerender } = show([edit('call-1', 'src/App.java'), edit('call-2', 'src/Other.java')]);
+
+    await user.click(plaques(container)[2]);
+    expect(screen.getByTestId('detail')).toHaveTextContent('call-2');
+
+    rerender(<ToolCallNotifications toolCalls={[edit('call-1', 'src/App.java')]} conversationId="c1" />);
+
+    expect(plaques(container)).toHaveLength(1);
+    expect(screen.getByTestId('detail')).toHaveTextContent('call-2');
+  });
+
   it('показывает в деталях свежее состояние вызова, а не то, что было при открытии', async () => {
     const user = userEvent.setup();
     const { container, rerender } = show([edit('call-1', 'src/App.java', 'STARTED')]);

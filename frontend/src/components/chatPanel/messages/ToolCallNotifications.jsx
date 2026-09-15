@@ -186,12 +186,22 @@ const ToolCallNotifications = ({ toolCalls, conversationId }) => {
   // дерева), и состояние, лежавшее в ней, исчезло бы вместе с ней — прямо из-под читающего.
   // Держим здесь callId: он переживает и перегруппировку, и слияние результата в плашку.
   const [detailCallId, setDetailCallId] = useState(null);
+  // Последнее, что о вызове знала эта лента. Нужно ровно на случай, когда он из неё уходит:
+  // ряды тоже перестраиваются, и склейка соседних рядов из одних вызовов (toolRuns.js)
+  // распадается, как только второму прогону становится что показать помимо вызовов —
+  // остановленному дописывают пометку. Вызовы уезжают в свой ряд, а модалка открыта здесь,
+  // и без запомненного она закрылась бы прямо из-под читающего.
+  const [held, setHeld] = useState(null);
 
   const calls = toolCalls || [];
-  // Вызов, на котором открыты детали. Ищем его в текущем списке, а не запоминаем объект:
+  // Вызов, на котором открыты детали. Пока он в списке, берём его оттуда, а не из памяти:
   // mergeToolCall кладёт на его место новый, и по забытому модалка не увидела бы ни статуса,
   // ни resultMeta.
-  const detail = detailCallId ? calls.find((tc) => tc.callId === detailCallId) : null;
+  const found = detailCallId ? calls.find((tc) => tc.callId === detailCallId) : null;
+  if (found && found !== held) {
+    setHeld(found);
+  }
+  const detail = detailCallId ? found ?? held : null;
 
   if (calls.length === 0) return null;
 
