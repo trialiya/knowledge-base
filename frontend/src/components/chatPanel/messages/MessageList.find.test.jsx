@@ -27,8 +27,9 @@ describe('подсветка совпадений в ленте чата', () =>
         super(ranges);
       }
     }
-    window.Highlight = FakeHighlight;
-    window.CSS = { ...window.CSS, highlights: new Map() };
+    vi.stubGlobal('Highlight', FakeHighlight);
+    // window.CSS — геттер без сеттера, присваивание бросает: подменяем только через stubGlobal.
+    vi.stubGlobal('CSS', { ...window.CSS, highlights: new Map() });
   });
 
   const messages = [msg('m1', 'жираф раз и жираф два'), msg('m2', 'жираф три')];

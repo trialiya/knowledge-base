@@ -20,8 +20,9 @@ class FakeHighlight {
 }
 
 beforeEach(() => {
-  window.CSS = { ...window.CSS, highlights: new Map() };
-  window.Highlight = FakeHighlight;
+  // window.CSS — геттер без сеттера, присваивание бросает: подменяем только через stubGlobal.
+  vi.stubGlobal('CSS', { ...window.CSS, highlights: new Map() });
+  vi.stubGlobal('Highlight', FakeHighlight);
 });
 
 const highlighted = () => {

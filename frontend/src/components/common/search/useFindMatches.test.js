@@ -78,8 +78,9 @@ describe('подсветка нескольких экземпляров', () =>
         super(ranges);
       }
     }
-    window.Highlight = FakeHighlight;
-    window.CSS = { ...window.CSS, highlights: new Map() };
+    vi.stubGlobal('Highlight', FakeHighlight);
+    // window.CSS — геттер без сеттера, присваивание бросает: подменяем только через stubGlobal.
+    vi.stubGlobal('CSS', { ...window.CSS, highlights: new Map() });
   });
 
   const mount = (root, query, active = true) =>
