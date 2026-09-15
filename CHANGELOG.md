@@ -11,6 +11,41 @@ you* — breaking changes, deprecations, migration steps — is in
 
 ## [Unreleased]
 
+## [1.0.0-RC3] — 2026-09-15
+
+What the second candidate turned up in the chat transcript: an interrupted run
+that left a hole in the history, and two ways the tool-call feed hid what one
+reads it for. Nothing here asks anything of an upgrade: no breaking change, no
+migration step, no new configuration to set.
+
+### Fixed
+
+- A run cut off in the middle of a batch of tool calls no longer loses the
+  abandoned call on reload: the badge is rebuilt from the stored call list and
+  stands where the call was made, instead of living only in the open tab.
+- The call that did finish before the run was cut no longer carries the
+  interrupted mark. Its result is kept — both the details dialog and the model's
+  next request see what the tool returned, rather than "no result" on a tool
+  that had one.
+- The description of an item in the slash menu is cut from the end, not from the
+  front: it shared the class of a file path, which is deliberately reversed so
+  that the file name survives, and that reversal ate the words naming the
+  command. What is cut off now reads on hover.
+
+### Changed
+
+- The tool-call feed is read where it is written. The badges no longer have a
+  scroll window of their own inside the chat transcript, repeated calls to one
+  tool show their arguments expanded instead of collapsing into an "×N"
+  heading, and consecutive rows of calls run as one feed with no gap between
+  them.
+
+### Build
+
+- Vitest 4.1.11 → 5.0.0 and React 19.2.8 → 19.3.0 in the frontend, alongside
+  Vite 8.3.0, happy-dom 20.14.3 and `@types/react` 19.3.0.
+- JGit 7.7.1 → 7.8.0 and the Spotless plugin 8.10.1 → 8.10.2.
+
 ## [1.0.0-RC2] — 2026-09-13
 
 What the first candidate turned up, plus the chat-command work that landed
@@ -190,6 +225,7 @@ a deployment that was already running from `main` before this release.
   meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
-[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0-RC2...HEAD
+[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0-RC3...HEAD
+[1.0.0-RC3]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC3
 [1.0.0-RC2]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC2
 [1.0.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC1
