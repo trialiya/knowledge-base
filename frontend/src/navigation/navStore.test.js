@@ -155,6 +155,59 @@ describe('фоновый выбор чата из другого раздела'
   });
 });
 
+describe('область поиска по файлам', () => {
+  it('поиск из «Файлов» ищет в открытой там ревизии и репозитории', () => {
+    go('/files/a/b.md?project=other&rev=release-1');
+    const s = mount();
+    s.openSearch('needle', 'files');
+    expect(url()).toBe('/search?q=needle&in=files&project=other&rev=release-1');
+  });
+
+  it('поиск из рабочего дерева не тащит ревизию прошлого поиска', () => {
+    // Из снимка искали, вышли в рабочее дерево, ищут снова: «Файлы» показывают
+    // рабочее дерево, и выдача обязана быть про него же.
+    go('/files?rev=release-1');
+    const s = mount();
+    s.openSearch('needle', 'files');
+    s.switchView('files');
+    s.setFileRev('');
+    s.openSearch('needle', 'files');
+    expect(url()).toBe('/search?q=needle&in=files');
+  });
+
+  it('поиск в другом репозитории не тащит маску пути от прежнего', () => {
+    // `backend/**` написали про прежний репозиторий; в новом такого каталога
+    // может не быть вовсе — это ноль результатов без объяснений.
+    go('/search?q=x&in=files&path=backend/**');
+    const s = mount();
+    s.openFilePath('', 'other');
+    s.openSearch('needle', 'files');
+    expect(url()).toBe('/search?q=needle&in=files&project=other');
+  });
+
+  it('ревизия не переезжает в репозиторий, восстановленный переключением раздела', () => {
+    // Вкладка «Файлы» возвращает последний открытый путь — он из другого
+    // репозитория, и ревизия прежнего назвала бы в нём чужой коммит или ничего.
+    go('/files/a/b.md');
+    const s = mount();
+    s.openFilePath('', 'other', { rev: 'release-1' });
+    s.switchView('chat');
+    s.switchView('files');
+    expect(url()).toBe('/files/a/b.md');
+    s.openSearch('needle', 'files');
+    expect(url()).toBe('/search?q=needle&in=files');
+  });
+
+  it('повторный поиск из самого поиска оставляет выбранные фильтры', () => {
+    // Ревизию и репозиторий здесь выбрали руками в левой панели — запрос,
+    // отправленный поверх них, уточняет тот же поиск, а не начинает новый.
+    go('/search?q=x&in=files&project=other&rev=release-1');
+    const s = mount();
+    s.openSearch('needle', 'files');
+    expect(url()).toBe('/search?q=needle&in=files&project=other&rev=release-1');
+  });
+});
+
 describe('раскладка панелей при смене раздела', () => {
   it('переход по ссылке на файл приносит раскладку «Файлов», а не раздела-источника', () => {
     // Раньше файл открывался с панелями чата — и они же записывались как

@@ -153,6 +153,9 @@ export function createNavStore({ canLeave = () => true } = {}) {
         if (view === 'files' && !prev.filePath) {
           next.filePath = memory.filePath || '';
           next.fileProject = memory.fileProject || '';
+          // Восстановленный репозиторий может быть не тем, в котором стояла
+          // ревизия, — она принадлежит своему (см. nextFileRev).
+          next.fileRev = nextFileRev(prev, next.fileProject, undefined);
         }
         return next;
       });
@@ -197,6 +200,9 @@ export function createNavStore({ canLeave = () => true } = {}) {
      * Категорию называет вызывающий — по умолчанию она равна разделу, из которого
      * запустили поиск (см. scopeForView), а не последней выбранной: человек ищет
      * то, на что смотрит.
+     *
+     * По той же причине поиск из «Файлов» наследует область, которую там
+     * смотрят, — репозиторий и ревизию (см. searchWhereFilesAre).
      */
     openSearch(query, scope) {
       push((prev) => ({
@@ -204,6 +210,7 @@ export function createNavStore({ canLeave = () => true } = {}) {
         view: 'search',
         searchQuery: query || '',
         searchScope: normalizeScope(scope || prev.searchScope),
+        ...searchWhereFilesAre(prev),
       }));
     },
 
@@ -423,6 +430,34 @@ export function createNavStore({ canLeave = () => true } = {}) {
       emit();
     },
   };
+}
+
+/**
+ * Область поиска по файлам, унаследованная от «Файлов»: репозиторий и ревизия,
+ * открытые в панели. Пусто для поиска откуда угодно ещё.
+ *
+ * Ищут в том, на что смотрят: из снимка ветки — по снимку, а не по рабочему
+ * дереву, где искомого может не быть вовсе (или найдётся не та версия строки).
+ * Уже из поиска фильтры не трогаем — их выбрали руками.
+ *
+ * Репозиторий едет вместе с ревизией и отдельно от неё не имеет смысла: имя
+ * ветки принадлежит своему репозиторию (ср. nextFileRev). Значения переносятся
+ * как есть — пустое означает дефолтный репозиторий и рабочее дерево в обеих
+ * схемах адреса.
+ *
+ * Со сменой репозитория уходит и маска пути: `backend/**` написали про прежний,
+ * а в новом такого каталога может не быть вовсе — это ноль результатов без
+ * объяснений. Сменой считается любое расхождение строк, в том числе дефолтный
+ * репозиторий, названный в адресе явно (`project=kb` против пустого значения):
+ * какой из них дефолтный, стор не знает — это ответ конфигурации, а не адреса
+ * (сравнение с разрешённым выбором делает `SearchPanel`, которому конфигурация
+ * доступна). Лишний раз снятая маска ошибается в безопасную сторону — покажет
+ * лишнее, а не спрячет найденное; ревизия на том же сравнении в `nextFileRev`.
+ */
+function searchWhereFilesAre(prev) {
+  if (prev.view !== 'files') return null;
+  const where = { searchProject: prev.fileProject, searchRev: prev.fileRev };
+  return prev.searchProject === prev.fileProject ? where : { ...where, searchPath: '' };
 }
 
 /**
