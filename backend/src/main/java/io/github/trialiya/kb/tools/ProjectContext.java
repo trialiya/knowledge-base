@@ -20,9 +20,10 @@ import org.springframework.ai.chat.model.ToolContext;
  * which is what keeps the risk above from resurfacing there.
  *
  * <p>The key comes from the chat's own project ({@code chat_topic.project}, resolved by {@code
- * ChatController#resolveProject}); the search sub-agent passes on whatever its parent run carried.
- * Absent means "the caller does not know" — a chat that never chose, a summary, a background job —
- * which {@code GitRegistry} answers with the default project.
+ * RunOptionsResolver#resolveProject} and put on the context by {@code ChatRunService}); the search
+ * sub-agent passes on whatever its parent run carried. Absent means "the caller does not know" — a
+ * chat that never chose, a summary, a background job — which {@code GitRegistry} answers with the
+ * default project.
  */
 public final class ProjectContext {
 
