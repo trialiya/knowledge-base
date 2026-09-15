@@ -3,8 +3,9 @@ import userEvent from '@testing-library/user-event';
 import ToolCallNotifications from './ToolCallNotifications';
 
 // Плашки перестраиваются под ответ, который ещё идёт: следующий вызов того же инструмента
-// сливает одиночную плашку в группу, а потом дописывает в неё третью строку. Открытые
-// детали обязаны это пережить — их читают ровно в тот момент, когда модель зовёт дальше.
+// сливает одиночную плашку в группу, а потом дописывает в неё третью строку. Пережить это
+// обязаны и открытые детали, и развёрнутость группы — читают их ровно в тот момент, когда
+// модель зовёт дальше.
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -33,6 +34,14 @@ const plaques = (container) => [...container.querySelectorAll('.tool-call-item')
 const show = (toolCalls) => render(<ToolCallNotifications toolCalls={toolCalls} conversationId="c1" />);
 
 describe('ToolCallNotifications', () => {
+  it('показывает группу развёрнутой', () => {
+    // Заголовок «×2» говорит лишь, сколько раз инструмент звали; с чем именно — только
+    // в строках группы, ради которых плашки и читают.
+    const { container } = show([edit('call-1', 'src/App.java'), edit('call-2', 'src/Other.java')]);
+
+    expect(plaques(container)).toHaveLength(3);
+  });
+
   it('оставляет детали открытыми, когда одиночная плашка становится группой', async () => {
     const user = userEvent.setup();
     const { container, rerender } = show([edit('call-1', 'src/App.java')]);
@@ -40,7 +49,7 @@ describe('ToolCallNotifications', () => {
     await user.click(plaques(container)[0]);
     expect(screen.getByTestId('detail')).toHaveTextContent('call-1');
 
-    // Тот же инструмент с другими аргументами: плашка сворачивается в заголовок группы «×2».
+    // Тот же инструмент с другими аргументами: плашка уходит под заголовок группы «×2».
     rerender(
       <ToolCallNotifications
         toolCalls={[edit('call-1', 'src/App.java'), edit('call-2', 'src/Other.java', 'STARTED')]}
@@ -49,20 +58,25 @@ describe('ToolCallNotifications', () => {
     );
 
     expect(screen.getByTestId('detail')).toHaveTextContent('call-1');
-    // И сама плашка остаётся на виду: группа с открытыми деталями разворачивается сама.
+    // И сама плашка остаётся на виду — группа развёрнута.
     expect(plaques(container).map((el) => el.textContent)).toHaveLength(3);
   });
 
-  it('не разворачивает группу, детали которой успели закрыть', async () => {
+  it('оставляет группу свёрнутой, когда в неё дописывают вызов', async () => {
     const user = userEvent.setup();
-    const { container, rerender } = show([edit('call-1', 'src/App.java')]);
+    const { container, rerender } = show([edit('call-1', 'src/App.java'), edit('call-2', 'src/Other.java')]);
 
+    // Свернули руками: следующий вызов того же инструмента не повод разворачивать обратно.
     await user.click(plaques(container)[0]);
-    await user.click(screen.getByTestId('close'));
+    expect(plaques(container)).toHaveLength(1);
 
     rerender(
       <ToolCallNotifications
-        toolCalls={[edit('call-1', 'src/App.java'), edit('call-2', 'src/Other.java')]}
+        toolCalls={[
+          edit('call-1', 'src/App.java'),
+          edit('call-2', 'src/Other.java'),
+          edit('call-3', 'src/Third.java', 'STARTED'),
+        ]}
         conversationId="c1"
       />,
     );
@@ -70,24 +84,20 @@ describe('ToolCallNotifications', () => {
     expect(plaques(container)).toHaveLength(1);
   });
 
-  it('не разворачивает группу, деталей которой не открывали', async () => {
+  it('не закрывает детали вызова, уехавшего из этой ленты в соседнюю', async () => {
+    // Ряды тоже перестраиваются: склейка соседних рядов из одних вызовов распадается, как
+    // только второму прогону становится что показать помимо вызовов, и его вызовы уезжают в
+    // свой ряд. Модалка открыта здесь — закрыться из-под читающего она не должна.
     const user = userEvent.setup();
-    const { container, rerender } = show([edit('call-1', 'src/App.java')]);
+    const { container, rerender } = show([edit('call-1', 'src/App.java'), edit('call-2', 'src/Other.java')]);
 
-    await user.click(plaques(container)[0]);
-    rerender(
-      <ToolCallNotifications
-        toolCalls={[
-          edit('call-1', 'src/App.java'),
-          { name: 'getFileContent', callId: 'call-2', status: 'OK', arguments: { path: 'a' } },
-          { name: 'getFileContent', callId: 'call-3', status: 'OK', arguments: { path: 'b' } },
-        ]}
-        conversationId="c1"
-      />,
-    );
+    await user.click(plaques(container)[2]);
+    expect(screen.getByTestId('detail')).toHaveTextContent('call-2');
 
-    // Одиночная плашка editFile плюс заголовок свёрнутой группы getFileContent ×2.
-    expect(plaques(container)).toHaveLength(2);
+    rerender(<ToolCallNotifications toolCalls={[edit('call-1', 'src/App.java')]} conversationId="c1" />);
+
+    expect(plaques(container)).toHaveLength(1);
+    expect(screen.getByTestId('detail')).toHaveTextContent('call-2');
   });
 
   it('показывает в деталях свежее состояние вызова, а не то, что было при открытии', async () => {
@@ -106,8 +116,7 @@ describe('ToolCallNotifications', () => {
     const user = userEvent.setup();
     const { container } = show([edit('call-1', 'src/App.java'), edit('call-2', 'src/Other.java')]);
 
-    // Первая плашка группы — её заголовок, он только разворачивает список.
-    await user.click(plaques(container)[0]);
+    // Первая плашка группы — её заголовок, деталей у него нет: кликаем по второй строке.
     await user.click(plaques(container)[2]);
 
     expect(screen.getByTestId('detail')).toHaveTextContent('call-2');

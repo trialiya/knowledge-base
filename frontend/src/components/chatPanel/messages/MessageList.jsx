@@ -10,6 +10,7 @@ import FileChangeBlock from './FileChangeBlock';
 import { IconArrowDown } from '@/icons/index';
 import { modelLabelOf } from '../run/useModelConfig';
 import { compactSavingsIn } from './tokenUsage';
+import { toolRunsIn } from './toolRuns';
 import { SENDER } from '@/constants/messageSender';
 import { buildMatcher, collectMatchRanges } from '@/components/common/search/findMatches';
 import useMatchRanges from '@/components/common/search/useMatchRanges';
@@ -291,6 +292,9 @@ const MessageList = ({
   // проходом с конца, а не срезом на каждое сообщение: лента длинная, а ответ такой ровно один.
   const revertable = useMemo(() => revertableAnswer(messages), [messages]);
 
+  // Подряд идущие сегменты из одних вызовов — один ряд ленты (см. toolRuns.js).
+  const toolRuns = useMemo(() => toolRunsIn(messages), [messages]);
+
   return (
     <div className="message-list-container">
       {loadingMore && <div className="message-list-loading-older">{t('window.loadingMessages')}</div>}
@@ -309,6 +313,7 @@ const MessageList = ({
             }
           }
           const isLastAnswer = groupEnd && index === revertable.index;
+          const run = toolRuns[index];
           // Подпись проекта для плашки: id, выбывший из конфигурации, показывается как есть.
           const projectLabel = (id) => projectOptions.find((o) => o.id === id)?.label || id;
           return (
@@ -346,11 +351,11 @@ const MessageList = ({
                   savings={compactSavings.get(msg.mid) ?? null}
                   timestamp={msg.timestamp}
                 />
-              ) : (
+              ) : run?.absorbed ? null : (
                 <Message
                   text={msg.text}
                   sender={msg.sender}
-                  toolCalls={msg.toolCalls}
+                  toolCalls={run?.toolCalls ?? msg.toolCalls}
                   timestamp={msg.timestamp}
                   modelLabel={modelLabelOf(modelOptions, msg.model)}
                   usage={msg.usage}

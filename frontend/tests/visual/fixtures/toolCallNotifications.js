@@ -95,3 +95,50 @@ export const callOutcomes = [
     resultGist: '[{"id":42,"title":"Кэш эмбеддингов","score":0.…',
   },
 ];
+
+/**
+ * Оборванный прогон и его повтор: первый умер, не написав ни слова, второй начал
+ * с тех же поисков — вопроса между ними нет, есть только вторая пачка вызовов.
+ * Кейс про то, что лента плашек не разрывается на этой границе и не
+ * прокручивается внутри себя: вызовов здесь заведомо больше, чем помещалось в
+ * прежнее окошко.
+ */
+const call = (callId, name, args, gist) => ({
+  name,
+  callId,
+  status: 'OK',
+  hasDetails: true,
+  arguments: args,
+  resultGist: gist,
+});
+
+export const toolCallSegments = [
+  { mid: 'm1', dbId: 301, sender: 'user', text: 'Кто владелец продукта dop_products и как он выставляется?' },
+  {
+    mid: 'm2',
+    dbId: 302,
+    sender: 'ai',
+    text: '',
+    toolCallsRunId: 'run-1',
+    toolCalls: [
+      call('c1', 'getFileContent', { path: 'metadata-ingestion/src/datahub/ingestion/source/dop/dop_products.py' }, 'python · 214 строк · 8.1 КБ'),
+      call('c2', 'getFileContent', { path: 'metadata-ingestion/src/datahub/emitter/mce_builder.py' }, 'python · 486 строк · 17.4 КБ'),
+      call('c3', 'searchCodebase', { pattern: 'OwnershipTypeClass.CUSTOM', pathGlob: '**/mce_builder.py' }, '3 совпадения в 1 файле'),
+      call('c4', 'searchCodebase', { pattern: 'addOwnerToAspect', pathGlob: '**/OwnerServiceUtils.java' }, '2 совпадения в 1 файле'),
+    ],
+  },
+  {
+    mid: 'm3',
+    dbId: 303,
+    sender: 'ai',
+    text: '',
+    toolCallsRunId: 'run-2',
+    toolCalls: [
+      call('c5', 'searchCodebase', { pattern: 'CUSTOM', pathGlob: '**/OwnerUpdateMapper.java' }, '3 совпадения в 1 файле'),
+      call('c6', 'getFileContent', { path: 'datahub-graphql-core/src/main/java/com/linkedin/datahub/graphql/resolvers/mutate/util/OwnerUtils.java' }, 'java · 265 строк · 9.7 КБ'),
+      call('c7', 'getFileContent', { path: 'datahub-graphql-core/src/main/java/com/linkedin/datahub/graphql/types/common/mappers/OwnerUpdateMapper.java' }, 'java · 74 строки · 2.6 КБ'),
+      call('c8', 'getFileContent', { path: 'li-utils/src/main/java/com/linkedin/metadata/Constants.java' }, 'java · 512 строк · 21.0 КБ'),
+      call('c9', 'getFileContent', { path: 'metadata-ingestion/src/datahub/emitter/mcp_builder.py' }, 'python · 198 строк · 6.9 КБ'),
+    ],
+  },
+];
