@@ -47,6 +47,7 @@ const SlashMenuDropdown = ({ items, query, selectedIdx, commandState, onSelect, 
         const isCommand = item.kind === SLASH_KIND.COMMAND;
         // Причину отказа спрашиваем то же правило, по которому откажет отправка.
         const block = isCommand ? chatCommandBlock({ name: item.name }, commandState) : null;
+        const desc = t(isCommand ? `input.command.name.${item.name}` : `input.command.insert.${item.name}`);
         return (
           <Fragment key={item.trigger}>
             {opensSection(item, i) && (
@@ -69,8 +70,8 @@ const SlashMenuDropdown = ({ items, query, selectedIdx, commandState, onSelect, 
                   <span className="picker-item__trigger">{item.trigger}</span>
                   {item.args && <span className="picker-item__args"> {t(`input.command.args.${item.name}`)}</span>}
                 </span>
-                <span className="picker-item__path">
-                  {t(isCommand ? `input.command.name.${item.name}` : `input.command.insert.${item.name}`)}
+                <span className="picker-item__desc" title={desc}>
+                  {desc}
                 </span>
               </span>
               {block ? (
