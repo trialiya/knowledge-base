@@ -116,32 +116,24 @@ const ToolCallItem = ({ tc, conversationId, onOpenDetail }) => {
 };
 
 /** Группа одноимённых последовательных вызовов — сворачиваемая */
-const ToolCallGroup = ({ name, items, conversationId, detailCallId, onOpenDetail }) => {
+const ToolCallGroup = ({ name, items, conversationId, onOpenDetail }) => {
   const { t } = useTranslation('chat');
-  const [open, setOpen] = useState(false);
-  // Группа с открытыми деталями разворачивается сама: плашку, по которой кликнули, следующий
-  // вызов того же инструмента сворачивает в заголовок «×N», и читающий теряет из виду, чьи
-  // это детали. Разворачиваем один раз, на приходе деталей в эту группу, — дальше решает
-  // шеврон: закрыть развёрнутое силой значило бы спорить с человеком.
-  const [holding, setHolding] = useState(null);
-  // Пока вызов в группе один, разворачивать нечего — и помечать группу развёрнутой тоже:
-  // иначе флаг дожил бы до следующего вызова того же инструмента и открыл бы группу, детали
-  // которой давно закрыли.
-  const holds = detailCallId != null && items.length > 1 && items.some((tc) => tc.callId === detailCallId);
-  if (holds && holding !== detailCallId) {
-    setHolding(detailCallId);
-    setOpen(true);
-  } else if (!holds && holding !== null) {
-    setHolding(null);
-  }
+  // Развёрнута по умолчанию: заголовок «×N» говорит только, сколько раз инструмент звали, а
+  // читают плашки ради того, С ЧЕМ его звали — и свёрнутая группа прячет это до клика. Сама
+  // группа при этом собирается на ходу: второй вызов того же инструмента сворачивает уже
+  // показанную плашку в заголовок, и по умолчанию свёрнутая группа убирала бы с экрана то,
+  // что человек в этот момент читает. Шеврон остаётся — свернуть длинную серию можно руками,
+  // и это решение переживает дописывание в неё новых вызовов.
+  const [open, setOpen] = useState(true);
 
   // Одиночный вызов — рендерим как обычную плашку, без шеврона/бейджа
   if (items.length === 1) {
     return <ToolCallItem tc={items[0]} conversationId={conversationId} onOpenDetail={onOpenDetail} />;
   }
 
-  // Группа ≥2: заголовок показывает аргументы первого вызова (чтобы высота
-  // не прыгала при переходе 1→2), плюс бейдж ×N и шеврон.
+  // Группа ≥2: заголовок — имя, бейдж ×N и шеврон. Аргументы в нём только у
+  // свёрнутой: там он стоит вместо спрятанного списка (и высота не прыгает при
+  // переходе 1→2). У развёрнутой это была бы вторая копия первой же строки.
   const first = items[0];
   const label = t(toolLabelKey(name), { defaultValue: humanizeTool(name) });
   const icon = getToolIcon(name);
@@ -173,7 +165,7 @@ const ToolCallGroup = ({ name, items, conversationId, detailCallId, onOpenDetail
             {label}
             <span className="tool-call-count">×{items.length}</span>
           </span>
-          {firstArgsStr && <span className="tool-call-args">{firstArgsStr}</span>}
+          {!open && firstArgsStr && <span className="tool-call-args">{firstArgsStr}</span>}
         </div>
         <span className={`tool-call-chevron ${open ? 'tool-call-chevron--open' : ''}`}>›</span>
       </div>
@@ -216,14 +208,13 @@ const ToolCallNotifications = ({ toolCalls, conversationId }) => {
 
   return (
     <div className="tool-call-notifications">
-      <div className="tool-call-scroll">
+      <div className="tool-call-list">
         {groups.map((g, i) => (
           <ToolCallGroup
             key={`${g.name}-${i}`}
             name={g.name}
             items={g.items}
             conversationId={conversationId}
-            detailCallId={detailCallId}
             onOpenDetail={setDetailCallId}
           />
         ))}

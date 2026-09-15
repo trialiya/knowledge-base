@@ -474,6 +474,14 @@ const REGISTRY = [
     render: (p) => <ToolCallNotifications toolCalls={p} conversationId="1" />,
   },
 
+  // Два ряда подряд из одних вызовов — лента целиком, а не блок плашек: кейс про
+  // границу между ними и про длину списка (см. cases.yaml, chat-tool-calls-one-feed).
+  {
+    id: 'toolCallNotifications.js#toolCallSegments',
+    frame: 'center',
+    render: (p) => <MessageList conversationId="chat-1" messages={p} />,
+  },
+
   // ── База знаний ──
   {
     id: 'detailHeader.js#documentInFolder',
