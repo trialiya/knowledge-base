@@ -136,10 +136,12 @@
   font-weight: 600;
 }
 
-/* Неотслеживаемый файл — тем же жёлтым, что и в дереве файлов и в поиске по имени. */
+/* Неотслеживаемый файл — тот же жёлтый, что и в дереве файлов, но ролями
+   предупреждения: подложка строки (--kb-untracked-bg-*) в тёмной теме почти
+   прозрачна, и метка размером в слово на ней не читалась бы. */
 .search-group__badge--untracked {
-  background: var(--kb-untracked-bg-strong);
-  color: var(--kb-text-muted);
+  background: var(--kb-surface-warning);
+  color: var(--kb-text-warning);
 }
 
 .search-group__rows {

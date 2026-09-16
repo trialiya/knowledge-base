@@ -56,13 +56,16 @@
   color: var(--kb-text);
 }
 
-/* Файл вне git: тем же жёлтым, что метит такие файлы в дереве и в поиске. */
+/* Файл вне git — тот же жёлтый, что метит такие файлы в дереве, но ролями
+   предупреждения, а не подложкой строки (--kb-untracked-bg-*): та рассчитана
+   красить строку целиком и в тёмной теме взята почти прозрачной, отчего метка
+   размером в слово исчезла бы вовсе. */
 .tool-grep__untracked {
   flex-shrink: 0;
   padding: 1px 6px;
   border-radius: 20px;
-  background: var(--kb-untracked-bg-strong);
-  color: var(--kb-text-muted);
+  background: var(--kb-surface-warning);
+  color: var(--kb-text-warning);
   font-size: 0.65rem;
   font-weight: 600;
 }
