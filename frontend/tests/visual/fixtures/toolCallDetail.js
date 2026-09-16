@@ -407,10 +407,21 @@ export const fileOutlineCall = {
   createdAt: '2026-08-16T12:04:52',
 };
 
-/** Совпадения поиска: разметка `:N:` / `-N-` внутри текста блока. */
+/**
+ * Совпадения поиска: разметка `:N:` / `-N-` внутри текста блока.
+ *
+ * Последнее совпадение — из файла вне git (`tracked: false`, вызов был с
+ * `includeUntracked`): две выдачи слиты и отсортированы по пути, так что
+ * отличить его от находки в исходнике можно только по метке в шапке файла.
+ */
 export const grepCall = {
   name: 'grepContent',
-  argumentsRaw: JSON.stringify({ pattern: 'ToolCallResponseItem', contextLines: 2, limit: 20 }),
+  argumentsRaw: JSON.stringify({
+    pattern: 'ToolCallResponseItem',
+    contextLines: 2,
+    limit: 20,
+    includeUntracked: true,
+  }),
   status: 'OK',
   error: null,
   resultText: JSON.stringify([
@@ -435,10 +446,20 @@ export const grepCall = {
     {
       path: 'backend/src/main/java/io/github/trialiya/kb/model/doc/dto/DocumentShort.java',
       matchLine: 24,
+      tracked: true,
       text:
         '-22-         boolean summaryStale,\n' +
         '-23-         @Nullable Integer summarySourceVersion)\n' +
         ':24:         implements ToolCallResponseItem, ToolCallResultMetaProvider {\n',
+    },
+    {
+      path: 'build/generated/sources/annotationProcessor/GeneratedItem.java',
+      matchLine: 12,
+      tracked: false,
+      text:
+        '-10- @Generated("kb")\n' +
+        '-11- public record GeneratedItem(String path)\n' +
+        ':12:         implements ToolCallResponseItem {\n',
     },
   ]),
   resultMeta: null,

@@ -45,8 +45,11 @@
   transform: none;
 }
 
+/* Ужимается, но не растягивается: метка «вне git» идёт сразу за путём, а
+   правый край строки держит счётчик совпадений (`margin-left: auto`). С
+   `flex: 1` путь занимал бы всю строку и уносил метку к счётчику. */
 .tool-grep__path {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -57,7 +60,8 @@
 }
 
 .tool-grep__count {
-  flex-shrink: 0;
+  flex: none;
+  margin-left: auto;
   font-size: 0.7rem;
   color: var(--kb-text-faint);
 }

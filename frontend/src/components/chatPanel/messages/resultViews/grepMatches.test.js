@@ -41,6 +41,21 @@ describe('detectGrepMatches — что попадает в «Обзор»', () =
     // Итог считается по совпадениям, а не по файлам.
     expect(data.matches).toBe(3);
   });
+
+  it('файл вне git помечен, отслеживаемый — нет', () => {
+    const data = detect(
+      JSON.stringify([
+        { path: 'a/A.java', matchLine: 1, text: 'x', tracked: true },
+        { path: 'build/reports/r.txt', matchLine: 2, text: 'x', tracked: false },
+      ]),
+    );
+    expect(data.files.map((f) => f.untracked)).toEqual([false, true]);
+  });
+
+  it('ответ из истории чатов поля не знает — файл не считается неотслеживаемым', () => {
+    const data = detect(JSON.stringify([{ path: 'a/A.java', matchLine: 1, text: 'x' }]));
+    expect(data.files[0].untracked).toBe(false);
+  });
 });
 
 describe('detectGrepMatches — совпадения по документам', () => {

@@ -12,6 +12,10 @@ import org.jspecify.annotations.Nullable;
  * <p>Репозиторий обзор не называет: его называет обёртка ответа ({@code ToolResult}).
  *
  * @param path относительный путь
+ * @param tracked отслеживается ли файл git'ом. {@code false} — файл виден только через {@code
+ *     allow-globs} проекта: обзор у него такой же, но истории нет, и правка в нём останется
+ *     неотслеживаемой. Тот же признак, что у {@code GitFileContent}: обзор и чтение — два ответа об
+ *     одном файле, и различаться они не должны
  * @param language определённый язык, либо null
  * @param lineCount общее количество строк
  * @param parser имя использованного парсера: "tree-sitter" или "regex" (фолбэк)
@@ -19,6 +23,7 @@ import org.jspecify.annotations.Nullable;
  */
 public record GitFileOutline(
         String path,
+        boolean tracked,
         @Nullable String language,
         int lineCount,
         String parser,
@@ -31,6 +36,7 @@ public record GitFileOutline(
                 new StringBuilder(
                         Compact.tag("file:" + path)
                                 .add("lang", language)
+                                .add("untracked", tracked ? null : "1")
                                 .add("lines", lineCount)
                                 .done());
         symbols.forEach(s -> sb.append("\n  ").append(s.getFormattedResponse()));

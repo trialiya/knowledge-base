@@ -44,7 +44,8 @@
   "files": {
     "matches_one": "{{count}} строка",
     "matches_few": "{{count}} строки",
-    "matches_many": "{{count}} строк"
+    "matches_many": "{{count}} строк",
+    "untracked": "вне git"
   },
   "docs": {
     "preamble": "до первого заголовка"

@@ -443,7 +443,8 @@ const REGISTRY = [
     ['insightsCall'],
     ['documentOutlineCall'],
     ['fileOutlineCall'],
-    ['grepCall'],
+    // Четвёртый файл (вне git) добавляет блок, который в 900 не помещается.
+    ['grepCall', [1440, 1000]],
     ['docMutationCall'],
     ['scriptRunCall', [1440, 1350]],
     ['scriptFailedCall'],
@@ -770,6 +771,24 @@ const REGISTRY = [
     frame: 'center',
     theme: 'dark',
     render: (p) => <MessageList conversationId="chat-1" messages={p} />,
+  },
+  {
+    // Метка «вне git» рядом с путём файла: нейтральная посреди жёлтых подсветок
+    // совпадений — ради этого соседства кейс и снимается. Пожелтеет (амбер в
+    // палитре несёт и «предупреждение», и «найденное») — эталон разойдётся.
+    id: 'toolCallDetail.js#grepCall@dark',
+    frame: 'bare',
+    theme: 'dark',
+    viewport: [1440, 1000],
+    api: (p) => ({ '/api/chats/': p }),
+    render: (p) => (
+      <ToolCallDetailModal
+        conversationId="1"
+        callId="call-1"
+        tc={{ name: p.name, status: p.status, resultMeta: p.resultMeta }}
+        onClose={noop}
+      />
+    ),
   },
   {
     // Подсветка найденного: в тёмной теме она прозрачная, потому что текст под

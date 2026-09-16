@@ -89,10 +89,10 @@ class GitFunctionTest {
                 .thenReturn(
                         List.of(new GitFileNode("pom.xml", "pom.xml", FileEntryType.FILE, 10L)));
         when(billing.getFileOutline(anyString()))
-                .thenReturn(new GitFileOutline("Foo.java", "java", 10, "regex", List.of()));
+                .thenReturn(new GitFileOutline("Foo.java", true, "java", 10, "regex", List.of()));
         when(billing.getCommitLog(anyInt(), any(), anyBoolean())).thenReturn(List.of(commit()));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
-        when(billing.getUncommittedChanges(anyBoolean(), anyList()))
+        when(billing.getUncommittedChanges(anyBoolean(), anyBoolean(), anyList()))
                 .thenReturn(List.of(new GitDiffEntry("M", "pom.xml", null, 1, 0, null, null)));
         when(gitRegistry.forProject("billing")).thenReturn(billing);
     }
@@ -175,7 +175,8 @@ class GitFunctionTest {
                                 function.getFileOutline(context, "Foo.java", "billing"),
                                 function.getCommitLog(context, null, null, null, "billing"),
                                 function.getCommitDiff(context, "abc1234", null, null, "billing"),
-                                function.getUncommittedChanges(context, null, null, "billing")))
+                                function.getUncommittedChanges(
+                                        context, null, null, null, "billing")))
                 .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"))
                 .allSatisfy(r -> assertThat(r.result()).isNotNull());
 
@@ -255,17 +256,32 @@ class GitFunctionTest {
     void thePathsArgumentArrivesAtTheServiceAsAList() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        function.getUncommittedChanges(context, null, " docs , *.java ", null);
-        verify(billing).getUncommittedChanges(false, List.of("docs", "*.java"));
+        function.getUncommittedChanges(context, null, null, " docs , *.java ", null);
+        verify(billing).getUncommittedChanges(false, false, List.of("docs", "*.java"));
 
         // Смешанный список — самый частый вид списка у модели: разбор обязан понять его целиком,
         // а не половину.
-        function.getUncommittedChanges(context, null, "docs,\nsrc\nbuild.gradle", null);
-        verify(billing).getUncommittedChanges(false, List.of("docs", "src", "build.gradle"));
+        function.getUncommittedChanges(context, null, null, "docs,\nsrc\nbuild.gradle", null);
+        verify(billing).getUncommittedChanges(false, false, List.of("docs", "src", "build.gradle"));
 
-        function.getUncommittedChanges(context, null, "  ", null);
-        function.getUncommittedChanges(context, null, null, null);
-        verify(billing, times(2)).getUncommittedChanges(false, List.of());
+        function.getUncommittedChanges(context, null, null, "  ", null);
+        function.getUncommittedChanges(context, null, null, null, null);
+        verify(billing, times(2)).getUncommittedChanges(false, false, List.of());
+    }
+
+    /**
+     * Неотслеживаемая половина — отдельный вопрос, и по умолчанию он не задан: инструмент отвечает
+     * про то, что уйдёт в коммит. Флаг обязан дойти до сервиса, а не быть отфильтрован после.
+     */
+    @Test
+    void theUntrackedHalfIsAskedForOnlyWhenTheFlagSaysSo() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+
+        function.getUncommittedChanges(context, null, true, null, null);
+        verify(billing).getUncommittedChanges(false, true, List.of());
+
+        function.getUncommittedChanges(context, null, false, null, null);
+        verify(billing).getUncommittedChanges(false, false, List.of());
     }
 
     @Test

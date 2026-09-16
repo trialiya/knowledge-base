@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { IconChevronDown } from '@/icons/index';
 import ResultSummary, { useExpandAll } from './resultSummary';
+import '@/components/common/ui/gitChrome.css';
 
 // Режим «Обзор» для совпадений `grepContent` и `grepDocuments`: источник (файл
 // репозитория или документ базы) → блоки строк с настоящими номерами,
@@ -20,6 +21,7 @@ const GrepFile = ({ file, open, onToggle }) => {
         <span className="tool-grep__path" title={file.path}>
           {file.path}
         </span>
+        {file.untracked && <span className="git-untracked-badge">{t('toolCall.detail.grep.untracked')}</span>}
         <span className="tool-grep__count">{t('toolCall.detail.grep.matches', { count: file.blocks.length })}</span>
       </button>
 

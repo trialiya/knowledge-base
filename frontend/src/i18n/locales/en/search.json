@@ -38,7 +38,8 @@
   },
   "files": {
     "matches_one": "{{count}} line",
-    "matches_other": "{{count}} lines"
+    "matches_other": "{{count}} lines",
+    "untracked": "untracked"
   },
   "docs": {
     "preamble": "before the first heading"

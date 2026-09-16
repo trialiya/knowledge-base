@@ -29,19 +29,34 @@ import java.util.Map;
  * @param matchLine номер строки совпадения (1-based); при нескольких совпадениях в одном блоке —
  *     номер первого
  * @param text текст блока: одна строка (без контекста) или многострочный фрагмент (с контекстом)
+ * @param tracked отслеживается ли файл git'ом. {@code false} — совпадение из второго прогона, по
+ *     untracked-файлам проекта ({@code allow-globs}, только при {@code includeUntracked}): истории
+ *     у такого файла нет, в коммит он не попадёт, и найденная строка может быть выводом сборки, а
+ *     не исходником. Без этого признака выдача двух прогонов неразличима
  */
-public record GitGrepMatch(String path, int matchLine, String text)
+public record GitGrepMatch(String path, int matchLine, String text, boolean tracked)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
+
+    /** Совпадение в отслеживаемом файле — обычный случай, для него и есть этот конструктор. */
+    public GitGrepMatch(String path, int matchLine, String text) {
+        this(path, matchLine, text, true);
+    }
+
+    /** Та же запись, но про untracked-файл: чем она станет после фильтров второго прогона. */
+    public GitGrepMatch untracked() {
+        return new GitGrepMatch(path, matchLine, text, false);
+    }
 
     @Override
     public String getFormattedResponse() {
-        return path + ":" + matchLine;
+        return path + ":" + matchLine + (tracked ? "" : " [untracked]");
     }
 
     @Override
     public Map<String, Object> getResultMeta() {
         return Map.of(
                 "path", path,
-                "matchLine", matchLine);
+                "matchLine", matchLine,
+                "tracked", tracked);
     }
 }

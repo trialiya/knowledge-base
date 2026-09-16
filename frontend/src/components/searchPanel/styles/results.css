@@ -103,7 +103,15 @@
   white-space: nowrap;
 }
 
+/* Строка под шапкой: у файла это каталог, у документа — цепочка родителей, у
+   чата — одна плашка. Ряд, а не текст: файл ставит рядом с каталогом метку
+   «вне git», и промежуток перед ней должен быть тот же, что в такой же строке
+   деталей вызова (`.tool-grep__head`), а не случайный пробел разметки. */
 .search-group__subtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   padding: 4px 12px;
   font-size: 0.72rem;
   color: var(--kb-text-muted);
@@ -123,7 +131,11 @@
   white-space: nowrap;
 }
 
+/* Каталог ужимается первым: длинный путь не должен выдавливать метку «вне git». */
 .search-group__path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 

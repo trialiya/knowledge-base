@@ -189,6 +189,7 @@
         "nodes": "{{count}} nodes"
       },
       "grep": {
+        "untracked": "untracked",
         "matches": "{{count}} matches",
         "files": "{{count}} files",
         "documents": "{{count}} documents"

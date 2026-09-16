@@ -19,6 +19,20 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### `getUncommittedChanges` no longer reports untracked files unless asked
+
+The tool answers about the tracked half of the working tree — what the next
+commit will carry. The untracked files a project admits through
+`kb.projects[].allow-globs`, listed under status `U`, now come only with the
+new `includeUntracked: true` argument (default `false`).
+
+This matters only to deployments that configure `allow-globs`. If you rely on
+the assistant noticing its own writes into that area — build notes, local
+scratch files — say so in the project's instructions, or expect it to ask for
+them itself: the system prompt tells it about the argument on every project
+that has an admitted area. Nothing to migrate, and the files panel
+(`GET /api/git/status`) is unchanged: it still shows both halves always.
+
 ## 1.0.0
 
 The first release. All four entries below matter to deployments that were

@@ -27,7 +27,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 
 | Поле | Тип | Описание |
 |---|---|---|
-| `status` | String | A/M/D/R (added/modified/deleted/renamed) |
+| `status` | String | A/M/D/R (added/modified/deleted/renamed), а в рабочем дереве ещё и U (untracked — файл из зоны `allow-globs`: его нет в индексе и сам он в коммит не попадёт) |
 | `path` | String | Путь к файлу (новый при rename) |
 | `oldPath` | String | Старый путь (только при rename) |
 | `additions` | int | Добавлено строк |
@@ -43,6 +43,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | Поле | Тип | Описание |
 |---|---|---|
 | `path` | String | Относительный путь |
+| `tracked` | boolean | Отслеживается ли файл git'ом; `false` — файл из зоны `allow-globs` |
 | `content` | String | Текстовое содержимое (null для бинарных) |
 | `binary` | boolean | Флаг бинарности |
 | `sizeBytes` | long | Размер в байтах |
@@ -58,6 +59,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | Поле | Тип | Описание |
 |---|---|---|
 | `path` | String | Относительный путь |
+| `tracked` | boolean | Отслеживается ли файл git'ом; `false` — файл из зоны `allow-globs` |
 | `language` | String | Определённый язык |
 | `lineCount` | int | Всего строк |
 | `parser` | String | `"tree-sitter"` или `"regex"` (фолбэк) |
@@ -95,8 +97,9 @@ DTO-обёртка для `getFileOutline`. Реализует `ToolCallResponse
 | `name` | String | Имя файла/каталога |
 | `type` | String | `"file"` или `"directory"` |
 | `size` | Long | Размер в байтах (null для каталогов) |
+| `tracked` | boolean | Отслеживается ли узел git'ом; `false` — он виден только через `allow-globs` |
 
-`getResultMeta()`: `path`, `name`, `sizeBytes`, `type`.
+`getResultMeta()`: `path`, `name`, `sizeBytes`, `type`, `tracked`.
 
 ### GitGrepMatch
 Одно совпадение grep. Реализует `ToolCallResponseItem` и `ToolCallResultMetaProvider`.
@@ -106,5 +109,6 @@ DTO-обёртка для `getFileOutline`. Реализует `ToolCallResponse
 | `path` | String | Путь к файлу |
 | `matchLine` | int | Номер строки совпадения (1-based) |
 | `text` | String | Текст строки с совпадением |
+| `tracked` | boolean | Отслеживается ли файл git'ом; `false` — совпадение из второго прогона, по зоне `allow-globs` (только при `includeUntracked`) |
 
-`getResultMeta()`: `path`, `matchLine`.
+`getResultMeta()`: `path`, `matchLine`, `tracked`.

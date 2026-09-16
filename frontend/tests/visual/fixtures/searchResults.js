@@ -16,6 +16,10 @@ export const query = 'grep';
 /**
  * Файл с семью совпадениями: пять видно сразу, две последние — под «ещё N».
  * Ради этого их именно семь, а не две и не двадцать.
+ *
+ * Вторым идёт файл вне git (`tracked: false`) — такой находится только с
+ * галочкой «искать и в неотслеживаемых» и подписан меткой у каталога. Рядом с
+ * обычной карточкой видно и саму метку, и то, что без неё карточки одинаковы.
  */
 export const fileEntry = {
   data: {
@@ -24,6 +28,7 @@ export const fileEntry = {
     files: [
       {
         path: 'backend/src/main/java/io/github/trialiya/kb/service/file/git/GitGrepRunner.java',
+        tracked: true,
         lines: [
           { line: 41, text: '    List<GitGrepMatch> grepContent(String pattern, @Nullable String pathGlob) {' },
           { line: 58, text: '        List<String> args = GitGrep.args(pattern, pathspec, regex, ctx, roots, null);' },
@@ -33,6 +38,11 @@ export const fileEntry = {
           { line: 131, text: '    /** Второй проход: неотслеживаемое, куда git grep сам не заходит. */' },
           { line: 152, text: '        log.debug("git grep: {} matches in {} files", matches.size(), files);' },
         ],
+      },
+      {
+        path: 'build/reports/tests/test/index.html',
+        tracked: false,
+        lines: [{ line: 118, text: '  <div class="failures">git grep did not finish within 20s</div>' }],
       },
     ],
   },
