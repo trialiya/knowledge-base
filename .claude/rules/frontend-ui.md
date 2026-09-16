@@ -163,7 +163,9 @@ Panel open/closed state is **controlled state that lives in the URL**
   filters), and `icon-btn` for icon-only buttons, also with a rung
   (`icon-btn--sm`, `icon-btn--xs`) and a look (`icon-btn--danger`,
   `icon-btn--quiet` for an action that is always at hand and must not pull the
-  eye, `icon-btn--done` for the transient "copied", `icon-btn--star`). A toggle
+  eye, `icon-btn--outline` for one standing on empty space that a border is all
+  that makes it read as a button, `icon-btn--done` for the transient "copied",
+  `icon-btn--star`). A toggle
   carries `aria-pressed` — always, it is what a screen reader has to go on —
   and a ghost one gets its selected look from that, with no `--active` class of
   its own. A row that marks its choice with a solid fill (the phrase-category

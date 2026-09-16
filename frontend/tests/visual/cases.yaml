@@ -14,6 +14,12 @@
 #   • Данные — только в fixtures/<компонент>.js именованными экспортами, и
 #     только статика: без Date.now(), Math.random(), реальных id из базы,
 #     живых токенов и персональных данных.
+#   • Ключ со ссылками на них один — `fixtures`, всегда списком, по ссылке в
+#     строке: `- ./fixtures/<модуль>.js#<экспорт>`. Кейс называет каждую
+#     фикстуру, которой пользуется, даже если про часть из них сказано только в
+#     notes, — по этим ссылкам кейс и запись стенда находят друг друга
+#     (harness/registry.jsx, сторож — tests/visual/registry.test.js). Кейсу,
+#     снятому целиком на живом бэкенде, ключ не нужен вовсе.
 #   • status: verified — наблюдалось в браузере; broken — воспроизведённый
 #     дефект (тогда ссылка на issue/строку); blocked — кейс описан, но прогнать
 #     нечем (нет данных, нужен недостижимый бэкенд/состояние).
@@ -48,7 +54,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /
-  fixtures: ./fixtures/chatHeader.js#activeChatProps
+  fixtures:
+    - ./fixtures/chatHeader.js#activeChatProps
   expected:
     - Заголовок чата в одну строку, длинный режется многоточием
     - Под заголовком ничего нет — дата создания убрана в правую панель, вкладка «Инфо»
@@ -71,7 +78,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /
-  fixtures: ./fixtures/chatHeader.js#activeChatWithContextProps
+  fixtures:
+    - ./fixtures/chatHeader.js#activeChatWithContextProps
   expected:
     - Шапка осталась в одну строку — счётчик сел между заголовком и кнопками, высота не выросла
     - 'Текст счётчика «Контекст: 11.0k» — занятый контекст, а не total input 31.1k'
@@ -96,7 +104,8 @@
     auth: admin
     route: /knowledge/doc/<id документа из фикстуры>
     hover: .detail-header
-  fixtures: ./fixtures/detailHeader.js#documentInFolder
+  fixtures:
+    - ./fixtures/detailHeader.js#documentInFolder
   expected:
     - 'Слева крошка предка («анализ») и разделитель после неё: путь и имя читаются одной цепочкой'
     - Дальше иконка типа (документ), затем полное имя узла
@@ -120,7 +129,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /knowledge
-  fixtures: ./fixtures/knowledgeBaseTree.js#singleFolderTree
+  fixtures:
+    - ./fixtures/knowledgeBaseTree.js#singleFolderTree
   expected:
     - В центре плейсхолдер «Select a document to view»
     - Шапки центра (.workspace__head) в DOM нет вовсе — она принадлежит открытому узлу, а его нет
@@ -147,7 +157,8 @@
     viewport: [1150, 820]
     auth: admin
     route: /files/<путь из фикстуры>
-  fixtures: ./fixtures/filesBreadcrumb.js#deepJavaPath
+  fixtures:
+    - ./fixtures/filesBreadcrumb.js#deepJavaPath
   expected:
     - Крошки идут одной строкой, шапка не растёт в высоту
     - 'Середина пути схлопнута в одно «…» — видно и корень «Repository», и папку с файлом'
@@ -185,7 +196,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /files/<путь из фикстуры>
-  fixtures: ./fixtures/filesBreadcrumb.js#missingPath
+  fixtures:
+    - ./fixtures/filesBreadcrumb.js#missingPath
   expected:
     - 'Полная цепочка: Repository › backend › src › main › java › com › example › knowledgebase'
     - Восемь коротких звеньев на 1440px помещаются целиком — «…» здесь быть не должно
@@ -209,7 +221,8 @@
     viewport: [1150, 700]
     auth: admin
     route: /knowledge/doc/<id документа из фикстуры>
-  fixtures: ./fixtures/detailHeader.js#documentDeepPath
+  fixtures:
+    - ./fixtures/detailHeader.js#documentDeepPath
   expected:
     - Крошки уступают место первыми — сжимаются, пока имя открытого узла целое
     - Строка одна, шапка не растёт в высоту
@@ -241,7 +254,8 @@
     viewport: [1150, 700]
     auth: admin
     route: /knowledge/doc/<id документа из фикстуры>
-  fixtures: ./fixtures/detailHeader.js#systemDocument
+  fixtures:
+    - ./fixtures/detailHeader.js#systemDocument
   expected:
     - 'Справа в шапке кнопка скачивания и значок замка с подсказкой «Системный документ: переименование и удаление недоступны»'
     - Кнопки удаления нет, а клик по имени не открывает поле правки — у заголовка нет ни модификатора .detail-header__title, ни подсказки «Нажмите чтобы переименовать»
@@ -265,7 +279,8 @@
     viewport: [1150, 700]
     auth: admin
     route: /knowledge/doc/<id папки из фикстуры>
-  fixtures: ./fixtures/detailHeader.js#folderInFolder
+  fixtures:
+    - ./fixtures/detailHeader.js#folderInFolder
   expected:
     - Иконка типа — папка на акцентной подложке (.detail-header__icon--folder), а не документ
     - Крошка родительской папки на месте
@@ -287,7 +302,8 @@
     auth: admin
     route: /knowledge/doc/76
     profile: h2
-  fixtures: ./fixtures/detailHeader.js#documentInFolder
+  fixtures:
+    - ./fixtures/detailHeader.js#documentInFolder
   expected:
     - Имя ведёт себя как кнопка — курсор pointer, подсказка «Нажмите чтобы переименовать», по наведению цвет уходит в акцент
     - Кнопки-карандаша в шапке нет (.detail-header__rename-btn), справа только скачивание и удаление
@@ -312,7 +328,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /?right=info
-  fixtures: ./fixtures/infoList.js#chatRows
+  fixtures:
+    - ./fixtures/infoList.js#chatRows
   expected:
     - Название чата и id не влезают рядом с лейблом — встают на свою строку и остаются выключенными вправо
     - Дата с временем помещается рядом с лейблом и не рвётся на две строки, как было при сжатии значения
@@ -331,7 +348,9 @@
     viewport: [1440, 900]
     auth: admin
     route: /chat/<id чата>?right=usage
-  fixtures: ./fixtures/chatUsage.js#measuredChat
+  fixtures:
+    - ./fixtures/chatUsage.js#measuredChat
+    - ./fixtures/chatUsage.js#subagentSpending
   expected:
     - Строки идут сверху вниз - Context, Системная часть, Input (Cache miss), Input (Cache hit), Cache write, Output, Total, Обращений к модели
     - 'Разбивка входа сходится: 17.7k + 63.4k = 81.1k, и вместе с Output 1.1k это ровно Total 82.2k — блок сверяется со счётом провайдера построчно'
@@ -362,7 +381,10 @@
     viewport: [1440, 900]
     auth: admin
     route: /chat/<id чата, в котором выполнялась команда /compact>
-  fixtures: ./fixtures/compactNotice.js#measured
+  fixtures:
+    - ./fixtures/compactNotice.js#measured
+    - ./fixtures/compactNotice.js#estimated
+    - ./fixtures/compactNotice.js#unmeasured
   expected:
     - 'Плашка остаётся разделителем в одну строку — не пузырём: сжатие это событие с чатом, а не реплика'
     - Строка экономии стоит между текстом «Контекст сжат…» и кнопкой «Подробнее» — тем же шрифтом и того же размера, что текст слева и ссылка справа
@@ -387,7 +409,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /
-  fixtures: ./fixtures/toolCallDetail.js#searchCodebaseCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#searchCodebaseCall
   expected:
     - 'Под статусом вызова строка «модель: gpt-5-mini» и «total input: 41.3k · output: 870 · обращений к модели: 4»'
     - Набрана приглушённо, как подписи в футере ответа, — это справка о вызове, а не его результат
@@ -409,7 +432,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /files/<путь из фикстуры filesBreadcrumb#deepJavaPath>?right=info
-  fixtures: ./fixtures/infoList.js#fileRows
+  fixtures:
+    - ./fixtures/infoList.js#fileRows
   expected:
     - У каждой строки справа от значения кнопка-иконка копирования 20×20
     - Кнопка стоит по центру строки значения, а не проваливается под неё (align-items центрирует, не baseline)
@@ -437,7 +461,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /chat/<id чата из sample-data.sql>
-  fixtures: ./fixtures/chatList.js#severalChats
+  fixtures:
+    - ./fixtures/chatList.js#severalChats
   expected:
     - В строке списка одна кнопка действия — удаление; карандаша переименования нет
     - Переименовать чат можно только из шапки центра (ChatHeader), и там это работает
@@ -468,7 +493,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /knowledge/doc/<id документа из фикстуры>
-  fixtures: ./fixtures/detailPanel.js#documentWithContent
+  fixtures:
+    - ./fixtures/detailPanel.js#documentWithContent
   expected:
     - В центре отрендеренный markdown (.md-preview), textarea нет — документ чаще читают, чем правят
     - Заголовки, списки и ссылка на файл видны как оформленный текст, а не как разметка
@@ -492,13 +518,18 @@
     viewport: [1440, 900]
     auth: admin
     route: /knowledge/doc/<id документа из фикстуры>?right=summary
-  fixtures: ./fixtures/detailPanel.js#documentWithContent
+  fixtures:
+    - ./fixtures/detailPanel.js#documentWithContent
+    - ./fixtures/detailPanel.js#documentWithSummary
+    - ./fixtures/detailPanel.js#folderWithChildren
+    - ./fixtures/detailPanel.js#folderWithManyChildren
   expected:
     - У документа справа три вкладки — «Info · Summary · Attachments»
     - Во вкладке «Summary» одна секция «AI SUMMARY»; блока «About» с текстом документа больше нет
     - Без сгенерированного summary в секции кнопка «Generate summary» (и подсказка, если описание пустое)
     - С готовым, но устаревшим summary (фикстура documentWithSummary) — текст описания, бейдж «STALE» у заголовка и кнопка «Update» справа
     - У папки вкладки «Summary» нет вовсе — «Info · Contents · Attachments», папки не суммаризируются
+    - 'Состав длиннее страницы (folderWithManyChildren) — под таблицей листалка: стрелки это общие .icon-btn--outline, «назад» на первой странице неактивна'
     - 'Ссылка вида /knowledge/doc/<id папки>?right=summary не ломает панель: вкладки такой нет, панель остаётся рельсом'
   notes: |
     Замерено в браузере: у документа вкладки Info/Summary/Attachments, тело
@@ -520,7 +551,8 @@
     auth: admin
     route: /settings
     click: список групп «Настройки» → «Модели»
-  fixtures: ./fixtures/aiConfig.js#defaultAiConfig
+  fixtures:
+    - ./fixtures/aiConfig.js#defaultAiConfig
   expected:
     - 'Секция «Общее»: макс. токенов, temperature, top-p, таймаут запроса, попыток при сбое, окно SSE'
     - Строки «Окно памяти» в секции «Общее» НЕТ — память чата пишет дописывая и по числу сообщений историю не режет (см. ChatHistoryMemory)
@@ -546,7 +578,8 @@
     route: /settings
     profile: h2
     click: список групп «Настройки» → «Поиск»
-  fixtures: ./fixtures/aiConfig.js#defaultAiConfig
+  fixtures:
+    - ./fixtures/aiConfig.js#defaultAiConfig
   expected:
     - Три секции — keyword, семантический, гибридный
     - 'На профиле h2 у семантического поиска статус «отключён» (application-h2.yaml выключает kb.search.semantic.enabled)'
@@ -568,7 +601,9 @@
     auth: admin
     route: /settings
     click: список групп «Настройки» → «Инструменты»
-  fixtures: ./fixtures/aiConfig.js#defaultAiConfig
+  fixtures:
+    - ./fixtures/aiConfig.js#defaultAiConfig
+    - ./fixtures/aiConfig.js#editEnabledButReadOnlyTree
   expected:
     - 'Секция «Режимы ассистента»: три строки — analytic/developer/tester с русскими лейблами справа'
     - 'Правка файлов: две строки — «Разрешено в конфиге» и «Инструменты выданы модели», обе бейджем «да»/«нет», а не «включён»'
@@ -594,7 +629,8 @@
     route: /admin
     profile: h2
     click: список групп «Администрирование» → «Система»
-  fixtures: ./fixtures/systemInfo.js#h2SystemInfo
+  fixtures:
+    - ./fixtures/systemInfo.js#h2SystemInfo
   expected:
     - 'Приложение: имя, активные профили (h2), порт, версия Java, время старта в локали и аптайм'
     - 'Сборка: версия, время сборки и дата коммита в локали, сокращённый коммит и ветка — из git.properties и build-info.properties внутри JAR'
@@ -621,7 +657,8 @@
     route: /admin
     profile: h2
     click: список групп «Администрирование» → «Система»
-  fixtures: ./fixtures/systemInfo.js#h2SystemInfo
+  fixtures:
+    - ./fixtures/systemInfo.js#h2SystemInfo
   expected:
     - При 1440 JDBC URL, локации Flyway, путь к репозиторию и папка экспорта стоят справа на одной строке с лейблом — как «Драйвер» и «Версия схемы»
     - При 900 (то же окно уже) JDBC URL не влезает рядом с лейблом и уходит на свою строку, но остаётся выключенным вправо, а не по левому краю
@@ -645,7 +682,8 @@
     auth: admin
     route: /admin
     click: список групп «Администрирование» → «Семантический индекс»
-  fixtures: ./fixtures/systemInfo.js#h2SystemInfo
+  fixtures:
+    - ./fixtures/systemInfo.js#h2SystemInfo
   expected:
     - Сверху секция «Операции» с кнопкой «Переиндексировать» — она работает и когда снимок настроек не загрузился
     - 'Ниже секция «Очередь эмбеддингов»: воркеры, размер пачки, интервал опроса, попытки, backoff, таймаут зависших, retention'
@@ -670,7 +708,10 @@
     route: /admin
     profile: h2
     click: «Семантический индекс» и «Массовые операции» — сравнить строки между собой
-  fixtures: ./fixtures/operationRow.js#reindexOperation,exportOperation,operationStates
+  fixtures:
+    - ./fixtures/operationRow.js#reindexOperation
+    - ./fixtures/operationRow.js#exportOperation
+    - ./fixtures/operationRow.js#operationStates
   expected:
     - idle — иконка, название, пояснение и кнопка запуска в один ряд, результата под текстом нет
     - done — под пояснением бейдж «готово» и текст в один ряд, отступ сверху 10px
@@ -706,7 +747,11 @@
       Дерево из sample-data.sql выгружено в KB_DOCUMENTS_EXPORT_PATH, затем в
       папке руками: дописан хвост в один документ, создан novyi-dokument.md
       рядом с ним и целая папка novaya-papka/ с rebenok.md внутри.
-  fixtures: ./fixtures/syncDiff.js#mixedDiffEntries,mixedDiffSummary,missingEntry,importSummary
+  fixtures:
+    - ./fixtures/syncDiff.js#mixedDiffEntries
+    - ./fixtures/syncDiff.js#mixedDiffSummary
+    - ./fixtures/syncDiff.js#missingEntry
+    - ./fixtures/syncDiff.js#importSummary
   expected:
     - Две секции — «Операции» (экспорт) и «Импорт из папки экспорта» (сравнение, список, импорт)
     - 'Под строкой сравнения бейдж «готово» и сводка: «Новых: 3 · изменённых: 1 · отсутствующих: 0 · без изменений: 2»'
@@ -740,7 +785,8 @@
     auth: admin
     route: /knowledge/doc/76
     profile: h2
-  fixtures: ./fixtures/detailHeader.js#documentInFolder
+  fixtures:
+    - ./fixtures/detailHeader.js#documentInFolder
   expected:
     - Шапка остаётся одной строкой — крошка, иконка типа, имя, справа кнопки
     - Кнопка скачивания — обычная ссылка <a download> на /api/documents/{id}/download?meta=false, а не fetch
@@ -771,7 +817,10 @@
       ссылкой [beta](beta.md) и сам beta.md, создана папка novaya-papka/ с
       rebenok.md, а один документ превращён в директорию — единственная
       правка, которую импорт отказывается применять.
-  fixtures: ./fixtures/syncDiff.js#importLog,importLogLines,importWithFailureSummary
+  fixtures:
+    - ./fixtures/syncDiff.js#importLog
+    - ./fixtures/syncDiff.js#importLogLines
+    - ./fixtures/syncDiff.js#importWithFailureSummary
   expected:
     - 'Журнал стоит под строкой импорта, заголовок «Что сделал импорт (узлов: 8)»'
     - Список выровнен по левому краю со списком различий выше (оба с отступом 16px от края строки-операции)
@@ -835,7 +884,8 @@
       KB_CHAT_MODELS_1_ID=weak-model (weak=true),
       KB_CHAT_MODELS_2_ID=remote-model (weak=false, со своими
       KB_CHAT_MODELS_2_BASE_URL и KB_CHAT_MODELS_2_API_KEY).
-  fixtures: ./fixtures/aiConfig.js#strongAndWeakModels
+  fixtures:
+    - ./fixtures/aiConfig.js#strongAndWeakModels
   expected:
     - 'В секции «Основная модель» под строкой модели — строка «Слабая модель (weak)» бейджем «да»/«нет» (не «включён»/«отключён»): это утверждение о модели, а не состояние функции'
     - Под ней пояснение мелким серым — что флаг меняет только объём руководства по runScript, и что по умолчанию true
@@ -862,7 +912,8 @@
     profile: h2
     click: список групп «Настройки» → «Скрипты»
     data: Бэкенд поднят с KB_SCRIPT_ENABLED=true, PROJECT_PATH=. (сам репозиторий)
-  fixtures: ./fixtures/aiConfig.js#scriptEnabled
+  fixtures:
+    - ./fixtures/aiConfig.js#scriptEnabled
   expected:
     - 'Три секции снимка: «Состояние», «Время выполнения», «Бюджеты одного прогона» — и под ними «Пробный запуск»'
     - 'Состояние: у инструмента бейдж «включён»/«отключён», у двух строк про правку — «да»/«нет»'
@@ -888,7 +939,8 @@
     profile: h2
     click: список групп «Настройки» → «Скрипты» → «Запустить»
     data: Бэкенд поднят с KB_SCRIPT_ENABLED=true, PROJECT_PATH=. (сам репозиторий)
-  fixtures: ./fixtures/aiConfig.js#scriptEnabled
+  fixtures:
+    - ./fixtures/aiConfig.js#scriptEnabled
   expected:
     - Поле открыто примером из scriptExample.js — моноширинный текст, поле высотой ~320px и тянется вниз за уголок
     - 'Под полем две кнопки: «Запустить» (primary) и «Вернуть пример» (ghost, заблокирована пока текст не менялся)'
@@ -1037,7 +1089,8 @@
       по любому элементу сначала снимает фокус с поля, blur коммитит правку, и
       проверять становится нечего: сценарий превращается в обычное
       переименование.
-  fixtures: ./fixtures/chatHeader.js#activeChatProps
+  fixtures:
+    - ./fixtures/chatHeader.js#activeChatProps
   expected:
     - Правка заголовка начата (в шапке input .chat-header__edit), затем активный чат сменился без blur
     - Поля ввода в шапке больше нет — на новом чате всегда показывается его собственный заголовок
@@ -1061,7 +1114,8 @@
     viewport: [1150, 820]
     auth: admin
     route: /files/<путь из фикстуры>, затем соседний файл в той же папке
-  fixtures: ./fixtures/filesBreadcrumb.js#deepJavaPath
+  fixtures:
+    - ./fixtures/filesBreadcrumb.js#deepJavaPath
   expected:
     - На глубоком пути середина схлопнута в «…»; клик раскрывает цепочку целиком
     - Переход на соседний файл снова показывает схлопнутую цепочку — раскрытие не «залипло»
@@ -1084,7 +1138,8 @@
     auth: admin
     route: /knowledge/doc/<id документа из фикстуры> → /chat → /knowledge
     data: sample-data.sql (документ 76 внутри папки 75)
-  fixtures: ./fixtures/detailPanel.js#documentWithContent
+  fixtures:
+    - ./fixtures/detailPanel.js#documentWithContent
   expected:
     - По прямой ссылке документ открывается сразу в просмотре, дерево слева раскрыто до него, строка подсвечена
     - Глобальный поиск уводит на /knowledge/search?q=… и показывает список результатов
@@ -1137,6 +1192,25 @@
     Свёртывание висит на самой кнопке меню, а не на эффекте по `open`: закрыть
     меню могут и Escape, и клик снаружи, а открыть — только она.
 
+- id: header-menu-trigger-outline
+  component: HeaderMenu
+  path: frontend/src/components/common/layout/HeaderMenu.jsx
+  title: Кнопка меню в шапке — общий значок в рамке, а не своё семейство
+  status: verified
+  origin:
+    - 'Сессия 2026-09-16, значок в рамке в общем файле кнопок'
+  fixtures:
+    - ./fixtures/headerMenu.js#knowledgeBaseMenu
+  scenario: |
+    Правая зона шапки вкладок: кнопка меню закрытой и она же с раскрытым меню.
+    После клика указатель уводится с кнопки (шаг `unhover`): иначе снимок
+    показал бы её наведённой и «подтверждал» бы открытое состояние наведением.
+  expected:
+    - 'Кнопка — общие классы (.icon-btn .icon-btn--outline): рамка и заливка от них, круглой 34×34 её делает только своя геометрия'
+    - 'Пока меню раскрыто, кнопка держит вид наведения — иначе не видно, чьё это меню; держится он на `aria-expanded` кнопки'
+    - Меню раскрывается вниз и влево от кнопки, за правую кромку шапки не выходит
+    - Подменю языка и темы свёрнуты — их раскрывают отдельным кликом
+
 - id: phrase-fill-typed-placeholders
   component: PhraseFillModal
   path: frontend/src/components/chatPanel/composer/PhraseFillModal.jsx
@@ -1154,7 +1228,10 @@
       allTypesPhrase, legacyPhrase и edgeCasesPhrase из фикстуры. Поиск по
       файлам и коммитам идёт по настоящему репозиторию (PROJECT_PATH=.),
       документы — из засеянной базы.
-  fixtures: ./fixtures/phraseFill.js#allTypesPhrase
+  fixtures:
+    - ./fixtures/phraseFill.js#allTypesPhrase
+    - ./fixtures/phraseFill.js#legacyPhrase
+    - ./fixtures/phraseFill.js#edgeCasesPhrase
   expected:
     - Заголовок диалога — название фразы из библиотеки; без него встаёт общее «Заполните значения»
     - На каждый плейсхолдер одно поле с подписью и бейджем типа (файл · коммит · документ · число · строка · да/нет)
@@ -1218,7 +1295,9 @@
     profile: h2
     click: список групп «Настройки» → «Инструменты» → выпадашка в шапке секции
     data: Бэкенд поднят с PROJECT_PATH=. (сам репозиторий), правка файлов и скрипты выключены
-  fixtures: ./fixtures/toolCatalog.js#builtinTools
+  fixtures:
+    - ./fixtures/toolCatalog.js#builtinTools
+    - ./fixtures/toolCatalog.js#withMcpTool
   expected:
     - 'Секция «Доступные инструменты» стоит первой в группе, в её заголовке — счётчик (на дефолтном конфиге 33)'
     - Справа в шапке секции выпадашка — человеческий лейбл и приглушённое техническое имя рядом; список отсортирован по лейблу и открывается вниз
@@ -1255,7 +1334,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /chat/<id> с ответом, где встречаются все формы разметки кода
-  fixtures: ./fixtures/chatCodeBlocks.js#variants
+  fixtures:
+    - ./fixtures/chatCodeBlocks.js#variants
   expected:
     - 'Каждый блок — одна карточка: шапка и код в общей рамке, без рамки в рамке'
     - Заборчик с языком показывает его в шапке заглавными (BASH)
@@ -1280,7 +1360,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /search?q=<запрос>&in=chats → клик по заголовку карточки → /chat/<id>?find=<запрос>
-  fixtures: ./fixtures/chatFind.js#openedFromSearch
+  fixtures:
+    - ./fixtures/chatFind.js#openedFromSearch
   expected:
     - Чат открывается сразу с открытым баром, в поле стоит запрос из адреса
     - 'Бар садится на самое свежее совпадение: заголовок карточки сообщения не называет'
@@ -1310,7 +1391,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /search?q=<запрос>&in=chats → клик по СТРОКЕ карточки → /chat/<id>?find=<запрос>&msg=<id сообщения>
-  fixtures: ./fixtures/chatFind.js#openedOnMessage
+  fixtures:
+    - ./fixtures/chatFind.js#openedOnMessage
   expected:
     - Активно названное сообщение — здесь первое совпадение, а не последнее
     - Счётчик бара показывает его номер (1 из 3), стрелки ходят по тем же совпадениям
@@ -1333,7 +1415,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /search?q=<запрос>&in=docs → клик по разделу карточки → /knowledge/doc/<id>?find=<запрос>&section=<раздел>
-  fixtures: ./fixtures/docFind.js#openedFromSearch
+  fixtures:
+    - ./fixtures/docFind.js#openedFromSearch
   expected:
     - Документ открывается сразу с открытым баром, в поле стоит запрос из адреса
     - 'Активно первое совпадение в названном разделе, а не первое в документе; счётчик показывает его номер среди всех совпадений документа («2/5» на фикстуре: заголовок раздела сам содержит запрос и тоже считается), превью промотано к нему'
@@ -1358,7 +1441,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /search?q=timeout&in=files → клик по заголовку карточки → /files/<путь>?find=timeout
-  fixtures: ./fixtures/fileFind.js#openedFromSearch
+  fixtures:
+    - ./fixtures/fileFind.js#openedFromSearch
   expected:
     - Файл открывается сразу с открытым баром, в поле стоит запрос из адреса — ни одного нажатия клавиш не требуется
     - Все вхождения запроса подсвечены, активное залито гуще остальных; центр промотан к нему
@@ -1409,7 +1493,8 @@
     auth: admin
     route: /chat, засеянный чат «История коммитов backend/build.gradle»
     click: чип вложения gradle-build-error.log в отправленном сообщении → Ctrl+F → «gradle»
-  fixtures: ./fixtures/modalFind.js#dialogContent
+  fixtures:
+    - ./fixtures/modalFind.js#dialogContent
   expected:
     - Бар встаёт первой строкой внутри диалога, содержимое не перекрывает — верх бара совпадает с верхом диалога
     - Полоса бара прижата к кромкам диалога одинаково в модалке с внутренними отступами («Создать» в базе знаний) и без них (превью вложения) — во всех трёх измерениях зазор 0
@@ -1454,7 +1539,11 @@
       invocations есть callId, tool_call_index покрывает все 10 вызовов.
       Фикстуры нужны только для веток, которых в сэмпле нет: несколько
       вложений за вызов и бинарный файл.
-  fixtures: ./fixtures/toolCallDetail.js#fileContentCall,documentCall,attachmentsCall,mcpCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#fileContentCall
+    - ./fixtures/toolCallDetail.js#documentCall
+    - ./fixtures/toolCallDetail.js#attachmentsCall
+    - ./fixtures/toolCallDetail.js#mcpCall
   expected:
     - 'Переключатель «Обзор | JSON» стоит в шапке секции «Результат», между подписью и кнопкой копирования; по умолчанию активен «Обзор»'
     - 'У формы, под которую вида нет (MCP-инструмент с произвольным объектом), переключателя нет вовсе — только JSON, как раньше'
@@ -1503,7 +1592,10 @@
       сэмпле нет: одиночная правка (editFile), несколько файлов за вызов
       с разными статусами и один названный коммит с телом сообщения
       (commitDiffCall) — тело отдаёт только запрос по одному хешу.
-  fixtures: ./fixtures/toolCallDetail.js#editFileCall,uncommittedChangesCall,commitDiffCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#editFileCall
+    - ./fixtures/toolCallDetail.js#uncommittedChangesCall
+    - ./fixtures/toolCallDetail.js#commitDiffCall
   expected:
     - 'Итог по вызову («файлов: N» и суммарные +A/−D) есть только при нескольких файлах: на одном он дословно повторял бы строку под собой'
     - 'Шапка коммита: короткий хеш (моноширинный, синий), сообщение, автор, дата'
@@ -1549,7 +1641,10 @@
       и скаляр (recordChatInsights в чате плашки не пишет, поэтому кликом
       его не достать). getTreeSkeleton из того же чата теперь уходит виду
       дерева — он в своём кейсе.
-  fixtures: ./fixtures/toolCallDetail.js#searchDocumentsCall,attachmentListCall,insightsCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#searchDocumentsCall
+    - ./fixtures/toolCallDetail.js#attachmentListCall
+    - ./fixtures/toolCallDetail.js#insightsCall
   expected:
     - 'Сверху «записей: N», ниже строка на запись: шеврон, заголовок, приглушённое пояснение второй строкой, чипы справа'
     - 'Заголовок берётся по форме: message у коммита, path у файла, fileName у вложения, title у документа'
@@ -1583,7 +1678,10 @@
       getTreeSkeleton берётся из db/sample-data.sql как есть — на нём видна
       сборка по parentId. Фикстуры — для трёх остальных способов выразить
       вложенность и для grepContent, которых в сэмпле нет.
-  fixtures: ./fixtures/toolCallDetail.js#documentOutlineCall,fileOutlineCall,grepCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#documentOutlineCall
+    - ./fixtures/toolCallDetail.js#fileOutlineCall
+    - ./fixtures/toolCallDetail.js#grepCall
   expected:
     - 'Четыре способа вложенности показываются одинаково: parentId (структура базы), уровень заголовка (оглавление), диапазон строк (обзор файла), путь (дерево файлов)'
     - 'getFileOutline: метод и поле вложены в класс, потому что их строки внутри его строк; символ за границей класса возвращается на верхний уровень'
@@ -1624,7 +1722,12 @@
       целиком на фикстурах. Документ #75 («анализ») в сэмпле есть, поэтому
       кнопка «Посмотреть изменения» открывает настоящую историю версий, а не
       заглушку.
-  fixtures: ./fixtures/toolCallDetail.js#docMutationCall,scriptRunCall,scriptFailedCall,fileContentCall,editFileCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#docMutationCall
+    - ./fixtures/toolCallDetail.js#scriptRunCall
+    - ./fixtures/toolCallDetail.js#scriptFailedCall
+    - ./fixtures/toolCallDetail.js#fileContentCall
+    - ./fixtures/toolCallDetail.js#editFileCall
   expected:
     - 'docMutation: карточка с заголовком, типом, обеими версиями и датой; «версия» и «версия описания» больше не две одинаковые подписи подряд'
     - 'Кнопка «Посмотреть изменения» открывает HistoryModal поверх модалки вызова — стопку ведёт ModalShell, Escape закрывает только верхнюю'
@@ -1702,7 +1805,6 @@
       ходе) — на 404 клиент уходит в ретраи с backoff, и прогон стартует через
       десятки секунд. Одиночный чанк оседает в буферах клиента и до UI не доходит:
       пока ответ держат, надо продолжать капать токенами.
-  fixtures: сценарий целиком на живом бэкенде, фикстур нет
   expected:
     - Клик по другому чату меняет и URL (/chat/<id>), и историю в центре
     - Во время генерации в композере кнопка «стоп»
@@ -1722,7 +1824,8 @@
 - id: chat-run-status-above-input
   component: RunStatus
   path: frontend/src/components/chatPanel/composer/RunStatus.jsx
-  fixture: runStatus.js#generatingRun
+  fixtures:
+    - ./fixtures/runStatus.js#generatingRun
   title: Строка прогона над полем ввода — таймер и прирост input
   status: verified
   origin:
@@ -1741,7 +1844,9 @@
 - id: chat-composer-send-and-stop-during-run
   component: ComposerToolbar
   path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx
-  fixture: composerToolbar.js#generatingComposer
+  fixtures:
+    - ./fixtures/composerToolbar.js#idleComposer
+    - ./fixtures/composerToolbar.js#generatingComposer
   title: Композер — во время ответа «отправить» и «остановить» стоят рядом
   status: verified
   origin:
@@ -1749,6 +1854,7 @@
   preconditions:
     viewport: [1440, 900]
   expected:
+    - 'В свободном чате (idleComposer) кнопка одна — «отправить»: пара появляется только на прогоне'
     - Обе кнопки видны одновременно; «остановить» слева от «отправить», а не вместо неё
     - Селекторы модели, режима и проекта заблокированы — прогон уже едет на своих настройках
     - Ряд не переносится и не сдвигает кнопки за кромку колонки
@@ -1760,7 +1866,8 @@
 - id: chat-composer-compacting-locks-both
   component: ComposerToolbar
   path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx
-  fixture: composerToolbar.js#compactingComposer
+  fixtures:
+    - ./fixtures/composerToolbar.js#compactingComposer
   title: Композер — на сжатии контекста неактивны обе кнопки
   status: verified
   origin:
@@ -2044,7 +2151,6 @@
       сняться состояние «сжимаю…», и проверить блокировку композера нечем.
       Стриминга здесь нет — сжатие это один блокирующий вызов, поэтому капать
       токенами, в отличие от chat-switch-during-run, не требуется.
-  fixtures: сценарий целиком на живом бэкенде, фикстур нет
   expected:
     - Набранная команда видна в композере обычным текстом, без подсветки и чипа
     - После отправки команда встаёт в ленту синим пузырём пользователя — как вопрос
@@ -2121,7 +2227,8 @@
     auth: admin
     route: /files
     steps: 'Открыть меню действий рядом с веткой в репозитории с длинными именами веток'
-  fixtures: ./fixtures/gitMenu.js#branchMenuLongNames
+  fixtures:
+    - ./fixtures/gitMenu.js#branchMenuLongNames
   expected:
     - Список раскрывается вправо, поверх центра, и целиком помещается в окне — ни один край не обрезан
     - Имена до ~57 символов читаются полностью; более длинное обрезано с конца многоточием, а не с начала
@@ -2176,7 +2283,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /chat/<id чата>?right=repo
-  fixtures: ./fixtures/chatRepo.js#repoTabIdle
+  fixtures:
+    - ./fixtures/chatRepo.js#repoTabIdle
   expected:
     - В шапке правой панели три вкладки — «Инфо», «Вложения», «Репозиторий»; активна третья
     - Первая строка тела — иконка ветки, её имя с многоточием и «↑2»; «↓» нет, потому что behind = 0
@@ -2205,7 +2313,8 @@
     auth: admin
     route: /chat/<id чата>?right=repo
     state: идёт генерация ответа
-  fixtures: ./fixtures/chatRepo.js#repoTabBusy
+  fixtures:
+    - ./fixtures/chatRepo.js#repoTabBusy
   expected:
     - «Commit…» и «Push…» серые и не нажимаются; наведение показывает подсказку о том, что модель работает
     - Ветка, счётчики и список несохранённого выглядят как обычно — читать состояние генерация не мешает
@@ -2228,7 +2337,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /chat/<id чата>?right=repo
-  fixtures: ./fixtures/chatRepo.js#repoTabMerging
+  fixtures:
+    - ./fixtures/chatRepo.js#repoTabMerging
   expected:
     - 'Под веткой красная полоса «Конфликт merge: файлов — 2»'
     - На самой вкладке «Репозиторий» красная точка 6px — она же видна, когда панель свёрнута в рельс
@@ -2256,7 +2366,8 @@
     auth: admin
     route: /chat/<id чата>?right=repo
     state: ассистент правил десять файлов
-  fixtures: ./fixtures/chatRepo.js#repoTabManyChanges
+  fixtures:
+    - ./fixtures/chatRepo.js#repoTabManyChanges
   expected:
     - Заголовок «Не сохранено · 10», но строк ровно четыре — первые по имени файла
     - Под ними приглушённая ссылка «Ещё файлов · 6»
@@ -2279,7 +2390,8 @@
     auth: admin
     route: /chat/<id чата>?right=repo либо /files?project=<id>
     action: кнопка «Commit…» на вкладке «Репозиторий» либо пункт «Закоммитить…» в меню git над деревом
-  fixtures: ./fixtures/chatRepo.js#commitDialogDirty
+  fixtures:
+    - ./fixtures/chatRepo.js#commitDialogDirty
   expected:
     - Окно во всю высоту экрана (fullscreen-вариант ModalShell), заголовок «Commit» и рядом ветка моноширинным
     - 'Слева столбец 320px: переключатель раскладки, «Выбрать все» с галочкой в третьем состоянии и «9 из 10»'
@@ -2306,7 +2418,8 @@
     auth: admin
     route: /chat/<id чата>?right=repo
     state: идёт генерация ответа
-  fixtures: ./fixtures/chatRepo.js#commitDialogBusy
+  fixtures:
+    - ./fixtures/chatRepo.js#commitDialogBusy
   expected:
     - Под заголовком одна серая плашка с причиной; под кнопкой она НЕ повторяется
     - Кнопка коммита серая при любом заполненном поле
@@ -2327,7 +2440,8 @@
     auth: admin
     route: /chat/<id чата>?right=repo либо /files?project=<id>
     action: кнопка «Push…» на вкладке «Репозиторий» либо пункт «Отправить в remote (push)…» в меню git
-  fixtures: ./fixtures/chatRepo.js#pushDialogAhead
+  fixtures:
+    - ./fixtures/chatRepo.js#pushDialogAhead
   expected:
     - Заголовок «Push» без многоточия — многоточие принадлежит кнопке, которая окно открывает
     - Под ним строка «Отслеживает origin/<ветка>»
@@ -2349,7 +2463,8 @@
     auth: admin
     route: /chat/<id чата>?right=repo
     state: ветка создана в панели и ни разу не отправлялась
-  fixtures: ./fixtures/chatRepo.js#pushDialogNewBranch
+  fixtures:
+    - ./fixtures/chatRepo.js#pushDialogNewBranch
   expected:
     - Вместо «Отслеживает …» — строка о том, что ветка ничего не отслеживает и push создаст её в remote
     - 'Список коммитов при этом не пуст: это то, что отправит первый push'
@@ -2448,7 +2563,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /chat, идущий ответ с вызовами инструментов
-  fixtures: ./fixtures/toolCallNotifications.js#editFileTwice
+  fixtures:
+    - ./fixtures/toolCallNotifications.js#editFileTwice
   expected:
     - Пока вызов один, под ответом обычная плашка со статусом, аргументами и resultGist
     - Клик по плашке открывает детали; пришедший следом второй вызов того же инструмента их не закрывает
@@ -2466,7 +2582,8 @@
 - id: chat-tool-calls-one-feed
   component: MessageList + ToolCallNotifications
   path: frontend/src/components/chatPanel/messages/ToolCallNotifications.jsx
-  fixture: toolCallNotifications.js#toolCallSegments
+  fixtures:
+    - ./fixtures/toolCallNotifications.js#toolCallSegments
   title: Плашки одного захода за данными — одной лентой, целиком и развёрнутыми
   status: verified
   origin:
@@ -2499,7 +2616,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /chat, ответ с вызовами инструментов
-  fixtures: ./fixtures/toolCallNotifications.js#callOutcomes
+  fixtures:
+    - ./fixtures/toolCallNotifications.js#callOutcomes
   expected:
     - Успех — зелёная полоса и галочка, третьей строкой краткая сводка результата
     - 'Провал — красная полоса, крестик, и ошибка ровно одной строкой: гиста у него нет, результат вызова и есть его ошибка'
@@ -2524,7 +2642,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /search?q=<запрос>&in=files | &in=docs | &in=chats
-  fixtures: ./fixtures/searchResults.js#scopePanel
+  fixtures:
+    - ./fixtures/searchResults.js#scopePanel
   expected:
     - Слева три строки категорий; выбрана ровно одна, у каждой справа число найденного
     - У невыбранных категорий число тоже стоит — все три спрашиваются одним запросом
@@ -2554,7 +2673,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /search?q=<запрос>&in=files | &in=docs | &in=chats
-  fixtures: ./fixtures/searchResults.js#resultCards
+  fixtures:
+    - ./fixtures/searchResults.js#resultCards
   expected:
     - У всех трёх карточек одна шапка — заголовок сущности слева, число совпадений справа
     - Файл — путь папки бледнее имени, строки моноширинные, номера строк выровнены по правому краю
@@ -2580,7 +2700,8 @@
     viewport: [1440, 900]
     auth: admin
     route: /search?in=files (без q) · заведомо ненаходимый запрос · &regex=1 с битым шаблоном
-  fixtures: ./fixtures/searchResults.js#emptyAndRefusal
+  fixtures:
+    - ./fixtures/searchResults.js#emptyAndRefusal
   expected:
     - Без запроса центр показывает подсказку «Введите запрос в строке поиска наверху», запросов на бэкенд нет, счётчиков у категорий нет — стёртый запрос гасит и прежние числа
     - Ничего не найдено — «Ничего не найдено», шапка «0 совпадений» остаётся, у всех трёх категорий стоит 0
@@ -2596,7 +2717,8 @@
 - id: chat-composer-command-highlighted
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#command
+  fixtures:
+    - ./fixtures/composerCommand.js#command
   title: Композер — набранная команда чату видна до отправки
   status: verified
   origin:
@@ -2616,7 +2738,8 @@
 - id: chat-composer-slash-mid-text-is-not-a-command
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#question
+  fixtures:
+    - ./fixtures/composerCommand.js#question
   title: Композер — слэш посреди вопроса командой не считается
   status: verified
   origin:
@@ -2634,7 +2757,8 @@
 - id: chat-command-in-feed
   component: UserMessageText
   path: frontend/src/components/chatPanel/messages/UserMessageText.jsx
-  fixture: chatCommandMessage.js#sentCommand
+  fixtures:
+    - ./fixtures/chatCommandMessage.js#sentCommand
   title: Лента — отправленная команда выделена, а слово со слэшем нет
   status: verified
   origin:
@@ -2653,7 +2777,8 @@
 - id: chat-composer-slash-menu
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#slashMenu
+  fixtures:
+    - ./fixtures/composerCommand.js#slashMenu
   title: Композер — слэш открывает один список на два реестра
   status: verified
   origin:
@@ -2673,7 +2798,8 @@
 - id: chat-composer-slash-menu-blocked-command
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#slashMenuBlocked
+  fixtures:
+    - ./fixtures/composerCommand.js#slashMenuBlocked
   title: Композер — невыполнимая команда остаётся в списке с причиной
   status: verified
   origin:
@@ -2693,7 +2819,8 @@
 - id: chat-composer-slash-menu-synonym
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#slashMenuFiltered
+  fixtures:
+    - ./fixtures/composerCommand.js#slashMenuFiltered
   title: Композер — набранный синоним не подменяется каноническим
   status: verified
   origin:
@@ -2713,7 +2840,8 @@
 - id: chat-composer-slash-menu-narrow-description
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#slashMenuNarrow
+  fixtures:
+    - ./fixtures/composerCommand.js#slashMenuNarrow
   title: Композер — описание пункта списка режется с конца, а не с начала
   status: verified
   origin:
@@ -2734,7 +2862,8 @@
 - id: chat-composer-command-blocked
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#commandBlocked
+  fixtures:
+    - ./fixtures/composerCommand.js#commandBlocked
   title: Композер — команда, которую сейчас не выполнить, названа вместе с причиной
   status: verified
   origin:
@@ -2756,7 +2885,7 @@
   path: frontend/src/components/chatPanel/messages/Message.jsx
   title: Упавший ответ и кнопка «повторить» под ним
   fixtures:
-    - chatFailedAnswer.js#failedAnswer
+    - ./fixtures/chatFailedAnswer.js#failedAnswer
   scenario: |
     Лента с тремя сообщениями: вопрос, ответ с ошибкой и удачный ответ следом.
     Кнопка «повторить» показывается только у ответа с `error` и `retryMode` —
@@ -2777,8 +2906,8 @@
   origin:
     - 'Сессия 2026-09-16, переезд кнопок на общие классы'
   fixtures:
-    - phrases.js#phraseLibrary
-    - phrases.js#phraseLibrary@narrow
+    - ./fixtures/phrases.js#phraseLibrary
+    - ./fixtures/phrases.js#phraseLibrary@narrow
   scenario: |
     Блок готовых фраз над пустым полем ввода: ряд категорий и сетка чипов.
     Библиотеку блок грузит сам (GET /api/phrases), кейс отдаёт её через `api`.
@@ -2799,7 +2928,7 @@
   origin:
     - 'Сессия 2026-09-16, переезд кнопок на общие классы'
   fixtures:
-    - addModal.js#folderTree
+    - ./fixtures/addModal.js#folderTree
   scenario: |
     Окно «Новый элемент»: поле названия, переключатель типа и выбор папки.
   expected:
@@ -2817,7 +2946,7 @@
   origin:
     - 'Сессия 2026-09-16, переезд кнопок на общие классы'
   fixtures:
-    - markdownEditor.js#shortDocument
+    - ./fixtures/markdownEditor.js#shortDocument
   scenario: |
     Редактор документа с короткой разметкой — снимок ради панели инструментов.
   expected:
@@ -2828,8 +2957,6 @@
 
 - id: theme-dark-sweep
   component: (весь реестр)
-  fixtures:
-    - <каждый светлый кейс>@dark
   scenario: |
     Каждый кейс реестра снят второй раз с `data-theme="dark"` на корне (стенд
     ставит его до первой отрисовки — так же, как инлайн-скрипт в index.html).

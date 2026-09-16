@@ -84,7 +84,7 @@ const ContentsTable = ({ items, onNavigate }) => {
       {totalPages > 1 && (
         <div className="contents-pagination">
           <button
-            className="contents-pagination__btn"
+            className="icon-btn icon-btn--outline contents-pagination__btn"
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
           >
@@ -102,7 +102,7 @@ const ContentsTable = ({ items, onNavigate }) => {
           ))}
 
           <button
-            className="contents-pagination__btn"
+            className="icon-btn icon-btn--outline contents-pagination__btn"
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             disabled={page >= totalPages - 1}
           >

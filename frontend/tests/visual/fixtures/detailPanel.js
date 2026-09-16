@@ -72,3 +72,19 @@ export const folderWithChildren = {
     { id: 'doc-links', title: 'Пример: ссылки на файлы', type: 'document', updatedAt: '2026-07-18T20:59:02Z' },
   ],
 };
+
+/**
+ * Та же папка, но детей больше страницы (KB_PAGE_SIZE = 10): состав показывает
+ * листалку, и видно, как выглядят её стрелки — в том числе неактивная «назад»
+ * на первой странице.
+ */
+export const folderWithManyChildren = {
+  node: folderAnalysis,
+  path: [],
+  children: Array.from({ length: 12 }, (_, i) => ({
+    id: `doc-note-${i + 1}`,
+    title: `Разбор прогона ${i + 1}`,
+    type: i % 4 === 3 ? 'folder' : 'document',
+    updatedAt: `2026-07-${String(6 + i).padStart(2, '0')}T12:00:00Z`,
+  })),
+};

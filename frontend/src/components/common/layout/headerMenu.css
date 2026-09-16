@@ -8,26 +8,23 @@
   align-items: center;
 }
 
-/* Триггер — в стиле прежней .app-refresh-btn (круглая 34×34) */
-.header-menu__trigger {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Вид — общий (.icon-btn--outline), здесь только форма: в шапке кнопка круглая
+   и крупнее списочных, потому что стоит в ряду с логотипом и поиском, а не в
+   строке. Двумя классами — общую ширину, высоту и радиус она перебивает, а
+   специфичность у них одна. */
+.icon-btn.header-menu__trigger {
   width: 34px;
   height: 34px;
+  border-width: 1.5px;
   border-radius: 50%;
-  border: 1.5px solid var(--kb-border);
-  background: var(--kb-surface);
-  color: var(--kb-text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.header-menu__trigger:hover,
-.header-menu[data-open='true'] .header-menu__trigger {
+/* Пока меню открыто, кнопка держит вид наведения: иначе не видно, чьё это меню.
+   Признак берём из разметки (`aria-expanded` кнопка несёт и так), а не из
+   атрибута на обёртке — своего состояния у неё нет. */
+.icon-btn.header-menu__trigger[aria-expanded='true'] {
   border-color: var(--kb-accent);
-  color: var(--kb-accent);
   background: var(--kb-accent-surface-subtle);
+  color: var(--kb-accent);
 }
 
 /* ── Выпадающее меню ── */

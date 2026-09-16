@@ -67,7 +67,7 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
   return (
     <div className="header-menu" ref={ref}>
       <button
-        className="header-menu__trigger"
+        className="icon-btn icon-btn--outline header-menu__trigger"
         onClick={toggle}
         aria-haspopup="menu"
         aria-expanded={open}

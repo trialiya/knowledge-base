@@ -11,7 +11,9 @@ Before checking a component by hand, read `frontend/tests/visual/cases.yaml`:
 scenarios and data for the already-checked components live there, with fixtures
 in `frontend/tests/visual/fixtures/`. Add a new check as a case in the same
 format, and **never rename an existing `id`** — it is the future story/baseline
-name.
+name. List every fixture the case uses under its `fixtures:` key, one reference
+per line: that key is what ties the case to its stand entry, and a fixture named
+only in `notes` is invisible to the check that ties them.
 
 ## Two commands, and they answer different questions
 
@@ -32,8 +34,18 @@ one component straight into a page. Case ids are the same `fixtures:` references
 drawn by more than one component — the snapshot of the config is read by three
 groups of «Настройки»); the opt-in list is
 `frontend/tests/visual/harness/registry.jsx`, and a fixture only becomes
-shootable once it is listed there. Shots land in `harness/shots/` (git-ignored),
+shootable once it is listed there. The two files are checked against each other
+by `tests/visual/registry.test.js`, so a registry entry no case describes — and
+a case reference to a fixture that does not exist — fails the frontend tests
+rather than being noticed the day someone looks for the shot. Shots land in `harness/shots/` (git-ignored),
 one per case, and a case whose page logged a console error is reported `✗`.
+
+A case may also name the steps to take first — a click, a keypress, typed text,
+or `unhover`, which takes the pointer off what was just clicked. Reach for that
+last one whenever the shot is meant to prove a *state*: after a click the pointer
+stays on the control, and the shot would show it hovered instead. The shot itself
+waits for the running transitions to finish, so a fading border is caught settled
+rather than halfway.
 
 **Every case is shot twice**: the registry derives a `<case>@dark` twin of each
 entry, identical but for `data-theme`. You list a case once and get both themes;

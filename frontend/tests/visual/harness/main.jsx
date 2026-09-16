@@ -111,6 +111,26 @@ const FRAMES = {
       {node}
     </div>
   ),
+  // Правая зона шапки вкладок. Меню открывается влево от своей кнопки
+  // (`right: 0` относительно .header-menu), и решает тут не ширина окна, а то,
+  // что кнопка — элемент flex-ряда и потому шириной со свой значок: в обычном
+  // блоке обёртка растянулась бы на всю строку, и меню уехало бы от кнопки.
+  // Ряд набран здесь, а не классами `.app-tabs`: они в App.css, а он правит
+  // ещё и `body` — стенду, где в кадре один компонент, это ни к чему.
+  headerRight: (node) => (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        padding: '0.75rem 2rem',
+        background: 'var(--kb-surface)',
+        borderBottom: '1px solid var(--kb-border-strong)',
+      }}
+    >
+      {node}
+    </div>
+  ),
   bare: (node) => node,
 };
 

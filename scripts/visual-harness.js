@@ -50,7 +50,8 @@
  * Case ids are the `fixtures:` references from frontend/tests/visual/cases.yaml
  * (`<module>#<export>`, plus `@variant` where one fixture is drawn by more than
  * one component); the opt-in list is harness/registry.jsx, where a case may also
- * name the steps to take before the shot (click, keypress, typing) and the
+ * name the steps to take before the shot (click, keypress, typing, taking the
+ * pointer off what was clicked) and the
  * server answers to hand the component. Run with no ids to shoot them all — the
  * summary line per case reports the console errors the page produced, which is
  * half of what the run is for.
@@ -395,15 +396,32 @@ async function main() {
       // nothing is loading any more, the element is either there or it is not.
       const run = step.click
         ? page.click(step.click, { timeout: 2000 })
-        : step.press
-          ? page.keyboard.press(step.press)
-          : page.keyboard.type(step.type);
+        : step.unhover
+          ? page.mouse.move(0, 0)
+          : step.press
+            ? page.keyboard.press(step.press)
+            : page.keyboard.type(step.type);
       await run.catch((e) => problems.push(`${JSON.stringify(step)}: ${e.message}`));
       // Между шагами — кадр: клик открывает меню, а следующий шаг метит в то,
       // чего до этого кадра в DOM ещё нет.
       await page.waitForTimeout(50);
     }
     await page.waitForTimeout(200);
+    // Переход длится дольше последнего шага (0.15s у кнопок), и снимок ловил
+    // рамку на полпути: кадр расходился с эталоном на десятки пикселей по её
+    // кромке — то в одну сторону, то в другую. Ждём сами переходы, а не ещё
+    // одну угаданную паузу. Бесконечные анимации (спиннеры) пропускаем: они не
+    // кончаются никогда, а из кадра их убирает `animations: 'disabled'`.
+    await page
+      .evaluate(() =>
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+            .map((a) => a.finished.catch(() => {})),
+        ),
+      )
+      .catch(() => {});
 
     const name = `${id.replace(/[^\w.-]+/g, '-')}.png`;
     const file = path.join(outDir, name);
