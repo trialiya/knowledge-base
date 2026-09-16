@@ -42,6 +42,7 @@ import io.github.trialiya.kb.service.file.git.GitRegistry;
 import jakarta.annotation.Nonnull;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -240,17 +241,15 @@ public class ChatController {
                                 conversationId, beforeCreatedAt, beforeId, safe)
                         : chatHistory.findLatestPage(conversationId, safe);
 
-        List<ChatMessage> dtos =
-                page.messages().stream()
-                        // invocationsFor синтезирует меты из tool_data для сегментов без
-                        // meta.invocations (оборванные и написанные до этого поля прогоны) —
-                        // проекции чата целиком это не нужно, она отдаёт что записано.
-                        .map(
-                                e ->
-                                        toChatMessage(
-                                                e,
-                                                toolCallService.invocationsFor(e, page.messages())))
-                        .toList();
+        // invocationsForPage синтезирует меты из tool_data для сегментов без meta.invocations
+        // (оборванные и написанные до этого поля прогоны) — проекции чата целиком это не нужно,
+        // она отдаёт что записано.
+        List<@Nullable List<ToolInvocationMeta>> invocations =
+                toolCallService.invocationsForPage(page.messages());
+        List<ChatMessage> dtos = new ArrayList<>(page.messages().size());
+        for (int i = 0; i < page.messages().size(); i++) {
+            dtos.add(toChatMessage(page.messages().get(i), invocations.get(i)));
+        }
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
 

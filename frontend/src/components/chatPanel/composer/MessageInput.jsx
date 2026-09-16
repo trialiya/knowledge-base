@@ -12,7 +12,12 @@ import { parsePlaceholders } from './phrasePlaceholders';
 import { parseChatCommand, chatCommandBlock } from '../run/chatCommands';
 import { DRAFT_CHAT_ID } from '@/constants/storage';
 
-// isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки.
+// isEmpty — в чате нет ни одного сообщения (`isChatEmpty`, messages/chatHistory.js) —
+// ровно тот признак, по которому отправка решает, есть ли что сжимать; отсюда же
+// git-подсказки, но им нужен ещё и loadingMessages.
+// loadingMessages — история активного чата сейчас грузится. Гасит только блок
+// git-фраз, чтобы тот не мелькал на открытии; правило команды его не спрашивает —
+// отправка о загрузке не знает, и разошлись бы обещание и поведение.
 // busy — писать некуда: идёт сжатие контекста или прогон ещё не назвал свой runId.
 // generating — идёт ответ модели. Поле при этом НЕ блокируется: сообщение встаёт в
 // очередь прогона (см. useChatRun), а «остановить» просто добавляется рядом с «отправить».
@@ -33,6 +38,7 @@ const MessageInput = ({
   stoppable = true,
   onAttach,
   isEmpty = false,
+  loadingMessages = false,
   draftSignal = 0,
   active = true,
   chatId = null,
@@ -136,9 +142,10 @@ const MessageInput = ({
   const commandState = {
     running: generating,
     // «Есть что сжимать» — это не «у чата есть id»: id выдаёт и вложение, приложенное
-    // к первому, ещё не заданному вопросу. `isEmpty` считан тем же признаком, что
-    // спрашивает отправка (messages/chatHistory.js), и на незагруженной истории он
-    // false — подсказка не назовёт пустым чат, который просто не доехал.
+    // к первому, ещё не заданному вопросу. `isEmpty` — тот же признак, что спрашивает
+    // отправка (messages/chatHistory.js), без поправки на загрузку: на незагруженной
+    // истории он false сам по себе, а догрузка уже загруженного пустого чата — всё
+    // ещё пустой чат, и отправка откажет в нём независимо от того, что едет.
     chatStarted: chatId !== DRAFT_CHAT_ID && !isEmpty,
   };
   const commandBlock = chatCommandBlock(command, commandState);
@@ -146,8 +153,9 @@ const MessageInput = ({
 
   return (
     <div className="message-input-area">
-      {/* Блок git-фраз — только когда чат пустой */}
-      {isEmpty && <Phrases onSelect={handleSelectPhrase} />}
+      {/* Блок git-фраз — только когда чат пустой и история уже доехала: иначе он
+          мелькал бы на каждом открытии чата с сообщениями. */}
+      {isEmpty && !loadingMessages && <Phrases onSelect={handleSelectPhrase} />}
 
       {pendingPhrase !== null && (
         <PhraseFillModal

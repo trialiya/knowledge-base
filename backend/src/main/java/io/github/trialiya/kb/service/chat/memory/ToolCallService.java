@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -192,9 +193,9 @@ public class ToolCallService {
     }
 
     /**
-     * Метаданные плашек вызовов для сегмента: сохранённые {@code meta.invocations}, а чего в них
-     * нет — синтезированное из {@code tool_data}: имя и усечённые аргументы из toolCalls сегмента,
-     * гист — из ответа в TOOL-сообщениях среди {@code context} (строк той же страницы). Статус —
+     * Метаданные плашек вызовов для страницы истории: у каждой строки — сохранённые {@code
+     * meta.invocations}, а чего в них нет — синтезированное из {@code tool_data}: имя и усечённые
+     * аргументы из toolCalls сегмента, гист — из ответа в TOOL-сообщениях той же страницы. Статус —
      * UNKNOWN: исход вызова живёт только в мете, а её тут нет; провалившийся вызов выглядит в
      * {@code tool_data} ровно как успешный (текст ошибки лежит на месте результата), и {@code OK}
      * здесь был бы утверждением, которого никто не проверял. Детали такая плашка предлагает наравне
@@ -212,39 +213,93 @@ public class ToolCallService {
      * вызове обрывается). Без добора у брошенного вызова из такого батча не было бы в истории
      * плашки вовсе — а живой чат её показывает, переводя в UNKNOWN к концу прогона (finalize в
      * {@code run/runMessageOps.js}).
+     *
+     * <p>Страницей, а не сообщением: добора требует не только оборванный прогон, но и вся история,
+     * написанная до {@code meta.invocations}, — там его просит каждый сегмент с вызовами, и запрос
+     * на сегмент дал бы N+1 на страницу. Спрашиваем индекс один раз, обо всех id страницы сразу.
+     *
+     * @return плашки построчно, в порядке {@code page}; {@code null} на своём месте значит «отдать
+     *     что записано» — синтезировать для этой строки нечего
+     */
+    public List<@Nullable List<ToolInvocationMeta>> invocationsForPage(
+            List<ChatMessageEntity> page) {
+        final List<@Nullable TopUp> topUps = new ArrayList<>(page.size());
+        final Set<String> callIds = new LinkedHashSet<>();
+        @Nullable String conversationId = null;
+        for (ChatMessageEntity row : page) {
+            final TopUp topUp = topUpFor(row);
+            topUps.add(topUp);
+            if (topUp != null) {
+                conversationId = row.getConversationId();
+                topUp.calls().forEach(call -> callIds.add(call.id()));
+            }
+        }
+        // Ни одному сегменту страницы добор не нужен (обычный случай: мета записана) — тогда
+        // и спрашивать индекс не о чем.
+        final Set<String> indexed =
+                conversationId == null
+                        ? Set.of()
+                        : new HashSet<>(
+                                toolCallIndexRepository.findIndexedCallIds(
+                                        conversationId, callIds));
+        final Map<String, String> responses = conversationId == null ? Map.of() : responsesIn(page);
+        final List<@Nullable List<ToolInvocationMeta>> byRow = new ArrayList<>(page.size());
+        for (int i = 0; i < page.size(); i++) {
+            final TopUp topUp = topUps.get(i);
+            byRow.add(
+                    topUp == null ? page.get(i).getInvocations() : topUp.merge(indexed, responses));
+        }
+        return byRow;
+    }
+
+    /**
+     * Плашки одного сегмента — то же, что {@link #invocationsForPage}, но про одну строку: {@code
+     * context} даёт только ответы TOOL-сообщений. Своим запросом в индекс, поэтому для страницы
+     * целиком зовите {@code invocationsForPage}.
      */
     public @Nullable List<ToolInvocationMeta> invocationsFor(
             ChatMessageEntity entity, List<ChatMessageEntity> context) {
-        final List<ToolInvocationMeta> stored = entity.getInvocations();
-        // Смотрим на плашки, а не на саму мету: мета есть у каждого ответа прогона (в ней модель,
-        // см. ChatHistoryService#markRunResult), и сегмент с сохранёнными tool_calls, но без
-        // плашки на какой-то из них — это как раз оборванный прогон, ради которого синтез и нужен.
+        final TopUp topUp = topUpFor(entity);
+        if (topUp == null) {
+            return entity.getInvocations();
+        }
+        final Set<String> indexed =
+                new HashSet<>(
+                        toolCallIndexRepository.findIndexedCallIds(
+                                entity.getConversationId(),
+                                topUp.calls().stream().map(ToolData.Call::id).toList()));
+        return topUp.merge(indexed, responsesIn(context));
+    }
+
+    /**
+     * Что сегменту нужно добрать, — или {@code null}, если синтезировать нечего и мету можно отдать
+     * как есть.
+     *
+     * <p>Смотрим на плашки, а не на саму мету: мета есть у каждого ответа прогона (в ней модель,
+     * см. {@link ChatHistoryService#markRunResult}), и сегмент с сохранёнными tool_calls, но без
+     * плашки на какой-то из них — это как раз тот случай, ради которого синтез и нужен. Сегменту из
+     * одних {@code SKIP_TOOLS} добирать тоже нечего.
+     */
+    private static @Nullable TopUp topUpFor(ChatMessageEntity entity) {
         if (entity.getType() != MessageType.ASSISTANT
                 || entity.getToolData() == null
                 || entity.getToolData().toolCalls() == null) {
-            return stored;
+            return null;
         }
-        // Сегменту из одних SKIP_TOOLS синтезировать нечего — не сканируем ради него строки
-        // страницы на каждый показ.
         final List<ToolData.Call> calls =
                 entity.getToolData().toolCalls().stream()
                         .filter(call -> hasDetails(call.name()))
                         .toList();
         if (calls.isEmpty()) {
-            return stored;
+            return null;
         }
-        final Map<String, ToolInvocationMeta> storedByCallId = toTopUp(stored, calls);
-        if (storedByCallId == null) {
-            return stored;
-        }
-        // Детали предлагаем только по вызовам, которые найдёт findToolCallDetail. Запрос — на
-        // сегмент, которому чего-то не хватает, то есть на оборванный прогон, а не на каждое
-        // сообщение страницы.
-        final Set<String> indexed =
-                new HashSet<>(
-                        toolCallIndexRepository.findIndexedCallIds(
-                                entity.getConversationId(),
-                                calls.stream().map(ToolData.Call::id).toList()));
+        final Map<String, ToolInvocationMeta> storedByCallId =
+                toTopUp(entity.getInvocations(), calls);
+        return storedByCallId == null ? null : new TopUp(calls, storedByCallId);
+    }
+
+    /** Ответы инструментов по {@code callId} — из TOOL-сообщений тех же строк. */
+    private static Map<String, String> responsesIn(List<ChatMessageEntity> context) {
         final Map<String, String> responseById = new HashMap<>();
         for (ChatMessageEntity row : context) {
             if (row.getType() == MessageType.TOOL
@@ -255,15 +310,29 @@ public class ToolCallService {
                 }
             }
         }
-        // Порядок — как в tool_data: он же и порядок плашек прогона, так что добранная встаёт
-        // ровно туда, где вызов был сделан.
-        return calls.stream()
-                .map(
-                        call -> {
-                            final ToolInvocationMeta saved = storedByCallId.get(call.id());
-                            return saved != null ? saved : synthesize(call, indexed, responseById);
-                        })
-                .toList();
+        return responseById;
+    }
+
+    /**
+     * Сегмент, которому синтез нужен: его вызовы с деталями и сохранённые плашки по {@code callId}.
+     *
+     * @param calls в порядке {@code tool_data} — он же и порядок плашек прогона, так что добранная
+     *     встаёт ровно туда, где вызов был сделан
+     */
+    private record TopUp(
+            List<ToolData.Call> calls, Map<String, ToolInvocationMeta> storedByCallId) {
+
+        List<ToolInvocationMeta> merge(Set<String> indexed, Map<String, String> responseById) {
+            return calls.stream()
+                    .map(
+                            call -> {
+                                final ToolInvocationMeta saved = storedByCallId.get(call.id());
+                                return saved != null
+                                        ? saved
+                                        : synthesize(call, indexed, responseById);
+                            })
+                    .toList();
+        }
     }
 
     /**

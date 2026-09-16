@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -13,9 +16,11 @@ import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.MessageType;
 
 /**
@@ -236,6 +241,46 @@ class ToolCallServiceTest {
         assertThat(service.invocationsFor(segment, List.of(segment)))
                 .extracting(ToolInvocationMeta::name)
                 .containsExactly("searchDocuments");
+    }
+
+    @Test
+    void invocationsForPageAsksTheIndexOnceForTheWholePage() {
+        // История, написанная до meta.invocations: добора просит каждый сегмент страницы, и запрос
+        // на сегмент был бы N+1 на страницу.
+        final List<ChatMessageEntity> page =
+                List.of(
+                        legacySegment("id-0", "searchDocuments"),
+                        legacySegment("id-1", "searchCodebase"),
+                        legacySegment("id-2", "readFile"));
+        indexKnows("id-0", "id-1", "id-2");
+
+        final List<List<ToolInvocationMeta>> metas = service.invocationsForPage(page);
+
+        assertThat(metas)
+                .extracting(rowMetas -> rowMetas.get(0).name())
+                .containsExactly("searchDocuments", "searchCodebase", "readFile");
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<Collection<String>> callIds =
+                ArgumentCaptor.forClass(Collection.class);
+        verify(indexRepo, times(1)).findIndexedCallIds(eq(CONV), callIds.capture());
+        assertThat(callIds.getValue()).containsExactly("id-0", "id-1", "id-2");
+    }
+
+    /** Страница без единого сегмента, которому нужен добор, обходится без запроса вовсе. */
+    @Test
+    void invocationsForPageSkipsTheIndexWhenNothingNeedsSynthesis() {
+        final ChatMessageEntity plain = entity(MessageType.ASSISTANT, null, null);
+
+        assertThat(service.invocationsForPage(List.of(plain)))
+                .containsExactly((List<ToolInvocationMeta>) null);
+        verify(indexRepo, never()).findIndexedCallIds(any(), any());
+    }
+
+    private static ChatMessageEntity legacySegment(String callId, String toolName) {
+        return entity(
+                MessageType.ASSISTANT,
+                null,
+                new ToolData(List.of(new ToolData.Call(callId, "function", toolName, "{}")), null));
     }
 
     @Test

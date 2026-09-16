@@ -18,9 +18,10 @@ public interface ToolCallIndexRepository extends CrudRepository<ToolCallIndexEnt
 
     /**
      * Which of these calls the index knows — the question {@link
-     * io.github.trialiya.kb.service.chat.memory.ToolCallService#invocationsFor} asks before
-     * offering details on a badge it synthesized from {@code tool_data}: a call the index never saw
-     * has no way to be looked up, and a clickable badge would only answer 404.
+     * io.github.trialiya.kb.service.chat.memory.ToolCallService#invocationsForPage} asks, once per
+     * history page, before offering details on a badge it synthesized from {@code tool_data}: a
+     * call the index never saw has no way to be looked up, and a clickable badge would only answer
+     * 404.
      */
     @Query(
             """
