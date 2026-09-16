@@ -79,13 +79,6 @@
   color: var(--kb-accent);
 }
 
-/* Заливка «опасного» действия — для кнопки, которая и так стоит на своей полосе
-   (повтор упавшего ответа): рамки там мало, а второго такого действия рядом нет. */
-.btn--danger.btn--fill:hover:not(:disabled) {
-  background: var(--kb-error);
-  color: var(--kb-text-on-fill);
-}
-
 /* Small icon-only button (close / edit / delete, etc.) */
 .icon-btn {
   background: none;

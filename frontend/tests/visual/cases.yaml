@@ -2751,8 +2751,31 @@
     помечена намеренно: на 0.72rem ни красный, ни жёлтый на светлом фоне не дают
     4.5:1, и сказано всё словами.
 
+- id: chat-failed-answer-retry
+  component: Message
+  path: chatPanel/messages/Message.jsx
+  title: Упавший ответ и кнопка «повторить» под ним
+  fixtures:
+    - chatFailedAnswer.js#failedAnswer
+  scenario: |
+    Лента с тремя сообщениями: вопрос, ответ с ошибкой и удачный ответ следом.
+    Кнопка «повторить» показывается только у ответа с `error` и `retryMode` —
+    остальным она не положена, и соседний удачный ответ это показывает.
+  expected:
+    - Пузырь с ошибкой залит розовым и несёт красную полосу слева
+    - '«Повторить» — общая кнопка .btn--xs .btn--danger: красный текст, нейтральная рамка, заливка обычная'
+    - Под удачным ответом той же кнопки нет, только копирование и переключатель источника
+  status: verified
+  origin:
+    - 'Сессия 2026-09-16, общие классы кнопок'
+
 - id: chat-phrases-categories
-  component: chatPanel/composer/Phrases.jsx
+  component: Phrases
+  path: frontend/src/components/chatPanel/composer/Phrases.jsx
+  title: Ряд категорий в блоке фраз — общие кнопки, а не своё семейство
+  status: verified
+  origin:
+    - 'Сессия 2026-09-16, переезд кнопок на общие классы'
   fixtures:
     - phrases.js#phraseLibrary
   scenario: |
@@ -2763,10 +2786,14 @@
     - Категории собраны из самих фраз, к ним добавлены «Все» и «Избранное»
     - Чип фразы — двухстрочный (название и категория), звезда поверх правого верхнего угла
     - Звезда горит только у фразы из избранного
-  status: verified
 
 - id: kb-add-modal-type-toggle
-  component: knowledgeBasePanel/modals/AddModal.jsx
+  component: AddModal
+  path: frontend/src/components/knowledgeBasePanel/modals/AddModal.jsx
+  title: Переключатель типа в окне «Новый элемент» — общие кнопки-тумблеры
+  status: verified
+  origin:
+    - 'Сессия 2026-09-16, переезд кнопок на общие классы'
   fixtures:
     - addModal.js#folderTree
   scenario: |
@@ -2777,10 +2804,14 @@
     - Тумблеры набраны так же, как «Создать» и «Отмена» в подвале, — это одно семейство кнопок
     - 'В дереве только папки: документы окно отбрасывает само'
     - '«Создать» выключена, пока название пустое'
-  status: verified
 
 - id: kb-editor-toolbar
-  component: knowledgeBasePanel/editor/MarkdownEditor.jsx
+  component: MarkdownEditor
+  path: frontend/src/components/knowledgeBasePanel/editor/MarkdownEditor.jsx
+  title: Панель инструментов редактора — ряд общих icon-btn
+  status: verified
+  origin:
+    - 'Сессия 2026-09-16, переезд кнопок на общие классы'
   fixtures:
     - markdownEditor.js#shortDocument
   scenario: |
@@ -2790,7 +2821,6 @@
     - 'Правая группа отдельно: копирование, копирование для Jira, предпросмотр'
     - 'Состояние «скопировано» — общий модификатор icon-btn--done (подложка акцента), а не свой цвет'
     - Поле ввода моноширинное, панель стоит над ним во всю ширину колонки
-  status: verified
 
 - id: theme-dark-sweep
   component: (весь реестр)

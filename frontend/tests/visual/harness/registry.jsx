@@ -50,6 +50,7 @@ import { IconRefresh, IconUpload } from '@/icons/index';
 import * as aiConfig from '../fixtures/aiConfig';
 import * as chatCodeBlocks from '../fixtures/chatCodeBlocks';
 import * as chatCommandMessage from '../fixtures/chatCommandMessage';
+import * as chatFailedAnswer from '../fixtures/chatFailedAnswer';
 import * as chatFind from '../fixtures/chatFind';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
@@ -358,6 +359,15 @@ const LIGHT = [
   { id: 'chatRepo.js#outputCardOk', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
   { id: 'chatRepo.js#outputCardRefused', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
   { id: 'chatRepo.js#outputCardSilent', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
+
+  // Упавший ответ: под ним кнопка «повторить» — единственная кнопка ленты,
+  // которая показывается только на ошибке. Соседний удачный ответ в кадре ради
+  // сравнения: у него той же кнопки нет.
+  {
+    id: 'chatFailedAnswer.js#failedAnswer',
+    frame: 'center',
+    render: (p) => <MessageList conversationId="chat-1" messages={p} onRetry={noop} />,
+  },
 
   // Ряд категорий и сетка фраз над полем ввода. Библиотеку блок грузит сам
   // (GET /api/phrases), поэтому ответ отдаём через `api`. Рамка `feed`: блок
@@ -790,6 +800,7 @@ const REGISTRY = [...LIGHT, ...LIGHT.map((entry) => ({ ...entry, id: `${entry.id
 const MODULES = {
   'aiConfig.js': aiConfig,
   'chatHeader.js': chatHeader,
+  'chatFailedAnswer.js': chatFailedAnswer,
   'chatFind.js': chatFind,
   'chatCodeBlocks.js': chatCodeBlocks,
   'chatCommandMessage.js': chatCommandMessage,

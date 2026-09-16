@@ -59,6 +59,6 @@ paths:
   waits for the plate to be hovered), how wide it stretches. Written as a
   two-class selector (`.icon-btn.info-list__copy-btn`) when it overrides the
   shared rule, because specificity is equal there and otherwise the winner is
-  decided by the accident of import order. Chrome that two surfaces must not let drift apart gets the same
-  treatment: `common/ui/gitChrome.css` holds the repo-state chrome shown both
+  decided by the accident of import order. Chrome that two surfaces must not
+  let drift apart gets the same treatment: `common/ui/gitChrome.css` holds the repo-state chrome shown both
   over the file tree and in chat's Repo tab.

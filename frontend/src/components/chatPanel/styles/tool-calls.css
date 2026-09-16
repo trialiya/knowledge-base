@@ -84,12 +84,12 @@
 
 /* Вид — общий (.icon-btn--quiet), здесь только появление: кнопка ждёт наведения
    на всю плашку, иначе ряд вызовов рябит значками. */
-.tool-call-copy-btn {
+.icon-btn.tool-call-copy-btn {
   margin-left: auto;
   opacity: 0;
   transition: opacity 0.15s, color 0.15s, background 0.15s;
 }
-.tool-call-item:hover .tool-call-copy-btn {
+.tool-call-item:hover .icon-btn.tool-call-copy-btn {
   opacity: 1;
 }
 

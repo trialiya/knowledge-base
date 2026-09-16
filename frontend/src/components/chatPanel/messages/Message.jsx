@@ -177,7 +177,7 @@ const Message = ({
         <div className="message-footer__actions">
           {error && onRetry && (
             <button
-              className="btn btn--xs btn--danger btn--fill"
+              className="btn btn--xs btn--danger"
               onClick={() => onRetry(mid)}
               title={t('message.retry')}
               type="button"
