@@ -13,6 +13,7 @@ import {
 import { GIST_PREVIEW_LEN } from '@/constants/ui';
 import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
 import { TOOL_STATUS } from '@/constants/toolStatus';
+import '@/components/common/ui/buttons.css';
 import '../styles/tool-calls.css';
 
 // Inline-блок плашек вызовов инструментов под пузырём ответа ассистента.
@@ -108,7 +109,11 @@ const ToolCallItem = ({ tc, conversationId, onOpenDetail }) => {
         {gist && <span className="tool-call-gist">{gist}</span>}
         {tc.status === TOOL_STATUS.ERROR && tc.error && <span className="tool-call-error">{tc.error}</span>}
       </div>
-      <button className="tool-call-copy-btn" onClick={handleCopy} title={t('toolCall.copy')}>
+      <button
+        className="icon-btn icon-btn--xs icon-btn--quiet tool-call-copy-btn"
+        onClick={handleCopy}
+        title={t('toolCall.copy')}
+      >
         {copied ? <IconCopied /> : <IconCopySmall />}
       </button>
     </div>

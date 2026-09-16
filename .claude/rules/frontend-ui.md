@@ -157,10 +157,20 @@ Panel open/closed state is **controlled state that lives in the URL**
   `*-overlay` classes or per-modal overlay divs.
 - Backdrop close is `onMouseDown`, not `onClick`, so a text selection that ends
   outside the modal doesn't dismiss it.
-- Use the shared button classes from `components/common/ui/buttons.css`: `btn`,
-  `btn--primary`, `btn--ghost`, `btn--danger`, `btn--sm`, and `icon-btn`
-  (+ `icon-btn--danger`, `icon-btn--done`, `icon-btn--star`) for icon-only
-  buttons. Don't add new button families.
+- Use the shared button classes from `components/common/ui/buttons.css`: `btn`
+  with a look (`btn--primary`, `btn--ghost`, `btn--danger`) and a rung
+  (`btn--sm`, `btn--xs` — the caption-sized one under an answer or in a row of
+  filters), and `icon-btn` for icon-only buttons, also with a rung
+  (`icon-btn--sm`, `icon-btn--xs`) and a look (`icon-btn--danger`,
+  `icon-btn--quiet` for an action that is always at hand and must not pull the
+  eye, `icon-btn--done` for the transient "copied", `icon-btn--star`). A toggle
+  carries `aria-pressed` — always, it is what a screen reader has to go on —
+  and a ghost one gets its selected look from that, with no `--active` class of
+  its own. A row that marks its choice with a solid fill (the phrase-category
+  filters) keeps `btn--primary` on the selected button *and* sets
+  `aria-pressed`: the attribute is the state, the class is only the look. Don't add new button families: a size that seems to
+  be missing is nearly always one of the rungs plus the geometry of the row it
+  sits in, and that geometry belongs to the row's own class.
 
 ## Components and hooks
 

@@ -41,29 +41,19 @@
   margin-bottom: 10px;
 }
 
-.phrases-cat-btn {
-  background: var(--kb-surface);
-  border: 1px solid var(--kb-border);
-  border-radius: 20px;
-  color: var(--kb-text-muted);
-  font-size: 0.73rem;
-  font-weight: 600;
-  padding: 3px 11px;
-  cursor: pointer;
-  transition: all 0.15s;
+/* Кнопки категорий — общие классы (.btn--xs): выбранная залита акцентом,
+   остальные ghost. Своего вида у ряда нет, только раскладка — но раскладка
+   здесь на кнопке: название категории придумывает пользователь, и в узкой
+   колонке чата длинное обязано вытолкнуть таблетку на следующую строку целиком.
+   Не влезло и туда — режем многоточием, как и подпись чипа рядом: таблетка,
+   переносящаяся внутри себя, ломает ряд по высоте. */
+.phrases-categories .btn {
+  max-width: 100%;
   white-space: nowrap;
-}
-
-.phrases-cat-btn:hover {
-  border-color: var(--kb-accent);
-  color: var(--kb-accent);
-  background: var(--kb-accent-surface-subtle);
-}
-
-.phrases-cat-btn--active {
-  background: var(--kb-accent);
-  border-color: var(--kb-accent);
-  color: var(--kb-text-on-fill);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Инлайновый flex обрезку не применяет к своему тексту — режет `display: block`. */
+  display: block;
 }
 
 /* Сетка чипов с фразами */

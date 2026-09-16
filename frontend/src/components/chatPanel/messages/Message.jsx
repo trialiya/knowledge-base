@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import DocLinkTooltip from '@/components/common/preview/DocLinkTooltip';
+import '@/components/common/ui/buttons.css';
 import '../styles/message.css';
 import MarkdownCodeBlock from '@/components/common/ui/MarkdownCodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
@@ -20,7 +21,7 @@ const MessageCopyButton = ({ text }) => {
 
   return (
     <button
-      className={`message-copy-btn ${copied ? 'message-copy-btn--done' : ''}`}
+      className={`icon-btn icon-btn--sm icon-btn--quiet ${copied ? 'icon-btn--done' : ''}`}
       onClick={() => copy(text ?? '')}
       title={copied ? t('common:copied') : t('message.copyMessage')}
       type="button"
@@ -175,13 +176,20 @@ const Message = ({
         </div>
         <div className="message-footer__actions">
           {error && onRetry && (
-            <button className="message-retry-btn" onClick={() => onRetry(mid)} title={t('message.retry')} type="button">
+            <button
+              className="btn btn--xs btn--danger"
+              onClick={() => onRetry(mid)}
+              title={t('message.retry')}
+              type="button"
+            >
               ↻ {t('message.retry')}
             </button>
           )}
           <MessageCopyButton text={text} />
           <button
-            className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
+            type="button"
+            className="btn btn--xs btn--ghost"
+            aria-pressed={showSource}
             onClick={() => setShowSource((v) => !v)}
             title={showSource ? t('message.viewFormatted') : t('message.viewSource')}
           >

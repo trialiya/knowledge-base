@@ -54,16 +54,6 @@
   height: 24px;
 }
 
-.find-bar .icon-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.find-bar .icon-btn:disabled:hover {
-  background: none;
-  color: var(--kb-text-muted);
-}
-
 /* Приписка о неполноте найденного (обрезанный файл) — рядом со счётчиком,
    потому что оговаривает именно его. */
 .find-bar__note {

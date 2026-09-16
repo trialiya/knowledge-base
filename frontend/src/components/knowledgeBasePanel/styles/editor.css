@@ -33,32 +33,6 @@
   margin-left: auto;
 }
 
-.md-toolbar__btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--kb-text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  transition: background 0.15s, color 0.15s;
-}
-.md-toolbar__btn:hover {
-  background: var(--kb-accent-surface);
-  color: var(--kb-accent);
-}
-.md-toolbar__btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-.md-toolbar__btn:disabled:hover {
-  background: none;
-  color: var(--kb-text-muted);
-}
-
 /* Divider between toolbar groups */
 .md-toolbar__sep {
   width: 1px;
@@ -253,12 +227,6 @@
 .md-toolbar {
   flex-wrap: wrap;
   row-gap: 4px;
-}
-
-/* Активное состояние кнопки тулбара (используется для «Скопировано»). */
-.md-toolbar__btn--active,
-.md-toolbar__btn--active:hover {
-  color: var(--kb-accent);
 }
 
 /* Якорная ссылка внутри документа (оглавление) — наследует .doc-link,
