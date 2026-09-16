@@ -37,6 +37,19 @@ const SearchPanel = ({ query, scope, mode, filters, onRefine, onOpenFile, onOpen
   // заодно ссылка не ждёт загрузки конфигурации, чтобы стать правильной.
   const project = missing ? '' : filters.project;
 
+  // Сменить репозиторий — значит начать в нём заново: ревизия и маска пути
+  // принадлежат прежнему. Ветки с тем же именем в новом репозитории может не
+  // быть вовсе (400 вместо выдачи), каталога из маски — тоже (молчаливый ноль).
+  // Тот же порядок, что и в «Файлах» (nextFileRev в navStore.js).
+  // Сменил ли репозиторий — вопрос про показанный выбор (`picked`), а не про
+  // то, что стоит в адресе: дефолтный проект в нём может быть записан явно, и
+  // выбор той же строки списка снимал бы фильтры, которых никто не трогал.
+  const pickProject = (id) => {
+    // Дефолтный проект в адрес не пишем — его выбор это пустое значение.
+    const next = id === defaultProjectId ? '' : id;
+    onRefine(id === picked ? { searchProject: next } : { searchProject: next, searchRev: '', searchPath: '' });
+  };
+
   const results = useSearchResults({ query, mode, ...filters, project });
   const { entry, loading } = results[scope];
 
@@ -62,8 +75,7 @@ const SearchPanel = ({ query, scope, mode, filters, onRefine, onOpenFile, onOpen
               path={filters.path}
               project={picked}
               projectOptions={projectOptions}
-              // Дефолтный проект в адрес не пишем — его выбор это пустое значение.
-              onProjectChange={(id) => onRefine({ searchProject: id === defaultProjectId ? '' : id })}
+              onProjectChange={pickProject}
               rev={filters.rev}
               regex={filters.regex}
               untracked={filters.untracked}
