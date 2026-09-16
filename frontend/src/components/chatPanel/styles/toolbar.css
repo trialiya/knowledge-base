@@ -43,13 +43,13 @@
 }
 
 .message-footer__time {
-  color: #aaa;
+  color: var(--kb-text-disabled);
 }
 
 /* Модель, написавшая ответ. Приглушена сильнее времени: справка, а не содержание —
    но длинный id всё же обрезаем, а не переносим на вторую строку футера. */
 .message-footer__model {
-  color: #999;
+  color: var(--kb-text-placeholder);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -57,7 +57,7 @@
 /* Токены, потраченные на ответ. Приглушены как модель, но не обрезаются: число и так короткое,
    а обрезанное оно врёт. */
 .message-footer__tokens {
-  color: #999;
+  color: var(--kb-text-placeholder);
 }
 
 /* ── Кнопка «копировать всё сообщение» ── */
@@ -72,13 +72,13 @@
   border-radius: 8px;
   background: none;
   cursor: pointer;
-  color: #888;
+  color: var(--kb-text-faint);
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 .message-copy-btn:hover {
-  color: #555;
-  background: rgba(0, 0, 0, 0.05);
-  border-color: #d0d0d0;
+  color: var(--kb-text-tertiary);
+  background: var(--kb-surface-hover);
+  border-color: var(--kb-border-strong);
 }
 .message-copy-btn--done {
   color: var(--kb-success);
@@ -87,24 +87,24 @@
 /* ── Кнопка переключения источника ── */
 .message-source-btn {
   background: none;
-  border: 1px solid #d0d0d0;
+  border: 1px solid var(--kb-border-strong);
   border-radius: 12px;
   padding: 2px 10px;
   font-size: 0.7rem;
-  color: #888;
+  color: var(--kb-text-faint);
   cursor: pointer;
   transition: all 0.15s;
   line-height: 1.5;
 }
 .message-source-btn:hover {
-  border-color: #999;
-  color: #827676;
-  background: rgba(0, 0, 0, 0.03);
+  border-color: var(--kb-border-hover);
+  color: var(--kb-text-muted);
+  background: var(--kb-surface-hover);
 }
 .message-source-btn--active {
   border-color: var(--kb-accent);
   color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 /* ── Кнопка «повторить» (показывается под ответом, завершившимся ошибкой) ── */
@@ -118,11 +118,11 @@
   font-size: 0.7rem;
   line-height: 1.5;
   color: var(--kb-error);
-  background: var(--kb-error-bg);
+  background: var(--kb-surface-error);
   cursor: pointer;
   transition: all 0.15s;
 }
 .message-retry-btn:hover {
-  color: #fff;
+  color: var(--kb-text-on-fill);
   background: var(--kb-error);
 }

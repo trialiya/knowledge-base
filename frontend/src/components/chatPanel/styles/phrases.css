@@ -2,7 +2,7 @@
 
 .phrases-block {
   border-top: 1px solid var(--kb-border);
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   padding: 0.85rem 1rem 0.6rem;
   flex-shrink: 0;
 }
@@ -30,7 +30,7 @@
 
 .phrases-block-hint {
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* Категории-фильтры */
@@ -42,10 +42,10 @@
 }
 
 .phrases-cat-btn {
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border: 1px solid var(--kb-border);
   border-radius: 20px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.73rem;
   font-weight: 600;
   padding: 3px 11px;
@@ -57,13 +57,13 @@
 .phrases-cat-btn:hover {
   border-color: var(--kb-accent);
   color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .phrases-cat-btn--active {
   background: var(--kb-accent);
   border-color: var(--kb-accent);
-  color: #fff;
+  color: var(--kb-text-on-fill);
 }
 
 /* Сетка чипов с фразами */
@@ -97,7 +97,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 1px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border: 1px solid var(--kb-border);
   border-radius: 12px;
   padding: 6px 30px 6px 12px; /* место под звезду справа */
@@ -109,9 +109,9 @@
 
 .phrases-chip:hover {
   border-color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(91, 79, 207, 0.12);
+  box-shadow: var(--kb-shadow-sm);
 }
 
 .phrases-chip-label {
@@ -130,7 +130,7 @@
 
 .phrases-chip-category {
   font-size: 0.65rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-weight: 500;
 }
 
@@ -155,9 +155,9 @@
 
 .phrases-star:hover {
   color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .phrases-star--on {
-  color: #f5b301; /* gold */
+  color: var(--kb-icon-star);
 }

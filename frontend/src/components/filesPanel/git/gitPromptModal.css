@@ -11,7 +11,7 @@
 .git-prompt__hint {
   margin: 0 0 12px;
   font-size: 12px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .git-prompt__label {
@@ -19,7 +19,7 @@
   flex-direction: column;
   gap: 5px;
   font-size: 12px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .git-prompt__input {
@@ -27,7 +27,7 @@
   padding: 8px 10px;
   border: 1.5px solid var(--kb-border);
   border-radius: 8px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   color: var(--kb-text);
   font-family: inherit;
   font-size: 0.9rem;

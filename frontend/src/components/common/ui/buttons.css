@@ -32,38 +32,38 @@
 
 .btn--primary {
   background: var(--kb-accent);
-  color: #fff;
+  color: var(--kb-text-on-fill);
 }
 .btn--primary:hover:not(:disabled) {
   background: var(--kb-accent-hover);
 }
 
 .btn--ghost {
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border-color: var(--kb-border);
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .btn--ghost:hover:not(:disabled) {
   border-color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
 }
 
 .btn--danger {
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border-color: var(--kb-border);
   color: var(--kb-error);
 }
 .btn--danger:hover:not(:disabled) {
   border-color: var(--kb-error);
-  background: var(--kb-error-bg);
+  background: var(--kb-surface-error);
 }
 
 /* Кнопка-тумблер: включённое состояние держится и без наведения, а разметке оно
    и так нужно (`aria-pressed`) — отдельного модификатора для него не заводим. */
 .btn[aria-pressed='true'] {
   border-color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
 }
 
@@ -72,7 +72,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -83,23 +83,23 @@
   transition: background 0.15s, color 0.15s;
 }
 .icon-btn:hover {
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
 }
 .icon-btn--danger:hover {
-  background: var(--kb-error-bg);
+  background: var(--kb-surface-error);
   color: var(--kb-error);
 }
 
 /* Активная «звезда» (избранное) */
 .icon-btn--star {
-  color: #f5b301;
+  color: var(--kb-icon-star);
 }
 
 /* Кратковременное состояние «сделано» (скопировано и т.п.) — подсветка держится
    и без наведения, поэтому это отдельный модификатор, а не :hover. */
 .icon-btn--done,
 .icon-btn--done:hover {
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
 }

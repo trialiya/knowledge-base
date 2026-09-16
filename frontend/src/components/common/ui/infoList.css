@@ -6,7 +6,7 @@
 
 .info-list__title {
   margin: 1rem 0 0.2rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -56,7 +56,7 @@
 .info-list__label {
   flex: 1 0 auto;
   font-size: 0.78rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .info-list__value {
@@ -117,7 +117,7 @@
   margin: 0.9rem 0 0;
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--kb-warning-bg);
+  background: var(--kb-surface-warning);
   color: var(--kb-text);
   font-size: 0.76rem;
 }
@@ -126,6 +126,6 @@
 .info-list__hint {
   margin: 0;
   padding: 12px 2px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.8rem;
 }

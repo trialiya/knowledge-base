@@ -40,23 +40,23 @@
   border-radius: 8px;
   font-size: 0.73rem;
   line-height: 1.4;
-  background: #f4f4f6;
-  border-left: 3px solid #ccc;
+  background: var(--kb-surface-muted);
+  border-left: 3px solid var(--kb-border-strong);
   transition: border-color 0.2s, background 0.2s;
   cursor: pointer;
 }
 
 .tool-call-item--started {
   border-left-color: var(--kb-warning);
-  background: var(--kb-warning-bg);
+  background: var(--kb-surface-warning);
 }
 .tool-call-item--ok {
   border-left-color: var(--kb-success);
-  background: var(--kb-success-bg);
+  background: var(--kb-surface-success);
 }
 .tool-call-item--error {
-  border-left-color: #ea4335;
-  background: #fef0ef;
+  border-left-color: var(--kb-error);
+  background: var(--kb-surface-error);
 }
 /* Плашка открывает модалку деталей — но только если детали сохранились. */
 .tool-call-item--clickable {
@@ -92,7 +92,7 @@
   padding: 2px;
   margin-left: auto;
   cursor: pointer;
-  color: #bbb;
+  color: var(--kb-text-disabled);
   border-radius: 4px;
   opacity: 0;
   transition: opacity 0.15s, color 0.15s, background 0.15s;
@@ -101,8 +101,8 @@
   opacity: 1;
 }
 .tool-call-copy-btn:hover {
-  color: #666;
-  background: rgba(0, 0, 0, 0.06);
+  color: var(--kb-text-tertiary);
+  background: var(--kb-surface-hover);
 }
 
 .tool-call-body {
@@ -115,7 +115,7 @@
 
 .tool-call-name {
   font-weight: 600;
-  color: #444;
+  color: var(--kb-text-secondary);
   font-size: 0.73rem;
   white-space: nowrap;
   overflow: hidden;
@@ -123,7 +123,7 @@
 }
 
 .tool-call-args {
-  color: #888;
+  color: var(--kb-text-faint);
   font-size: 0.67rem;
   white-space: nowrap;
   overflow: hidden;
@@ -131,7 +131,7 @@
 }
 
 .tool-call-error {
-  color: #ea4335;
+  color: var(--kb-text-error);
   font-size: 0.67rem;
   white-space: nowrap;
   overflow: hidden;
@@ -156,7 +156,7 @@
   flex-shrink: 0;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #999;
+  color: var(--kb-text-placeholder);
   transition: transform 0.15s;
   line-height: 1.3;
   margin-left: auto;
@@ -167,8 +167,8 @@
 
 .tool-call-count {
   display: inline-block;
-  background: rgba(0, 0, 0, 0.08);
-  color: #666;
+  background: var(--kb-surface-active);
+  color: var(--kb-text-tertiary);
   font-size: 0.62rem;
   font-weight: 700;
   border-radius: 8px;
@@ -184,7 +184,7 @@
   gap: 2px;
   padding-left: 10px;
   margin-top: 2px;
-  border-left: 1px solid #ddd;
+  border-left: 1px solid var(--kb-border-strong);
   margin-left: 6px;
 }
 .tool-call-group-children .tool-call-item {
@@ -196,7 +196,7 @@
 .tool-call-gist {
   display: block;
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

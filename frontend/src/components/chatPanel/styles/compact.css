@@ -9,7 +9,7 @@
   flex-wrap: wrap;
   gap: 0.4rem;
   margin: 0.35rem 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.78rem;
 }
 
@@ -52,9 +52,9 @@
 /* ── Модалка сводки ──
    Overlay/portal/escape/aria — за ModalShell; здесь только размеры и отступы. */
 .modal-shell.compact-summary {
-  background: #fff;
+  background: var(--kb-surface);
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--kb-shadow-overlay);
   width: 860px;
   max-width: 95vw;
   height: 85vh;
@@ -72,7 +72,7 @@
   align-items: center;
   gap: 8px;
   padding: 14px 16px 12px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--kb-border-light);
   flex-shrink: 0;
 }
 
@@ -80,7 +80,7 @@
   flex: 1;
   font-weight: 700;
   font-size: 0.95rem;
-  color: #222;
+  color: var(--kb-text);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -91,10 +91,10 @@
   padding: 24px 16px;
   text-align: center;
   font-size: 0.85rem;
-  color: #888;
+  color: var(--kb-text-faint);
 }
 .compact-summary__notice--error {
-  color: #ea4335;
+  color: var(--kb-text-error);
 }
 
 .compact-summary__body {
@@ -125,5 +125,5 @@
 
 .compact-summary__stats {
   font-size: 0.78rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }

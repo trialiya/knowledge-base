@@ -41,14 +41,14 @@
   padding: 0 6px 0 10px;
   border: 1.5px solid var(--kb-accent);
   border-radius: 16px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
 }
 
 .panel-search__field-icon {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .panel-search__input {
@@ -62,7 +62,7 @@
   color: var(--kb-text);
 }
 .panel-search__input::placeholder {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* Крестик — общий icon-btn, но по размеру поля (32px). */
@@ -81,16 +81,16 @@
   flex-direction: column;
   max-height: 420px;
   overflow: hidden;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border: 1px solid var(--kb-border);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
+  box-shadow: var(--kb-shadow-dropdown);
 }
 
 .panel-search__msg {
   padding: 12px 14px;
   font-size: 0.82rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .panel-search__list {
@@ -113,7 +113,7 @@
 }
 .panel-search__item:hover,
 .panel-search__item--selected {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 /* Тёплая заливка строки — раздел помечает ею свою особенность (в файлах это
@@ -135,7 +135,7 @@
   align-items: center;
   flex-shrink: 0;
   margin-top: 2px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .panel-search__item-body {
@@ -157,7 +157,7 @@
 
 .panel-search__item-sub {
   font-size: 0.78rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -179,7 +179,7 @@
   margin-top: 2px;
   padding: 1px 7px;
   border-radius: 10px;
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
   font-size: 0.7rem;
   font-weight: 700;

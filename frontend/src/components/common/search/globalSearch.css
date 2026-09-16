@@ -9,7 +9,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1.5px solid var(--kb-border);
   border-radius: 20px;
   padding: 3px 5px 3px 14px;
@@ -22,7 +22,7 @@
 .global-search__icon {
   display: flex;
   align-items: center;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   flex-shrink: 0;
 }
 
@@ -38,15 +38,15 @@
   padding: 5px 0;
 }
 .global-search input::placeholder {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .global-search__hint {
   font-family: var(--kb-font-mono);
   font-size: 0.66rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   border: 1px solid var(--kb-border);
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border-radius: 6px;
   padding: 2px 6px;
   flex-shrink: 0;

@@ -8,20 +8,20 @@
   display: block;
 }
 .diff-line--add {
-  background: #e6f4ea;
-  color: #188038;
+  background: var(--kb-diff-add-surface);
+  color: var(--kb-diff-add-text);
 }
 .diff-line--del {
-  background: #fce8e6;
-  color: #d93025;
+  background: var(--kb-diff-del-surface);
+  color: var(--kb-diff-del-text);
 }
 .diff-line--hunk {
-  color: #6a737d;
-  background: #f1f8ff;
+  color: var(--kb-diff-hunk-text);
+  background: var(--kb-diff-hunk-surface);
 }
 /* Шапка патча: `diff --git`, `index`, `--- a/…`, `+++ b/…`. */
 .diff-line--meta {
-  color: #8a8a99;
+  color: var(--kb-text-faint);
 }
 
 /* ── Вариант с номерами строк ──
@@ -43,7 +43,7 @@
   flex: 0 0 auto;
   min-width: 3.2em;
   text-align: right;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   user-select: none;
 }
 
@@ -69,7 +69,7 @@
   font-family: var(--kb-font-mono);
   font-size: 0.7rem;
   line-height: 1.5;
-  color: #8a8a99;
+  color: var(--kb-text-faint);
 }
 
 /* Длинная строка режется многоточием, а не переносится: целиком она есть в
@@ -85,10 +85,10 @@
   white-space: nowrap;
 }
 .diff-stats__add {
-  color: #188038;
+  color: var(--kb-diff-add-text);
   font-weight: 600;
 }
 .diff-stats__del {
-  color: #d93025;
+  color: var(--kb-diff-del-text);
   font-weight: 600;
 }

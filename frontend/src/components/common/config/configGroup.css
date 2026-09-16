@@ -32,12 +32,12 @@
   padding: 2px 9px;
 }
 .status-badge--on {
-  color: #12663b;
-  background: #d1fae5;
+  color: var(--kb-text-success);
+  background: var(--kb-surface-success);
 }
 .status-badge--off {
-  color: var(--kb-muted);
-  background: var(--kb-bg);
+  color: var(--kb-text-muted);
+  background: var(--kb-surface-app);
 }
 
 /* ── Пилюля рядом со значением (имя модели у её id, «по умолчанию» в списке) ──
@@ -48,7 +48,7 @@
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--kb-accent);
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   border-radius: 10px;
   padding: 2px 9px;
 }
@@ -58,15 +58,15 @@
   padding: 2rem;
   text-align: center;
   font-size: 0.85rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .config-group__error {
   margin: 0;
   padding: 10px 14px;
   font-size: 0.82rem;
   color: var(--kb-error);
-  background: var(--kb-error-bg);
-  border: 1px solid #fda29b;
+  background: var(--kb-surface-error);
+  border: 1px solid var(--kb-border-error);
   border-radius: 8px;
 }
 
@@ -80,14 +80,14 @@
   font-family: 'Fira Mono', 'Consolas', monospace;
   font-size: 0.76rem;
   color: var(--kb-text);
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border-light);
   border-radius: 8px;
   padding: 2px 8px;
 }
 .config-tags__empty {
   font-size: 0.82rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* ── Пояснение под строками секции ──
@@ -98,7 +98,7 @@
   margin: 0;
   font-size: 0.8rem;
   line-height: 1.5;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* ── Метка со списком под ней (набор тегов не встаёт в строку справа) ── */

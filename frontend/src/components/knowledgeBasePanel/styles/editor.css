@@ -18,7 +18,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 5px 10px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border-bottom: 1px solid var(--kb-border);
   flex-shrink: 0;
   gap: 4px;
@@ -37,7 +37,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -47,7 +47,7 @@
   transition: background 0.15s, color 0.15s;
 }
 .md-toolbar__btn:hover {
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
 }
 .md-toolbar__btn:disabled {
@@ -56,7 +56,7 @@
 }
 .md-toolbar__btn:disabled:hover {
   background: none;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* Divider between toolbar groups */
@@ -85,7 +85,7 @@
   font-size: 0.84rem;
   line-height: 1.7;
   color: var(--kb-text);
-  background: var(--kb-white);
+  background: var(--kb-surface);
   padding: 14px 16px;
   overflow-y: auto;
 }
@@ -98,11 +98,11 @@
   font-size: 0.9rem;
   line-height: 1.75;
   color: var(--kb-text);
-  background: var(--kb-white);
+  background: var(--kb-surface);
 }
 
 .md-preview__empty {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-style: italic;
 }
 
@@ -141,7 +141,7 @@
 .md-preview code {
   font-family: 'Fira Mono', 'Consolas', monospace;
   font-size: 0.83em;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   padding: 2px 5px;
   border-radius: 4px;
   color: var(--kb-accent);
@@ -156,7 +156,7 @@
 }
 /* Блок кода с шапкой рисует себя сам — см. common/ui/codeBlock.css. */
 .md-preview pre:not(.code-block__pre) {
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 8px;
   padding: 12px 14px;
@@ -172,8 +172,8 @@
   border-left: 3px solid var(--kb-accent);
   margin: 0 0 0.8em;
   padding: 0.4em 1em;
-  color: var(--kb-muted);
-  background: var(--kb-accent-light);
+  color: var(--kb-text-muted);
+  background: var(--kb-accent-surface-subtle);
   border-radius: 0 6px 6px 0;
 }
 .md-preview a {
@@ -200,7 +200,7 @@
   padding: 6px 10px;
 }
 .md-preview th {
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   font-weight: 600;
 }
 
@@ -212,7 +212,7 @@
   display: flex;
   gap: 8px;
   padding: 10px 12px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border-top: 1px solid var(--kb-border);
   flex-shrink: 0;
 }
@@ -221,7 +221,7 @@
   background: var(--kb-accent);
   border: none;
   border-radius: 20px;
-  color: #fff;
+  color: var(--kb-text-on-fill);
   cursor: pointer;
   font-size: 0.82rem;
   font-weight: 600;
@@ -236,7 +236,7 @@
   background: none;
   border: 1.5px solid var(--kb-border);
   border-radius: 20px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   cursor: pointer;
   font-size: 0.82rem;
   font-weight: 500;
@@ -244,7 +244,7 @@
   transition: border-color 0.15s;
 }
 .save-bar__cancel:hover {
-  border-color: var(--kb-muted);
+  border-color: var(--kb-text-muted);
 }
 
 /* На узком detail-пане кнопок тулбара стало больше — пусть переносятся, а не
@@ -287,7 +287,7 @@
   gap: 6px;
   padding: 4px 8px;
   font-size: 0.68rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -300,7 +300,7 @@
   border-radius: 8px;
 }
 .history-item:hover {
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
 }
 .history-item__meta {
   min-width: 0;
@@ -312,7 +312,7 @@
 }
 .history-item__sub {
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -350,11 +350,11 @@
   padding: 5px 12px;
   font-size: 0.8rem;
   cursor: pointer;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .history-seg button.is-active {
   background: var(--kb-accent);
-  color: #fff;
+  color: var(--kb-text-on-fill);
 }
 .history-seg button:disabled {
   opacity: 0.4;
@@ -375,13 +375,13 @@
 .history-note {
   padding: 10px 16px 0;
   margin: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-style: italic;
   font-size: 0.82rem;
 }
 .history-empty {
   padding: 24px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-style: italic;
 }
 
@@ -424,23 +424,23 @@
   width: 1.4em;
   flex-shrink: 0;
   text-align: center;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   user-select: none;
 }
 .history-diff__text {
   flex: 1;
 }
 .history-diff__line--add {
-  background: rgba(46, 160, 67, 0.16);
+  background: var(--kb-diff-add-wash);
 }
 .history-diff__line--del {
-  background: rgba(248, 81, 73, 0.16);
+  background: var(--kb-diff-del-wash);
 }
 .history-diff__line--add .history-diff__sign {
-  color: #1a7f37;
+  color: var(--kb-diff-add-text);
 }
 .history-diff__line--del .history-diff__sign {
-  color: #cf222e;
+  color: var(--kb-diff-del-text);
 }
 
 /* Overview-ruler: дорожка справа от диффа */
@@ -449,7 +449,7 @@
   width: 16px;
   flex-shrink: 0;
   border-left: 1px solid var(--kb-border);
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   cursor: pointer;
   user-select: none;
 }
@@ -470,10 +470,10 @@
   opacity: 1;
 }
 .history-ruler__mark--add {
-  background: #2ea043;
+  background: var(--kb-diff-add-fill);
 }
 .history-ruler__mark--del {
-  background: #f85149;
+  background: var(--kb-diff-del-fill);
 }
 /* Кастомный ползунок-«линза»: полупрозрачная заливка + рамка. Метки
    просвечивают сквозь него, а сам он всегда заметен — и над белым, и над
@@ -484,15 +484,15 @@
   right: 0;
   min-height: 20px;
   border-radius: 7px;
-  background: rgba(91, 79, 207, 0.16);
-  border: 1.5px solid rgba(91, 79, 207, 0.6);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  background: var(--kb-accent-select-bg);
+  border: 1.5px solid var(--kb-accent-select-border);
+  box-shadow: 0 0 0 1px var(--kb-on-accent-inset) inset;
   cursor: grab;
   transition: background 0.15s, border-color 0.15s;
 }
 .history-ruler__thumb:hover {
-  background: rgba(91, 79, 207, 0.26);
-  border-color: rgba(91, 79, 207, 0.85);
+  background: var(--kb-accent-select-bg-active);
+  border-color: var(--kb-accent-select-border-active);
 }
 .history-ruler__thumb:active {
   cursor: grabbing;
@@ -507,7 +507,7 @@
   background: none;
   border: 1.5px solid var(--kb-border);
   border-radius: 20px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   cursor: pointer;
   font-size: 0.8rem;
   padding: 5px 14px;
@@ -521,5 +521,5 @@
   opacity: 0.4;
   cursor: default;
   border-color: var(--kb-border);
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }

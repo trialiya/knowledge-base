@@ -11,9 +11,9 @@
    default sizing/padding since fcd-header/fcd-body own their own spacing. */
 
 .modal-shell.fcd-modal {
-  background: #fff;
+  background: var(--kb-surface);
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--kb-shadow-overlay);
   width: 960px;
   max-width: 95vw;
   height: 85vh;
@@ -31,7 +31,7 @@
   align-items: center;
   gap: 10px;
   padding: 14px 16px 12px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--kb-border-light);
   flex-shrink: 0;
 }
 
@@ -40,7 +40,7 @@
   font-weight: 700;
   font-size: 0.9rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: #222;
+  color: var(--kb-text);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -50,7 +50,7 @@
 .fcd-open-link {
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--kb-accent, #1a73e8);
+  color: var(--kb-accent);
   text-decoration: none;
   flex-shrink: 0;
   white-space: nowrap;
@@ -64,15 +64,15 @@
   border: none;
   font-size: 1rem;
   cursor: pointer;
-  color: #999;
+  color: var(--kb-text-placeholder);
   padding: 2px 6px;
   border-radius: 4px;
   flex-shrink: 0;
   line-height: 1;
 }
 .fcd-close:hover {
-  background: #f0f0f0;
-  color: #444;
+  background: var(--kb-surface-muted);
+  color: var(--kb-text-secondary);
 }
 
 .fcd-body {
@@ -84,14 +84,14 @@
   padding: 24px 16px;
   text-align: center;
   font-size: 0.85rem;
-  color: #888;
+  color: var(--kb-text-faint);
 }
 
 .fcd-diff {
   margin: 0 0 10px;
   padding: 10px 12px;
-  background: #f8f9fa;
-  border: 1px solid #eee;
+  background: var(--kb-surface-sunken);
+  border: 1px solid var(--kb-border-light);
   border-radius: 8px;
   font-size: 0.78rem;
   line-height: 1.45;
@@ -114,17 +114,17 @@
   border: 1px solid var(--kb-border);
   font-size: 0.85rem;
   cursor: pointer;
-  color: #666;
+  color: var(--kb-text-tertiary);
   padding: 3px 8px;
   border-radius: 6px;
   flex-shrink: 0;
   line-height: 1.2;
 }
 .fcd-md-toggle:hover {
-  background: #f0f0f0;
+  background: var(--kb-surface-muted);
 }
 .fcd-md-toggle--active {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   border-color: var(--kb-accent);
   color: var(--kb-accent);
 }
@@ -166,7 +166,7 @@
   width: 28px;
   height: 28px;
   flex-shrink: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   opacity: 0.45;
 }
 
@@ -188,15 +188,15 @@
   gap: 0.4rem;
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--kb-border);
-  border-left: 3px solid var(--kb-muted);
+  border-left: 3px solid var(--kb-text-muted);
   border-radius: 8px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
 }
 
 .file-revert__icon {
   display: flex;
   align-items: center;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   padding-top: 1px;
 }
 
@@ -216,6 +216,6 @@
 .file-revert__path {
   font-family: var(--kb-font-mono);
   font-size: 0.74rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   overflow-wrap: anywhere;
 }

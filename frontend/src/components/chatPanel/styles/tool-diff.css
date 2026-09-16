@@ -25,7 +25,7 @@
   min-width: 0;
   padding: 2px 0 4px;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--kb-text-faint);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -34,7 +34,7 @@
   flex-shrink: 0;
   font-family: var(--kb-font-mono, ui-monospace, Menlo, Consolas, monospace);
   font-weight: 700;
-  color: #5c6bc0;
+  color: var(--kb-icon-brand);
 }
 
 .tool-diff__message {
@@ -42,7 +42,7 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #333;
+  color: var(--kb-text-secondary);
 }
 
 /* С телом шапка становится кнопкой: сбрасываем UA-стили кнопки, а не заводим ей
@@ -60,12 +60,12 @@
   border-radius: 6px;
   font: inherit;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--kb-text-faint);
   text-align: left;
   cursor: pointer;
 }
 .tool-diff__commit--toggle:hover {
-  background: #f7f7f8;
+  background: var(--kb-surface-sunken);
 }
 
 /* Тело сообщения — связный текст, а не строка шапки: переносы в нём свои. */
@@ -73,7 +73,7 @@
   padding: 0 0 6px;
   font-size: 0.75rem;
   line-height: 1.45;
-  color: #555;
+  color: var(--kb-text-tertiary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -96,8 +96,8 @@
   width: 100%;
   box-sizing: border-box;
   padding: 5px 8px;
-  background: #f7f7f8;
-  border: 1px solid #ececf0;
+  background: var(--kb-surface-sunken);
+  border: 1px solid var(--kb-border-light);
   border-radius: 6px;
   cursor: pointer;
   text-align: left;
@@ -105,13 +105,13 @@
   min-width: 0;
 }
 .tool-diff__file-head:hover {
-  background: #f0f0f3;
+  background: var(--kb-surface-muted);
 }
 
 .tool-diff__chevron {
   display: flex;
   flex-shrink: 0;
-  color: #999;
+  color: var(--kb-text-placeholder);
   transform: rotate(-90deg);
   transition: transform 0.15s;
 }
@@ -129,26 +129,26 @@
   text-align: center;
   font-size: 0.68rem;
   font-weight: 700;
-  background: #e8eaed;
-  color: #5f6368;
+  background: var(--kb-surface-strong);
+  color: var(--kb-text-muted);
 }
 .tool-diff__status--A {
-  background: #e6f4ea;
-  color: #188038;
+  background: var(--kb-diff-add-surface);
+  color: var(--kb-diff-add-text);
 }
 .tool-diff__status--D {
-  background: #fce8e6;
-  color: #d93025;
+  background: var(--kb-diff-del-surface);
+  color: var(--kb-diff-del-text);
 }
 .tool-diff__status--R,
 .tool-diff__status--C {
-  background: #fff8e1;
-  color: #a1690a;
+  background: var(--kb-surface-warning);
+  color: var(--kb-text-warning);
 }
 /* U — файл вне git: не «добавлен», в коммит сам не попадёт, отсюда свой цвет. */
 .tool-diff__status--U {
-  background: #e8f0fe;
-  color: #1967d2;
+  background: var(--kb-surface-info);
+  color: var(--kb-text-info);
 }
 
 .tool-diff__path {
@@ -160,11 +160,11 @@
   /* Путь читают глазами по сегментам — моноширинный тут помогает,
      как и в шапке .fcd-title. */
   font-family: var(--kb-font-mono, ui-monospace, Menlo, Consolas, monospace);
-  color: #222;
+  color: var(--kb-text);
 }
 
 .tool-diff__old-path {
-  color: #999;
+  color: var(--kb-text-placeholder);
 }
 
 /* Шапка патча над блоком кода — общая .diff-meta (diff.css, вместе с
@@ -177,7 +177,7 @@
   /* По бокам не отступает: горизонтальный padding у самой строки, иначе
      заливка `+`/`−` и гуттер с номерами обрывались бы, не дойдя до края. */
   padding: 8px 0;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 6px;
   font-size: 0.75rem;
@@ -193,7 +193,7 @@
   padding: 10px;
   text-align: center;
   font-size: 0.78rem;
-  color: #999;
-  background: #f7f7f8;
+  color: var(--kb-text-placeholder);
+  background: var(--kb-surface-sunken);
   border-radius: 6px;
 }

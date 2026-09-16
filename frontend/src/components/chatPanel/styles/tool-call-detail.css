@@ -14,9 +14,9 @@
 @import './tool-script.css';
 
 .modal-shell.tool-call-detail {
-  background: #fff;
+  background: var(--kb-surface);
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--kb-shadow-overlay);
   width: 960px;
   max-width: 95vw;
   height: 85vh;
@@ -34,7 +34,7 @@
   align-items: center;
   gap: 8px;
   padding: 14px 16px 12px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--kb-border-light);
   flex-shrink: 0;
 }
 
@@ -42,7 +42,7 @@
   flex: 1;
   font-weight: 700;
   font-size: 0.95rem;
-  color: #222;
+  color: var(--kb-text);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -60,10 +60,10 @@
   padding: 24px 16px;
   text-align: center;
   font-size: 0.85rem;
-  color: #888;
+  color: var(--kb-text-faint);
 }
 .tool-call-detail__notice--error {
-  color: #ea4335;
+  color: var(--kb-text-error);
 }
 
 .tool-call-detail__body {
@@ -87,20 +87,20 @@
   padding: 2px 8px;
   border-radius: 6px;
   width: fit-content;
-  background: #eee;
-  color: #555;
+  background: var(--kb-surface-strong);
+  color: var(--kb-text-tertiary);
 }
 .tool-call-detail__status--ok {
-  background: var(--kb-success-bg, #e6f4ea);
-  color: var(--kb-success, #34a853);
+  background: var(--kb-surface-success);
+  color: var(--kb-success);
 }
 .tool-call-detail__status--error {
-  background: #fef0ef;
-  color: #ea4335;
+  background: var(--kb-surface-error);
+  color: var(--kb-text-error);
 }
 .tool-call-detail__status--started {
-  background: var(--kb-warning-bg, #fff8e1);
-  color: var(--kb-warning, #d99a00);
+  background: var(--kb-surface-warning);
+  color: var(--kb-warning);
 }
 
 .tool-call-detail__section {
@@ -135,7 +135,7 @@
   min-width: 0;
 }
 .tool-call-detail__label--error {
-  color: #ea4335;
+  color: var(--kb-text-error);
 }
 
 /* ── Переключатель «Обзор | JSON» ── */
@@ -144,7 +144,7 @@
   display: flex;
   gap: 2px;
   padding: 2px;
-  background: #f1f1f3;
+  background: var(--kb-surface-muted);
   border-radius: 6px;
   flex-shrink: 0;
 }
@@ -155,19 +155,19 @@
   cursor: pointer;
   font-size: 0.7rem;
   font-weight: 600;
-  color: #777;
+  color: var(--kb-text-muted);
   padding: 3px 10px;
   border-radius: 4px;
   line-height: 1.4;
   box-sizing: border-box;
 }
 .tool-call-detail__mode:hover {
-  color: #333;
+  color: var(--kb-text-secondary);
 }
 .tool-call-detail__mode--active {
-  background: #fff;
-  color: #222;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  background: var(--kb-surface);
+  color: var(--kb-text);
+  box-shadow: var(--kb-shadow-chip);
 }
 
 /* Один общий скролл на всю модалку (.tool-call-detail__body) — у отдельных
@@ -176,8 +176,8 @@
 .tool-call-detail__pre {
   margin: 0;
   padding: 8px 10px;
-  background: var(--kb-code-dark-bg, #1e1e2e);
-  color: var(--kb-code-dark-color, #cdd6f4);
+  background: var(--kb-code-surface);
+  color: var(--kb-code-text);
   border-radius: 6px;
   font-size: 0.75rem;
   font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
@@ -190,26 +190,26 @@
   width: 100%;
 }
 .tool-call-detail__pre--error {
-  background: #fff0ef;
-  color: #c62828;
+  background: var(--kb-surface-error);
+  color: var(--kb-text-error);
 }
 
 /* ── Подсветка JSON (внутри .tool-call-detail__pre) ── */
 
 .json-highlight__key {
-  color: #89b4fa;
+  color: var(--kb-syntax-key);
 } /* blue  — ключи объекта  */
 .json-highlight__string {
-  color: #a6e3a1;
+  color: var(--kb-syntax-string);
 } /* green — строки         */
 .json-highlight__number {
-  color: #fab387;
+  color: var(--kb-syntax-number);
 } /* peach — числа          */
 .json-highlight__boolean {
-  color: #cba6f7;
+  color: var(--kb-syntax-boolean);
 } /* mauve — true / false   */
 .json-highlight__null {
-  color: #f38ba8;
+  color: var(--kb-syntax-null);
 } /* red   — null           */
 
 /* Чем обошёлся вызов: своя модель инструмента и её токены. Приглушено как подписи в футере
@@ -219,6 +219,6 @@
   flex-wrap: wrap;
   gap: 4px 10px;
   font-size: 0.68rem;
-  color: #999;
+  color: var(--kb-text-placeholder);
   user-select: none;
 }

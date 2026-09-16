@@ -16,7 +16,7 @@
   align-items: center;
   gap: 0.35rem;
   min-height: 24px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.78rem;
 }
 
@@ -34,7 +34,7 @@
   flex: none;
   padding: 0 0.3rem;
   border-radius: 4px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   font-size: 0.68rem;
 }
 
@@ -73,7 +73,7 @@
 }
 
 .chat-repo__link--muted {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-weight: 500;
   font-size: 0.78rem;
 }
@@ -101,7 +101,7 @@
 
 .chat-repo__note {
   margin: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.78rem;
   line-height: 1.4;
 }
@@ -136,7 +136,7 @@
 
 .chat-repo__section-title {
   margin: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -160,7 +160,7 @@
 .chat-repo__status {
   flex: none;
   width: 0.9rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-family: var(--kb-font-mono);
   font-size: 0.72rem;
   font-weight: 700;
@@ -188,7 +188,7 @@
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.72rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -199,7 +199,7 @@
   align-items: baseline;
   gap: 0.4rem;
   margin: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.78rem;
 }
 

@@ -5,7 +5,7 @@
 .modal-shell-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(45, 43, 85, 0.32);
+  background: var(--kb-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -29,7 +29,7 @@
 .modal-shell {
   --modal-shell-pad-x: 1.5rem;
   --modal-shell-pad-top: 1.5rem;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   padding: var(--modal-shell-pad-top) var(--modal-shell-pad-x) 1.5rem;
   border-radius: var(--kb-radius);
   width: 380px;
@@ -39,7 +39,7 @@
   flex-direction: column;
   gap: 0.9rem;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
+  box-shadow: var(--kb-shadow-popover);
   animation: modal-shell-pop 0.16s cubic-bezier(0.18, 0.89, 0.32, 1.28);
 }
 
@@ -96,7 +96,7 @@
   padding: 0;
   gap: 0;
   border: 1.5px solid var(--kb-border);
-  box-shadow: 0 16px 48px rgba(91, 79, 207, 0.22);
+  box-shadow: var(--kb-shadow-modal);
 }
 
 /* Find-бар внутри диалога: собственные отступы диалога вычитаются, поэтому бар

@@ -24,13 +24,13 @@
   padding: 8px 12px;
   border: 1px solid var(--kb-border);
   border-radius: 12px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, transform 0.1s;
 }
 .doc-change-item:hover {
   border-color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 .doc-change-item:active {
   transform: scale(0.99);
@@ -58,7 +58,7 @@
 }
 .doc-change-sub {
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .doc-change-cta {
@@ -79,7 +79,7 @@
   padding: 6px 10px;
   border: 1px solid var(--kb-border);
   border-radius: 10px;
-  background: var(--kb-bg-secondary, #f6f7f9);
+  background: var(--kb-surface-sunken);
   cursor: pointer;
   font-size: 0.82rem;
   font-weight: 600;
@@ -106,7 +106,7 @@
   align-items: center;
   transform: rotate(-90deg);
   transition: transform 0.15s;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .change-block-chevron--open {
   transform: rotate(0deg);

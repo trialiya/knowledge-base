@@ -7,8 +7,8 @@
   gap: 0.6rem;
   padding: 0.3rem 1rem 0;
   font-size: 0.68rem;
-  color: #999;
-  background: var(--kb-bg);
+  color: var(--kb-text-placeholder);
+  background: var(--kb-surface-app);
   flex-shrink: 0;
   user-select: none;
 }
@@ -28,7 +28,7 @@
   gap: 0;
   padding: 0.75rem 1rem;
   border-top: 1px solid var(--kb-border);
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   flex-shrink: 0;
   position: relative;
 }
@@ -44,7 +44,7 @@
   max-height: 260px;
   outline: none;
   color: var(--kb-text);
-  background: var(--kb-white);
+  background: var(--kb-surface);
   transition: border-color 0.15s;
   resize: none;
   font-family: inherit;
@@ -59,7 +59,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0 1rem 0.75rem;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   flex-shrink: 0;
 }
 .composer-toolbar__selectors {
@@ -101,33 +101,33 @@
 .message-action-btn--send {
   background: var(--kb-accent);
   color: white;
-  box-shadow: 0 2px 6px rgba(91, 79, 207, 0.3);
+  box-shadow: var(--kb-shadow-accent-btn);
 }
 .message-action-btn--send:hover:not(:disabled) {
   background: var(--kb-accent-hover);
   transform: scale(1.08);
 }
 .message-action-btn--send:disabled {
-  background: var(--kb-accent-bg);
-  color: var(--kb-muted);
+  background: var(--kb-accent-surface);
+  color: var(--kb-text-muted);
   cursor: not-allowed;
   box-shadow: none;
 }
 .message-action-btn--stop {
-  background: #e84d6a;
+  background: var(--kb-error);
   color: white;
-  box-shadow: 0 2px 6px rgba(232, 77, 106, 0.3);
+  box-shadow: var(--kb-shadow-error-btn);
 }
 .message-action-btn--stop:hover:not(:disabled) {
-  background: #c73057;
+  background: var(--kb-error-hover);
   transform: scale(1.08);
 }
 /* Занятость бывает и непрерываемой — сжатие контекста по /compact: один вызов
    модели, прерывать в нём нечего. Без этой пары правил кнопка в таком состоянии
    выглядит и ведёт себя ровно как рабочая, но на клик не отвечает. */
 .message-action-btn--stop:disabled {
-  background: var(--kb-accent-bg);
-  color: var(--kb-muted);
+  background: var(--kb-accent-surface);
+  color: var(--kb-text-muted);
   cursor: not-allowed;
   box-shadow: none;
 }
@@ -139,7 +139,7 @@
   min-height: 42px;
 }
 .message-input-disabled-note {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.85rem;
   font-style: italic;
   text-align: center;
@@ -154,7 +154,7 @@
 }
 .message-input--rich.is-empty::before {
   content: attr(data-placeholder);
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   pointer-events: none;
 }
 .message-input--rich[contenteditable='false'] {
@@ -180,7 +180,7 @@
   gap: 0.4rem;
   padding: 0.3rem 1rem 0;
   font-size: 0.72rem;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   user-select: none;
 }
 .composer-command__label {
@@ -192,14 +192,14 @@
    включён. Цветом причину не метим: на 0.72rem и красный, и жёлтый на светлом
    фоне не дотягивают до 4.5:1, а сказано всё словами. */
 .composer-command__row--blocked .composer-command__label {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .composer-command__name {
   color: var(--kb-text);
   white-space: nowrap;
 }
 .composer-command__note {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -210,6 +210,6 @@
    объявляет. Заливка непрозрачная — под ней белый фон поля. В браузерах без
    Custom Highlight API правило игнорируется: остаётся строка над полем. */
 ::highlight(kb-composer-command) {
-  background-color: var(--kb-accent-bg);
+  background-color: var(--kb-accent-surface);
   color: var(--kb-accent);
 }

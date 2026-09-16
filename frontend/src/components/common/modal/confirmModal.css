@@ -21,6 +21,6 @@
 .confirm-modal__body {
   margin: 0;
   font-size: 0.87rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   line-height: 1.55;
 }

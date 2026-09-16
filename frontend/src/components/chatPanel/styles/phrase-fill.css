@@ -11,7 +11,7 @@
 .phrase-fill__hint {
   margin: 4px 0 0;
   font-size: 0.75rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .phrase-fill__fields {
@@ -41,8 +41,8 @@
 .phrase-fill__type {
   font-size: 0.66rem;
   font-weight: 500;
-  color: var(--kb-muted);
-  background: var(--kb-bg);
+  color: var(--kb-text-muted);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 10px;
   padding: 0 6px;
@@ -54,7 +54,7 @@
   padding: 6px 9px;
   border: 1px solid var(--kb-border);
   border-radius: var(--kb-radius);
-  background: var(--kb-white);
+  background: var(--kb-surface);
   color: var(--kb-text);
   font: inherit;
   font-size: 0.84rem;
@@ -71,7 +71,7 @@
 .phrase-fill__input--warn,
 .phrase-fill__input--warn:focus {
   border-color: var(--kb-warning);
-  background: var(--kb-warning-bg);
+  background: var(--kb-surface-warning);
 }
 
 .phrase-fill__check {
@@ -107,7 +107,7 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .phrase-fill__preview-text {
@@ -116,7 +116,7 @@
   padding: 9px 11px;
   border: 1px solid var(--kb-border);
   border-radius: var(--kb-radius);
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   /* Фраза длинная, а модалка не должна за неё расти: свой скролл на ~4 строки
      (подложка в border-box, поэтому в высоту входят и поля блока). */
   max-height: 7em;
@@ -131,7 +131,7 @@
    ввода — само значение на акцентной подложке. */
 .phrase-fill__slot {
   border-bottom: 1px dashed var(--kb-border);
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .phrase-fill__slot--filled {
@@ -139,7 +139,7 @@
   border-radius: 3px;
   /* Подложка обтягивает значение вплотную: горизонтальные поля раздвинули бы
      текст вокруг, и «{{Тема}}» в кавычках читалось бы как « значение ». */
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
   font-weight: 500;
 }
@@ -151,10 +151,10 @@
 .phrase-fill__results {
   position: fixed;
   z-index: 1200; /* выше .modal-shell-overlay */
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border: 1px solid var(--kb-border);
   border-radius: var(--kb-radius);
-  box-shadow: 0 8px 24px rgba(91, 79, 207, 0.16);
+  box-shadow: var(--kb-shadow-md);
   overflow: hidden;
 }
 
@@ -162,7 +162,7 @@
   padding: 8px 10px;
   font-size: 0.78rem;
   font-style: italic;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .phrase-fill__options {
@@ -179,7 +179,7 @@
 }
 
 .phrase-fill__option--active {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .phrase-fill__option-icon {
@@ -202,7 +202,7 @@
 
 .phrase-fill__option-sub {
   font-size: 0.7rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

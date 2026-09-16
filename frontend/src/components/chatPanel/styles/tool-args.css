@@ -16,7 +16,7 @@
   margin: 0;
   box-sizing: border-box;
   padding: 8px 10px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 6px;
 }
@@ -34,7 +34,7 @@
   flex-shrink: 0;
   font-family: var(--kb-font-mono);
   font-size: 0.75rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .tool-args__value {
@@ -58,14 +58,14 @@
   width: 100%;
   box-sizing: border-box;
   padding: 5px 8px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 6px;
   cursor: pointer;
   text-align: left;
 }
 .tool-args__block-head:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .tool-args__block-head .tool-args__key {
@@ -81,7 +81,7 @@
 .tool-args__chevron {
   display: flex;
   flex-shrink: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   transform: rotate(-90deg);
   transition: transform 0.15s;
 }
@@ -92,5 +92,5 @@
 .tool-args__size {
   flex-shrink: 0;
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }

@@ -27,13 +27,13 @@
   background: none;
   font: inherit;
   font-size: 12px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   cursor: pointer;
 }
 
 .rev-picker__trigger:hover {
   border-color: var(--kb-border-light);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .rev-picker__label {
@@ -72,8 +72,8 @@
   padding: 4px;
   border: 1px solid var(--kb-border);
   border-radius: 10px;
-  background: var(--kb-white);
-  box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
+  background: var(--kb-surface);
+  box-shadow: var(--kb-shadow-dropdown);
 }
 
 .rev-picker__form {
@@ -86,7 +86,7 @@
   padding: 4px 6px;
   border: 1px solid var(--kb-border);
   border-radius: 7px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   font: inherit;
   font-size: 12px;
   color: var(--kb-text);
@@ -98,7 +98,7 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .rev-picker__item {
@@ -120,7 +120,7 @@
 }
 
 .rev-picker__item:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .rev-picker__item[aria-current='true'] {
@@ -131,5 +131,5 @@
   margin: 4px 0;
   padding: 0 6px;
   font-size: 12px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
