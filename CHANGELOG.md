@@ -11,6 +11,20 @@ you* — breaking changes, deprecations, migration steps — is in
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-09-16
+
+The first stable release. Everything from `1.0.0-RC1` through `1.0.0-RC3` is
+in it, plus one fix found after the last candidate. Nothing here asks
+anything of an upgrade: no breaking change, no migration step, no new
+configuration to set.
+
+### Fixed
+
+- Search opened from Files now searches the repository and revision open
+  there, instead of defaulting to whatever a previous search left behind —
+  the working tree, most of the time. Standing on a branch snapshot, search
+  now looks at what is on screen.
+
 ## [1.0.0-RC3] — 2026-09-15
 
 What the second candidate turned up in the chat transcript: an interrupted run
@@ -225,7 +239,8 @@ a deployment that was already running from `main` before this release.
   meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
-[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0-RC3...HEAD
+[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0
 [1.0.0-RC3]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC3
 [1.0.0-RC2]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC2
 [1.0.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC1
