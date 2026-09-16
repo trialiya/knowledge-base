@@ -55,7 +55,7 @@ final class GitGrepRunner {
     private static final int MAX_STDERR_LINES = 200;
 
     /** How long the stderr drain is waited for once git itself has exited. */
-    private static final long STDERR_DRAIN_WAIT = Duration.ofSeconds(1).toMillis();
+    private static final Duration STDERR_DRAIN_WAIT = Duration.ofSeconds(1);
 
     private final RepoPaths paths;
     private final Repository repository;
@@ -342,7 +342,7 @@ final class GitGrepRunner {
             // git is gone, so its stderr is at end of stream and the drain is about to finish; the
             // wait is bounded all the same rather than trusting that of a thread nothing depends
             // on.
-            stderrDrain.join(STDERR_DRAIN_WAIT);
+            awaitDrain(stderrDrain);
             if (cut) {
                 // Killed by this side with the answer in hand: the exit code says only that, and
                 // so does the watchdog if the deadline fell on the same instant. Without context
@@ -384,6 +384,19 @@ final class GitGrepRunner {
             throw new IllegalStateException("Git command interrupted: " + command, e);
         } catch (IOException e) {
             throw new IllegalStateException("Git command failed: " + command, e);
+        }
+    }
+
+    /**
+     * Waits out {@link #STDERR_DRAIN_WAIT} for the stderr drain, in as many {@code join}s as it
+     * takes: a single one can return before its timeout, and what the drain has not read by then is
+     * everything git said about a refusal — the whole of the message the caller is owed.
+     */
+    private static void awaitDrain(Thread drain) throws InterruptedException {
+        long deadline = System.nanoTime() + STDERR_DRAIN_WAIT.toNanos();
+        long left;
+        while (drain.isAlive() && (left = deadline - System.nanoTime()) > 0) {
+            drain.join(Duration.ofNanos(left));
         }
     }
 

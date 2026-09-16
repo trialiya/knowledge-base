@@ -119,6 +119,23 @@ class GitServiceGrepTest {
                 .containsExactly("a.txt");
     }
 
+    /**
+     * `color.ui = always` в конфиге хоста красит вывод и тогда, когда на него никто не смотрит
+     * терминалом: путь и номер строки приезжают в escape-последовательностях, и разбор не узнаёт ни
+     * одной строки — поиск, у которого есть совпадения, вернул бы пустоту. Поэтому цвет выключен в
+     * самой команде, а не оставлен на усмотрение конфига.
+     */
+    @Test
+    void colourForcedOnInTheConfigDoesNotReachTheParser() {
+        writeFile("a.txt", "needle\n");
+        commitAll("first");
+        runGit("config", "color.ui", "always");
+
+        assertThat(service.grepContent("needle", null, false, 0, 50, false))
+                .extracting(GitGrepMatch::path, GitGrepMatch::text)
+                .containsExactly(tuple("a.txt", "needle"));
+    }
+
     @Test
     void anUnknownRevisionIsTheCallersMistake() {
         writeFile("a.txt", "needle\n");

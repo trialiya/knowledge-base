@@ -17,8 +17,8 @@ final class GitGrep {
     private GitGrep() {}
 
     /**
-     * One {@code git grep} invocation: {@code git grep -n -i --heading --break [--untracked
-     * --no-exclude-standard] [--fixed-strings|-E] [-C ctx] -e <pattern> [<commit>] [--
+     * One {@code git grep} invocation: {@code git grep -n -i --heading --break --no-color
+     * [--untracked --no-exclude-standard] [--fixed-strings|-E] [-C ctx] -e <pattern> [<commit>] [--
      * <pathspec>…]}.
      *
      * <p>{@code --heading --break} is what makes the output parseable at all. In git's default
@@ -28,6 +28,10 @@ final class GitGrep {
      * With a heading the path is printed once, on a line of its own, and the lines under it carry
      * nothing but {@code <linenum><sep><text>}; {@code --break} puts a blank line before each
      * heading, so a heading is never mistaken for a line of a file whose name starts with digits.
+     *
+     * <p>{@code --no-color} for the same reason: {@code color.ui = always} in the host's gitconfig
+     * paints the output even when nobody is looking at a terminal, and every line then arrives
+     * wrapped in escape sequences that fit none of the shapes above.
      *
      * @param roots when non-null, the run covers untracked and {@code .gitignore}d files under
      *     these directories instead of the index
@@ -44,7 +48,8 @@ final class GitGrep {
             @Nullable List<String> roots,
             @Nullable String commit) {
         List<String> args =
-                new ArrayList<>(List.of("git", "grep", "-n", "-i", "--heading", "--break"));
+                new ArrayList<>(
+                        List.of("git", "grep", "-n", "-i", "--heading", "--break", "--no-color"));
         if (roots != null) {
             args.add("--untracked");
             args.add("--no-exclude-standard");

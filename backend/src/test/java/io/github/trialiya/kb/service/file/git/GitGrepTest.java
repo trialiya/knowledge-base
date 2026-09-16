@@ -68,6 +68,17 @@ class GitGrepTest {
         assertThat(args).containsSubsequence("grep", "--heading", "--break");
     }
 
+    /**
+     * Цвет выключен в самой команде: `color.ui = always` в конфиге хоста раскрасил бы вывод и в
+     * трубу, и разбор не узнал бы ни одной строки.
+     */
+    @Test
+    void colourIsTurnedOffInTheCommandRatherThanLeftToTheConfig() {
+        List<String> args = GitGrep.args("needle", null, false, 0, null, null);
+
+        assertThat(args).contains("--no-color");
+    }
+
     /** Вывод по коммиту теряет префикс {@code <sha>:}; остальные строки остаются как есть. */
     @Test
     void theCommitPrefixIsStrippedFromEveryHeading() {
