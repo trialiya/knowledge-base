@@ -272,7 +272,7 @@ const ChatFeedWithFind = ({ messages, activeIndex = chatFind.activeIndex, active
   );
 };
 
-const REGISTRY = [
+const LIGHT = [
   // ── Чат ──
   {
     id: 'chatHeader.js#activeChatProps',
@@ -737,96 +737,20 @@ const REGISTRY = [
     ),
   },
   { id: 'syncDiff.js#importLog', frame: 'settings', render: (p) => <SyncLog log={p} running={false} /> },
-
-  // ── Тёмная тема ──
-  // Не второй прогон всего подряд: удвоенный набор эталонов дорог, а большинство
-  // экранов отличаются в ней ровно на подстановку токенов. Здесь шесть мест, где
-  // тёмная тема НЕ «светлая наоборот» и ошибиться есть чем: шкала серых чистая
-  // вместо подкрашенной, акцент синий вместо фиолетового, слои идут в обратную
-  // сторону, подсветка найденного становится прозрачной, а тени — чёрными.
-  // Роль, забытую в одной из тем, ловит styles/tokens.test.js; здесь смотрят то,
-  // что тестом не проверить, — как выбранные оттенки ложатся друг на друга.
-  //
-  // Кейсы нарочно повторяют светлые: расхождение между парой снимков читается
-  // как разница тем, а не как разница сценариев.
-  {
-    // Модалка целиком: тени, диффы, блок кода, бейджи статуса — в одном кадре.
-    id: 'toolCallDetail.js#commitDiffCall@dark',
-    frame: 'bare',
-    theme: 'dark',
-    api: (p) => ({ '/api/chats/': p }),
-    render: (p) => (
-      <ToolCallDetailModal
-        conversationId="1"
-        callId="call-1"
-        tc={{ name: p.name, status: p.status, resultMeta: p.resultMeta }}
-        onClose={noop}
-      />
-    ),
-  },
-  {
-    // Подложка «успеха» на большой площади — та, что в светлой теме однажды уже
-    // перезеленила ленту.
-    id: 'toolCallNotifications.js#toolCallSegments@dark',
-    frame: 'center',
-    theme: 'dark',
-    render: (p) => <MessageList conversationId="chat-1" messages={p} />,
-  },
-  {
-    // Метка «вне git» рядом с путём файла: нейтральная посреди жёлтых подсветок
-    // совпадений — ради этого соседства кейс и снимается. Пожелтеет (амбер в
-    // палитре несёт и «предупреждение», и «найденное») — эталон разойдётся.
-    id: 'toolCallDetail.js#grepCall@dark',
-    frame: 'bare',
-    theme: 'dark',
-    viewport: [1440, 1000],
-    api: (p) => ({ '/api/chats/': p }),
-    render: (p) => (
-      <ToolCallDetailModal
-        conversationId="1"
-        callId="call-1"
-        tc={{ name: p.name, status: p.status, resultMeta: p.resultMeta }}
-        onClose={noop}
-      />
-    ),
-  },
-  {
-    // Подсветка найденного: в тёмной теме она прозрачная, потому что текст под
-    // ней остаётся светлым, а сплошная жёлтая сделала бы его нечитаемым.
-    id: 'searchResults.js#resultCards@dark',
-    frame: 'center',
-    theme: 'dark',
-    render: (p) => <ResultCards {...p} />,
-  },
-  {
-    // Формы: поля ввода, их границы и состояния — самое мелкое место темы.
-    id: 'aiConfig.js#defaultAiConfig@dark',
-    frame: 'center',
-    theme: 'dark',
-    viewport: [1440, 1560],
-    api: (p) => ({ '/api/settings/ai-config': p }),
-    render: () => <ModelsSettings />,
-  },
-  {
-    // Диалог поверх затемнения: вуаль в тёмной теме гуще, иначе окно с ним
-    // сливается. Плюс git-хром и цвета статусов файлов.
-    id: 'chatRepo.js#commitDialogDirty@dark',
-    frame: 'bare',
-    theme: 'dark',
-    api: { '/api/git/status': chatRepo.commitDialogPatch },
-    render: (p) => <CommitDialog {...p} />,
-  },
-  {
-    // Три статусных бейджа рядом: успех, предупреждение и ошибка на своих
-    // подложках — в тёмной теме они глухие, а не бледные.
-    id: 'syncDiff.js#mixedDiffEntries@dark',
-    frame: 'settings',
-    theme: 'dark',
-    render: (p) => (
-      <SyncDiffList entries={p} selected={new Set()} onToggle={noop} showUnchanged={false} onShowUnchanged={noop} />
-    ),
-  },
 ];
+
+// Тёмный двойник каждого светлого кейса: тот же компонент, та же фикстура, те же
+// шаги — меняется только тема. Пара снимков расходится ровно на её вклад, а не на
+// разницу сценариев, и `<кейс>-dark.png` рядом с `<кейс>.png` читается как «вот
+// то же самое в тёмной».
+//
+// Двойник заводится всем экранам, а не избранным: список «где тёмная тема важна»
+// ветшает молча — новый экран в него просто не попадает, и никто об этом не
+// узнает. Платим вдвое большим набором эталонов и вдвое более долгим прогоном.
+// Взамен покрыто то, чего не видит styles/tokens.test.js: тот ловит роль,
+// забытую в одной из тем, но не то, как выбранные оттенки ложатся друг на друга —
+// светлый текст на бледной заливке проходит любой тест на роли и не читается.
+const REGISTRY = [...LIGHT, ...LIGHT.map((entry) => ({ ...entry, id: `${entry.id}@dark`, theme: 'dark' }))];
 
 const MODULES = {
   'aiConfig.js': aiConfig,
