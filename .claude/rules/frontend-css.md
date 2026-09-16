@@ -14,8 +14,18 @@ paths:
   inside one — a dark theme wants a different radius and opacity, not the same
   black. `styles/tokens.test.js` enforces all of it, and also fails on a role or
   a palette entry nobody asks for. Need a shade the dictionary has no word for?
-  Add the role next to its neighbours, with a comment saying what it marks —
-  don't inline the value.
+  Add the role next to its neighbours **in both `theme-light.css` and
+  `theme-dark.css`**, with a comment saying what it marks — don't inline the
+  value. A role declared in only one theme does not fail loudly: the light theme
+  sits on a bare `:root`, so a role missing from the dark one silently stays
+  light, and you find it by eye on the one screen you happened to open.
+
+  The dark theme is not the light one inverted. Its neutrals are a separate,
+  untinted ramp (`--p-gray-*`) and its accent is blue, because the light theme's
+  violet tint gathers into a lilac cast across large dark surfaces. Raised
+  surfaces go *lighter* there, not darker; status fills go paler and their
+  surfaces go muted; shadows are black, since a coloured shadow on a dark
+  background reads as a glow.
 - **There is no global `box-sizing: border-box`** in this project. Any rule that
   sizes a box (`min-height`, `height`, `width`) must set `box-sizing` itself, or
   padding and border silently add to it — and `<button>`s behave differently from

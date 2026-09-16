@@ -1,0 +1,185 @@
+/*
+ * Тёмная тема: те же роли, что и в theme-light.css, другими оттенками.
+ *
+ * Список имён обязан совпадать со светлой темой — за этим следит
+ * styles/tokens.test.js. Роль, забытая здесь, молча провалится в светлое
+ * значение с `:root` и останется светлым пятном на тёмном экране.
+ *
+ * Тема выбирается атрибутом на корне (useTheme.js), а не медиазапросом:
+ * системное предпочтение разрешается в JS, поэтому CSS знает ровно два
+ * состояния и ни одно правило не пишется дважды. Светлая тема живёт на голом
+ * `:root` и потому остаётся запасным вариантом, если скрипт не отработал.
+ *
+ * Три места, где тёмная тема — не «светлая наоборот»:
+ *
+ * 1. Шкала нейтральных здесь ЧИСТАЯ (--p-gray-*), а не подкрашенная в сторону
+ *    акцента, как в светлой. Фиолетовый подмес, незаметный на белом, на больших
+ *    тёмных плоскостях собирается в сиреневый налёт на всём экране. Серый,
+ *    чёрный и белый — и по той же причине акцент здесь синий: осветлённый
+ *    фиолетовый вернул бы тот же оттенок кнопками и выделением.
+ * 2. Слои идут в другую сторону. На бумаге поднятая плоскость ТЕМНЕЕ фона
+ *    (тень, вдавленность), на тёмном экране — СВЕТЛЕЕ (к ней ближе свет).
+ *    Поэтому `--kb-surface-muted` здесь светлее `--kb-surface`, а не темнее.
+ * 3. Насыщенный цвет на тёмном фоне жжёт. Статусы берутся светлее и бледнее
+ *    своих светлых значений, а их подложки — глухими, почти чёрными: тот же
+ *    `#e6f4ea` под «добавлено» на тёмном экране светился бы фонарём.
+ */
+:root[data-theme='dark'] {
+  /* Родное оформление браузера идёт за `color-scheme`, а не за нашими ролями:
+     без этой строки полосы прокрутки, каретка, автозаполнение и выпадающий
+     список `<select>` остаются светлыми посреди тёмного экрана. */
+  color-scheme: dark;
+
+  /* ─── Плоскости ───────────────────────────────────────────────────────── */
+  --kb-surface: var(--p-gray-900);
+  --kb-surface-app: var(--p-gray-950);
+  --kb-surface-page: var(--p-gray-1000);
+  /* Утоплённое уходит вниз по светлоте — туда же, куда и фон приложения. */
+  --kb-surface-sunken: var(--p-gray-950);
+  /* А приглушённое и заметное поднимаются: см. пункт 2 в шапке. */
+  --kb-surface-muted: var(--p-gray-800);
+  --kb-surface-strong: var(--p-gray-700);
+
+  /* ─── Интерактивные состояния ─────────────────────────────────────────── */
+  /* Полупрозрачным белым, а не чёрным: затемнять то, что и так тёмное, нечем. */
+  --kb-surface-hover: rgba(var(--p-white-rgb), 0.06);
+  --kb-surface-active: rgba(var(--p-white-rgb), 0.1);
+
+  /* ─── Акцент ──────────────────────────────────────────────────────────── */
+  --kb-accent: var(--p-sky-400);
+  /* Наводка высветляет, а не затемняет: затемнение на тёмном не читается. */
+  --kb-accent-hover: var(--p-sky-300);
+  --kb-accent-surface: var(--p-sky-800);
+  --kb-accent-surface-subtle: var(--p-sky-900);
+  --kb-accent-wash: rgba(var(--p-sky-rgb), 0.1);
+  --kb-accent-wash-strong: rgba(var(--p-sky-rgb), 0.18);
+  --kb-accent-select-bg: rgba(var(--p-sky-rgb), 0.22);
+  --kb-accent-select-border: rgba(var(--p-sky-rgb), 0.65);
+  --kb-accent-select-bg-active: rgba(var(--p-sky-rgb), 0.34);
+  --kb-accent-select-border-active: rgba(var(--p-sky-rgb), 0.9);
+
+  /* ─── Текст ───────────────────────────────────────────────────────────── */
+  /* Та же лестница, прочитанная с другого конца шкалы. Верхняя ступень не
+     чисто белая: #fff на тёмном даёт ореол вокруг букв и режет глаз. */
+  --kb-text: var(--p-gray-50);
+  --kb-text-secondary: var(--p-gray-100);
+  --kb-text-tertiary: var(--p-gray-200);
+  --kb-text-muted: var(--p-gray-300);
+  --kb-text-faint: var(--p-gray-400);
+  --kb-text-placeholder: var(--p-gray-500);
+  --kb-text-disabled: var(--p-gray-600);
+  /* А вот текст поверх заливки здесь ТЁМНЫЙ, а не белый. Заливка — это акцент и
+     статусы, а они в тёмной теме взяты светлыми (иначе их не видно на тёмном
+     фоне, и они же служат цветом текста на глухих подложках). Белым по такой
+     заливке выходит 2:1 — нечитаемо; тёмным по ней же около 8:1. Тем же ходом
+     чинится подсказка: её фон — `--kb-text`, и в тёмной теме он почти белый. */
+  --kb-text-on-fill: var(--p-gray-1000);
+  --kb-link: var(--p-sky-300);
+
+  /* ─── Иконки ──────────────────────────────────────────────────────────── */
+  --kb-icon-faint: var(--p-gray-600);
+  --kb-icon-brand: var(--p-sky-400);
+  /* Золото читается на обоих фонах — единственный оттенок, общий у двух тем. */
+  --kb-icon-star: var(--p-gold);
+
+  /* ─── Границы ─────────────────────────────────────────────────────────── */
+  --kb-border: var(--p-gray-700);
+  --kb-border-light: var(--p-gray-800);
+  --kb-border-strong: var(--p-gray-600);
+  --kb-border-hover: var(--p-gray-500);
+
+  /* ─── Статусы ─────────────────────────────────────────────────────────── */
+  /* Текст и заливка здесь сходятся в один оттенок: на глухой подложке светлому
+     тону хватает контраста, и разводить их, как в светлой теме, незачем. */
+  --kb-success: var(--p-green-300);
+  --kb-surface-success: var(--p-green-900);
+  --kb-text-success: var(--p-green-300);
+
+  --kb-error: var(--p-red-300);
+  --kb-error-hover: var(--p-red-200);
+  --kb-surface-error: var(--p-red-900);
+  --kb-text-error: var(--p-red-300);
+  --kb-border-error: var(--p-red-800);
+  --kb-error-wash: rgba(var(--p-red-rgb), 0.22);
+
+  --kb-warning: var(--p-amber-300);
+  --kb-surface-warning: var(--p-amber-900);
+  --kb-text-warning: var(--p-amber-300);
+  --kb-border-warning: var(--p-amber-800);
+
+  --kb-surface-info: var(--p-blue-900);
+  --kb-text-info: var(--p-blue-200);
+  --kb-border-info: var(--p-blue-800);
+
+  /* ─── Diff ───────────────────────────────────────────────────────────── */
+  --kb-diff-add-surface: var(--p-green-900);
+  --kb-diff-add-text: var(--p-green-300);
+  --kb-diff-add-fill: var(--p-green-300);
+  --kb-diff-add-wash: rgba(var(--p-green-rgb), 0.28);
+  --kb-diff-del-surface: var(--p-red-900);
+  --kb-diff-del-text: var(--p-red-300);
+  --kb-diff-del-fill: var(--p-red-400);
+  --kb-diff-del-wash: rgba(var(--p-crimson-rgb), 0.28);
+  --kb-diff-hunk-surface: var(--p-blue-900);
+  --kb-diff-hunk-text: var(--p-gray-300);
+
+  /* ─── Найденное ───────────────────────────────────────────────────────── */
+  /* Подсветка прозрачная, а не сплошная: текст под ней остаётся светлым
+     (`mark.search-match` красит только фон), и жёлтая заливка сделала бы его
+     нечитаемым. Сквозь прозрачную видно тёмную подложку — контраст цел. */
+  --kb-match-bg: rgba(var(--p-amber-300-rgb), 0.32);
+  --kb-match-active-bg: rgba(var(--p-amber-300-rgb), 0.55);
+  --kb-match-soft-bg: rgba(var(--p-amber-rgb), 0.2);
+
+  /* ─── Файлы вне git ───────────────────────────────────────────────────── */
+  --kb-untracked-bg: rgba(var(--p-amber-300-rgb), 0.07);
+  --kb-untracked-bg-strong: rgba(var(--p-amber-300-rgb), 0.14);
+
+  /* ─── Реплики чата ───────────────────────────────────────────────────── */
+  --kb-bubble-user-bg: var(--p-blue-500);
+  --kb-bubble-user-text: var(--p-neutral-0);
+  --kb-bubble-ai-bg: var(--p-gray-800);
+  --kb-bubble-ai-text: var(--p-gray-100);
+
+  /* ─── Код ─────────────────────────────────────────────────────────────── */
+  /* Самая нижняя ступень шкалы: блок кода темнее плоскости, на которой лежит, —
+     как и в светлой теме, где он тёмный на белом. */
+  --kb-code-surface: var(--p-gray-1000);
+  --kb-code-text: var(--p-gray-100);
+  --kb-syntax-key: var(--p-ink-blue);
+  --kb-syntax-string: var(--p-ink-green);
+  --kb-syntax-number: var(--p-ink-peach);
+  --kb-syntax-boolean: var(--p-ink-mauve);
+  --kb-syntax-null: var(--p-ink-red);
+
+  /* ─── Поверх акцентной заливки ───────────────────────────────────────── */
+  /* Заливка под ними насыщенная в обеих темах, поэтому и осветление то же. */
+  --kb-on-accent-surface: rgba(var(--p-white-rgb), 0.16);
+  --kb-on-accent-surface-hover: rgba(var(--p-white-rgb), 0.28);
+  --kb-on-accent-border: rgba(var(--p-white-rgb), 0.4);
+  --kb-on-accent-inset: rgba(var(--p-white-rgb), 0.5);
+
+  /* ─── Затемнение под модалкой ────────────────────────────────────────── */
+  /* Гуще, чем в светлой теме: отделить окно от тёмного фона тонкой вуалью
+     нечем — разницы между ней и страницей под ней не останется. */
+  --kb-scrim: rgba(var(--p-black-rgb), 0.6);
+  --kb-scrim-soft: rgba(var(--p-black-rgb), 0.28);
+
+  /* ─── Тени ───────────────────────────────────────────────────────────── */
+  /* Цветная тень на тёмном фоне читается не как тень, а как свечение. Здесь они
+     чёрные и гуще, а поднятость плоскости доносит её собственная светлота. */
+  --kb-shadow-sm: 0 2px 6px rgba(var(--p-black-rgb), 0.35);
+  --kb-shadow-md: 0 8px 24px rgba(var(--p-black-rgb), 0.45);
+  --kb-shadow-dropdown: 0 12px 32px rgba(var(--p-black-rgb), 0.5);
+  --kb-shadow-popover: 0 8px 32px rgba(var(--p-black-rgb), 0.5);
+  --kb-shadow-modal: 0 16px 48px rgba(var(--p-black-rgb), 0.6);
+  --kb-shadow-overlay: 0 8px 32px rgba(var(--p-black-rgb), 0.6);
+  --kb-shadow-chip: 0 1px 2px rgba(var(--p-black-rgb), 0.5);
+  /* Свечение под акцентной кнопкой — единственное место, где цветная тень на
+     тёмном к месту: она и задумана как свет от самой кнопки. */
+  --kb-shadow-accent-glow: 0 4px 14px rgba(var(--p-sky-rgb), 0.35);
+  --kb-shadow-accent-btn: 0 2px 6px rgba(var(--p-sky-rgb), 0.4);
+  --kb-shadow-error-btn: 0 2px 6px rgba(var(--p-red-rgb), 0.45);
+  --kb-shadow-panel-left: 8px 0 24px rgba(var(--p-black-rgb), 0.5);
+  --kb-shadow-panel-right: -8px 0 24px rgba(var(--p-black-rgb), 0.5);
+}

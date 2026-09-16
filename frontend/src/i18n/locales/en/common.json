@@ -80,6 +80,12 @@
     "title": "Menu",
     "refreshDoc": "Refresh document",
     "language": "Language",
+    "theme": "Theme",
+    "themes": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
     "admin": "Admin panel",
     "settings": "Chat settings"
   },

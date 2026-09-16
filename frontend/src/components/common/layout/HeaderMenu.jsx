@@ -1,13 +1,28 @@
 import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconRefresh, IconCheck, IconChevron, IconDots, IconWorld, IconTool, IconSettings } from '@/icons/index';
+import {
+  IconRefresh,
+  IconCheck,
+  IconChevron,
+  IconDots,
+  IconWorld,
+  IconTool,
+  IconSettings,
+  IconSun,
+  IconMoon,
+  IconMonitor,
+} from '@/icons/index';
 import useDismissable from './useDismissable';
+import useTheme, { THEMES } from './useTheme';
 import './headerMenu.css';
 
 const LANGS = [
   { code: 'ru', label: 'Русский' },
   { code: 'en', label: 'English' },
 ];
+
+/** Иконка по выбору. У «как в системе» своя: она про источник, а не про цвет. */
+const THEME_ICONS = { system: IconMonitor, light: IconSun, dark: IconMoon };
 
 /**
  * Меню в правом верхнем углу шапки вкладок.
@@ -25,6 +40,8 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
   const ref = useRef(null);
   const close = useCallback(() => setOpen(false), []);
 
@@ -32,17 +49,20 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
 
   useDismissable(open, ref, close);
 
-  // Меню всегда открывается кнопкой, поэтому подменю языка достаточно свернуть
-  // здесь — закрыть его могут и клик снаружи, и Escape, а открыть только она.
+  // Меню всегда открывается кнопкой, поэтому подменю достаточно свернуть
+  // здесь — закрыть их могут и клик снаружи, и Escape, а открыть только она.
   const toggle = () => {
     setOpen((o) => !o);
     setLangOpen(false);
+    setThemeOpen(false);
   };
 
   const pickLang = (code) => {
     i18n.changeLanguage(code);
     close();
   };
+
+  const ThemeIcon = THEME_ICONS[theme];
 
   return (
     <div className="header-menu" ref={ref}>
@@ -72,6 +92,42 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
               </span>
               <span className="header-menu__label">{t('menu.refreshDoc')}</span>
             </button>
+          )}
+
+          <button
+            className="header-menu__item header-menu__item--toggle"
+            onClick={() => setThemeOpen((o) => !o)}
+            aria-expanded={themeOpen}
+          >
+            <span className="header-menu__icon">
+              <ThemeIcon size={16} />
+            </span>
+            <span className="header-menu__label">{t('menu.theme')}</span>
+            <span className="header-menu__meta">
+              {t(`menu.themes.${theme}`)}
+              <IconChevron open={themeOpen} />
+            </span>
+          </button>
+
+          {themeOpen && (
+            <div className="header-menu__sub">
+              {/* Меню не закрываем: тему выбирают глазами, и разница между «как в системе» и
+                  выбранной руками видна только на самом экране — под закрывшимся меню. */}
+              {THEMES.map((code) => (
+                <button
+                  key={code}
+                  className={`header-menu__subitem${theme === code ? ' header-menu__subitem--active' : ''}`}
+                  onClick={() => setTheme(code)}
+                >
+                  <span>{t(`menu.themes.${code}`)}</span>
+                  {theme === code && (
+                    <span className="header-menu__check">
+                      <IconCheck />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           )}
 
           <button
