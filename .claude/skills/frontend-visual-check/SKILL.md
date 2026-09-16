@@ -40,6 +40,13 @@ a case reference to a fixture that does not exist — fails the frontend tests
 rather than being noticed the day someone looks for the shot. Shots land in `harness/shots/` (git-ignored),
 one per case, and a case whose page logged a console error is reported `✗`.
 
+A case may also name the steps to take first — a click, a keypress, typed text,
+or `unhover`, which takes the pointer off what was just clicked. Reach for that
+last one whenever the shot is meant to prove a *state*: after a click the pointer
+stays on the control, and the shot would show it hovered instead. The shot itself
+waits for the running transitions to finish, so a fading border is caught settled
+rather than halfway.
+
 **Every case is shot twice**: the registry derives a `<case>@dark` twin of each
 entry, identical but for `data-theme`. You list a case once and get both themes;
 a screen never enters the dark theme later than the light one. Read a pair

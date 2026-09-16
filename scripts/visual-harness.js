@@ -407,6 +407,21 @@ async function main() {
       await page.waitForTimeout(50);
     }
     await page.waitForTimeout(200);
+    // Переход длится дольше последнего шага (0.15s у кнопок), и снимок ловил
+    // рамку на полпути: кадр расходился с эталоном на десятки пикселей по её
+    // кромке — то в одну сторону, то в другую. Ждём сами переходы, а не ещё
+    // одну угаданную паузу. Бесконечные анимации (спиннеры) пропускаем: они не
+    // кончаются никогда, а из кадра их убирает `animations: 'disabled'`.
+    await page
+      .evaluate(() =>
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+            .map((a) => a.finished.catch(() => {})),
+        ),
+      )
+      .catch(() => {});
 
     const name = `${id.replace(/[^\w.-]+/g, '-')}.png`;
     const file = path.join(outDir, name);

@@ -51,17 +51,19 @@ function fixtureRefs() {
       refs.push({ ref: inline[1].trim(), line: i + 1 });
       return;
     }
-    if (!/^\s*fixtures:\s*$/.test(line)) return;
+    const key = line.match(/^( *)fixtures:\s*$/);
+    if (!key) return;
+    // Список кончается по отступу, а не по «первой строке, которая не элемент»:
+    // элемент кейса (`- id: …`) тоже начинается с дефиса, и разбор по виду
+    // строки утащил бы в ссылки следующий кейс — стоит `fixtures` оказаться
+    // последним ключом. Пустая строка и комментарий внутри списка его не
+    // кончают: на них разбор терял бы хвост молча.
+    const inner = key[1].length + 2;
     for (let j = i + 1; j < lines.length; j += 1) {
-      const item = lines[j].match(/^\s*- (.+)$/);
-      // Пустая строка и комментарий список не заканчивают: оборвись разбор на
-      // них, хвост списка ушёл бы из-под обеих проверок молча — ровно то, ради
-      // чего этот файл и написан.
-      if (!item) {
-        if (/^\s*(#.*)?$/.test(lines[j])) continue;
-        break;
-      }
-      refs.push({ ref: item[1].trim(), line: j + 1 });
+      if (/^\s*(#.*)?$/.test(lines[j])) continue;
+      const item = lines[j].match(/^( *)- (.+)$/);
+      if (!item || item[1].length !== inner) break;
+      refs.push({ ref: item[2].trim(), line: j + 1 });
     }
   });
   return refs;
@@ -101,9 +103,20 @@ describe('реестр стенда', () => {
 });
 
 describe('реестр кейсов', () => {
-  it('ссылается на фикстуры в одной форме: <модуль>.js#<экспорт>', () => {
-    const odd = fixtureRefs().filter(({ ref }) => !/^(\.\/fixtures\/)?[\w.-]+\.js#\w+(@[\w-]+)*$/.test(ref));
-    expect(odd.map(at)).toEqual([]);
+  it('ссылается на фикстуры в одной форме: - ./fixtures/<модуль>.js#<экспорт>', () => {
+    // Форма ровно та, что описана в шапке cases.yaml, без поблажек: пока
+    // сторож принимал и скаляр после ключа, и ссылку без префикса, в файле
+    // сосуществовали три записи одного и того же — а разбирать их приходится
+    // всем, кто читает файл машиной.
+    const lines = readFileSync(join(HERE, 'cases.yaml'), 'utf8').split('\n');
+    const scalar = lines
+      .map((text, i) => ({ text, line: i + 1 }))
+      .filter(({ text }) => /^\s*fixtures:\s*\S/.test(text))
+      .map(({ text, line }) => `cases.yaml:${line} — ${text.trim()} (ссылки идут списком, а не после ключа)`);
+    const odd = fixtureRefs()
+      .filter(({ ref }) => !/^\.\/fixtures\/[\w.-]+\.js#\w+(@[\w-]+)*$/.test(ref))
+      .map(at);
+    expect([...scalar, ...odd]).toEqual([]);
   });
 
   it('называет ключ со ссылками одинаково во всех кейсах', () => {
