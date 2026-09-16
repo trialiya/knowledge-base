@@ -3,6 +3,7 @@ import { IconFileText } from '@/icons/index';
 import { filesUrl } from '@/navigation/urlScheme';
 import { highlightSubstring } from '@/components/common/search/highlightMatch';
 import ResultGroup from './ResultGroup';
+import '@/components/common/ui/gitChrome.css';
 
 /** Имя и каталог пути: имя несёт заголовок карточки, каталог — строку под ним. */
 function splitPath(path) {
@@ -41,9 +42,7 @@ const FileResults = ({ result, query, regex, rev, project, onOpenFile }) => {
           (dir || file.tracked === false) && (
             <>
               {dir && <span className="search-group__path">{dir}</span>}
-              {file.tracked === false && (
-                <span className="search-group__badge search-group__badge--untracked">{t('files.untracked')}</span>
-              )}
+              {file.tracked === false && <span className="git-untracked-badge">{t('files.untracked')}</span>}
             </>
           )
         }
