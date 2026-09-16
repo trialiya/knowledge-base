@@ -95,7 +95,7 @@
   height: 28px;
   border-radius: 6px;
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .icon-btn:hover {
   background: var(--kb-accent-surface);
@@ -167,4 +167,9 @@
 .icon-btn:disabled:hover {
   background: none;
   color: var(--kb-text-muted);
+}
+/* У значка в рамке заливка — не подсветка, а его собственный фон: снятая
+   вместе с подсветкой, она делает выключенную кнопку дыркой в своей же рамке. */
+.icon-btn--outline:disabled:hover {
+  background: var(--kb-surface);
 }

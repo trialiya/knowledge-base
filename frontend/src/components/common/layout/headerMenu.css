@@ -18,8 +18,10 @@
   border-width: 1.5px;
   border-radius: 50%;
 }
-/* Пока меню открыто, кнопка держит вид наведения: иначе не видно, чьё это меню. */
-.header-menu[data-open='true'] .icon-btn.header-menu__trigger {
+/* Пока меню открыто, кнопка держит вид наведения: иначе не видно, чьё это меню.
+   Признак берём из разметки (`aria-expanded` кнопка несёт и так), а не из
+   атрибута на обёртке — своего состояния у неё нет. */
+.icon-btn.header-menu__trigger[aria-expanded='true'] {
   border-color: var(--kb-accent);
   background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);

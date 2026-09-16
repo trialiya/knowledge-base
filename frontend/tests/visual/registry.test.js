@@ -54,7 +54,13 @@ function fixtureRefs() {
     if (!/^\s*fixtures:\s*$/.test(line)) return;
     for (let j = i + 1; j < lines.length; j += 1) {
       const item = lines[j].match(/^\s*- (.+)$/);
-      if (!item) break;
+      // Пустая строка и комментарий список не заканчивают: оборвись разбор на
+      // них, хвост списка ушёл бы из-под обеих проверок молча — ровно то, ради
+      // чего этот файл и написан.
+      if (!item) {
+        if (/^\s*(#.*)?$/.test(lines[j])) continue;
+        break;
+      }
       refs.push({ ref: item[1].trim(), line: j + 1 });
     }
   });

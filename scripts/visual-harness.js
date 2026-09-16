@@ -50,7 +50,8 @@
  * Case ids are the `fixtures:` references from frontend/tests/visual/cases.yaml
  * (`<module>#<export>`, plus `@variant` where one fixture is drawn by more than
  * one component); the opt-in list is harness/registry.jsx, where a case may also
- * name the steps to take before the shot (click, keypress, typing) and the
+ * name the steps to take before the shot (click, keypress, typing, taking the
+ * pointer off what was clicked) and the
  * server answers to hand the component. Run with no ids to shoot them all — the
  * summary line per case reports the console errors the page produced, which is
  * half of what the run is for.
@@ -395,9 +396,11 @@ async function main() {
       // nothing is loading any more, the element is either there or it is not.
       const run = step.click
         ? page.click(step.click, { timeout: 2000 })
-        : step.press
-          ? page.keyboard.press(step.press)
-          : page.keyboard.type(step.type);
+        : step.unhover
+          ? page.mouse.move(0, 0)
+          : step.press
+            ? page.keyboard.press(step.press)
+            : page.keyboard.type(step.type);
       await run.catch((e) => problems.push(`${JSON.stringify(step)}: ${e.message}`));
       // Между шагами — кадр: клик открывает меню, а следующий шаг метит в то,
       // чего до этого кадра в DOM ещё нет.
