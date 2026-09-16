@@ -1316,9 +1316,9 @@ public class GitService {
      * answer is the tracked changes alone — exactly what the next commit will carry, and nothing
      * about the {@code allow-globs} area that will stay outside it whatever happens.
      *
-     * <p>Not a filter over the result but a question never asked: the untracked half costs a walk
-     * of the admitted roots and a line count per file, and a caller that will drop it should not
-     * pay for it.
+     * <p>Not a filter over the result but work never done: each admitted file is read to count its
+     * lines, and with {@code includePatch} its whole content becomes the patch. The status scan
+     * that names them is shared with the tracked half and happens either way.
      *
      * @param includeUntracked also list the untracked files this project's {@code allow-globs}
      *     admit, under status {@code U}

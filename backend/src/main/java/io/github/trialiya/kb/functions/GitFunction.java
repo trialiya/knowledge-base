@@ -292,9 +292,13 @@ public class GitFunction {
     // ── File outline ──────────────────────────────────────────────────────────
 
     /**
-     * Returns a structural outline (classes, methods, functions, ...) of a tracked source file
-     * without its full text. Lets the model map a large file cheaply, then read only the relevant
-     * lines via {@link #getFileContent}.
+     * Returns a structural outline (classes, methods, functions, ...) of a source file without its
+     * full text. Lets the model map a large file cheaply, then read only the relevant lines via
+     * {@link #getFileContent}.
+     *
+     * <p>Reaches the same files {@link #getFileContent} does — the untracked ones a project's
+     * {@code allow-globs} admit included — and the outline's {@code tracked} field says which it
+     * answered about.
      *
      * @param filePath path relative to repo root
      * @return outline with symbols and their line ranges
