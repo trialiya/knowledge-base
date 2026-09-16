@@ -21,7 +21,7 @@ spotless {
 }
 
 group = 'io.github.trialiya.kb'
-version = '1.0.0-RC3'
+version = '1.0.0'
 
 repositories {
     mavenCentral()
