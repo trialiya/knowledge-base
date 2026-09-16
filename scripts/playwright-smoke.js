@@ -123,6 +123,30 @@ async function main() {
   backend.stdout.on('data', (d) => process.stdout.write(`[backend] ${d}`));
   backend.stderr.on('data', (d) => process.stderr.write(`[backend] ${d}`));
 
+  // run.sh execs the JVM, so this signal reaches the app itself and the `finally`
+  // below is enough for every ordinary exit. It is not enough when Node dies
+  // without unwinding — an async callback that rejects on its own (a page.route
+  // handler is the usual way an ad hoc copy of this script grows one), or a
+  // signal from elsewhere. The JVM left behind keeps port 8080 and the smoke
+  // database open with AUTO_SERVER, and the next run fails on seeding instead of
+  // on the thing it was checking.
+  const stopBackend = () => {
+    if (!backend.killed) backend.kill('SIGTERM');
+  };
+  const stopAndDie = (err) => {
+    stopBackend();
+    console.error(err);
+    process.exit(1);
+  };
+  process.on('uncaughtException', stopAndDie);
+  process.on('unhandledRejection', stopAndDie);
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => {
+      stopBackend();
+      process.exit(130);
+    });
+  }
+
   try {
     await waitForHealth();
 
@@ -183,7 +207,7 @@ async function main() {
       await browser.close();
     }
   } finally {
-    backend.kill('SIGTERM');
+    stopBackend();
   }
 }
 
