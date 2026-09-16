@@ -440,12 +440,7 @@ public class GitFunction {
                                     "Include unified diff for changed files (false=list only, true=includes patch, default false).",
                             required = false)
                     @Nullable Boolean includePatch,
-            @ToolParam(
-                            description =
-                                    "Also list the untracked files the project's allow-globs admit,"
-                                            + " under status U (false=tracked changes only, i.e."
-                                            + " what the next commit will carry, default false).",
-                            required = false)
+            @ToolParam(description = "Include untracked files (default false).", required = false)
                     @Nullable Boolean includeUntracked,
             @ToolParam(
                             description =
