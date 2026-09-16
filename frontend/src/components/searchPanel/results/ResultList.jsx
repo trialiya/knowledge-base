@@ -24,13 +24,25 @@ function summarize(scope, data) {
   return { total: data.total, groups: data.chats.length };
 }
 
-/** «Идёт поиск» словами и волчком: одно и то же и до первой выдачи, и поверх неё. */
-const Searching = ({ className }) => {
+/**
+ * «Идёт поиск» словами и волчком.
+ *
+ * Живой регион (`role="status"`) сидит в разметке ВСЕГДА и пустеет, когда поиск
+ * кончился: скринридер объявляет изменение текста внутри уже существующего
+ * региона, а регион, появившийся вместе со своим текстом, чаще всего не
+ * объявляется вовсе (тот же приём и по той же причине — в `CommandHint`).
+ * Поэтому же он стоит снаружи тела выдачи: внутри `inert` его не объявили бы.
+ */
+const Searching = ({ className, busy }) => {
   const { t } = useTranslation('search');
   return (
     <p className={className} role="status">
-      <span className="search-spinner" />
-      {t('empty.searching')}
+      {busy && (
+        <>
+          <span className="search-spinner" />
+          {t('empty.searching')}
+        </>
+      )}
     </p>
   );
 };
@@ -52,29 +64,26 @@ const ResultList = ({ scope, query, loading, entry, regex, rev, project, onOpenF
   const { t } = useTranslation('search');
 
   if (!query) return <p className="search-results__hint">{t('empty.noQuery')}</p>;
-  if (!entry) return <Searching className="search-results__hint search-results__hint--busy" />;
-  // Ответ без данных и без отказа — состояние, которого useAnswer не создаёт; на
-  // экране это всё тот же незакончившийся поиск.
-  if (!entry.data && !entry.error) return <Searching className="search-results__hint search-results__hint--busy" />;
+  // До первого ответа объявлять нечего и некуда: центр целиком и есть эта
+  // подпись, и появляется она вместе со всем разделом. Пустое состояние без
+  // данных и без отказа useAnswer не создаёт — на экране это тот же поиск.
+  if (!entry || (!entry.data && !entry.error))
+    return <Searching className="search-results__hint search-results__hint--busy" busy />;
 
   const data = entry.data;
   const { total, groups } = summarize(scope, data);
 
   return (
     <div className={`search-results${loading ? ' search-results--stale' : ''}`}>
-      {(data || loading) && (
-        <div className="search-results__head">
-          {data && (
-            <>
-              <span className="search-results__count">{t('head.matches', { count: total })}</span>
-              <span className="search-results__in">{t(`head.in.${scope}`, { count: groups })}</span>
-            </>
-          )}
-          {/* Волчок стоит СНАРУЖИ устаревшего тела: внутри него его не объявили бы
-              вовсе — inert прячет тело от скринридера целиком. */}
-          {loading && <Searching className="search-results__pending" />}
-        </div>
-      )}
+      <div className="search-results__head">
+        {data && (
+          <>
+            <span className="search-results__count">{t('head.matches', { count: total })}</span>
+            <span className="search-results__in">{t(`head.in.${scope}`, { count: groups })}</span>
+          </>
+        )}
+        <Searching className="search-results__pending" busy={loading} />
+      </div>
 
       {/* Ответ прежних фильтров — и выдача, и отказ по ним — на время нового поиска
           inert: погашенное гасит только для глаз, а ссылки карточек остаются в

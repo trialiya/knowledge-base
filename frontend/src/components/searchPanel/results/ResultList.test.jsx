@@ -110,6 +110,14 @@ test('отказ по прежним фильтрам, пока идёт нов�
   expect(document.querySelector('.search-results--stale')).toBeInTheDocument();
 });
 
+test('живой регион стоит в разметке и пустым: иначе о начале поиска не объявят', () => {
+  // Скринридер объявляет смену текста внутри уже существующего role="status";
+  // регион, появившийся вместе со своим текстом, чаще всего молчит.
+  renderFiles();
+
+  expect(screen.getByRole('status')).toBeEmptyDOMElement();
+});
+
 test('первый поиск по запросу говорит, что он идёт', () => {
   renderFiles({ entry: null, loading: true });
 
