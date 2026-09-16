@@ -92,7 +92,21 @@ test('пока идёт новый поиск, прежняя выдача по�
   const status = screen.getByRole('status');
   expect(status).toHaveTextContent('empty.searching');
   expect(status.querySelector('.search-spinner')).toBeInTheDocument();
-  expect(document.querySelector('.search-results')).toHaveAttribute('aria-busy', 'true');
+  const body = document.querySelector('.search-results__body');
+  expect(body).toHaveAttribute('aria-busy', 'true');
+  expect(body).toHaveAttribute('inert');
+  expect(document.querySelector('.search-results--stale')).toBeInTheDocument();
+  // Подпись — снаружи погашенного тела: внутри inert её не объявили бы вовсе.
+  expect(body.contains(status)).toBe(false);
+});
+
+test('отказ по прежним фильтрам, пока идёт новый поиск, помечен так же', () => {
+  // Битую регулярку исправили — 400 на экране всё ещё от неё, и без пометки он
+  // читается как ответ на исправленную.
+  renderFiles({ entry: { data: null, error: { status: 400 } }, loading: true });
+
+  expect(screen.getByRole('status')).toHaveTextContent('empty.searching');
+  expect(screen.getByText('error.badFilter').closest('.search-results__body')).toHaveAttribute('inert');
   expect(document.querySelector('.search-results--stale')).toBeInTheDocument();
 });
 

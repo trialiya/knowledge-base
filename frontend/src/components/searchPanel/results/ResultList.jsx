@@ -44,49 +44,70 @@ const Searching = ({ className }) => {
  *
  * Но и молча оставлять прежнее нельзя: сменивший репозиторий видит выдачу,
  * которая к нему уже не относится, и без пометки читает её как ответ. Поэтому
- * устаревшая выдача гаснет и перестаёт нажиматься — ссылки в ней ведут в
- * репозиторий и ревизию, которые фильтры уже сменили, — а рядом со счётчиком
- * крутится волчок.
+ * устаревшая выдача гаснет и перестаёт нажиматься, а рядом со счётчиком крутится
+ * волчок. Так же показан и устаревший отказ: битую регулярку исправили, а 400 от
+ * неё на экране — тот же прежний ответ, и молчать о нём нельзя тем более.
  */
 const ResultList = ({ scope, query, loading, entry, regex, rev, project, onOpenFile, onOpenDoc, onOpenChat }) => {
   const { t } = useTranslation('search');
 
   if (!query) return <p className="search-results__hint">{t('empty.noQuery')}</p>;
   if (!entry) return <Searching className="search-results__hint search-results__hint--busy" />;
-  if (entry.error) return <p className="search-results__error">{errorMessage(t, entry.error)}</p>;
-  if (!entry.data) return <Searching className="search-results__hint search-results__hint--busy" />;
+  // Ответ без данных и без отказа — состояние, которого useAnswer не создаёт; на
+  // экране это всё тот же незакончившийся поиск.
+  if (!entry.data && !entry.error) return <Searching className="search-results__hint search-results__hint--busy" />;
 
   const data = entry.data;
   const { total, groups } = summarize(scope, data);
 
   return (
-    <div className={`search-results${loading ? ' search-results--stale' : ''}`} aria-busy={loading}>
-      <div className="search-results__head">
-        <span className="search-results__count">{t('head.matches', { count: total })}</span>
-        <span className="search-results__in">{t(`head.in.${scope}`, { count: groups })}</span>
-        {loading && <Searching className="search-results__pending" />}
-      </div>
-
-      {data.truncated && <p className="search-results__note">{t(`truncated.${scope}`)}</p>}
-
-      {groups === 0 ? (
-        <p className="search-results__hint">{t('empty.noResults')}</p>
-      ) : (
-        <div className="search-results__list">
-          {scope === SEARCH_SCOPE.FILES && (
-            <FileResults
-              result={data}
-              query={query}
-              regex={regex}
-              rev={rev}
-              project={project}
-              onOpenFile={onOpenFile}
-            />
+    <div className={`search-results${loading ? ' search-results--stale' : ''}`}>
+      {(data || loading) && (
+        <div className="search-results__head">
+          {data && (
+            <>
+              <span className="search-results__count">{t('head.matches', { count: total })}</span>
+              <span className="search-results__in">{t(`head.in.${scope}`, { count: groups })}</span>
+            </>
           )}
-          {scope === SEARCH_SCOPE.DOCS && <DocResults result={data} query={query} onOpenDoc={onOpenDoc} />}
-          {scope === SEARCH_SCOPE.CHATS && <ChatResults result={data} query={query} onOpenChat={onOpenChat} />}
+          {/* Волчок стоит СНАРУЖИ устаревшего тела: внутри него его не объявили бы
+              вовсе — inert прячет тело от скринридера целиком. */}
+          {loading && <Searching className="search-results__pending" />}
         </div>
       )}
+
+      {/* Ответ прежних фильтров — и выдача, и отказ по ним — на время нового поиска
+          inert: погашенное гасит только для глаз, а ссылки карточек остаются в
+          обходе табом, и Enter уводил бы в репозиторий и ревизию, которых в
+          фильтрах уже нет. */}
+      <div className="search-results__body" aria-busy={loading} inert={loading || undefined}>
+        {entry.error ? (
+          <p className="search-results__error">{errorMessage(t, entry.error)}</p>
+        ) : (
+          <>
+            {data.truncated && <p className="search-results__note">{t(`truncated.${scope}`)}</p>}
+
+            {groups === 0 ? (
+              <p className="search-results__hint">{t('empty.noResults')}</p>
+            ) : (
+              <div className="search-results__list">
+                {scope === SEARCH_SCOPE.FILES && (
+                  <FileResults
+                    result={data}
+                    query={query}
+                    regex={regex}
+                    rev={rev}
+                    project={project}
+                    onOpenFile={onOpenFile}
+                  />
+                )}
+                {scope === SEARCH_SCOPE.DOCS && <DocResults result={data} query={query} onOpenDoc={onOpenDoc} />}
+                {scope === SEARCH_SCOPE.CHATS && <ChatResults result={data} query={query} onOpenChat={onOpenChat} />}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };
