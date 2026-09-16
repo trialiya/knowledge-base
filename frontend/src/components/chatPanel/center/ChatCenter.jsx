@@ -162,7 +162,8 @@ const ChatCenter = ({
           onAttach={() => fileInputRef.current?.click()}
           staged={staged}
           onUnstage={onUnstage}
-          isEmpty={isChatEmpty && !loadingMessages}
+          isEmpty={isChatEmpty}
+          loadingMessages={loadingMessages}
           draftSignal={composerDraftSignal}
           active={isActive}
           chatId={chatId}
