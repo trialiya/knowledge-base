@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.file.git;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.support.TestProjects;
@@ -74,6 +75,65 @@ class GitServiceGrepTest {
                 service.grepContentAt("HEAD", "needle", "docs/*", false, 0, 50);
 
         assertThat(matches).extracting(GitGrepMatch::path).containsExactly("docs/A.md");
+    }
+
+    /**
+     * Имя файла с дефисами и цифрами — {@code 2024-01-15-notes.md}, {@code part-2} — в выводе git
+     * выглядит так же, как разделитель перед номером строки, и путь резался по первому попавшемуся
+     * дефису. Проверяется на настоящем git: ошибка была в том, как читается его вывод, и подменять
+     * этот вывод здесь значило бы проверять собственную догадку о нём.
+     */
+    @Test
+    void aPathWithHyphensAndDigitsSurvivesTheRoundTripThroughGit() {
+        writeFile("2024-01-15-notes.md", "alpha\nneedle\ngamma\n");
+        writeFile("docs/part-2", "needle\n");
+        commitAll("first");
+
+        assertThat(service.grepContent("needle", null, false, 0, 50, false))
+                .extracting(GitGrepMatch::path, GitGrepMatch::matchLine, GitGrepMatch::text)
+                .containsExactlyInAnyOrder(
+                        tuple("2024-01-15-notes.md", 2, "needle"),
+                        tuple("docs/part-2", 1, "needle"));
+
+        assertThat(service.grepContent("needle", null, false, 1, 50, false))
+                .extracting(GitGrepMatch::path, GitGrepMatch::matchLine, GitGrepMatch::text)
+                .containsExactlyInAnyOrder(
+                        tuple("2024-01-15-notes.md", 2, "-1-alpha\n:2:needle\n-3-gamma\n"),
+                        tuple("docs/part-2", 1, ":1:needle\n"));
+    }
+
+    /**
+     * Предупреждение git (здесь — битая строка в `.gitattributes`) идёт в stderr и в разбор вывода
+     * не попадает: путь теперь стоит отдельной строкой-заголовком, и посторонняя строка из другого
+     * потока заняла бы его место, а настоящий заголовок ушёл бы в мусор вместе со своими
+     * совпадениями. Сам поиск при этом успешен — предупреждение не отказ.
+     */
+    @Test
+    void aWarningGitPrintsWhileSearchingIsNotMistakenForAPath() {
+        writeFile("a.txt", "needle\n");
+        commitAll("first");
+        writeFile(".gitattributes", "*.txt =bad\n"); // имя атрибута пустое — git ругается и ищет
+
+        assertThat(service.grepContent("needle", null, false, 0, 50, false))
+                .extracting(GitGrepMatch::path)
+                .containsExactly("a.txt");
+    }
+
+    /**
+     * `color.ui = always` в конфиге хоста красит вывод и тогда, когда на него никто не смотрит
+     * терминалом: путь и номер строки приезжают в escape-последовательностях, и разбор не узнаёт ни
+     * одной строки — поиск, у которого есть совпадения, вернул бы пустоту. Поэтому цвет выключен в
+     * самой команде, а не оставлен на усмотрение конфига.
+     */
+    @Test
+    void colourForcedOnInTheConfigDoesNotReachTheParser() {
+        writeFile("a.txt", "needle\n");
+        commitAll("first");
+        runGit("config", "color.ui", "always");
+
+        assertThat(service.grepContent("needle", null, false, 0, 50, false))
+                .extracting(GitGrepMatch::path, GitGrepMatch::text)
+                .containsExactly(tuple("a.txt", "needle"));
     }
 
     @Test
