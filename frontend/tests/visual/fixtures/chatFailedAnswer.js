@@ -19,7 +19,10 @@ export const failedAnswer = [
     sender: 'ai',
     text: 'Не удалось получить ответ модели: превышено время ожидания (10 мин).',
     error: true,
-    retryMode: 'answer',
+    // RETRY_MODE.CONTINUE (constants/retryMode.js): вопрос сохранён, ответа нет
+    // ни одного. Фикстуры сюда ничего из src не импортируют, поэтому значение
+    // написано строкой — но взято оно оттуда, выдуманное кнопку бы не показало.
+    retryMode: 'continue',
   },
   {
     mid: 'm3',
