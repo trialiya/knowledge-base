@@ -14,6 +14,12 @@
 #   • Данные — только в fixtures/<компонент>.js именованными экспортами, и
 #     только статика: без Date.now(), Math.random(), реальных id из базы,
 #     живых токенов и персональных данных.
+#   • Ключ со ссылками на них один — `fixtures`, всегда списком, по ссылке в
+#     строке: `- ./fixtures/<модуль>.js#<экспорт>`. Кейс называет каждую
+#     фикстуру, которой пользуется, даже если про часть из них сказано только в
+#     notes, — по этим ссылкам кейс и запись стенда находят друг друга
+#     (harness/registry.jsx, сторож — tests/visual/registry.test.js). Кейсу,
+#     снятому целиком на живом бэкенде, ключ не нужен вовсе.
 #   • status: verified — наблюдалось в браузере; broken — воспроизведённый
 #     дефект (тогда ссылка на issue/строку); blocked — кейс описан, но прогнать
 #     нечем (нет данных, нужен недостижимый бэкенд/состояние).
@@ -331,7 +337,9 @@
     viewport: [1440, 900]
     auth: admin
     route: /chat/<id чата>?right=usage
-  fixtures: ./fixtures/chatUsage.js#measuredChat
+  fixtures:
+    - ./fixtures/chatUsage.js#measuredChat
+    - ./fixtures/chatUsage.js#subagentSpending
   expected:
     - Строки идут сверху вниз - Context, Системная часть, Input (Cache miss), Input (Cache hit), Cache write, Output, Total, Обращений к модели
     - 'Разбивка входа сходится: 17.7k + 63.4k = 81.1k, и вместе с Output 1.1k это ровно Total 82.2k — блок сверяется со счётом провайдера построчно'
@@ -362,7 +370,10 @@
     viewport: [1440, 900]
     auth: admin
     route: /chat/<id чата, в котором выполнялась команда /compact>
-  fixtures: ./fixtures/compactNotice.js#measured
+  fixtures:
+    - ./fixtures/compactNotice.js#measured
+    - ./fixtures/compactNotice.js#estimated
+    - ./fixtures/compactNotice.js#unmeasured
   expected:
     - 'Плашка остаётся разделителем в одну строку — не пузырём: сжатие это событие с чатом, а не реплика'
     - Строка экономии стоит между текстом «Контекст сжат…» и кнопкой «Подробнее» — тем же шрифтом и того же размера, что текст слева и ссылка справа
@@ -492,7 +503,10 @@
     viewport: [1440, 900]
     auth: admin
     route: /knowledge/doc/<id документа из фикстуры>?right=summary
-  fixtures: ./fixtures/detailPanel.js#documentWithContent
+  fixtures:
+    - ./fixtures/detailPanel.js#documentWithContent
+    - ./fixtures/detailPanel.js#documentWithSummary
+    - ./fixtures/detailPanel.js#folderWithChildren
   expected:
     - У документа справа три вкладки — «Info · Summary · Attachments»
     - Во вкладке «Summary» одна секция «AI SUMMARY»; блока «About» с текстом документа больше нет
@@ -568,7 +582,9 @@
     auth: admin
     route: /settings
     click: список групп «Настройки» → «Инструменты»
-  fixtures: ./fixtures/aiConfig.js#defaultAiConfig
+  fixtures:
+    - ./fixtures/aiConfig.js#defaultAiConfig
+    - ./fixtures/aiConfig.js#editEnabledButReadOnlyTree
   expected:
     - 'Секция «Режимы ассистента»: три строки — analytic/developer/tester с русскими лейблами справа'
     - 'Правка файлов: две строки — «Разрешено в конфиге» и «Инструменты выданы модели», обе бейджем «да»/«нет», а не «включён»'
@@ -670,7 +686,10 @@
     route: /admin
     profile: h2
     click: «Семантический индекс» и «Массовые операции» — сравнить строки между собой
-  fixtures: ./fixtures/operationRow.js#reindexOperation,exportOperation,operationStates
+  fixtures:
+    - ./fixtures/operationRow.js#reindexOperation
+    - ./fixtures/operationRow.js#exportOperation
+    - ./fixtures/operationRow.js#operationStates
   expected:
     - idle — иконка, название, пояснение и кнопка запуска в один ряд, результата под текстом нет
     - done — под пояснением бейдж «готово» и текст в один ряд, отступ сверху 10px
@@ -706,7 +725,11 @@
       Дерево из sample-data.sql выгружено в KB_DOCUMENTS_EXPORT_PATH, затем в
       папке руками: дописан хвост в один документ, создан novyi-dokument.md
       рядом с ним и целая папка novaya-papka/ с rebenok.md внутри.
-  fixtures: ./fixtures/syncDiff.js#mixedDiffEntries,mixedDiffSummary,missingEntry,importSummary
+  fixtures:
+    - ./fixtures/syncDiff.js#mixedDiffEntries
+    - ./fixtures/syncDiff.js#mixedDiffSummary
+    - ./fixtures/syncDiff.js#missingEntry
+    - ./fixtures/syncDiff.js#importSummary
   expected:
     - Две секции — «Операции» (экспорт) и «Импорт из папки экспорта» (сравнение, список, импорт)
     - 'Под строкой сравнения бейдж «готово» и сводка: «Новых: 3 · изменённых: 1 · отсутствующих: 0 · без изменений: 2»'
@@ -771,7 +794,10 @@
       ссылкой [beta](beta.md) и сам beta.md, создана папка novaya-papka/ с
       rebenok.md, а один документ превращён в директорию — единственная
       правка, которую импорт отказывается применять.
-  fixtures: ./fixtures/syncDiff.js#importLog,importLogLines,importWithFailureSummary
+  fixtures:
+    - ./fixtures/syncDiff.js#importLog
+    - ./fixtures/syncDiff.js#importLogLines
+    - ./fixtures/syncDiff.js#importWithFailureSummary
   expected:
     - 'Журнал стоит под строкой импорта, заголовок «Что сделал импорт (узлов: 8)»'
     - Список выровнен по левому краю со списком различий выше (оба с отступом 16px от края строки-операции)
@@ -1154,7 +1180,10 @@
       allTypesPhrase, legacyPhrase и edgeCasesPhrase из фикстуры. Поиск по
       файлам и коммитам идёт по настоящему репозиторию (PROJECT_PATH=.),
       документы — из засеянной базы.
-  fixtures: ./fixtures/phraseFill.js#allTypesPhrase
+  fixtures:
+    - ./fixtures/phraseFill.js#allTypesPhrase
+    - ./fixtures/phraseFill.js#legacyPhrase
+    - ./fixtures/phraseFill.js#edgeCasesPhrase
   expected:
     - Заголовок диалога — название фразы из библиотеки; без него встаёт общее «Заполните значения»
     - На каждый плейсхолдер одно поле с подписью и бейджем типа (файл · коммит · документ · число · строка · да/нет)
@@ -1218,7 +1247,9 @@
     profile: h2
     click: список групп «Настройки» → «Инструменты» → выпадашка в шапке секции
     data: Бэкенд поднят с PROJECT_PATH=. (сам репозиторий), правка файлов и скрипты выключены
-  fixtures: ./fixtures/toolCatalog.js#builtinTools
+  fixtures:
+    - ./fixtures/toolCatalog.js#builtinTools
+    - ./fixtures/toolCatalog.js#withMcpTool
   expected:
     - 'Секция «Доступные инструменты» стоит первой в группе, в её заголовке — счётчик (на дефолтном конфиге 33)'
     - Справа в шапке секции выпадашка — человеческий лейбл и приглушённое техническое имя рядом; список отсортирован по лейблу и открывается вниз
@@ -1454,7 +1485,11 @@
       invocations есть callId, tool_call_index покрывает все 10 вызовов.
       Фикстуры нужны только для веток, которых в сэмпле нет: несколько
       вложений за вызов и бинарный файл.
-  fixtures: ./fixtures/toolCallDetail.js#fileContentCall,documentCall,attachmentsCall,mcpCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#fileContentCall
+    - ./fixtures/toolCallDetail.js#documentCall
+    - ./fixtures/toolCallDetail.js#attachmentsCall
+    - ./fixtures/toolCallDetail.js#mcpCall
   expected:
     - 'Переключатель «Обзор | JSON» стоит в шапке секции «Результат», между подписью и кнопкой копирования; по умолчанию активен «Обзор»'
     - 'У формы, под которую вида нет (MCP-инструмент с произвольным объектом), переключателя нет вовсе — только JSON, как раньше'
@@ -1503,7 +1538,10 @@
       сэмпле нет: одиночная правка (editFile), несколько файлов за вызов
       с разными статусами и один названный коммит с телом сообщения
       (commitDiffCall) — тело отдаёт только запрос по одному хешу.
-  fixtures: ./fixtures/toolCallDetail.js#editFileCall,uncommittedChangesCall,commitDiffCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#editFileCall
+    - ./fixtures/toolCallDetail.js#uncommittedChangesCall
+    - ./fixtures/toolCallDetail.js#commitDiffCall
   expected:
     - 'Итог по вызову («файлов: N» и суммарные +A/−D) есть только при нескольких файлах: на одном он дословно повторял бы строку под собой'
     - 'Шапка коммита: короткий хеш (моноширинный, синий), сообщение, автор, дата'
@@ -1549,7 +1587,10 @@
       и скаляр (recordChatInsights в чате плашки не пишет, поэтому кликом
       его не достать). getTreeSkeleton из того же чата теперь уходит виду
       дерева — он в своём кейсе.
-  fixtures: ./fixtures/toolCallDetail.js#searchDocumentsCall,attachmentListCall,insightsCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#searchDocumentsCall
+    - ./fixtures/toolCallDetail.js#attachmentListCall
+    - ./fixtures/toolCallDetail.js#insightsCall
   expected:
     - 'Сверху «записей: N», ниже строка на запись: шеврон, заголовок, приглушённое пояснение второй строкой, чипы справа'
     - 'Заголовок берётся по форме: message у коммита, path у файла, fileName у вложения, title у документа'
@@ -1583,7 +1624,10 @@
       getTreeSkeleton берётся из db/sample-data.sql как есть — на нём видна
       сборка по parentId. Фикстуры — для трёх остальных способов выразить
       вложенность и для grepContent, которых в сэмпле нет.
-  fixtures: ./fixtures/toolCallDetail.js#documentOutlineCall,fileOutlineCall,grepCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#documentOutlineCall
+    - ./fixtures/toolCallDetail.js#fileOutlineCall
+    - ./fixtures/toolCallDetail.js#grepCall
   expected:
     - 'Четыре способа вложенности показываются одинаково: parentId (структура базы), уровень заголовка (оглавление), диапазон строк (обзор файла), путь (дерево файлов)'
     - 'getFileOutline: метод и поле вложены в класс, потому что их строки внутри его строк; символ за границей класса возвращается на верхний уровень'
@@ -1624,7 +1668,12 @@
       целиком на фикстурах. Документ #75 («анализ») в сэмпле есть, поэтому
       кнопка «Посмотреть изменения» открывает настоящую историю версий, а не
       заглушку.
-  fixtures: ./fixtures/toolCallDetail.js#docMutationCall,scriptRunCall,scriptFailedCall,fileContentCall,editFileCall
+  fixtures:
+    - ./fixtures/toolCallDetail.js#docMutationCall
+    - ./fixtures/toolCallDetail.js#scriptRunCall
+    - ./fixtures/toolCallDetail.js#scriptFailedCall
+    - ./fixtures/toolCallDetail.js#fileContentCall
+    - ./fixtures/toolCallDetail.js#editFileCall
   expected:
     - 'docMutation: карточка с заголовком, типом, обеими версиями и датой; «версия» и «версия описания» больше не две одинаковые подписи подряд'
     - 'Кнопка «Посмотреть изменения» открывает HistoryModal поверх модалки вызова — стопку ведёт ModalShell, Escape закрывает только верхнюю'
@@ -1702,7 +1751,6 @@
       ходе) — на 404 клиент уходит в ретраи с backoff, и прогон стартует через
       десятки секунд. Одиночный чанк оседает в буферах клиента и до UI не доходит:
       пока ответ держат, надо продолжать капать токенами.
-  fixtures: сценарий целиком на живом бэкенде, фикстур нет
   expected:
     - Клик по другому чату меняет и URL (/chat/<id>), и историю в центре
     - Во время генерации в композере кнопка «стоп»
@@ -1722,7 +1770,8 @@
 - id: chat-run-status-above-input
   component: RunStatus
   path: frontend/src/components/chatPanel/composer/RunStatus.jsx
-  fixture: runStatus.js#generatingRun
+  fixtures:
+    - runStatus.js#generatingRun
   title: Строка прогона над полем ввода — таймер и прирост input
   status: verified
   origin:
@@ -1741,7 +1790,9 @@
 - id: chat-composer-send-and-stop-during-run
   component: ComposerToolbar
   path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx
-  fixture: composerToolbar.js#generatingComposer
+  fixtures:
+    - composerToolbar.js#idleComposer
+    - composerToolbar.js#generatingComposer
   title: Композер — во время ответа «отправить» и «остановить» стоят рядом
   status: verified
   origin:
@@ -1749,6 +1800,7 @@
   preconditions:
     viewport: [1440, 900]
   expected:
+    - 'В свободном чате (idleComposer) кнопка одна — «отправить»: пара появляется только на прогоне'
     - Обе кнопки видны одновременно; «остановить» слева от «отправить», а не вместо неё
     - Селекторы модели, режима и проекта заблокированы — прогон уже едет на своих настройках
     - Ряд не переносится и не сдвигает кнопки за кромку колонки
@@ -1760,7 +1812,8 @@
 - id: chat-composer-compacting-locks-both
   component: ComposerToolbar
   path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx
-  fixture: composerToolbar.js#compactingComposer
+  fixtures:
+    - composerToolbar.js#compactingComposer
   title: Композер — на сжатии контекста неактивны обе кнопки
   status: verified
   origin:
@@ -2044,7 +2097,6 @@
       сняться состояние «сжимаю…», и проверить блокировку композера нечем.
       Стриминга здесь нет — сжатие это один блокирующий вызов, поэтому капать
       токенами, в отличие от chat-switch-during-run, не требуется.
-  fixtures: сценарий целиком на живом бэкенде, фикстур нет
   expected:
     - Набранная команда видна в композере обычным текстом, без подсветки и чипа
     - После отправки команда встаёт в ленту синим пузырём пользователя — как вопрос
@@ -2466,7 +2518,8 @@
 - id: chat-tool-calls-one-feed
   component: MessageList + ToolCallNotifications
   path: frontend/src/components/chatPanel/messages/ToolCallNotifications.jsx
-  fixture: toolCallNotifications.js#toolCallSegments
+  fixtures:
+    - toolCallNotifications.js#toolCallSegments
   title: Плашки одного захода за данными — одной лентой, целиком и развёрнутыми
   status: verified
   origin:
@@ -2596,7 +2649,8 @@
 - id: chat-composer-command-highlighted
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#command
+  fixtures:
+    - composerCommand.js#command
   title: Композер — набранная команда чату видна до отправки
   status: verified
   origin:
@@ -2616,7 +2670,8 @@
 - id: chat-composer-slash-mid-text-is-not-a-command
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#question
+  fixtures:
+    - composerCommand.js#question
   title: Композер — слэш посреди вопроса командой не считается
   status: verified
   origin:
@@ -2634,7 +2689,8 @@
 - id: chat-command-in-feed
   component: UserMessageText
   path: frontend/src/components/chatPanel/messages/UserMessageText.jsx
-  fixture: chatCommandMessage.js#sentCommand
+  fixtures:
+    - chatCommandMessage.js#sentCommand
   title: Лента — отправленная команда выделена, а слово со слэшем нет
   status: verified
   origin:
@@ -2653,7 +2709,8 @@
 - id: chat-composer-slash-menu
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#slashMenu
+  fixtures:
+    - composerCommand.js#slashMenu
   title: Композер — слэш открывает один список на два реестра
   status: verified
   origin:
@@ -2673,7 +2730,8 @@
 - id: chat-composer-slash-menu-blocked-command
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#slashMenuBlocked
+  fixtures:
+    - composerCommand.js#slashMenuBlocked
   title: Композер — невыполнимая команда остаётся в списке с причиной
   status: verified
   origin:
@@ -2693,7 +2751,8 @@
 - id: chat-composer-slash-menu-synonym
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#slashMenuFiltered
+  fixtures:
+    - composerCommand.js#slashMenuFiltered
   title: Композер — набранный синоним не подменяется каноническим
   status: verified
   origin:
@@ -2713,7 +2772,8 @@
 - id: chat-composer-slash-menu-narrow-description
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#slashMenuNarrow
+  fixtures:
+    - composerCommand.js#slashMenuNarrow
   title: Композер — описание пункта списка режется с конца, а не с начала
   status: verified
   origin:
@@ -2734,7 +2794,8 @@
 - id: chat-composer-command-blocked
   component: MessageInput
   path: frontend/src/components/chatPanel/composer/MessageInput.jsx
-  fixture: composerCommand.js#commandBlocked
+  fixtures:
+    - composerCommand.js#commandBlocked
   title: Композер — команда, которую сейчас не выполнить, названа вместе с причиной
   status: verified
   origin:
@@ -2828,8 +2889,6 @@
 
 - id: theme-dark-sweep
   component: (весь реестр)
-  fixtures:
-    - <каждый светлый кейс>@dark
   scenario: |
     Каждый кейс реестра снят второй раз с `data-theme="dark"` на корне (стенд
     ставит его до первой отрисовки — так же, как инлайн-скрипт в index.html).
