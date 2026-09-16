@@ -736,6 +736,77 @@ const REGISTRY = [
     ),
   },
   { id: 'syncDiff.js#importLog', frame: 'settings', render: (p) => <SyncLog log={p} running={false} /> },
+
+  // ── Тёмная тема ──
+  // Не второй прогон всего подряд: удвоенный набор эталонов дорог, а большинство
+  // экранов отличаются в ней ровно на подстановку токенов. Здесь шесть мест, где
+  // тёмная тема НЕ «светлая наоборот» и ошибиться есть чем: шкала серых чистая
+  // вместо подкрашенной, акцент синий вместо фиолетового, слои идут в обратную
+  // сторону, подсветка найденного становится прозрачной, а тени — чёрными.
+  // Роль, забытую в одной из тем, ловит styles/tokens.test.js; здесь смотрят то,
+  // что тестом не проверить, — как выбранные оттенки ложатся друг на друга.
+  //
+  // Кейсы нарочно повторяют светлые: расхождение между парой снимков читается
+  // как разница тем, а не как разница сценариев.
+  {
+    // Модалка целиком: тени, диффы, блок кода, бейджи статуса — в одном кадре.
+    id: 'toolCallDetail.js#commitDiffCall@dark',
+    frame: 'bare',
+    theme: 'dark',
+    api: (p) => ({ '/api/chats/': p }),
+    render: (p) => (
+      <ToolCallDetailModal
+        conversationId="1"
+        callId="call-1"
+        tc={{ name: p.name, status: p.status, resultMeta: p.resultMeta }}
+        onClose={noop}
+      />
+    ),
+  },
+  {
+    // Подложка «успеха» на большой площади — та, что в светлой теме однажды уже
+    // перезеленила ленту.
+    id: 'toolCallNotifications.js#toolCallSegments@dark',
+    frame: 'center',
+    theme: 'dark',
+    render: (p) => <MessageList conversationId="chat-1" messages={p} />,
+  },
+  {
+    // Подсветка найденного: в тёмной теме она прозрачная, потому что текст под
+    // ней остаётся светлым, а сплошная жёлтая сделала бы его нечитаемым.
+    id: 'searchResults.js#resultCards@dark',
+    frame: 'center',
+    theme: 'dark',
+    render: (p) => <ResultCards {...p} />,
+  },
+  {
+    // Формы: поля ввода, их границы и состояния — самое мелкое место темы.
+    id: 'aiConfig.js#defaultAiConfig@dark',
+    frame: 'center',
+    theme: 'dark',
+    viewport: [1440, 1560],
+    api: (p) => ({ '/api/settings/ai-config': p }),
+    render: () => <ModelsSettings />,
+  },
+  {
+    // Диалог поверх затемнения: вуаль в тёмной теме гуще, иначе окно с ним
+    // сливается. Плюс git-хром и цвета статусов файлов.
+    id: 'chatRepo.js#commitDialogDirty@dark',
+    frame: 'bare',
+    theme: 'dark',
+    api: { '/api/git/status': chatRepo.commitDialogPatch },
+    render: (p) => <CommitDialog {...p} />,
+  },
+  {
+    // Три статусных бейджа рядом: успех, предупреждение и ошибка на своих
+    // подложках — в тёмной теме они глухие, а не бледные.
+    id: 'syncDiff.js#mixedDiffEntries@dark',
+    frame: 'settings',
+    theme: 'dark',
+    render: (p) => (
+      <SyncDiffList entries={p} selected={new Set()} onToggle={noop} showUnchanged={false} onShowUnchanged={noop} />
+    ),
+  },
 ];
 
 const MODULES = {

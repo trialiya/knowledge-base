@@ -37,6 +37,9 @@ function declarations(path) {
 
 const FILES = cssFiles(SRC);
 
+/** Файлы тем: у каждой свой селектор, но список ролей обязан быть общим. */
+const THEMES = ['theme-light.css', 'theme-dark.css'];
+
 it('CSS-файлы проекта найдены — иначе сторож проверяет пустоту', () => {
   expect(FILES.length).toBeGreaterThan(50);
 });
@@ -70,9 +73,10 @@ function declared(file) {
   return [...readFileSync(join(TOKEN_DIR, file), 'utf8').matchAll(/^ {2}(--[a-z0-9-]+):/gm)].map((m) => m[1]);
 }
 
-/** Обращения `var(--имя)` во всём проекте, включая сами файлы темы. */
+/** Обращения `var(--имя)` во всём проекте, включая сами файлы тем. */
 function referenced() {
-  const all = [...FILES.map((f) => readFileSync(f, 'utf8')), readFileSync(join(TOKEN_DIR, 'theme-light.css'), 'utf8')];
+  const themes = THEMES.map((file) => readFileSync(join(TOKEN_DIR, file), 'utf8'));
+  const all = [...FILES.map((f) => readFileSync(f, 'utf8')), ...themes];
   return new Set(all.flatMap((text) => [...text.matchAll(/var\(\s*(--[a-z0-9-]+)/g)].map((m) => m[1])));
 }
 
@@ -84,4 +88,18 @@ it.each([
 ])('в %s нет неиспользуемых токенов', (_name, file) => {
   const used = referenced();
   expect(declared(file).filter((token) => !used.has(token))).toEqual([]);
+});
+
+/*
+ * Роль, забытая в одной из тем, не падает и не красит неправильно — она молча
+ * берёт значение из другой: тёмная тема живёт под атрибутом, светлая на голом
+ * `:root`, и незакрытая роль просто останется светлой. На тёмном экране это
+ * одно белое пятно посреди страницы, и найти его можно только глазами и только
+ * на том экране, куда дошли.
+ */
+it('темы отвечают на один и тот же список ролей', () => {
+  const [light, ...rest] = THEMES.map((file) => declared(file));
+  for (const other of rest) {
+    expect([...other].sort()).toEqual([...light].sort());
+  }
 });

@@ -48,6 +48,13 @@ export const STORAGE_KEY_CHANGES_LAYOUT = 'files_changesLayout';
 export const STORAGE_KEY_LEFT_WIDTH = 'ui_leftWidth';
 
 /**
+ * localStorage: выбранная тема оформления — 'system' | 'light' | 'dark'.
+ * Не в URL: ссылкой делятся содержимым, а тема — личная настройка рабочего
+ * места, как и ширина панели (см. useTheme.js).
+ */
+export const STORAGE_KEY_THEME = 'ui_theme';
+
+/**
  * Псевдо-id черновика нового чата. Реальный UUID появляется только при
  * отправке первого сообщения — до этого бэк ничего о чате не знает.
  */

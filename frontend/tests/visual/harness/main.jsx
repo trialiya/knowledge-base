@@ -194,6 +194,11 @@ async function start() {
 
   const pending = installApiStub(found?.api);
 
+  // Тема — ДО первой отрисовки, как её ставит инлайн-скрипт в index.html: кадр,
+  // снятый на светлых токенах и перекрашенный после, поймал бы не то состояние.
+  // Кейс без темы её не трогает: светлая живёт на голом `:root`.
+  if (found?.theme) document.documentElement.dataset.theme = found.theme;
+
   let view = <Index />;
   if (id && !found) view = <pre>Нет такого кейса: {id}</pre>;
   else if (found?.missing) view = <pre>Фикстура не найдена: {id}</pre>;
