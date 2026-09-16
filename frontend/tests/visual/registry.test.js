@@ -58,11 +58,18 @@ function fixtureRefs() {
     // строки утащил бы в ссылки следующий кейс — стоит `fixtures` оказаться
     // последним ключом. Пустая строка и комментарий внутри списка его не
     // кончают: на них разбор терял бы хвост молча.
-    const inner = key[1].length + 2;
+    //
+    // Отступ элемента берём у первого из них, а не задаём: YAML разрешает
+    // списку стоять и вровень с ключом, и такой блок при жёстком «ключ + 2»
+    // не дал бы ни одной ссылки — тоже молча. Своего отступа у ключа элемент
+    // при этом быть не может меньше: `- id:` соседнего кейса как раз левее.
+    let inner = null;
     for (let j = i + 1; j < lines.length; j += 1) {
       if (/^\s*(#.*)?$/.test(lines[j])) continue;
       const item = lines[j].match(/^( *)- (.+)$/);
-      if (!item || item[1].length !== inner) break;
+      if (!item || item[1].length < key[1].length) break;
+      if (inner === null) inner = item[1].length;
+      if (item[1].length !== inner) break;
       refs.push({ ref: item[2].trim(), line: j + 1 });
     }
   });
