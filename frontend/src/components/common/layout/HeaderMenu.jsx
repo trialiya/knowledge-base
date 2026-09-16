@@ -41,7 +41,7 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
   const [open, setOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
-  const { theme, resolved, setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const ref = useRef(null);
   const close = useCallback(() => setOpen(false), []);
 
@@ -62,9 +62,7 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
     close();
   };
 
-  // Меню не закрываем: тему выбирают глазами, и разница между «как в системе» и
-  // выбранной руками видна только на самом экране — под закрывшимся меню.
-  const ThemeIcon = THEME_ICONS[resolved];
+  const ThemeIcon = THEME_ICONS[theme];
 
   return (
     <div className="header-menu" ref={ref}>
@@ -113,6 +111,8 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
 
           {themeOpen && (
             <div className="header-menu__sub">
+              {/* Меню не закрываем: тему выбирают глазами, и разница между «как в системе» и
+                  выбранной руками видна только на самом экране — под закрывшимся меню. */}
               {THEMES.map((code) => (
                 <button
                   key={code}
