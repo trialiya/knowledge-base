@@ -65,7 +65,7 @@
   grid-template-columns: 28px 1fr 70px 100px;
   align-items: center;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--kb-border-light, var(--kb-border));
+  border-bottom: 1px solid var(--kb-border-light);
   transition: background 0.1s;
 }
 .attachment-row:last-child {

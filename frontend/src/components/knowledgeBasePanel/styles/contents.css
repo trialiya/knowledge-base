@@ -187,7 +187,7 @@
 
 .contents-pagination__page--active {
   background: var(--kb-accent);
-  color: white;
+  color: var(--kb-text-on-fill);
   font-weight: 700;
   border-color: var(--kb-accent);
   cursor: default;

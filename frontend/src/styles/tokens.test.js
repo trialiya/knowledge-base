@@ -26,9 +26,12 @@ function cssFiles(dir) {
   });
 }
 
-/** Строки объявлений без комментариев: блочные комментарии вырезаем целиком. */
+/**
+ * Строки объявлений без комментариев. Многострочный комментарий вырезаем,
+ * оставляя его переводы строк: иначе нумерация уедет, и сторож укажет мимо.
+ */
 function declarations(path) {
-  const text = readFileSync(path, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const text = readFileSync(path, 'utf8').replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ''));
   return text.split('\n').map((line, i) => ({ line, where: `${relative(SRC, path)}:${i + 1}` }));
 }
 
@@ -38,8 +41,15 @@ it('CSS-файлы проекта найдены — иначе сторож п�
   expect(FILES.length).toBeGreaterThan(50);
 });
 
+/*
+ * Именованные цвета CSS: `white` красит ровно так же, как `#fff`, и так же
+ * переживает подмену темы. Полный список не нужен — хватает тех, что человек
+ * пишет руками; `transparent` и `currentColor` цветом темы не являются.
+ */
+const NAMED = String.raw`white|black|red|green|blue|gray|grey|silver|orange|yellow|pink|purple|brown|navy|teal|gold|crimson|violet|magenta|cyan|lime|beige|ivory|coral|salmon|khaki|lavender|plum|tan|olive|maroon|aqua|fuchsia`;
+
 it('цвет задаётся ролью, а не значением', () => {
-  const HARDCODED = /#[0-9a-fA-F]{3,8}\b|\brgba?\(/;
+  const HARDCODED = new RegExp(String.raw`#[0-9a-fA-F]{3,8}\b|\brgba?\(|:[^;]*\b(${NAMED})\b`);
   const found = FILES.flatMap(declarations)
     .filter(({ line }) => HARDCODED.test(line))
     .map(({ line, where }) => `${where}: ${line.trim()}`);

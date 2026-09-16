@@ -100,7 +100,7 @@
 }
 .message-action-btn--send {
   background: var(--kb-accent);
-  color: white;
+  color: var(--kb-text-on-fill);
   box-shadow: var(--kb-shadow-accent-btn);
 }
 .message-action-btn--send:hover:not(:disabled) {
@@ -115,7 +115,7 @@
 }
 .message-action-btn--stop {
   background: var(--kb-error);
-  color: white;
+  color: var(--kb-text-on-fill);
   box-shadow: var(--kb-shadow-error-btn);
 }
 .message-action-btn--stop:hover:not(:disabled) {

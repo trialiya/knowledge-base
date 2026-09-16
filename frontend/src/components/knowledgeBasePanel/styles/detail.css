@@ -188,7 +188,7 @@
 }
 .ai-summary-regenerate--stale:hover {
   background: var(--kb-warning);
-  border-color: var(--kb-border-warning);
+  border-color: var(--kb-warning);
   color: var(--kb-text-on-fill);
 }
 

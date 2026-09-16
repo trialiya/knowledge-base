@@ -64,7 +64,7 @@
      вложенности так же, как узлы в дереве базы знаний. */
   padding: 5px 10px 5px calc(10px + var(--sync-depth, 0) * 16px);
   font-size: 0.8rem;
-  border-bottom: 1px solid var(--kb-border-light, var(--kb-border));
+  border-bottom: 1px solid var(--kb-border-light);
 }
 .sync-diff__row:last-child {
   border-bottom: none;
@@ -152,7 +152,7 @@
   gap: 8px;
   padding: 4px 10px;
   font-size: 0.75rem;
-  border-bottom: 1px solid var(--kb-border-light, var(--kb-border));
+  border-bottom: 1px solid var(--kb-border-light);
 }
 .sync-log__row:last-child {
   border-bottom: none;

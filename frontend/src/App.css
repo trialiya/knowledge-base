@@ -61,7 +61,7 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: white;
+  background: var(--kb-surface);
   padding: 0.75rem 2rem;
   border-bottom: 1px solid var(--kb-border-strong);
   flex-shrink: 0;
