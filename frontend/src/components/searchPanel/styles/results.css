@@ -30,6 +30,37 @@
   color: var(--kb-text-muted);
 }
 
+/* «Идёт поиск» рядом со счётчиком: волчок и подпись — одна строка. */
+.search-results__pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+/* Тело выдачи — всё, что принадлежит ответу: карточки, оговорка об обрезанной
+   выдаче, «ничего не найдено», отказ. Одним боксом, чтобы устаревшим его гасить
+   тоже разом, а не перечисляя, что ещё бывает на его месте. */
+.search-results__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Ответ прежних фильтров: ещё на экране — по нему видно, что нашлось до сих
+   пор, — но уже не ответ. Гаснет вместе со своими счётчиками; недоступным его
+   делает `inert` в разметке, а pointer-events отсекает мышь и там, где inert
+   ещё не поддержан. Не гаснет только волчок с подписью — он и объясняет, что
+   происходит. */
+.search-results--stale .search-results__count,
+.search-results--stale .search-results__in {
+  opacity: 0.45;
+}
+.search-results--stale .search-results__body {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 /* Предупреждение о неполной выдаче: бэкенд обрезал ответ по своему пределу. */
 .search-results__note {
   margin: 0;
@@ -46,6 +77,14 @@
   color: var(--kb-text-muted);
   font-size: 0.85rem;
   text-align: center;
+}
+
+/* Та же подпись, но с волчком: text-align по центру у flex-бокса не работает. */
+.search-results__hint--busy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 .search-results__error {
   color: var(--kb-error);

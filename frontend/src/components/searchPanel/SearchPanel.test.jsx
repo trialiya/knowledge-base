@@ -14,14 +14,16 @@ vi.mock('@/components/common/config/useProjectConfig', () => ({
 }));
 
 // Панель здесь проверяется как набор фильтров: что ищется по ним — дело
-// useSearchResults, и его собственных тестов.
-vi.mock('./useSearchResults', () => ({
-  default: () => ({
-    files: { entry: null, loading: false },
-    docs: { entry: null, loading: false },
-    chats: { entry: null, loading: false },
-  }),
-}));
+// useSearchResults, и его собственных тестов. Сам ответ хука задаёт тест —
+// панели он нужен ради счётчиков и признака «ещё идёт».
+const idle = { entry: null, loading: false };
+let results = { files: idle, docs: idle, chats: idle };
+
+vi.mock('./useSearchResults', () => ({ default: () => results }));
+
+beforeEach(() => {
+  results = { files: idle, docs: idle, chats: idle };
+});
 
 const renderPanel = (filters, onRefine) =>
   render(
@@ -43,6 +45,37 @@ const pickProject = async (label) => {
   await userEvent.click(screen.getByRole('button', { name: 'filters.project' }));
   await userEvent.click(screen.getByRole('option', { name: label }));
 };
+
+it('пока категория ищет, вместо счётчика крутится волчок', () => {
+  // Смена репозитория оставляет прежнюю выдачу до ответа: число рядом с только
+  // что выбранным репозиторием читалось бы как его результат.
+  results = {
+    files: {
+      entry: {
+        data: {
+          total: 3,
+          files: [
+            { path: 'a.java', lines: [] },
+            { path: 'b.java', lines: [] },
+          ],
+        },
+        error: null,
+      },
+      loading: true,
+    },
+    docs: {
+      entry: { data: { total: 1, documents: [{ id: 1, title: 'Док', parentList: [], fragments: [] }] }, error: null },
+      loading: false,
+    },
+    chats: idle,
+  };
+  renderPanel({});
+
+  const [files, docs] = screen.getAllByRole('option');
+  expect(files.querySelector('.search-spinner')).toBeInTheDocument();
+  expect(files).not.toHaveTextContent('2');
+  expect(docs).toHaveTextContent('1');
+});
 
 it('смена репозитория снимает ревизию и маску пути прежнего', async () => {
   // Ветки с тем же именем в новом репозитории может не быть вовсе — это 400

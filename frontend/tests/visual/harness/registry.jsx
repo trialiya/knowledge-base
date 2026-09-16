@@ -190,14 +190,17 @@ const LiveToolCalls = ({ calls, next }) => {
   );
 };
 
+/** Ни одна категория не ищет: у кейса про фильтры счётчики должны быть видны. */
+const NOTHING_PENDING = { files: false, docs: false, chats: false };
+
 /**
  * Левая панель поиска целиком: категории со счётчиками и наборы фильтров всех
  * трёх категорий подряд. В приложении виден набор ровно одной — кейс про то,
  * чем они различаются, и стенд единственный, где их видно рядом.
  */
-const SearchSidebar = ({ counts, filters }) => (
+const SearchSidebar = ({ counts, pending = NOTHING_PENDING, filters }) => (
   <>
-    <SearchScopeList scope={SEARCH_SCOPE.FILES} counts={counts} onSelect={noop} />
+    <SearchScopeList scope={SEARCH_SCOPE.FILES} counts={counts} pending={pending} onSelect={noop} />
     {SEARCH_SCOPES.map((scope) => (
       <SearchFilters key={scope} scope={scope} {...filters} onProjectChange={noop} onRefine={noop} />
     ))}

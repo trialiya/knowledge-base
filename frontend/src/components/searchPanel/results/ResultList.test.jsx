@@ -82,6 +82,48 @@ test('запрос подсвечивается в найденной строк
   expect(document.querySelectorAll('mark.search-match')).toHaveLength(0);
 });
 
+test('пока идёт новый поиск, прежняя выдача помечена и не нажимается', () => {
+  // Смена фильтра (репозиторий, ревизия, маска) оставляет на экране выдачу
+  // прежнего: пустота между двумя ответами читалась бы как «ничего не нашлось».
+  // Но без пометки её читают как ответ на новый фильтр — отсюда волчок сверху и
+  // погашенный, недоступный мыши список.
+  renderFiles({ loading: true });
+
+  const status = screen.getByRole('status');
+  expect(status).toHaveTextContent('empty.searching');
+  expect(status.querySelector('.search-spinner')).toBeInTheDocument();
+  const body = document.querySelector('.search-results__body');
+  expect(body).toHaveAttribute('aria-busy', 'true');
+  expect(body).toHaveAttribute('inert');
+  expect(document.querySelector('.search-results--stale')).toBeInTheDocument();
+  // Подпись — снаружи погашенного тела: внутри inert её не объявили бы вовсе.
+  expect(body.contains(status)).toBe(false);
+});
+
+test('отказ по прежним фильтрам, пока идёт новый поиск, помечен так же', () => {
+  // Битую регулярку исправили — 400 на экране всё ещё от неё, и без пометки он
+  // читается как ответ на исправленную.
+  renderFiles({ entry: { data: null, error: { status: 400 } }, loading: true });
+
+  expect(screen.getByRole('status')).toHaveTextContent('empty.searching');
+  expect(screen.getByText('error.badFilter').closest('.search-results__body')).toHaveAttribute('inert');
+  expect(document.querySelector('.search-results--stale')).toBeInTheDocument();
+});
+
+test('живой регион стоит в разметке и пустым: иначе о начале поиска не объявят', () => {
+  // Скринридер объявляет смену текста внутри уже существующего role="status";
+  // регион, появившийся вместе со своим текстом, чаще всего молчит.
+  renderFiles();
+
+  expect(screen.getByRole('status')).toBeEmptyDOMElement();
+});
+
+test('первый поиск по запросу говорит, что он идёт', () => {
+  renderFiles({ entry: null, loading: true });
+
+  expect(screen.getByRole('status')).toHaveTextContent('empty.searching');
+});
+
 test('отказ категории объясняется по коду ответа, а не одним «ошибка»', () => {
   const { unmount } = renderFiles({ entry: { data: null, error: { status: 400 } } });
   expect(screen.getByText('error.badFilter')).toBeInTheDocument();

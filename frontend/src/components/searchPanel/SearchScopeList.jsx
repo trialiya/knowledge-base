@@ -12,8 +12,12 @@ const ICONS = { files: IconFileText, docs: IconDoc, chats: IconMessage };
  * место чекбокса занимает число найденного. Оно и есть ответ на вопрос «стоит
  * ли сюда переключаться». Пока категория не ответила (или запроса ещё нет),
  * счётчика нет вовсе: пустая плашка врала бы про ноль найденного.
+ *
+ * Пока категория ищет, на месте счётчика крутится волчок — и старое число он
+ * тоже прячет: смена фильтра оставляет прежнее до ответа, а цифра рядом с
+ * только что выбранным репозиторием читается как его результат.
  */
-const SearchScopeList = ({ scope, counts, onSelect }) => {
+const SearchScopeList = ({ scope, counts, pending, onSelect }) => {
   const { t } = useTranslation('search');
   const onKeyDown = useListNavigation();
 
@@ -23,6 +27,7 @@ const SearchScopeList = ({ scope, counts, onSelect }) => {
         const Icon = ICONS[key];
         const active = key === scope;
         const count = counts[key];
+        const busy = pending[key];
         return (
           <li
             key={key}
@@ -37,7 +42,13 @@ const SearchScopeList = ({ scope, counts, onSelect }) => {
               <Icon size={14} />
             </span>
             <span className="ws-item__label">{t(`scope.${key}`)}</span>
-            {count != null && <span className="search-scopes__count">{count}</span>}
+            {busy ? (
+              <span className="search-scopes__count search-scopes__count--pending" aria-label={t('empty.searching')}>
+                <span className="search-spinner" />
+              </span>
+            ) : (
+              count != null && <span className="search-scopes__count">{count}</span>
+            )}
           </li>
         );
       })}
