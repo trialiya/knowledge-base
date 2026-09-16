@@ -22,6 +22,7 @@ import Breadcrumb from '@/components/filesPanel/Breadcrumb';
 import FileContent from '@/components/filesPanel/FileContent';
 import DetailHeader from '@/components/knowledgeBasePanel/detail/DetailHeader';
 import DocumentDetail from '@/components/knowledgeBasePanel/detail/DocumentDetail';
+import HeaderMenu from '@/components/common/layout/HeaderMenu';
 import { buildDetailTabs } from '@/components/knowledgeBasePanel/detail/detailSidebar';
 import AttachmentModal from '@/components/common/attachments/AttachmentModal';
 import AddModal from '@/components/knowledgeBasePanel/modals/AddModal';
@@ -65,6 +66,7 @@ import * as docFind from '../fixtures/docFind';
 import * as fileFind from '../fixtures/fileFind';
 import * as filesBreadcrumb from '../fixtures/filesBreadcrumb';
 import * as gitMenu from '../fixtures/gitMenu';
+import * as headerMenu from '../fixtures/headerMenu';
 import * as infoList from '../fixtures/infoList';
 import * as modalFind from '../fixtures/modalFind';
 import * as operationRow from '../fixtures/operationRow';
@@ -107,6 +109,8 @@ import * as toolCatalog from '../fixtures/toolCatalog';
  *   `feed`     — колонка ленты чата: она flex, и элемент без `flex: none` в ней
  *                схлопывается — ровно так однажды пропала карточка вывода;
  *   `bare`     — сам себе рамка (модалка: у неё свой оверлей на всё окно);
+ *   `headerRight` — правая зона шапки вкладок: меню открывается влево от своей
+ *                кнопки, и в одинокой рамке уехало бы за кромку кадра;
  *   `left`     — колонка левой панели и центр рядом с ней: её выпадающие списки
  *                уходят порталом поверх центра, и без него не видно ни куда они
  *                попадают, ни сколько места им осталось;
@@ -391,6 +395,18 @@ const LIGHT = [
     render: () => <Phrases onSelect={noop} />,
   },
 
+  // Меню в шапке: кнопка-триггер (значок в рамке) и раскрытое меню — в нём же
+  // видно, что кнопка держит вид наведения, пока меню открыто.
+  ...[
+    ['', undefined],
+    ['@open', [{ click: '.header-menu__trigger' }]],
+  ].map(([variant, steps]) => ({
+    id: `headerMenu.js#knowledgeBaseMenu${variant}`,
+    frame: 'headerRight',
+    steps,
+    render: (p) => <HeaderMenu {...p} onRefresh={noop} onOpenAdmin={noop} onOpenSettings={noop} />,
+  })),
+
   // Окно «Добавить» базы знаний: переключатель типа — пара кнопок-тумблеров,
   // в кадре видно и выбранную, и невыбранную половину.
   {
@@ -582,6 +598,12 @@ const LIGHT = [
     id: 'detailPanel.js#documentWithSummary@sidebar',
     frame: 'right',
     render: (p) => <DetailTabs node={p.node} activeKey={DOC_TAB.SUMMARY} />,
+  },
+  // Состав папки, который не влез на страницу: ради листалки под таблицей.
+  {
+    id: 'detailPanel.js#folderWithManyChildren@sidebar',
+    frame: 'right',
+    render: (p) => <DetailTabs node={p.node} folderChildren={p.children} activeKey={DOC_TAB.CONTENTS} />,
   },
   {
     id: 'detailPanel.js#folderWithChildren@sidebar',
@@ -822,6 +844,7 @@ const MODULES = {
   'fileChangeBlock.js': fileChangeBlock,
   'filesBreadcrumb.js': filesBreadcrumb,
   'gitMenu.js': gitMenu,
+  'headerMenu.js': headerMenu,
   'chatUsage.js': chatUsage,
   'infoList.js': infoList,
   'docFind.js': docFind,

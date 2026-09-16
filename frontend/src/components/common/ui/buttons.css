@@ -2,7 +2,8 @@
    BUTTONS — общие классы кнопок приложения.
    Единственное место, где живёт вид кнопок: панельных копий (set-btn,
    detail-icon-btn, new-chat-button, md-toolbar__btn, message-copy-btn…) больше
-   нет. Ступеней три по ширине (.btn / --sm / --xs) и три по размеру значка
+   нет — как и `app-refresh-btn`, `contents-pagination__btn`,
+   `header-menu__trigger`. Ступеней три по ширине (.btn / --sm / --xs) и три по размеру значка
    (.icon-btn / --sm / --xs); заводить четвёртую — повод сначала посмотреть,
    не подойдёт ли существующая.
 ═══════════════════════════════════════════════ */
@@ -122,6 +123,21 @@
 .icon-btn--quiet:hover {
   background: var(--kb-surface-hover);
   color: var(--kb-text-tertiary);
+}
+
+/* Значок в рамке — для кнопки, которая стоит на пустом месте и без рамки не
+   читается как кнопка вовсе: листание оглавления, меню в шапке. Фон и рамка
+   здесь и есть весь вид, цвет значка остаётся общим приглушённым. Наведение
+   написано с `:not(:disabled)`: без него оно перебило бы .icon-btn:disabled:hover
+   — у того специфичность ниже. */
+.icon-btn--outline {
+  border: 1px solid var(--kb-border);
+  background: var(--kb-surface);
+}
+.icon-btn--outline:hover:not(:disabled) {
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-surface-subtle);
+  color: var(--kb-accent);
 }
 
 .icon-btn--danger:hover {

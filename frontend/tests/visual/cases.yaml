@@ -507,12 +507,14 @@
     - ./fixtures/detailPanel.js#documentWithContent
     - ./fixtures/detailPanel.js#documentWithSummary
     - ./fixtures/detailPanel.js#folderWithChildren
+    - ./fixtures/detailPanel.js#folderWithManyChildren
   expected:
     - У документа справа три вкладки — «Info · Summary · Attachments»
     - Во вкладке «Summary» одна секция «AI SUMMARY»; блока «About» с текстом документа больше нет
     - Без сгенерированного summary в секции кнопка «Generate summary» (и подсказка, если описание пустое)
     - С готовым, но устаревшим summary (фикстура documentWithSummary) — текст описания, бейдж «STALE» у заголовка и кнопка «Update» справа
     - У папки вкладки «Summary» нет вовсе — «Info · Contents · Attachments», папки не суммаризируются
+    - 'Состав длиннее страницы (folderWithManyChildren) — под таблицей листалка: стрелки это общие .icon-btn--outline, «назад» на первой странице неактивна'
     - 'Ссылка вида /knowledge/doc/<id папки>?right=summary не ломает панель: вкладки такой нет, панель остаётся рельсом'
   notes: |
     Замерено в браузере: у документа вкладки Info/Summary/Attachments, тело
@@ -1162,6 +1164,23 @@
   notes: |
     Свёртывание висит на самой кнопке меню, а не на эффекте по `open`: закрыть
     меню могут и Escape, и клик снаружи, а открыть — только она.
+
+- id: header-menu-trigger-outline
+  component: HeaderMenu
+  path: frontend/src/components/common/layout/HeaderMenu.jsx
+  title: Кнопка меню в шапке — общий значок в рамке, а не своё семейство
+  status: verified
+  origin:
+    - 'Сессия 2026-09-16, значок в рамке в общем файле кнопок'
+  fixtures:
+    - headerMenu.js#knowledgeBaseMenu
+  scenario: |
+    Правая зона шапки вкладок: кнопка меню закрытой и она же с раскрытым меню.
+  expected:
+    - 'Кнопка — общие классы (.icon-btn .icon-btn--outline): рамка и заливка от них, круглой 34×34 её делает только своя геометрия'
+    - Пока меню раскрыто, кнопка держит вид наведения — иначе не видно, чьё это меню
+    - Меню раскрывается вниз и влево от кнопки, за правую кромку шапки не выходит
+    - Подменю языка и темы свёрнуты — их раскрывают отдельным кликом
 
 - id: phrase-fill-typed-placeholders
   component: PhraseFillModal

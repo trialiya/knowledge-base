@@ -136,33 +136,15 @@
   flex-shrink: 0;
 }
 
+/* Вид — общий (.icon-btn--outline), здесь только размер стрелки: «‹» и «›» это
+   текст, а не значок, и на общем размере шрифта они теряются. */
 .contents-pagination__btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  border: 1px solid var(--kb-border);
-  background: var(--kb-surface);
-  cursor: pointer;
   font-size: 16px;
   line-height: 1;
-  color: var(--kb-text);
-  transition: background 0.15s, border-color 0.15s;
 }
 
-.contents-pagination__btn:hover:not(:disabled) {
-  background: var(--kb-accent-surface-subtle);
-  border-color: var(--kb-accent);
-  color: var(--kb-accent);
-}
-
-.contents-pagination__btn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
+/* Номер страницы рядом остаётся своим: ширину ему задаёт число, а не квадрат
+   значка, и выбранный номер залит, как выбранная строка списка. */
 .contents-pagination__page {
   display: flex;
   align-items: center;
