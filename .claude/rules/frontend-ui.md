@@ -164,8 +164,11 @@ Panel open/closed state is **controlled state that lives in the URL**
   (`icon-btn--sm`, `icon-btn--xs`) and a look (`icon-btn--danger`,
   `icon-btn--quiet` for an action that is always at hand and must not pull the
   eye, `icon-btn--done` for the transient "copied", `icon-btn--star`). A toggle
-  carries `aria-pressed` and gets its selected look from that, with no
-  `--active` class of its own. Don't add new button families: a size that seems to
+  carries `aria-pressed` — always, it is what a screen reader has to go on —
+  and a ghost one gets its selected look from that, with no `--active` class of
+  its own. A row that marks its choice with a solid fill (the phrase-category
+  filters) keeps `btn--primary` on the selected button *and* sets
+  `aria-pressed`: the attribute is the state, the class is only the look. Don't add new button families: a size that seems to
   be missing is nearly always one of the rungs plus the geometry of the row it
   sits in, and that geometry belongs to the row's own class.
 

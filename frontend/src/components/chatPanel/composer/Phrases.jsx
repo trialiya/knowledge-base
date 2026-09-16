@@ -100,6 +100,7 @@ const Phrases = ({ onSelect, reloadKey }) => {
             key={cat}
             type="button"
             className={`btn btn--xs ${category === cat ? 'btn--primary' : 'btn--ghost'}`}
+            aria-pressed={category === cat}
             onClick={() => setActiveCategory(cat)}
           >
             {catLabel(cat)}
