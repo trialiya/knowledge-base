@@ -48,7 +48,7 @@ changed screen is caught by the run rather than by your eye. A mismatch writes
 
 **The baselines belong to one pinned rendering environment**, and it is not this
 sandbox: the same Chromium build with a different font set draws differently
-(measured: 42 of 56 cases disagree, and the sandbox resolves `monospace` to
+(measured: three cases in four disagree, and the sandbox resolves `monospace` to
 DejaVu Sans Mono where the container resolves it to WenQuanYi Zen Hei Mono).
 That environment is the `mcr.microsoft.com/playwright` image the daily workflow
 runs in (`.github/workflows/frontend-main-daily.yml`), and the fingerprint of
