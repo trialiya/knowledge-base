@@ -9,11 +9,15 @@ import '@/components/common/ui/buttons.css';
 
 const FolderTreeItem = ({ node, level, selectedId, onSelect }) => {
   const isFolder = node.type === 'folder';
-  const hasChildren = isFolder && node.children && node.children.length > 0;
+  // Дерево приходит целиком, а выбирают в нём место — то есть папку; документ
+  // ниже отбрасывается. Считать детей всех подряд нельзя: у папки, в которой
+  // лежат одни документы, шеврон раскрывался бы в пустоту.
+  const subFolders = isFolder ? (node.children || []).filter((child) => child.type === 'folder') : [];
+  const hasChildren = subFolders.length > 0;
   const isSelected = node.id === selectedId;
 
   // Auto-open if this node or a descendant is the default selection
-  const [open, setOpen] = useState(() => isSelected || (hasChildren && !!findNodeById(node.children, selectedId)));
+  const [open, setOpen] = useState(() => isSelected || (hasChildren && !!findNodeById(subFolders, selectedId)));
 
   if (!isFolder) return null;
 
@@ -40,7 +44,7 @@ const FolderTreeItem = ({ node, level, selectedId, onSelect }) => {
       </div>
       {hasChildren &&
         open &&
-        node.children.map((child) => (
+        subFolders.map((child) => (
           <FolderTreeItem key={child.id} node={child} level={level + 1} selectedId={selectedId} onSelect={onSelect} />
         ))}
     </div>
@@ -142,11 +146,11 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
             <span className="fp-row__icon fp-row__icon--root">⊘</span>
             <span className="fp-row__label">{t('add.root')}</span>
           </div>
-          {tree
-            .filter((n) => n.type === 'folder')
-            .map((node) => (
-              <FolderTreeItem key={node.id} node={node} level={0} selectedId={parentId} onSelect={setParentId} />
-            ))}
+          {/* Документы верхнего уровня отсеивает сам FolderTreeItem — там же, где
+              и на любом другом уровне: правило одно, и место у него одно. */}
+          {tree.map((node) => (
+            <FolderTreeItem key={node.id} node={node} level={0} selectedId={parentId} onSelect={setParentId} />
+          ))}
         </div>
       </div>
 
