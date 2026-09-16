@@ -35,6 +35,12 @@ groups of «Настройки»); the opt-in list is
 shootable once it is listed there. Shots land in `harness/shots/` (git-ignored),
 one per case, and a case whose page logged a console error is reported `✗`.
 
+**Every case is shot twice**: the registry derives a `<case>@dark` twin of each
+entry, identical but for `data-theme`. You list a case once and get both themes;
+a screen never enters the dark theme later than the light one. Read a pair
+side by side — the difference between the two shots is the theme's whole
+contribution, since the scenario, the data and the steps are shared.
+
 **Every shot is compared with its baseline** in `frontend/tests/visual/baselines/`
 (those are in git — without them there is nothing to compare against), so a
 changed screen is caught by the run rather than by your eye. A mismatch writes
@@ -42,7 +48,7 @@ changed screen is caught by the run rather than by your eye. A mismatch writes
 
 **The baselines belong to one pinned rendering environment**, and it is not this
 sandbox: the same Chromium build with a different font set draws differently
-(measured: 42 of 56 cases disagree, and the sandbox resolves `monospace` to
+(measured: three cases in four disagree, and the sandbox resolves `monospace` to
 DejaVu Sans Mono where the container resolves it to WenQuanYi Zen Hei Mono).
 That environment is the `mcr.microsoft.com/playwright` image the daily workflow
 runs in (`.github/workflows/frontend-main-daily.yml`), and the fingerprint of
@@ -64,7 +70,7 @@ stand inside that image, which is its own suite:
 `it` suite uses) and hands the container the repository plus the `playwright`
 module already installed here — the image ships the browsers, not the module.
 The first run pulls the image: ~3.7 GB on disk, a few minutes; after that a full
-56-case run takes about half a minute, roughly what the native run costs.
+run — every case in both themes — takes about a minute and a half.
 
 `--update` belongs with a deliberate UI change: commit the new baselines
 together with it, and the review shows what the screen now looks like.
@@ -92,6 +98,9 @@ A registry entry carries more than a component and a frame:
 - `steps` — `{ click }`, `{ press }`, `{ type }` before the shot, for a state the
   component opens itself: a dropdown, the modal's find bar, the query typed into
   it.
+- `theme` — `'dark'`, set by the derived twin rather than by hand: the stand
+  puts the attribute on the root before the first render, the way `index.html`
+  does in the app. A case that sets it itself would be shot in that theme only.
 - `viewport` — `[width, height]` instead of the default 1440×900. The frames are
   a screen tall and scroll inside themselves, so a column longer than the frame
   is simply cut — neither `fullPage` nor scrolling reaches the rest, and the
