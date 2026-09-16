@@ -6,7 +6,7 @@
    см. common/workspaceLayout.css. Здесь только внутренности детали. */
 
 .empty-preview {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   text-align: center;
   margin-top: 4rem;
   font-size: 0.9rem;
@@ -33,12 +33,12 @@
   flex-shrink: 0;
 }
 .detail-header__icon--folder {
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
 }
 .detail-header__icon--doc {
-  background: #f0f0f0;
-  color: var(--kb-muted);
+  background: var(--kb-surface-muted);
+  color: var(--kb-text-muted);
 }
 
 /* Замок системного узла — на месте кнопок действий: такой узел не переименовать
@@ -47,7 +47,7 @@
   display: inline-flex;
   align-items: center;
   padding: 0 6px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* Заголовок — общий .workspace__head-title; клик по нему открывает
@@ -104,7 +104,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 9px 16px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border-bottom: 1px solid var(--kb-border);
 }
 .summary-section__label {
@@ -144,9 +144,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #d97706;
-  background: #fffbeb;
-  border: 1px solid #f59e0b;
+  color: var(--kb-text-warning);
+  background: var(--kb-surface-warning);
+  border: 1px solid var(--kb-border-warning);
   border-radius: 8px;
   padding: 1px 7px;
   vertical-align: middle;
@@ -157,13 +157,13 @@
 ═══════════════════════════════════════════════ */
 
 .ai-summary-section {
-  border-color: var(--kb-accent-bg);
-  background: linear-gradient(135deg, #fafbff 0%, #f5f7ff 100%);
+  border-color: var(--kb-accent-surface);
+  background: linear-gradient(135deg, var(--kb-surface-app) 0%, var(--kb-accent-surface-subtle) 100%);
 }
 
 .ai-summary-section .summary-section__head {
-  background: var(--kb-accent-bg);
-  border-bottom-color: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
+  border-bottom-color: var(--kb-accent-surface);
 }
 
 /* Label with sparkle icon */
@@ -182,14 +182,14 @@
    btn/btn--sm/btn--ghost; only the "needs update" amber tint is specific to
    this feature (no shared modifier has an analogue for it). */
 .ai-summary-regenerate--stale {
-  border-color: #f59e0b;
-  color: #d97706;
-  background: #fffbeb;
+  border-color: var(--kb-border-warning);
+  color: var(--kb-text-warning);
+  background: var(--kb-surface-warning);
 }
 .ai-summary-regenerate--stale:hover {
-  background: #f59e0b;
-  border-color: #f59e0b;
-  color: #fff;
+  background: var(--kb-warning);
+  border-color: var(--kb-warning);
+  color: var(--kb-text-on-fill);
 }
 
 /* Empty state — no summary yet. Generate button is the shared btn/btn--primary. */
@@ -204,7 +204,7 @@
 .ai-summary-empty__hint {
   margin: 0;
   font-size: 0.75rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   opacity: 0.7;
   text-align: center;
 }
@@ -217,9 +217,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #d97706;
-  background: #fffbeb;
-  border: 1px solid #f59e0b;
+  color: var(--kb-text-warning);
+  background: var(--kb-surface-warning);
+  border: 1px solid var(--kb-border-warning);
   border-radius: 8px;
   padding: 1px 7px;
   vertical-align: middle;
@@ -236,7 +236,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 18px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border-bottom: 1px solid var(--kb-border);
   flex-shrink: 0;
 }
@@ -260,13 +260,13 @@
   border-radius: 6px;
   border: none;
   background: none;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s, color 0.15s;
 }
 .fs-editor__close:hover {
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
 }
 

@@ -7,21 +7,21 @@
 .picker-dropdown {
   width: 500px;
   max-width: calc(100vw - 24px);
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border: 1.5px solid var(--kb-border);
   border-radius: var(--kb-radius);
-  box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
+  box-shadow: var(--kb-shadow-popover);
   overflow: hidden;
   animation: kb-fade-in-down 0.1s ease;
 }
 .picker-dropdown__header {
   padding: 6px 12px 5px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border-bottom: 1px solid var(--kb-border);
 }
 .picker-dropdown__hint {
   font-size: 0.74rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-style: italic;
 }
 .picker-dropdown__loading,
@@ -31,7 +31,7 @@
   gap: 8px;
   padding: 10px 12px;
   font-size: 0.82rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-style: italic;
 }
 .picker-dropdown__spinner {
@@ -62,7 +62,7 @@
 }
 .picker-item:hover,
 .picker-item--selected {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 .picker-item__icon {
   color: var(--kb-accent);
@@ -87,10 +87,10 @@
   gap: 3px;
   padding: 2px 7px;
   border: 1px solid var(--kb-border);
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border-radius: 3px;
   font-size: 0.7rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -104,7 +104,7 @@
 .picker-item__content-btn:hover {
   color: var(--kb-accent);
   border-color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 .picker-item__name {
   font-size: 0.84rem;
@@ -114,7 +114,7 @@
 .picker-item__path,
 .picker-item__desc {
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -130,13 +130,13 @@
 }
 .picker-dropdown__footer {
   padding: 6px 12px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border-top: 1px solid var(--kb-border);
   font-size: 0.7rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .picker-dropdown__footer kbd {
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border: 1px solid var(--kb-border);
   border-radius: 3px;
   padding: 0 3px;
@@ -158,12 +158,12 @@
    различие, ради которого списки сведены в один. */
 .picker-section {
   padding: 6px 12px 5px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border-top: 1px solid var(--kb-border);
   border-bottom: 1px solid var(--kb-border);
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .picker-section:first-child {
   border-top: none;
@@ -179,7 +179,7 @@
    бывает, иначе узнать неоткуда. */
 .picker-item__args {
   font-family: var(--kb-font-mono);
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 /* Второй синоним команды — справа, приглушённым: вставится всё равно тот, что
    совпал с набранным. */
@@ -188,7 +188,7 @@
   flex-shrink: 0;
   font-family: var(--kb-font-mono);
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 /* Команду сейчас не выполнить. Строку не прячем: список открывают чаще всего в
    новом чате, где /compact и заблокирован, — спрятанная строка оставила бы
@@ -196,12 +196,12 @@
    отправке набранного не съедает (useChatRun возвращает черновик). */
 .picker-item--blocked .picker-item__icon,
 .picker-item--blocked .picker-item__name {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .picker-item__reason {
   margin-left: auto;
   flex-shrink: 0;
   font-size: 0.72rem;
   font-style: italic;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }

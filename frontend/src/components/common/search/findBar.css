@@ -13,7 +13,7 @@
   box-sizing: border-box;
   padding: 0.3rem 0.55rem;
   border-bottom: 1px solid var(--kb-border);
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   /* .modal-shell--sm центрирует свой текст — поле ввода должно остаться слева. */
   text-align: left;
 }
@@ -21,7 +21,7 @@
 .find-bar__icon {
   display: flex;
   align-items: center;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   flex-shrink: 0;
   padding-left: 4px;
 }
@@ -38,13 +38,13 @@
 }
 
 .find-bar__input::placeholder {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .find-bar__count {
   flex-shrink: 0;
   font-size: 0.76rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -61,7 +61,7 @@
 
 .find-bar .icon-btn:disabled:hover {
   background: none;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* Приписка о неполноте найденного (обрезанный файл) — рядом со счётчиком,
@@ -69,7 +69,7 @@
 .find-bar__note {
   flex-shrink: 0;
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   white-space: nowrap;
 }
 
@@ -91,9 +91,9 @@
    прокрутка к совпадению. */
 ::highlight(kb-find) {
   background-color: var(--kb-match-bg);
-  color: #1f1f1f;
+  color: var(--kb-text);
 }
 ::highlight(kb-find-active) {
   background-color: var(--kb-match-active-bg);
-  color: #1f1f1f;
+  color: var(--kb-text);
 }

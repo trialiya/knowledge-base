@@ -26,10 +26,10 @@
   max-height: 60vh;
   overflow-y: auto;
   padding: 5px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border: 1.5px solid var(--kb-border);
   border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
+  box-shadow: var(--kb-shadow-dropdown);
   z-index: 1200;
 }
 
@@ -42,7 +42,7 @@
   top: -5px;
   z-index: 1;
   padding: 2px 3px 6px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
 }
 
 .git-menu__filter-input {
@@ -51,7 +51,7 @@
   padding: 5px 8px;
   border: 1px solid var(--kb-border-light);
   border-radius: 7px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   font: inherit;
   font-size: 12px;
   color: var(--kb-text);
@@ -61,7 +61,7 @@
   border-color: var(--kb-accent);
 }
 .git-menu__filter-input::placeholder {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* Ответ «ничего не нашлось» — не пункт меню: кликать по нему нечего, поэтому и
@@ -69,7 +69,7 @@
 .git-menu__empty {
   padding: 6px 8px;
   font-size: 12px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .git-menu__section {
@@ -77,7 +77,7 @@
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .git-menu__item {
@@ -95,11 +95,11 @@
   cursor: pointer;
 }
 .git-menu__item:hover:not(:disabled) {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
 }
 .git-menu__item:disabled {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   cursor: default;
 }
 

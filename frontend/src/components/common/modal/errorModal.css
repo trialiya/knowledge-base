@@ -8,12 +8,12 @@
   margin: 0 0 0.5rem;
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--kb-text, #2d2b55);
+  color: var(--kb-text);
 }
 
 .error-modal__message {
   margin: 0 0 1.25rem;
   font-size: 0.9rem;
   line-height: 1.5;
-  color: var(--kb-muted, #8886aa);
+  color: var(--kb-text-muted);
 }

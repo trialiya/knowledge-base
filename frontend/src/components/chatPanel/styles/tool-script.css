@@ -23,7 +23,7 @@
   gap: 2px;
   box-sizing: border-box;
   padding: 8px 10px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 6px;
   text-align: center;
@@ -37,7 +37,7 @@
 
 .tool-script__stat-label {
   font-size: 0.68rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .tool-script__error {
@@ -47,7 +47,7 @@
   gap: 4px 10px;
   box-sizing: border-box;
   padding: 8px 10px;
-  background: var(--kb-error-bg);
+  background: var(--kb-surface-error);
   border: 1px solid var(--kb-error);
   border-radius: 6px;
   font-size: 0.78rem;
@@ -60,7 +60,7 @@
 }
 
 .tool-script__error-line {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .tool-script__error-message {
@@ -85,7 +85,7 @@
   width: 100%;
   box-sizing: border-box;
   padding: 5px 8px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 6px;
   cursor: pointer;
@@ -94,13 +94,13 @@
   color: var(--kb-text);
 }
 .tool-script__panel-head:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .tool-script__chevron {
   display: flex;
   flex-shrink: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   transform: rotate(-90deg);
   transition: transform 0.15s;
 }
@@ -119,12 +119,12 @@
 .tool-script__panel-count {
   flex-shrink: 0;
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .tool-script__section-label {
   font-size: 0.75rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* Общий скролл модалки — как у .tool-diff__patch, поэтому своего overflow-y
@@ -134,7 +134,7 @@
   margin: 0;
   box-sizing: border-box;
   padding: 8px 10px;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 6px;
   font-family: var(--kb-font-mono);
@@ -149,7 +149,7 @@
   box-sizing: border-box;
   padding: 6px 10px;
   list-style: none;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 6px;
   overflow-x: auto;

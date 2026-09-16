@@ -9,7 +9,7 @@
   min-width: 0;
   padding-bottom: 3px;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--kb-text-faint);
 }
 
 .tool-summary__text {
@@ -35,17 +35,17 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.72rem;
-  color: #6b7fbf;
+  color: var(--kb-icon-brand);
   line-height: 1.4;
   box-sizing: border-box;
 }
 .tool-summary__action:hover:not(:disabled) {
-  background: #eef3ff;
-  color: #2a5cbf;
+  background: var(--kb-surface-info);
+  color: var(--kb-text-info);
 }
 /* Кнопка, которая ничего не изменит, гасится, а не прячется: пропадающая
    кнопка сдвигает соседнюю прямо под курсором. */
 .tool-summary__action:disabled {
-  color: #c4c4cc;
+  color: var(--kb-icon-faint);
   cursor: default;
 }

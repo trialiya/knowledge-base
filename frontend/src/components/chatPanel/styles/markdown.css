@@ -63,7 +63,7 @@
 .message.ai .md-preview code {
   font-family: var(--kb-font-mono);
   font-size: 0.83em;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   padding: 2px 5px;
   border-radius: 4px;
   color: var(--kb-accent);
@@ -84,7 +84,7 @@
 /* Блок кода с шапкой рисует себя сам (common/ui/codeBlock.css) — правилу остаётся
    разметка, отрисованная дефолтными компонентами react-markdown, без шапки. */
 .message.ai .md-preview pre:not(.code-block__pre) {
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 8px;
   padding: 12px 14px;
@@ -103,8 +103,8 @@
   border-left: 3px solid var(--kb-accent);
   margin: 0 0 0.8em;
   padding: 0.4em 1em;
-  color: var(--kb-muted);
-  background: var(--kb-accent-light);
+  color: var(--kb-text-muted);
+  background: var(--kb-accent-surface-subtle);
   border-radius: 0 6px 6px 0;
 }
 .message.ai .md-preview a {
@@ -131,7 +131,7 @@
   padding: 6px 10px;
 }
 .message.ai .md-preview th {
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   font-weight: 600;
 }
 
@@ -156,11 +156,11 @@
   font-size: 0.85em;
   font-weight: bold;
   line-height: 1.6;
-  background: var(--kb-code-dark-bg);
+  background: var(--kb-code-surface);
   border-radius: 10px;
   padding: 16px 20px;
   margin: 4px 0;
-  color: var(--kb-code-dark-color);
+  color: var(--kb-code-text);
   border: none;
   overflow-x: auto;
   box-sizing: border-box;

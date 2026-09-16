@@ -34,7 +34,7 @@
   display: flex;
   overflow: hidden;
   position: relative; /* якорь для оверлейных панелей на узком экране */
-  background: var(--kb-white);
+  background: var(--kb-surface);
   font-family: var(--kb-font-system);
   color: var(--kb-text);
   min-width: 0;
@@ -47,7 +47,7 @@
   flex-direction: column;
   flex-shrink: 0;
   min-height: 0;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -177,7 +177,7 @@
   align-items: center;
   gap: 6px;
   padding: 0.55rem 0;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
 }
 
 .workspace__rail--left {
@@ -196,7 +196,7 @@
 /* Иконка раскрытой вкладки. Рельс — единственный переключатель вкладок правой
    панели, поэтому по нему должно читаться, что именно открыто. */
 .workspace__rail-btn--active {
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
 }
 
@@ -209,7 +209,7 @@
   padding: 0 3px;
   box-sizing: border-box;
   background: var(--kb-accent);
-  color: #fff;
+  color: var(--kb-text-on-fill);
   border-radius: 8px;
   font-size: 0.62rem;
   font-weight: 700;
@@ -234,7 +234,7 @@
 
 .workspace__tab-badge {
   background: var(--kb-accent);
-  color: #fff;
+  color: var(--kb-text-on-fill);
   border-radius: 9px;
   padding: 0 5px;
   font-size: 0.66rem;
@@ -275,7 +275,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--kb-white);
+  background: var(--kb-surface);
 }
 
 /* Шапка центра и шапки боковых панелей — одно правило: они обязаны стоять на
@@ -300,7 +300,7 @@
   box-sizing: border-box;
   min-height: var(--ws-head-min-h);
   border-bottom: 1px solid var(--kb-border);
-  background: var(--kb-white);
+  background: var(--kb-surface);
 }
 
 .workspace__head {
@@ -371,14 +371,14 @@
   border-radius: 6px;
   background: none;
   font: inherit;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   white-space: nowrap;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
 }
 .workspace__head-crumb:hover {
   color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 /* Последняя крошка — сам открытый объект (файлы: имя файла и есть конец пути).
@@ -434,7 +434,7 @@
     bottom: 0;
     z-index: 20;
     width: min(var(--ws-right-width), 85%);
-    box-shadow: -8px 0 24px rgba(45, 43, 85, 0.16);
+    box-shadow: var(--kb-shadow-panel-right);
   }
 }
 
@@ -451,6 +451,6 @@
     bottom: 0;
     z-index: 20;
     width: min(var(--ws-left-width), 85%);
-    box-shadow: 8px 0 24px rgba(45, 43, 85, 0.16);
+    box-shadow: var(--kb-shadow-panel-left);
   }
 }

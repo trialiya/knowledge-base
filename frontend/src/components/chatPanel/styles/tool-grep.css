@@ -23,21 +23,21 @@
   width: 100%;
   box-sizing: border-box;
   padding: 5px 8px;
-  background: #f7f7f8;
-  border: 1px solid #ececf0;
+  background: var(--kb-surface-sunken);
+  border: 1px solid var(--kb-border-light);
   border-radius: 6px;
   cursor: pointer;
   text-align: left;
   min-width: 0;
 }
 .tool-grep__head:hover {
-  background: #f0f0f3;
+  background: var(--kb-surface-muted);
 }
 
 .tool-grep__chevron {
   display: flex;
   flex-shrink: 0;
-  color: #999;
+  color: var(--kb-text-placeholder);
   transform: rotate(-90deg);
   transition: transform 0.15s;
 }
@@ -53,13 +53,13 @@
   white-space: nowrap;
   font-family: var(--kb-font-mono, ui-monospace, Menlo, Consolas, monospace);
   font-size: 0.78rem;
-  color: #222;
+  color: var(--kb-text);
 }
 
 .tool-grep__count {
   flex-shrink: 0;
   font-size: 0.7rem;
-  color: #888;
+  color: var(--kb-text-faint);
 }
 
 /* Подложка та же, что у остальных блоков кода в модалке (см. tool-code.css).
@@ -68,7 +68,7 @@
    пропущены строки, и пустота читается как пропуск лучше линии. */
 .tool-grep__block {
   padding: 6px 0;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   color: var(--kb-text);
   border-radius: 6px;
@@ -99,14 +99,14 @@
    у подсветки слова: здесь залита вся строка, и полная насыщенность на таком
    объёме перебивает сам текст. */
 .tool-grep__line--match {
-  background: rgba(253, 230, 138, 0.45);
+  background: var(--kb-match-soft-bg);
 }
 
 .tool-grep__line-no {
   flex: 0 0 auto;
   min-width: 3.2em;
   text-align: right;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   user-select: none;
 }
 
@@ -115,7 +115,7 @@
 .tool-grep__line-text {
   white-space: pre;
   min-width: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .tool-grep__line--match .tool-grep__line-text {
   color: var(--kb-text);

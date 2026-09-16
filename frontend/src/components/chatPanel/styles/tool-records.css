@@ -30,14 +30,14 @@
   min-width: 0;
 }
 .tool-records__head:hover {
-  background: #f7f7f8;
-  border-color: #ececf0;
+  background: var(--kb-surface-sunken);
+  border-color: var(--kb-border-light);
 }
 
 .tool-records__chevron {
   display: flex;
   flex-shrink: 0;
-  color: #bbb;
+  color: var(--kb-text-disabled);
   transform: rotate(-90deg);
   transition: transform 0.15s;
 }
@@ -57,7 +57,7 @@
 
 .tool-records__title {
   font-size: 0.8rem;
-  color: #222;
+  color: var(--kb-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -65,7 +65,7 @@
 
 .tool-records__subtitle {
   font-size: 0.72rem;
-  color: #999;
+  color: var(--kb-text-placeholder);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -75,9 +75,9 @@
   flex-shrink: 0;
   padding: 1px 7px;
   border-radius: 10px;
-  background: #f1f1f4;
+  background: var(--kb-surface-muted);
   font-size: 0.68rem;
-  color: #777;
+  color: var(--kb-text-muted);
   white-space: nowrap;
 }
 
@@ -86,7 +86,7 @@
 .tool-records__fields {
   margin: 2px 0 6px;
   padding: 8px 10px 8px 30px;
-  background: #f7f7f8;
+  background: var(--kb-surface-sunken);
   border-radius: 6px;
   display: grid;
   gap: 3px 12px;
@@ -101,7 +101,7 @@
 }
 
 .tool-records__field-key {
-  color: #999;
+  color: var(--kb-text-placeholder);
 }
 
 /* `pre-wrap` — ради многострочных значений: тело коммита (`body` у `GitCommit`)
@@ -109,7 +109,7 @@
    абзац. Однострочным значениям правило ничего не меняет. */
 .tool-records__field-value {
   margin: 0;
-  color: #333;
+  color: var(--kb-text-secondary);
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -120,11 +120,11 @@
    ради содержимого файла, а не ради слова «Done». */
 .tool-scalar {
   padding: 8px 10px;
-  background: #f7f7f8;
+  background: var(--kb-surface-sunken);
   border-radius: 6px;
   font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
   font-size: 0.8rem;
-  color: #222;
+  color: var(--kb-text);
   overflow-wrap: anywhere;
   box-sizing: border-box;
 }

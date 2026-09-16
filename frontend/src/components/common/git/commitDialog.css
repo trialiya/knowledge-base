@@ -28,7 +28,7 @@
 .commit-dialog__branch {
   min-width: 0;
   overflow: hidden;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-family: var(--kb-font-mono);
   font-size: 0.8rem;
   font-weight: 400;
@@ -40,8 +40,8 @@
   margin: 0;
   padding: 0.4rem 0.6rem;
   border-radius: 8px;
-  background: var(--kb-bg);
-  color: var(--kb-muted);
+  background: var(--kb-surface-app);
+  color: var(--kb-text-muted);
   font-size: 0.82rem;
 }
 
@@ -72,7 +72,7 @@
   min-height: 32px;
   padding: 0 0.75rem;
   border-bottom: 1px solid var(--kb-border-light);
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
 }
 
 .commit-dialog__diff-path {
@@ -95,7 +95,7 @@
 
 .commit-dialog__empty {
   margin: auto;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.85rem;
 }
 
@@ -115,7 +115,7 @@
   padding: 0 0.75rem;
   border: 1.5px solid var(--kb-border);
   border-radius: 10px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   color: var(--kb-text);
   font-family: var(--kb-font-system);
   font-size: 0.88rem;
@@ -162,7 +162,7 @@
 
 .commit-files__all-label {
   overflow: hidden;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.78rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -170,7 +170,7 @@
 
 .commit-files__count {
   flex: none;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
 }
@@ -183,7 +183,7 @@
 
 .commit-files__note {
   margin: 0.4rem 0.35rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.8rem;
 }
 
@@ -201,11 +201,11 @@
 }
 
 .commit-files__row--open {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .commit-files__row--dir {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .commit-files__dir-name {
@@ -235,7 +235,7 @@
 .commit-files__status {
   flex: none;
   width: 0.9rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-family: var(--kb-font-mono);
   font-size: 0.72rem;
   font-weight: 700;
@@ -260,7 +260,7 @@
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.72rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -285,8 +285,8 @@
   padding: 0;
   border: 1.5px solid var(--kb-border);
   border-radius: 4px;
-  background: var(--kb-white);
-  color: var(--kb-white);
+  background: var(--kb-surface);
+  color: var(--kb-text-on-fill);
   cursor: pointer;
 }
 

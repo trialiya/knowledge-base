@@ -15,14 +15,14 @@
   padding: 1px 6px;
   border-radius: 20px;
   background: var(--kb-border-light);
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.72rem;
   font-weight: 600;
   text-align: center;
 }
 .ws-item--active .search-scopes__count {
   background: var(--kb-accent);
-  color: var(--kb-white);
+  color: var(--kb-text-on-fill);
 }
 
 .search-filters {
@@ -42,7 +42,7 @@
 .search-filters__label {
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -55,7 +55,7 @@
   padding: 5px 8px;
   border: 1px solid var(--kb-border);
   border-radius: 8px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   color: var(--kb-text);
   font-family: inherit;
   font-size: 0.8rem;
@@ -76,7 +76,7 @@
 
 /* Фильтр, которого при заданной ревизии нет: почему — говорит подпись рядом. */
 .search-filters__check--off {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   cursor: default;
 }
 
@@ -84,7 +84,7 @@
   margin: -4px 0 0;
   font-size: 0.72rem;
   line-height: 1.3;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .search-filters__modes {

@@ -14,7 +14,7 @@
 
 /* Системный узел: приглушённая метка вместо кнопки удаления (её заменяет замок). */
 .tree-row--system .ws-item__label {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* ═══════════════════════════════════════════════
@@ -34,7 +34,7 @@
   transition: color 0.15s;
 }
 .tree-row:hover .tree-row__drag-handle {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .tree-row__drag-handle:active {
   cursor: grabbing;
@@ -67,19 +67,19 @@
 /* BEFORE — top inset shadow = line */
 .tree-row--drop-before {
   box-shadow: inset 0 3px 0 0 var(--kb-accent), inset 3px 0 0 0 var(--kb-accent);
-  background: var(--kb-accent-light) !important;
+  background: var(--kb-accent-surface-subtle) !important;
 }
 
 /* AFTER — bottom inset shadow = line */
 .tree-row--drop-after {
   box-shadow: inset 0 -3px 0 0 var(--kb-accent), inset 3px 0 0 0 var(--kb-accent);
-  background: var(--kb-accent-light) !important;
+  background: var(--kb-accent-surface-subtle) !important;
 }
 
 /* INSIDE — all-sides inset shadow = visible border around the folder row */
 .tree-row--drop-inside {
   box-shadow: inset 0 0 0 2px var(--kb-accent);
-  background: var(--kb-accent-bg) !important;
+  background: var(--kb-accent-surface) !important;
   border-radius: 6px;
 }
 
@@ -111,7 +111,7 @@
 .move-confirm-modal__body {
   margin: 0;
   font-size: 0.87rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   line-height: 1.55;
 }
 
@@ -121,7 +121,7 @@
 }
 
 .move-confirm-modal__path {
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 10px;
   padding: 10px 14px;
@@ -143,7 +143,7 @@
 }
 
 .move-confirm-modal__path-label {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   flex-shrink: 0;
 }
 
@@ -157,7 +157,7 @@
 
 .move-confirm-modal__path-arrow {
   font-size: 0.9rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   padding-left: 22px; /* aligns with the folder icons above/below */
 }
 
@@ -171,7 +171,7 @@
   width: 22px;
   height: 22px;
   flex-shrink: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -201,7 +201,7 @@
   border: none;
   cursor: pointer;
   font-size: 0.8rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   letter-spacing: 0.02em;
   transition: color 0.15s, background 0.1s;
   text-align: left;
@@ -210,7 +210,7 @@
 
 .tree-load-more:hover:not(:disabled) {
   color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .tree-load-more:disabled {

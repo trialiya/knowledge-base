@@ -27,7 +27,7 @@
 .search-results__in,
 .search-results__pending {
   font-size: 0.8rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 /* Предупреждение о неполной выдаче: бэкенд обрезал ответ по своему пределу. */
@@ -35,15 +35,15 @@
   margin: 0;
   padding: 6px 10px;
   border-radius: 8px;
-  background: var(--kb-accent-light);
-  color: var(--kb-muted);
+  background: var(--kb-accent-surface-subtle);
+  color: var(--kb-text-muted);
   font-size: 0.78rem;
 }
 
 .search-results__hint,
 .search-results__error {
   padding: 2rem 1.8rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.85rem;
   text-align: center;
 }
@@ -62,7 +62,7 @@
 .search-group {
   border: 1.5px solid var(--kb-border);
   border-radius: 12px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   overflow: hidden;
 }
 
@@ -72,13 +72,13 @@
   gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--kb-border-light);
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
 }
 
 .search-group__icon {
   display: flex;
   align-items: center;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .search-group__title {
@@ -99,14 +99,14 @@
 .search-group__meta {
   flex-shrink: 0;
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   white-space: nowrap;
 }
 
 .search-group__subtitle {
   padding: 4px 12px;
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .search-group__crumbs {
@@ -130,7 +130,7 @@
 .search-group__badge {
   padding: 1px 8px;
   border-radius: 20px;
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
   font-size: 0.7rem;
   font-weight: 600;
@@ -163,7 +163,7 @@ a.search-group__section {
 }
 a.search-group__row:hover,
 a.search-group__section:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 /* Подзаголовок совпадений: раздел документа, под которым они нашлись, или
@@ -175,7 +175,7 @@ a.search-group__section:hover {
   padding: 5px 12px 2px;
   font-size: 0.74rem;
   font-weight: 600;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   border-top: 1px solid var(--kb-border-light);
 }
 .search-group__section:first-child {
@@ -209,7 +209,7 @@ a.search-group__section:hover {
   cursor: pointer;
 }
 .search-group__more:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 /* ── Строка совпадения ── */
@@ -217,7 +217,7 @@ a.search-group__section:hover {
 .search-line__no,
 .search-line__where {
   flex-shrink: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.72rem;
 }
 

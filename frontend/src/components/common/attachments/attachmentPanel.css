@@ -15,8 +15,8 @@
   padding: 1rem;
   border: 2px dashed var(--kb-border);
   border-radius: 12px;
-  background: var(--kb-bg);
-  color: var(--kb-muted);
+  background: var(--kb-surface-app);
+  color: var(--kb-text-muted);
   font-family: inherit;
   font-size: 0.84rem;
   cursor: pointer;
@@ -26,11 +26,11 @@
 .attachment-dropzone:hover {
   border-color: var(--kb-accent);
   color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 .attachment-dropzone--active {
   border-color: var(--kb-accent);
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
 }
 .attachment-dropzone--uploading {
@@ -55,8 +55,8 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--kb-muted);
-  background: var(--kb-bg);
+  color: var(--kb-text-muted);
+  background: var(--kb-surface-app);
   border-bottom: 1px solid var(--kb-border);
 }
 
@@ -65,20 +65,20 @@
   grid-template-columns: 28px 1fr 70px 100px;
   align-items: center;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--kb-border-light, var(--kb-border));
+  border-bottom: 1px solid var(--kb-border-light);
   transition: background 0.1s;
 }
 .attachment-row:last-child {
   border-bottom: none;
 }
 .attachment-row:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .attachment-row__icon {
   display: flex;
   align-items: center;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .attachment-row__name-wrap {
@@ -97,7 +97,7 @@
 }
 .attachment-row__summary {
   font-size: 0.76rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -112,7 +112,7 @@
 
 .attachment-row__size {
   font-size: 0.78rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .attachment-row__actions {
@@ -122,14 +122,14 @@
 }
 
 .attachment-row__delete:hover {
-  color: #e84d6a !important;
-  background: #fdedf0 !important;
+  color: var(--kb-error) !important;
+  background: var(--kb-surface-error) !important;
 }
 
 /* ── Panel states ── */
 .attachment-panel__loading,
 .attachment-panel__empty {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.88rem;
   text-align: center;
   padding: 2rem 0;
@@ -160,7 +160,7 @@
   justify-content: space-between;
   padding: 12px 18px;
   border-bottom: 1px solid var(--kb-border);
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   flex-shrink: 0;
 }
 .attachment-viewer__name {
@@ -180,7 +180,7 @@
 }
 
 .attachment-viewer__loading {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-style: italic;
   text-align: center;
   padding: 2rem;
@@ -222,7 +222,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -233,11 +233,11 @@
 }
 .message-input-attach:hover {
   color: var(--kb-accent);
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
 }
 .attachment-row__source {
   font-size: 0.72rem;
-  color: var(--kb-accent, #5b6abf);
+  color: var(--kb-accent);
   text-decoration: none;
   margin-top: 1px;
   display: inline-flex;

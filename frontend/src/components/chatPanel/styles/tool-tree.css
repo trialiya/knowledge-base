@@ -10,7 +10,7 @@
 
 .tool-tree__header {
   font-weight: 600;
-  color: #333;
+  color: var(--kb-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -48,7 +48,7 @@
   min-width: 0;
 }
 .tool-tree__row:hover {
-  background: #f4f4f6;
+  background: var(--kb-surface-muted);
 }
 
 /* Отмеченная кликом строка. Лист не сворачивается, но кнопкой остаётся и он:
@@ -56,13 +56,13 @@
    потерять, а отключённая кнопка не нажимается и не берёт фокус. */
 .tool-tree__row--current,
 .tool-tree__row--current:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .tool-tree__chevron {
   display: flex;
   flex-shrink: 0;
-  color: #bbb;
+  color: var(--kb-text-disabled);
   transform: rotate(-90deg);
   transition: transform 0.15s;
 }
@@ -76,7 +76,7 @@
 }
 
 .tool-tree__label {
-  color: #222;
+  color: var(--kb-text);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -93,7 +93,7 @@
   white-space: nowrap;
   font-family: var(--kb-font-mono, ui-monospace, Menlo, Consolas, monospace);
   font-size: 0.72rem;
-  color: #aaa;
+  color: var(--kb-text-disabled);
 }
 
 .tool-tree__chip {
@@ -101,9 +101,9 @@
   margin-left: auto;
   padding: 1px 7px;
   border-radius: 10px;
-  background: #f1f1f4;
+  background: var(--kb-surface-muted);
   font-size: 0.68rem;
-  color: #777;
+  color: var(--kb-text-muted);
   white-space: nowrap;
 }
 /* Прижимается к правому краю только первый чип; остальные идут за ним. */

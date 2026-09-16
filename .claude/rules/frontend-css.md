@@ -5,6 +5,17 @@ paths:
 
 # Frontend styles
 
+- **Colour comes from a role, never from a value.** `--kb-text-muted`,
+  `--kb-border-error`, `--kb-shadow-popover` — declared in
+  `styles/theme-light.css`, resolved from `styles/palette.css`. A literal
+  (`#888`, `rgba(0, 0, 0, .05)`) and a raw palette entry (`--p-neutral-600`)
+  are equally wrong here: both survive a theme swap unchanged, and a theme is
+  exactly what the roles exist for. A shadow is a role in full, not a colour
+  inside one — a dark theme wants a different radius and opacity, not the same
+  black. `styles/tokens.test.js` enforces all of it, and also fails on a role or
+  a palette entry nobody asks for. Need a shade the dictionary has no word for?
+  Add the role next to its neighbours, with a comment saying what it marks —
+  don't inline the value.
 - **There is no global `box-sizing: border-box`** in this project. Any rule that
   sizes a box (`min-height`, `height`, `width`) must set `box-sizing` itself, or
   padding and border silently add to it — and `<button>`s behave differently from

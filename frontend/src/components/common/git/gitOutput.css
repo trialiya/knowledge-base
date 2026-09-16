@@ -11,7 +11,7 @@
   border-left: 3px solid var(--kb-success);
   border-radius: 8px;
   overflow: hidden;
-  background: var(--kb-white);
+  background: var(--kb-surface);
 }
 
 .git-output--failed {
@@ -50,7 +50,7 @@
   flex: none;
   max-width: 40%;
   overflow: hidden;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -60,8 +60,8 @@
   margin: 0;
   padding: 0.5rem 0.6rem;
   overflow: auto;
-  background: #1e1e1e;
-  color: #e6e6e6;
+  background: var(--kb-code-surface);
+  color: var(--kb-code-text);
   font-family: var(--kb-font-mono);
   font-size: 0.72rem;
   line-height: 1.45;
@@ -74,7 +74,7 @@
   margin: 0;
   padding: 0.35rem 0.6rem;
   border-top: 1px solid var(--kb-border);
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.73rem;
 }
 

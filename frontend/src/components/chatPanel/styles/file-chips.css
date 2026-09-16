@@ -6,7 +6,7 @@
   margin: 0 1px;
   padding: 1px 3px 1px 6px;
   border-radius: 6px;
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   border: 1px solid var(--kb-border);
   color: var(--kb-accent);
   font-size: 0.82em;
@@ -18,7 +18,7 @@
   max-width: 360px;
 }
 .file-chip--ref {
-  background: rgba(91, 79, 207, 0.06);
+  background: var(--kb-accent-wash);
   border-style: dashed;
 }
 /* Подпись commit-чипа — короткий хэш, его читают посимвольно. */
@@ -39,7 +39,7 @@
   border: none;
   background: none;
   cursor: pointer;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 1.05em;
   line-height: 1;
   padding: 0 2px;
@@ -47,6 +47,6 @@
   flex-shrink: 0;
 }
 .file-chip__remove:hover {
-  color: #e84d6a;
-  background: rgba(232, 77, 106, 0.12);
+  color: var(--kb-error);
+  background: var(--kb-error-wash);
 }

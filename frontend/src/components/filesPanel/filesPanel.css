@@ -101,7 +101,7 @@
 .file-content__empty {
   padding: 2.5rem 1.5rem;
   text-align: center;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.9rem;
 }
 
@@ -135,14 +135,14 @@
   transition: background 0.1s;
 }
 .file-listing__row:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 .file-listing__icon {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .file-listing__icon--folder {
   color: var(--kb-accent);
@@ -157,7 +157,7 @@
 
 .file-listing__size {
   flex-shrink: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
 }
@@ -189,11 +189,11 @@
   padding: 0.7rem 1.5rem;
   border-bottom: 1px solid var(--kb-border);
   font-size: 0.78rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .file-view__badge {
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
   border-radius: 10px;
   padding: 2px 9px;
@@ -201,8 +201,8 @@
   font-size: 0.74rem;
 }
 .file-view__badge--warn {
-  background: #fdf0e0;
-  color: #a15c00;
+  background: var(--kb-surface-warning);
+  color: var(--kb-text-warning);
 }
 
 .file-view__md-toggle {
@@ -210,18 +210,18 @@
   border: 1px solid var(--kb-border);
   background: none;
   cursor: pointer;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.85rem;
   padding: 2px 8px;
   border-radius: 6px;
   line-height: 1.2;
 }
 .file-view__md-toggle:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
 }
 .file-view__md-toggle--active {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
   border-color: var(--kb-accent);
 }
@@ -262,7 +262,7 @@
   width: 1%;
   padding: 0 12px;
   text-align: right;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   opacity: 0.6;
   user-select: none;
   white-space: nowrap;
@@ -278,5 +278,5 @@
 }
 
 .file-code__table tr:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }

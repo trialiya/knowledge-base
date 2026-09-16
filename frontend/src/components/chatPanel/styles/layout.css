@@ -21,7 +21,7 @@
   white-space: nowrap;
   user-select: none;
   cursor: default;
-  color: #999;
+  color: var(--kb-text-placeholder);
 }
 
 /* Поле инлайн-переименования: раскладка общая (.workspace__head-edit — стоит на
@@ -36,7 +36,7 @@
   font-weight: 600;
   color: var(--kb-text);
   outline: none;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
 }
 
 .message-list {
@@ -54,7 +54,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.95rem;
 }
 
@@ -66,7 +66,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.95rem;
 }
 .chat-unavailable__icon {
@@ -83,7 +83,7 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.78rem;
   text-align: center;
   margin: 0.25rem 0;
@@ -97,7 +97,7 @@
 
 /* Заглушка правой панели, когда чат ещё не выбран. */
 .chat-empty-note {
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.84rem;
   text-align: center;
   padding: 2rem 0;
@@ -122,18 +122,18 @@
   height: 38px;
   border-radius: 50%;
   border: 1px solid var(--kb-border);
-  background: var(--kb-white);
+  background: var(--kb-surface);
   color: var(--kb-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(91, 79, 207, 0.25);
+  box-shadow: var(--kb-shadow-accent-glow);
   transition: transform 0.12s, background 0.15s;
   z-index: 5;
 }
 .scroll-to-bottom-btn:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   transform: translateX(-50%) scale(1.08);
 }
 .scroll-to-bottom-btn:active {

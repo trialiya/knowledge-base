@@ -64,7 +64,7 @@
 }
 
 .ws-item:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 /* Строка получает фокус с клавиатуры (стрелками). Внутренний outline — по той
@@ -82,7 +82,7 @@
    выделение, и активная строка светлела под курсором. */
 .ws-item--active,
 .ws-item--active:hover {
-  background: var(--kb-accent-bg);
+  background: var(--kb-accent-surface);
   color: var(--kb-accent);
   font-weight: 700;
 }
@@ -108,14 +108,14 @@
   justify-content: center;
   flex-shrink: 0;
   width: 16px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .ws-item__icon {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .ws-item__icon--folder {
   color: var(--kb-accent);
@@ -172,5 +172,5 @@
 .ws-hint {
   padding: 6px var(--ws-gutter) 6px calc(var(--ws-gutter) + var(--depth, 0) * var(--ws-indent));
   font-size: 0.78rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }

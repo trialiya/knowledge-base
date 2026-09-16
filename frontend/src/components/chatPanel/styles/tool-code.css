@@ -11,7 +11,7 @@
    Общий скролл модалки — как у .tool-call-detail__pre, поэтому собственного
    overflow-y здесь нет; по горизонтали текст скроллится сам. */
 .tool-code {
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   color: var(--kb-text);
   border: 1px solid var(--kb-border);
   border-radius: 6px;
@@ -41,7 +41,7 @@
   flex: 0 0 auto;
   min-width: 3.2em;
   text-align: right;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   user-select: none;
 }
 

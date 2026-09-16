@@ -1,70 +1,4 @@
-/* ═══════════════════════════════════════════════
-   DESIGN TOKENS — используется во всём приложении
-═══════════════════════════════════════════════ */
-:root {
-  /* accent (основной фиолетовый) */
-  --kb-accent: #5b4fcf;
-  --kb-accent-hover: #4a3eb8;
-  --kb-accent-bg: #ededf8;
-  --kb-accent-light: #f3f2fd;
-
-  /* borders */
-  --kb-border: #e4e4f0;
-  --kb-border-light: #f0f0f8;
-
-  /* text */
-  --kb-text: #2d2b55;
-  --kb-muted: #726f9a; /* WCAG AA vs white/light surfaces (>=4.5:1); #8886aa was ~3.5:1 */
-
-  /* surfaces */
-  --kb-bg: #f8f8fc;
-  --kb-white: #ffffff;
-  --kb-page-bg: #f0f2f5;
-
-  /* chat bubbles */
-  --kb-user-bubble-bg: #007bff;
-  --kb-user-bubble-color: #ffffff;
-  --kb-ai-bubble-bg: #e9e9eb;
-  --kb-ai-bubble-color: #333333;
-
-  /* status */
-  --kb-success: #34a853;
-  --kb-success-bg: #f0faf3;
-  --kb-warning: #e0a800;
-  --kb-warning-bg: #fffbeb;
-  /* Заливка строки для файла вне git (виден через allow-globs проекта). Тёплая,
-     но бледная: она метит целую строку и в дереве идёт подряд десятками, а
-     насыщенный оранжевый на таком объёме перетягивает внимание с выделения.
-     --strong — тот же оттенок под выделенной строкой, где бледный тон
-     теряется под акцентной меткой. */
-  --kb-untracked-bg: #fff7ee;
-  --kb-untracked-bg-strong: #fff0df;
-
-  /* error / danger */
-  --kb-error: #e84d6a;
-  --kb-error-bg: #fdedf0;
-
-  /* search */
-  --kb-match-bg: #fde68a;
-  /* Активное совпадение при переходе по найденному (find-бар): тот же тон,
-     взятый гуще, — иначе его не отличить от остальных на экране. */
-  --kb-match-active-bg: #fbbf24;
-
-  /* code */
-  --kb-code-dark-bg: #1e1e1e;
-  --kb-code-dark-color: #e6e6e6;
-
-  /* typography */
-  --kb-font-mono: 'Fira Mono', 'Consolas', monospace;
-  --kb-font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-
-  /* layout */
-  --kb-radius: 16px;
-  /* Ширина левой панели рабочей области. Здесь — только значение по умолчанию:
-     пользователь тянет границу, и useLeftPanelWidth переписывает переменную
-     прямо на :root, чтобы её сразу увидели все разделы. */
-  --ws-left-width: 280px;
-}
+@import './styles/tokens.css';
 
 /* ═══════════════════════════════════════════════
    ОБЩИЕ АНИМАЦИИ — используются в нескольких компонентах,
@@ -78,7 +12,7 @@
 }
 
 /* Подсветка совпадающих подстрок в результатах поиска (highlightMatch.jsx).
-   Заметна и на белом фоне строки, и на --kb-accent-light у выбранной строки. */
+   Заметна и на белом фоне строки, и на подложке выбранной строки. */
 mark.search-match {
   background: var(--kb-match-bg);
   color: inherit;
@@ -95,7 +29,4 @@ mark.search-match {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-body {
 }

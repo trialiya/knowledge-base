@@ -75,7 +75,7 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .file-changes__count {
@@ -104,7 +104,7 @@
   font-family: var(--kb-font-mono);
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 .file-changes__status--A,
 .file-changes__status--U {
@@ -129,7 +129,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-weight: 400;
   font-size: 0.78rem;
 }
@@ -137,7 +137,7 @@
 .file-changes__from {
   flex: 0 0 auto;
   font-size: 0.74rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
 }
 
 .file-changes__stats {

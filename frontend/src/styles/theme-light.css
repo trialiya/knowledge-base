@@ -1,0 +1,172 @@
+/*
+ * Светлая тема: роль → оттенок палитры. Словарь ролей задаётся здесь, а
+ * theme-dark.css отвечает на те же роли другими оттенками — значит, список
+ * имён в обоих файлах обязан совпадать, иначе в тёмной теме роль молча
+ * провалится в светлое значение с :root.
+ *
+ * Имена ролей описывают МЕСТО и НАЗНАЧЕНИЕ («подложка утоплённого блока»,
+ * «текст поверх заливки»), а не цвет: `--kb-white` в тёмной теме не белый, и
+ * такое имя начинает врать читателю. По той же причине роли нет у оттенка,
+ * который встречается один раз, — это не роль, а случайность.
+ */
+:root {
+  /* ─── Плоскости ───────────────────────────────────────────────────────── */
+  /* Карточка, модалка, меню — то, что лежит поверх фона приложения. */
+  --kb-surface: var(--p-neutral-0);
+  /* Фон рабочей области и фон страницы под ней. */
+  --kb-surface-app: var(--p-neutral-50);
+  --kb-surface-page: var(--p-neutral-75);
+  /* Утоплённое в карточку: блок кода, превью, тело результата инструмента. */
+  --kb-surface-sunken: var(--p-neutral-50);
+  /* Приглушённая подложка строки, чипа, счётчика. */
+  --kb-surface-muted: var(--p-neutral-75);
+  /* Заметная подложка: бейдж, шапка блока, разделитель заливкой. */
+  --kb-surface-strong: var(--p-neutral-100);
+
+  /* ─── Интерактивные состояния ─────────────────────────────────────────── */
+  /* Полупрозрачные: ложатся на любую плоскость и не требуют знать, на какую. */
+  --kb-surface-hover: rgba(var(--p-ink-rgb), 0.05);
+  --kb-surface-active: rgba(var(--p-ink-rgb), 0.08);
+
+  /* ─── Акцент ──────────────────────────────────────────────────────────── */
+  --kb-accent: var(--p-violet-500);
+  --kb-accent-hover: var(--p-violet-600);
+  --kb-accent-surface: var(--p-violet-50);
+  --kb-accent-surface-subtle: var(--p-violet-0);
+  /* Едва заметная акцентная подложка чипа — на ней ещё читается основной текст. */
+  --kb-accent-wash: rgba(var(--p-violet-rgb), 0.06);
+  --kb-accent-wash-strong: rgba(var(--p-violet-rgb), 0.12);
+  /* Выделение фрагмента в редакторе: обычное и то, на котором стоит курсор. */
+  --kb-accent-select-bg: rgba(var(--p-violet-rgb), 0.16);
+  --kb-accent-select-border: rgba(var(--p-violet-rgb), 0.6);
+  --kb-accent-select-bg-active: rgba(var(--p-violet-rgb), 0.26);
+  --kb-accent-select-border-active: rgba(var(--p-violet-rgb), 0.85);
+
+  /* ─── Текст ───────────────────────────────────────────────────────────── */
+  /* Шесть ступеней — столько и различает интерфейс: заголовок, обычный текст,
+     подпись, метаданные, плейсхолдер, выключенное. */
+  --kb-text: var(--p-neutral-1000);
+  --kb-text-secondary: var(--p-neutral-900);
+  --kb-text-tertiary: var(--p-neutral-800);
+  --kb-text-muted: var(--p-neutral-700);
+  --kb-text-faint: var(--p-neutral-600);
+  --kb-text-placeholder: var(--p-neutral-500);
+  --kb-text-disabled: var(--p-neutral-400);
+  /* Поверх насыщенной заливки (кнопка, бейдж, выделенная строка). */
+  --kb-text-on-fill: var(--p-neutral-0);
+  --kb-link: var(--p-blue-700);
+
+  /* ─── Иконки ──────────────────────────────────────────────────────────── */
+  /* Иконки берут ступени текста; отдельные роли только там, где иконка красится
+     не как текст рядом с ней: почти невидимый шеврон, фирменный знак, звезда. */
+  --kb-icon-faint: var(--p-neutral-300);
+  --kb-icon-brand: var(--p-violet-500);
+  --kb-icon-star: var(--p-gold);
+
+  /* ─── Границы ─────────────────────────────────────────────────────────── */
+  --kb-border: var(--p-neutral-150);
+  --kb-border-light: var(--p-neutral-100);
+  --kb-border-strong: var(--p-neutral-200);
+  --kb-border-hover: var(--p-neutral-400);
+
+  /* ─── Статусы ─────────────────────────────────────────────────────────── */
+  /* Заливка, подложка, текст ПОВЕРХ подложки и граница — сколько из четырёх
+     заведено, столько статусу и нужно. Текст отдельно от заливки не по прихоти:
+     заливку берут насыщенную, а тому же тону на бледной подложке не хватило бы
+     контраста до AA. */
+  --kb-success: var(--p-green-500);
+  --kb-surface-success: var(--p-green-25);
+  --kb-text-success: var(--p-green-700);
+
+  --kb-error: var(--p-red-500);
+  --kb-error-hover: var(--p-red-700);
+  --kb-surface-error: var(--p-red-0);
+  --kb-text-error: var(--p-red-600);
+  --kb-border-error: var(--p-red-100);
+  --kb-error-wash: rgba(var(--p-red-rgb), 0.12);
+
+  --kb-warning: var(--p-amber-500);
+  --kb-surface-warning: var(--p-amber-0);
+  --kb-text-warning: var(--p-amber-700);
+  --kb-border-warning: var(--p-amber-400);
+
+  --kb-surface-info: var(--p-blue-0);
+  --kb-text-info: var(--p-blue-600);
+  --kb-border-info: var(--p-blue-100);
+
+  /* ─── Diff: одна семантика на чат и на редактор ───────────────────────── */
+  /* Один словарь на оба места: «добавлено» в разборе вызова инструмента и
+     «добавлено» в редакторе документа — это один и тот же зелёный. */
+  --kb-diff-add-surface: var(--p-green-0);
+  --kb-diff-add-text: var(--p-green-600);
+  --kb-diff-add-fill: var(--p-green-600);
+  --kb-diff-add-wash: rgba(var(--p-green-rgb), 0.16);
+  --kb-diff-del-surface: var(--p-red-25);
+  --kb-diff-del-text: var(--p-red-600);
+  --kb-diff-del-fill: var(--p-red-400);
+  --kb-diff-del-wash: rgba(var(--p-crimson-rgb), 0.16);
+  /* Заголовок фрагмента (@@ … @@) и его подложка. */
+  --kb-diff-hunk-surface: var(--p-blue-0);
+  --kb-diff-hunk-text: var(--p-neutral-700);
+
+  /* ─── Найденное ───────────────────────────────────────────────────────── */
+  --kb-match-bg: var(--p-amber-200);
+  /* Совпадение под курсором в find-баре: тот же тон гуще, иначе его не
+     отличить от остальных на экране. */
+  --kb-match-active-bg: var(--p-amber-300);
+  /* Подсветка внутри уже подсвеченной строки — сквозь неё видно подложку. */
+  --kb-match-soft-bg: rgba(var(--p-amber-rgb), 0.45);
+
+  /* ─── Файлы вне git ───────────────────────────────────────────────────── */
+  /* Метит строку целиком и в дереве идёт подряд десятками: тёплый, но бледный,
+     иначе насыщенный тон перетягивает внимание с выделения. --strong — тот же
+     оттенок под выделенной строкой, где бледный теряется под акцентной меткой. */
+  --kb-untracked-bg: var(--p-amber-25);
+  --kb-untracked-bg-strong: var(--p-amber-100);
+
+  /* ─── Реплики чата ───────────────────────────────────────────────────── */
+  --kb-bubble-user-bg: var(--p-blue-500);
+  --kb-bubble-user-text: var(--p-neutral-0);
+  --kb-bubble-ai-bg: var(--p-neutral-100);
+  --kb-bubble-ai-text: var(--p-neutral-900);
+
+  /* ─── Код ─────────────────────────────────────────────────────────────── */
+  /* Тёмная плоскость в обеих темах: код читают как код, а не как часть страницы. */
+  --kb-code-surface: var(--p-ink-1000);
+  --kb-code-text: var(--p-ink-50);
+  --kb-syntax-key: var(--p-ink-blue);
+  --kb-syntax-string: var(--p-ink-green);
+  --kb-syntax-number: var(--p-ink-peach);
+  --kb-syntax-boolean: var(--p-ink-mauve);
+  --kb-syntax-null: var(--p-ink-red);
+
+  /* ─── Поверх акцентной заливки ───────────────────────────────────────── */
+  /* Чип внутри выделенной строки: собственного фона у него нет, он осветляет
+     то, на чём лежит, — поэтому белый с прозрачностью, а не готовый оттенок. */
+  --kb-on-accent-surface: rgba(var(--p-white-rgb), 0.16);
+  --kb-on-accent-surface-hover: rgba(var(--p-white-rgb), 0.28);
+  --kb-on-accent-border: rgba(var(--p-white-rgb), 0.4);
+  --kb-on-accent-inset: rgba(var(--p-white-rgb), 0.5);
+
+  /* ─── Затемнение под модалкой ────────────────────────────────────────── */
+  --kb-scrim: rgba(var(--p-ink-rgb), 0.32);
+  --kb-scrim-soft: rgba(var(--p-black-rgb), 0.18);
+
+  /* ─── Тени ───────────────────────────────────────────────────────────── */
+  /* Тенью управляет тема целиком, а не только её цвет: на тёмном фоне рабочую
+     глубину даёт другой радиус и другая непрозрачность, а не тот же чёрный. */
+  --kb-shadow-sm: 0 2px 6px rgba(var(--p-violet-rgb), 0.12);
+  --kb-shadow-md: 0 8px 24px rgba(var(--p-violet-rgb), 0.16);
+  --kb-shadow-dropdown: 0 12px 32px rgba(var(--p-violet-rgb), 0.16);
+  --kb-shadow-popover: 0 8px 32px rgba(var(--p-violet-rgb), 0.18);
+  --kb-shadow-modal: 0 16px 48px rgba(var(--p-violet-rgb), 0.22);
+  --kb-shadow-overlay: 0 8px 32px rgba(var(--p-black-rgb), 0.22);
+  --kb-shadow-chip: 0 1px 2px rgba(var(--p-black-rgb), 0.12);
+  --kb-shadow-accent-glow: 0 4px 14px rgba(var(--p-violet-rgb), 0.25);
+  --kb-shadow-accent-btn: 0 2px 6px rgba(var(--p-violet-rgb), 0.3);
+  --kb-shadow-error-btn: 0 2px 6px rgba(var(--p-red-rgb), 0.3);
+  /* Оверлейная панель на узком экране: тень падает внутрь окна, поэтому у
+     левой и правой она зеркальна. */
+  --kb-shadow-panel-left: 8px 0 24px rgba(var(--p-ink-rgb), 0.16);
+  --kb-shadow-panel-right: -8px 0 24px rgba(var(--p-ink-rgb), 0.16);
+}

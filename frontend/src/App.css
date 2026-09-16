@@ -9,8 +9,8 @@ html,
 
 body {
   font-family: var(--kb-font-system);
-  background-color: var(--kb-page-bg);
-  color: var(--kb-ai-bubble-color);
+  background-color: var(--kb-surface-page);
+  color: var(--kb-bubble-ai-text);
 }
 
 .App {
@@ -27,10 +27,10 @@ body {
 }
 
 .App-header {
-  background-color: #ffffff;
+  background-color: var(--kb-surface);
   padding: 1rem;
   text-align: center;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--kb-border-strong);
 }
 
 /* ── Tab panels ── */
@@ -61,9 +61,9 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: white;
+  background: var(--kb-surface);
   padding: 0.75rem 2rem;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--kb-border-strong);
   flex-shrink: 0;
 }
 
@@ -94,7 +94,7 @@ body {
   justify-content: center;
   border-radius: 50%;
   border: 1.5px solid var(--kb-border);
-  background: var(--kb-white);
+  background: var(--kb-surface);
   font-size: 1.05rem;
   line-height: 1;
   cursor: pointer;
@@ -103,7 +103,7 @@ body {
 }
 .app-tab-icon:hover:not(.app-tab-icon--active) {
   border-color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 .app-tab-icon--active {
   background: var(--kb-accent);
@@ -117,7 +117,7 @@ body {
   left: 50%;
   transform: translateX(-50%) translateY(-2px);
   background: var(--kb-text);
-  color: var(--kb-white);
+  color: var(--kb-text-on-fill);
   font-size: 0.72rem;
   padding: 4px 9px;
   border-radius: 7px;
@@ -145,8 +145,8 @@ body {
   height: 34px;
   border-radius: 50%;
   border: 1.5px solid var(--kb-border);
-  background: var(--kb-white);
-  color: var(--kb-muted);
+  background: var(--kb-surface);
+  color: var(--kb-text-muted);
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
@@ -154,7 +154,7 @@ body {
 .app-refresh-btn:hover:not(:disabled) {
   border-color: var(--kb-accent);
   color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 .app-refresh-btn:disabled {
   opacity: 0.6;

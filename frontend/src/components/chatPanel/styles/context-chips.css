@@ -13,7 +13,7 @@
   max-width: 320px;
   border: 1px solid var(--kb-border);
   border-radius: 6px;
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
   font-size: 0.82em;
   line-height: 1.5;
@@ -35,7 +35,7 @@
   cursor: default;
 }
 .context-chip__open:not(.context-chip__open--static):hover {
-  background: rgba(91, 79, 207, 0.12);
+  background: var(--kb-accent-wash-strong);
 }
 .context-chip__icon {
   flex-shrink: 0;
@@ -51,7 +51,7 @@
   border: none;
   background: none;
   cursor: pointer;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 1.05em;
   line-height: 1;
   padding: 0 4px 0 2px;
@@ -59,8 +59,8 @@
   flex-shrink: 0;
 }
 .context-chip__remove:hover {
-  color: #e84d6a;
-  background: rgba(232, 77, 106, 0.12);
+  color: var(--kb-error);
+  background: var(--kb-error-wash);
 }
 
 /* В пузыре вопроса чипы идут под текстом. Акцентная палитра рассчитана на светлый
@@ -70,10 +70,10 @@
   margin: 6px 0 0;
 }
 .message.user .context-chip {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.4);
-  color: var(--kb-user-bubble-color);
+  background: var(--kb-on-accent-surface);
+  border-color: var(--kb-on-accent-border);
+  color: var(--kb-bubble-user-text);
 }
 .message.user .context-chip__open:not(.context-chip__open--static):hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: var(--kb-on-accent-surface-hover);
 }

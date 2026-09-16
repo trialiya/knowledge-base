@@ -19,7 +19,7 @@
 }
 .file-preview-modal__path {
   font-size: 0.72rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -28,7 +28,7 @@
   border: 1px solid var(--kb-border);
   background: none;
   cursor: pointer;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-size: 0.9rem;
   line-height: 1;
   padding: 3px 8px;
@@ -37,11 +37,11 @@
   flex-shrink: 0;
 }
 .file-preview-modal__toggle:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
 }
 .file-preview-modal__toggle--active {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
   border-color: var(--kb-accent);
 }
@@ -53,13 +53,13 @@
 .file-preview-modal__msg {
   padding: 16px 20px;
   font-size: 0.85rem;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   font-style: italic;
 }
 .file-preview-modal__code {
   margin: 0;
   padding: 16px 20px;
-  font-family: var(--kb-mono, monospace);
+  font-family: var(--kb-font-mono);
   font-size: 0.82rem;
   line-height: 1.6;
   white-space: pre;
@@ -78,7 +78,7 @@
 .file-preview-modal__ref-note {
   padding: 20px;
   font-size: 0.9rem;
-  font-family: var(--kb-mono, monospace);
+  font-family: var(--kb-font-mono);
   color: var(--kb-accent);
   word-break: break-all;
 }

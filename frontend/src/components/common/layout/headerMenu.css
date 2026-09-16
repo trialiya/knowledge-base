@@ -17,8 +17,8 @@
   height: 34px;
   border-radius: 50%;
   border: 1.5px solid var(--kb-border);
-  background: var(--kb-white);
-  color: var(--kb-muted);
+  background: var(--kb-surface);
+  color: var(--kb-text-muted);
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
@@ -27,7 +27,7 @@
 .header-menu[data-open='true'] .header-menu__trigger {
   border-color: var(--kb-accent);
   color: var(--kb-accent);
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
 }
 
 /* ── Выпадающее меню ── */
@@ -36,10 +36,10 @@
   top: calc(100% + 8px);
   right: 0;
   min-width: 248px;
-  background: var(--kb-white);
+  background: var(--kb-surface);
   border: 1.5px solid var(--kb-border);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
+  box-shadow: var(--kb-shadow-dropdown);
   padding: 6px;
   z-index: 1200;
   animation: kb-fade-in-down 0.12s ease;
@@ -61,7 +61,7 @@
   transition: background 0.12s, color 0.12s;
 }
 .header-menu__item:hover:not(:disabled) {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
 }
 .header-menu__item:disabled {
@@ -74,7 +74,7 @@
   align-items: center;
   justify-content: center;
   width: 18px;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   flex-shrink: 0;
 }
 .header-menu__item:hover:not(:disabled) .header-menu__icon {
@@ -96,7 +96,7 @@
   gap: 4px;
   font-size: 0.74rem;
   font-weight: 600;
-  color: var(--kb-muted);
+  color: var(--kb-text-muted);
   flex-shrink: 0;
 }
 
@@ -129,7 +129,7 @@
   transition: background 0.12s, color 0.12s;
 }
 .header-menu__subitem:hover {
-  background: var(--kb-accent-light);
+  background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
 }
 .header-menu__subitem--active {

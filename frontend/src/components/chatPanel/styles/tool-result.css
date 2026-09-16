@@ -32,13 +32,13 @@
   flex: 1;
   min-width: 0;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--kb-text-faint);
   white-space: nowrap;
   overflow: hidden;
 }
 
 .tool-result__facts-title {
-  color: #333;
+  color: var(--kb-text-secondary);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -52,24 +52,24 @@
 
 .tool-result__md-toggle {
   background: none;
-  border: 1px solid #ddd;
+  border: 1px solid var(--kb-border-strong);
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.7rem;
-  color: #777;
+  color: var(--kb-text-muted);
   padding: 2px 7px;
   line-height: 1.4;
   flex-shrink: 0;
   box-sizing: border-box;
 }
 .tool-result__md-toggle:hover {
-  border-color: #bbb;
-  color: #333;
+  border-color: var(--kb-border-hover);
+  color: var(--kb-text-secondary);
 }
 .tool-result__md-toggle--active {
-  background: #eef3ff;
-  border-color: #b9cdf5;
-  color: #2a5cbf;
+  background: var(--kb-surface-info);
+  border-color: var(--kb-border-info);
+  color: var(--kb-text-info);
 }
 
 /* Markdown документа или .md-вложения. Тот же язык, что у ответа ИИ
@@ -125,13 +125,13 @@
 .tool-result__markdown code {
   font-family: var(--kb-font-mono);
   font-size: 0.85em;
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   padding: 1px 5px;
   border-radius: 4px;
   color: var(--kb-accent);
 }
 .tool-result__markdown pre {
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   border: 1px solid var(--kb-border);
   border-radius: 6px;
   padding: 10px 12px;
@@ -147,8 +147,8 @@
   border-left: 3px solid var(--kb-accent);
   margin: 0 0 0.7em;
   padding: 0.3em 0.9em;
-  color: var(--kb-muted);
-  background: var(--kb-accent-light);
+  color: var(--kb-text-muted);
+  background: var(--kb-accent-surface-subtle);
   border-radius: 0 6px 6px 0;
 }
 .tool-result__markdown a {
@@ -171,7 +171,7 @@
   padding: 5px 9px;
 }
 .tool-result__markdown th {
-  background: var(--kb-bg);
+  background: var(--kb-surface-app);
   font-weight: 600;
 }
 .tool-result__markdown img {
@@ -182,7 +182,7 @@
   padding: 12px;
   text-align: center;
   font-size: 0.8rem;
-  color: #999;
-  background: #f7f7f8;
+  color: var(--kb-text-placeholder);
+  background: var(--kb-surface-sunken);
   border-radius: 6px;
 }
