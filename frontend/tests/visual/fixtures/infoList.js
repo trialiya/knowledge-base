@@ -61,3 +61,13 @@ export const sparseNodeRows = [
   { label: 'Updated', value: null },
   { label: 'ID', value: '7', mono: true },
 ];
+
+/**
+ * Тот же набор из чата, но проект чата исчез из конфигурации: подписи у него
+ * больше нет, поэтому в строке стоит сам id со словами о том, что его не стало
+ * (chat:project.goneValue). Пустое значение читалось бы как «проект не выбран».
+ */
+export const chatRowsProjectGone = [
+  ...chatRows,
+  { label: 'Проект', value: 'billing — больше недоступен' },
+];

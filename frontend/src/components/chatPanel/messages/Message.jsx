@@ -10,26 +10,8 @@ import ToolCallNotifications from './ToolCallNotifications';
 import UserMessageText from './UserMessageText';
 import MessageContextItems from './MessageContextItems';
 import { formatTokens, hasUsage, usageTooltip } from './tokenUsage';
-import { IconCopySmall, IconCopied } from '@/icons/index';
-import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
+import CopyButton from '@/components/common/ui/CopyButton';
 import { SENDER } from '@/constants/messageSender';
-
-/** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */
-const MessageCopyButton = ({ text }) => {
-  const { t } = useTranslation('chat');
-  const [copied, copy] = useCopyFeedback();
-
-  return (
-    <button
-      className={`icon-btn icon-btn--sm icon-btn--quiet ${copied ? 'icon-btn--done' : ''}`}
-      onClick={() => copy(text ?? '')}
-      title={copied ? t('common:copied') : t('message.copyMessage')}
-      type="button"
-    >
-      {copied ? <IconCopied /> : <IconCopySmall />}
-    </button>
-  );
-};
 
 // ─── Markdown components (стиль KnowledgeBase .md-preview) ─────────────────────
 // Вынесено в фабрику, чтобы ссылки получали onNavigateToDoc через замыкание.
@@ -185,7 +167,14 @@ const Message = ({
               ↻ {t('message.retry')}
             </button>
           )}
-          <MessageCopyButton text={text} />
+          {/* Пустой текст кнопку не убирает: в футере она стоит в ряду с
+              «повторить» и «исходник», и исчезающая кнопка пересобирала бы ряд. */}
+          <CopyButton
+            value={text ?? ''}
+            keepEmpty
+            title={t('message.copyMessage')}
+            className="icon-btn--sm icon-btn--quiet"
+          />
           <button
             type="button"
             className="btn btn--xs btn--ghost"
@@ -199,7 +188,12 @@ const Message = ({
       </div>
     ) : (
       <div className="message-footer message-footer--user">
-        <MessageCopyButton text={text} />
+        <CopyButton
+          value={text ?? ''}
+          keepEmpty
+          title={t('message.copyMessage')}
+          className="icon-btn--sm icon-btn--quiet"
+        />
         {timeLabel && (
           <span className="message-footer__time" title={timeTitle ?? undefined}>
             {timeLabel}
