@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,17 @@ final class GitGrepRunner {
      * all when its whole output turned out to be one block that never finished.
      */
     static final int MAX_OUTPUT_LINES = 20_000;
+
+    /**
+     * Lines of git's stderr kept — read past, never stopped at. Only a refusal is ever read out of
+     * them, and that is the first {@code fatal:}; the rest are warnings kept for the log, and a
+     * walk that warns about every directory it cannot open should not be able to fill memory with
+     * them.
+     */
+    private static final int MAX_STDERR_LINES = 200;
+
+    /** How long the stderr drain is waited for once git itself has exited. */
+    private static final long STDERR_DRAIN_WAIT = Duration.ofSeconds(1).toMillis();
 
     private final RepoPaths paths;
     private final Repository repository;
@@ -231,13 +243,13 @@ final class GitGrepRunner {
      * already in hand are the answer, since the caller has no use for the rest.
      *
      * <p>Exit code 1 is git's "no match" and comes back as the (empty) output. 128 is git's own
-     * refusal, told apart by what it complains about: the pattern (a broken regular expression) is
-     * the caller's mistake and surfaces as {@link IllegalArgumentException} carrying git's words,
-     * so the caller can show why nothing came back instead of an empty list; anything else git
-     * refuses — a repository it cannot read — is a failure of this side.
+     * refusal, told apart by what it complains about on stderr: the pattern (a broken regular
+     * expression) is the caller's mistake and surfaces as {@link IllegalArgumentException} carrying
+     * git's words, so the caller can show why nothing came back instead of an empty list; anything
+     * else git refuses — a repository it cannot read — is a failure of this side.
      *
-     * @param ctx the context lines the command asks for; with none, output has no block separators
-     *     and the cut falls on a block boundary by itself
+     * @param ctx the context lines the command asks for; with none, every line of output is a block
+     *     of its own and the cut falls on a boundary by itself
      * @param deadline {@link System#nanoTime()} past which the run is killed
      * @throws IllegalArgumentException if git refused the pattern
      * @throws GitGrepTimeoutException if git did not answer by {@code deadline}
@@ -258,11 +270,39 @@ final class GitGrepRunner {
             withConfig.add("core.quotepath=false");
             withConfig.addAll(command.subList(1, command.size()));
 
-            ProcessBuilder pb =
-                    new ProcessBuilder(withConfig)
-                            .directory(paths.root().toFile())
-                            .redirectErrorStream(true);
+            // stderr is kept apart from stdout, not merged into it: the parser reads the path off
+            // a heading line of its own, and a warning git prints on the way — an unreadable
+            // directory during the --untracked walk — would be taken for one.
+            ProcessBuilder pb = new ProcessBuilder(withConfig).directory(paths.root().toFile());
             Process process = pb.start();
+            // Nobody reads stderr until git is done, and a full pipe would stop it mid-search, so
+            // it is drained as it comes; what git has to say about a refusal fits in the cap many
+            // times over.
+            List<String> complaints = new CopyOnWriteArrayList<>();
+            Thread stderrDrain =
+                    Thread.ofVirtual()
+                            .start(
+                                    () -> {
+                                        try (var err =
+                                                new BufferedReader(
+                                                        new InputStreamReader(
+                                                                process.getErrorStream(),
+                                                                StandardCharsets.UTF_8))) {
+                                            String line;
+                                            while ((line = err.readLine()) != null) {
+                                                // Read on past the cap and keep only what fits:
+                                                // stopping would leave the pipe to fill and git
+                                                // blocked on it, which is what draining prevents.
+                                                if (complaints.size() < MAX_STDERR_LINES) {
+                                                    complaints.add(line);
+                                                }
+                                            }
+                                        } catch (IOException e) {
+                                            // The stream dies with the process this side killed —
+                                            // whatever git was saying is moot by then.
+                                            log.debug("Reading git stderr ended early", e);
+                                        }
+                                    });
             // The read below blocks until git closes its output, so the deadline is kept by a
             // watchdog that kills the process; the read then ends and waitFor sees the signal.
             AtomicBoolean timedOut = new AtomicBoolean();
@@ -299,6 +339,10 @@ final class GitGrepRunner {
             }
             int exit = process.waitFor();
             watchdog.interrupt();
+            // git is gone, so its stderr is at end of stream and the drain is about to finish; the
+            // wait is bounded all the same rather than trusting that of a thread nothing depends
+            // on.
+            stderrDrain.join(STDERR_DRAIN_WAIT);
             if (cut) {
                 // Killed by this side with the answer in hand: the exit code says only that, and
                 // so does the watchdog if the deadline fell on the same instant. Without context
@@ -325,13 +369,13 @@ final class GitGrepRunner {
                 throw timedOut(command);
             }
             if (exit > 1) {
-                String output = String.join("\n", lines);
-                log.warn("Git command exited {}: {} → {}", exit, command, output);
-                String badPattern = exit == 128 ? patternComplaint(lines) : null;
+                String said = String.join("\n", complaints);
+                log.warn("Git command exited {}: {} → {}", exit, command, said);
+                String badPattern = exit == 128 ? patternComplaint(complaints) : null;
                 if (badPattern != null) {
                     throw new IllegalArgumentException(badPattern);
                 }
-                throw new IllegalStateException("git grep exited " + exit + ": " + output);
+                throw new IllegalStateException("git grep exited " + exit + ": " + said);
             }
             // Exit 1 is git grep's "no matches" — not an error, the output is simply empty.
             return lines;
@@ -357,8 +401,8 @@ final class GitGrepRunner {
      * the offending regex — the pattern travels as {@code -e}'s value, so that is how git names it.
      * {@code null} when git refused something else.
      */
-    private static @Nullable String patternComplaint(List<String> output) {
-        return output.stream()
+    private static @Nullable String patternComplaint(List<String> stderr) {
+        return stderr.stream()
                 .filter(line -> line.startsWith("fatal:"))
                 .map(line -> line.substring("fatal:".length()).strip())
                 .filter(line -> line.startsWith("-e option, "))

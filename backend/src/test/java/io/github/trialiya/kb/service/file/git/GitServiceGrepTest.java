@@ -102,6 +102,23 @@ class GitServiceGrepTest {
                         tuple("docs/part-2", 1, ":1:needle\n"));
     }
 
+    /**
+     * Предупреждение git (здесь — битая строка в `.gitattributes`) идёт в stderr и в разбор вывода
+     * не попадает: путь теперь стоит отдельной строкой-заголовком, и посторонняя строка из другого
+     * потока заняла бы его место, а настоящий заголовок ушёл бы в мусор вместе со своими
+     * совпадениями. Сам поиск при этом успешен — предупреждение не отказ.
+     */
+    @Test
+    void aWarningGitPrintsWhileSearchingIsNotMistakenForAPath() {
+        writeFile("a.txt", "needle\n");
+        commitAll("first");
+        writeFile(".gitattributes", "*.txt =bad\n"); // имя атрибута пустое — git ругается и ищет
+
+        assertThat(service.grepContent("needle", null, false, 0, 50, false))
+                .extracting(GitGrepMatch::path)
+                .containsExactly("a.txt");
+    }
+
     @Test
     void anUnknownRevisionIsTheCallersMistake() {
         writeFile("a.txt", "needle\n");
