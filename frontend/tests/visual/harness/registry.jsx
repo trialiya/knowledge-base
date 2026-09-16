@@ -7,6 +7,7 @@ import ChatUsage from '@/components/chatPanel/center/ChatUsage';
 import ComposerToolbar from '@/components/chatPanel/composer/ComposerToolbar';
 import MessageInput from '@/components/chatPanel/composer/MessageInput';
 import PhraseFillModal from '@/components/chatPanel/composer/PhraseFillModal';
+import Phrases from '@/components/chatPanel/composer/Phrases';
 import RunStatus from '@/components/chatPanel/composer/RunStatus';
 import ChatRepoPanel from '@/components/chatPanel/git/ChatRepoPanel';
 import CommitDialog from '@/components/common/git/CommitDialog';
@@ -23,6 +24,8 @@ import DetailHeader from '@/components/knowledgeBasePanel/detail/DetailHeader';
 import DocumentDetail from '@/components/knowledgeBasePanel/detail/DocumentDetail';
 import { buildDetailTabs } from '@/components/knowledgeBasePanel/detail/detailSidebar';
 import AttachmentModal from '@/components/common/attachments/AttachmentModal';
+import AddModal from '@/components/knowledgeBasePanel/modals/AddModal';
+import MarkdownEditor from '@/components/knowledgeBasePanel/editor/MarkdownEditor';
 import RightPanel from '@/components/common/layout/RightPanel';
 import InfoList from '@/components/common/ui/InfoList';
 import OperationRow from '@/components/common/ui/OperationRow';
@@ -64,7 +67,10 @@ import * as gitMenu from '../fixtures/gitMenu';
 import * as infoList from '../fixtures/infoList';
 import * as modalFind from '../fixtures/modalFind';
 import * as operationRow from '../fixtures/operationRow';
+import * as addModal from '../fixtures/addModal';
+import * as markdownEditor from '../fixtures/markdownEditor';
 import * as phraseFill from '../fixtures/phraseFill';
+import * as phrases from '../fixtures/phrases';
 import * as projects from '../fixtures/projects';
 import * as runStatus from '../fixtures/runStatus';
 import * as searchResults from '../fixtures/searchResults';
@@ -352,6 +358,32 @@ const LIGHT = [
   { id: 'chatRepo.js#outputCardOk', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
   { id: 'chatRepo.js#outputCardRefused', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
   { id: 'chatRepo.js#outputCardSilent', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
+
+  // Ряд категорий и сетка фраз над полем ввода. Библиотеку блок грузит сам
+  // (GET /api/phrases), поэтому ответ отдаём через `api`. Рамка `feed`: блок
+  // живёт в колонке ленты и меряется её шириной.
+  {
+    id: 'phrases.js#phraseLibrary',
+    frame: 'feed',
+    api: (p) => ({ '/api/phrases': p }),
+    render: () => <Phrases onSelect={noop} />,
+  },
+
+  // Окно «Добавить» базы знаний: переключатель типа — пара кнопок-тумблеров,
+  // в кадре видно и выбранную, и невыбранную половину.
+  {
+    id: 'addModal.js#folderTree',
+    frame: 'bare',
+    render: (p) => <AddModal tree={p} defaultParentId={null} onClose={noop} onCreate={noop} />,
+  },
+
+  // Панель инструментов редактора: полтора десятка кнопок-значков в ряд.
+  // Рамка `center`: панель тянется во всю ширину колонки документа.
+  {
+    id: 'markdownEditor.js#shortDocument',
+    frame: 'center',
+    render: (p) => <MarkdownEditor value={p} savedValue={p} onChange={noop} onSave={noop} />,
+  },
 
   // Диалог заполнения плейсхолдеров. Без `phraseLabel` — фраза из библиотеки
   // может быть безымянной, и тогда у диалога общий заголовок.
@@ -775,7 +807,10 @@ const MODULES = {
   'operationRow.js': operationRow,
   'composerCommand.js': composerCommand,
   'composerToolbar.js': composerToolbar,
+  'addModal.js': addModal,
+  'markdownEditor.js': markdownEditor,
   'phraseFill.js': phraseFill,
+  'phrases.js': phrases,
   'compactNotice.js': compactNotice,
   'runStatus.js': runStatus,
   'searchResults.js': searchResults,

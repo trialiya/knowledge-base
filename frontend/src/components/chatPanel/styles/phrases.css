@@ -41,30 +41,8 @@
   margin-bottom: 10px;
 }
 
-.phrases-cat-btn {
-  background: var(--kb-surface);
-  border: 1px solid var(--kb-border);
-  border-radius: 20px;
-  color: var(--kb-text-muted);
-  font-size: 0.73rem;
-  font-weight: 600;
-  padding: 3px 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-
-.phrases-cat-btn:hover {
-  border-color: var(--kb-accent);
-  color: var(--kb-accent);
-  background: var(--kb-accent-surface-subtle);
-}
-
-.phrases-cat-btn--active {
-  background: var(--kb-accent);
-  border-color: var(--kb-accent);
-  color: var(--kb-text-on-fill);
-}
+/* Кнопки категорий — общие классы (.btn--xs): выбранная залита акцентом,
+   остальные ghost. Своего вида у ряда нет, только раскладка выше. */
 
 /* Сетка чипов с фразами */
 .phrases-grid {

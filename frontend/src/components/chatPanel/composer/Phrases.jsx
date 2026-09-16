@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchPhrases, toggleFavorite } from '@/api/phrasesApi';
 import { IconStar, IconSparkleSimple } from '@/icons/index';
+import '@/components/common/ui/buttons.css';
 import '../styles/phrases.css';
 
 // Сентинелы фильтров. Префиксы делают коллизию с пользовательской категорией
@@ -98,7 +99,7 @@ const Phrases = ({ onSelect, reloadKey }) => {
           <button
             key={cat}
             type="button"
-            className={`phrases-cat-btn ${category === cat ? 'phrases-cat-btn--active' : ''}`}
+            className={`btn btn--xs ${category === cat ? 'btn--primary' : 'btn--ghost'}`}
             onClick={() => setActiveCategory(cat)}
           >
             {catLabel(cat)}

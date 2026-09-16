@@ -82,27 +82,15 @@
   animation: kb-spin 1.2s linear infinite;
 }
 
+/* Вид — общий (.icon-btn--quiet), здесь только появление: кнопка ждёт наведения
+   на всю плашку, иначе ряд вызовов рябит значками. */
 .tool-call-copy-btn {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  padding: 2px;
   margin-left: auto;
-  cursor: pointer;
-  color: var(--kb-text-disabled);
-  border-radius: 4px;
   opacity: 0;
   transition: opacity 0.15s, color 0.15s, background 0.15s;
 }
 .tool-call-item:hover .tool-call-copy-btn {
   opacity: 1;
-}
-.tool-call-copy-btn:hover {
-  color: var(--kb-text-tertiary);
-  background: var(--kb-surface-hover);
 }
 
 .tool-call-body {

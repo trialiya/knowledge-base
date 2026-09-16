@@ -1,7 +1,10 @@
 /* ═══════════════════════════════════════════════
    BUTTONS — общие классы кнопок приложения.
    Единственное место, где живёт вид кнопок: панельных копий (set-btn,
-   detail-icon-btn, new-chat-button…) больше нет.
+   detail-icon-btn, new-chat-button, md-toolbar__btn, message-copy-btn…) больше
+   нет. Ступеней три по ширине (.btn / --sm / --xs) и три по размеру значка
+   (.icon-btn / --sm / --xs); заводить четвёртую — повод сначала посмотреть,
+   не подойдёт ли существующая.
 ═══════════════════════════════════════════════ */
 
 .btn {
@@ -28,6 +31,15 @@
 .btn--sm {
   padding: 5px 12px;
   font-size: 0.78rem;
+}
+
+/* Ступень для служебных кнопок в подписи: футер ответа, ряд категорий фраз.
+   Радиус не меняется — на такой высоте те же 20px и есть таблетка. */
+.btn--xs {
+  gap: 4px;
+  padding: 2px 10px;
+  font-size: 0.7rem;
+  line-height: 1.5;
 }
 
 .btn--primary {
@@ -67,6 +79,13 @@
   color: var(--kb-accent);
 }
 
+/* Заливка «опасного» действия — для кнопки, которая и так стоит на своей полосе
+   (повтор упавшего ответа): рамки там мало, а второго такого действия рядом нет. */
+.btn--danger.btn--fill:hover:not(:disabled) {
+  background: var(--kb-error);
+  color: var(--kb-text-on-fill);
+}
+
 /* Small icon-only button (close / edit / delete, etc.) */
 .icon-btn {
   background: none;
@@ -86,6 +105,30 @@
   background: var(--kb-accent-surface);
   color: var(--kb-accent);
 }
+/* Модификаторы размера идут после базы намеренно: специфичность у них та же,
+   и побеждает порядок в файле, а не порядок импортов. */
+.icon-btn--sm {
+  width: 24px;
+  height: 24px;
+}
+.icon-btn--xs {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+/* Приглушённая кнопка — для действия, которое всегда под рукой и потому не
+   должно тянуть на себя взгляд: копирование строки, копирование ответа. Держится
+   на сером, а не на акценте: акцентом в этих местах помечено то, что произошло
+   (--done), и подсветка наведения не должна с ним совпадать. */
+.icon-btn--quiet {
+  color: var(--kb-text-faint);
+}
+.icon-btn--quiet:hover {
+  background: var(--kb-surface-hover);
+  color: var(--kb-text-tertiary);
+}
+
 .icon-btn--danger:hover {
   background: var(--kb-surface-error);
   color: var(--kb-error);
@@ -102,4 +145,15 @@
 .icon-btn--done:hover {
   background: var(--kb-accent-surface);
   color: var(--kb-accent);
+}
+
+/* Последними в группе: выключенная кнопка обязана перебить подсветку любого
+   варианта, а специфичность у них одна. */
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.icon-btn:disabled:hover {
+  background: none;
+  color: var(--kb-text-muted);
 }

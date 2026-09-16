@@ -52,7 +52,13 @@ paths:
 - `components/common/ui/buttons.css` is the only place button looks live, and
   `common/modal/modalShell.css` the only place modal chrome does. The
   panel-local families (`set-btn`, `detail-icon-btn`, `new-chat-button`,
-  `modal-overlay`, `tcd-overlay`, …) have been folded into them — keep it
-  that way. Chrome that two surfaces must not let drift apart gets the same
+  `md-toolbar__btn`, `message-copy-btn`, `phrases-cat-btn`, `modal-overlay`,
+  `tcd-overlay`, …) have been folded into them — keep it that way. What may
+  stay panel-local is what belongs to the row rather than to the button: where
+  it sits (`margin-left: auto`), when it appears (the tool-call copy button
+  waits for the plate to be hovered), how wide it stretches. Written as a
+  two-class selector (`.icon-btn.info-list__copy-btn`) when it overrides the
+  shared rule, because specificity is equal there and otherwise the winner is
+  decided by the accident of import order. Chrome that two surfaces must not let drift apart gets the same
   treatment: `common/ui/gitChrome.css` holds the repo-state chrome shown both
   over the file tree and in chat's Repo tab.

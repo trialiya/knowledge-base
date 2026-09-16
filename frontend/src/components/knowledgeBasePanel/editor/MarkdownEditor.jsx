@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
+import '@/components/common/ui/buttons.css';
 import {
   IconBold,
   IconItalic,
@@ -62,9 +63,10 @@ function getMarkdownComponents(tree, onNavigate) {
 
 // ─── Toolbar button ───────────────────────────────────────────────────────────
 
-const ToolbarBtn = ({ icon, title, onClick, disabled, active }) => (
+const ToolbarBtn = ({ icon, title, onClick, disabled, done }) => (
   <button
-    className={`md-toolbar__btn${active ? ' md-toolbar__btn--active' : ''}`}
+    type="button"
+    className={`icon-btn${done ? ' icon-btn--done' : ''}`}
     title={title}
     disabled={disabled}
     onMouseDown={(e) => {
@@ -423,13 +425,13 @@ const MarkdownEditor = ({
             icon={copied ? <IconCheck /> : <IconCopy />}
             title={copied ? t('editor.copied') : t('editor.copyAll')}
             onClick={handleCopyAll}
-            active={copied}
+            done={copied}
           />
           <ToolbarBtn
             icon={copiedJira ? <IconCheck /> : <IconJira />}
             title={copiedJira ? t('editor.copied') : t('editor.copyAsJira')}
             onClick={handleCopyJira}
-            active={copiedJira}
+            done={copiedJira}
           />
           <ToolbarBtn
             icon={preview ? <IconEyeOff /> : <IconEye />}

@@ -17,28 +17,14 @@
   border-color: var(--kb-accent);
 }
 
-/* Type toggle */
+/* Переключатель типа — пара общих кнопок-тумблеров (.btn + aria-pressed);
+   здесь только раскладка: обе половины делят ширину поровну. */
 .modal-type-row {
   display: flex;
   gap: 8px;
 }
-.modal-type-btn {
+.modal-type-row .btn {
   flex: 1;
-  padding: 7px 10px;
-  border-radius: 10px;
-  border: 1.5px solid var(--kb-border);
-  background: var(--kb-surface);
-  color: var(--kb-text-muted);
-  font-size: 0.84rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-.modal-type-btn--active {
-  border-color: var(--kb-accent);
-  background: var(--kb-accent-surface);
-  color: var(--kb-accent);
-  font-weight: 600;
 }
 
 /* Folder picker */

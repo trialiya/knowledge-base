@@ -114,7 +114,9 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
         {['document', 'folder'].map((tp) => (
           <button
             key={tp}
-            className={`modal-type-btn ${type === tp ? 'modal-type-btn--active' : ''}`}
+            type="button"
+            className="btn btn--ghost"
+            aria-pressed={type === tp}
             disabled={submitting}
             onClick={() => setType(tp)}
           >
