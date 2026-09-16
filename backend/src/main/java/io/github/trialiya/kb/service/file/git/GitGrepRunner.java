@@ -38,10 +38,10 @@ final class GitGrepRunner {
      * Raw output lines one run is read up to; git is stopped once they are in. The cap on match
      * blocks does not bound the output on its own: a pattern that matches every line of a large
      * repository writes the repository, and holding it to keep a handful of blocks is what this
-     * prevents. With no context a block is one line, so the cap is exact there; with context the
-     * ceiling is generous enough that no realistic answer reaches it, and a run that does ends at
-     * its last complete block — and with nothing from that run at all when its whole output turned
-     * out to be one block that never finished.
+     * prevents. With no context a block is one line, so the cap is exact there (see {@link
+     * #outputLines}); with context the ceiling is generous enough that no realistic answer reaches
+     * it, and a run that does ends at its last complete block — and with nothing from that run at
+     * all when its whole output turned out to be one block that never finished.
      */
     static final int MAX_OUTPUT_LINES = 20_000;
 
@@ -73,10 +73,10 @@ final class GitGrepRunner {
      * to enable POSIX extended regular expressions. The search is always <b>case-insensitive</b>
      * ({@code -i}) because the AI often doesn't know exact casing.
      *
-     * <p>When {@code contextLines > 0} the raw git grep output contains context lines (prefixed
-     * with {@code -}) and groups separated by {@code --}. These are collapsed into one {@link
-     * GitGrepMatch} per contiguous block so the caller sees grouped context rather than one record
-     * per raw line.
+     * <p>When {@code contextLines > 0} the raw git grep output carries context lines alongside the
+     * matches, in blocks. These are collapsed into one {@link GitGrepMatch} per contiguous block so
+     * the caller sees grouped context rather than one record per raw line; the layout being read is
+     * described in {@link GitGrep#parse}.
      *
      * @param pattern literal string or regex to search for
      * @param pathGlob optional glob to restrict search to matching paths (e.g. {@code "*.java"},
@@ -200,9 +200,29 @@ final class GitGrepRunner {
         return GitGrep.parse(GitGrep.withoutCommitPrefix(lines, commit), ctx, limit);
     }
 
-    /** Output lines that are enough for {@code limit} blocks: exact without context. */
+    /**
+     * The index of the last line that ends a context block, or -1 when the output holds no complete
+     * one. Two lines end a block: the {@code --} between two blocks of one file, and the blank line
+     * {@code --break} puts between two files — a run cut off in the middle of the first block of
+     * its second file has no {@code --} anywhere, and everything read before that file still
+     * stands.
+     */
+    private static int lastBlockBoundary(List<String> lines) {
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            String line = lines.get(i);
+            if (line.equals("--") || line.isBlank()) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Output lines that are enough for {@code limit} blocks: exact without context, where a block
+     * is one line — plus the two lines {@code --heading --break} can spend on it, since in the
+     * worst case every match sits in a file of its own and arrives preceded by a blank line and a
+     * heading.
+     */
     private static int outputLines(int ctx, int limit) {
-        return ctx == 0 ? limit : MAX_OUTPUT_LINES;
+        return ctx == 0 ? 3 * limit : MAX_OUTPUT_LINES;
     }
 
     /**
@@ -282,14 +302,15 @@ final class GitGrepRunner {
             if (cut) {
                 // Killed by this side with the answer in hand: the exit code says only that, and
                 // so does the watchdog if the deadline fell on the same instant. Without context
-                // every line is a block of its own and all of them stand. With context the run
-                // ended inside a block, and that block is dropped — its separator is where the
-                // last complete one ended, and a buffer without a separator holds no complete
-                // block at all.
+                // every line is a block of its own and all of them stand (a heading left dangling
+                // at the end names a file no line of which was read, and the parser drops it).
+                // With context the run ended inside a block, and that block is dropped — the last
+                // boundary is where the last complete one ended, and a buffer without one holds no
+                // complete block at all.
                 if (ctx == 0) {
                     return lines;
                 }
-                int lastSeparator = lines.lastIndexOf("--");
+                int lastSeparator = lastBlockBoundary(lines);
                 if (lastSeparator < 0) {
                     log.warn(
                             "Git command filled {} lines with one unfinished block: {}",

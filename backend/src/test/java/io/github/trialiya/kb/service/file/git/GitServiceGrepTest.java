@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.file.git;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.support.TestProjects;
@@ -74,6 +75,31 @@ class GitServiceGrepTest {
                 service.grepContentAt("HEAD", "needle", "docs/*", false, 0, 50);
 
         assertThat(matches).extracting(GitGrepMatch::path).containsExactly("docs/A.md");
+    }
+
+    /**
+     * Имя файла с дефисами и цифрами — {@code 2024-01-15-notes.md}, {@code part-2} — в выводе git
+     * выглядит так же, как разделитель перед номером строки, и путь резался по первому попавшемуся
+     * дефису. Проверяется на настоящем git: ошибка была в том, как читается его вывод, и подменять
+     * этот вывод здесь значило бы проверять собственную догадку о нём.
+     */
+    @Test
+    void aPathWithHyphensAndDigitsSurvivesTheRoundTripThroughGit() {
+        writeFile("2024-01-15-notes.md", "alpha\nneedle\ngamma\n");
+        writeFile("docs/part-2", "needle\n");
+        commitAll("first");
+
+        assertThat(service.grepContent("needle", null, false, 0, 50, false))
+                .extracting(GitGrepMatch::path, GitGrepMatch::matchLine, GitGrepMatch::text)
+                .containsExactlyInAnyOrder(
+                        tuple("2024-01-15-notes.md", 2, "needle"),
+                        tuple("docs/part-2", 1, "needle"));
+
+        assertThat(service.grepContent("needle", null, false, 1, 50, false))
+                .extracting(GitGrepMatch::path, GitGrepMatch::matchLine, GitGrepMatch::text)
+                .containsExactlyInAnyOrder(
+                        tuple("2024-01-15-notes.md", 2, "-1-alpha\n:2:needle\n-3-gamma\n"),
+                        tuple("docs/part-2", 1, ":1:needle\n"));
     }
 
     @Test

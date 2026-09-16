@@ -17,15 +17,24 @@ final class GitGrep {
     private GitGrep() {}
 
     /**
-     * One {@code git grep} invocation: {@code git grep -n -i [--untracked --no-exclude-standard]
-     * [--fixed-strings|-E] [-C ctx] -e <pattern> [<commit>] [-- <pathspec>…]}.
+     * One {@code git grep} invocation: {@code git grep -n -i --heading --break [--untracked
+     * --no-exclude-standard] [--fixed-strings|-E] [-C ctx] -e <pattern> [<commit>] [--
+     * <pathspec>…]}.
+     *
+     * <p>{@code --heading --break} is what makes the output parseable at all. In git's default
+     * layout every line starts with the path, and the path is separated from the line number by the
+     * same {@code :}/{@code -} that may occur inside the path itself: {@code
+     * 2024-01-15-notes.md:2:beta} has no reading that tells the file name from the line number.
+     * With a heading the path is printed once, on a line of its own, and the lines under it carry
+     * nothing but {@code <linenum><sep><text>}; {@code --break} puts a blank line before each
+     * heading, so a heading is never mistaken for a line of a file whose name starts with digits.
      *
      * @param roots when non-null, the run covers untracked and {@code .gitignore}d files under
      *     these directories instead of the index
      * @param commit when non-null, the tree of this commit is searched instead of the index; git
-     *     then prefixes every output line with {@code <commit>:}, which {@link
-     *     #withoutCommitPrefix} strips before parsing. Callers pass a resolved hash, never user
-     *     input: an argument starting with {@code -} would be read as an option
+     *     then prefixes every heading with {@code <commit>:}, which {@link #withoutCommitPrefix}
+     *     strips before parsing. Callers pass a resolved hash, never user input: an argument
+     *     starting with {@code -} would be read as an option
      */
     static List<String> args(
             String pattern,
@@ -34,7 +43,8 @@ final class GitGrep {
             int ctx,
             @Nullable List<String> roots,
             @Nullable String commit) {
-        List<String> args = new ArrayList<>(List.of("git", "grep", "-n", "-i"));
+        List<String> args =
+                new ArrayList<>(List.of("git", "grep", "-n", "-i", "--heading", "--break"));
         if (roots != null) {
             args.add("--untracked");
             args.add("--no-exclude-standard");
@@ -64,9 +74,9 @@ final class GitGrep {
     }
 
     /**
-     * The output of a run over a commit, with the {@code <commit>:} git puts before every line
-     * removed, so that {@link #parse} reads it exactly like a run over the index. Lines that do not
-     * carry the prefix (the {@code --} block separators) are left alone.
+     * The output of a run over a commit, with the {@code <commit>:} git puts in front of every
+     * heading removed, so that {@link #parse} reads it exactly like a run over the index. Lines
+     * that do not carry the prefix — everything but the headings — are left alone.
      */
     static List<String> withoutCommitPrefix(List<String> lines, String commit) {
         String prefix = commit + ":";
@@ -76,53 +86,62 @@ final class GitGrep {
     }
 
     /**
-     * Parses raw {@code git grep [-C ctx]} output into grouped {@link GitGrepMatch} blocks.
+     * Parses raw {@code git grep --heading --break [-C ctx]} output into grouped {@link
+     * GitGrepMatch} blocks.
      *
-     * <p>Without context (ctx=0) each output line is {@code path:linenum:text} and maps directly to
-     * one match block.
-     *
-     * <p>With context git grep emits:
+     * <p>The layout, for both values of ctx:
      *
      * <ul>
-     *   <li>{@code path:linenum:text} — match line (separator {@code :})
-     *   <li>{@code path-linenum-text} — context line (separator {@code -})
-     *   <li>{@code --} — group separator between non-adjacent blocks
+     *   <li>a heading — the path, alone on its line: the first line of the output, and every line
+     *       that follows a blank one
+     *   <li>{@code linenum:text} — match line (separator {@code :})
+     *   <li>{@code linenum-text} — context line (separator {@code -}), with ctx &gt; 0 only
+     *   <li>{@code --} — separator between two non-adjacent blocks of the <em>same</em> file;
+     *       between files stands the blank line of {@code --break} instead
      * </ul>
      *
-     * Adjacent lines belonging to the same file+block are folded into one {@link GitGrepMatch}
-     * whose {@code text} reproduces the git grep format ({@code :N:} for matches, {@code -N-} for
-     * context). The {@code matchLine} field holds the line number of the first match in the block.
+     * <p>Without context (ctx=0) every line under a heading is a match of its own and maps directly
+     * to one match block.
+     *
+     * <p>With context the lines of one block are folded into one {@link GitGrepMatch} whose {@code
+     * text} reproduces the git grep format ({@code :N:} for matches, {@code -N-} for context). The
+     * {@code matchLine} field holds the line number of the first match in the block.
      */
     static List<GitGrepMatch> parse(List<String> lines, int ctx, int limit) {
         List<GitGrepMatch> results = new ArrayList<>();
-
-        if (ctx == 0) {
-            // Simple case: one match per line, format "path:linenum:text"
-            for (String line : lines) {
-                if (line.isBlank()) continue;
-                ParsedLine pl = parseLine(line);
-                if (pl == null) continue;
-                results.add(new GitGrepMatch(pl.path(), pl.lineNum(), pl.text()));
-                if (results.size() >= limit) break;
-            }
-            return results;
-        }
-
-        // Context case: lines accumulate into a block until the next "--" separator (or,
-        // defensively,
-        // a change of path — git grep -C keeps one file's lines together between separators).
         Block block = new Block(limit, results);
+        // The first line of the output names a file; after that only a blank line announces one.
+        boolean heading = true;
+        @Nullable String path = null;
+
         for (String line : lines) {
+            if (line.isBlank()) {
+                if (block.flush()) return results;
+                heading = true;
+                continue;
+            }
+            if (heading) {
+                if (block.flush()) return results;
+                path = line;
+                heading = false;
+                continue;
+            }
             if (line.equals("--")) {
                 if (block.flush()) return results;
                 continue;
             }
-            if (line.isBlank()) continue;
+            // Defensive: git prints no line before the first heading, so a data line without a
+            // path is output this parser does not understand — dropping it beats inventing a path.
+            if (path == null) continue;
+            @Nullable DataLine data = parseDataLine(line);
+            if (data == null) continue;
 
-            ParsedLine pl = parseLine(line);
-            if (pl == null) continue;
-            if (!pl.path().equals(block.path()) && block.flush()) return results;
-            block.append(pl);
+            if (ctx == 0) {
+                results.add(new GitGrepMatch(path, data.lineNum(), data.text()));
+                if (results.size() >= limit) return results;
+                continue;
+            }
+            block.append(path, data);
         }
         block.flush();
         return results;
@@ -143,17 +162,13 @@ final class GitGrep {
             this.results = results;
         }
 
-        @Nullable String path() {
-            return path;
-        }
-
-        void append(ParsedLine pl) {
-            path = pl.path();
+        void append(String linePath, DataLine data) {
+            path = linePath;
             // ":N:text" for a match line, "-N-text" for a context line — the git grep format.
-            char sep = pl.isMatch() ? ':' : '-';
-            buf.append(sep).append(pl.lineNum()).append(sep).append(pl.text()).append('\n');
-            if (pl.isMatch() && firstMatchLine < 0) {
-                firstMatchLine = pl.lineNum();
+            char sep = data.isMatch() ? ':' : '-';
+            buf.append(sep).append(data.lineNum()).append(sep).append(data.text()).append('\n');
+            if (data.isMatch() && firstMatchLine < 0) {
+                firstMatchLine = data.lineNum();
             }
         }
 
@@ -178,65 +193,27 @@ final class GitGrep {
         }
     }
 
-    /** Parsed representation of one raw git grep output line. */
-    private record ParsedLine(String path, int lineNum, String text, boolean isMatch) {}
+    /** One line of a file under a heading: its number, its text, and whether it matched. */
+    private record DataLine(int lineNum, String text, boolean isMatch) {}
 
     /**
-     * Parses one raw git grep line.
-     *
-     * <p>Format: {@code <path><sep><linenum><sep><text>} where sep is {@code ':'} for match lines
-     * and {@code '-'} for context lines.
-     *
-     * <p>Returns {@code null} if the line cannot be parsed.
+     * Parses one line under a heading: {@code <linenum><sep><text>}, where sep is {@code ':'} for a
+     * match line and {@code '-'} for a context line. Returns {@code null} if the line does not have
+     * that shape.
      */
-    private static @Nullable ParsedLine parseLine(String line) {
-        // Find first separator that matches pattern <sep><digits><sep>
-        int sepIdx = findFirstFieldSep(line);
-        if (sepIdx < 0) return null;
-
+    private static @Nullable DataLine parseDataLine(String line) {
+        int sepIdx = 0;
+        while (sepIdx < line.length() && Character.isDigit(line.charAt(sepIdx))) sepIdx++;
+        if (sepIdx == 0 || sepIdx >= line.length()) return null;
         char sep = line.charAt(sepIdx);
-        boolean isMatch = sep == ':';
-        String path = line.substring(0, sepIdx);
-        String rest = line.substring(sepIdx + 1); // "linenum<sep>text"
-
-        // rest starts with digits followed by sep
-        int numEnd = findLineNumEnd(rest);
-        if (numEnd < 0) return null;
+        if (sep != ':' && sep != '-') return null;
 
         int lineNum;
         try {
-            lineNum = Integer.parseInt(rest.substring(0, numEnd));
+            lineNum = Integer.parseInt(line.substring(0, sepIdx));
         } catch (NumberFormatException e) {
-            return null;
+            return null; // a line number past int — not a file this search can point into
         }
-        return new ParsedLine(path, lineNum, rest.substring(numEnd + 1), isMatch);
-    }
-
-    /**
-     * Returns the index of the first {@code ':'} or {@code '-'} in {@code s} that is followed
-     * immediately by one or more digits and then another {@code ':'} or {@code '-'} — i.e. the git
-     * grep field separator between path and line number.
-     */
-    private static int findFirstFieldSep(String s) {
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c != ':' && c != '-') continue;
-            int j = i + 1;
-            if (j >= s.length() || !Character.isDigit(s.charAt(j))) continue;
-            while (j < s.length() && Character.isDigit(s.charAt(j))) j++;
-            if (j < s.length() && (s.charAt(j) == ':' || s.charAt(j) == '-')) return i;
-        }
-        return -1;
-    }
-
-    /**
-     * Given {@code rest} = {@code "<digits><sep><text>"}, returns the index of {@code <sep>}.
-     * Returns -1 if the string does not start with digits followed by {@code ':'} or {@code '-'}.
-     */
-    private static int findLineNumEnd(String s) {
-        int i = 0;
-        while (i < s.length() && Character.isDigit(s.charAt(i))) i++;
-        if (i > 0 && i < s.length() && (s.charAt(i) == ':' || s.charAt(i) == '-')) return i;
-        return -1;
+        return new DataLine(lineNum, line.substring(sepIdx + 1), sep == ':');
     }
 }
