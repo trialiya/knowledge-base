@@ -20,6 +20,7 @@ const GrepFile = ({ file, open, onToggle }) => {
         <span className="tool-grep__path" title={file.path}>
           {file.path}
         </span>
+        {file.untracked && <span className="tool-grep__untracked">{t('toolCall.detail.grep.untracked')}</span>}
         <span className="tool-grep__count">{t('toolCall.detail.grep.matches', { count: file.blocks.length })}</span>
       </button>
 

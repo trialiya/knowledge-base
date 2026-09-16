@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.file.git;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
@@ -288,6 +289,21 @@ class GitServiceAllowGlobsTest {
     }
 
     /**
+     * Две выдачи слиты в одну и отсортированы по пути — откуда запись, по порядку уже не видно.
+     * Признак на самой записи и есть единственный способ отличить находку в исходнике от находки в
+     * файле, которого git не знает.
+     */
+    @Test
+    void anUntrackedMatchSaysSoWhileATrackedOneDoesNot() {
+        writeFile("src/App.java", "class App { String milk; }\n");
+        runGit("add", "src/App.java");
+
+        assertThat(service.grepContent("milk", null, false, 0, 10, true))
+                .extracting(GitGrepMatch::path, GitGrepMatch::tracked)
+                .containsExactly(tuple("notes/todo.md", false), tuple("src/App.java", true));
+    }
+
+    /**
      * Правки ассистента в разрешённой зоне обязаны быть видны в списке изменений — и отдельным
      * статусом: {@code A} сказал бы модели, что файл уже собран в следующий коммит.
      */
@@ -300,6 +316,29 @@ class GitServiceAllowGlobsTest {
                             assertThat(entry.path()).isEqualTo("notes/todo.md");
                             assertThat(entry.status()).isEqualTo("U");
                         });
+    }
+
+    /**
+     * Вопрос «что уйдёт в следующий коммит» — про отслеживаемую половину, и ответ на него не должен
+     * мешать её с тем, что в коммит не попадёт никогда.
+     */
+    @Test
+    void theUntrackedHalfIsLeftOutWhenTheCallerDidNotAskForIt() {
+        writeFile("src/App.java", "class App { int edited; }\n");
+
+        assertThat(service.getUncommittedChanges(false, false, List.of()))
+                .extracting(GitDiffEntry::path)
+                .containsExactly("src/App.java");
+
+        assertThat(service.getUncommittedChanges(false, true, List.of()))
+                .extracting(GitDiffEntry::path)
+                .containsExactlyInAnyOrder("src/App.java", "notes/todo.md");
+    }
+
+    /** Отбор по пути не воскрешает половину, которую вызывающий не просил. */
+    @Test
+    void narrowingToAnUntrackedPathWithoutTheFlagAnswersWithNothing() {
+        assertThat(service.getUncommittedChanges(false, false, List.of("notes"))).isEmpty();
     }
 
     /**

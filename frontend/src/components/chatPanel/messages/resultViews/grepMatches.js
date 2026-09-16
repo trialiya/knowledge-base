@@ -10,6 +10,11 @@
 // GitGrepMatch): `:N:строка` — совпадение, `-N-строка` — контекст. Нумерация
 // уже внутри текста — именно поэтому форму нельзя показывать текстовым видом,
 // он нарисовал бы поверх ещё один столбец номеров, считающий от единицы.
+//
+// Файл вне git (`tracked: false` у совпадения — `grepContent` с
+// `includeUntracked`) подписан отдельно: истории у него нет, и найденная строка
+// могла прийти из отчёта сборки. У ответов из истории чатов поля нет вовсе,
+// поэтому признак — строго `=== false`, а не отрицание.
 
 const MAX_MATCHES = 300;
 
@@ -67,9 +72,12 @@ export const detectGrepMatches = ({ parsed, isJson, project: wrapperProject }) =
   parsed.forEach((match, i) => {
     const source = sourceOf(match);
     const block = { key: `block-${i}`, lines: toLines(match.text, match.matchLine) };
+    // Признак «вне git» приходит на каждом совпадении, а показывается один раз
+    // на источнике: у одного файла все блоки из одного прогона.
+    const untracked = match.tracked === false;
     const found = bySource.get(source.key);
     if (found) found.blocks.push(block);
-    else bySource.set(source.key, { key: `file-${i}`, path: source.label, blocks: [block] });
+    else bySource.set(source.key, { key: `file-${i}`, path: source.label, untracked, blocks: [block] });
   });
 
   // Проект у всех совпадений один — вызов ищет в одном репозитории, — но брать

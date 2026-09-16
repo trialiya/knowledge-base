@@ -56,6 +56,17 @@
   color: var(--kb-text);
 }
 
+/* Файл вне git: тем же жёлтым, что метит такие файлы в дереве и в поиске. */
+.tool-grep__untracked {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 20px;
+  background: var(--kb-untracked-bg-strong);
+  color: var(--kb-text-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
 .tool-grep__count {
   flex-shrink: 0;
   font-size: 0.7rem;

@@ -200,8 +200,9 @@ public class ProjectPromptService {
 
         Beyond the tracked files, this project also serves untracked files matching %s, whatever
         `.gitignore` says about them — build reports and local notes live there. They are listed
-        and readable like any other file, `grepContent` skips them unless you pass
-        `includeUntracked: true`, and `getUncommittedChanges` reports them as `U`. %s\
+        and readable like any other file. Both `grepContent` and `getUncommittedChanges` skip
+        them unless you pass `includeUntracked: true` — with it, `getUncommittedChanges` lists
+        them under status `U` and `grepContent` marks their matches `tracked: false`. %s\
         """
                 // stripTrailing: у проекта без правок вторая подстановка пуста, и без этого
                 // абзац кончался бы висящим пробелом.

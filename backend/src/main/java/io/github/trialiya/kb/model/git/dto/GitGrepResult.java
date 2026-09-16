@@ -1,9 +1,11 @@
 package io.github.trialiya.kb.model.git.dto;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Поиск по содержимому для страницы поиска: совпадения сгруппированы по файлу, как их показывает
@@ -22,9 +24,12 @@ public record GitGrepResult(int total, boolean truncated, List<File> files) {
      * Один файл с его совпадениями.
      *
      * @param path относительный путь от корня репозитория
+     * @param tracked отслеживается ли файл git'ом. {@code false} — файл найден только потому, что
+     *     запрос был с {@code untracked=true}, и попал в зону {@code allow-globs} проекта: истории
+     *     у него нет, и строка могла прийти из вывода сборки, а не из исходника
      * @param lines строки с совпадениями в порядке номеров
      */
-    public record File(String path, List<Line> lines) {}
+    public record File(String path, boolean tracked, List<Line> lines) {}
 
     /**
      * Одна строка с совпадением.
@@ -44,13 +49,22 @@ public record GitGrepResult(int total, boolean truncated, List<File> files) {
      */
     public static GitGrepResult group(List<GitGrepMatch> matches, int limit) {
         Map<String, List<Line>> byPath = new LinkedHashMap<>();
+        Set<String> untracked = new HashSet<>();
         for (GitGrepMatch match : matches) {
             byPath.computeIfAbsent(match.path(), p -> new ArrayList<>())
                     .add(new Line(match.matchLine(), match.text()));
+            if (!match.tracked()) {
+                untracked.add(match.path());
+            }
         }
         List<File> files =
                 byPath.entrySet().stream()
-                        .map(e -> new File(e.getKey(), List.copyOf(e.getValue())))
+                        .map(
+                                e ->
+                                        new File(
+                                                e.getKey(),
+                                                !untracked.contains(e.getKey()),
+                                                List.copyOf(e.getValue())))
                         .toList();
         return new GitGrepResult(matches.size(), matches.size() >= limit, files);
     }

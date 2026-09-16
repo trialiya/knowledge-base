@@ -403,23 +403,31 @@ public class GitFunction {
     }
 
     /**
-     * Returns uncommitted changes to tracked files in the working tree, plus the untracked files
-     * the project's {@code allow-globs} admit under a status of their own, {@code U}. Every other
-     * untracked file (including everything {@code .gitignore} matches) is not reported — same rule
-     * the read tools enforce.
+     * Returns uncommitted changes to tracked files in the working tree — and, when {@code
+     * includeUntracked} asks for them, the untracked files the project's {@code allow-globs} admit
+     * under a status of their own, {@code U}. Every other untracked file (including everything
+     * {@code .gitignore} matches) is never reported — same rule the read tools enforce.
+     *
+     * <p>The untracked half is off by default because the question this tool is normally asked is
+     * "what is about to be committed", and those files are the one thing that never will be. A
+     * model that wrote into the admitted area — the only way it sees one of these files change —
+     * knows to ask for it; {@code ProjectPromptService} tells it so on the projects that have an
+     * admitted area at all.
      *
      * <p>With {@code paths} the answer is narrowed to what those filters match — a whole-tree diff
      * is what makes this tool expensive, and a question about one area should not pay for the rest
      * of it. Each filter is a git pathspec, so a plain name is a path prefix and a wildcard crosses
-     * {@code /}; see {@link GitService#getUncommittedChanges(boolean, List)}.
+     * {@code /}; see {@link GitService#getUncommittedChanges(boolean, boolean, List)}.
      *
      * @param includePatch whether to include unified diff text for modified files (default false)
+     * @param includeUntracked whether to also list the project's admitted untracked files (default
+     *     false)
      * @param paths comma-separated paths, directories or globs to keep; null for the whole tree
      */
     @Tool(
             name = "getUncommittedChanges",
             description =
-                    "Uncommitted changes in working tree (staged and unstaged), plus any untracked file the project's allow-globs admit. Status: A/M/D/R for tracked files, U for an untracked one (not in git, will not be committed with the rest). Optional: include unified diff, and narrow to given paths.",
+                    "Uncommitted changes in working tree (staged and unstaged) — what the next commit will carry. Status: A/M/D/R. Optional: include unified diff, narrow to given paths, and includeUntracked to also list the untracked files the project's allow-globs admit, under status U (not in git, will not be committed with the rest).",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitDiffEntry>> getUncommittedChanges(
             ToolContext context,
@@ -428,6 +436,13 @@ public class GitFunction {
                                     "Include unified diff for changed files (false=list only, true=includes patch, default false).",
                             required = false)
                     @Nullable Boolean includePatch,
+            @ToolParam(
+                            description =
+                                    "Also list the untracked files the project's allow-globs admit,"
+                                            + " under status U (false=tracked changes only, i.e."
+                                            + " what the next commit will carry, default false).",
+                            required = false)
+                    @Nullable Boolean includeUntracked,
             @ToolParam(
                             description =
                                     "Optional: comma-separated files, directories or globs to"
@@ -446,14 +461,17 @@ public class GitFunction {
                             required = false)
                     @Nullable String project) {
         final boolean patch = orDefault(includePatch, false);
+        final boolean untracked = orDefault(includeUntracked, false);
         final List<String> filters = pathList(paths);
         log.info(
-                "getUncommittedChanges called: includePatch='{}', paths={}, project='{}'",
+                "getUncommittedChanges called: includePatch='{}', includeUntracked='{}', paths={},"
+                        + " project='{}'",
                 patch,
+                untracked,
                 filters,
                 project);
         GitService git = git(context, project);
-        List<GitDiffEntry> gitDiffEntries = git.getUncommittedChanges(patch, filters);
+        List<GitDiffEntry> gitDiffEntries = git.getUncommittedChanges(patch, untracked, filters);
         log.info("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
         return answer(git, gitDiffEntries);
     }

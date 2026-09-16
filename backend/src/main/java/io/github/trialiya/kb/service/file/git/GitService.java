@@ -791,9 +791,13 @@ public class GitService {
     }
 
     /**
-     * Returns a structural outline (classes, methods, functions, ...) of a tracked source file
-     * without its full text. Backed by tree-sitter when available, regex otherwise; the {@code
-     * parser} field reports which was used.
+     * Returns a structural outline (classes, methods, functions, ...) of a source file without its
+     * full text. Backed by tree-sitter when available, regex otherwise; the {@code parser} field
+     * reports which was used.
+     *
+     * <p>Serves the untracked files {@code allow-globs} admit on the same terms {@link
+     * #getFileContent} does, and says which it answered about in the outline's {@code tracked}
+     * field.
      *
      * @param filePath path relative to repo root
      * @throws IllegalArgumentException if the file is binary or its language is not supported for
@@ -816,7 +820,8 @@ public class GitService {
         String source = RepoFiles.decodeToLf(fb.bytes());
         int total = source.split("\n", -1).length;
         OutlineResult result = outlineService.outline(language, source);
-        return new GitFileOutline(fb.path(), language, total, result.parser(), result.symbols());
+        return new GitFileOutline(
+                fb.path(), fb.tracked(), language, total, result.parser(), result.symbols());
     }
 
     // ── Bytes (binary files included) ───────────────────────────────────────
@@ -1258,10 +1263,13 @@ public class GitService {
      * artefact into a change worth reviewing. Every other untracked file stays out too — no tool
      * can read it back, so naming it would only advertise a file no follow-up call can open.
      *
+     * <p>A caller that only cares about what the next commit will carry asks for the tracked half
+     * alone — see {@link #getUncommittedChanges(boolean, boolean, List)}.
+     *
      * @param includePatch whether to include unified diff text for modified files
      */
     public List<GitDiffEntry> getUncommittedChanges(boolean includePatch) {
-        return changes(includePatch, List.of());
+        return changes(includePatch, true, List.of());
     }
 
     /**
@@ -1279,6 +1287,7 @@ public class GitService {
             boolean includePatch, @Nullable String onlyPath) {
         return changes(
                 includePatch,
+                true,
                 onlyPath == null || onlyPath.isBlank()
                         ? List.of()
                         : List.of(Pathspec.exact(normalizePath(onlyPath))));
@@ -1299,8 +1308,28 @@ public class GitService {
      */
     public List<GitDiffEntry> getUncommittedChanges(
             boolean includePatch, List<String> pathFilters) {
+        return getUncommittedChanges(includePatch, true, pathFilters);
+    }
+
+    /**
+     * The same list with the untracked half switchable: with {@code includeUntracked=false} the
+     * answer is the tracked changes alone — exactly what the next commit will carry, and nothing
+     * about the {@code allow-globs} area that will stay outside it whatever happens.
+     *
+     * <p>Not a filter over the result but a question never asked: the untracked half costs a walk
+     * of the admitted roots and a line count per file, and a caller that will drop it should not
+     * pay for it.
+     *
+     * @param includeUntracked also list the untracked files this project's {@code allow-globs}
+     *     admit, under status {@code U}
+     * @param pathFilters paths, directories or globs to keep; empty for the whole working tree
+     * @throws IllegalArgumentException if a filter is not a spellable repo-relative path
+     */
+    public List<GitDiffEntry> getUncommittedChanges(
+            boolean includePatch, boolean includeUntracked, List<String> pathFilters) {
         return changes(
                 includePatch,
+                includeUntracked,
                 pathFilters.stream()
                         .map(filter -> filter == null ? "" : filter.strip())
                         // "." and "./" name the repo root, which normalizePath refuses and which
@@ -1315,7 +1344,8 @@ public class GitService {
                         .toList());
     }
 
-    private List<GitDiffEntry> changes(boolean includePatch, List<Pathspec> wanted) {
+    private List<GitDiffEntry> changes(
+            boolean includePatch, boolean includeUntracked, List<Pathspec> wanted) {
         Status status = status(wanted);
 
         Set<String> changedPaths = new LinkedHashSet<>();
@@ -1369,6 +1399,10 @@ public class GitService {
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to diff working tree against HEAD", e);
             }
+        }
+
+        if (!includeUntracked) {
+            return entries;
         }
 
         // Straight off the status: what git already reported as untracked is by definition

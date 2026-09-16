@@ -89,7 +89,8 @@ final class GitGrepRunner {
      *     admit; off by default, so a plain search answers about the committed codebase
      * @return match blocks in order of appearance; with {@code includeUntracked} the two runs are
      *     merged and the whole list comes back ordered by path instead, so a file's blocks stay
-     *     together rather than splitting around the seam between the runs. Empty if nothing matched
+     *     together rather than splitting around the seam between the runs — what the second run
+     *     contributed is marked {@code tracked=false}. Empty if nothing matched
      */
     List<GitGrepMatch> grepContent(
             @NonNull String pattern,
@@ -154,6 +155,9 @@ final class GitGrepRunner {
                 .filter(m -> !trackedPaths.contains(m.path()))
                 .filter(m -> visible.matchesAllowGlobs(m.path()))
                 .filter(m -> pathspec == null || pathspec.matches(m.path()))
+                // Что осталось после фильтров — по определению untracked, и сказано это в самой
+                // записи: после слияния двух прогонов по порядку уже не видно, откуда она.
+                .map(GitGrepMatch::untracked)
                 .forEach(merged::add);
         // Cut only once everything invisible is gone, or a large untracked area would spend the
         // whole cap on matches nobody gets to see.

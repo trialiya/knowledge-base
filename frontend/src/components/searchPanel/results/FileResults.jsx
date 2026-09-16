@@ -13,6 +13,11 @@ function splitPath(path) {
 /**
  * Совпадения в файлах репозитория: карточка на файл, внутри — строки с номерами.
  *
+ * Неотслеживаемый файл (нашёлся только с галочкой «искать в untracked», в зоне
+ * `allow-globs` проекта) подписан как таковой: истории у него нет, и строка
+ * могла прийти из отчёта сборки, а не из исходника, — без подписи такая
+ * карточка неотличима от находки в коде.
+ *
  * Подсветка ищется по самому запросу и только когда он — обычная строка: под
  * регулярным выражением совпал не он, а то, что оно описывает, и красить по
  * тексту шаблона значило бы врать. Бэкенд позиции не отдаёт (git grep их не
@@ -32,7 +37,16 @@ const FileResults = ({ result, query, regex, rev, project, onOpenFile }) => {
         href={filesUrl(file.path, project, { rev, find: query, findRegex: regex })}
         onOpen={() => onOpenFile(file.path, project, { rev, find: query, findRegex: regex })}
         meta={t('files.matches', { count: file.lines.length })}
-        subtitle={dir && <span className="search-group__path">{dir}</span>}
+        subtitle={
+          (dir || file.tracked === false) && (
+            <>
+              {dir && <span className="search-group__path">{dir}</span>}
+              {file.tracked === false && (
+                <span className="search-group__badge search-group__badge--untracked">{t('files.untracked')}</span>
+              )}
+            </>
+          )
+        }
         rows={file.lines.map((line) => ({
           key: line.line,
           node: (

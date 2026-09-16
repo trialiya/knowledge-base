@@ -136,6 +136,12 @@
   font-weight: 600;
 }
 
+/* Неотслеживаемый файл — тем же жёлтым, что и в дереве файлов и в поиске по имени. */
+.search-group__badge--untracked {
+  background: var(--kb-untracked-bg-strong);
+  color: var(--kb-text-muted);
+}
+
 .search-group__rows {
   display: flex;
   flex-direction: column;
