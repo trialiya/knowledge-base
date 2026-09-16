@@ -82,6 +82,26 @@ test('запрос подсвечивается в найденной строк
   expect(document.querySelectorAll('mark.search-match')).toHaveLength(0);
 });
 
+test('пока идёт новый поиск, прежняя выдача помечена и не нажимается', () => {
+  // Смена фильтра (репозиторий, ревизия, маска) оставляет на экране выдачу
+  // прежнего: пустота между двумя ответами читалась бы как «ничего не нашлось».
+  // Но без пометки её читают как ответ на новый фильтр — отсюда волчок сверху и
+  // погашенный, недоступный мыши список.
+  renderFiles({ loading: true });
+
+  const status = screen.getByRole('status');
+  expect(status).toHaveTextContent('empty.searching');
+  expect(status.querySelector('.search-spinner')).toBeInTheDocument();
+  expect(document.querySelector('.search-results')).toHaveAttribute('aria-busy', 'true');
+  expect(document.querySelector('.search-results--stale')).toBeInTheDocument();
+});
+
+test('первый поиск по запросу говорит, что он идёт', () => {
+  renderFiles({ entry: null, loading: true });
+
+  expect(screen.getByRole('status')).toHaveTextContent('empty.searching');
+});
+
 test('отказ категории объясняется по коду ответа, а не одним «ошибка»', () => {
   const { unmount } = renderFiles({ entry: { data: null, error: { status: 400 } } });
   expect(screen.getByText('error.badFilter')).toBeInTheDocument();

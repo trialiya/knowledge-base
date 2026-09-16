@@ -1,0 +1,24 @@
+/* ═══════════════════════════════════════════════
+   ЕДИНЫЙ ПОИСК — признак того, что поиск ещё идёт
+═══════════════════════════════════════════════ */
+
+/* Один волчок на обе половины раздела: он стоит и в счётчике категории слева, и
+   в шапке выдачи по центру, а две одинаковые заготовки в двух файлах
+   разъезжаются. Размер — в em: в счётчике шрифт мельче, чем в шапке. */
+.search-spinner {
+  box-sizing: border-box;
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border: 2px solid var(--kb-border);
+  border-top-color: var(--kb-accent);
+  border-radius: 50%;
+  animation: kb-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+/* На залитой плашке выбранной категории и рамка, и акцент сливаются с фоном. */
+.ws-item--active .search-spinner {
+  border-color: var(--kb-on-accent-border);
+  border-top-color: var(--kb-text-on-fill);
+}

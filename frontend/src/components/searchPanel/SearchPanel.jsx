@@ -62,6 +62,15 @@ const SearchPanel = ({ query, scope, mode, filters, onRefine, onOpenFile, onOpen
     [results.files.entry, results.docs.entry, results.chats.entry],
   );
 
+  // Ищет ли ещё каждая категория. Фильтры слева — и репозиторий среди них —
+  // перезапускают поиск, а ответ его на экране в тот же миг не меняется:
+  // сколько-то он идёт, и всё это время выдача принадлежит прежнему фильтру.
+  // Про это и говорят волчки — у категории, где стоит счётчик, и в шапке выдачи.
+  const pending = useMemo(
+    () => ({ files: results.files.loading, docs: results.docs.loading, chats: results.chats.loading }),
+    [results.files.loading, results.docs.loading, results.chats.loading],
+  );
+
   return (
     <WorkspaceLayout
       {...panels}
@@ -69,7 +78,12 @@ const SearchPanel = ({ query, scope, mode, filters, onRefine, onOpenFile, onOpen
         title: t('panel.title'),
         children: (
           <>
-            <SearchScopeList scope={scope} counts={counts} onSelect={(next) => onRefine({ searchScope: next })} />
+            <SearchScopeList
+              scope={scope}
+              counts={counts}
+              pending={pending}
+              onSelect={(next) => onRefine({ searchScope: next })}
+            />
             <SearchFilters
               scope={scope}
               path={filters.path}

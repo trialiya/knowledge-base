@@ -25,6 +25,16 @@
   color: var(--kb-text-on-fill);
 }
 
+/* Волчок вместо числа: плашка держит то же место, чтобы строка не дёргалась на
+   каждый ответ, но заливки под ним нет — кольцо на ней теряется. */
+.search-scopes__count--pending,
+.ws-item--active .search-scopes__count--pending {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+}
+
 .search-filters {
   display: flex;
   flex-direction: column;
