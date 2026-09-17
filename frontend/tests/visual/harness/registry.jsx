@@ -123,8 +123,8 @@ import * as toolCatalog from '../fixtures/toolCatalog';
  * «Загрузка…». Незаявленный запрос не подменяется и попадает в консольные
  * ошибки кейса — см. main.jsx.
  *
- * `steps` — что сделать перед снимком: `{ click }`, `{ press }`, `{ type }`,
- * `{ unhover: true }`. Состояние, которое компонент открывает сам (меню,
+ * `steps` — что сделать перед снимком: `{ click }`, `{ hover }`, `{ press }`,
+ * `{ type }`, `{ unhover: true }`. Состояние, которое компонент открывает сам (меню,
  * find-бар, набранный запрос), пропсами не задаётся вовсе. После клика
  * указатель остаётся на кнопке, и снимок показывает её наведённой: кейсу, где
  * важно именно состояние (кнопка держит вид, пока её меню открыто), `unhover`
@@ -552,6 +552,15 @@ const LIGHT = [
   {
     id: 'toolCallNotifications.js#callOutcomes',
     frame: 'feed',
+    render: (p) => <ToolCallNotifications toolCalls={p} conversationId="1" />,
+  },
+  {
+    // Наводка на плашке. Кейс осмыслен ровно на этой фикстуре: у плашек здесь
+    // свои цвета исхода, и видно, что наводка ложится поверх них, а не
+    // подменяет их. Наведено на среднюю — соседние рядом для сравнения.
+    id: 'toolCallNotifications.js#callOutcomes@hover',
+    frame: 'feed',
+    steps: [{ hover: '.tool-call-item:nth-child(2)' }],
     render: (p) => <ToolCallNotifications toolCalls={p} conversationId="1" />,
   },
 
