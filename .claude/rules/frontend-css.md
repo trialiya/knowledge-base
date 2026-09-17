@@ -52,7 +52,7 @@ paths:
 - `components/common/ui/buttons.css` is the only place button looks live, and
   `common/modal/modalShell.css` the only place modal chrome does. The
   panel-local families (`set-btn`, `detail-icon-btn`, `new-chat-button`,
-  `md-toolbar__btn`, `message-copy-btn`, `phrases-cat-btn`,
+  `md-toolbar__btn`, `message-copy-btn`, `code-block__copy`, `phrases-cat-btn`,
   `contents-pagination__btn`, `header-menu__trigger`, `modal-overlay`,
   `tcd-overlay`, …) have been folded into them — keep it that way. What may
   stay panel-local is what belongs to the row rather than to the button: where

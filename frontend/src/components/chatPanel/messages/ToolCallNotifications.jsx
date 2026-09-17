@@ -110,7 +110,7 @@ const ToolCallItem = ({ tc, conversationId, onOpenDetail }) => {
         {tc.status === TOOL_STATUS.ERROR && tc.error && <span className="tool-call-error">{tc.error}</span>}
       </div>
       <button
-        className="icon-btn icon-btn--xs icon-btn--quiet tool-call-copy-btn"
+        className={`icon-btn icon-btn--xs icon-btn--quiet tool-call-copy-btn${copied ? ' icon-btn--done' : ''}`}
         onClick={handleCopy}
         title={t('toolCall.copy')}
       >

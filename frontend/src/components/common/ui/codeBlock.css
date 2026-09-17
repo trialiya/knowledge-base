@@ -28,40 +28,26 @@
   user-select: none;
 }
 
-.code-block__copy {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: none;
-  color: var(--kb-text-muted);
-  cursor: pointer;
+/* Вид — общий (.icon-btn, «скопировано» — .icon-btn--done), здесь только
+   появление: кнопка ждёт наведения на блок, иначе шапка каждого блока кода
+   рябит значком. Два класса — чтобы перебить transition общего правила при
+   равной специфичности. */
+.icon-btn.code-block__copy {
   opacity: 0;
-  transition: opacity 0.15s, color 0.15s, background 0.15s, border-color 0.15s;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
 }
-.code-block:hover .code-block__copy {
-  opacity: 1;
-}
-.code-block__copy:hover {
-  color: var(--kb-accent);
-  border-color: var(--kb-border);
-  background: var(--kb-surface);
-}
-.code-block__copy--done {
+.code-block:hover .icon-btn.code-block__copy,
+.icon-btn.code-block__copy.icon-btn--done {
   opacity: 1;
 }
 /* Кнопка проявляется по наведению, но есть два пути, на которых наведения не
    будет никогда: палец (hover не наступает) и Tab (иначе фокусная рамка рисуется
    на прозрачной кнопке и на глаз просто пропадает). */
-.code-block__copy:focus-visible {
+.icon-btn.code-block__copy:focus-visible {
   opacity: 1;
 }
 @media (hover: none) {
-  .code-block__copy {
+  .icon-btn.code-block__copy {
     opacity: 1;
   }
 }

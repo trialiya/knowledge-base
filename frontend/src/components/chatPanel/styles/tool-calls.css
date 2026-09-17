@@ -84,8 +84,29 @@
   margin-top: 1px;
 }
 
+/* Исход красит иконку ролью статуса: сама она нарисована в `currentColor`
+   (icons/index.jsx). Знак поверх заливки — тем же цветом, что текст на заливке:
+   в тёмной теме заливка светлая, и белый знак на ней бы пропал. */
 .tool-call-status-svg--started {
+  color: var(--kb-warning);
   animation: kb-spin 1.2s linear infinite;
+}
+.tool-call-status-svg--ok {
+  color: var(--kb-success);
+}
+.tool-call-status-svg--error {
+  color: var(--kb-error);
+}
+/* Нейтральный, а не приглушённый текст: заливка круга должна отличаться и от
+   зелёной, и от красной, и от подложки самой плашки. */
+.tool-call-status-svg--unknown {
+  color: var(--kb-text-placeholder);
+}
+.tool-call-status-svg__glyph {
+  stroke: var(--kb-text-on-fill);
+}
+.tool-call-status-svg__glyph-dot {
+  fill: var(--kb-text-on-fill);
 }
 
 /* Вид — общий (.icon-btn--quiet), здесь только появление: кнопка ждёт наведения

@@ -158,8 +158,8 @@ export const IconCopySmall = ({ size = 13 }) => (
 );
 
 /**
- * Зелёная галочка-подтверждение (16×16 viewBox) — состояние «скопировано».
- * Не принимает size — размер задаётся родителем через width/height атрибуты.
+ * Галочка-подтверждение (16×16 viewBox) — состояние «скопировано». Цвет берёт у
+ * кнопки: в `icon-btn--done` это акцент, и своего зелёного у галочки нет.
  */
 export const IconCopied = ({ size = 12 }) => (
   <svg
@@ -167,7 +167,7 @@ export const IconCopied = ({ size = 12 }) => (
     height={size}
     viewBox="0 0 16 16"
     fill="none"
-    stroke="#34a853"
+    stroke="currentColor"
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -688,22 +688,26 @@ export const IconJira = ({ size = 16 }) => (
 );
 
 // ─── Tool-call status indicators ──────────────────────────────────────────────
+// Цвет исхода — `currentColor`, его задаёт модификатор в tool-calls.css ролью
+// статуса; знак поверх заливки красится классом `__glyph` там же. Вшитый
+// оттенок здесь пережил бы смену темы, а в тёмной заливка светлая, и белый знак
+// на ней пропал бы.
 
-/** Жёлтый пунктирный круг — вызов инструмента выполняется. */
+/** Пунктирный круг — вызов инструмента выполняется. */
 export const IconStatusStarted = () => (
   <svg className="tool-call-status-svg tool-call-status-svg--started" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="6" fill="none" stroke="#d99a00" strokeWidth="2" strokeDasharray="9 5" />
+    <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="9 5" />
   </svg>
 );
 
-/** Зелёный круг с галочкой — вызов инструмента выполнен успешно. */
+/** Круг с галочкой — вызов инструмента выполнен успешно. */
 export const IconStatusOk = () => (
   <svg className="tool-call-status-svg tool-call-status-svg--ok" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="7" fill="#34a853" />
+    <circle cx="8" cy="8" r="7" fill="currentColor" />
     <path
+      className="tool-call-status-svg__glyph"
       d="M5 8.2l2 2 4-4.4"
       fill="none"
-      stroke="#fff"
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -711,25 +715,25 @@ export const IconStatusOk = () => (
   </svg>
 );
 
-/** Серый круг с вопросом — исход вызова не сохранён. */
+/** Круг с вопросом — исход вызова не сохранён. */
 export const IconStatusUnknown = () => (
   <svg className="tool-call-status-svg tool-call-status-svg--unknown" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="7" fill="#9aa0a6" />
+    <circle cx="8" cy="8" r="7" fill="currentColor" />
     <path
+      className="tool-call-status-svg__glyph"
       d="M6.2 6.1a1.9 1.9 0 113.1 1.7c-.7.5-1.1.9-1.1 1.6"
       fill="none"
-      stroke="#fff"
       strokeWidth="1.5"
       strokeLinecap="round"
     />
-    <circle cx="8" cy="11.6" r="0.9" fill="#fff" />
+    <circle className="tool-call-status-svg__glyph-dot" cx="8" cy="11.6" r="0.9" />
   </svg>
 );
 
-/** Красный круг с крестом — вызов инструмента завершился ошибкой. */
+/** Круг с крестом — вызов инструмента завершился ошибкой. */
 export const IconStatusError = () => (
   <svg className="tool-call-status-svg tool-call-status-svg--error" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="7" fill="#ea4335" />
-    <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="8" cy="8" r="7" fill="currentColor" />
+    <path className="tool-call-status-svg__glyph" d="M5.5 5.5l5 5M10.5 5.5l-5 5" strokeWidth="1.8" strokeLinecap="round" />
   </svg>
 );

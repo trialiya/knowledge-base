@@ -1,6 +1,4 @@
-import { useTranslation } from 'react-i18next';
-import { IconCopySmall, IconCopied } from '@/icons/index';
-import useCopyFeedback from './useCopyFeedback';
+import CopyButton from './CopyButton';
 import './codeBlock.css';
 
 const extractLang = (className) => {
@@ -9,22 +7,13 @@ const extractLang = (className) => {
 };
 
 const CodeBlock = ({ code, className, children, ...props }) => {
-  const { t } = useTranslation();
-  const [copied, copy] = useCopyFeedback();
   const lang = extractLang(className);
 
   return (
     <div className="code-block">
       <div className="code-block__head">
         <span className="code-block__lang">{lang || ''}</span>
-        <button
-          className={`code-block__copy ${copied ? 'code-block__copy--done' : ''}`}
-          onClick={() => copy(code)}
-          title={copied ? t('copied') : t('copy')}
-          type="button"
-        >
-          {copied ? <IconCopied size={14} /> : <IconCopySmall size={14} />}
-        </button>
+        <CopyButton value={code} keepEmpty className="icon-btn--sm code-block__copy" />
       </div>
       <pre className="code-block__pre">
         <code className={className} {...props}>
