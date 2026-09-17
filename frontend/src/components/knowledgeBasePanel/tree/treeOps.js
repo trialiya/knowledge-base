@@ -125,7 +125,26 @@ export function spliceChildren(clone, parentId, paged, { replace = true } = {}) 
   parent._childrenLoaded = true;
   parent.hasChildren = (paged.totalElements ?? 0) > 0;
   parent._totalChildren = paged.totalElements ?? null;
+  parent._childrenError = false;
   return parent;
+}
+
+/**
+ * Пометить узел «раскрыться»: её ставит и тот, кто восстанавливает путь к
+ * выбранному документу, и тот, кто перенёс в папку узел. Значение меняется на
+ * каждую пометку — TreeNode ловит её по изменению, а не по истине, иначе вторая
+ * пометка подряд не раскрыла бы папку, свёрнутую руками после первой.
+ */
+function markOpen(node) {
+  node._openOnLoad = (node._openOnLoad ?? 0) + 1;
+}
+
+/** Та же пометка снаружи — узлу, детей которого читать не нужно. */
+export function markOpenOnLoad(tree, id) {
+  const clone = cloneTree(tree);
+  const node = findNodeById(clone, id);
+  if (node) markOpen(node);
+  return clone;
 }
 
 /**
@@ -145,7 +164,27 @@ export function applyChildren(tree, parentId, paged, { replace = true, open = fa
   spliceChildren(clone, parentId, paged, { replace });
   if (open && parentId !== null) {
     const parent = findNodeById(clone, parentId);
-    if (parent) parent._openOnLoad = true;
+    if (parent) markOpen(parent);
   }
   return clone;
+}
+
+/**
+ * Merges a tree stub into the current selection: one place for the "don't let a
+ * ≤150-char snippet clobber a fully-loaded document" rule.
+ */
+export function mergeStubIntoSelection(prev, fromTree) {
+  const keepFullDescription = prev._full;
+  return {
+    ...prev,
+    ...fromTree,
+    // Preserve full content for a fully-loaded document; otherwise take the
+    // tree's (possibly fresher) snippet.
+    description: keepFullDescription ? prev.description : fromTree.description,
+    // Дереву верим только там, где оно детей действительно читало: в заглушке
+    // children всегда пустой массив (сервер шлёт [], а не null), и по нему уже
+    // загруженный состав папки исчезал бы до следующего запроса.
+    children: fromTree._childrenLoaded ? fromTree.children : prev.children ?? fromTree.children,
+    _full: prev._full,
+  };
 }
