@@ -1,10 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import useFolderChildren from './useFolderChildren';
 
-vi.mock('@/api/documentsApi', () => ({
-  default: { fetchChildren: vi.fn() },
-}));
-
 const folder = (children, total) => ({
   id: 7,
   type: 'folder',

@@ -22,6 +22,16 @@ import useAttachmentCount from '@/components/common/attachments/useAttachmentCou
 import useFolderChildren from './tree/useFolderChildren';
 import { buildDetailTabs } from './detail/detailSidebar';
 
+/**
+ * Текст подтверждения удаления. У папки он свой: сервер удаляет её вместе со
+ * всем поддеревом, и по общему «элемент будет удалён» этого не понять.
+ */
+const deleteMessage = (t, target) => {
+  if (!target) return '';
+  const key = target.type === 'folder' ? 'delete.folderMessage' : 'delete.message';
+  return target.title ? t(`${key}Named`, { title: target.title }) : t(key);
+};
+
 const KnowledgeBase = ({
   isActive = true,
   docId,
@@ -124,7 +134,7 @@ const KnowledgeBase = ({
 
   const center =
     searchResults.length > 0 && !selectedNode ? (
-      <SearchResults query={searchQuery} results={searchResults} tree={tree} onSelect={selectNode} />
+      <SearchResults query={searchQuery} results={searchResults} onSelect={selectNode} />
     ) : selectedNode ? (
       selectedNode.type === 'folder' ? (
         <FolderDetail key={selectedNode.id} {...detailProps} />
@@ -255,7 +265,7 @@ const KnowledgeBase = ({
         open={!!deleteConfirm}
         icon="🗑️"
         title={deleteConfirm?.type === 'folder' ? t('delete.folderTitle') : t('delete.documentTitle')}
-        message={deleteConfirm?.title ? t('delete.messageNamed', { title: deleteConfirm.title }) : t('delete.message')}
+        message={deleteMessage(t, deleteConfirm)}
         confirmLabel={t('delete.confirm')}
         cancelLabel={t('delete.cancel')}
         onConfirm={handleDeleteConfirm}

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import api from '@/api/documentsApi';
 import { KB_FULL_PAGE as FULL_PAGE } from '@/constants/pagination';
 
 /**
@@ -21,22 +20,19 @@ function treeCacheIsComplete(node) {
 /**
  * Loads the full child list for a folder node and reports loading state.
  *
- * Children DATA is owned by the shared tree, not by this hook: when a loader is
- * provided (`loadChildren`, wired to the KB's deduplicated handleLoadChildren),
- * the full list is fetched THROUGH that loader, which splices the result into
- * the tree. The detail panel re-renders because `node.children` (synced onto the
- * selected node) updates — so we simply DERIVE `children` from `node.children`
- * rather than keeping a second copy in state and syncing it with effects.
+ * Children DATA is owned by the shared tree, not by this hook: the list is
+ * fetched THROUGH `loadChildren` (the KB's deduplicated handleLoadChildren),
+ * which splices the result into the tree. The panel re-renders because
+ * `node.children` (synced onto the selected node) updates — so `children` is
+ * simply DERIVED from it rather than kept as a second copy in state.
  *
- * A tiny local `direct` state is kept ONLY for the loaderless fallback (the hook
- * used outside the KB tree), where nothing splices into a shared tree.
+ * `loadChildren` обязателен: без него хук знал бы о детях больше дерева, а
+ * читают их и панель состава, и сам узел дерева.
  *
  * Returns { children, loading } where `loading` is true only until the first
  * server response for the current folder arrives.
  */
 export default function useFolderChildren(node, loadChildren) {
-  const [direct, setDirect] = useState(null); // loaderless fallback only
-
   const nodeId = node?.id ?? null;
   // Запрос нужен, только пока дерево не держит полный список этой папки.
   const needsFetch = !!nodeId && node.type === 'folder' && !treeCacheIsComplete(node);
@@ -46,30 +42,13 @@ export default function useFolderChildren(node, loadChildren) {
   const [answeredId, setAnsweredId] = useState(null);
   const loading = needsFetch && answeredId !== nodeId;
 
-  // Локальный фолбэк относится к прошлой папке — сбрасываем в рендере, иначе
-  // кадр до ответа показывает её содержимое под именем новой.
-  const [prevNodeId, setPrevNodeId] = useState(nodeId);
-  if (prevNodeId !== nodeId) {
-    setPrevNodeId(nodeId);
-    setDirect(null);
-  }
-
   useEffect(() => {
     if (!needsFetch) return undefined;
     let cancelled = false;
 
-    // Prefer the shared, deduplicated loader so the request is shared with the
-    // tree (and lands in the tree cache). Fall back to a direct fetch only if
-    // no loader was provided.
-    Promise.resolve(loadChildren ? loadChildren(nodeId, 0, FULL_PAGE) : api.fetchChildren(nodeId, 0, FULL_PAGE))
-      .then((paged) => {
-        // With a shared loader the tree updates itself; only the fallback needs
-        // to stash the items locally.
-        if (cancelled || loadChildren) return;
-        setDirect(Array.isArray(paged?.items) ? paged.items : []);
-      })
+    Promise.resolve(loadChildren(nodeId, 0, FULL_PAGE))
       .catch(() => {
-        // Network/server error: keep whatever the tree/fallback already holds.
+        // Network/server error: keep whatever the tree already holds.
       })
       .finally(() => {
         if (!cancelled) setAnsweredId(nodeId);
@@ -85,7 +64,5 @@ export default function useFolderChildren(node, loadChildren) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId, needsFetch]);
 
-  const children = loadChildren ? node?.children ?? [] : direct ?? node?.children ?? [];
-
-  return { children, loading };
+  return { children: node?.children ?? [], loading };
 }
