@@ -64,3 +64,18 @@ export const slashMenuFiltered = { ...base, initialText: '/сж' };
  * оба отрезал бы фразе как раз то, что называет пункт.
  */
 export const slashMenuNarrow = { ...base, initialText: '/' };
+
+/**
+ * Чипы из другого репозитория. Проект чата — `kb`, и чип из него подписан одним
+ * коротким именем файла; чипы, вставленные до смены проекта, остались за
+ * `billing` и называют его в подписи — иначе два одинаковых пути из разных
+ * репозиториев в поле ввода неотличимы (chipLabel в fileChips.js).
+ *
+ * Живьём это состояние стоит второго репозитория и смены проекта в селекторе;
+ * здесь оно задаётся черновиком, потому что проект живёт прямо в токене чипа.
+ */
+export const foreignChips = {
+  ...base,
+  initialText:
+    'сравни ⟦file@billing:backend/pom.xml⟧ с ⟦file@kb:backend/pom.xml⟧ — и что в ⟦commit@billing:9f3c1ab:Поднять Spring Boot до 3.5⟧',
+};

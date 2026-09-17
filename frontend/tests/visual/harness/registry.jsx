@@ -470,7 +470,7 @@ const LIGHT = [
 
   // Нижняя панель композера — по состоянию занятости чата на кейс. Рамка `feed`:
   // панель живёт в колонке ленты, и ряд селекторов меряется её шириной.
-  ...['idleComposer', 'generatingComposer', 'compactingComposer'].map((name) => ({
+  ...['idleComposer', 'generatingComposer', 'compactingComposer', 'projectGoneComposer'].map((name) => ({
     id: `composerToolbar.js#${name}`,
     frame: 'feed',
     render: (p) => <ComposerToolbar {...p} onAttach={noop} onSend={noop} onStop={noop} />,
@@ -478,7 +478,7 @@ const LIGHT = [
 
   // Композер в режиме команды и без него. Рамка `feed`: поле ввода живёт в
   // колонке ленты и меряется её шириной.
-  ...['command', 'question', 'commandBlocked'].map((name) => ({
+  ...['command', 'question', 'commandBlocked', 'foreignChips'].map((name) => ({
     id: `composerCommand.js#${name}`,
     frame: 'feed',
     render: (p) => <MessageInput {...p} onSend={noop} onStop={noop} onAttach={noop} />,
@@ -524,6 +524,10 @@ const LIGHT = [
     ['docMutationCall'],
     ['scriptRunCall', [1440, 1350]],
     ['scriptFailedCall'],
+    // Кросс-проектные вызовы: те же три ответа, но из другого репозитория.
+    ['fileContentForeignCall'],
+    ['grepForeignCall', [1440, 1000]],
+    ['scriptRunForeignCall', [1440, 1350]],
   ].map(toolCallCase),
 
   // Плашки вызовов под ответом. Рамка `feed`: ширина ленты решает, что в плашке
@@ -563,6 +567,14 @@ const LIGHT = [
   {
     id: 'detailHeader.js#documentInFolder',
     frame: 'center',
+    render: (p) => <DetailHeader {...p} onNavigate={noop} onRename={noop} onDelete={noop} />,
+  },
+  {
+    id: 'detailHeader.js#documentDeepPath',
+    frame: 'center',
+    // Кейс ровно про тесноту: на 1440px этот путь помещается целиком, и ни «…»,
+    // ни спора крошек с именем узла за ширину не видно.
+    viewport: [1150, 700],
     render: (p) => <DetailHeader {...p} onNavigate={noop} onRename={noop} onDelete={noop} />,
   },
   {
@@ -690,7 +702,17 @@ const LIGHT = [
 
   // ── Общее: правая панель и модалки ──
   { id: 'infoList.js#chatRows', frame: 'panel', render: (p) => <InfoList rows={p} /> },
+  { id: 'infoList.js#chatRowsProjectGone', frame: 'panel', render: (p) => <InfoList rows={p} /> },
   { id: 'infoList.js#fileRows', frame: 'panel', render: (p) => <InfoList rows={p} /> },
+  {
+    // «Скопировано» держится COPY_DONE_MS и гаснет само, поэтому снимать его
+    // надо сразу после клика — снимок успевает: между шагами и кадром ждут
+    // 200мс. Строка выбрана по номеру, а не по подписи: подписи переводятся.
+    id: 'infoList.js#fileRows@copied',
+    frame: 'panel',
+    steps: [{ click: '.info-list__list > :nth-child(7) .info-list__copy-btn' }, { unhover: true }],
+    render: (p) => <InfoList rows={p} />,
+  },
   // Find-бар модалки: открывается только с клавиатуры, и счётчик появляется
   // лишь на набранном запросе — отсюда шаги. Текст под оверлеем в кадр не
   // попадает: доказательство «ищет по диалогу, а не по странице» остаётся за

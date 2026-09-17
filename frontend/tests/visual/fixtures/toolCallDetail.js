@@ -610,3 +610,33 @@ export const searchCodebaseCall = {
   },
   createdAt: '2026-08-28T11:20:00',
 };
+
+/**
+ * Ответ из другого репозитория. Инструменты чтения репозитория называют его
+ * обёрткой `{ project, result }` вокруг всего ответа (см. unwrapProject в
+ * resultViews/registry.js), поэтому фикстуры собраны из уже описанных выше — в
+ * них меняется только эта обёртка.
+ *
+ * Живьём кросс-проектный вызов заказывает модель, а в песочнице её нет
+ * (AI_BASE_URL — заглушка); здесь ответ задан готовым.
+ */
+const fromProject = (call, project) => ({
+  ...call,
+  resultText: JSON.stringify({ project, result: JSON.parse(call.resultText) }),
+});
+
+/** «Обзор» файла: проект встаёт фактом в шапке рядом с языком и размером. */
+export const fileContentForeignCall = fromProject(fileContentCall, 'billing');
+
+/** Совпадения grep: проект дописан в шапку «Обзора» — к числу совпадений и файлов. */
+export const grepForeignCall = fromProject(grepCall, 'billing');
+
+/**
+ * Прогон скрипта. Обёртки здесь нет: у runScript проект — свой аргумент, и
+ * ответ называет его полем (scriptRun.js читает parsed.project), а плитка с ним
+ * встаёт первой среди счётчиков.
+ */
+export const scriptRunForeignCall = {
+  ...scriptRunCall,
+  resultText: JSON.stringify({ ...JSON.parse(scriptRunCall.resultText), project: 'billing' }),
+};
