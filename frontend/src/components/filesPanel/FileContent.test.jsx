@@ -16,6 +16,28 @@ describe('FileContent', () => {
     expect(screen.getByText('file.contentUnavailable')).toBeInTheDocument();
   });
 
+  // Такой ответ приходит у файла, удалённого из рабочего дерева: git о нём
+  // помнит, показать нечего, и смотреть на него идут в режим изменений — там
+  // удалённый файл и виден. Раньше эта ветка была недостижима: бэкенд отвечал
+  // на такой путь отказом, и центр показывал «не удалось загрузить».
+  test('удалённый файл в режиме изменений показывает diff, а не «не найдено»', () => {
+    const diff = {
+      entry: {
+        status: 'D',
+        path: 'gone.js',
+        patchHeader: '--- a/gone.js\n+++ /dev/null',
+        patch: '@@ -1 +0,0 @@\n-var a;',
+      },
+      loading: false,
+      error: false,
+    };
+
+    render(<FileContent content={{ type: 'not-found', path: 'gone.js' }} path="gone.js" loading={false} diff={diff} />);
+
+    expect(screen.getByText('changes.status.D')).toBeInTheDocument();
+    expect(screen.queryByText('file.notFound')).not.toBeInTheDocument();
+  });
+
   test('файл с содержимым показывает его', () => {
     const file = { content: 'const a = 1;\n', language: 'js', lineCount: 1, sizeBytes: 13 };
 

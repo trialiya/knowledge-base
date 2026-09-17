@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 import org.jspecify.annotations.Nullable;
 
@@ -40,8 +41,15 @@ final class RepoBrowse {
      * @param tracked те из них, про которые знает git — в снимке коммита это все
      * @param sizeOf размер файла в байтах; спрашивается только у путей, попавших в выдачу, потому
      *     что у рабочего дерева это обращение к диску, а у коммита — к базе объектов
+     * @param present есть ли за путём файл прямо сейчас. Список путей приходит из индекса, а индекс
+     *     помнит и то, что из рабочего дерева уже удалили, — открыть такой путь нечем, и спрошен
+     *     этот вопрос только у пути, который открывают
      */
-    record Snapshot(List<String> paths, Set<String> tracked, ToLongFunction<String> sizeOf) {}
+    record Snapshot(
+            List<String> paths,
+            Set<String> tracked,
+            ToLongFunction<String> sizeOf,
+            Predicate<String> present) {}
 
     /** Узлы одного листинга в порядке браузера: каталоги, потом файлы, внутри — по имени. */
     static List<GitFileNode> ordered(List<GitFileNode> nodes) {
@@ -134,7 +142,15 @@ final class RepoBrowse {
             String target,
             boolean includeAncestors,
             Function<Boolean, @Nullable GitFileContent> contentOf) {
-        @Nullable FileEntryType type = resolvePathType(target, snapshot.paths());
+        @Nullable FileEntryType typeInPaths = resolvePathType(target, snapshot.paths());
+        // Файл, который git помнит, а рабочего дерева уже нет (удалён, переименован, откачен), —
+        // это missing, а не отказ: браузер рисует «не найдено», а режим изменений — diff, где
+        // такой файл только и виден. Отказ на его месте уносил бы и дерево, и листинги предков,
+        // то есть всю панель, ради одного пути.
+        @Nullable FileEntryType type =
+                typeInPaths == FileEntryType.FILE && !snapshot.present().test(target)
+                        ? null
+                        : typeInPaths;
 
         List<String> ancestors = includeAncestors ? ancestorDirs(target) : List.of();
         Set<String> bases = new LinkedHashSet<>(ancestors);
