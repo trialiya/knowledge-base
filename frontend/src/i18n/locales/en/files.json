@@ -32,6 +32,8 @@
     "notFound": "File or directory not found",
     "loadError": "Failed to load content",
     "toggleMarkdown": "Markdown preview",
+    "togglePicture": "Picture or source",
+    "imageUnavailable": "This image cannot be shown — the file may be too large",
     "showDiff": "Diff"
   },
   "info": {

@@ -32,6 +32,8 @@
     "notFound": "Файл или каталог не найден",
     "loadError": "Не удалось загрузить содержимое",
     "toggleMarkdown": "Просмотр в markdown",
+    "togglePicture": "Рисунок или исходник",
+    "imageUnavailable": "Не удалось показать изображение — возможно, файл слишком велик",
     "showDiff": "Diff"
   },
   "info": {

@@ -97,6 +97,13 @@ public class GitService {
     private static final long MAX_BYTE_WINDOW = 1024 * 1024;
 
     /**
+     * Largest file {@link #getRawFile} hands to the browser whole. Bigger than anything a picture
+     * in a source tree has business being, and small enough that a request for the artefact
+     * somebody committed next to it costs a refusal rather than the heap.
+     */
+    private static final long MAX_RAW_FILE_SIZE = 16L * 1024 * 1024;
+
+    /**
      * Chunk size for reads that only pass bytes through, never keeping them ({@link #hashFile}).
      */
     private static final int STREAM_BUFFER_BYTES = 8192;
@@ -887,6 +894,57 @@ public class GitService {
                         : RepoFiles.readWindow(
                                 normalized, absolute, 0, RepoFiles.BINARY_SNIFF_BYTES);
         return new GitFileBytes(normalized, window, from, size, RepoFiles.isBinary(head));
+    }
+
+    /**
+     * Whole file, for handing straight to the browser — the bytes behind an inline preview of an
+     * image. Unlike {@link #getFileBytes} there is no window here: a picture is shown or it is not,
+     * and half of one is nothing at all.
+     *
+     * <p>Serves the same files every other read does (tracked, plus what the project's {@code
+     * allow-globs} admit) and refuses anything over {@value #MAX_RAW_FILE_SIZE} bytes rather than
+     * pulling it into memory — a repository holds artefacts as well as sources, and the caller gets
+     * a refusal it can show instead of a browser hanging on a video-sized blob.
+     *
+     * @throws IllegalArgumentException if the file is bigger than that limit
+     */
+    public GitFileBytes getRawFile(@NonNull String filePath) {
+        String normalized = normalizePath(filePath);
+        Path absolute = visible.require(normalized).absolute();
+        long size = RepoFiles.sizeOf(normalized, absolute);
+        requireServableSize(normalized, size);
+        byte[] bytes = RepoFiles.readAll(normalized, absolute);
+        return new GitFileBytes(normalized, bytes, 0, size, RepoFiles.isBinary(bytes));
+    }
+
+    /**
+     * The same file as {@link #getRawFile}, as of a commit — {@code git show <rev>:<path>}, so a
+     * snapshot of a revision shows the picture that revision holds and not the one on disk.
+     *
+     * @param rev any revision git resolves: a full or short hash, a branch, a tag, {@code HEAD~2}
+     * @throws IllegalArgumentException if the revision is unknown, holds no such file, or the file
+     *     there is bigger than {@value #MAX_RAW_FILE_SIZE} bytes
+     */
+    public GitFileBytes getRawFileAt(@NonNull String rev, @NonNull String filePath) {
+        String normalized = normalizePath(filePath);
+        // Предел уходит внутрь чтения: размер объекта известен до того, как он поднят в память, и
+        // отказать по уже прочитанным байтам значило бы заплатить ровно то, ради чего предел есть.
+        CommitFiles.Blob blob =
+                CommitFiles.read(repository, rev.strip(), normalized, MAX_RAW_FILE_SIZE);
+        return new GitFileBytes(
+                normalized, blob.bytes(), 0, blob.size(), RepoFiles.isBinary(blob.bytes()));
+    }
+
+    private static void requireServableSize(String normalized, long size) {
+        if (size > MAX_RAW_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "File is too large to preview ("
+                            + size
+                            + " B, max "
+                            + MAX_RAW_FILE_SIZE / (1024 * 1024)
+                            + " MB): "
+                            + normalized);
+        }
     }
 
     /**

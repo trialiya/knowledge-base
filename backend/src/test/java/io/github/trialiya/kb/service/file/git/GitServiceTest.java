@@ -47,6 +47,14 @@ class GitServiceTest {
         }
     }
 
+    private void deleteFile(String relativePath) {
+        try {
+            Files.delete(repoDir.resolve(relativePath));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private void commitAll() {
         commitAll("test commit");
     }
@@ -816,6 +824,25 @@ class GitServiceTest {
         assertThat(service.searchFiles("git", 5))
                 .extracting(GitFileNode::path)
                 .containsExactly("git.md", "git/tools/verylongfilename.md");
+    }
+
+    /**
+     * Файл, который git помнит, а рабочего дерева уже нет: индекс пропускает такой путь, и до этого
+     * отказа доходит само чтение с диска. Это ошибка запроса — контроллер переводит её в 400, — а
+     * не поломка сервера: спросить о только что удалённом файле может кто угодно, и страница с
+     * картинкой запрашивает его сама, без единого клика.
+     */
+    @Test
+    void aTrackedFileDeletedFromTheWorkingTreeIsRefusedAsABadRequest() {
+        writeFile("docs/icon.svg", "<svg/>\n");
+        commitAll();
+        deleteFile("docs/icon.svg");
+
+        assertThatThrownBy(() -> service.getRawFile("docs/icon.svg"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("docs/icon.svg");
+        assertThatThrownBy(() -> service.getFileContent("docs/icon.svg"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     /**

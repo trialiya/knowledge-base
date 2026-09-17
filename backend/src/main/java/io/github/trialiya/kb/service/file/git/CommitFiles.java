@@ -52,6 +52,17 @@ final class CommitFiles {
      *     объект больше {@code MAX_BLOB_SIZE}
      */
     static Blob read(Repository repository, String rev, String path) {
+        return read(repository, rev, path, MAX_BLOB_SIZE);
+    }
+
+    /**
+     * То же, но с меньшим потолком на объект: {@code maxBytes} — сколько вызывающий готов поднять в
+     * память ради своего ответа. Отказ по нему стоит одного {@code getSize()}, а не чтения объекта,
+     * которое потом окажется ни к чему: у показа картинки свой предел, много ниже {@link
+     * #MAX_BLOB_SIZE}, и проверять его уже по прочитанным байтам значило бы платить ровно ту цену,
+     * ради которой предел и заведён.
+     */
+    static Blob read(Repository repository, String rev, String path, long maxBytes) {
         try (Commit commit = Commit.open(repository, rev)) {
             Entry entry = commit.entry(path);
             if (entry.kind() == Kind.MISSING) {
@@ -62,7 +73,7 @@ final class CommitFiles {
                 // Каталог: содержимого, которое имеет смысл показывать как файл, у него нет.
                 throw new IllegalArgumentException("Not a file in " + commit.name() + ": " + path);
             }
-            return commit.blob(entry, path);
+            return commit.blob(entry, path, maxBytes);
         }
     }
 
@@ -218,15 +229,23 @@ final class CommitFiles {
          * Содержимое файла, найденного {@link #entry}: объект уже известен, дерево второй раз не
          * читается.
          *
-         * @throws IllegalArgumentException объект больше {@code MAX_BLOB_SIZE}
+         * @throws IllegalArgumentException объект больше {@code maxBytes}
          */
         Blob blob(Entry entry, String path) {
+            return blob(entry, path, MAX_BLOB_SIZE);
+        }
+
+        /**
+         * @param maxBytes сколько вызывающий готов поднять в память ради своего ответа — см. {@link
+         *     CommitFiles#read(Repository, String, String, long)}
+         */
+        Blob blob(Entry entry, String path, long maxBytes) {
             ObjectId id = entry.blob();
             if (entry.kind() != Kind.FILE || id == null) {
                 throw new IllegalArgumentException("Not a file in " + rev.name() + ": " + path);
             }
             try {
-                return load(reader(), id, rev.name(), path);
+                return load(reader(), id, rev.name(), path, maxBytes);
             } catch (IOException e) {
                 throw new IllegalStateException("Failed reading " + path + " at " + rev.name(), e);
             }
@@ -332,13 +351,15 @@ final class CommitFiles {
      *
      * @param reader читатель объектов; закрывает его тот, кто открыл
      * @param commit полный хеш коммита, из дерева которого взят объект
-     * @throws IllegalArgumentException объект больше {@link #MAX_BLOB_SIZE}
+     * @param maxBytes потолок на размер объекта у этого вызывающего
+     * @throws IllegalArgumentException объект больше {@code maxBytes}
      */
-    private static Blob load(ObjectReader reader, ObjectId id, String commit, String path)
+    private static Blob load(
+            ObjectReader reader, ObjectId id, String commit, String path, long maxBytes)
             throws IOException {
         ObjectLoader loader = reader.open(id, Constants.OBJ_BLOB);
         long size = loader.getSize();
-        if (size > MAX_BLOB_SIZE) {
+        if (size > maxBytes) {
             // Отказ, а не усечение: ответ строится из начала И конца файла, и прочитать конец, не
             // подняв в память всё остальное, нельзя. Размер объекта известен до чтения, поэтому
             // граница проходит здесь, а не по факту нехватки памяти.
@@ -350,7 +371,7 @@ final class CommitFiles {
                             + " is "
                             + size
                             + " bytes (limit "
-                            + MAX_BLOB_SIZE
+                            + maxBytes
                             + ")");
         }
         // Через поток, а не getBytes(): тот отказывает по своему порогу

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import ModalShell from '@/components/common/modal/ModalShell';
-import { FileView } from '@/components/filesPanel/FileContent';
+import FileView from '@/components/filesPanel/FileView';
 import { baseName } from '@/components/common/ui/utils';
 import { IconX } from '@/icons/index';
 
@@ -8,7 +8,7 @@ import { IconX } from '@/icons/index';
 // file content is source code, not markdown — rendering it through the
 // markdown pipeline would garble it. This reuses FileView (the same
 // syntax-highlighted, line-numbered renderer as FilePreviewModal / FilesPanel).
-const FileFullscreenModal = ({ path, file, loading, error, onClose }) => {
+const FileFullscreenModal = ({ path, file, project, loading, error, onClose }) => {
   const { t } = useTranslation('files');
   const name = baseName(path);
 
@@ -28,7 +28,7 @@ const FileFullscreenModal = ({ path, file, loading, error, onClose }) => {
       <div className="fs-editor__body file-preview-modal__body">
         {loading && <div className="file-preview-modal__msg">{t('tree.loading')}</div>}
         {!loading && error && <div className="file-preview-modal__msg">{t('file.loadError')}</div>}
-        {!loading && !error && file && <FileView file={file} />}
+        {!loading && !error && file && <FileView file={file} path={path} project={project} />}
       </div>
     </ModalShell>
   );

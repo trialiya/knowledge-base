@@ -327,6 +327,7 @@ const DocLinkTooltip = ({ href, children, tree = NO_TREE, onNavigate, ...rest })
           <FileFullscreenModal
             path={fileFullscreenPath}
             file={fileFullscreenNode}
+            project={fileProject}
             loading={fileFullscreenLoading}
             error={fileFullscreenError}
             onClose={() => setFileFullscreenOpen(false)}

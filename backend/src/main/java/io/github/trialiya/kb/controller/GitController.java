@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCapabilities;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
+import io.github.trialiya.kb.model.git.dto.GitFileBytes;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
@@ -13,10 +14,15 @@ import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.service.file.git.GitGrepTimeoutException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
+import io.github.trialiya.kb.service.file.git.PreviewMedia;
 import java.util.List;
 import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -39,7 +45,8 @@ import org.springframework.web.server.ResponseStatusException;
  * children of a single directory (a chevron click in that tree); {@code GET /status} lists the
  * working tree's uncommitted changes for the panel's review mode; {@code GET /commits} returns
  * commit history for a path. All delegate to {@link GitService}, which enforces tracked-files-only
- * access, path-traversal guards and binary/size limits. {@code GET /capabilities} is the one
+ * access, path-traversal guards and binary/size limits. {@code GET /files/raw} serves the bytes of
+ * a previewable file (an image) straight to an {@code <img>}; {@code GET /capabilities} is the one
  * endpoint about the project rather than its content: which git controls the panel may show.
  */
 @RestController
@@ -207,6 +214,44 @@ public class GitController {
                         at == null
                                 ? git.browsePath(path, ancestors)
                                 : git.browsePathAt(at, path, ancestors));
+    }
+
+    /**
+     * Сырые байты файла, который браузер показывает как есть, — картинки файлового браузера ({@code
+     * <img src=…>}), включая SVG в режиме «рисунок».
+     *
+     * <p>Отдаётся не всё подряд: тип содержимого берётся по расширению из закрытого списка {@link
+     * PreviewMedia}, и путь вне его — 415, а не байты с угаданным типом. Заголовки запрещают и
+     * сниффинг типа, и что-либо активное внутри ответа: SVG — это XML, который умеет и скрипты, и
+     * переход по нему напрямую иначе исполнял бы их на нашем origin.
+     *
+     * <p>Ответ не кэшируется: путь в рабочем дереве — это «файл прямо сейчас», и правка, показанная
+     * старой картинкой, была бы хуже лишнего запроса.
+     */
+    @GetMapping("/files/raw")
+    public ResponseEntity<byte[]> raw(
+            @RequestParam("path") String path,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        requireSafePath(path);
+        String mediaType = PreviewMedia.mediaType(path);
+        if (mediaType == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Not a previewable file: " + path);
+        }
+        GitService git = git(project);
+        String at = revision(rev);
+        GitFileBytes file =
+                read(() -> at == null ? git.getRawFile(path) : git.getRawFileAt(at, path));
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mediaType))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline().build().toString())
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "default-src 'none'; sandbox")
+                .body(file.bytes());
     }
 
     /**

@@ -205,7 +205,7 @@
   color: var(--kb-text-warning);
 }
 
-.file-view__md-toggle {
+.file-view__view-toggle {
   margin-left: auto;
   border: 1px solid var(--kb-border);
   background: none;
@@ -216,14 +216,32 @@
   border-radius: 6px;
   line-height: 1.2;
 }
-.file-view__md-toggle:hover {
+.file-view__view-toggle:hover {
   background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
 }
-.file-view__md-toggle--active {
+.file-view__view-toggle--active {
   background: var(--kb-accent-surface-subtle);
   color: var(--kb-accent);
   border-color: var(--kb-accent);
+}
+
+.file-image {
+  /* Картинка живёт в своей полосе, а не растягивается на всё тело центра:
+     мелкая иконка, растянутая до ширины панели, — это её пиксели крупным
+     планом, а не то, как она выглядит. Поэтому ограничение только сверху:
+     больше исходного размера не растём, меньше — ужимаемся под панель. */
+  padding: 16px 20px;
+  overflow: auto;
+}
+
+.file-image__img {
+  max-width: 100%;
+  /* Шахматка под прозрачным фоном: иначе PNG с альфой на светлой теме читается
+     как «картинка с белым фоном», а на тёмной пропадает целиком. */
+  background: repeating-conic-gradient(var(--kb-surface-muted) 0% 25%, var(--kb-surface) 0% 50%) 50% / 16px 16px;
+  border: 1px solid var(--kb-border-light);
+  border-radius: 6px;
 }
 
 .file-view__md {
