@@ -67,7 +67,7 @@ export const sparseNodeRows = [
  * больше нет, поэтому в строке стоит сам id со словами о том, что его не стало
  * (chat:project.goneValue). Пустое значение читалось бы как «проект не выбран».
  */
-export const chatRowsProjectGone = [
-  ...chatRows,
-  { label: 'Проект', value: 'billing — больше недоступен' },
-];
+export const chatRowsProjectGone = chatRows.flatMap((row) =>
+  // Порядок строк — как в ChatInfo.jsx: проект стоит перед id, а не в хвосте.
+  row.label === 'ID' ? [{ label: 'Проект', value: 'billing — больше недоступен' }, row] : [row],
+);
