@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc, IconChevron } from '@/icons/index';
+import revealRow from './treeScroll';
 
 const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingDirs, onToggle, onSelect }) => {
   const { t } = useTranslation('files');
@@ -13,12 +14,8 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
 
   // Доскроллить дерево до выбранного узла: на глубокой вложенности (deep link,
   // либо клик на корневой элемент при уже проскроленном вправо дереве) он
-  // оказывается за границей панели. Считаем вручную, а не через scrollIntoView:
-  // строка растянута на всю ширину раскрытого дерева
-  // (шире вьюпорта), поэтому scrollIntoView на самой строке или на метке с
-  // flex:1 «выравнивал по левому краю» и обрезал начало имени у мелких узлов.
-  // Видимой должна быть область от шеврона/иконки (начало строки) до конца
-  // имени — не вся растянутая строка и не только имя.
+  // оказывается за границей панели. Считаем вручную, а не через scrollIntoView
+  // — почему именно так, разобрано в revealRow.
   const rowRef = useRef(null);
   const chevronRef = useRef(null);
   const labelRef = useRef(null);
@@ -30,24 +27,15 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
     const container = row?.closest('.files-panel-tree');
     if (!row || !start || !label || !container) return;
 
-    const containerRect = container.getBoundingClientRect();
-
-    // Вертикаль: строка целиком должна попасть в видимую область.
-    const rowRect = row.getBoundingClientRect();
-    if (rowRect.bottom > containerRect.bottom) {
-      container.scrollTop += rowRect.bottom - containerRect.bottom;
-    } else if (rowRect.top < containerRect.top) {
-      container.scrollTop -= containerRect.top - rowRect.top;
-    }
-
-    // Горизонталь: минимальный сдвиг, чтобы уместились и шеврон/иконка, и имя.
-    const startRect = start.getBoundingClientRect();
-    const endRect = label.getBoundingClientRect();
-    if (endRect.right > containerRect.right) {
-      container.scrollLeft += endRect.right - containerRect.right;
-    } else if (startRect.left < containerRect.left) {
-      container.scrollLeft -= containerRect.left - startRect.left;
-    }
+    const { top, left } = revealRow(
+      container.getBoundingClientRect(),
+      row.getBoundingClientRect(),
+      start.getBoundingClientRect(),
+      label.getBoundingClientRect(),
+      { top: container.scrollTop, left: container.scrollLeft },
+    );
+    container.scrollTop = top;
+    container.scrollLeft = left;
   }, [isSelected]);
 
   return (
