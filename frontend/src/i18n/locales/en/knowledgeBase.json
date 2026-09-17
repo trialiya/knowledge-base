@@ -5,6 +5,8 @@
     "dragToReorder": "Drag to reorder",
     "delete": "Delete",
     "loadMore": "··· {{count}} more",
+    "childrenLoading": "Loading…",
+    "childrenError": "Could not load — retry",
     "unknown": "Unknown",
     "empty": "No documents yet"
   },

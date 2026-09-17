@@ -3,14 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc, IconChevron, IconLock, IconDragHandle, IconTrash } from '@/icons/index';
 import { findNodeById } from '@/components/common/ui/utils';
 import { clientBox, revealVertically } from '@/components/common/layout/treeScroll';
+import useNodeDrag from './useNodeDrag';
 import { KB_PAGE_SIZE as PAGE_SIZE } from '@/constants/pagination';
-
-/*
- * Shared module-level drag state.
- * Browsers block reading drag data during dragover/dragenter for security — getData() returns "".
- * Workaround: stash the dragged node info in a module-level ref at dragstart.
- */
-const dragState = { current: null };
 
 const DragHandle = ({ disabled }) => {
   const { t } = useTranslation('knowledgeBase');
@@ -44,10 +38,10 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
   // и предок выбранного узла, и узел, помеченный раскрыться по прямой ссылке,
   // должны быть развёрнуты уже в первом кадре, иначе дерево дёргается.
   const [open, setOpen] = useState(() => isAncestorOfSelected || (!!node._openOnLoad && !needsChildLoad));
-  const [dropPos, setDropPos] = useState(null); // 'before' | 'after' | 'inside'
   const [totalElements, setTotalElements] = useState(node._totalChildren ?? null);
   const [loadingMore, setLoadingMore] = useState(false);
   const rowRef = useRef(null);
+  const { dropPos, dragHandlers } = useNodeDrag({ node, isFolder, isSystem, rowRef, onReorder });
 
   // Страница, которую дочитываем, — с недобором (floor, не ceil): длина списка
   // перестаёт быть кратной странице, как только узел ушёл из папки или пришёл в
@@ -75,7 +69,8 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     if (isAncestorOfSelected) setOpen(true);
   }
 
-  // Пометка «раскрыться по прямой ссылке», когда дети уже загружены.
+  // Пометка «раскрыться», когда дети уже загружены. Ловим её по изменению
+  // значения, а не по истине: пометку ставят и повторно (см. markOpenOnLoad).
   const [prevOpenOnLoad, setPrevOpenOnLoad] = useState(node._openOnLoad);
   if (prevOpenOnLoad !== node._openOnLoad) {
     setPrevOpenOnLoad(node._openOnLoad);
@@ -104,25 +99,27 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     });
   }, [node._openOnLoad]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const loadFirstPage = useCallback(async () => {
+    const paged = await onLoadChildren(node.id, 0, PAGE_SIZE);
+    if (paged?.totalElements != null) setTotalElements(paged.totalElements);
+    return paged;
+  }, [onLoadChildren, node.id]);
+
   const toggleOpen = useCallback(
     async (e) => {
       if (e) e.stopPropagation();
-      if (!open && isFolder && !childrenLoaded && onLoadChildren) {
-        const paged = await onLoadChildren(node.id, 0, PAGE_SIZE);
-        if (paged?.totalElements != null) setTotalElements(paged.totalElements);
-      }
+      if (!open && isFolder && !childrenLoaded && onLoadChildren) await loadFirstPage();
       setOpen((o) => !o);
     },
-    [open, isFolder, childrenLoaded, onLoadChildren, node.id],
+    [open, isFolder, childrenLoaded, onLoadChildren, loadFirstPage],
   );
 
   // Used by the row click (which also selects the node). It does NOT fetch:
   // the panel keeps a useFolderChildren on the selected node (KnowledgeBase.jsx),
   // and that one loads the full child list through the shared (deduplicated)
   // loader, splicing it into this same tree node. Firing a second PAGE_SIZE fetch
-  // here would just duplicate that request (the size=10 + size=1000 pair). We only
-  // flip the open state; children render as soon as the shared load lands in
-  // node.children.
+  // here would just duplicate that request (the size=10 + size=1000 pair). While
+  // that answer is on its way the open folder shows a note row, not an empty group.
   const toggleOpenVisual = useCallback(() => {
     setOpen((o) => !o);
   }, []);
@@ -135,101 +132,12 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
       try {
         const paged = await onLoadChildren(node.id, nextPage, PAGE_SIZE);
         if (paged?.totalElements != null) setTotalElements(paged.totalElements);
-        if (paged?.hasNext === false) {
-          // All loaded — no more pages
-        }
       } finally {
         setLoadingMore(false);
       }
     },
     [loadingMore, onLoadChildren, node.id, nextPage],
   );
-
-  // ── Drag source ───────────────────────────────────────────────────────────
-
-  const handleDragStart = (e) => {
-    if (isSystem) {
-      e.preventDefault();
-      return;
-    }
-    e.stopPropagation();
-    const payload = { id: node.id, title: node.title, parentId: node.parentId ?? null, type: node.type };
-    dragState.current = payload;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', JSON.stringify(payload));
-    requestAnimationFrame(() => {
-      rowRef.current?.classList.add('tree-row--dragging');
-    });
-  };
-
-  const handleDragEnd = (e) => {
-    e.stopPropagation();
-    rowRef.current?.classList.remove('tree-row--dragging');
-    setDropPos(null);
-    dragState.current = null;
-  };
-
-  // ── Drop target ───────────────────────────────────────────────────────────
-
-  const getDropPosition = (e) => {
-    const rect = rowRef.current?.getBoundingClientRect();
-    if (!rect) return 'after';
-    const y = e.clientY - rect.top;
-    const h = rect.height;
-    if (isFolder && y > h * 0.25 && y < h * 0.75) return 'inside';
-    return y < h / 2 ? 'before' : 'after';
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const payload = dragState.current;
-    if (!payload || payload.id === node.id) {
-      setDropPos(null);
-      return;
-    }
-    const pos = getDropPosition(e);
-    if (isSystem && pos !== 'inside') {
-      e.dataTransfer.dropEffect = 'none';
-      setDropPos(null);
-      return;
-    }
-    e.dataTransfer.dropEffect = 'move';
-    setDropPos(pos);
-  };
-
-  const handleDragLeave = (e) => {
-    if (!rowRef.current?.contains(e.relatedTarget)) setDropPos(null);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDropPos(null);
-    let payload = dragState.current;
-    if (!payload) {
-      try {
-        payload = JSON.parse(e.dataTransfer.getData('text/plain'));
-      } catch {
-        return;
-      }
-    }
-    if (!payload?.id || payload.id === node.id) return;
-    const pos = getDropPosition(e);
-    if (isSystem && pos !== 'inside') return;
-    onReorder({
-      draggedId: payload.id,
-      draggedTitle: payload.title,
-      draggedParent: payload.parentId,
-      targetId: node.id,
-      targetParent: node.parentId ?? null,
-      position: pos,
-    });
-    if (pos === 'inside' && isFolder) {
-      if (!childrenLoaded && onLoadChildren) onLoadChildren(node.id, 0, PAGE_SIZE);
-      setOpen(true);
-    }
-  };
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -266,11 +174,7 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
         }`}
         style={{ '--depth': level }}
         draggable={!isSystem}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        {...dragHandlers}
         onClick={() => {
           onSelect(node);
           if (isFolder) toggleOpenVisual();
@@ -312,7 +216,44 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
 
       {hasChildren && open && (
         <div className="tree-children" role="group">
-          {node.children.map((child) => (
+          {/*
+            Раскрыть папку можно раньше, чем придут её дети: кликом по строке.
+            Пустой группой это выглядело бы как «в папке ничего нет», а отказ
+            загрузки не выглядел бы никак — поэтому пока детей нет, на их месте
+            стоит заметка, а на отказе она же и есть кнопка повторить.
+          */}
+          {!childrenLoaded &&
+            (node._childrenError ? (
+              <button
+                type="button"
+                className="tree-note tree-note--error"
+                data-ws-item
+                role="treeitem"
+                aria-level={level + 2}
+                aria-selected={false}
+                tabIndex={-1}
+                style={{ '--depth': level + 1 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  loadFirstPage();
+                }}
+              >
+                {t('tree.childrenError')}
+              </button>
+            ) : (
+              <div
+                className="tree-note"
+                role="treeitem"
+                aria-level={level + 2}
+                aria-selected={false}
+                tabIndex={-1}
+                style={{ '--depth': level + 1 }}
+              >
+                {t('tree.childrenLoading')}
+              </div>
+            ))}
+
+          {node.children?.map((child) => (
             <TreeNode
               key={child.id}
               node={child}

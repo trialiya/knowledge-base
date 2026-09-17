@@ -192,6 +192,34 @@
    TREE: "LOAD MORE" BUTTON
 ═══════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════
+   СТРОКА-ЗАМЕТКА НА МЕСТЕ ДЕТЕЙ
+
+   Строка раскрытой папки, дети которой ещё не пришли: «Загрузка…», а на отказе
+   — кнопка повторить. Отступ уровня — как у остальных строк, по --depth.
+═══════════════════════════════════════════════ */
+
+.tree-note {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 4px 8px 4px calc(var(--ws-gutter) + var(--depth, 0) * var(--ws-indent));
+  background: none;
+  border: none;
+  font-size: 0.8rem;
+  color: var(--kb-text-muted);
+  text-align: left;
+}
+
+.tree-note--error {
+  color: var(--kb-error);
+  cursor: pointer;
+}
+.tree-note--error:hover {
+  color: var(--kb-error-hover);
+  background: var(--kb-error-wash);
+}
+
 .tree-load-more {
   display: flex;
   align-items: center;

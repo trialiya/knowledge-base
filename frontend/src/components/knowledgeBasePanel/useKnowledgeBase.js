@@ -9,6 +9,8 @@ import {
   isParentChange,
   updateNodeInTree,
   applyChildren,
+  markOpenOnLoad,
+  mergeStubIntoSelection,
 } from './tree/treeOps';
 import { findNodeById, findPath } from '@/components/common/ui/utils';
 import { isEditorDirty, clearEditorDirty } from './editor/editorDirtyStore';
@@ -143,6 +145,10 @@ export default function useKnowledgeBase({
         setTree((prev) => applyChildren(prev, parentId, paged, { replace: page === 0 }));
         return paged;
       } catch {
+        // Пометка на родителе: раскрытая папка иначе молча выглядела бы пустой,
+        // и перечитать её было бы нечем. Снимает пометку удачный ответ
+        // (spliceChildren). Корень сюда не попадает — его читает loadTree.
+        setTree((prev) => updateNodeInTree(prev, parentId, { _childrenError: true }));
         return null;
       } finally {
         inflight.delete(key);
@@ -609,13 +615,23 @@ export default function useKnowledgeBase({
           const body = await res.json().catch(() => ({}));
           throw new Error(body.message || `Move failed: ${res.status}`);
         }
+        // Приёмник раскрываем только теперь. В момент броска переноса ещё нет
+        // (смена родителя спрашивает подтверждение), а его список до ответа —
+        // оптимистичная догадка: страница, прочитанная параллельно с PATCH,
+        // вернулась бы без перенесённого узла и затёрла бы его.
+        if (position === 'inside') {
+          if (!findNodeById(newTree, targetId)?._childrenLoaded) {
+            await handleLoadChildren(targetId, 0, PAGE_SIZE);
+          }
+          setTree((prev) => markOpenOnLoad(prev, targetId));
+        }
       } catch (err) {
         console.error('Move error, rolling back:', err);
         setSaveError({ message: err.message || t('loadError.moveErrorMessage') });
         loadTree();
       }
     },
-    [tree, loadTree, t],
+    [tree, loadTree, handleLoadChildren, t],
   );
 
   /** Called by TreeNode on drop — confirms first if the parent changes. */
@@ -738,25 +754,5 @@ export default function useKnowledgeBase({
     handleRefresh: guardedRefresh,
     handleDiscardConfirm,
     handleDiscardCancel,
-  };
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Merges a tree stub into the current selection: one place for the "don't let a
- * ≤150-char snippet clobber a fully-loaded document" rule.
- */
-function mergeStubIntoSelection(prev, fromTree) {
-  const keepFullDescription = prev._full;
-  return {
-    ...prev,
-    ...fromTree,
-    // Preserve full content for a fully-loaded document; otherwise take the
-    // tree's (possibly fresher) snippet.
-    description: keepFullDescription ? prev.description : fromTree.description,
-    // Don't let a childless stub wipe children we've already loaded.
-    children: fromTree.children ?? prev.children,
-    _full: prev._full,
   };
 }
