@@ -40,6 +40,7 @@ const FileContent = ({
   path,
   project = '',
   rev = '',
+  reloadToken = 0,
   loading,
   onNavigate,
   diff = null,
@@ -103,6 +104,7 @@ const FileContent = ({
             path={content.path}
             project={project}
             rev={rev}
+            reloadToken={reloadToken}
             diff={diff}
             showDiff={showDiff}
             onToggleDiff={onToggleDiff}

@@ -36,22 +36,29 @@ const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
  * иконки, а причин отказа две осмысленные — файл слишком велик и файл не
  * картинка, — и обе стоят строки текста.
  */
-const ImageView = ({ path, project, rev }) => {
+const ImageView = ({ path, project, rev, reloadToken = 0 }) => {
   const { t } = useTranslation('files');
   const src = gitApi.rawUrl(path, { project, rev });
   const [failed, setFailed] = useState(false);
   // Сброс в рендере, а не эффектом: иначе кадр между сменой файла и эффектом
-  // показал бы отказ от предыдущей картинки поверх новой.
-  const [prevSrc, setPrevSrc] = useState(src);
-  if (prevSrc !== src) {
-    setPrevSrc(src);
+  // показал бы отказ от предыдущей картинки поверх новой. Токен обновления
+  // репозитория тоже сбрасывает: откат правки или pull мог принести картинку
+  // туда, где её только что не было.
+  const key = `${src}\n${reloadToken}`;
+  const [prevKey, setPrevKey] = useState(key);
+  if (prevKey !== key) {
+    setPrevKey(key);
     setFailed(false);
   }
 
   if (failed) return <div className="file-content__empty">{t('file.imageUnavailable')}</div>;
   return (
     <div className="file-image">
-      <img className="file-image__img" src={src} alt={path} onError={() => setFailed(true)} />
+      {/* key, а не параметр в адресе: адрес картинки — это пара «проект, путь»,
+          и заводить в нём поле под версию значило бы держать в ссылке то, что
+          ссылкой не является. Перемонтированный <img> запрашивает байты заново,
+          а закэшировать прошлый ответ было нечем — он отдан с no-store. */}
+      <img key={key} className="file-image__img" src={src} alt={path} onError={() => setFailed(true)} />
     </div>
   );
 };
@@ -71,7 +78,16 @@ const ImageView = ({ path, project, rev }) => {
  * уже открыт, и переживать открытие другого он не должен — у растровой картинки
  * исходника нет вовсе.
  */
-const FileView = ({ file, path, project = '', rev = '', diff = null, showDiff = false, onToggleDiff }) => {
+const FileView = ({
+  file,
+  path,
+  project = '',
+  rev = '',
+  reloadToken = 0,
+  diff = null,
+  showDiff = false,
+  onToggleDiff,
+}) => {
   const { t } = useTranslation('files');
   const filePath = path ?? file?.path ?? '';
   const kind = previewKind(filePath);
@@ -85,8 +101,10 @@ const FileView = ({ file, path, project = '', rev = '', diff = null, showDiff = 
   const shown = view ?? defaultPreviewView(kind);
   const preview = shown === 'preview';
   // Растр переключать не на что: текста у него нет, и «исходником» была бы
-  // заглушка «бинарный файл».
-  const togglable = (kind === 'vector' || kind === 'markdown') && !showDiff;
+  // заглушка «бинарный файл». Она же — у markdown, который не прочитался
+  // текстом (UTF-16, например): расширение обещает разметку, а показать по
+  // кнопке нечего.
+  const togglable = (kind === 'vector' || (kind === 'markdown' && !file.binary)) && !showDiff;
 
   return (
     <div className="file-view">
@@ -120,7 +138,7 @@ const FileView = ({ file, path, project = '', rev = '', diff = null, showDiff = 
       {showDiff ? (
         <ChangeDiffView diff={diff} />
       ) : kind === 'image' || (kind === 'vector' && preview) ? (
-        <ImageView path={filePath} project={project} rev={rev} />
+        <ImageView path={filePath} project={project} rev={rev} reloadToken={reloadToken} />
       ) : file.binary ? (
         <div className="file-content__empty">{t('file.binary')}</div>
       ) : kind === 'markdown' && preview ? (

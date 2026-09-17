@@ -209,6 +209,10 @@ const FilesPanelForProject = ({
             // снимок ревизии, если панель стоит на нём.
             project={project}
             rev={rev}
+            // Дерево и содержимое перезапрашивает useFileTree, а байты картинки
+            // грузит браузер по неизменному адресу — без этого токена он остался
+            // бы с прошлой картинкой там, где файл уже другой.
+            reloadToken={refreshToken}
             loading={contentLoading || diffPending}
             onNavigate={onPathChange}
             // Тумблер «оригинал ↔ diff» показываем только там, где есть что

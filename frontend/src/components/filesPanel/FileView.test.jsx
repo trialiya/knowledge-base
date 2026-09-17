@@ -64,6 +64,27 @@ describe('FileView', () => {
     expect(screen.getByText('file.imageUnavailable')).toBeInTheDocument();
   });
 
+  // Дерево и содержимое перезапрашивает панель, а байты картинки грузит браузер
+  // по неизменному адресу: без перемонтирования на экране осталась бы прошлая
+  // картинка — та, которую только что откатили или подтянули pull'ом.
+  test('обновление репозитория перезапрашивает картинку', () => {
+    const { rerender } = render(<FileView file={binary} path="logo.png" reloadToken={1} />);
+    const before = screen.getByRole('img');
+
+    rerender(<FileView file={binary} path="logo.png" reloadToken={2} />);
+
+    expect(screen.getByRole('img')).not.toBe(before);
+  });
+
+  // Расширение обещает разметку, но прочитать её текстом не вышло (UTF-16):
+  // показать по кнопке нечего, и кнопки нет.
+  test('markdown, не прочитавшийся текстом, кнопку вида не показывает', () => {
+    render(<FileView file={{ ...binary, lineCount: 0 }} path="notes.md" />);
+
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByText('file.binary')).toBeInTheDocument();
+  });
+
   test('файл, который не картинка, остаётся заглушкой', () => {
     render(<FileView file={binary} path="build/app.jar" />);
 

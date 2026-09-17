@@ -927,8 +927,10 @@ public class GitService {
      */
     public GitFileBytes getRawFileAt(@NonNull String rev, @NonNull String filePath) {
         String normalized = normalizePath(filePath);
-        CommitFiles.Blob blob = CommitFiles.read(repository, rev.strip(), normalized);
-        requireServableSize(normalized, blob.size());
+        // Предел уходит внутрь чтения: размер объекта известен до того, как он поднят в память, и
+        // отказать по уже прочитанным байтам значило бы заплатить ровно то, ради чего предел есть.
+        CommitFiles.Blob blob =
+                CommitFiles.read(repository, rev.strip(), normalized, MAX_RAW_FILE_SIZE);
         return new GitFileBytes(
                 normalized, blob.bytes(), 0, blob.size(), RepoFiles.isBinary(blob.bytes()));
     }
