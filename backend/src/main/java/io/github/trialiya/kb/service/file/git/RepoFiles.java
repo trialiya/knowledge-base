@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 
@@ -31,6 +32,8 @@ final class RepoFiles {
     static long sizeOf(String normalized, Path absolute) {
         try {
             return Files.size(absolute);
+        } catch (NoSuchFileException e) {
+            throw missing(normalized, e);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot read file size: " + normalized, e);
         }
@@ -39,9 +42,22 @@ final class RepoFiles {
     static byte[] readAll(String normalized, Path absolute) {
         try {
             return Files.readAllBytes(absolute);
+        } catch (NoSuchFileException e) {
+            throw missing(normalized, e);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot read file: " + normalized, e);
         }
+    }
+
+    /**
+     * Файла на диске нет — это ошибка запроса, а не сервера, и различие не косметическое: у
+     * читающих путей отсюда выше стоит перевод {@link IllegalArgumentException} в 400, а {@link
+     * IllegalStateException} — это 500 и ERROR-стектрейс в логе на каждый такой запрос. Спросить о
+     * пути, которого нет, может кто угодно: индекс git помнит файл, удалённый из рабочего дерева, и
+     * путь проходит проверку видимости, а до диска не доходит.
+     */
+    private static IllegalArgumentException missing(String normalized, NoSuchFileException cause) {
+        return new IllegalArgumentException("File not found: " + normalized, cause);
     }
 
     /**
@@ -58,6 +74,8 @@ final class RepoFiles {
             while (buffer.hasRemaining() && channel.read(buffer) > 0) {
                 // read() fills what it can per call; loop until the window or the file ends.
             }
+        } catch (NoSuchFileException e) {
+            throw missing(normalized, e);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot read file: " + normalized, e);
         }

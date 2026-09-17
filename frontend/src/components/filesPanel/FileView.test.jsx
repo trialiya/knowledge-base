@@ -85,6 +85,15 @@ describe('FileView', () => {
     expect(screen.getByText('file.binary')).toBeInTheDocument();
   });
 
+  // То же у SVG, и по той же причине — но рисунок остаётся: в UTF-16 браузер
+  // его нарисует, читать такой файл текстом отказались мы.
+  test('SVG, не прочитавшийся текстом, остаётся рисунком без кнопки вида', () => {
+    render(<FileView file={binary} path="icon.svg" />);
+
+    expect(screen.getByRole('img')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
   test('файл, который не картинка, остаётся заглушкой', () => {
     render(<FileView file={binary} path="build/app.jar" />);
 
