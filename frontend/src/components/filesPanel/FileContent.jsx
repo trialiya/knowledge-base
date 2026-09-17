@@ -1,35 +1,12 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { IconFolder, IconDoc } from '@/icons/index';
 import { formatFileSize } from '@/utils/formatting';
 import FindBar from '@/components/common/search/FindBar';
 import useAddressFind from '@/components/common/search/useAddressFind';
 import Breadcrumb from './Breadcrumb';
+import FileView from './FileView';
 import ChangeDiffView from './changes/ChangeDiffView';
-
-const isMarkdownPath = (path) => /\.mdx?$/i.test(path || '');
-
-const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
-  const lines = text.split('\n');
-  return (
-    <div className="file-code">
-      <table className="file-code__table">
-        <tbody>
-          {lines.map((line, i) => (
-            <tr key={i}>
-              {showLineNumbers && <td className="file-code__gutter">{fromLine + i}</td>}
-              <td className="file-code__line">
-                <code>{line.length ? line : ' '}</code>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
 
 const DirectoryListing = ({ nodes, onNavigate }) => {
   const { t } = useTranslation('files');
@@ -54,69 +31,6 @@ const DirectoryListing = ({ nodes, onNavigate }) => {
 };
 
 /**
- * `diff` — незакоммиченные изменения этого файла, если панель их показывает
- * (режим «Изменения»): `{ entry, loading, error }` либо null, когда переключать
- * не на что (обычное дерево файлов, превью в модалках). Сам выбор «оригинал или
- * diff» тоже приходит пропом: по умолчанию он зависит от открытого файла (у
- * изменённого — diff, у неотслеживаемого — содержимое), а решение, зависящее от
- * файла, живёт там, где известно, какой файл открыт.
- */
-export const FileView = ({ file, path, diff = null, showDiff = false, onToggleDiff }) => {
-  const { t } = useTranslation('files');
-  const isMd = isMarkdownPath(path ?? file?.path);
-  const [mdView, setMdView] = useState(false);
-  return (
-    <div className="file-view">
-      <div className="file-view__meta">
-        {file.language && <span className="file-view__badge">{file.language}</span>}
-        <span>{t('file.lines', { count: file.lineCount })}</span>
-        <span>{formatFileSize(file.sizeBytes)}</span>
-        {file.truncated && <span className="file-view__badge file-view__badge--warn">{t('file.truncated')}</span>}
-        {diff && (
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm file-view__diff-toggle"
-            aria-pressed={showDiff}
-            onClick={() => onToggleDiff(!showDiff)}
-          >
-            {t('file.showDiff')}
-          </button>
-        )}
-        {isMd && !file.binary && !showDiff && (
-          <button
-            type="button"
-            className={`file-view__md-toggle${mdView ? ' file-view__md-toggle--active' : ''}`}
-            onClick={() => setMdView((v) => !v)}
-            title={t('file.toggleMarkdown', { defaultValue: 'Markdown preview' })}
-          >
-            {mdView ? '{ }' : '👁'}
-          </button>
-        )}
-      </div>
-      {showDiff ? (
-        <ChangeDiffView diff={diff} />
-      ) : file.binary ? (
-        <div className="file-content__empty">{t('file.binary')}</div>
-      ) : mdView ? (
-        <div className="file-view__md">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{file.content ?? ''}</ReactMarkdown>
-        </div>
-      ) : (
-        // truncated + fromLine == null — это head+tail-вырезка большого файла
-        // (см. GitService.headTailExcerpt): хвост идёт не сразу за головой,
-        // сквозная нумерация от 1 была бы неверной для его строк. Диапазонный
-        // же запрос (fromLine задан) нумеруется корректно от fromLine.
-        <CodeView
-          text={file.content ?? ''}
-          fromLine={file.fromLine ?? 1}
-          showLineNumbers={!(file.truncated && file.fromLine == null)}
-        />
-      )}
-    </div>
-  );
-};
-
-/**
  * `find` (и `findRegex`) — что подсветить в открытом файле, из адреса; менять
  * его обратно в адрес — дело `onFindChange`. Пусто — файл открыли не из поиска:
  * бара нет, пока его не позовут Ctrl+F. Всё остальное — в useAddressFind.
@@ -124,6 +38,8 @@ export const FileView = ({ file, path, diff = null, showDiff = false, onToggleDi
 const FileContent = ({
   content,
   path,
+  project = '',
+  rev = '',
   loading,
   onNavigate,
   diff = null,
@@ -185,6 +101,8 @@ const FileContent = ({
           <FileView
             file={content.file}
             path={content.path}
+            project={project}
+            rev={rev}
             diff={diff}
             showDiff={showDiff}
             onToggleDiff={onToggleDiff}

@@ -1448,6 +1448,36 @@
     путь по markdown (sectionAnchor.js): цепочка предков через « > » и суффикс
     «[n]» у повтора. Inline-разметка в заголовке срезается с обеих сторон.
 
+- id: file-image-and-svg-views
+  component: FileView
+  path: frontend/src/components/filesPanel/FileView.jsx
+  title: Картинка показывается рисунком, SVG переключается рисунок ↔ исходник
+  status: verified
+  origin:
+    - 'Сессия 2026-09-17, показ файлов на вкладке «Файлы»'
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /files/docs/assets/chat.png и /files/<любой>.svg
+  expected:
+    - 'PNG открывается рисунком, а не заглушкой «бинарный файл»: картинка на шахматке, по ширине панели не растягивается больше своего размера'
+    - 'В строке метаданных у бинарного файла только размер: строк у него нет, и счётчик «строк: 0» не показывается'
+    - SVG открывается рисунком, и в строке метаданных стоит кнопка «{ }» — она переключает на исходник с номерами строк, кнопка становится «👁»
+    - Открытие соседнего файла возвращает вид по умолчанию — выбор сделан для одного файла и на другой не переезжает
+    - Файл, который не картинка, остаётся кодом (а бинарный — заглушкой), кнопки вида у него нет
+  notes: |
+    Прогон (Chromium/Playwright по собранному jar, профиль h2, локаль ru):
+    /files/docs/assets/chat.png — <img> один, naturalWidth×Height 1440×900,
+    в метаданных только «106.5 KB». Для SVG в docs/assets на время прогона
+    клался временный файл (в репозитории своего .svg нет): рисунок 120×120,
+    после клика по «{ }» — исходник из 5 строк с номерами, кнопка «👁».
+    /files/backend/build.gradle остаётся кодом. Ошибок консоли нет.
+
+    Байты грузит сам браузер: GET /api/git/files/raw?path=…&project=…&rev=…
+    (200 image/png, `Content-Security-Policy: default-src 'none'; sandbox`);
+    тот же запрос на backend/build.gradle — 415, расширения нет в списке
+    показываемых (PreviewMedia на бэкенде, utils/filePreview.js на фронте).
+
 - id: file-find-from-search
   component: FileContent + FindBar
   path: frontend/src/components/filesPanel/FileContent.jsx

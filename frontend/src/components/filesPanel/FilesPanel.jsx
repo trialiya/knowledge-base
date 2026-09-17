@@ -204,6 +204,11 @@ const FilesPanelForProject = ({
           <FileContent
             content={content}
             path={path}
+            // Картинку центр грузит сам, по адресу сырых байт, — а адрес этот,
+            // как и всякая ссылка на файл, есть пара (проект, путь), да ещё и
+            // снимок ревизии, если панель стоит на нём.
+            project={project}
+            rev={rev}
             loading={contentLoading || diffPending}
             onNavigate={onPathChange}
             // Тумблер «оригинал ↔ diff» показываем только там, где есть что

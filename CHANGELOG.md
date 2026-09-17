@@ -11,6 +11,13 @@ you* — breaking changes, deprecations, migration steps — is in
 
 ## [Unreleased]
 
+### Added
+
+- Files now shows pictures as pictures: an image opened in the file browser is
+  rendered instead of the "binary file — preview unavailable" placeholder, and
+  an SVG opens as the drawing with a toggle in its metadata row for switching
+  between the drawing and its source.
+
 ## [1.0.0] — 2026-09-16
 
 The first stable release. Everything from `1.0.0-RC1` through `1.0.0-RC3` is

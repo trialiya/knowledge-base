@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import gitApi from '@/api/gitApi';
-import { FileView } from '@/components/filesPanel/FileContent';
+import FileView from '@/components/filesPanel/FileView';
 import ModalShell from '@/components/common/modal/ModalShell';
 import { IconX } from '@/icons/index';
 
@@ -67,7 +67,7 @@ const FilePreviewModal = ({ path, project, fromLine, toLine, onClose }) => {
       <div className="fs-editor__body file-preview-modal__body">
         {loading && <div className="file-preview-modal__msg">{t('tree.loading')}</div>}
         {!loading && error && <div className="file-preview-modal__msg">{t('file.loadError')}</div>}
-        {!loading && !error && file && <FileView file={file} />}
+        {!loading && !error && file && <FileView file={file} path={path} project={project} />}
       </div>
     </ModalShell>
   );
