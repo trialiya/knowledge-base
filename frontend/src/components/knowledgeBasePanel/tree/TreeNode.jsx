@@ -49,10 +49,13 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
   const [loadingMore, setLoadingMore] = useState(false);
   const rowRef = useRef(null);
 
-  // Сколько детей загружено, столько страниц и прочитано: следующая идёт за ними.
+  // Страница, которую дочитываем, — с недобором (floor, не ceil): длина списка
+  // перестаёт быть кратной странице, как только узел ушёл из папки или пришёл в
+  // неё перетаскиванием, и округление вверх перескакивало бы через ещё не
+  // прочитанные строки. Перечитанных детей отсеивает по id spliceChildren.
   // Значение выводится из узла — при перезагрузке с нулевой страницы оно само
   // возвращается к началу.
-  const nextPage = node.children ? Math.ceil(node.children.length / PAGE_SIZE) : 1;
+  const nextPage = Math.floor((node.children?.length ?? 0) / PAGE_SIZE);
 
   // Ниже — реакции на изменившиеся пропы. Все в рендере, а не в эффектах: в
   // дереве это setState на каждом узле, то есть лишний проход рендера целиком.
@@ -114,11 +117,12 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
   );
 
   // Used by the row click (which also selects the node). It does NOT fetch:
-  // selecting a folder mounts FolderDetail, whose useFolderChildren loads the
-  // full child list through the shared (deduplicated) loader and splices it
-  // into this same tree node. Firing a second PAGE_SIZE fetch here would just
-  // duplicate that request (the size=10 + size=1000 pair). We only flip the
-  // open state; children render as soon as the shared load lands in node.children.
+  // the panel keeps a useFolderChildren on the selected node (KnowledgeBase.jsx),
+  // and that one loads the full child list through the shared (deduplicated)
+  // loader, splicing it into this same tree node. Firing a second PAGE_SIZE fetch
+  // here would just duplicate that request (the size=10 + size=1000 pair). We only
+  // flip the open state; children render as soon as the shared load lands in
+  // node.children.
   const toggleOpenVisual = useCallback(() => {
     setOpen((o) => !o);
   }, []);

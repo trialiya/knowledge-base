@@ -151,6 +151,8 @@
     "documentTitle": "Delete document?",
     "messageNamed": "“{{title}}” will be permanently deleted.",
     "message": "The item will be permanently deleted.",
+    "folderMessageNamed": "Folder “{{title}}” will be deleted with everything inside it — nested folders and documents. None of it can be restored.",
+    "folderMessage": "The folder will be deleted with everything inside it — nested folders and documents. None of it can be restored.",
     "confirm": "Delete",
     "cancel": "Cancel"
   },

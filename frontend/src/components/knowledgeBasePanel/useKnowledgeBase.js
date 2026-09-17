@@ -171,8 +171,7 @@ export default function useKnowledgeBase({
    * growing tree through a local variable AND pushes each step to state so the
    * UI expands progressively. Returns the final tree.
    *
-   * Shared by direct-link navigation and manual refresh — previously these were
-   * two near-identical copies, one using a resolve-inside-setState hack.
+   * Shared by direct-link navigation and manual refresh.
    *
    * Throws if api.fetchAncestors fails (caller decides how to recover).
    */
@@ -233,10 +232,11 @@ export default function useKnowledgeBase({
       // ИЗ навигации (prop docId) — иначе была бы петля.
       if (notify && onOpenDoc) onOpenDoc(node.id);
 
-      // NOTE: folder children are loaded by FolderDetail's useFolderChildren
-      // through the shared (deduplicated) loader. We intentionally do NOT fetch
-      // them here — doing so fired a second, differently-sized request
-      // (size=10 here vs size=1000 there) that couldn't be deduplicated.
+      // NOTE: folder children are loaded off the selected node, by the
+      // useFolderChildren the panel mounts in KnowledgeBase.jsx, through the
+      // shared (deduplicated) loader. We intentionally do NOT fetch them here:
+      // a second, differently-sized request (size=10 here vs size=1000 there)
+      // is one the dedup map cannot merge.
     },
     [onOpenDoc],
   );
@@ -315,7 +315,7 @@ export default function useKnowledgeBase({
         const target = findNodeById(cur, id);
         if (target) {
           // Fetch the full document (the tree stub has only a snippet).
-          // FolderDetail's useFolderChildren loads folder children separately
+          // Folder children are loaded separately off the selected node
           // (deduplicated); no child fetch needed here.
           fetchFullAndSelect(target, opts);
         } else {
@@ -440,11 +440,11 @@ export default function useKnowledgeBase({
   // Keep selectedNode in sync when the tree updates after CRUD.
   //
   // The tree holds only stubs (description is a ≤150-char snippet), so we must
-  // NOT blindly replace the selected node with the tree version — that's what
-  // made a freshly-refreshed document flash full and then collapse to the
-  // truncated snippet. Instead we merge the tree's structural fields (title,
-  // children, flags, updatedAt) into the current selection while keeping the
-  // full `description` whenever the current selection is a complete document.
+  // NOT blindly replace the selected node with the tree version: the detail
+  // would show the document full and then collapse to the truncated snippet.
+  // Instead we merge the tree's structural fields (title, children, flags,
+  // updatedAt) into the current selection while keeping the full `description`
+  // whenever the current selection is a complete document.
   //
   // Слияние идёт в рендере, а не эффектом: иначе после каждой правки дерева
   // выделенный документ один кадр показывается ещё в прежнем виде.
@@ -556,8 +556,16 @@ export default function useKnowledgeBase({
     try {
       const res = await api.delete(target.id);
       if (res.ok) {
-        if (selectedNode?.id === target.id) setSelectedNode(null);
         const node = findNodeById(tree, target.id);
+        // Сервер удаляет узел вместе с поддеревом, поэтому выбор снимаем и с
+        // потомка: иначе деталь осталась бы показывать удалённый документ, а
+        // сохранение правки в нём ушло бы в 404. Путь считаем до refreshScope —
+        // после него удалённой ветки в дереве уже нет.
+        const selectionRemoved =
+          selectedNode &&
+          (selectedNode.id === target.id ||
+            (findPath(tree, selectedNode.id) ?? []).some((ancestor) => ancestor.id === target.id));
+        if (selectionRemoved) setSelectedNode(null);
         await refreshScope(node?.parentId ?? null);
       }
     } catch {
@@ -576,9 +584,9 @@ export default function useKnowledgeBase({
    * `afterId` — the sibling sitting right BEFORE the dragged node in its new
    * level of the optimistically updated tree (null = first). One rule covers
    * all drop positions ('before' → the node before the target, 'after' → the
-   * target itself, 'inside' → the last loaded child or null), and the partially
-   * loaded sibling list can no longer corrupt the order — unlike the old
-   * moveToParent + reorder(orderedIds) pair, which required the FULL level.
+   * target itself, 'inside' → the last loaded child or null), so a partially
+   * loaded sibling list cannot corrupt the order: the FULL level is never
+   * needed.
    */
   const executeReorder = useCallback(
     async (dropInfo) => {
@@ -736,9 +744,8 @@ export default function useKnowledgeBase({
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Merges a tree stub into the current selection. Centralizes the "don't let a
- * ≤150-char snippet clobber a fully-loaded document" rule that used to live
- * inline in the tree-sync effect.
+ * Merges a tree stub into the current selection: one place for the "don't let a
+ * ≤150-char snippet clobber a fully-loaded document" rule.
  */
 function mergeStubIntoSelection(prev, fromTree) {
   const keepFullDescription = prev._full;

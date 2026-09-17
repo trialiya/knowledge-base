@@ -17,8 +17,22 @@ export function getSiblings(tree, parentId) {
 }
 
 /**
+ * Счётчик детей родителя — тот, из которого выводится «ещё N» и признак
+ * дочитанности. У корня его нет: корень — массив, а не узел.
+ */
+function bumpTotal(clone, parentId, delta) {
+  if (parentId === null) return;
+  const parent = findNodeById(clone, parentId);
+  if (parent && parent._totalChildren != null) parent._totalChildren += delta;
+}
+
+/**
  * Returns a new tree with the dragged node moved according to dropInfo.
  * Returns the original `tree` reference unchanged when the move is invalid.
+ *
+ * Смена родителя правит и счётчики обеих папок: «ещё N» считается от них, и без
+ * правки папка обещала бы строки, которых там уже нет (или молчала бы о
+ * пришедшей).
  */
 export function applyReorder(tree, { draggedId, draggedParent, targetId, targetParent, position }) {
   const clone = cloneTree(tree);
@@ -34,12 +48,14 @@ export function applyReorder(tree, { draggedId, draggedParent, targetId, targetP
 
   const [dragged] = srcList.splice(dragIdx, 1);
 
+  let newParent;
   if (position === 'inside') {
     const targetNode = findNodeById(clone, targetId);
     if (!targetNode || targetNode.type !== 'folder') return tree;
     targetNode.children = targetNode.children ?? [];
     dragged.parentId = targetId;
     targetNode.children.push(dragged);
+    newParent = targetId;
   } else {
     const dstList = getChildren(targetParent);
     const targetIdx = dstList.findIndex((n) => n.id === targetId);
@@ -47,6 +63,12 @@ export function applyReorder(tree, { draggedId, draggedParent, targetId, targetP
     dragged.parentId = targetParent;
     const insertAt = position === 'before' ? targetIdx : targetIdx + 1;
     dstList.splice(insertAt, 0, dragged);
+    newParent = targetParent;
+  }
+
+  if (newParent !== draggedParent) {
+    bumpTotal(clone, draggedParent, -1);
+    bumpTotal(clone, newParent, 1);
   }
 
   return clone;
@@ -108,9 +130,7 @@ export function spliceChildren(clone, parentId, paged, { replace = true } = {}) 
 
 /**
  * Pure, immutable "splice a page of children into the tree" used by every
- * loader / navigation path. Replaces the three competing idioms that used to
- * live in useKnowledgeBase (setTree+clone+splice, the threaded-currentTree
- * closure, and the resolve-inside-updater hack):
+ * loader / navigation path:
  *
  *   const next = applyChildren(tree, parentId, paged, { replace, open });
  *   setTree(next);                       // or thread `next` through async code

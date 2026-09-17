@@ -59,9 +59,9 @@
   AFTER:  3px inset shadow on bottom + accent bar on the left
   INSIDE: 4-side inset shadow (acts like outline without the clipping issue)
 
-  Раньше боковую отметку рисовал border-left-color, а строка ради этого держала
-  постоянный border-left: 3px transparent — из-за него текст дерева стоял на 3px
-  правее, чем в остальных панелях. Теперь это второй inset-shadow.
+  Боковую отметку рисует второй inset-shadow, а не border-left: постоянная
+  прозрачная рамка ради неё сдвигала бы текст дерева на 3px относительно
+  остальных панелей.
 */
 
 /* BEFORE — top inset shadow = line */
