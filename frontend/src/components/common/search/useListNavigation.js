@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { clientBox, revealVertically } from '@/components/common/layout/treeScroll';
 
 /** Строки, между которыми ходим: их помечает сам список (см. common/sidePanel.css). */
 const ITEM = '[data-ws-item]';
@@ -21,15 +22,13 @@ function scrollParent(el) {
  * а «nearest» для элемента шире вьюпорта означает «прижать к начальному краю» —
  * то есть каждый шаг стрелкой сбрасывал бы горизонтальную прокрутку в ноль и
  * уводил имена глубоко вложенных файлов за границу панели. Та же ловушка
- * описана в FileTreeNode, где скролл к выбранному узлу считается вручную.
+ * разобрана в common/layout/treeScroll.js, откуда взята и сама арифметика; там
+ * же — доводка по обеим осям, для дерева файлов.
  */
 function scrollRowIntoView(row) {
   const scroller = scrollParent(row);
   if (!scroller) return;
-  const rowRect = row.getBoundingClientRect();
-  const boxRect = scroller.getBoundingClientRect();
-  if (rowRect.bottom > boxRect.bottom) scroller.scrollTop += rowRect.bottom - boxRect.bottom;
-  else if (rowRect.top < boxRect.top) scroller.scrollTop -= boxRect.top - rowRect.top;
+  scroller.scrollTop = revealVertically(clientBox(scroller), row.getBoundingClientRect(), scroller.scrollTop);
 }
 
 /**
