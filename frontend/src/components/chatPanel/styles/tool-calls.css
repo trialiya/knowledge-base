@@ -63,11 +63,17 @@
   cursor: pointer;
 }
 
+/* Наводка и нажатие — наложением поверх собственного фона плашки, а не
+   яркостью: цвет плашки несёт исход вызова (начат, успех, ошибка), подменять
+   его нельзя, а brightness в тёмной теме и не сработала бы — затемнять то, что
+   и так тёмное, нечем. Общие роли для того и полупрозрачные: в светлой теме они
+   кладут чёрное, в тёмной белое, и знать, на какую плоскость легли, им не надо.
+   Наложение идёт картинкой фона: цвет занят самой плашкой. */
 .tool-call-item:hover {
-  filter: brightness(0.97);
+  background-image: linear-gradient(var(--kb-surface-hover), var(--kb-surface-hover));
 }
 .tool-call-item:active {
-  filter: brightness(0.94);
+  background-image: linear-gradient(var(--kb-surface-active), var(--kb-surface-active));
 }
 
 .tool-call-status-icon {
@@ -132,12 +138,10 @@
   flex-direction: column;
 }
 
+/* Наводка своя не нужна: шапка группы — та же .tool-call-item. */
 .tool-call-item--group-header {
   cursor: pointer;
   user-select: none;
-}
-.tool-call-item--group-header:hover {
-  filter: brightness(0.97);
 }
 
 .tool-call-chevron {

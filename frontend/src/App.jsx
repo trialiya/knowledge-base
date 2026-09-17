@@ -218,7 +218,7 @@ function App() {
         {/* Центр — глобальный поиск по базе знаний */}
         <GlobalSearch value={searchText} onChange={setSearchText} onSubmit={submitSearch} />
 
-        {/* Правая зона — единое меню (обновить · язык · админ · настройки) */}
+        {/* Правая зона — единое меню (обновить · тема · язык · админ · настройки) */}
         <div className="app-tabs__right">
           <HeaderMenu
             showRefresh={showRefresh}

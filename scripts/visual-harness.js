@@ -410,13 +410,15 @@ async function main() {
       // nothing is loading any more, the element is either there or it is not.
       const run = step.click
         ? page.click(step.click, { timeout: 2000 })
-        : step.unhover
-          ? // Не (0, 0): это левый верхний угол страницы, то есть наведение на
-            // то, что там лежит. Указателю нужно ВНЕ страницы.
-            page.mouse.move(-1, -1)
-          : step.press
-            ? page.keyboard.press(step.press)
-            : page.keyboard.type(step.type);
+        : step.hover
+          ? page.hover(step.hover, { timeout: 2000 })
+          : step.unhover
+            ? // Не (0, 0): это левый верхний угол страницы, то есть наведение на
+              // то, что там лежит. Указателю нужно ВНЕ страницы.
+              page.mouse.move(-1, -1)
+            : step.press
+              ? page.keyboard.press(step.press)
+              : page.keyboard.type(step.type);
       await run.catch((e) => problems.push(`${JSON.stringify(step)}: ${e.message}`));
       // Между шагами — кадр: клик открывает меню, а следующий шаг метит в то,
       // чего до этого кадра в DOM ещё нет.
