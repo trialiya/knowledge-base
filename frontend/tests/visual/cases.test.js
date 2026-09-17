@@ -62,4 +62,21 @@ describe('реестр визуальных кейсов', () => {
     const cut = plainScalars().filter(({ value }) => value.includes(' #'));
     expect(cut.map(({ where, value }) => `${where}: ${value}`)).toEqual([]);
   });
+
+  /*
+   * Кейс, у которого забыли `- id:`, не пропадает и не падает: его ключи
+   * читаются продолжением предыдущего кейса и молча его перекрывают.
+   * `component:` есть у каждого кейса и стоит первым после id — по нему и
+   * считаем: каждому `component:` на отступе кейса положен свой `- id:` строкой
+   * выше.
+   */
+  it('у каждого кейса есть свой id', () => {
+    const lines = readFileSync(FILE, 'utf8').split('\n');
+    const orphans = lines
+      .map((line, i) => ({ line, i }))
+      .filter(({ line }) => /^  component: /.test(line))
+      .filter(({ i }) => !/^- id: /.test(lines[i - 1]))
+      .map(({ i }) => `cases.yaml:${i + 1}`);
+    expect(orphans).toEqual([]);
+  });
 });

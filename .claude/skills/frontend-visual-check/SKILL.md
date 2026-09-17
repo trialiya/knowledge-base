@@ -40,6 +40,22 @@ a case reference to a fixture that does not exist — fails the frontend tests
 rather than being noticed the day someone looks for the shot. Shots land in `harness/shots/` (git-ignored),
 one per case, and a case whose page logged a console error is reported `✗`.
 
+**Not every case earns a registry entry.** An entry costs two baselines and its
+share of every run, and pays for itself only if its diff would catch something
+no other entry's diff would. Add one for a component the registry does not have
+yet, for a state only that fixture reaches (an unfinished merge, a failed
+answer, the transient «copied»), or for a combination where already-shot parts
+can collide (a long name against a breadcrumb chain, a list opening upward over
+a narrow field). Do not add one for a fixture that is a subset of another, for
+the same component with a different label, count or flag whose look a
+neighbouring shot already has, or for an assembly of shared components —
+buttons, badges, `InfoList` rows — inside a frame that is already shot: each
+part has its baseline, and their meeting draws nothing new. The question to
+ask before adding is «what would this shot show broken that no other shot
+would?». No answer — describe the case in `cases.yaml` and leave it unshot.
+When in doubt, shoot, but say in the entry's comment what it is for; an entry
+without that is what the next registry review removes.
+
 A case may also name the steps to take first — a click, a keypress, typed text,
 or `unhover`, which takes the pointer off what was just clicked. Reach for that
 last one whenever the shot is meant to prove a *state*: after a click the pointer
