@@ -1,11 +1,33 @@
 import { describe, it, expect } from 'vitest';
-import revealRow from './treeScroll';
+import revealRow, { clientBox, revealVertically } from './treeScroll';
 
 /** Панель 300×100 на экране: левый край 0, правый 300, верх 0, низ 100. */
 const view = { top: 0, bottom: 100, left: 0, right: 300 };
 const rect = (left, right, top = 0, bottom = 20) => ({ left, right, top, bottom });
 /** Строка растянута на всю ширину раскрытого дерева — заведомо шире панели. */
 const wideRow = (top = 0) => rect(0, 900, top, top + 20);
+
+describe('clientBox', () => {
+  it('срезает жёлоба полос прокрутки с рамки элемента', () => {
+    const el = {
+      getBoundingClientRect: () => ({ left: 10, top: 20 }),
+      clientLeft: 1,
+      clientTop: 1,
+      clientWidth: 279,
+      clientHeight: 600,
+    };
+    // Рамка справа была бы на 10+294=304 (279 + жёлоб + две границы).
+    expect(clientBox(el)).toEqual({ left: 11, top: 21, right: 290, bottom: 621 });
+  });
+});
+
+describe('revealVertically', () => {
+  it('доводит до ближнего края и не трогает уже видимую строку', () => {
+    expect(revealVertically(view, { top: 130, bottom: 150 }, 0)).toBe(50);
+    expect(revealVertically(view, { top: -30, bottom: -10 }, 80)).toBe(50);
+    expect(revealVertically(view, { top: 10, bottom: 30 }, 40)).toBe(40);
+  });
+});
 
 describe('revealRow', () => {
   it('оставляет прокрутку как есть, когда строка целиком видна', () => {

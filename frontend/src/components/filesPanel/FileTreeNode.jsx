@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc, IconChevron } from '@/icons/index';
-import revealRow from './treeScroll';
+import revealRow, { clientBox } from '@/components/common/layout/treeScroll';
 
 const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingDirs, onToggle, onSelect }) => {
   const { t } = useTranslation('files');
@@ -28,7 +28,7 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
     if (!row || !start || !label || !container) return;
 
     const { top, left } = revealRow(
-      container.getBoundingClientRect(),
+      clientBox(container),
       row.getBoundingClientRect(),
       start.getBoundingClientRect(),
       label.getBoundingClientRect(),

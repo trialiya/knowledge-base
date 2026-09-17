@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc, IconChevron, IconLock, IconDragHandle, IconTrash } from '@/icons/index';
 import { findNodeById } from '@/components/common/ui/utils';
+import { clientBox, revealVertically } from '@/components/common/layout/treeScroll';
 import { KB_PAGE_SIZE as PAGE_SIZE } from '@/constants/pagination';
 
 /*
@@ -77,6 +78,19 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     setPrevOpenOnLoad(node._openOnLoad);
     if (node._openOnLoad && !open && !needsChildLoad) setOpen(true);
   }
+
+  // Доскроллить панель до выбранного узла: по ссылке на документ предки
+  // раскрываются сами, и узел оказывается сколь угодно далеко внизу. Только
+  // вертикаль — горизонтальной прокрутки у панели нет, длинное имя обрезается
+  // многоточием, начало его видно всегда.
+  useEffect(() => {
+    if (!isSelected) return;
+    const row = rowRef.current;
+    const container = row?.closest('.workspace__side-body');
+    // Раздел смонтирован всегда (скрыт стилями): пока он скрыт, мерить нечего.
+    if (!row || !container || !container.clientHeight) return;
+    container.scrollTop = revealVertically(clientBox(container), row.getBoundingClientRect(), container.scrollTop);
+  }, [isSelected]);
 
   // Та же пометка, но детей ещё нет: сперва догрузка, раскрытие — по её ответу.
   useEffect(() => {
