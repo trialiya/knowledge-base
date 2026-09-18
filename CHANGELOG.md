@@ -9,6 +9,10 @@ the [README](README.md) are the English entry points. What an upgrade *asks of
 you* — breaking changes, deprecations, migration steps — is in
 [`UPDATING.md`](UPDATING.md) instead.
 
+An entry ends with the pull request it came from — the reasoning behind a
+change lives there, not here. Sections released before this rule was
+adopted carry no such links.
+
 ## [Unreleased]
 
 ### Added
@@ -17,65 +21,67 @@ you* — breaking changes, deprecations, migration steps — is in
   remembered between sessions. The system preference is followed as long as
   "system" is chosen, so sunset repaints the screen on its own. The dark theme
   is not the light one inverted — it has its own neutral scale and a blue
-  accent, because a lightened violet turns the whole screen lilac.
+  accent, because a lightened violet turns the whole screen lilac. ([#397],
+  [#398])
 - Files now shows pictures as pictures: an image opened in the file browser is
   rendered instead of the "binary file — preview unavailable" placeholder, and
   an SVG opens as the drawing with a toggle in its metadata row for switching
-  between the drawing and its source.
+  between the drawing and its source. ([#414])
 - Files a project admits for reading but git does not track (`allow-globs`) are
   labelled as such where the assistant reports them: in search result cards, in
-  the file heading of a grep answer, and in the tool-call details.
+  the file heading of a grep answer, and in the tool-call details. ([#400])
 
 ### Changed
 
 - The `getUncommittedChanges` tool answers about the tracked half of the working
   tree only. Untracked files from the `allow-globs` area take the new
   `includeUntracked: true` argument — see [`UPDATING.md`](UPDATING.md). The
-  Files panel is unchanged and still shows both halves.
+  Files panel is unchanged and still shows both halves. ([#400])
 
 ### Fixed
 
 - Repository search no longer passes off the previous answer as the new one.
   Switching a filter — the repository above all — keeps the old results on
   screen while the query runs, and they now say so: the category counter gives
-  way to a spinner, the stale list is dimmed and taken out of the tab order,
-  and the results header names the search in progress.
+  way to a spinner, the stale list is dimmed and taken out of the tab order, and
+  the results header names the search in progress. ([#401])
 - The path in a `git grep` answer is read to its end, not to the first dash
   followed by digits. A file named `2024-01-15-notes.md` or `step-01-init.sh`
   used to come back as `docs/2024` at some invented line number, which the model
   would then try to read; with context lines around the match the broken path
-  could also drop the whole block from the answer.
+  could also drop the whole block from the answer. ([#403])
 - Deleting a folder in the knowledge base says that the whole subtree goes with
   it, and a document open from inside that folder is no longer left in the
-  centre pane, where the next edit would have failed with a 404.
+  centre pane, where the next edit would have failed with a 404. ([#413])
 - "Load N more" in the document tree survives drag & drop: the next page is
   counted from what the level actually holds, so a node dragged in or out no
-  longer makes the button skip a row or run off the end of the list.
+  longer makes the button skip a row or run off the end of the list. ([#413])
 - Dropping a node into a folder no longer reads that folder before the move is
   confirmed — the request went out even when the move was cancelled, and coming
-  back late it wiped the node that had just been moved.
+  back late it wiped the node that had just been moved. ([#415])
 - A folder expanded by a click on its row says "Loading…" until its children
-  arrive, and offers to retry if they do not, instead of looking empty.
+  arrive, and offers to retry if they do not, instead of looking empty. ([#415])
 - A tree scrolls to the selected row by the start of the name, not its tail: a
   long file name is recognised from its beginning, and the scrollbar gutter is
   no longer counted as visible width. The knowledge-base tree now scrolls to the
   selected document at all — following a link to a document opened the ancestors
-  but left the panel at the top of the list.
+  but left the panel at the top of the list. ([#412])
 - The chevron in the "New item" place picker counts folders, the only thing that
   dialog shows, instead of all children: a folder holding only documents no
-  longer opens into nothing.
+  longer opens into nothing. ([#408])
 - The breadcrumbs in the header give up their width before the name of the open
-  node does, as the layout always claimed they would.
+  node does, as the layout always claimed they would. ([#409])
 - Hovering a tool-call badge shows on it in the dark theme: the highlight is
   laid over the badge's own colour — which carries the outcome of the call —
-  rather than applied as a brightness shift that nothing dark can show.
+  rather than applied as a brightness shift that nothing dark can show. ([#410])
 - The hint above the composer and the send button agree about an empty chat:
   `/compact` is no longer offered on a chat that has nothing to compact.
+  ([#399])
 
 ### Performance
 
 - Opening a chat costs one tool-call index query per page of history instead of
-  one per message.
+  one per message. ([#399])
 
 ## [1.0.0] — 2026-09-16
 
@@ -310,3 +316,17 @@ a deployment that was already running from `main` before this release.
 [1.0.0-RC3]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC3
 [1.0.0-RC2]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC2
 [1.0.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC1
+
+[#397]: https://github.com/trialiya/knowledge-base/pull/397
+[#398]: https://github.com/trialiya/knowledge-base/pull/398
+[#399]: https://github.com/trialiya/knowledge-base/pull/399
+[#400]: https://github.com/trialiya/knowledge-base/pull/400
+[#401]: https://github.com/trialiya/knowledge-base/pull/401
+[#403]: https://github.com/trialiya/knowledge-base/pull/403
+[#408]: https://github.com/trialiya/knowledge-base/pull/408
+[#409]: https://github.com/trialiya/knowledge-base/pull/409
+[#410]: https://github.com/trialiya/knowledge-base/pull/410
+[#412]: https://github.com/trialiya/knowledge-base/pull/412
+[#413]: https://github.com/trialiya/knowledge-base/pull/413
+[#414]: https://github.com/trialiya/knowledge-base/pull/414
+[#415]: https://github.com/trialiya/knowledge-base/pull/415
