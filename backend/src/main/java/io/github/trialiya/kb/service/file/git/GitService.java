@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -231,7 +232,8 @@ public class GitService {
 
     /** The working tree as the browser lists it: the index widened by {@code allow-globs}. */
     private RepoBrowse.Snapshot workingTree(VisibleFiles.Visible files) {
-        return new RepoBrowse.Snapshot(files.paths(), files.tracked(), this::fileSize);
+        return new RepoBrowse.Snapshot(
+                files.paths(), files.tracked(), this::fileSize, this::fileExists);
     }
 
     // ── Opening a path in the file browser ───────────────────────────────────
@@ -1742,5 +1744,14 @@ public class GitService {
         } catch (IOException e) {
             return -1;
         }
+    }
+
+    /**
+     * Лежит ли за путём файл, который можно открыть. Каталог и символьная ссылка сюда не проходят
+     * по тому же правилу, по которому не попадают в листинги: показанный, но не открывающийся путь
+     * — отказ в ответ на клик.
+     */
+    private boolean fileExists(String relativePath) {
+        return Files.isRegularFile(paths.resolve(relativePath), LinkOption.NOFOLLOW_LINKS);
     }
 }

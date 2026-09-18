@@ -18,6 +18,14 @@ you* — breaking changes, deprecations, migration steps — is in
   an SVG opens as the drawing with a toggle in its metadata row for switching
   between the drawing and its source.
 
+### Fixed
+
+- Opening a file that git still tracks but that is no longer in the working
+  tree — deleted, renamed, or reverted — now says "file not found" (and, in the
+  changes mode, shows the deletion's diff) instead of "failed to load content".
+  The path answers like any other missing one rather than failing the whole
+  request, so the tree and the breadcrumbs stay on screen.
+
 ## [1.0.0] — 2026-09-16
 
 The first stable release. Everything from `1.0.0-RC1` through `1.0.0-RC3` is

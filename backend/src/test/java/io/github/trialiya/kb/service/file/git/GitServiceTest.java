@@ -683,6 +683,32 @@ class GitServiceTest {
                 .containsExactly("", "docs", "docs/guide");
     }
 
+    /**
+     * Индекс помнит файл, удалённый из рабочего дерева, — и путь к нему открывают: по ссылке, по
+     * строке списка изменений, кнопкой «обновить» на уже открытом файле. Ответ тот же, что у пути,
+     * которого не было вовсе: показать нечего. Отказ на его месте уносил бы вместе с содержимым
+     * дерево и листинги предков — всю панель ради одного пути, — а режиму изменений нечего было бы
+     * подставить под diff, в котором такой файл только и виден.
+     */
+    @Test
+    void browsePathReportsATrackedFileDeletedFromTheWorkingTreeAsMissing() {
+        writeFile("docs/guide/intro.md", "intro\n");
+        writeFile("docs/guide/gone.md", "gone\n");
+        commitAll();
+        deleteFile("docs/guide/gone.md");
+
+        var view = service.browsePath("docs/guide/gone.md", true);
+
+        assertThat(view.type()).isNull();
+        assertThat(view.file()).isNull();
+        assertThat(view.tree())
+                .extracting(GitTreeLevel::path)
+                .containsExactly("", "docs", "docs/guide");
+        // Соседний файл того же каталога открывается как ни в чём не бывало.
+        assertThat(service.browsePath("docs/guide/intro.md", false).type())
+                .isEqualTo(FileEntryType.FILE);
+    }
+
     @Test
     void browsePathWithoutPathOpensTheRepositoryRoot() {
         writeFile("docs/guide/intro.md", "intro\n");
