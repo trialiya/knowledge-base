@@ -8,7 +8,7 @@ import { nextMessageId } from '../messages/messageId';
 import { getLastModel, getLastMode } from './lastChoiceStore';
 import { chatLoadErrorNotice, COMMAND_BLOCK_NOTICE } from './chatNotices';
 import { isChatEmpty } from '../messages/chatHistory';
-import { parseChatCommand, chatCommandBlock, CHAT_COMMAND } from './chatCommands';
+import { parseChatCommand, chatCommandBlock, isCompactCommand, CHAT_COMMAND } from './chatCommands';
 import useRunStarter from './useRunStarter';
 
 /**
@@ -120,7 +120,7 @@ export default function useChatRun({
       // Команда чату, а не вопрос модели: у неё свой эндпоинт и свой жизненный цикл,
       // хотя в историю она, как и вопрос, попадает (см. compactChat).
       const command = parseChatCommand(text);
-      if (command?.name === CHAT_COMMAND.COMPACT) {
+      if (isCompactCommand(command?.name)) {
         // Почему команда может не пройти, решает общее правило: его же спрашивает композер,
         // чтобы написать это над полем ДО отправки. Очереди у сжатия нет — опустошает её
         // терминальная обработка прогона, а у сжатия её не будет, — поэтому команда во время
@@ -140,7 +140,8 @@ export default function useChatRun({
         // место, откуда вернуть набранное: поле стёрло текст ещё на отправке.
         // Уходит из него только текст: отложенные вложения приложены к вопросу,
         // который пользователь ещё задаст, и сжатие переживают.
-        if (await compactChat(activeChatId, text, command.args)) clearDraftText(activeChatId);
+        const keepLastRun = command.name === CHAT_COMMAND.COMPACT_1;
+        if (await compactChat(activeChatId, text, command.args, keepLastRun)) clearDraftText(activeChatId);
         else restoreDraft?.();
         return;
       }

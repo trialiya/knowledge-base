@@ -178,6 +178,22 @@ describe('tokenUsage', () => {
       expect(contextUsageOf(messages, 9800)).toBeNull();
     });
 
+    // `/compact-1` читается той же меркой: сводкой заменена только часть окна, а сбережённый
+    // ход под плашкой не измерен — и замер НАД ней описывает историю, которой уже нет.
+    test('после `/compact-1` счётчик пуст: сбережённый ход под плашкой не измерен', () => {
+      const messages = [
+        { ...ai({ contextTokens: 90000 }), dbId: 40 },
+        {
+          sender: 'ai',
+          dbId: 41,
+          compact: { messages: 38, kind: 'COMPACT_KEEP_LAST' },
+          usage: { contextTokens: 92000, outputTokens: 1200 },
+        },
+      ];
+
+      expect(contextUsageOf(messages, 9800)).toBeNull();
+    });
+
     test('первый же ответ после применения сводки счётчик восстанавливает', () => {
       const messages = [
         { sender: 'ai', dbId: 41, compact: { messages: 40, kind: 'SUMMARIZE' } },

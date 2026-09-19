@@ -244,14 +244,16 @@
       "label": "Command:",
       "toChat": "this goes to the chat, not the model",
       "name": {
-        "compact": "compact the chat context"
+        "compact": "compact the chat context",
+        "compact-1": "compact the context, keeping the last exchange"
       },
       "blocked": {
         "running": "a reply is in progress, the command will not run",
         "nothingToCompact": "the chat has not started, there is nothing to compact"
       },
       "args": {
-        "compact": "<what to focus on>"
+        "compact": "<what to focus on>",
+        "compact-1": "<what to focus on>"
       },
       "insert": {
         "file": "a repository file — as a link or with its content",
@@ -269,10 +271,12 @@
     "running": "Compacting the chat context…",
     "done": "Context compacted: {{messages}} messages replaced by a single summary.",
     "summarized": "The earlier {{messages}} messages folded into a summary.",
+    "doneKeepLast": "Context compacted except the last exchange: {{messages}} messages replaced by a single summary.",
     "error": "Compaction failed. The chat context is unchanged.",
     "unavailableTitle": "Nothing to compact",
     "draftMessage": "This chat has not started yet — there is nothing to compact.",
     "emptyMessage": "This chat's context is already a single summary.",
+    "emptyKeepLastMessage": "There is nothing in this chat's context besides the last exchange — nothing to compact.",
     "errorTitle": "Compaction failed",
     "startErrorMessage": "The compaction request never reached the server. Try again.",
     "details": "Details",

@@ -253,7 +253,9 @@ class CompactPromptCacheTest {
                         systemPrompts,
                         toolset,
                         new ClassPathResource("prompt/sys.md"),
-                        new ByteArrayResource("COMPACTOR HANDBOOK".getBytes(UTF_8)),
+                        new CompactPrompt(
+                                chatTopicRepository(),
+                                new ByteArrayResource("COMPACTOR HANDBOOK".getBytes(UTF_8))),
                         Runnable::run,
                         transactions);
         service.compact(

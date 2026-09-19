@@ -428,10 +428,11 @@ public class ChatController {
     }
 
     /**
-     * Сжимает контекст чата по команде {@code /compact} и сразу возвращает {@code runId}: раунд
-     * идёт по всему живому окну и живёт десятки секунд, поэтому ответ на этот запрос — только
-     * заявка, а исход приезжает событиями {@code COMPACT_DONE}/{@code COMPACT_ERROR} (см. {@link
-     * #events}). Пока он идёт, чат занят так же, как на генерации: вопрос в него получит 409.
+     * Сжимает контекст чата по команде {@code /compact} (или {@code /compact-1}, см. {@code
+     * keepLastRun}) и сразу возвращает {@code runId}: раунд идёт по всему живому окну и живёт
+     * десятки секунд, поэтому ответ на этот запрос — только заявка, а исход приезжает событиями
+     * {@code COMPACT_DONE}/{@code COMPACT_ERROR} (см. {@link #events}). Пока он идёт, чат занят так
+     * же, как на генерации: вопрос в него получит 409.
      *
      * <p>Команда сохраняется обычным сообщением — как и любая реплика, она остаётся в истории, — но
      * в модель, которая сжимает контекст, не попадает: там вместо неё инструкция сжатия (см. {@link
@@ -439,7 +440,8 @@ public class ChatController {
      * пор, ей же и предстоит прочитать целиком.
      *
      * @param body {@link CompactRequest} — сообщение целиком; {@code text} обязателен, {@code
-     *     instructions} — необязательный хвост-фокус
+     *     instructions} — необязательный хвост-фокус, {@code keepLastRun} — команда {@code
+     *     /compact-1}: сберечь последний ход разговора
      */
     @PostMapping("/{conversationId}/compact")
     public Map<String, Object> compact(
@@ -460,6 +462,7 @@ public class ChatController {
                         conversationId,
                         body.text(),
                         body.instructions(),
+                        body.keepLastRun(),
                         new CompactService.CompactOptions(
                                 options.model(),
                                 options.weakModel(),

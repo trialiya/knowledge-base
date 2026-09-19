@@ -25,9 +25,6 @@ import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.tools.ChatToolset;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -38,7 +35,6 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientAttributes;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -48,17 +44,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.util.StreamUtils;
-import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Сжатие всего живого контекста в одну сводку — в отличие от фоновой суммаризации ({@link
- * SummarizeService}), которая сжимает только начало окна и оставляет живой хвост.
+ * Сжатие живого контекста в одну сводку — в отличие от фоновой суммаризации ({@link
+ * SummarizeService}), которая всегда сжимает только начало окна и никогда не трогает хвост.
  *
- * <p>Поводов ровно два, и раунд у них общий: команда {@code /compact} (её ведёт этот класс целиком
- * — см. {@link #start}) и предел контекста ({@link AutoCompactService}). Всё, чем они отличаются,
- * собрано в {@link CompactTarget}; сам {@link #compact} про повод не знает.
+ * <p>Поводов три, и раунд у них общий: команды {@code /compact} и {@code /compact-1} (их ведёт этот
+ * класс целиком — см. {@link #start}) и предел контекста ({@link AutoCompactService}). Что из окна
+ * уедет сводке, решает {@link CompactWindow}: {@code /compact} отдаёт ей всё, {@code /compact-1}
+ * бережёт последний ход. Всё остальное, чем поводы отличаются, собрано в {@link CompactTarget}; сам
+ * {@link #compact} про повод не знает.
  *
  * <p><b>Историю никто не пересказывает.</b> Модель получает окно ровно тем же списком сообщений,
  * каким его получает чат ({@link ChatHistoryService#promptMessages}): протокольные {@code
@@ -102,9 +98,12 @@ import org.springframework.web.server.ResponseStatusException;
  * <текст>} сохраняется обычной USER-строкой — так же видимой, как любая другая реплика, — но само
  * сжатие получает окно ровно таким, каким оно было ДО этого сообщения: команда не материал для
  * сжатия, а управляющий сигнал. Модели вместо неё в конец запроса уходит собранная здесь инструкция
- * — с хвостом команды в роли фокуса и справкой о самом чате. По завершении раунда позиция самой
- * команды попадает в тот же размеченный {@code summarized}-диапазон, что и сжатое окно: дальше она
- * видна пользователю в истории, но перестаёт ехать модели — как и всё, что раунд заменил сводкой.
+ * — с хвостом команды в роли фокуса и справкой о самом чате. По завершении раунда команда тоже
+ * помечается сжатой: дальше она видна пользователю в истории, но перестаёт ехать модели — как и
+ * всё, что раунд заменил сводкой. У {@code /compact} её накрывает тот же размеченный {@code
+ * summarized}-диапазон, что и окно; у {@code /compact-1} диапазон кончается раньше — между ним и
+ * командой лежит сбережённый ход, — и команду помечает отдельная пометка (см. {@link
+ * CompactTarget#detached}).
  *
  * <p><b>След сжатия остаётся в истории.</b> Кроме самой сводки раунд пишет строку-плашку — ряд,
  * который видит только пользователь (см. {@code SummaryWriter#writeCompacted}). Без неё сжатие жило
@@ -127,14 +126,9 @@ public class CompactService {
     private final SystemPromptService systemPrompts;
     private final ChatToolset chatToolset;
     private final Resource sysPrompt;
-    private final String compactorPrompt;
+    private final CompactPrompt compactPrompt;
     private final Executor executor;
     private final TransactionTemplate transactionTemplate;
-
-    /** Границы обёртки сводки — общие у {@link #summaryText} и {@link #unwrap}. */
-    private static final String OPEN = "<summary>\n";
-
-    private static final String CLOSE = "\n</summary>\n";
 
     public CompactService(
             ChatModelRegistry chatModelRegistry,
@@ -148,7 +142,7 @@ public class CompactService {
             SystemPromptService systemPrompts,
             ChatToolset chatToolset,
             @Value("classpath:prompt/sys.md") Resource sysPrompt,
-            @Value("classpath:prompt/compactor.md") Resource compactorPrompt,
+            CompactPrompt compactPrompt,
             @Qualifier("chatRunExecutor") Executor executor,
             PlatformTransactionManager transactionManager) {
         this.chatModelRegistry = chatModelRegistry;
@@ -162,21 +156,9 @@ public class CompactService {
         this.systemPrompts = systemPrompts;
         this.chatToolset = chatToolset;
         this.sysPrompt = sysPrompt;
-        // Читается один раз: инструкция сжатия — теперь часть последнего сообщения запроса, и
-        // перечитывать её с диска на каждый /compact незачем (так же поступает
-        // SystemPromptService).
-        this.compactorPrompt = read(compactorPrompt);
+        this.compactPrompt = compactPrompt;
         this.executor = executor;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
-    }
-
-    private static String read(Resource resource) {
-        try {
-            return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8)
-                    .strip();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read the compaction prompt: " + resource, e);
-        }
     }
 
     /** {@code runId} занятой операции и id сохранённой команды — параллель {@code StartedRun}. */
@@ -211,18 +193,42 @@ public class CompactService {
      *     summarized}-диапазон; она же позиция сводки. У команды это позиция самой команды — дальше
      *     та видна в истории, но модели не едет; у автоматического сжатия это последний ряд сжатого
      *     окна: вопрос, ради которого чат сжался, обязан остаться живым
-     * @param createdAt время обоих записанных рядов. У команды — время конца раунда: живого хвоста
-     *     после неё не остаётся, и плашке нечего обгонять. У автоматического сжатия — время
-     *     последнего сжатого ряда: под плашкой уже лежит вопрос этого прогона, и по времени конца
-     *     раунда она встала бы после него
+     * @param createdAt время строки-сводки — то, что решает, где она встанет в промпте. Живого
+     *     хвоста нет ({@code /compact}) — обгонять нечего, и это время конца раунда; хвост есть
+     *     (автоматическое сжатие, {@code /compact-1}) — это время последнего сжатого ряда, иначе
+     *     сводка уехала бы модели ПОСЛЕ сообщений, которых она не пересказывает
+     * @param noticeAt время видимой плашки в ленте — отдельный вопрос от предыдущего (см. {@link
+     *     SummaryWriter.CompactStats#noticeAt}). У команд это конец раунда: плашка встаёт под
+     *     командой, которая её вызвала. У автоматического сжатия — время последнего сжатого ряда:
+     *     под плашкой уже лежит вопрос этого прогона, и по времени конца раунда она встала бы после
+     *     него, при том что его она не сжимала
      * @param spentRound куда лечь замеру раунда, который до модели дошёл, а сводки не дал;
      *     возвращает id ряда, на который замер записан, или {@code null}, если ряда такого нет
+     * @param detached ряд, который тоже перестаёт ехать модели, но лежит ЗА размеченным диапазоном
+     *     и потому помечается отдельно (см. {@link ChatMessageEntity#asSummarized}). Бывает один и
+     *     только у {@code /compact-1}: его команда стоит после сбережённого живого хвоста, и
+     *     дотянуть до неё границу значило бы сжать заодно и хвост. {@code null} — такого ряда нет
      */
     public record CompactTarget(
             CompactMeta.Kind kind,
             long boundaryPosition,
             LocalDateTime createdAt,
-            SpentRound spentRound) {}
+            LocalDateTime noticeAt,
+            SpentRound spentRound,
+            @Nullable ChatMessageEntity detached) {
+
+        /**
+         * Цель, у которой сводка и плашка подписаны одним временем, а размеченный диапазон
+         * накрывает всё сам, — так устроены и {@code /compact}, и автоматическое сжатие.
+         */
+        public CompactTarget(
+                CompactMeta.Kind kind,
+                long boundaryPosition,
+                LocalDateTime createdAt,
+                SpentRound spentRound) {
+            this(kind, boundaryPosition, createdAt, createdAt, spentRound, null);
+        }
+    }
 
     /**
      * Куда девать деньги за несостоявшийся раунд. Молча их терять нельзя: сжатие иначе становится
@@ -256,6 +262,9 @@ public class CompactService {
      * общим с фоновой суммаризацией замком (см. {@link #run}).
      *
      * @param text сообщение {@code /compact <текст>} целиком — сохраняется как есть
+     * @param keepLastRun оставить последний ход разговора живым — команда {@code /compact-1} (см.
+     *     {@link CompactWindow}). От этого зависит и «сжимать нечего»: у {@code /compact-1}
+     *     материал — только то, что лежит ДО сбережённого хода
      * @param options настройки запроса — те же, на которых идёт чат (см. {@link CompactOptions})
      * @param clientMsgId id вкладки-отправителя — тот же смысл, что и у {@code POST /runs}: своё
      *     эхо {@code USER_MESSAGE} вкладка гасит по нему, не дожидаясь второго пузыря
@@ -265,6 +274,7 @@ public class CompactService {
             String conversationId,
             String text,
             @Nullable String instructions,
+            boolean keepLastRun,
             CompactOptions options,
             @Nullable String clientMsgId) {
         final String runId = slots.claim(conversationId);
@@ -273,7 +283,7 @@ public class CompactService {
             // Оборванный прошлый прогон мог оставить в хвосте assistant.tool_calls без TOOL-ответа
             // — такой диалог модель отвергает целиком, а здесь он уехал бы ей весь.
             chatHistory.repairDanglingToolCalls(conversationId);
-            if (nothingToCompact(chatHistory.promptRows(conversationId))) {
+            if (CompactWindow.of(chatHistory.promptRows(conversationId), keepLastRun).isEmpty()) {
                 throw new ResponseStatusException(
                         HttpStatus.UNPROCESSABLE_CONTENT, "Nothing to compact");
             }
@@ -301,7 +311,15 @@ public class CompactService {
                         null));
         events.publish(conversationId, COMPACT_STARTED, runId, null, null);
         try {
-            executor.execute(() -> run(conversationId, runId, commandRow, instructions, options));
+            executor.execute(
+                    () ->
+                            run(
+                                    conversationId,
+                                    runId,
+                                    commandRow,
+                                    instructions,
+                                    keepLastRun,
+                                    options));
         } catch (RuntimeException e) {
             // COMPACT_STARTED уже ушёл всем вкладкам, и своя — та, что получит здесь ошибку —
             // уже под блокировкой. Снять её ответом на этот запрос нельзя: остальные вкладки
@@ -315,14 +333,6 @@ public class CompactService {
     }
 
     /**
-     * Сжимать нечего, когда живого контекста нет вовсе или он уже состоит из одной сводки: сжатие
-     * сводки в сводку — это раунд, который ничего не экономит и при этом теряет детали.
-     */
-    static boolean nothingToCompact(List<PromptRow> rows) {
-        return rows.stream().filter(row -> !row.entity().isSummary()).findAny().isEmpty();
-    }
-
-    /**
      * Фоновая обёртка раунда: замок, окно, сжатие, событие исхода, освобождение чата.
      *
      * <p>Замок общий с фоновой суммаризацией ({@link SummaryWriter#inConversation}) и обязан
@@ -333,30 +343,34 @@ public class CompactService {
      * <p>Поэтому окно снимается ЗДЕСЬ, под замком, а не переносится из {@link #start}: та читала
      * его только ради ответа «сжимать нечего». Отсекает хвост от позиции команды и дальше сам
      * {@link ChatHistoryService#promptRowsBefore} — сама команда не материал для сжатия, а сигнал к
-     * нему, и попади она в окно, раунд принял бы собственный вызов за часть разговора.
+     * нему, и попади она в окно, раунд принял бы собственный вызов за часть разговора. Что из
+     * оставшегося уедет сводке, а что останется жить, решает {@link CompactWindow}.
      */
     private void run(
             String conversationId,
             String runId,
             ChatMessageEntity commandRow,
             @Nullable String instructions,
+            boolean keepLastRun,
             CompactOptions options) {
         try {
             summaryWriter.inConversation(
                     conversationId,
                     () -> {
-                        final List<PromptRow> rows =
-                                chatHistory.promptRowsBefore(
-                                        conversationId, commandRow.getPosition());
-                        if (nothingToCompact(rows)) {
+                        final CompactWindow window =
+                                CompactWindow.of(
+                                        chatHistory.promptRowsBefore(
+                                                conversationId, commandRow.getPosition()),
+                                        keepLastRun);
+                        if (window.isEmpty()) {
                             // Пока команда ждала своей очереди, окно сжал кто-то другой.
                             throw new IllegalStateException("Nothing left to compact");
                         }
                         final CompactPayload payload =
                                 compact(
                                         conversationId,
-                                        rows,
-                                        commandTarget(commandRow),
+                                        window.compacted(),
+                                        commandTarget(commandRow, window),
                                         instructions,
                                         options);
                         events.publish(conversationId, COMPACT_DONE, runId, null, payload);
@@ -434,7 +448,7 @@ public class CompactService {
                                                         options.project(),
                                                         options.modeInstructions())))
                         .messages(history)
-                        .user(instruction(conversationId, rows, instructions))
+                        .user(compactPrompt.instruction(conversationId, rows, instructions))
                         .advisors(
                                 a ->
                                         a.advisors(new MessageLoggingAdvisor())
@@ -482,10 +496,15 @@ public class CompactService {
             throw spentRound(target, call, usage, "The model returned an empty compaction");
         }
 
-        // Сколько рядов перестало ехать модели: всё сжатое окно и, у команды, она сама — её позиция
-        // лежит за окном (см. CompactTarget#boundaryPosition), и разметка накрывает и её. У
-        // автоматического сжатия граница кончается на последнем ряду окна, и лишнего ряда нет.
-        final int messages = rows.size() + (target.boundaryPosition() > oldEndPosition ? 1 : 0);
+        // Сколько рядов перестало ехать модели: всё сжатое окно и, у команды, она сама. У
+        // /compact её накрывает разметка — позиция команды лежит за окном (см.
+        // CompactTarget#boundaryPosition); у /compact-1 разметка до неё не дотягивается, и её
+        // помечает отдельная пометка (detached). У автоматического сжатия лишнего ряда нет вовсе.
+        final int messages =
+                rows.size()
+                        + (target.boundaryPosition() > oldEndPosition || target.detached() != null
+                                ? 1
+                                : 0);
         final ChatMessageEntity notice =
                 requireNonNull(
                         transactionTemplate.execute(
@@ -516,6 +535,9 @@ public class CompactService {
      * Деньги их раундов уезжают на плашку — другого ряда у этих денег не остаётся (см. {@link
      * CompactMeta#carried}).
      *
+     * <p>Заодно помечает сжатым ряд, до которого разметка диапазона не дотягивается (см. {@link
+     * CompactTarget#detached}).
+     *
      * <p>Звать только внутри транзакции: удаление, пережившее неудавшуюся запись, стёрло бы
      * написанные моделью сводки насовсем, а второй раз их никто не напишет — сжатый ими кусок к
      * тому времени уже не живой.
@@ -529,6 +551,10 @@ public class CompactService {
             String content,
             RunTokenUsage usage) {
         final @Nullable RunTokenUsage carried = pendingSummaries.discard(conversationId);
+        final @Nullable ChatMessageEntity detached = target.detached();
+        if (detached != null) {
+            chatMessageRepository.save(detached.asSummarized());
+        }
         return summaryWriter.writeCompacted(
                 new SummaryWriter.SummaryRow(
                         conversationId,
@@ -539,7 +565,7 @@ public class CompactService {
                         target.boundaryPosition(),
                         target.boundaryPosition(),
                         target.createdAt(),
-                        summaryText(content, target.kind()),
+                        CompactPrompt.wrap(content, target.kind()),
                         // Сводка остаётся единственной памятью разговора, и следом проектов —
                         // тоже: маркеры смены уезжают вместе с окном.
                         ProjectTrace.of(
@@ -556,7 +582,8 @@ public class CompactService {
                         messages,
                         content.length(),
                         usage.isEmpty() ? null : usage,
-                        carried));
+                        carried,
+                        target.noticeAt()));
     }
 
     /**
@@ -575,34 +602,61 @@ public class CompactService {
     }
 
     /**
-     * Цель раунда по команде: граница — позиция самой команды, время — время конца раунда, а замер
-     * несостоявшегося раунда ложится на строку команды. Строка уже сохранена и остаётся в истории
-     * неотвеченной, как любой упавший вопрос, а замер на ней читается тем же полем меты, что и у
-     * ответа, — итог по чату считается по всем рядам одним правилом.
+     * Цель раунда по команде. Замер несостоявшегося раунда у обеих команд ложится на строку самой
+     * команды: она уже сохранена и остаётся в истории неотвеченной, как любой упавший вопрос, а
+     * замер на ней читается тем же полем меты, что и у ответа, — итог по чату считается по всем
+     * рядам одним правилом.
      *
      * <p>Контекстом чата этот замер не является ни в каком виде: он описывает окно, которое раунд
      * прочитал, вместе с его собственной инструкцией, а само окно осталось на месте. Отсюда правило
      * на фронте: замер на USER-ряду идёт только в итог (см. {@code tokenUsage.js}).
+     *
+     * <p>Всё остальное решает деление окна, а не набранная команда. Живого хвоста нет — граница
+     * доходит до самой команды, и оба ряда подписаны концом раунда: обгонять сводке нечего. Хвост
+     * есть ({@code /compact-1}) — граница кончается на последнем сжатом ряду, и его временем
+     * подписана сводка: иначе она уехала бы модели ПОСЛЕ сбережённого хода, которого не
+     * пересказывает. Плашка при этом остаётся подписанной концом раунда — видит её человек, и её
+     * место в ленте под командой, которая её вызвала. Сама команда тогда лежит за границей и
+     * помечается отдельно (см. {@link CompactTarget#detached}).
+     *
+     * <p>{@code /compact-1} в окне без единого хода беречь нечего — деление выходит полным, и
+     * плашка так и говорит: обещать сбережённый хвост, которого нет, она не вправе.
      */
-    CompactTarget commandTarget(ChatMessageEntity commandRow) {
+    CompactTarget commandTarget(ChatMessageEntity commandRow, CompactWindow window) {
+        final SpentRound spentRound = spentRoundOn(commandRow);
+        if (window.kept().isEmpty()) {
+            return new CompactTarget(
+                    CompactMeta.Kind.COMPACT,
+                    commandRow.getPosition(),
+                    // Время раунда, а не команды: плашка со сводкой встаёт под ней отдельным
+                    // сообщением, и её время — это время, когда сжатие закончилось, иногда через
+                    // десятки секунд после команды.
+                    LocalDateTime.now(),
+                    spentRound);
+        }
+        final ChatMessageEntity lastCompacted = window.compacted().getLast().entity();
         return new CompactTarget(
-                CompactMeta.Kind.COMPACT,
-                commandRow.getPosition(),
-                // Время раунда, а не команды: плашка со сводкой встаёт под ней отдельным
-                // сообщением, и её время — это время, когда сжатие закончилось, иногда через
-                // десятки секунд после команды.
+                CompactMeta.Kind.COMPACT_KEEP_LAST,
+                lastCompacted.getPosition(),
+                lastCompacted.getCreatedAt(),
                 LocalDateTime.now(),
-                (call, usage) -> {
-                    if (!usage.isEmpty()) {
-                        final @Nullable ChatMessageMeta meta = commandRow.getMeta();
-                        chatMessageRepository.save(
-                                commandRow.withMeta(
-                                        meta == null
-                                                ? ChatMessageMeta.ofUsage(usage)
-                                                : meta.withUsage(usage)));
-                    }
-                    return commandRow.getId();
-                });
+                spentRound,
+                commandRow);
+    }
+
+    /** Замер несостоявшегося раунда — на строку самой команды (см. {@link #commandTarget}). */
+    private SpentRound spentRoundOn(ChatMessageEntity commandRow) {
+        return (call, usage) -> {
+            if (!usage.isEmpty()) {
+                final @Nullable ChatMessageMeta meta = commandRow.getMeta();
+                chatMessageRepository.save(
+                        commandRow.withMeta(
+                                meta == null
+                                        ? ChatMessageMeta.ofUsage(usage)
+                                        : meta.withUsage(usage)));
+            }
+            return commandRow.getId();
+        };
     }
 
     /**
@@ -676,58 +730,7 @@ public class CompactService {
                                         compact.messages(),
                                         compact.summaryChars(),
                                         notice.getCreatedAt(),
-                                        unwrap(summary.getContent())));
-    }
-
-    /**
-     * Последнее сообщение запроса — на месте невыполненной команды пользователя: руководство по
-     * сжатию ({@code compactor.md}) плюс справка о самом чате.
-     *
-     * <p>Руководство едет здесь, а не системным сообщением, и это то же требование кэша, что и в
-     * javadoc класса: системное место занято {@code sys.md} чата, и разойдись оно — не совпал бы
-     * весь префикс. Место в конце руководству не мешает, а помогает: оно последнее, что читает
-     * модель перед ответом, и оттуда же снимает роль, назначенную ей системным промптом.
-     *
-     * <p>Справка о чате не украшение: сжатое окно останется единственной памятью разговора, а
-     * какому проекту принадлежат пути в нём и на каком языке шёл диалог, из самих сообщений видно
-     * не всегда.
-     */
-    private String instruction(
-            String conversationId, List<PromptRow> rows, @Nullable String instructions) {
-        final @Nullable ChatTopicEntity chat =
-                chatTopicRepository.findById(conversationId).orElse(null);
-        final StringBuilder prompt = new StringBuilder();
-        prompt.append(compactorPrompt).append("\n\n").append("About this conversation:\n");
-        append(prompt, "Topic", chat == null ? null : chat.getDisplayTopic());
-        append(prompt, "Project", chat == null ? null : chat.getProject());
-        append(prompt, "Assistant mode", chat == null ? null : chat.getMode());
-        prompt.append("- Messages above: ").append(rows.size()).append('\n');
-        prompt.append("- Of them USER messages: ")
-                .append(countOf(rows, MessageType.USER))
-                .append(" (`## User requests` must have exactly this many bullets)\n");
-        prompt.append("- Of them tool protocol messages: ")
-                .append(countOf(rows, MessageType.TOOL))
-                .append('\n');
-        if (StringUtils.hasText(instructions)) {
-            prompt.append(
-                            """
-
-                            The user asked to focus the compaction on the following. Give this \
-                            material more detail than anything else and never let the focus cut a \
-                            section short: everything else still has to survive, in full section \
-                            format.
-                            <focus>
-                            """)
-                    .append(instructions.strip())
-                    .append("\n</focus>\n");
-        }
-        return prompt.toString();
-    }
-
-    private static void append(StringBuilder prompt, String label, @Nullable String value) {
-        if (StringUtils.hasText(value)) {
-            prompt.append("- ").append(label).append(": ").append(value).append('\n');
-        }
+                                        CompactPrompt.unwrap(summary.getContent())));
     }
 
     /**
@@ -739,46 +742,5 @@ public class CompactService {
                 .map(PromptRow::entity)
                 .filter(entity -> entity.isSummary() == summaries)
                 .toList();
-    }
-
-    private static long countOf(List<PromptRow> rows, MessageType type) {
-        return rows.stream().filter(row -> row.entity().getMessageType() == type).count();
-    }
-
-    /**
-     * Обёртка вокруг ответа модели — та же роль, что у заголовка фоновой сводки: сказать модели,
-     * что перед ней не реплика ассистента, а вся память разговора. Диапазона «продолжай с N» здесь
-     * нет намеренно: у {@code /compact} продолжать неоткуда, живого хвоста после сжатия не
-     * остаётся; у автоматического сжатия хвост есть — это как раз вопрос, ради которого чат сжался,
-     * — но продолжает его уже сам чат обычным прогоном, а не эта сводка.
-     *
-     * @param kind {@code COMPACT} — сжатие запрошено пользователем, заголовок так и говорит; {@code
-     *     AUTO_COMPACT} — запрошено чатом, и упоминать пользователя здесь нечестно
-     */
-    private static String summaryText(String content, CompactMeta.Kind kind) {
-        final String requestedBy =
-                kind == CompactMeta.Kind.AUTO_COMPACT
-                        ? "automatically, at the model's context limit"
-                        : "requested by the user";
-        return "Compacted conversation summary ("
-                + requestedBy
-                + "):\n"
-                + OPEN
-                + content
-                + CLOSE
-                + "Treat this as authoritative context for the entire conversation so far: the"
-                + " messages it covers are no longer in the context and cannot be re-read.";
-    }
-
-    /**
-     * Обратное {@link #summaryText}: документ модели без адресованной ей обёртки — то, что читает
-     * человек, открывший детали сжатия. Строка не той формы отдаётся как есть: сводки, записанные
-     * до появления обёртки (или другой её версией), обязаны показываться, а не превращаться в
-     * пустой экран.
-     */
-    private static String unwrap(String stored) {
-        final int start = stored.indexOf(OPEN);
-        final int end = stored.lastIndexOf(CLOSE);
-        return start < 0 || end < start ? stored : stored.substring(start + OPEN.length(), end);
     }
 }

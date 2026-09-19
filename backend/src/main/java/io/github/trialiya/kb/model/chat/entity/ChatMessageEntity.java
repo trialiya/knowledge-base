@@ -97,6 +97,30 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
                 toolData);
     }
 
+    /**
+     * Копия, помеченная сжатой: ряд остаётся видимым в истории, но модели больше не едет.
+     *
+     * <p>Поштучно, а не диапазоном позиций ({@code ChatMessageRepository#updateSummarized}), —
+     * только для ряда, который лежит ЗА размеченным диапазоном: строка команды {@code /compact-1}
+     * стоит после живого хвоста, который это сжатие сберегло. Позиции для такой пометки не годятся:
+     * они не уникальны (плашка сжатия встаёт на номер, который уже носит первый ряд живого хвоста —
+     * см. {@code SummaryWriter#writeCompacted}), и диапазон из одной позиции накрыл бы заодно чужой
+     * ряд.
+     */
+    public ChatMessageEntity asSummarized() {
+        return new ChatMessageEntity(
+                id,
+                conversationId,
+                content,
+                type,
+                position,
+                true,
+                summary,
+                createdAt,
+                meta,
+                toolData);
+    }
+
     @Override
     @NonNull
     public Long getId() {

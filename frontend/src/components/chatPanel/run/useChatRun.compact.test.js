@@ -129,4 +129,35 @@ describe('useChatRun — старт сжатия', () => {
     expect(clearDraftText).toHaveBeenCalledWith(CHAT);
     expect(restoreDraft).not.toHaveBeenCalled();
   });
+
+  // Две команды сжатия различаются для этой вкладки ровно одним флагом запроса: где провести
+  // границу, решает бэк, а перепутанный здесь флаг сжёг бы ход, который просили сберечь.
+  test('`/compact-1` уходит тем же запросом, но с keepLastRun', async () => {
+    chatApi.compact.mockResolvedValue({ runId: 'op-1', messageId: 9 });
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('/compact-1 ужми'));
+
+    expect(chatApi.compact).toHaveBeenCalledWith(CHAT, '/compact-1 ужми', 'ужми', true, expect.any(String));
+  });
+
+  test('а `/compact` — с тем же флагом снятым', async () => {
+    chatApi.compact.mockResolvedValue({ runId: 'op-1', messageId: 9 });
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('/compact ужми'));
+
+    expect(chatApi.compact).toHaveBeenCalledWith(CHAT, '/compact ужми', 'ужми', false, expect.any(String));
+  });
+
+  // «Сжимать нечего» у `/compact-1` про другое: не «контекст уже одна сводка», а «кроме
+  // сбережённого хода в нём ничего и нет». Один текст на оба случая объяснял бы не тот отказ.
+  test('422 у `/compact-1` объясняется своими словами', async () => {
+    chatApi.compact.mockRejectedValue({ status: 422 });
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('/compact-1'));
+
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ messageKey: 'compact.emptyKeepLastMessage' }));
+  });
 });
