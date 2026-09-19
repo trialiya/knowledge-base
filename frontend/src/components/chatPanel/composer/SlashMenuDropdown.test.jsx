@@ -58,6 +58,6 @@ describe('SlashMenuDropdown', () => {
     const c = show({ items: slashMenuItems('/сж'), query: '/сж' });
 
     expect(c.querySelector('.picker-dropdown__hint').textContent).toBe('input.command.menu.hintQuery');
-    expect(rows(c)).toHaveLength(1);
+    expect(rows(c)).toHaveLength(2);
   });
 });

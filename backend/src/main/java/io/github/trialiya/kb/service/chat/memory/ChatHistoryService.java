@@ -686,14 +686,31 @@ public class ChatHistoryService {
      * где провайдер перестал бы засчитывать кэш промпта.
      */
     public List<PromptRow> promptRowsBefore(String conversationId, long position) {
-        return promptRowsFor(
-                conversationId,
-                chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                conversationId)
-                        .stream()
-                        .filter(row -> row.getPosition() < position)
-                        .toList());
+        return promptRowsFor(conversationId, liveRowsBefore(conversationId, position));
+    }
+
+    /**
+     * Живое окно СЫРЫМИ рядами, без промпт-вида: ни описей вложений, ни нотисов, ни блока активного
+     * проекта. Для того, кто по окну решает, а не разговаривает: сжатию ({@code CompactWindow})
+     * нужны здесь только флаги сводки и границы ходов, а рендер — лишний запрос за описями на окно,
+     * которое к тому же делится надвое.
+     *
+     * <p>Кто на этих рядах остановился, тот их и рендерит — своим {@link #promptRowsFor}. Это не
+     * вольность, а условие: блок активного проекта садится на ряд ВНУТРИ того окна, которое ему
+     * дали (см. {@link ActiveProjectNotice}), и отфильтруй кто-нибудь готовые {@link PromptRow}, в
+     * чате, где блок сел на отрезанную часть, он уехал бы вместе с ней.
+     */
+    public List<ChatMessageEntity> liveRows(String conversationId) {
+        return chatMessageRepository
+                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                        conversationId);
+    }
+
+    /** То же, но до указанной позиции — сырая половина {@link #promptRowsBefore}. */
+    public List<ChatMessageEntity> liveRowsBefore(String conversationId, long position) {
+        return liveRows(conversationId).stream()
+                .filter(row -> row.getPosition() < position)
+                .toList();
     }
 
     /**
@@ -707,7 +724,12 @@ public class ChatHistoryService {
         return promptRowsFor(conversationId, rows).stream().map(PromptRow::toMessage).toList();
     }
 
-    private List<PromptRow> promptRowsFor(String conversationId, List<ChatMessageEntity> rows) {
+    /**
+     * Промпт-вид переданных рядов. Публичный ради тех, кто окно сначала делит, а рендерит уже свою
+     * половину ({@code CompactService} по {@code CompactWindow}): собрать её вторым кодом нельзя, а
+     * отфильтровать готовые {@link PromptRow} — тем более (см. {@link #liveRows}).
+     */
+    public List<PromptRow> promptRowsFor(String conversationId, List<ChatMessageEntity> rows) {
         final Map<Long, String> context = contextItemService.renderAll(conversationId, rows);
         // Блок активного проекта собирается один раз на окно и достаётся одному ряду — см.
         // ActiveProjectNotice.

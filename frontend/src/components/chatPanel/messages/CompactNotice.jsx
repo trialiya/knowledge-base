@@ -1,9 +1,17 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isFullCompaction } from '@/constants/compactKind';
+import { COMPACT_KIND, isFullCompaction } from '@/constants/compactKind';
 import CompactSummaryModal from './CompactSummaryModal';
 import { formatTokens } from './tokenUsage';
 import '../styles/compact.css';
+
+// Текст плашки по виду сжатия. Ключ по виду, а не по «полное/частичное»: у видов с живым хвостом
+// он общий только формой, а говорят они о разном — свёрнутое начало истории и свёрнутое всё, кроме
+// последнего хода.
+const TEXT_KEY = {
+  [COMPACT_KIND.SUMMARIZE]: 'compact.summarized',
+  [COMPACT_KIND.COMPACT_KEEP_LAST]: 'compact.doneKeepLast',
+};
 
 /**
  * След сжатия контекста в ленте: сколько сообщений свернулось в сводку, во сколько раз от этого
@@ -16,7 +24,8 @@ import '../styles/compact.css';
  *
  * Фоновая суммаризация получает тот же разделитель, но тоньше и без чисел экономии: её никто не
  * просил, под ней остался живой хвост, и во что она обошлась контексту, по её замеру не считается
- * (см. compactSavingsIn). Разговор она не прерывает — и плашка не должна.
+ * (см. compactSavingsIn). Разговор она не прерывает — и плашка не должна. `/compact-1` читается
+ * так же: хвост под ним тоже живой, а значит и «стало» по его замеру не берётся.
  *
  * @param messageId id строки-плашки — адрес сводки. Без него (очень старый прогон, чьи события
  *   переигрались без id) плашка остаётся, а кнопка деталей не рисуется: открывать нечего.
@@ -39,7 +48,7 @@ const CompactNotice = ({ conversationId, messageId, compact, savings, timestamp 
         🗜️
       </span>
       <span className="compact-notice__text">
-        {t(full ? 'compact.done' : 'compact.summarized', { messages: compact.messages })}
+        {t(TEXT_KEY[compact.kind] || 'compact.done', { messages: compact.messages })}
       </span>
       {full && savings && (
         <span className="compact-notice__savings" title={t('compact.savingsTooltip')}>

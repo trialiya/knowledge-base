@@ -396,7 +396,8 @@ class PendingSummaryServiceTest {
     }
 
     private static SummaryWriter.CompactStats stats(RunTokenUsage usage) {
-        return new SummaryWriter.CompactStats(CompactMeta.Kind.SUMMARIZE, 58, 4096, usage, null);
+        return new SummaryWriter.CompactStats(
+                CompactMeta.Kind.SUMMARIZE, 58, 4096, usage, null, LocalDateTime.now());
     }
 
     /**

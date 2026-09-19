@@ -61,6 +61,17 @@ export const COMPACT_EMPTY_NOTICE = {
   messageKey: 'compact.emptyMessage',
 };
 
+/**
+ * Тот же 422, но у `/compact-1`: до сбережённого хода в контексте не осталось ничего сжимаемого.
+ * Словами про «одну сводку» это не объяснить — сжимать нечего ровно потому, что последний ход и
+ * есть весь разговор.
+ */
+export const COMPACT_KEEP_LAST_EMPTY_NOTICE = {
+  icon: '🗜️',
+  titleKey: 'compact.unavailableTitle',
+  messageKey: 'compact.emptyKeepLastMessage',
+};
+
 /** Сжатие не удалось запустить (сбой самого запроса, не раунда). */
 export const COMPACT_START_ERROR_NOTICE = {
   icon: '⚠️',

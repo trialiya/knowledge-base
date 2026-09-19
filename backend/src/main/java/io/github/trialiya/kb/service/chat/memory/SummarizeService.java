@@ -59,9 +59,9 @@ public class SummarizeService implements DisposableBean {
      * Заголовок контекстных сводок. Говорит не только «не пересказывай», но и почему: эти документы
      * остаются в разговоре рядом с тем, что раунд напишет, — скопированное в новую сводку модель с
      * тех пор читает и оплачивает дважды. Особенно заметно после {@code /compact}, чья сводка
-     * покрывает весь разговор целиком и своей обёрткой (см. {@code CompactService#summaryText})
-     * зовёт себя «authoritative context for the entire conversation» — та обёртка написана чату, а
-     * не суммаризатору.
+     * покрывает весь разговор целиком и своей обёрткой (см. {@code CompactPrompt#wrap}) зовёт себя
+     * «authoritative context for the entire conversation» — та обёртка написана чату, а не
+     * суммаризатору.
      */
     private static final String CONTEXT_HEADER =
             """
@@ -497,6 +497,8 @@ public class SummarizeService implements DisposableBean {
                         oldMessages.size(),
                         summaryChars,
                         usage.isEmpty() ? null : usage,
-                        null));
+                        null,
+                        // Плашка фоновой сводки встаёт туда же, где кончается свёрнутое.
+                        lastMsg.getCreatedAt()));
     }
 }

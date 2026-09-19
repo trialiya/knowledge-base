@@ -14,6 +14,7 @@ import {
   QUEUE_ERROR_NOTICE,
   RETRY_UNAVAILABLE_NOTICE,
   COMPACT_EMPTY_NOTICE,
+  COMPACT_KEEP_LAST_EMPTY_NOTICE,
   COMPACT_START_ERROR_NOTICE,
 } from './chatNotices';
 import { fetchRunState, IDLE_RUN_STATE } from './activeRun';
@@ -205,14 +206,18 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
     [patchMessages, notify],
   );
 
-  // Сжатие контекста по команде `/compact`. Сообщение сохраняется на бэке как обычная
-  // реплика (остаётся видно в истории, как и любой вопрос — только не участвует в самом
-  // сжатии), поэтому здесь тот же оптимистичный пузырь, что и у sendMessage: клиент не
-  // ждёт эха, чтобы показать, что команда отправлена. Плашку «сжимаю…» заводит отдельное
+  // Сжатие контекста по команде `/compact` или `/compact-1`. Сообщение сохраняется на бэке
+  // как обычная реплика (остаётся видно в истории, как и любой вопрос — только не участвует
+  // в самом сжатии), поэтому здесь тот же оптимистичный пузырь, что и у sendMessage: клиент
+  // не ждёт эха, чтобы показать, что команда отправлена. Плашку «сжимаю…» заводит отдельное
   // событие COMPACT_STARTED, одинаково во всех вкладках.
+  //
+  // keepLastRun — `/compact-1`: последний ход разговора остаётся живым. Для этой вкладки
+  // различие только в теле запроса и в словах отказа «сжимать нечего»; всё остальное —
+  // занятость чата, события, плашка — у обеих команд одно.
   /** @returns {Promise<boolean>} стартовало ли сжатие: на отказе вызывающий вернёт черновик. */
   const compactChat = useCallback(
-    async (conversationId, text, instructions) => {
+    async (conversationId, text, instructions, keepLastRun = false) => {
       const clientMsgId = generateUUID();
       localClientIdsRef.current.add(clientMsgId);
       patchChat(conversationId, (c) => ({
@@ -223,7 +228,7 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
       }));
       setPendingRunChatId(conversationId);
       try {
-        const res = await chatApi.compact(conversationId, text, instructions, clientMsgId);
+        const res = await chatApi.compact(conversationId, text, instructions, keepLastRun, clientMsgId);
         const runId = res?.runId;
         // id сохранённой команды — тот же приём, что и у обычного вопроса (см. runConversation).
         const dbId = Number(res?.messageId);
@@ -254,10 +259,11 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
           notify(RUN_BUSY_NOTICE);
           return false;
         }
-        // 422 — сжимать нечего: живой контекст уже состоит из одной сводки.
+        // 422 — сжимать нечего: живой контекст уже состоит из одной сводки, а у `/compact-1`
+        // до сбережённого хода не осталось и её.
         if (error?.status === 422) {
           removeBubble();
-          notify(COMPACT_EMPTY_NOTICE);
+          notify(keepLastRun ? COMPACT_KEEP_LAST_EMPTY_NOTICE : COMPACT_EMPTY_NOTICE);
           return false;
         }
         console.error('Failed to compact:', error);

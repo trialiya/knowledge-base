@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseChatCommand, chatCommandBlock, CHAT_COMMAND, COMMAND_BLOCK } from './chatCommands';
+import { parseChatCommand, chatCommandBlock, isCompactCommand, CHAT_COMMAND, COMMAND_BLOCK } from './chatCommands';
 
 describe('parseChatCommand', () => {
   it('распознаёт команду без хвоста', () => {
@@ -37,6 +37,19 @@ describe('parseChatCommand', () => {
   // компактор молча превратился бы в сжатие чата.
   it('не срабатывает на слове с тем же началом', () => {
     expect(parseChatCommand('/compactor как устроен?')).toBeNull();
+  });
+
+  // То же правило разводит две команды сжатия: на `/compact-1` первая отпадает по
+  // непробельному хвосту, и порядок в реестре ничего не решает.
+  it('не путает `/compact-1` с `/compact` и её хвостом', () => {
+    expect(parseChatCommand('/compact-1')).toEqual({ name: CHAT_COMMAND.COMPACT_1, args: '', start: 0, end: 10 });
+    expect(parseChatCommand('/compact-1 про миграции')).toEqual({
+      name: CHAT_COMMAND.COMPACT_1,
+      args: 'про миграции',
+      start: 0,
+      end: 10,
+    });
+    expect(parseChatCommand('/сжать-1')).toEqual({ name: CHAT_COMMAND.COMPACT_1, args: '', start: 0, end: 8 });
   });
 
   // Границы триггера — то, что подсвечивают композер и пузырь ленты: ведущие
@@ -78,5 +91,15 @@ describe('chatCommandBlock', () => {
 
   it('обычному вопросу не мешает ничто — он не команда', () => {
     expect(chatCommandBlock(null, { running: true, chatStarted: false })).toBeNull();
+  });
+
+  // Правило «сжимать нечего» про обе команды сжатия сразу: `/compact-1` в пустом
+  // чате так же бессмысленна, и отказывает ей тот же общий признак.
+  it('в ещё не начатом чате не проходит и `/compact-1`', () => {
+    const compact1 = parseChatCommand('/compact-1');
+
+    expect(isCompactCommand(compact1.name)).toBe(true);
+    expect(chatCommandBlock(compact1, { running: false, chatStarted: false })).toBe(COMMAND_BLOCK.NOTHING_TO_COMPACT);
+    expect(chatCommandBlock(compact1, { running: false, chatStarted: true })).toBeNull();
   });
 });

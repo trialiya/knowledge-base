@@ -7,8 +7,18 @@
 // относятся: они срабатывают У КАРЕТКИ по ходу набора и разворачиваются в токен
 // ещё до отправки, а команда — это всё сообщение целиком, от первого символа.
 
-/** Сжатие контекста: `/compact` и `/сжать`, хвост — фокус сжатия. */
-export const CHAT_COMMAND = { COMPACT: 'compact' };
+/**
+ * Сжатие контекста, хвост у обеих — фокус сжатия:
+ *   COMPACT   — `/compact` и `/сжать`: сводка вместо всего живого контекста;
+ *   COMPACT_1 — `/compact-1` и `/сжать-1`: то же, но последний ход разговора остаётся живым.
+ */
+export const CHAT_COMMAND = { COMPACT: 'compact', COMPACT_1: 'compact-1' };
+
+/** Команды сжатия — обе, в порядке от полной к частичной. */
+export const COMPACT_COMMANDS = [CHAT_COMMAND.COMPACT, CHAT_COMMAND.COMPACT_1];
+
+/** Эта команда — сжатие контекста (любое из двух). */
+export const isCompactCommand = (name) => COMPACT_COMMANDS.includes(name);
 
 /** Почему команду сейчас не выполнить (см. chatCommandBlock). */
 export const COMMAND_BLOCK = { RUNNING: 'running', NOTHING_TO_COMPACT: 'nothingToCompact' };
@@ -22,14 +32,18 @@ export const COMMAND_BLOCK = { RUNNING: 'running', NOTHING_TO_COMPACT: 'nothingT
  * `input.command.args.<имя>`, и она обязательна ровно для таких команд (следит
  * i18n.test.js): про хвост иначе неоткуда узнать, а пустые ключи заводить не за чем.
  */
-export const COMMANDS = [{ name: CHAT_COMMAND.COMPACT, triggers: ['/compact', '/сжать'], args: true }];
+export const COMMANDS = [
+  { name: CHAT_COMMAND.COMPACT, triggers: ['/compact', '/сжать'], args: true },
+  { name: CHAT_COMMAND.COMPACT_1, triggers: ['/compact-1', '/сжать-1'], args: true },
+];
 
 /**
  * Команда, которой является это сообщение, — или null, если это обычный вопрос.
  *
  * Команда обязана начинать сообщение (ведущие пробелы допустимы) и быть отделена
  * от хвоста пробелом или переносом: `/compactor` — это слово, а не команда с
- * хвостом `or`.
+ * хвостом `or`. Это же правило разводит `/compact` и `/compact-1`: на `/compact-1`
+ * первая отпадает по непробельному хвосту, и порядок в списке ничего не решает.
  *
  * `start`/`end` — границы самого триггера в переданном тексте. По ним команду
  * подсвечивают — в композере и в отправленном пузыре, — и это единственный
@@ -79,6 +93,6 @@ export function chatCommandBlock(command, { running, chatStarted }) {
   if (!command) return null;
   if (running) return COMMAND_BLOCK.RUNNING;
   // В ещё не начатом чате сжимать нечего — и заводить его ради команды незачем.
-  if (command.name === CHAT_COMMAND.COMPACT && !chatStarted) return COMMAND_BLOCK.NOTHING_TO_COMPACT;
+  if (isCompactCommand(command.name) && !chatStarted) return COMMAND_BLOCK.NOTHING_TO_COMPACT;
   return null;
 }

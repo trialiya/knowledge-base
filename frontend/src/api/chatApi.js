@@ -172,18 +172,24 @@ const chatApi = {
     }),
 
   /**
-   * Сжать контекст чата (команда `/compact`). Возвращает { runId, messageId }: сам раунд идёт
-   * в фоне, исход приезжает событиями COMPACT_DONE/COMPACT_ERROR. Пока он идёт, чат занят так
-   * же, как на генерации, — вопрос в него получит 409.
+   * Сжать контекст чата (команды `/compact` и `/compact-1`). Возвращает { runId, messageId }:
+   * сам раунд идёт в фоне, исход приезжает событиями COMPACT_DONE/COMPACT_ERROR. Пока он идёт,
+   * чат занят так же, как на генерации, — вопрос в него получит 409.
    *
-   * text — сообщение целиком (с самим `/compact`), сохраняется как обычная реплика и остаётся
+   * text — сообщение целиком (с самой командой), сохраняется как обычная реплика и остаётся
    * видно в истории — в отличие от instructions (хвост команды), которое в сжатие не входит,
-   * только в фокус для него. clientMsgId — как у startRun: гасит своё эхо USER_MESSAGE.
+   * только в фокус для него. keepLastRun — `/compact-1`: последний ход разговора остаётся
+   * живым. clientMsgId — как у startRun: гасит своё эхо USER_MESSAGE.
    */
-  compact: (id, text, instructions, clientMsgId) =>
+  compact: (id, text, instructions, keepLastRun, clientMsgId) =>
     request(`/api/chats/${enc(id)}/compact`, {
       method: 'POST',
-      ...json({ text, instructions: instructions || null, clientMsgId: clientMsgId || null }),
+      ...json({
+        text,
+        instructions: instructions || null,
+        keepLastRun: !!keepLastRun,
+        clientMsgId: clientMsgId || null,
+      }),
     }),
 
   /**

@@ -335,7 +335,10 @@ public class PendingSummaryService {
                         meta == null ? null : meta.usage(),
                         // Применённая сводка ничего не выбрасывает: очередь выбрасывает только
                         // полное сжатие (см. CompactMeta#carried).
-                        null));
+                        null,
+                        // Плашка фоновой сводки встаёт туда же, где кончается свёрнутое, — её
+                        // время это время сводки.
+                        parked.getSummaryCreatedAt()));
     }
 
     /**
