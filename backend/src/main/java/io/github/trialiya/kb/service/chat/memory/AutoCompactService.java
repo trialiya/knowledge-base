@@ -103,7 +103,7 @@ public class AutoCompactService {
             CompactService.CompactOptions options,
             Consumer<TokenUsage> spent) {
         final List<PromptRow> rows = chatHistory.promptRowsBefore(conversationId, questionPosition);
-        if (CompactWindow.nothingToCompact(rows)) {
+        if (CompactWindow.nothingToCompact(rows.stream().map(PromptRow::entity).toList())) {
             return;
         }
         // Вес всего живого окна, а не сжимаемого среза: порог здесь про то, сколько уедет

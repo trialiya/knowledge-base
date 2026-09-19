@@ -165,13 +165,13 @@ class CompactServiceTest {
     void keepingTheLastRunMarksTheCommandRowApartFromTheRange() {
         final List<PromptRow> live = turns(3); // позиции 0..8, последний ход — 6..8
         final ChatMessageEntity command = commandRow(9).entity();
-        final CompactWindow window = CompactWindow.of(live, true);
+        final CompactWindow window = windowKeepingLastRun(live);
 
         final CompactPayload payload =
                 service()
                         .compact(
                                 CONV,
-                                window.compacted(),
+                                live.subList(0, window.compacted().size()),
                                 forCommandKeepingLastRun(live, command),
                                 null,
                                 OPTIONS);
@@ -198,14 +198,14 @@ class CompactServiceTest {
     @Test
     void theKeptRunStaysBelowTheSummaryInTimeAndInPosition() {
         final List<PromptRow> live = turns(3);
-        final CompactWindow window = CompactWindow.of(live, true);
-        final ChatMessageEntity lastCompacted = window.compacted().getLast().entity();
-        final ChatMessageEntity firstKept = window.kept().getFirst().entity();
+        final CompactWindow window = windowKeepingLastRun(live);
+        final ChatMessageEntity lastCompacted = window.compacted().getLast();
+        final ChatMessageEntity firstKept = window.kept().getFirst();
 
         service()
                 .compact(
                         CONV,
-                        window.compacted(),
+                        live.subList(0, window.compacted().size()),
                         forCommandKeepingLastRun(live, commandRow(9).entity()),
                         null,
                         OPTIONS);
@@ -580,8 +580,9 @@ class CompactServiceTest {
         when(slots.claim(CONV)).thenReturn("run-1");
         final List<PromptRow> oldWindow = turns(1);
         final PromptRow command = row(3, MessageType.USER, "/compact");
-        when(chatHistory.promptRows(CONV)).thenReturn(append(oldWindow, command));
-        when(chatHistory.promptRowsBefore(CONV, 3L)).thenReturn(oldWindow);
+        when(chatHistory.liveRows(CONV)).thenReturn(entitiesOf(append(oldWindow, command)));
+        when(chatHistory.liveRowsBefore(CONV, 3L)).thenReturn(entitiesOf(oldWindow));
+        when(chatHistory.promptRowsFor(eq(CONV), any())).thenReturn(oldWindow);
         when(chatHistory.saveUserMessage(CONV, "/compact", List.of(), null, null))
                 .thenReturn(command.entity());
         answerWith("", new DefaultUsage(12_000, 3, 12_003, null, 0L, 0L));
@@ -665,7 +666,7 @@ class CompactServiceTest {
     @Test
     void aChatWithNothingButASummaryIsRefusedAndTheClaimIsReleased() {
         when(slots.claim(CONV)).thenReturn("run-1");
-        when(chatHistory.promptRows(CONV)).thenReturn(List.of(summaryRow(0)));
+        when(chatHistory.liveRows(CONV)).thenReturn(entitiesOf(List.of(summaryRow(0))));
 
         assertThatThrownBy(() -> service().start(CONV, "/compact", null, false, OPTIONS, null))
                 .isInstanceOf(ResponseStatusException.class)
@@ -688,8 +689,9 @@ class CompactServiceTest {
         final PromptRow command = row(3, MessageType.USER, "/compact фокус");
         // Проверка «есть ли что сжимать» идёт до сохранения команды и видит всю историю; сам раунд
         // просит окно ДО позиции команды — и получает его без неё.
-        when(chatHistory.promptRows(CONV)).thenReturn(append(oldWindow, command));
-        when(chatHistory.promptRowsBefore(CONV, 3L)).thenReturn(oldWindow);
+        when(chatHistory.liveRows(CONV)).thenReturn(entitiesOf(append(oldWindow, command)));
+        when(chatHistory.liveRowsBefore(CONV, 3L)).thenReturn(entitiesOf(oldWindow));
+        when(chatHistory.promptRowsFor(eq(CONV), any())).thenReturn(oldWindow);
         final ChatMessageEntity saved = command.entity();
         when(chatHistory.saveUserMessage(CONV, "/compact фокус", List.of(), null, null))
                 .thenReturn(saved);
@@ -730,6 +732,78 @@ class CompactServiceTest {
     }
 
     /**
+     * Упавший раунд прячет свою команду от модели ровно так же, как удавшийся: {@code summarized}
+     * убирает ряд из промпта, оставляя его в ленте. Правило одно на оба исхода — команда сжатия не
+     * едет модели никогда.
+     *
+     * <p>Иначе мёртвая строка {@code /compact ...} остаётся в контексте неотвеченным вопросом и,
+     * что хуже, открывает ход: следующая {@code /compact-1} — самая естественная реакция на неудачу
+     * — приняла бы её за последний ход и сберегла бы её вместо разговора.
+     */
+    @Test
+    void aFailedRoundHidesItsOwnCommandFromTheModel() {
+        when(slots.claim(CONV)).thenReturn("run-1");
+        final List<PromptRow> oldWindow = turns(1);
+        final PromptRow command = row(3, MessageType.USER, "/compact");
+        when(chatHistory.liveRows(CONV)).thenReturn(entitiesOf(append(oldWindow, command)));
+        when(chatHistory.liveRowsBefore(CONV, 3L)).thenReturn(entitiesOf(oldWindow));
+        when(chatHistory.promptRowsFor(eq(CONV), any())).thenReturn(oldWindow);
+        when(chatHistory.saveUserMessage(CONV, "/compact", List.of(), null, null))
+                .thenReturn(command.entity());
+        when(repository.findById(command.entity().getId()))
+                .thenReturn(Optional.of(command.entity()));
+        answerWith("");
+
+        service().start(CONV, "/compact", null, false, OPTIONS, null);
+
+        // Ряд перечитан, а не записан по снимку: замер несостоявшегося раунда мог лечь на него
+        // секундой раньше, и устаревшая копия стёрла бы эти деньги из итога по чату.
+        verify(repository).findById(command.entity().getId());
+        final ArgumentCaptor<ChatMessageEntity> saved =
+                ArgumentCaptor.forClass(ChatMessageEntity.class);
+        verify(repository, atLeastOnce()).save(saved.capture());
+        assertThat(saved.getAllValues())
+                .filteredOn(row -> row.getId().equals(command.entity().getId()))
+                .isNotEmpty()
+                .allSatisfy(
+                        row -> {
+                            assertThat(row.isSummarized()).isTrue();
+                            // Из ленты ряд никуда не девается — сводкой он не становится.
+                            assertThat(row.isSummary()).isFalse();
+                            assertThat(row.getContent()).isEqualTo("/compact");
+                        });
+    }
+
+    /**
+     * Промпт-вид собирается ПОСЛЕ деления и только у сжимаемой половины. Отфильтруй {@code
+     * CompactWindow} готовые {@link PromptRow}, и в чате, где блок активного проекта сел бы на
+     * сбережённый ход, раунд уехал бы без него: модель не узнала бы, в каком репозитории написано
+     * то, что она сжимает. Блок садится на ряд ВНУТРИ того окна, которое ему дали, — значит, дать
+     * ему надо уже поделённое.
+     */
+    @Test
+    void theCompactedHalfIsRenderedAfterTheSplitNotFilteredAfterRendering() {
+        when(slots.claim(CONV)).thenReturn("run-1");
+        final List<PromptRow> oldWindow = turns(2); // позиции 0..5, последний ход — 3..5
+        final PromptRow command = row(6, MessageType.USER, "/compact-1");
+        when(chatHistory.liveRows(CONV)).thenReturn(entitiesOf(append(oldWindow, command)));
+        when(chatHistory.liveRowsBefore(CONV, 6L)).thenReturn(entitiesOf(oldWindow));
+        when(chatHistory.promptRowsFor(eq(CONV), any())).thenReturn(oldWindow.subList(0, 3));
+        when(chatHistory.saveUserMessage(CONV, "/compact-1", List.of(), null, null))
+                .thenReturn(command.entity());
+
+        service().start(CONV, "/compact-1", null, true, OPTIONS, null);
+
+        // Рендерить просят ровно сжимаемую половину — сбережённого хода в ней нет.
+        final ArgumentCaptor<List<ChatMessageEntity>> rendered = ArgumentCaptor.captor();
+        verify(chatHistory).promptRowsFor(eq(CONV), rendered.capture());
+        assertThat(rendered.getValue().stream().map(ChatMessageEntity::getPosition))
+                .containsExactly(0L, 1L, 2L);
+        // ...и промпт-вид всего окна разом никто не спрашивает: делить его уже поздно.
+        verify(chatHistory, never()).promptRowsBefore(anyString(), anyLong());
+    }
+
+    /**
      * Исполнитель отказал (очередь переполнена, выключение): {@code COMPACT_STARTED} уже ушёл всем
      * вкладкам, поэтому его обязан погасить {@code COMPACT_ERROR} — иначе чужие вкладки навсегда
      * останутся на плашке «сжимаю…», ответ об ошибке видит только своя.
@@ -737,7 +811,7 @@ class CompactServiceTest {
     @Test
     void aRejectedRoundUnblocksEveryTabWithAnErrorEvent() {
         when(slots.claim(CONV)).thenReturn("run-1");
-        when(chatHistory.promptRows(CONV)).thenReturn(turns(1));
+        when(chatHistory.liveRows(CONV)).thenReturn(entitiesOf(turns(1)));
         when(chatHistory.saveUserMessage(eq(CONV), anyString(), any(), any(), any()))
                 .thenReturn(row(3, MessageType.USER, "/compact").entity());
 
@@ -768,6 +842,11 @@ class CompactServiceTest {
                 ArgumentCaptor.forClass(ChatMessageEntity.class);
         verify(repository, times(count)).save(saved.capture());
         return saved.getAllValues();
+    }
+
+    /** Сырые ряды окна — то, чем сжатие его делит (промпт-вид собирается уже после деления). */
+    private static List<ChatMessageEntity> entitiesOf(List<PromptRow> rows) {
+        return rows.stream().map(PromptRow::entity).toList();
     }
 
     private static List<PromptRow> append(List<PromptRow> rows, PromptRow extra) {
@@ -910,7 +989,12 @@ class CompactServiceTest {
     /** То же для {@code /compact-1}: деление окна, в котором последний ход сбережён. */
     private CompactService.CompactTarget forCommandKeepingLastRun(
             List<PromptRow> live, ChatMessageEntity commandRow) {
-        return service().commandTarget(commandRow, CompactWindow.of(live, true));
+        return service().commandTarget(commandRow, windowKeepingLastRun(live));
+    }
+
+    /** Деление окна, сберегающее последний ход: сжатие делит СЫРЫЕ ряды, а не промпт-вид. */
+    private static CompactWindow windowKeepingLastRun(List<PromptRow> live) {
+        return CompactWindow.of(live.stream().map(PromptRow::entity).toList(), true);
     }
 
     private CompactService service() {

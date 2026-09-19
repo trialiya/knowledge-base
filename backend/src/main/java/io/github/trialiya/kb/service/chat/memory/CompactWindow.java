@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.service.chat.memory;
 
-import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import java.util.List;
 
 /**
@@ -19,28 +19,34 @@ import java.util.List;
  * фрагментам, с которыми работа ещё идёт. {@code /compact-1} сжимает всё, что успело устареть, и
  * оставляет в исходном виде ровно то, что нужно следующему вопросу.
  *
+ * <p><b>Ряды здесь сырые, не промпт-вид.</b> Делить готовые {@code PromptRow} нельзя: блок
+ * активного проекта садится на ряд внутри того окна, которое ему дали ({@link
+ * ActiveProjectNotice}), и в чате, где он сел бы на сбережённый ход, раунд сжатия уехал бы без него
+ * — модель не узнала бы, в каком репозитории написано то, что она сжимает. Рендерит свою половину
+ * вызывающий, уже после деления ({@link ChatHistoryService#promptRowsFor}).
+ *
  * @param compacted ряды, которые уедут модели на сжатие и после него перестанут ехать ей вовсе
  * @param kept живой хвост — остаётся в контексте как есть; пустой у {@code /compact}
  */
-public record CompactWindow(List<PromptRow> compacted, List<PromptRow> kept) {
+public record CompactWindow(List<ChatMessageEntity> compacted, List<ChatMessageEntity> kept) {
 
     /**
      * Делит живое окно надвое.
      *
      * @param live живое окно БЕЗ строки самой команды (см. {@link
-     *     ChatHistoryService#promptRowsBefore}): команда — сигнал к сжатию, а не его материал, и
+     *     ChatHistoryService#liveRowsBefore}): команда — сигнал к сжатию, а не его материал, и
      *     ходом, который бережёт {@code keepLastRun}, она не бывает
      * @param keepLastRun оставить последний ход живым. Хода в окне может не оказаться вовсе (одни
      *     сводки и ряды событий) — тогда беречь нечего, и деление выходит таким же, как у {@code
      *     /compact}: что из этого следует для плашки, решает {@code CompactService.commandTarget}
      */
-    public static CompactWindow of(List<PromptRow> live, boolean keepLastRun) {
+    public static CompactWindow of(List<ChatMessageEntity> live, boolean keepLastRun) {
         if (!keepLastRun) {
             return new CompactWindow(live, List.of());
         }
         int lastTurn = -1;
         for (int i = 0; i < live.size(); i++) {
-            if (ChatHistoryService.opensATurn(live.get(i).entity())) {
+            if (ChatHistoryService.opensATurn(live.get(i))) {
                 lastTurn = i;
             }
         }
@@ -59,7 +65,7 @@ public record CompactWindow(List<PromptRow> compacted, List<PromptRow> kept) {
      * Сжимать нечего, когда живого контекста нет вовсе или он уже состоит из одной сводки: сжатие
      * сводки в сводку — это раунд, который ничего не экономит и при этом теряет детали.
      */
-    static boolean nothingToCompact(List<PromptRow> rows) {
-        return rows.stream().filter(row -> !row.entity().isSummary()).findAny().isEmpty();
+    static boolean nothingToCompact(List<ChatMessageEntity> rows) {
+        return rows.stream().filter(row -> !row.isSummary()).findAny().isEmpty();
     }
 }

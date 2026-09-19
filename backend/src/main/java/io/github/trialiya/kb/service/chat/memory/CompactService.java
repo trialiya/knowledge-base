@@ -103,7 +103,8 @@ import org.springframework.web.server.ResponseStatusException;
  * всё, что раунд заменил сводкой. У {@code /compact} её накрывает тот же размеченный {@code
  * summarized}-диапазон, что и окно; у {@code /compact-1} диапазон кончается раньше — между ним и
  * командой лежит сбережённый ход, — и команду помечает отдельная пометка (см. {@link
- * CompactTarget#detached}).
+ * CompactTarget#detached}). Упавший раунд прячет её тем же способом (см. {@link #hideCommand}):
+ * правило одно на оба исхода — <b>команда сжатия не едет модели никогда</b>.
  *
  * <p><b>След сжатия остаётся в истории.</b> Кроме самой сводки раунд пишет строку-плашку — ряд,
  * который видит только пользователь (см. {@code SummaryWriter#writeCompacted}). Без неё сжатие жило
@@ -283,7 +284,7 @@ public class CompactService {
             // Оборванный прошлый прогон мог оставить в хвосте assistant.tool_calls без TOOL-ответа
             // — такой диалог модель отвергает целиком, а здесь он уехал бы ей весь.
             chatHistory.repairDanglingToolCalls(conversationId);
-            if (CompactWindow.of(chatHistory.promptRows(conversationId), keepLastRun).isEmpty()) {
+            if (CompactWindow.of(chatHistory.liveRows(conversationId), keepLastRun).isEmpty()) {
                 throw new ResponseStatusException(
                         HttpStatus.UNPROCESSABLE_CONTENT, "Nothing to compact");
             }
@@ -325,7 +326,7 @@ public class CompactService {
             // уже под блокировкой. Снять её ответом на этот запрос нельзя: остальные вкладки
             // остались бы на плашке «сжимаю…» навсегда. Значит, гасим тем же событием, каким
             // гасит упавший раунд.
-            failed(conversationId, runId, e);
+            failed(conversationId, runId, commandRow.getId(), e);
             slots.release(conversationId, runId);
             throw e;
         }
@@ -359,7 +360,7 @@ public class CompactService {
                     () -> {
                         final CompactWindow window =
                                 CompactWindow.of(
-                                        chatHistory.promptRowsBefore(
+                                        chatHistory.liveRowsBefore(
                                                 conversationId, commandRow.getPosition()),
                                         keepLastRun);
                         if (window.isEmpty()) {
@@ -369,26 +370,32 @@ public class CompactService {
                         final CompactPayload payload =
                                 compact(
                                         conversationId,
-                                        window.compacted(),
+                                        // Промпт-вид — уже ПОСЛЕ деления и только у своей
+                                        // половины: блок активного проекта обязан сесть на ряд
+                                        // внутри того окна, которое уедет модели (см.
+                                        // CompactWindow).
+                                        chatHistory.promptRowsFor(
+                                                conversationId, window.compacted()),
                                         commandTarget(commandRow, window),
                                         instructions,
                                         options);
                         events.publish(conversationId, COMPACT_DONE, runId, null, payload);
                     });
         } catch (Exception e) {
-            failed(conversationId, runId, e);
+            failed(conversationId, runId, commandRow.getId(), e);
         } finally {
             slots.release(conversationId, runId);
         }
     }
 
     /**
-     * Сжатие не состоялось: пишем в лог и снимаем блокировку со всех вкладок разом. Раунд, который
-     * до модели дошёл, отдаёт вкладкам ещё и свой замер (см. {@link #spentRound}) — до сюда он
-     * доезжает самой ошибкой.
+     * Сжатие не состоялось: прячем команду от модели, пишем в лог и снимаем блокировку со всех
+     * вкладок разом. Раунд, который до модели дошёл, отдаёт вкладкам ещё и свой замер (см. {@link
+     * #spentRound}) — до сюда он доезжает самой ошибкой.
      */
-    private void failed(String conversationId, String runId, Exception e) {
+    private void failed(String conversationId, String runId, long commandId, Exception e) {
         log.error("[{}] Compaction failed: {}", conversationId, e.getMessage(), e);
+        hideCommand(commandId);
         final @Nullable CompactRoundFailed round =
                 e instanceof CompactRoundFailed failed ? failed : null;
         events.publish(
@@ -400,6 +407,27 @@ public class CompactService {
                         String.valueOf(e.getMessage()),
                         round == null ? null : round.messageId(),
                         round == null ? null : round.usage()));
+    }
+
+    /**
+     * Снимает с модели строку команды упавшего раунда. Удавшийся прячет её сам — разметкой или
+     * отдельной пометкой (см. {@link CompactTarget#detached}), — и правило обязано быть одним на
+     * оба исхода: <b>команда сжатия не едет модели никогда</b>. Иначе она остаётся в контексте
+     * неотвеченным вопросом «/compact ...», на который модель попробует ответить, и — хуже —
+     * открывает ход: следующая {@code /compact-1} приняла бы её за последний ход и сберегла бы
+     * мёртвую строку вместо разговора, который просили сберечь.
+     *
+     * <p>Ряд перечитывается, а не пишется по снимку: замер несостоявшегося раунда мог лечь на него
+     * секундой раньше (см. {@link #spentRoundOn}), и запись устаревшей копии стёрла бы эти деньги
+     * из итога по чату.
+     *
+     * <p>Видимой строка при этом остаётся: {@code summarized} убирает ряд из промпта, а не из
+     * ленты, — как и у всего, что заменила сводка.
+     */
+    private void hideCommand(long commandId) {
+        chatMessageRepository
+                .findById(commandId)
+                .ifPresent(row -> chatMessageRepository.save(row.asSummarized()));
     }
 
     /**
@@ -634,7 +662,7 @@ public class CompactService {
                     LocalDateTime.now(),
                     spentRound);
         }
-        final ChatMessageEntity lastCompacted = window.compacted().getLast().entity();
+        final ChatMessageEntity lastCompacted = window.compacted().getLast();
         return new CompactTarget(
                 CompactMeta.Kind.COMPACT_KEEP_LAST,
                 lastCompacted.getPosition(),
