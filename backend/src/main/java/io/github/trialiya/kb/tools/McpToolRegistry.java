@@ -195,7 +195,9 @@ public class McpToolRegistry {
      * running round loop straight into another one — and with connections slow enough that a round
      * takes about an interval (a few unreachable servers and their request timeouts are enough),
      * the probing would never pause again. A tick is the one refresh that repeats by itself, so
-     * dropping it costs one interval and nothing else.
+     * dropping it costs an interval rather than the round — a connection chatty with {@code
+     * tools/list_changed} can push the periodic round back by an interval or two that way, which is
+     * the cheaper end of the trade: those rounds re-read that server anyway.
      */
     private void refreshIfIdle() {
         if (!refreshing.tryLock()) {

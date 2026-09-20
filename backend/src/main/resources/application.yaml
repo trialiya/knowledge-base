@@ -105,6 +105,10 @@ spring:
         # no server process for a stdio connection. Whether the model gets MCP tools is decided
         # in one place, kb.mcp.enabled, which is also what the Settings panel reports.
         initialized: false
+        # toolcallback.enabled: true — the starter's own off switch for MCP tools. It used to
+        # work by removing its ToolCallbackProvider bean; the providers are built per connection
+        # by McpToolRegistry now, so ChatConfig checks the flag itself and creates no registry
+        # when it is off. Left at the default here: kb.mcp.enabled is the switch to use.
         # type: SYNC | ASYNC — left at the starter's default (SYNC) because both work. It decides
         # which client beans the starter registers, and McpToolRegistry probes either kind; the
         # request timeout below is what bounds a probe in both cases, so ASYNC buys nothing here
@@ -388,13 +392,13 @@ kb:
     # a connection (see spring.ai.mcp.client.initialized above), so they cost an object and no
     # I/O, and this flag alone decides whether the model gets MCP tools.
     enabled: ${KB_MCP_ENABLED:false}
-    # How often a connection that is not up is probed again (McpToolRegistry). A server that was
-    # down at startup, restarted, or never existed until today is picked up within this interval
-    # — no restart of this application, and no cost to the connections that are already up: they
-    # are left alone and announce a changed tool list themselves. Must be positive; the scheduler
-    # reads the same key through a placeholder of its own, so change it here, not in one place.
-    # Every connection is re-probed on this interval, the healthy ones too: a server that stops
-    # answering sends no notification, and nothing else would ever take its tools back.
+    # How often every connection is probed again (McpToolRegistry) — the healthy ones included:
+    # a server that was down at startup, restarted, or never existed until today is picked up
+    # within this interval without restarting this application, and a server that quietly stopped
+    # answering is noticed, which nothing else would do (it sends no notification). A live server
+    # that changes its tool list does announce that itself, and is re-read at once rather than at
+    # the next interval. Must be positive; the scheduler reads the same key through a placeholder
+    # of its own, so change it here, not in one place.
     retry-interval-ms: ${KB_MCP_RETRY_INTERVAL_MS:60000}
     # Bearer tokens for authenticated remote MCP servers, keyed by connection name (must match a
     # key under spring.ai.mcp.client.sse.connections / .streamable-http.connections above) —

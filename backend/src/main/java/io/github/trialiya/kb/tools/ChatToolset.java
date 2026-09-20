@@ -50,7 +50,12 @@ public final class ChatToolset {
         return builtin;
     }
 
-    /** The tools of the MCP connections that are up right now. */
+    /**
+     * The tools of the MCP connections as they stand right now — including those of a connection
+     * that is down, which stay in the set and answer with an error (see {@code
+     * UnavailableToolCallback}) so that the model's tool list, and with it the cached prompt
+     * prefix, does not move every time a server blinks.
+     */
     public List<ToolCallback> mcp() {
         return List.copyOf(mcp.get());
     }

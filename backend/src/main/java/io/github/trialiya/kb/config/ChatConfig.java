@@ -340,6 +340,15 @@ public class ChatConfig {
         if (!mcpProperties.enabled()) {
             return null;
         }
+        // The starter's own off switch for MCP tools. It used to work by removing the
+        // ToolCallbackProvider bean; the providers are built per connection here now, so it is
+        // honoured here or nowhere — and a deployment that set it meant "no MCP tools".
+        if (!toolCallbacksEnabled(mcpCommonProperties)) {
+            log.warn(
+                    "kb.mcp.enabled is on, but spring.ai.mcp.client.toolcallback.enabled is off:"
+                            + " no MCP tools are offered to the model");
+            return null;
+        }
         // The scheduler reads this key through a placeholder of its own and would answer a
         // non-positive value with a message about a Spring annotation; the deployment set
         // kb.mcp.retry-interval-ms, so that is what it is told about.
@@ -355,6 +364,20 @@ public class ChatConfig {
                 mcpToolFilter,
                 mcpToolNamePrefixGenerator,
                 mcpMetaConverter);
+    }
+
+    /**
+     * Whether the starter's own {@code spring.ai.mcp.client.toolcallback.enabled} still allows MCP
+     * tools. Visible for testing, and defaulting to {@code true} on a missing properties bean: the
+     * flag is an opt-out, and a deployment that never configured MCP has no bean to read it from.
+     */
+    static boolean toolCallbacksEnabled(
+            ObjectProvider<McpClientCommonProperties> mcpCommonProperties) {
+        McpClientCommonProperties properties = mcpCommonProperties.getIfAvailable();
+        if (properties == null || properties.getToolcallback() == null) {
+            return true;
+        }
+        return properties.getToolcallback().isEnabled();
     }
 
     /**
