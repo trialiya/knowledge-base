@@ -276,7 +276,11 @@ public class SettingsController {
         sseProperties.ifAvailable(p -> collect(transports, "sse", p.getConnections()));
         streamableHttpProperties.ifAvailable(
                 p -> collect(transports, "streamable-http", p.getConnections()));
-        stdioProperties.ifAvailable(p -> collect(transports, "stdio", p.getConnections()));
+        // toServerParameters(), not getConnections(): stdio connections may also come from the
+        // file named by spring.ai.mcp.client.stdio.servers-configuration, and that is the method
+        // the transport autoconfiguration itself builds its clients from. Reading the map the
+        // clients are built from is what keeps every probed connection visible in the panel.
+        stdioProperties.ifAvailable(p -> collect(transports, "stdio", p.toServerParameters()));
         return Collections.unmodifiableMap(transports);
     }
 

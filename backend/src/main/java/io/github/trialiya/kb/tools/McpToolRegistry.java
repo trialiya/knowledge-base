@@ -186,11 +186,11 @@ public class McpToolRegistry {
             fixedDelayString = "${kb.mcp.retry-interval-ms:60000}",
             initialDelayString = "${kb.mcp.retry-interval-ms:60000}")
     public void refreshAll() {
-        // The round runs on a thread of its own, so this method returns long before it ends and
-        // the fixed delay is measured from the wrong end — a tick landing on a running round
-        // would queue the same names again and the round would simply keep going, probing without
-        // pause. The guard restores what fixedDelay is for: a tick that arrives too early is
-        // dropped, not stacked.
+        // The round runs on a thread of its own, so this method returns long before the round
+        // ends: the fixed delay is therefore counted from the round's start, not its end. Without
+        // the guard a tick landing on a running round would queue the same names again and the
+        // round would simply keep going, probing without pause; with it such a tick is dropped
+        // and the next one comes an interval later.
         if (!sources.isEmpty() && scheduledRound.compareAndSet(false, true)) {
             inBackground(
                     () -> {
