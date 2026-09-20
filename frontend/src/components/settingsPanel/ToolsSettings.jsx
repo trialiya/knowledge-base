@@ -65,6 +65,7 @@ const ToolsSections = ({ config }) => {
       <SettingsSection label={t('tools.mcp.label')}>
         <ConfigStatusRow label={t('tools.mcp.status')} on={mcp.enabled} />
         <McpConnections mcp={mcp} />
+        {mcp.enabled && !mcp.active && <p className="config-note">{t('tools.mcp.inactiveNote')}</p>}
       </SettingsSection>
 
       {/* ── Лимиты вложений ── */}
@@ -81,21 +82,23 @@ const ToolsSections = ({ config }) => {
  * конфигурации: приложение стартует без него, а реестр переподключается сам
  * (см. McpToolRegistry на бэкенде), поэтому под списком стоит интервал повтора.
  *
- * При выключенном MCP состояния нет вовсе: к серверам никто не ходит, и говорить
- * «подключение…» про соединение, которое никто не открывает, — врать читателю.
- * Тогда это просто список того, что настроено.
+ * Состояния нет вовсе, пока MCP не работает (mcp.active): к серверам никто не
+ * ходит, и говорить «подключение…» про соединение, которое никто не открывает, —
+ * врать читателю. Тогда это просто список того, что настроено. Именно active, а
+ * не enabled: выключателей два (см. McpInfo на бэкенде), а соединения опрашивает
+ * только тот случай, когда оба включены.
  */
 const McpConnections = ({ mcp }) => {
   const { t } = useTranslation('settings');
   // Именно DOWN, а не «всё, что не UP»: PENDING — это первые секунды после старта,
   // и обещать по нему повтор подключения рано.
-  const anyDown = mcp.enabled && mcp.connections.some((c) => c.status === 'DOWN');
+  const anyDown = mcp.active && mcp.connections.some((c) => c.status === 'DOWN');
   return (
     <>
       <ConfigBlock label={t('tools.mcp.connections')}>
         <ConfigTags
           items={mcp.connections.map((c) =>
-            mcp.enabled
+            mcp.active
               ? `${c.name} · ${c.transport} · ${t(`tools.mcp.state.${c.status.toLowerCase()}`, { tools: c.toolCount })}`
               : `${c.name} · ${c.transport}`,
           )}

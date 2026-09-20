@@ -76,6 +76,7 @@ export const defaultAiConfig = {
     // (к серверам никто не ходит), поэтому в чипах только имя и транспорт.
     mcp: {
       enabled: false,
+      active: false,
       retryIntervalMs: 60000,
       connections: [{ name: 'atlassian', transport: 'streamable-http', status: 'PENDING', toolCount: 0 }],
     },
@@ -117,6 +118,7 @@ export const editEnabledButReadOnlyTree = {
     git: { editEnabled: true, editActive: false },
     mcp: {
       enabled: true,
+      active: true,
       retryIntervalMs: 60000,
       // Один сервер отвечает, второй лежит — состояние, ради которого приложение
       // больше не падает при старте: инструменты первого выданы, второй ждёт
@@ -126,6 +128,21 @@ export const editEnabledButReadOnlyTree = {
         { name: 'filesystem', transport: 'stdio', status: 'DOWN', toolCount: 0 },
       ],
     },
+  },
+};
+
+/**
+ * MCP включён в конфиге, но инструменты MCP выключены ключом самого стартера
+ * (spring.ai.mcp.client.toolcallback.enabled): соединение настроено, а опрашивать
+ * его некому. Единственное состояние, в котором видно пояснение
+ * tools.mcp.inactiveNote — и в котором строка «Инструменты MCP» говорит
+ * «включён», а состояния у подключения нет.
+ */
+export const mcpEnabledButToolCallbacksOff = {
+  ...defaultAiConfig,
+  tools: {
+    ...defaultAiConfig.tools,
+    mcp: { ...defaultAiConfig.tools.mcp, enabled: true, active: false },
   },
 };
 

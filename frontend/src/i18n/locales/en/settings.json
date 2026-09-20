@@ -131,6 +131,7 @@
       "status": "MCP tools",
       "connections": "Connections",
       "connectionsEmpty": "No connections configured",
+      "inactiveNote": "MCP is on in the configuration, but MCP tools are switched off by the starter's spring.ai.mcp.client.toolcallback.enabled, so the connections are not probed and the model gets none of their tools.",
       "state": {
         "up": "connected, {{tools}} tool(s)",
         "down": "unavailable",

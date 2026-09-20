@@ -782,6 +782,13 @@ const LIGHT = [
     render: () => <ToolsSettings />,
   },
   {
+    id: 'aiConfig.js#mcpEnabledButToolCallbacksOff@tools',
+    frame: 'center',
+    viewport: [1440, 1090],
+    api: (p) => ({ '/api/settings/ai-config': p, '/api/settings/tools': toolCatalog.builtinTools }),
+    render: () => <ToolsSettings />,
+  },
+  {
     id: 'aiConfig.js#strongAndWeakModels',
     frame: 'center',
     viewport: [1440, 1760],

@@ -197,6 +197,7 @@ public class SettingsController {
                         new GitToolsInfo(gitEditEnabled, gitEditActive),
                         new McpInfo(
                                 mcpProperties.enabled(),
+                                mcpToolRegistry != null,
                                 mcpProperties.retryIntervalMs(),
                                 mcpConnections()),
                         new UploadLimits(maxFileSize.toBytes(), maxRequestSize.toBytes())),
@@ -351,10 +352,21 @@ public class SettingsController {
     public record GitToolsInfo(boolean editEnabled, boolean editActive) {}
 
     /**
+     * @param enabled the {@code kb.mcp.enabled} flag
+     * @param active whether the connections are actually probed and their tools given to the model
+     *     — the same honest-answer pairing {@link GitToolsInfo} makes. The flag can be on while
+     *     this is off: the starter's own {@code spring.ai.mcp.client.toolcallback.enabled} switches
+     *     MCP tools off from the other side (see {@code ChatConfig}), and a panel reporting a probe
+     *     interval for connections nobody probes would be telling the reader to wait for something
+     *     that never happens
      * @param retryIntervalMs how often a connection that is not up is probed again, so the panel
      *     can say when a {@code DOWN} row is expected to change on its own
      */
-    public record McpInfo(boolean enabled, long retryIntervalMs, List<McpConnection> connections) {}
+    public record McpInfo(
+            boolean enabled,
+            boolean active,
+            long retryIntervalMs,
+            List<McpConnection> connections) {}
 
     /**
      * @param status the last probe of this connection (see {@code McpToolRegistry})
