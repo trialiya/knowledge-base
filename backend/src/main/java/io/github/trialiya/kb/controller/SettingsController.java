@@ -280,9 +280,21 @@ public class SettingsController {
         return Collections.unmodifiableMap(transports);
     }
 
+    /**
+     * Two transports may carry the same connection name. The registry probes such a pair as one
+     * (see {@code McpToolRegistry}), so the panel shows one row — but naming only one of the two
+     * transports on it would be picking a winner at random.
+     */
     private static void collect(
             Map<String, String> target, String transport, Map<String, ?> connections) {
-        connections.keySet().forEach(name -> target.put(name, transport));
+        connections
+                .keySet()
+                .forEach(
+                        name ->
+                                target.merge(
+                                        name,
+                                        transport,
+                                        (first, second) -> first + " + " + second));
     }
 
     public record AiConfigResponse(

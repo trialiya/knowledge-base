@@ -87,7 +87,9 @@ const ToolsSections = ({ config }) => {
  */
 const McpConnections = ({ mcp }) => {
   const { t } = useTranslation('settings');
-  const anyDown = mcp.enabled && mcp.connections.some((c) => c.status !== 'UP');
+  // Именно DOWN, а не «всё, что не UP»: PENDING — это первые секунды после старта,
+  // и обещать по нему повтор подключения рано.
+  const anyDown = mcp.enabled && mcp.connections.some((c) => c.status === 'DOWN');
   return (
     <>
       <ConfigBlock label={t('tools.mcp.connections')}>

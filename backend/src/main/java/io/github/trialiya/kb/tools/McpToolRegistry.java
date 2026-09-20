@@ -1,19 +1,23 @@
 package io.github.trialiya.kb.tools;
 
+import io.modelcontextprotocol.client.McpAsyncClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
+import org.springframework.ai.mcp.AsyncMcpToolCallbackProvider;
 import org.springframework.ai.mcp.McpToolFilter;
 import org.springframework.ai.mcp.McpToolNamePrefixGenerator;
 import org.springframework.ai.mcp.McpToolsChangedEvent;
@@ -21,6 +25,7 @@ import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.mcp.ToolContextToMcpMetaConverter;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpClientCommonProperties;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -47,10 +52,12 @@ import org.springframework.scheduling.annotation.Scheduled;
  * list: a call to a server that is down buys an error message the model has to spend a round trip
  * reading, and the tool comes back on the next successful probe anyway.
  *
- * <p>Sync clients only ({@code spring.ai.mcp.client.type=SYNC}, the default this project pins in
- * {@code application.yaml}). Under {@code ASYNC} the autoconfiguration registers {@code
- * McpAsyncClient}s instead, there is nothing here to probe, and the model is offered no MCP tools
- * at all.
+ * <p>Both client types are probed — {@code spring.ai.mcp.client.type} decides which one the
+ * autoconfiguration registers, and only one of the two lists is ever non-empty. The difference
+ * stops at the provider: a probe is a blocking call either way (the async provider blocks on the
+ * reply itself), it runs on a virtual thread of this class, and the request timeout that bounds it
+ * is the one the client session carries — {@code spring.ai.mcp.client.request-timeout}, the same
+ * for both.
  */
 @Slf4j
 public class McpToolRegistry {
@@ -91,36 +98,40 @@ public class McpToolRegistry {
     private final Map<String, Connection> connections = new ConcurrentHashMap<>();
 
     /**
-     * Held for the duration of a probe round. {@code tryLock} rather than {@code lock}: a refresh
-     * that arrives while one is running is dropped, not queued — the running one is already asking
-     * the same servers the same question.
+     * Held for the duration of a probe round, so two rounds never ask the same servers at once.
+     * What a caller does when it cannot take it is in {@link #refresh}.
      */
     private final Lock refreshing = new ReentrantLock();
 
     /** Connections waiting to be probed, drained by whoever holds {@link #refreshing}. */
     private final Set<String> queued = ConcurrentHashMap.newKeySet();
 
+    /** Whether a scheduled round is in flight; see {@link #refreshAll}. */
+    private final AtomicBoolean scheduledRound = new AtomicBoolean();
+
     private volatile Snapshot snapshot = new Snapshot(List.of(), List.of());
 
     /**
-     * Tool name prefixes, the tool filter and the tool-context converter are taken from the beans
-     * the MCP autoconfiguration contributes, because the provider built here replaces the one it
-     * would have built: without them a tool would reach the model under a different name than the
-     * starter gives it.
+     * Only one of the two client lists is ever non-empty — the autoconfiguration registers sync or
+     * async clients by {@code spring.ai.mcp.client.type} — and everything below this constructor
+     * treats them alike. The name prefixes, filter and converter come from the beans the same
+     * autoconfiguration contributes; see {@link #sources}.
      */
     public McpToolRegistry(
-            ObjectProvider<List<McpSyncClient>> mcpClients,
+            ObjectProvider<List<McpSyncClient>> syncClients,
+            ObjectProvider<List<McpAsyncClient>> asyncClients,
             ObjectProvider<McpClientCommonProperties> commonProperties,
             ObjectProvider<McpToolFilter> toolFilter,
             ObjectProvider<McpToolNamePrefixGenerator> prefixGenerator,
             ObjectProvider<ToolContextToMcpMetaConverter> metaConverter) {
         this(
                 sources(
-                        mcpClients.getIfAvailable(List::of),
-                        commonProperties,
-                        toolFilter,
-                        prefixGenerator,
-                        metaConverter));
+                        syncClients.getIfAvailable(List::of),
+                        asyncClients.getIfAvailable(List::of),
+                        commonProperties.getIfAvailable(McpClientCommonProperties::new).getName(),
+                        toolFilter.getIfAvailable(),
+                        prefixGenerator.getIfAvailable(),
+                        metaConverter.getIfAvailable()));
     }
 
     McpToolRegistry(Map<String, ToolSource> sources) {
@@ -168,8 +179,20 @@ public class McpToolRegistry {
             fixedDelayString = "${kb.mcp.retry-interval-ms:60000}",
             initialDelayString = "${kb.mcp.retry-interval-ms:60000}")
     public void refreshAll() {
-        if (!sources.isEmpty()) {
-            inBackground(() -> refresh(sources.keySet()));
+        // The round runs on a thread of its own, so this method returns long before it ends and
+        // the fixed delay is measured from the wrong end — a tick landing on a running round
+        // would queue the same names again and the round would simply keep going, probing without
+        // pause. The guard restores what fixedDelay is for: a tick that arrives too early is
+        // dropped, not stacked.
+        if (!sources.isEmpty() && scheduledRound.compareAndSet(false, true)) {
+            inBackground(
+                    () -> {
+                        try {
+                            refresh(sources.keySet());
+                        } finally {
+                            scheduledRound.set(false);
+                        }
+                    });
         }
     }
 
@@ -206,13 +229,23 @@ public class McpToolRegistry {
         }
     }
 
+    /**
+     * Probes are serial — one connection at a time — but the snapshot is published after each one
+     * rather than at the end of the round. A round is as slow as its slowest connection, and that
+     * is a server timing out; publishing at the end would let one unreachable connection hold back
+     * the tools of every healthy one behind it, which is the very thing this class exists to
+     * prevent.
+     */
     private void drain() {
-        for (Iterator<String> names = queued.iterator(); names.hasNext(); ) {
-            String name = names.next();
-            names.remove();
-            connections.put(name, probe(name));
+        // Configuration order, not the queue's own: the queue is a hash set, and a round that
+        // probes, logs and publishes in an order that changes from run to run is one nobody can
+        // reason about — least of all when it is slow and someone is watching the panel fill.
+        for (String name : sources.keySet()) {
+            if (queued.remove(name)) {
+                connections.put(name, probe(name));
+                snapshot = snapshot();
+            }
         }
-        snapshot = snapshot();
     }
 
     private Connection probe(String name) {
@@ -272,51 +305,92 @@ public class McpToolRegistry {
         Thread.ofVirtual().name("mcp-refresh").start(task);
     }
 
+    /**
+     * One {@link ToolSource} per connection, whichever client type the autoconfiguration
+     * registered. Visible for testing: the branch per client type is the part of this class that
+     * cannot be reached through {@link ToolSource}.
+     *
+     * <p>Tool name prefixes, the tool filter and the tool-context converter are passed on because
+     * the provider built here replaces the one the starter would have built: without them a tool
+     * would reach the model under a different name than the starter gives it.
+     */
     // The clients are beans: the autoconfiguration hands them out already open and closes them
-    // with the context (CloseableMcpSyncClients). Closing one here would take the connection
-    // away from everything else that holds it.
+    // with the context (CloseableMcpSyncClients / CloseableMcpAsyncClients). Closing one here
+    // would take the connection away from everything else that holds it.
     @SuppressWarnings("PMD.CloseResource")
-    private static Map<String, ToolSource> sources(
-            List<McpSyncClient> clients,
-            ObjectProvider<McpClientCommonProperties> commonProperties,
-            ObjectProvider<McpToolFilter> toolFilter,
-            ObjectProvider<McpToolNamePrefixGenerator> prefixGenerator,
-            ObjectProvider<ToolContextToMcpMetaConverter> metaConverter) {
-        String clientName =
-                commonProperties.getIfAvailable(McpClientCommonProperties::new).getName();
+    static Map<String, ToolSource> sources(
+            List<McpSyncClient> syncClients,
+            List<McpAsyncClient> asyncClients,
+            String clientName,
+            @Nullable McpToolFilter toolFilter,
+            @Nullable McpToolNamePrefixGenerator prefixGenerator,
+            @Nullable ToolContextToMcpMetaConverter metaConverter) {
         Map<String, ToolSource> sources = new LinkedHashMap<>();
-        for (McpSyncClient client : clients) {
+        for (McpSyncClient client : syncClients) {
             SyncMcpToolCallbackProvider.Builder builder =
                     SyncMcpToolCallbackProvider.builder().mcpClients(client);
-            toolFilter.ifAvailable(builder::toolFilter);
-            prefixGenerator.ifAvailable(builder::toolNamePrefixGenerator);
-            metaConverter.ifAvailable(builder::toolContextToMcpMetaConverter);
+            apply(toolFilter, builder::toolFilter);
+            apply(prefixGenerator, builder::toolNamePrefixGenerator);
+            apply(metaConverter, builder::toolContextToMcpMetaConverter);
             SyncMcpToolCallbackProvider provider = builder.build();
-            ToolSource source =
-                    () -> {
-                        // The provider caches the tool list of a connection it has already read;
-                        // a probe exists to find out whether that list still holds.
-                        provider.invalidateCache();
-                        return List.of(provider.getToolCallbacks());
-                    };
-            String name = connectionName(clientName, client);
-            // Two transports may carry the same connection name — a misconfiguration, but not one
-            // that should cost a server its tools: the name then stands for both, and either of
-            // them failing takes the pair down.
-            sources.merge(
-                    name,
-                    source,
-                    (existing, added) -> {
-                        log.warn(
-                                "Two MCP connections are named '{}' — they are probed and reported"
-                                        + " as one",
-                                name);
-                        return () ->
-                                Stream.concat(existing.list().stream(), added.list().stream())
-                                        .toList();
-                    });
+            add(sources, connectionName(clientName, client.getClientInfo().name()), provider);
+        }
+        for (McpAsyncClient client : asyncClients) {
+            AsyncMcpToolCallbackProvider.Builder builder =
+                    AsyncMcpToolCallbackProvider.builder().mcpClients(client);
+            apply(toolFilter, builder::toolFilter);
+            apply(prefixGenerator, builder::toolNamePrefixGenerator);
+            apply(metaConverter, builder::toolContextToMcpMetaConverter);
+            AsyncMcpToolCallbackProvider provider = builder.build();
+            // The async provider answers the same call the sync one does, blocking on the reply
+            // inside: the probe already runs on a virtual thread, so there is nothing here to
+            // make non-blocking, and the request timeout is the client's either way.
+            add(sources, connectionName(clientName, client.getClientInfo().name()), provider);
         }
         return Collections.unmodifiableMap(sources);
+    }
+
+    private static <T> void apply(@Nullable T value, Consumer<T> setter) {
+        if (value != null) {
+            setter.accept(value);
+        }
+    }
+
+    private static void add(
+            Map<String, ToolSource> sources, String name, ToolCallbackProvider provider) {
+        ToolSource source =
+                () -> {
+                    // The provider caches the tool list of a connection it has already read; a
+                    // probe exists to find out whether that list still holds.
+                    invalidateCache(provider);
+                    return List.of(provider.getToolCallbacks());
+                };
+        // Two transports may carry the same connection name — a misconfiguration, but not one
+        // that should cost a server its tools: the name then stands for both, and either of
+        // them failing takes the pair down.
+        sources.merge(
+                name,
+                source,
+                (existing, added) -> {
+                    log.warn(
+                            "Two MCP connections are named '{}' — they are probed and reported as"
+                                    + " one",
+                            name);
+                    return () ->
+                            Stream.concat(existing.list().stream(), added.list().stream()).toList();
+                });
+    }
+
+    /**
+     * Both providers cache and both can drop that cache, but {@code invalidateCache()} is declared
+     * on neither the interface they share nor a common supertype of theirs.
+     */
+    private static void invalidateCache(ToolCallbackProvider provider) {
+        if (provider instanceof SyncMcpToolCallbackProvider sync) {
+            sync.invalidateCache();
+        } else if (provider instanceof AsyncMcpToolCallbackProvider async) {
+            async.invalidateCache();
+        }
     }
 
     /**
@@ -326,8 +400,7 @@ public class McpToolRegistry {
      * reported under the name it has, since a wrong key here would be a connection the panel
      * silently drops.
      */
-    private static String connectionName(String clientName, McpSyncClient client) {
-        String name = client.getClientInfo().name();
+    private static String connectionName(String clientName, String name) {
         String prefix = clientName + " - ";
         return name.startsWith(prefix) ? name.substring(prefix.length()) : name;
     }

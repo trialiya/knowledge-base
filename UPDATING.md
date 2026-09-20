@@ -28,17 +28,16 @@ connection — a wrong URL, a server that was down, an `npx` that is not install
 after startup, probed per connection, and retried while they are down; an
 unreachable server costs its own tools and nothing else.
 
-Two settings changed in `application.yaml`, and a deployment that overrides them
-should know why they are there:
+One setting changed in `application.yaml`, and a deployment that overrides it
+should know why it is there:
 
 - `spring.ai.mcp.client.initialized` is now `false`. Setting it back to `true`
   restores the old startup behaviour — including the failed boot.
-- `spring.ai.mcp.client.type` is pinned to `SYNC`. Under `ASYNC` the model is
-  offered no MCP tools: the registry that probes the connections reads sync
-  clients only.
 
 New key: `kb.mcp.retry-interval-ms` (`KB_MCP_RETRY_INTERVAL_MS`, default 60000)
-— how often a connection that is not up is probed again. It must be positive.
+— how often the connections are probed again: a server that came up is picked up
+within that interval, and one that stopped answering loses its tools within it.
+It must be positive.
 
 No action is required for a deployment that runs with MCP off, or with servers
 that are up. For one that was relying on a failed startup to signal a broken MCP

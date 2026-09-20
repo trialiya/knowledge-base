@@ -36,6 +36,7 @@ import io.github.trialiya.kb.tools.RecordingToolCallback;
 import io.github.trialiya.kb.tools.UnknownToolCallbackResolver;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
+import io.modelcontextprotocol.client.McpAsyncClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -330,7 +331,8 @@ public class ChatConfig {
     @Nullable
     public McpToolRegistry mcpToolRegistry(
             McpProperties mcpProperties,
-            ObjectProvider<List<McpSyncClient>> mcpClients,
+            ObjectProvider<List<McpSyncClient>> mcpSyncClients,
+            ObjectProvider<List<McpAsyncClient>> mcpAsyncClients,
             ObjectProvider<McpClientCommonProperties> mcpCommonProperties,
             ObjectProvider<McpToolFilter> mcpToolFilter,
             ObjectProvider<McpToolNamePrefixGenerator> mcpToolNamePrefixGenerator,
@@ -347,7 +349,8 @@ public class ChatConfig {
                             + mcpProperties.retryIntervalMs());
         }
         return new McpToolRegistry(
-                mcpClients,
+                mcpSyncClients,
+                mcpAsyncClients,
                 mcpCommonProperties,
                 mcpToolFilter,
                 mcpToolNamePrefixGenerator,

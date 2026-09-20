@@ -105,10 +105,12 @@ spring:
         # no server process for a stdio connection. Whether the model gets MCP tools is decided
         # in one place, kb.mcp.enabled, which is also what the Settings panel reports.
         initialized: false
-        # SYNC is what McpToolRegistry probes; under ASYNC the starter registers async clients
-        # instead and the model is offered no MCP tools at all. Pinned rather than left to the
-        # default so the switch cannot be flipped by accident.
-        type: SYNC
+        # type: SYNC | ASYNC — left at the starter's default (SYNC) because both work. It decides
+        # which client beans the starter registers, and McpToolRegistry probes either kind; the
+        # request timeout below is what bounds a probe in both cases, so ASYNC buys nothing here
+        # but costs nothing either.
+        # request-timeout: 20s   # the starter's own default, shown here because it is what
+                                 # bounds one probe of one connection
         # Example: a remote Jira/Confluence MCP server over streamable HTTP with Bearer-token
         # auth (the connection name — "atlassian" here — must match the key under
         # kb.mcp.bearer-tokens below, which is what actually attaches the Authorization header;

@@ -9,6 +9,8 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.awaitility.Awaitility;
@@ -151,7 +153,54 @@ class McpToolRegistryTest {
                 .untilAsserted(() -> assertThat(registry.callbacks()).isEmpty());
     }
 
+    /**
+     * A round is as slow as its slowest connection — a server that answers nothing holds its probe
+     * until the request times out. What must not happen is that it holds everyone else's tools with
+     * it: connections probed before it are already offered to the model.
+     */
+    @Test
+    void aSlowConnectionDoesNotHoldBackTheOnesAlreadyProbed() throws Exception {
+        CountDownLatch answering = new CountDownLatch(1);
+        McpToolRegistry registry =
+                new McpToolRegistry(
+                        sources(
+                                "fast",
+                                () -> List.of(tool("search")),
+                                "slow",
+                                () -> {
+                                    await(answering);
+                                    return List.of(tool("issue"));
+                                }));
+
+        registry.connect();
+
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(names(registry)).containsExactly("search"));
+        assertThat(registry.statuses())
+                .containsExactly(
+                        new ConnectionStatus("fast", Status.UP, 1),
+                        new ConnectionStatus("slow", Status.PENDING, 0));
+
+        answering.countDown();
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(
+                        () -> assertThat(names(registry)).containsExactly("search", "issue"));
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("the test never let this probe answer");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
 
     private static List<String> names(McpToolRegistry registry) {
         return registry.callbacks().stream()
