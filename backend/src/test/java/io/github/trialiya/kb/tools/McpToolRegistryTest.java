@@ -220,6 +220,48 @@ class McpToolRegistryTest {
                         () -> assertThat(names(registry)).containsExactly("search", "issue"));
     }
 
+    /**
+     * A scheduler tick landing on a round that is already running is dropped, not handed to it.
+     * Queuing it — which is what every other caller does, so that a {@code tools/list_changed} is
+     * never lost — would have the running round loop straight into another one, and with
+     * connections slow enough that a round takes about an interval the probing would never pause
+     * again.
+     */
+    @Test
+    void aScheduledTickLandingOnARunningRoundIsDropped() throws Exception {
+        CountDownLatch probing = new CountDownLatch(1);
+        CountDownLatch answering = new CountDownLatch(1);
+        AtomicInteger probes = new AtomicInteger();
+        McpToolRegistry registry =
+                new McpToolRegistry(
+                        sources(
+                                "jira",
+                                () -> {
+                                    probes.incrementAndGet();
+                                    probing.countDown();
+                                    await(answering);
+                                    return List.of(tool("issue"));
+                                }));
+
+        registry.connect();
+        assertThat(probing.await(5, TimeUnit.SECONDS)).isTrue();
+        registry.refreshAll();
+        registry.refreshAll();
+
+        // The ticks run in the background, so they are given a moment to reach the round's lock
+        // before the round is allowed to finish — otherwise the test would pass on a tick that
+        // simply arrived too late to be dropped.
+        Awaitility.await()
+                .pollDelay(Duration.ofMillis(300))
+                .atMost(Duration.ofSeconds(2))
+                .untilAsserted(() -> assertThat(probes).hasValue(1));
+
+        answering.countDown();
+        awaitProbed(registry);
+        assertThat(names(registry)).containsExactly("issue");
+        assertThat(probes).hasValue(1);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private static void await(CountDownLatch latch) {

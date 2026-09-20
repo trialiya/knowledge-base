@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -42,11 +41,12 @@ import org.springframework.scheduling.annotation.Scheduled;
  * nothing else: the application starts, the other connections keep theirs, and the chat runs with
  * the built-in tools.
  *
- * <p>A connection is probed again on {@code tools/list_changed} and, while it is not {@link
- * Status#UP}, every {@code kb.mcp.retry-interval-ms} — so a server that comes up an hour after the
- * application does is picked up without a restart. That is also why the model's tool list is
- * assembled per request ({@code ChatRunService}) rather than baked into the {@code ChatClient}: see
- * {@link ChatToolset}.
+ * <p>Every connection is probed again each {@code kb.mcp.retry-interval-ms}, the {@link Status#UP}
+ * ones included — a server that comes up an hour after the application does is picked up without a
+ * restart, and one that quietly stopped answering is noticed, which nothing else would do. A server
+ * that knows its tool list changed says so ({@code tools/list_changed}) and is re-read at once.
+ * That is also why the model's tool list is assembled per request ({@code ChatRunService}) rather
+ * than baked into the {@code ChatClient}: see {@link ChatToolset}.
  *
  * <p>Tools of a connection that has just failed stay in the set and answer with an error while it
  * is down ({@link UnavailableToolCallback}), because the tool list is part of the prompt prefix
@@ -113,9 +113,6 @@ public class McpToolRegistry {
     /** Connections waiting to be probed, drained by whoever holds {@link #refreshing}. */
     private final Set<String> queued = ConcurrentHashMap.newKeySet();
 
-    /** Whether a scheduled round is in flight; see {@link #refreshAll}. */
-    private final AtomicBoolean scheduledRound = new AtomicBoolean();
-
     private volatile Snapshot snapshot = new Snapshot(List.of(), List.of());
 
     /**
@@ -181,26 +178,39 @@ public class McpToolRegistry {
     // The initial delay is what keeps the first probe where connect() puts it: a fixed delay with
     // no initial one starts counting at lifecycle start, which is before ApplicationReadyEvent —
     // i.e. it would reach out to the servers during the very startup this class exists to keep
-    // clear of them.
+    // clear of them. The round itself runs on a thread of its own, so the delay is counted from
+    // the round's start rather than its end.
     @Scheduled(
             fixedDelayString = "${kb.mcp.retry-interval-ms:60000}",
             initialDelayString = "${kb.mcp.retry-interval-ms:60000}")
     public void refreshAll() {
-        // The round runs on a thread of its own, so this method returns long before the round
-        // ends: the fixed delay is therefore counted from the round's start, not its end. Without
-        // the guard a tick landing on a running round would queue the same names again and the
-        // round would simply keep going, probing without pause; with it such a tick is dropped
-        // and the next one comes an interval later.
-        if (!sources.isEmpty() && scheduledRound.compareAndSet(false, true)) {
-            inBackground(
-                    () -> {
-                        try {
-                            refresh(sources.keySet());
-                        } finally {
-                            scheduledRound.set(false);
-                        }
-                    });
+        if (!sources.isEmpty()) {
+            inBackground(this::refreshIfIdle);
         }
+    }
+
+    /**
+     * The one round that is dropped rather than handed to a round already running. Every other
+     * caller queues its names first so that nothing is lost, but a tick doing that would have the
+     * running round loop straight into another one — and with connections slow enough that a round
+     * takes about an interval (a few unreachable servers and their request timeouts are enough),
+     * the probing would never pause again. A tick is the one refresh that repeats by itself, so
+     * dropping it costs one interval and nothing else.
+     */
+    private void refreshIfIdle() {
+        if (!refreshing.tryLock()) {
+            log.debug("Scheduled MCP probe skipped: a round is already running");
+            return;
+        }
+        try {
+            queued.addAll(sources.keySet());
+            drain();
+        } finally {
+            refreshing.unlock();
+        }
+        // Whatever was queued against the held lock while this round drained: no schedule brings a
+        // tools/list_changed back, so the leftovers get a round of their own.
+        refresh(List.of());
     }
 
     /**

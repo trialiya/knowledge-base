@@ -82,8 +82,12 @@ const ToolCard = ({ tool }) => {
         <code className="tool-card__name">{tool.name}</code>
         {tool.origin === 'mcp' && <span className="config-badge">{t('tools.catalog.mcp')}</span>}
         {/* Инструмент недоступного MCP-сервера остаётся в наборе модели намеренно
-            (см. UnavailableToolCallback на бэкенде) — то есть он есть, но упадёт. */}
-        {!tool.available && <span className="status-badge status-badge--off">{t('tools.catalog.unavailable')}</span>}
+            (см. UnavailableToolCallback на бэкенде) — то есть он есть, но упадёт.
+            Сравнение с false, а не отрицание: отсутствующее поле — не «недоступен»,
+            иначе ответ без него пометит так весь каталог, включая встроенные. */}
+        {tool.available === false && (
+          <span className="status-badge status-badge--off">{t('tools.catalog.unavailable')}</span>
+        )}
       </div>
 
       <p className="tool-card__desc">{tool.description}</p>
