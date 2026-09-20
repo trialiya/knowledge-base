@@ -113,7 +113,8 @@
       "required": "required",
       "optional": "optional",
       "mcp": "MCP",
-      "empty": "No tools are exposed to the model."
+      "empty": "No tools are exposed to the model.",
+      "unavailable": "unavailable"
     },
     "modes": {
       "label": "Assistant modes",
@@ -129,7 +130,14 @@
       "label": "External MCP servers",
       "status": "MCP tools",
       "connections": "Connections",
-      "connectionsEmpty": "No connections configured"
+      "connectionsEmpty": "No connections configured",
+      "inactiveNote": "MCP is on in the configuration, but MCP tools are switched off by the starter's spring.ai.mcp.client.toolcallback.enabled, so the connections are not probed and the model gets none of their tools.",
+      "state": {
+        "up": "connected, {{tools}} tool(s)",
+        "down": "unavailable",
+        "pending": "connecting…"
+      },
+      "retryNote": "An unavailable server does not stop anything: the connection is retried every {{seconds}}s, no restart needed. Its tools stay in the model’s tool list (withdrawing them would break the prompt cache) and answer a call with a “server unavailable” error."
     },
     "uploads": {
       "label": "Attachment limits",

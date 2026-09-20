@@ -782,6 +782,13 @@ const LIGHT = [
     render: () => <ToolsSettings />,
   },
   {
+    id: 'aiConfig.js#mcpEnabledButToolCallbacksOff@tools',
+    frame: 'center',
+    viewport: [1440, 1090],
+    api: (p) => ({ '/api/settings/ai-config': p, '/api/settings/tools': toolCatalog.builtinTools }),
+    render: () => <ToolsSettings />,
+  },
+  {
     id: 'aiConfig.js#strongAndWeakModels',
     frame: 'center',
     viewport: [1440, 1760],
@@ -805,6 +812,15 @@ const LIGHT = [
   // карточке стоит первый пункт списка, а пилюля MCP и есть то, ради чего кейс.
   {
     id: 'toolCatalog.js#withMcpTool',
+    frame: 'settings',
+    api: (p) => ({ '/api/settings/tools': p }),
+    steps: [{ click: '.lb-select__trigger' }, { click: '.lb-select__option-label:has-text("fetch_pages")' }],
+    render: () => <ToolCatalog />,
+  },
+  // Тот же инструмент, пока его сервер недоступен: из каталога он не исчезает
+  // (иначе рвался бы кэш промпта), и весь кейс — про бейдж рядом с пилюлей MCP.
+  {
+    id: 'toolCatalog.js#withUnavailableMcpTool',
     frame: 'settings',
     api: (p) => ({ '/api/settings/tools': p }),
     steps: [{ click: '.lb-select__trigger' }, { click: '.lb-select__option-label:has-text("fetch_pages")' }],

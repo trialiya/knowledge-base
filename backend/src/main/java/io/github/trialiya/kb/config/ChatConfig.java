@@ -31,10 +31,13 @@ import io.github.trialiya.kb.service.chat.skill.SkillService;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ChatToolset;
+import io.github.trialiya.kb.tools.McpToolRegistry;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import io.github.trialiya.kb.tools.UnknownToolCallbackResolver;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
+import io.modelcontextprotocol.client.McpAsyncClient;
+import io.modelcontextprotocol.client.McpSyncClient;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,6 +53,10 @@ import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.mcp.McpToolFilter;
+import org.springframework.ai.mcp.McpToolNamePrefixGenerator;
+import org.springframework.ai.mcp.ToolContextToMcpMetaConverter;
+import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpClientCommonProperties;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties;
 import org.springframework.ai.model.tool.ToolCallingManager;
@@ -58,7 +65,6 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.execution.DefaultToolExecutionExceptionProcessor;
 import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
 import org.springframework.ai.tool.resolution.ToolCallbackResolver;
@@ -310,6 +316,71 @@ public class ChatConfig {
     }
 
     /**
+     * The connections to the external MCP servers, or nothing when {@code kb.mcp.enabled} is off —
+     * an MCP server runs arbitrary local commands (stdio) or calls arbitrary URLs, so it stays an
+     * explicit opt-in even once servers are configured. The gate is {@link McpProperties#enabled()}
+     * rather than {@code @ConditionalOnProperty} for the reason spelled out on {@link
+     * #scriptFunction}: property binding accepts {@code 1}, {@code yes} and {@code on} for a
+     * boolean and that condition does not, and the two halves of one switch must not disagree.
+     *
+     * <p>Nothing is connected here — the registry reaches the servers after the context is up. See
+     * its javadoc for why that is the difference between one unreachable server costing its tools
+     * and costing the whole startup.
+     */
+    @Bean
+    @Nullable
+    public McpToolRegistry mcpToolRegistry(
+            McpProperties mcpProperties,
+            ObjectProvider<List<McpSyncClient>> mcpSyncClients,
+            ObjectProvider<List<McpAsyncClient>> mcpAsyncClients,
+            ObjectProvider<McpClientCommonProperties> mcpCommonProperties,
+            ObjectProvider<McpToolFilter> mcpToolFilter,
+            ObjectProvider<McpToolNamePrefixGenerator> mcpToolNamePrefixGenerator,
+            ObjectProvider<ToolContextToMcpMetaConverter> mcpMetaConverter) {
+        if (!mcpProperties.enabled()) {
+            return null;
+        }
+        // The starter's own off switch for MCP tools. It used to work by removing the
+        // ToolCallbackProvider bean; the providers are built per connection here now, so it is
+        // honoured here or nowhere — and a deployment that set it meant "no MCP tools".
+        if (!toolCallbacksEnabled(mcpCommonProperties)) {
+            log.warn(
+                    "kb.mcp.enabled is on, but spring.ai.mcp.client.toolcallback.enabled is off:"
+                            + " no MCP tools are offered to the model");
+            return null;
+        }
+        // The scheduler reads this key through a placeholder of its own and would answer a
+        // non-positive value with a message about a Spring annotation; the deployment set
+        // kb.mcp.retry-interval-ms, so that is what it is told about.
+        if (mcpProperties.retryIntervalMs() <= 0) {
+            throw new IllegalStateException(
+                    "kb.mcp.retry-interval-ms must be positive, got "
+                            + mcpProperties.retryIntervalMs());
+        }
+        return new McpToolRegistry(
+                mcpSyncClients,
+                mcpAsyncClients,
+                mcpCommonProperties,
+                mcpToolFilter,
+                mcpToolNamePrefixGenerator,
+                mcpMetaConverter);
+    }
+
+    /**
+     * Whether the starter's own {@code spring.ai.mcp.client.toolcallback.enabled} still allows MCP
+     * tools. Visible for testing, and defaulting to {@code true} on a missing properties bean: the
+     * flag is an opt-out, and a deployment that never configured MCP has no bean to read it from.
+     */
+    static boolean toolCallbacksEnabled(
+            ObjectProvider<McpClientCommonProperties> mcpCommonProperties) {
+        McpClientCommonProperties properties = mcpCommonProperties.getIfAvailable();
+        if (properties == null || properties.getToolcallback() == null) {
+            return true;
+        }
+        return properties.getToolcallback().isEnabled();
+    }
+
+    /**
      * The tool set of the main chat, assembled in one place so that the {@code ChatClient} and the
      * Settings catalogue ({@code ToolCatalogService}) cannot disagree about what the model can
      * call. Which tools are in it is decided by the opt-ins documented on the beans above.
@@ -326,8 +397,7 @@ public class ChatConfig {
             ObjectProvider<SearchAgentService> searchAgentService,
             ObjectProvider<ScriptFunction> scriptFunction,
             ObjectProvider<SkillFunction> skillFunction,
-            McpProperties mcpProperties,
-            ObjectProvider<ToolCallbackProvider> mcpToolCallbackProvider) {
+            ObjectProvider<McpToolRegistry> mcpToolRegistry) {
         List<Object> functions =
                 new ArrayList<>(
                         List.of(
@@ -347,24 +417,19 @@ public class ChatConfig {
         // Present only when there are skills to read (see skillFunction bean).
         skillFunction.ifAvailable(functions::add);
 
-        // MCP-derived tools (see spring.ai.mcp.client.* connections) are merged in only when
-        // kb.mcp.enabled=true — external MCP servers run arbitrary local commands or call
-        // arbitrary URLs, so this stays an explicit opt-in even once servers are configured.
-        List<ToolCallback> mcpCallbacks =
-                mcpProperties.enabled()
-                        ? mcpToolCallbackProvider.stream()
-                                .flatMap(provider -> Stream.of(provider.getToolCallbacks()))
-                                .<ToolCallback>map(RecordingToolCallback::new)
-                                .toList()
-                        : List.of();
-        if (mcpProperties.enabled()) {
-            log.info("MCP tools enabled: {} tool(s) exposed to the model", mcpCallbacks.size());
-        }
         List<ToolCallback> builtin =
                 Stream.of(ToolCallbacks.from(functions.toArray()))
                         .<ToolCallback>map(RecordingToolCallback::new)
                         .toList();
-        return new ChatToolset(builtin, mcpCallbacks);
+        // MCP-derived tools (see spring.ai.mcp.client.* connections) come from the registry, whose
+        // bean exists only when kb.mcp.enabled=true — external MCP servers run arbitrary local
+        // commands or call arbitrary URLs, so this stays an explicit opt-in even once servers are
+        // configured. A supplier rather than a list: nothing is read off a server while the
+        // context is coming up, and what the servers offer changes while it runs.
+        McpToolRegistry registry = mcpToolRegistry.getIfAvailable();
+        return registry == null
+                ? new ChatToolset(builtin, List.of())
+                : new ChatToolset(builtin, registry::callbacks);
     }
 
     /**
@@ -538,10 +603,14 @@ public class ChatConfig {
         advisors.add(new TokenUsageAdvisor(chatEventService, runRegistry));
         advisors.add(new MessageLoggingAdvisor());
 
+        // Built-ins only: this client is built once, and the MCP half of the toolset is whatever
+        // the connections are offering at the moment of a request (see McpToolRegistry). The run
+        // attaches it per request — ChatRunService, which is also where a client rebuilt for an
+        // alternative model gets it.
         return ChatClient.builder(chatModel)
                 .defaultAdvisors(advisors)
                 .defaultSystem(sysPrompt)
-                .defaultTools((Object[]) chatToolset.all())
+                .defaultTools((Object[]) chatToolset.builtin().toArray(ToolCallback[]::new))
                 .build();
     }
 }

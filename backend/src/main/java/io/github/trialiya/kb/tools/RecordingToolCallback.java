@@ -51,6 +51,16 @@ public class RecordingToolCallback implements ToolCallback {
         this.delegate = delegate;
     }
 
+    /**
+     * What this wrapper records calls of. Exposed because the wrapping is not always transparent to
+     * a reader of the toolset: an MCP tool of a connection that is down is a {@link
+     * UnavailableToolCallback} under here, and the Settings catalogue says so (see {@code
+     * ToolCatalogService}).
+     */
+    public ToolCallback delegate() {
+        return delegate;
+    }
+
     @Override
     public ToolDefinition getToolDefinition() {
         return delegate.getToolDefinition();

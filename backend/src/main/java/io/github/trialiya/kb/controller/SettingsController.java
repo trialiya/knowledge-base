@@ -17,10 +17,14 @@ import io.github.trialiya.kb.service.chat.ToolCatalogService;
 import io.github.trialiya.kb.service.chat.ToolCatalogService.ToolInfo;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
+import io.github.trialiya.kb.tools.McpToolRegistry;
+import io.github.trialiya.kb.tools.McpToolRegistry.Status;
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpSseClientProperties;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpStdioClientProperties;
@@ -96,7 +100,12 @@ public class SettingsController {
     private final int retryMaxAttempts;
     private final DataSize maxFileSize;
     private final DataSize maxRequestSize;
-    private final List<McpConnection> mcpConnections;
+
+    /** Connection name -> transport, from the configuration; the state comes from the registry. */
+    private final Map<String, String> mcpTransports;
+
+    /** Absent when {@code kb.mcp.enabled=false} — then there is nothing connected to report. */
+    private final @Nullable McpToolRegistry mcpToolRegistry;
 
     // McpSseClientProperties is deprecated for removal upstream (streamable-HTTP supersedes SSE),
     // but the SSE connections are still configurable and documented in application.yaml, so they
@@ -120,6 +129,7 @@ public class SettingsController {
             ObjectProvider<McpSseClientProperties> sseProperties,
             ObjectProvider<McpStreamableHttpClientProperties> streamableHttpProperties,
             ObjectProvider<McpStdioClientProperties> stdioProperties,
+            ObjectProvider<McpToolRegistry> mcpToolRegistry,
             ProjectCatalog projectCatalog,
             @Value("${spring.ai.openai.timeout:60s}") Duration requestTimeout,
             @Value("${spring.ai.retry.max-attempts:10}") int retryMaxAttempts,
@@ -146,8 +156,9 @@ public class SettingsController {
         this.retryMaxAttempts = retryMaxAttempts;
         this.maxFileSize = maxFileSize;
         this.maxRequestSize = maxRequestSize;
-        this.mcpConnections =
-                mcpConnections(sseProperties, streamableHttpProperties, stdioProperties);
+        this.mcpToolRegistry = mcpToolRegistry.getIfAvailable();
+        this.mcpTransports =
+                mcpTransports(sseProperties, streamableHttpProperties, stdioProperties);
     }
 
     /** Full AI configuration snapshot consumed by the Settings panel. */
@@ -184,7 +195,11 @@ public class SettingsController {
                 new ToolsSection(
                         chatModeProperties.views(),
                         new GitToolsInfo(gitEditEnabled, gitEditActive),
-                        new McpInfo(mcpProperties.enabled(), mcpConnections),
+                        new McpInfo(
+                                mcpProperties.enabled(),
+                                mcpToolRegistry != null,
+                                mcpProperties.retryIntervalMs(),
+                                mcpConnections()),
                         new UploadLimits(maxFileSize.toBytes(), maxRequestSize.toBytes())),
                 scriptSection());
     }
@@ -221,28 +236,70 @@ public class SettingsController {
     }
 
     /**
-     * Names of the configured MCP servers, with the transport each one uses — never their URLs,
-     * commands or bearer tokens. Every property bean is optional: with {@code
+     * The configured MCP servers with the state of each one's last probe — never their URLs,
+     * commands, bearer tokens or the error text a failed connection produced (a connection error
+     * quotes the address it failed to reach). A connection the registry does not know about is
+     * reported as {@code PENDING}: that is the honest answer both before the first probe and when
+     * MCP is switched off entirely.
+     */
+    private List<McpConnection> mcpConnections() {
+        Map<String, McpToolRegistry.ConnectionStatus> probed =
+                mcpToolRegistry == null
+                        ? Map.of()
+                        : mcpToolRegistry.statuses().stream()
+                                .collect(
+                                        Collectors.toMap(
+                                                McpToolRegistry.ConnectionStatus::name,
+                                                status -> status));
+        return mcpTransports.entrySet().stream()
+                .map(
+                        entry -> {
+                            McpToolRegistry.ConnectionStatus status = probed.get(entry.getKey());
+                            return new McpConnection(
+                                    entry.getKey(),
+                                    entry.getValue(),
+                                    status == null ? Status.PENDING : status.status(),
+                                    status == null ? 0 : status.toolCount());
+                        })
+                .toList();
+    }
+
+    /**
+     * Connection name -> transport, as configured. Every property bean is optional: with {@code
      * spring.ai.mcp.client.*} left unconfigured the starter registers none of them.
      */
     @SuppressWarnings("removal")
-    private static List<McpConnection> mcpConnections(
+    private static Map<String, String> mcpTransports(
             ObjectProvider<McpSseClientProperties> sseProperties,
             ObjectProvider<McpStreamableHttpClientProperties> streamableHttpProperties,
             ObjectProvider<McpStdioClientProperties> stdioProperties) {
-        List<McpConnection> connections = new ArrayList<>();
-        sseProperties.ifAvailable(p -> collect(connections, "sse", p.getConnections()));
+        Map<String, String> transports = new TreeMap<>();
+        sseProperties.ifAvailable(p -> collect(transports, "sse", p.getConnections()));
         streamableHttpProperties.ifAvailable(
-                p -> collect(connections, "streamable-http", p.getConnections()));
-        stdioProperties.ifAvailable(p -> collect(connections, "stdio", p.getConnections()));
-        return List.copyOf(connections);
+                p -> collect(transports, "streamable-http", p.getConnections()));
+        // toServerParameters(), not getConnections(): stdio connections may also come from the
+        // file named by spring.ai.mcp.client.stdio.servers-configuration, and that is the method
+        // the transport autoconfiguration itself builds its clients from. Reading the map the
+        // clients are built from is what keeps every probed connection visible in the panel.
+        stdioProperties.ifAvailable(p -> collect(transports, "stdio", p.toServerParameters()));
+        return Collections.unmodifiableMap(transports);
     }
 
+    /**
+     * Two transports may carry the same connection name. The registry probes such a pair as one
+     * (see {@code McpToolRegistry}), so the panel shows one row — but naming only one of the two
+     * transports on it would be picking a winner at random.
+     */
     private static void collect(
-            List<McpConnection> target, String transport, Map<String, ?> connections) {
-        connections.keySet().stream()
-                .sorted()
-                .forEach(name -> target.add(new McpConnection(name, transport)));
+            Map<String, String> target, String transport, Map<String, ?> connections) {
+        connections
+                .keySet()
+                .forEach(
+                        name ->
+                                target.merge(
+                                        name,
+                                        transport,
+                                        (first, second) -> first + " + " + second));
     }
 
     public record AiConfigResponse(
@@ -294,9 +351,31 @@ public class SettingsController {
 
     public record GitToolsInfo(boolean editEnabled, boolean editActive) {}
 
-    public record McpInfo(boolean enabled, List<McpConnection> connections) {}
+    /**
+     * @param enabled the {@code kb.mcp.enabled} flag
+     * @param active whether the connections are actually probed and their tools given to the model
+     *     — the same honest-answer pairing {@link GitToolsInfo} makes. The flag can be on while
+     *     this is off: the starter's own {@code spring.ai.mcp.client.toolcallback.enabled} switches
+     *     MCP tools off from the other side (see {@code ChatConfig}), and a panel reporting a probe
+     *     interval for connections nobody probes would be telling the reader to wait for something
+     *     that never happens
+     * @param retryIntervalMs how often a connection that is not up is probed again, so the panel
+     *     can say when a {@code DOWN} row is expected to change on its own
+     */
+    public record McpInfo(
+            boolean enabled,
+            boolean active,
+            long retryIntervalMs,
+            List<McpConnection> connections) {}
 
-    public record McpConnection(String name, String transport) {}
+    /**
+     * @param status the last probe of this connection (see {@code McpToolRegistry})
+     * @param toolCount how many tools it contributes to the model's tool list. A {@code DOWN}
+     *     connection keeps the ones it last advertised — they answer with an error rather than
+     *     leaving the list (see {@code UnavailableToolCallback}) — so this is zero only for a
+     *     connection that has never answered
+     */
+    public record McpConnection(String name, String transport, Status status, int toolCount) {}
 
     public record UploadLimits(long maxFileSizeBytes, long maxRequestSizeBytes) {}
 

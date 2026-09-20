@@ -19,6 +19,41 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### MCP connections no longer open during startup
+
+An MCP server that was unreachable used to take the whole application with it:
+the client was initialized while the Spring context was coming up, and a refused
+connection — a wrong URL, a server that was down, an `npx` that is not installed
+— failed the bean and the boot. Connections are now opened in the background
+after startup, probed per connection, and retried while they are down; an
+unreachable server costs its own tools and nothing else.
+
+One setting changed in `application.yaml`, and a deployment that overrides it
+should know why it is there:
+
+- `spring.ai.mcp.client.initialized` is now `false`. Setting it back to `true`
+  restores the old startup behaviour — including the failed boot.
+
+New key: `kb.mcp.retry-interval-ms` (`KB_MCP_RETRY_INTERVAL_MS`, default 60000)
+— how often the connections are probed again: a server that came up is picked up
+within that interval, and one that stopped answering is marked down within it.
+It must be positive.
+
+A connection that goes down keeps its tools in the model's tool list: they answer
+with a «server unavailable» error instead of disappearing, because the tool list
+is part of the prompt prefix providers cache by — withdrawing a tool would
+invalidate every conversation's cached prefix, twice per outage. Only a
+successful probe rewrites the list, so a tool the server itself stops
+advertising is still dropped. `GET /api/settings/tools` gained an `available`
+flag saying which is which.
+
+No action is required for a deployment that runs with MCP off, or with servers
+that are up. For one that was relying on a failed startup to signal a broken MCP
+configuration: that signal is now the «Настройки → Инструменты» panel, which
+reports each connection as `PENDING`/`UP`/`DOWN`, and a `WARN` in the log when a
+connection changes state (a server that stays down is retried quietly, at DEBUG,
+so it cannot bury the log).
+
 ### `getUncommittedChanges` no longer reports untracked files unless asked
 
 The tool answers about the tracked half of the working tree — what the next

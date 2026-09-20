@@ -89,25 +89,45 @@ spring:
           # механизм: без флага резолвера не спросят, без резолвера флаг открыл бы имена в обход
           # собранного набора инструментов (ChatToolset).
           enabled: true
-    # External MCP (Model Context Protocol) tool servers — see kb.mcp.enabled above, which gates
-    # whether the tools these connections expose are actually merged into the chat model's tool
-    # list. With no connections configured here, spring-ai-starter-mcp-client contributes zero
-    # tools regardless of kb.mcp.enabled, so leaving this commented out is always safe.
-    #
-    # Example: a remote Jira/Confluence MCP server reachable over SSE with Bearer-token auth (the
-    # connection name — "jira" here — must match the key under kb.mcp.bearer-tokens below, which
-    # is what actually attaches the Authorization header; see McpClientConfig).
-    # mcp:
-    #   client:
-    #     streamable-http:
-    #       connections:
-    #         atlassian:
-    #           url: ${JIRA_MCP_URL}
-    #     stdio:
-    #       connections:
-    #         filesystem:
-    #           command: npx
-    #           args: [ "-y", "@modelcontextprotocol/server-filesystem", "/data" ]
+    # External MCP (Model Context Protocol) tool servers. With no connections configured below,
+    # the starter contributes zero tools, so leaving the connection blocks commented out is
+    # always safe.
+    mcp:
+      client:
+        # Do NOT open the connections while the context is starting. Every server is reached
+        # afterwards, in the background, by McpToolRegistry — that is the whole difference
+        # between "one unreachable MCP server costs its own tools" and "one unreachable MCP
+        # server means the application does not start". Turning this back on gives up the
+        # retries and the live tool list with it.
+        #
+        # This is also what makes one switch enough: with the connections unopened, a client the
+        # starter creates while kb.mcp.enabled=false costs an object and no I/O — no request, and
+        # no server process for a stdio connection. Whether the model gets MCP tools is decided
+        # in one place, kb.mcp.enabled, which is also what the Settings panel reports.
+        initialized: false
+        # toolcallback.enabled: true — the starter's own off switch for MCP tools. It used to
+        # work by removing its ToolCallbackProvider bean; the providers are built per connection
+        # by McpToolRegistry now, so ChatConfig checks the flag itself and creates no registry
+        # when it is off. Left at the default here: kb.mcp.enabled is the switch to use.
+        # type: SYNC | ASYNC — left at the starter's default (SYNC) because both work. It decides
+        # which client beans the starter registers, and McpToolRegistry probes either kind; the
+        # request timeout below is what bounds a probe in both cases, so ASYNC buys nothing here
+        # but costs nothing either.
+        # request-timeout: 20s   # the starter's own default, shown here because it is what
+                                 # bounds one probe of one connection
+        # Example: a remote Jira/Confluence MCP server over streamable HTTP with Bearer-token
+        # auth (the connection name — "atlassian" here — must match the key under
+        # kb.mcp.bearer-tokens below, which is what actually attaches the Authorization header;
+        # see McpClientConfig).
+        # streamable-http:
+        #   connections:
+        #     atlassian:
+        #       url: ${JIRA_MCP_URL}
+        # stdio:
+        #   connections:
+        #     filesystem:
+        #       command: npx
+        #       args: [ "-y", "@modelcontextprotocol/server-filesystem", "/data" ]
   datasource:
     driver-class-name: org.postgresql.Driver
     url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/knowledgebase}
@@ -367,8 +387,19 @@ kb:
     # Expose tools from external MCP (Model Context Protocol) servers to the chat model, in
     # addition to the built-in git/document tools. Default off — external MCP servers run
     # arbitrary local commands (stdio transport) or call arbitrary URLs (SSE/streamable-HTTP
-    # transport), so this is an explicit opt-in even once servers are configured below.
+    # transport), so this is an explicit opt-in even once servers are configured below. One
+    # switch for the whole feature: the clients the starter creates while this is off never open
+    # a connection (see spring.ai.mcp.client.initialized above), so they cost an object and no
+    # I/O, and this flag alone decides whether the model gets MCP tools.
     enabled: ${KB_MCP_ENABLED:false}
+    # How often every connection is probed again (McpToolRegistry) — the healthy ones included:
+    # a server that was down at startup, restarted, or never existed until today is picked up
+    # within this interval without restarting this application, and a server that quietly stopped
+    # answering is noticed, which nothing else would do (it sends no notification). A live server
+    # that changes its tool list does announce that itself, and is re-read at once rather than at
+    # the next interval. Must be positive; the scheduler reads the same key through a placeholder
+    # of its own, so change it here, not in one place.
+    retry-interval-ms: ${KB_MCP_RETRY_INTERVAL_MS:60000}
     # Bearer tokens for authenticated remote MCP servers, keyed by connection name (must match a
     # key under spring.ai.mcp.client.sse.connections / .streamable-http.connections above) —
     # applied as "Authorization: Bearer <token>" on every request to that connection. See

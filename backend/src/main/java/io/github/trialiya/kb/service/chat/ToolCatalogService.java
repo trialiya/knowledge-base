@@ -3,6 +3,8 @@ package io.github.trialiya.kb.service.chat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.tools.ChatToolset;
+import io.github.trialiya.kb.tools.RecordingToolCallback;
+import io.github.trialiya.kb.tools.UnavailableToolCallback;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -24,8 +26,10 @@ import org.springframework.stereotype.Service;
  * kb.projects[].edit-enabled}, {@code kb.script.enabled} or an MCP server configured. Nothing here
  * is curated by hand; a new {@code @Tool} shows up in the panel with no edit on this side.
  *
- * <p>Built once: the tool set is fixed when the context starts, and re-reading the schemas per
- * request would only re-parse constants.
+ * <p>The built-in half is parsed once — those schemas are constants. The MCP half is rebuilt per
+ * call, because a connection can come up, change its tool list or go away while the application
+ * runs (see {@code McpToolRegistry}), and a panel that reports a tool set from startup would be
+ * describing a model that no longer exists.
  */
 @Slf4j
 @Service
@@ -33,26 +37,42 @@ public class ToolCatalogService {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final List<ToolInfo> tools;
+    private final ChatToolset toolset;
+    private final List<ToolInfo> builtin;
 
     public ToolCatalogService(ChatToolset toolset) {
-        this.tools =
-                Stream.concat(
-                                toolset.builtin().stream().map(cb -> toInfo(cb, "builtin")),
-                                toolset.mcp().stream().map(cb -> toInfo(cb, "mcp")))
-                        .sorted(Comparator.comparing(ToolInfo::name))
-                        .toList();
+        this.toolset = toolset;
+        this.builtin = toolset.builtin().stream().map(cb -> toInfo(cb, "builtin")).toList();
     }
 
-    /** All tools available to the chat model, sorted by name. */
+    /** All tools available to the chat model right now, sorted by name. */
     public List<ToolInfo> tools() {
-        return tools;
+        return Stream.concat(builtin.stream(), toolset.mcp().stream().map(cb -> toInfo(cb, "mcp")))
+                .sorted(Comparator.comparing(ToolInfo::name))
+                .toList();
     }
 
     private static ToolInfo toInfo(ToolCallback callback, String origin) {
         ToolDefinition definition = callback.getToolDefinition();
         return new ToolInfo(
-                definition.name(), definition.description(), origin, parameters(definition));
+                definition.name(),
+                definition.description(),
+                origin,
+                available(callback),
+                parameters(definition));
+    }
+
+    /**
+     * An MCP tool whose server is unreachable stays in the model's tool list on purpose (see {@code
+     * UnavailableToolCallback}) — it is offered, and it fails when called. The panel says which of
+     * the two it is, because «есть в списке» and «сработает» stop meaning the same thing here.
+     */
+    private static boolean available(ToolCallback callback) {
+        ToolCallback unwrapped =
+                callback instanceof RecordingToolCallback recording
+                        ? recording.delegate()
+                        : callback;
+        return !(unwrapped instanceof UnavailableToolCallback);
     }
 
     /**
@@ -119,9 +139,16 @@ public class ToolCatalogService {
     /**
      * @param origin {@code builtin} — a {@code @Tool} of this application, {@code mcp} — a tool
      *     advertised by an external MCP server
+     * @param available whether calling it right now would reach anything: {@code false} for a tool
+     *     of an MCP connection that is down, which is still offered to the model and still answers
+     *     — with an error
      */
     public record ToolInfo(
-            String name, String description, String origin, List<ToolParamInfo> params) {}
+            String name,
+            String description,
+            String origin,
+            boolean available,
+            List<ToolParamInfo> params) {}
 
     /**
      * @param values allowed values of an enum argument, empty when the argument is not one

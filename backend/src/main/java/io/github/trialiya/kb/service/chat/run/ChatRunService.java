@@ -31,6 +31,7 @@ import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.runtime.RunScope;
+import io.github.trialiya.kb.tools.ChatToolset;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ChatUtils;
@@ -52,6 +53,7 @@ import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -84,6 +86,7 @@ public class ChatRunService {
     private static final long QUIESCENCE_POLL_MS = 25;
 
     private final ChatClientRegistry chatClients;
+    private final ChatToolset chatToolset;
     private final ChatMemory chatMemory;
     private final ChatHistoryService chatHistory;
     private final SummarizeService summarizeService;
@@ -109,6 +112,7 @@ public class ChatRunService {
 
     public ChatRunService(
             ChatClientRegistry chatClients,
+            ChatToolset chatToolset,
             ChatMemory chatMemory,
             ChatHistoryService chatHistory,
             SummarizeService summarizeService,
@@ -123,6 +127,7 @@ public class ChatRunService {
             ConversationSlots slots,
             @Qualifier("chatRunExecutor") Executor executor) {
         this.chatClients = chatClients;
+        this.chatToolset = chatToolset;
         this.chatMemory = chatMemory;
         this.chatHistory = chatHistory;
         this.summarizeService = summarizeService;
@@ -498,6 +503,13 @@ public class ChatRunService {
                             // истории (см. ChatHistoryService.saveUserMessage), и его подмешает
                             // advisor памяти. Передать его ещё и сюда — значит сохранить вторым
                             // рядом; см. PrePersistedUserMessageTest.
+                            // Инструменты MCP — здесь, а не в дефолтах клиента: клиент собран один
+                            // раз на старте, а подключения к внешним серверам поднимаются в фоне и
+                            // могут менять список инструментов по ходу работы (см.
+                            // McpToolRegistry).
+                            // Встроенные инструменты уже в дефолтах клиента, request-level список к
+                            // ним добавляется, а не заменяет их.
+                            .tools((Object[]) chatToolset.mcp().toArray(ToolCallback[]::new))
                             .toolContext(
                                     ChatUtils.context(conversationId)
                                             .user(scope.user())

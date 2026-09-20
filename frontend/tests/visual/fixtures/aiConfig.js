@@ -11,7 +11,7 @@
 /**
  * Дефолт из application.yaml на профиле h2: семантика выключена, правка файлов
  * и MCP выключены, режимов три. Именно эта комбинация интересна визуально —
- * бейджи «отключён»/«нет», пустой список подключений MCP и полный список
+ * бейджи «отключён»/«нет», список подключений MCP без состояний и полный список
  * инструментов саб-агента, который не влезает в одну строку.
  */
 export const defaultAiConfig = {
@@ -72,7 +72,14 @@ export const defaultAiConfig = {
       { id: 'tester', label: 'Тестировщик' },
     ],
     git: { editEnabled: false, editActive: false },
-    mcp: { enabled: false, connections: [] },
+    // Соединения настроены, но MCP выключен: состояния у них нет и быть не может
+    // (к серверам никто не ходит), поэтому в чипах только имя и транспорт.
+    mcp: {
+      enabled: false,
+      active: false,
+      retryIntervalMs: 60000,
+      connections: [{ name: 'atlassian', transport: 'streamable-http', status: 'PENDING', toolCount: 0 }],
+    },
     uploads: { maxFileSizeBytes: 1048576, maxRequestSizeBytes: 2097152 },
   },
   // kb.script.* с дефолтами из application.yaml: инструмент выключен, поэтому
@@ -111,11 +118,31 @@ export const editEnabledButReadOnlyTree = {
     git: { editEnabled: true, editActive: false },
     mcp: {
       enabled: true,
+      active: true,
+      retryIntervalMs: 60000,
+      // Один сервер отвечает, второй лежит — состояние, ради которого приложение
+      // больше не падает при старте: инструменты первого выданы, второй ждёт
+      // повтора (см. McpToolRegistry).
       connections: [
-        { name: 'atlassian', transport: 'streamable-http' },
-        { name: 'filesystem', transport: 'stdio' },
+        { name: 'atlassian', transport: 'streamable-http', status: 'UP', toolCount: 12 },
+        { name: 'filesystem', transport: 'stdio', status: 'DOWN', toolCount: 0 },
       ],
     },
+  },
+};
+
+/**
+ * MCP включён в конфиге, но инструменты MCP выключены ключом самого стартера
+ * (spring.ai.mcp.client.toolcallback.enabled): соединение настроено, а опрашивать
+ * его некому. Единственное состояние, в котором видно пояснение
+ * tools.mcp.inactiveNote — и в котором строка «Инструменты MCP» говорит
+ * «включён», а состояния у подключения нет.
+ */
+export const mcpEnabledButToolCallbacksOff = {
+  ...defaultAiConfig,
+  tools: {
+    ...defaultAiConfig.tools,
+    mcp: { ...defaultAiConfig.tools.mcp, enabled: true, active: false },
   },
 };
 

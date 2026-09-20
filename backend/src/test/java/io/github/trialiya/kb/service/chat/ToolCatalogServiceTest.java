@@ -1,11 +1,14 @@
 package io.github.trialiya.kb.service.chat;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.service.chat.ToolCatalogService.ToolInfo;
 import io.github.trialiya.kb.service.chat.ToolCatalogService.ToolParamInfo;
 import io.github.trialiya.kb.tools.ChatToolset;
+import io.github.trialiya.kb.tools.RecordingToolCallback;
+import io.github.trialiya.kb.tools.UnavailableToolCallback;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -78,6 +81,27 @@ class ToolCatalogServiceTest {
                 .filteredOn(t -> t.origin().equals("mcp"))
                 .extracting(ToolInfo::name)
                 .containsExactly("aaaFirst", "zzzLast");
+    }
+
+    /**
+     * A tool of an MCP connection that is down stays in the model's tool set (see {@code
+     * UnavailableToolCallback}), so the catalogue has to say which of «есть» and «сработает» it is
+     * — otherwise the panel calls a tool working while every call to it fails.
+     */
+    @Test
+    void marksAToolOfAnUnreachableConnectionAsUnavailable() {
+        ToolCallback reachable = mcpTool("reachable", "{}");
+        ToolCallback unreachable =
+                new RecordingToolCallback(
+                        new UnavailableToolCallback(mcpTool("unreachable", "{}"), "jira"));
+
+        List<ToolInfo> tools =
+                new ToolCatalogService(new ChatToolset(List.of(), List.of(reachable, unreachable)))
+                        .tools();
+
+        assertThat(tools)
+                .extracting(ToolInfo::name, ToolInfo::available)
+                .containsExactly(tuple("reachable", true), tuple("unreachable", false));
     }
 
     /** Types the panel prints as-is: an item type for arrays, the definition name behind a $ref. */
