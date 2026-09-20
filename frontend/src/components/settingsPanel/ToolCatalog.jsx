@@ -65,7 +65,10 @@ const ToolCatalog = () => {
   );
 };
 
-/** Выбранный инструмент: чем он представлен модели — описание и аргументы схемы. */
+/**
+ * Выбранный инструмент: чем он представлен модели — описание и аргументы схемы,
+ * плюс пометка, если позвать его прямо сейчас не выйдет.
+ */
 const ToolCard = ({ tool }) => {
   const { t } = useTranslation(['settings', 'chat']);
 
@@ -78,6 +81,9 @@ const ToolCard = ({ tool }) => {
         </span>
         <code className="tool-card__name">{tool.name}</code>
         {tool.origin === 'mcp' && <span className="config-badge">{t('tools.catalog.mcp')}</span>}
+        {/* Инструмент недоступного MCP-сервера остаётся в наборе модели намеренно
+            (см. UnavailableToolCallback на бэкенде) — то есть он есть, но упадёт. */}
+        {!tool.available && <span className="status-badge status-badge--off">{t('tools.catalog.unavailable')}</span>}
       </div>
 
       <p className="tool-card__desc">{tool.description}</p>

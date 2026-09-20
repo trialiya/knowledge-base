@@ -3,6 +3,8 @@ package io.github.trialiya.kb.service.chat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.tools.ChatToolset;
+import io.github.trialiya.kb.tools.RecordingToolCallback;
+import io.github.trialiya.kb.tools.UnavailableToolCallback;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -53,7 +55,24 @@ public class ToolCatalogService {
     private static ToolInfo toInfo(ToolCallback callback, String origin) {
         ToolDefinition definition = callback.getToolDefinition();
         return new ToolInfo(
-                definition.name(), definition.description(), origin, parameters(definition));
+                definition.name(),
+                definition.description(),
+                origin,
+                available(callback),
+                parameters(definition));
+    }
+
+    /**
+     * An MCP tool whose server is unreachable stays in the model's tool list on purpose (see {@code
+     * UnavailableToolCallback}) — it is offered, and it fails when called. The panel says which of
+     * the two it is, because «есть в списке» and «сработает» stop meaning the same thing here.
+     */
+    private static boolean available(ToolCallback callback) {
+        ToolCallback unwrapped =
+                callback instanceof RecordingToolCallback recording
+                        ? recording.delegate()
+                        : callback;
+        return !(unwrapped instanceof UnavailableToolCallback);
     }
 
     /**
@@ -120,9 +139,16 @@ public class ToolCatalogService {
     /**
      * @param origin {@code builtin} — a {@code @Tool} of this application, {@code mcp} — a tool
      *     advertised by an external MCP server
+     * @param available whether calling it right now would reach anything: {@code false} for a tool
+     *     of an MCP connection that is down, which is still offered to the model and still answers
+     *     — with an error
      */
     public record ToolInfo(
-            String name, String description, String origin, List<ToolParamInfo> params) {}
+            String name,
+            String description,
+            String origin,
+            boolean available,
+            List<ToolParamInfo> params) {}
 
     /**
      * @param values allowed values of an enum argument, empty when the argument is not one

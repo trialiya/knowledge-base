@@ -810,6 +810,15 @@ const LIGHT = [
     steps: [{ click: '.lb-select__trigger' }, { click: '.lb-select__option-label:has-text("fetch_pages")' }],
     render: () => <ToolCatalog />,
   },
+  // Тот же инструмент, пока его сервер недоступен: из каталога он не исчезает
+  // (иначе рвался бы кэш промпта), и весь кейс — про бейдж рядом с пилюлей MCP.
+  {
+    id: 'toolCatalog.js#withUnavailableMcpTool',
+    frame: 'settings',
+    api: (p) => ({ '/api/settings/tools': p }),
+    steps: [{ click: '.lb-select__trigger' }, { click: '.lb-select__option-label:has-text("fetch_pages")' }],
+    render: () => <ToolCatalog />,
+  },
 
   // ── Администрирование ──
   {

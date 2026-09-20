@@ -354,7 +354,10 @@ public class SettingsController {
 
     /**
      * @param status the last probe of this connection (see {@code McpToolRegistry})
-     * @param toolCount how many tools it is currently contributing — zero unless {@code UP}
+     * @param toolCount how many tools it contributes to the model's tool list. A {@code DOWN}
+     *     connection keeps the ones it last advertised — they answer with an error rather than
+     *     leaving the list (see {@code UnavailableToolCallback}) — so this is zero only for a
+     *     connection that has never answered
      */
     public record McpConnection(String name, String transport, Status status, int toolCount) {}
 

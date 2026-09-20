@@ -20,6 +20,7 @@ export const builtinTools = [
     description:
       'Скопировать вложение из текущего чата в документ базы знаний. Используй, когда пользователь хочет сохранить файл из чата в документ.',
     origin: 'builtin',
+    available: true,
     params: [
       { name: 'attachmentId', type: 'integer', description: 'ID вложения из чата', required: true, values: [] },
       {
@@ -35,12 +36,14 @@ export const builtinTools = [
     name: 'getTreeSkeleton',
     description: 'List all knowledge base nodes (id, title, type, parentId) without content.',
     origin: 'builtin',
+    available: true,
     params: [],
   },
   {
     name: 'searchDocuments',
     description: 'Search knowledge base documents by topic/keywords (hybrid: keyword + semantic).',
     origin: 'builtin',
+    available: true,
     params: [
       { name: 'query', type: 'string', description: 'Search query in any language.', required: true, values: [] },
       {
@@ -66,8 +69,18 @@ export const withMcpTool = [
     name: 'fetch_pages',
     description: 'Fetch one or more web pages and return their text content.',
     origin: 'mcp',
+    available: true,
     params: [
       { name: 'urls', type: 'array<string>', description: 'Page URLs to fetch.', required: true, values: [] },
     ],
   },
 ];
+
+/**
+ * Тот же MCP-инструмент, пока его сервер недоступен: из набора модели он не
+ * исчезает (иначе рвался бы кэш промпта, см. UnavailableToolCallback), поэтому в
+ * каталоге он есть — с пометкой, что вызов сейчас вернёт ошибку.
+ */
+export const withUnavailableMcpTool = withMcpTool.map((tool) =>
+  tool.origin === 'mcp' ? { ...tool, available: false } : tool,
+);

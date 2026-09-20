@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.tools;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.trialiya.kb.tools.McpToolRegistry.ConnectionStatus;
 import io.github.trialiya.kb.tools.McpToolRegistry.Status;
@@ -19,6 +20,7 @@ import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.ai.tool.definition.ToolDefinition;
+import org.springframework.ai.tool.execution.ToolExecutionException;
 
 /**
  * The failure the registry exists for: an MCP server that is not there. What is pinned here is the
@@ -28,6 +30,10 @@ import org.springframework.ai.tool.definition.ToolDefinition;
  * <p>Connections are stood in for by {@link ToolSource}s, because the states that matter (throws,
  * answers, throws again, answers again) are exactly what a real server is unwilling to produce on
  * request.
+ *
+ * <p>What a failure does to the tool <em>set</em> is pinned here too: nothing. A connection going
+ * down leaves its tools in place answering with an error, and only a successful probe rewrites the
+ * list — see {@link UnavailableToolCallback} for the prompt-cache reason.
  */
 class McpToolRegistryTest {
 
@@ -100,10 +106,12 @@ class McpToolRegistryTest {
 
     /**
      * A server that dies after a successful probe: nothing announces that, so the scheduled round
-     * is the only thing that can take its tools back.
+     * is the only thing that can notice. What it must NOT do is take the tools out of the set — the
+     * tool list is the prompt prefix every provider caches by, so a blinking server would cost
+     * every conversation its cache twice.
      */
     @Test
-    void aConnectionThatDiesIsNoticedByTheNextRound() {
+    void toolsOfAConnectionThatDiedStayInTheSetAndAnswerWithAnError() {
         AtomicReference<Boolean> reachable = new AtomicReference<>(true);
         McpToolRegistry registry =
                 new McpToolRegistry(
@@ -124,16 +132,18 @@ class McpToolRegistryTest {
                         () ->
                                 assertThat(registry.statuses())
                                         .containsExactly(
-                                                new ConnectionStatus("jira", Status.DOWN, 0)));
-        assertThat(registry.callbacks()).isEmpty();
+                                                new ConnectionStatus("jira", Status.DOWN, 1)));
+        assertThat(names(registry)).containsExactly("issue");
+        assertThatThrownBy(() -> registry.callbacks().getFirst().call("{}"))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("'jira'")
+                .hasMessageContaining("not reachable");
     }
 
-    /**
-     * Tools of a connection that has just failed are dropped, not served from the last good run.
-     */
+    /** The tools come back the moment the server answers again — no wrapper left behind. */
     @Test
-    void toolsOfAConnectionThatWentAwayAreWithdrawn() {
-        AtomicReference<Boolean> reachable = new AtomicReference<>(true);
+    void aToolIsCallableAgainOnceItsConnectionIsBack() {
+        AtomicReference<Boolean> reachable = new AtomicReference<>(false);
         McpToolRegistry registry =
                 new McpToolRegistry(
                         sources(
@@ -142,15 +152,36 @@ class McpToolRegistryTest {
 
         registry.connect();
         awaitProbed(registry);
-        assertThat(names(registry)).containsExactly("issue");
+        reachable.set(true);
+        registry.refreshAll();
 
-        reachable.set(false);
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(names(registry)).containsExactly("issue"));
+        assertThat(registry.callbacks().getFirst().call("{}")).isEqualTo("{}");
+    }
+
+    /**
+     * Unavailability is not deletion, but a server that answers <em>is</em> allowed to say a tool
+     * is gone: only a successful probe rewrites the list.
+     */
+    @Test
+    void aToolTheServerStoppedAdvertisingIsDropped() {
+        AtomicReference<List<ToolCallback>> advertised =
+                new AtomicReference<>(List.of(tool("issue"), tool("search")));
+        McpToolRegistry registry = new McpToolRegistry(sources("jira", advertised::get));
+
+        registry.connect();
+        awaitProbed(registry);
+        assertThat(names(registry)).containsExactly("issue", "search");
+
+        advertised.set(List.of(tool("issue")));
         registry.onToolsChanged(
                 new org.springframework.ai.mcp.McpToolsChangedEvent("jira", List.of()));
 
         Awaitility.await()
                 .atMost(Duration.ofSeconds(5))
-                .untilAsserted(() -> assertThat(registry.callbacks()).isEmpty());
+                .untilAsserted(() -> assertThat(names(registry)).containsExactly("issue"));
     }
 
     /**

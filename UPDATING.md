@@ -36,8 +36,16 @@ should know why it is there:
 
 New key: `kb.mcp.retry-interval-ms` (`KB_MCP_RETRY_INTERVAL_MS`, default 60000)
 — how often the connections are probed again: a server that came up is picked up
-within that interval, and one that stopped answering loses its tools within it.
+within that interval, and one that stopped answering is marked down within it.
 It must be positive.
+
+A connection that goes down keeps its tools in the model's tool list: they answer
+with a «server unavailable» error instead of disappearing, because the tool list
+is part of the prompt prefix providers cache by — withdrawing a tool would
+invalidate every conversation's cached prefix, twice per outage. Only a
+successful probe rewrites the list, so a tool the server itself stops
+advertising is still dropped. `GET /api/settings/tools` gained an `available`
+flag saying which is which.
 
 No action is required for a deployment that runs with MCP off, or with servers
 that are up. For one that was relying on a failed startup to signal a broken MCP

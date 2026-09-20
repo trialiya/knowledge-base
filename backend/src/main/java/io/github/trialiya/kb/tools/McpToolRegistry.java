@@ -48,9 +48,11 @@ import org.springframework.scheduling.annotation.Scheduled;
  * assembled per request ({@code ChatRunService}) rather than baked into the {@code ChatClient}: see
  * {@link ChatToolset}.
  *
- * <p>Tools of a connection that has just failed are dropped rather than kept as a last known good
- * list: a call to a server that is down buys an error message the model has to spend a round trip
- * reading, and the tool comes back on the next successful probe anyway.
+ * <p>Tools of a connection that has just failed stay in the set and answer with an error while it
+ * is down ({@link UnavailableToolCallback}), because the tool list is part of the prompt prefix
+ * every provider keys its cache by: withdrawing a tool would cost the cached prefix of every
+ * conversation on this instance, and cost it again when the server returns. Only a successful probe
+ * changes which tools exist — a server that answers is the one thing allowed to say a tool is gone.
  *
  * <p>Both client types are probed — {@code spring.ai.mcp.client.type} decides which one the
  * autoconfiguration registers, and only one of the two lists is ever non-empty. The difference
@@ -86,7 +88,12 @@ public class McpToolRegistry {
     /** One connection as the Settings panel reports it. */
     public record ConnectionStatus(String name, Status status, int toolCount) {}
 
-    private record Connection(Status status, List<ToolCallback> callbacks) {}
+    /**
+     * @param tools the tool list this connection last advertised, unwrapped and kept across a
+     *     failure — see {@link UnavailableToolCallback} for why a connection going down must not
+     *     change the set of tools the model is offered
+     */
+    private record Connection(Status status, List<ToolCallback> tools) {}
 
     /**
      * The callbacks and the per-connection report, swapped as one: a reader of {@link #callbacks()}
@@ -255,12 +262,13 @@ public class McpToolRegistry {
         }
         Connection previous = connections.get(name);
         try {
-            List<ToolCallback> callbacks =
-                    source.list().stream().<ToolCallback>map(RecordingToolCallback::new).toList();
+            // A successful probe replaces the list outright: a tool the server stopped
+            // advertising is really gone, and this is the only thing allowed to say so.
+            List<ToolCallback> tools = List.copyOf(source.list());
             if (previous == null || previous.status() != Status.UP) {
-                log.info("MCP connection '{}' is up: {} tool(s)", name, callbacks.size());
+                log.info("MCP connection '{}' is up: {} tool(s)", name, tools.size());
             }
-            return new Connection(Status.UP, callbacks);
+            return new Connection(Status.UP, tools);
         } catch (Exception e) {
             // Only the change of state is a WARN, and only its message, not the stack trace: a
             // server that stays down is retried every kb.mcp.retry-interval-ms, and one line per
@@ -268,18 +276,26 @@ public class McpToolRegistry {
             // today. The Settings panel reports the state either way.
             if (previous == null || previous.status() != Status.DOWN) {
                 log.warn(
-                        "MCP connection '{}' is unavailable, its tools are not offered to the"
-                                + " model: {}",
+                        "MCP connection '{}' is unavailable; its tools stay in the model's tool"
+                                + " list and answer with an error until it is back: {}",
                         name,
                         e.toString());
             } else {
                 log.debug("MCP connection '{}' is still unavailable", name, e);
             }
-            return new Connection(Status.DOWN, List.of());
+            // The tools stay in the set and answer with an error while the connection is down —
+            // dropping them would rewrite the tool list, and with it the cached prompt prefix of
+            // every conversation on this instance. Tools never seen are simply not there yet.
+            return new Connection(Status.DOWN, previous == null ? List.of() : previous.tools());
         }
     }
 
-    /** Rebuilds the published view out of {@link #connections}, in configuration order. */
+    /**
+     * Rebuilds the published view out of {@link #connections}, in configuration order. The wrapping
+     * is decided here rather than at probe time, because it is what the connection's state means to
+     * a caller: a tool of a connection that is down keeps its definition — the model is offered the
+     * same tool list either way — and answers a call with an error.
+     */
     private Snapshot snapshot() {
         List<ToolCallback> callbacks = new ArrayList<>();
         List<ConnectionStatus> statuses = new ArrayList<>();
@@ -287,14 +303,24 @@ public class McpToolRegistry {
                 .forEach(
                         name -> {
                             Connection connection = connections.getOrDefault(name, pending());
-                            callbacks.addAll(connection.callbacks());
+                            connection.tools().stream()
+                                    .map(tool -> published(tool, name, connection.status()))
+                                    .forEach(callbacks::add);
                             statuses.add(
                                     new ConnectionStatus(
-                                            name,
-                                            connection.status(),
-                                            connection.callbacks().size()));
+                                            name, connection.status(), connection.tools().size()));
                         });
         return new Snapshot(List.copyOf(callbacks), List.copyOf(statuses));
+    }
+
+    /**
+     * {@link RecordingToolCallback} stays outermost so a call to an unreachable server is a plaque
+     * in the chat like any other call — a tool that silently does nothing is the one outcome a user
+     * cannot make sense of.
+     */
+    private static ToolCallback published(ToolCallback tool, String connection, Status status) {
+        return new RecordingToolCallback(
+                status == Status.UP ? tool : new UnavailableToolCallback(tool, connection));
     }
 
     private static Connection pending() {
