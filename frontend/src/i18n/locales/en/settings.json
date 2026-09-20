@@ -129,7 +129,13 @@
       "label": "External MCP servers",
       "status": "MCP tools",
       "connections": "Connections",
-      "connectionsEmpty": "No connections configured"
+      "connectionsEmpty": "No connections configured",
+      "state": {
+        "up": "connected, {{tools}} tool(s)",
+        "down": "unavailable",
+        "pending": "connecting…"
+      },
+      "retryNote": "An unavailable server costs only its own tools: the model is simply not offered them, and the connection is retried every {{seconds}}s — no restart needed."
     },
     "uploads": {
       "label": "Attachment limits",

@@ -24,6 +24,7 @@ import io.github.trialiya.kb.service.chat.memory.SummarizeService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.tools.ChatToolset;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -74,6 +75,7 @@ class ChatRunRetryTest {
         runService =
                 new ChatRunService(
                         new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
+                        new ChatToolset(List.of(), List.of()),
                         mock(ChatMemory.class),
                         chatHistory,
                         mock(SummarizeService.class),

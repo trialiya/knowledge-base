@@ -24,6 +24,7 @@ import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.tools.ChatToolset;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
@@ -233,6 +234,9 @@ class ChatRuntimeShutdownTest {
         final ChatClient.StreamResponseSpec stream = mock(ChatClient.StreamResponseSpec.class);
         when(chatClient.prompt()).thenReturn(spec);
         when(spec.system(any(Consumer.class))).thenReturn(spec);
+        // Инструменты MCP ставятся на запрос, а не в дефолты клиента (см. ChatRunService):
+        // без этой заглушки цепочка сборки запроса обрывается на первом же прогоне.
+        when(spec.tools(any(Object[].class))).thenReturn(spec);
         when(spec.toolContext(any())).thenReturn(spec);
         when(spec.advisors(any(Consumer.class))).thenReturn(spec);
         // Опции прогон ставит всегда — в них едет stream_options.include_usage
@@ -250,6 +254,7 @@ class ChatRuntimeShutdownTest {
                                 Flux.never()));
         return new ChatRunService(
                 new ChatClientRegistry("default-model", chatClient, Map.of()),
+                new ChatToolset(List.of(), List.of()),
                 chatMemory,
                 chatHistory,
                 mock(SummarizeService.class),

@@ -19,6 +19,34 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### MCP connections no longer open during startup
+
+An MCP server that was unreachable used to take the whole application with it:
+the client was initialized while the Spring context was coming up, and a refused
+connection — a wrong URL, a server that was down, an `npx` that is not installed
+— failed the bean and the boot. Connections are now opened in the background
+after startup, probed per connection, and retried while they are down; an
+unreachable server costs its own tools and nothing else.
+
+Two settings changed in `application.yaml`, and a deployment that overrides them
+should know why they are there:
+
+- `spring.ai.mcp.client.initialized` is now `false`. Setting it back to `true`
+  restores the old startup behaviour — including the failed boot.
+- `spring.ai.mcp.client.type` is pinned to `SYNC`. Under `ASYNC` the model is
+  offered no MCP tools: the registry that probes the connections reads sync
+  clients only.
+
+New key: `kb.mcp.retry-interval-ms` (`KB_MCP_RETRY_INTERVAL_MS`, default 60000)
+— how often a connection that is not up is probed again. It must be positive.
+
+No action is required for a deployment that runs with MCP off, or with servers
+that are up. For one that was relying on a failed startup to signal a broken MCP
+configuration: that signal is now the «Настройки → Инструменты» panel, which
+reports each connection as `PENDING`/`UP`/`DOWN`, and a `WARN` in the log when a
+connection changes state (a server that stays down is retried quietly, at DEBUG,
+so it cannot bury the log).
+
 ### `getUncommittedChanges` no longer reports untracked files unless asked
 
 The tool answers about the tracked half of the working tree — what the next
