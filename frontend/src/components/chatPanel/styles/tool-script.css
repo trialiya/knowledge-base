@@ -9,6 +9,41 @@
   min-width: 0;
 }
 
+/* Шапка «что запускалось»: у прогона по имени тела скрипта в аргументах нет,
+   и путь к файлу — единственное, по чему читатель найдёт код. */
+.tool-script__source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  background: var(--kb-surface-app);
+  border: 1px solid var(--kb-border);
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+
+.tool-script__source-kind {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--kb-text-muted);
+}
+
+.tool-script__source-name {
+  font-weight: 700;
+  color: var(--kb-text);
+}
+
+.tool-script__source-path,
+.tool-script__source-args {
+  font-family: var(--kb-font-mono);
+  font-size: 0.72rem;
+  color: var(--kb-text-muted);
+  overflow-wrap: anywhere;
+}
+
 /* Плитки в сетку, а не в ряд: набор счётчиков у стороннего инструмента может
    быть длиннее пяти, и ряд ушёл бы за край. */
 .tool-script__stats {

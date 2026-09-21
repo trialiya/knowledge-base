@@ -21,6 +21,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *         - name: release-checklist
  *           trigger: "before preparing a release of this repo"
  *           file: docs/skills/release.md
+ *       scripts-manifest: .kb/scripts.yaml
  *       git-commands:
  *         enabled: false
  *         push-enabled: false
@@ -75,6 +76,13 @@ public record ProjectProperties(List<ProjectOption> projects) {
      * @param skills the skills this project defines — see {@link SkillOption}. Loadable through
      *     {@code readSkill} only while the project is the chat's active one; the built-in skills
      *     from {@code prompt/skills/} stay available everywhere on top of these. Empty by default
+     * @param scriptsManifest path of the file in which this repository declares the scripts the
+     *     model may run with {@code runSavedScript} — relative to the project tree, {@code
+     *     .kb/scripts.yaml} by convention. Empty by default, and then the project has no saved
+     *     scripts: the manifest names files that get executed, so a deployment opts into running
+     *     what a repository declares instead of that following from the repository alone. What is
+     *     in the manifest is the repository's business — the entries are read at call time, so a
+     *     pull or a branch switch changes the list with no restart (see {@code SavedScriptCatalog})
      * @param gitCommands whether the <em>user</em> may run git commands against this repository
      *     from the UI, and which of them — see {@link GitCommandsOption}. A section of its own
      *     because it grants something different from {@link #editEnabled()}: that one says what the
@@ -94,6 +102,7 @@ public record ProjectProperties(List<ProjectOption> projects) {
             @DefaultValue("false") boolean untrackedEditEnabled,
             List<String> allowGlobs,
             List<SkillOption> skills,
+            @Nullable String scriptsManifest,
             @DefaultValue GitCommandsOption gitCommands,
             @DefaultValue("true") boolean enabled) {
 

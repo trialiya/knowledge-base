@@ -28,6 +28,27 @@ const statsOf = (stats) => {
   return [...known, ...rest].map((key) => ({ key, value: stats[key] }));
 };
 
+/**
+ * Откуда взялся скрипт: у прогона по имени (`runSavedScript`) это файл проекта,
+ * у написанного моделью — ничего, поле в ответе просто отсутствует. Имя и путь
+ * обязательны вместе: шапка без одного из них говорит меньше, чем не говорит
+ * ничего, и разбирать половину источника незачем.
+ */
+const scriptSource = (source) => {
+  if (!isPlainObject(source)) return null;
+  const name = str(source.name);
+  const path = str(source.path);
+  if (!name || !path) return null;
+  const hasArgs = isPlainObject(source.args) && Object.keys(source.args).length > 0;
+  return {
+    kind: str(source.kind) || null,
+    name,
+    path,
+    sha: str(source.sha) || null,
+    args: hasArgs ? JSON.stringify(source.args) : null,
+  };
+};
+
 /** Возврат скрипта — что угодно, включая объект; в блок он идёт строкой. */
 const scriptValue = (value) => {
   if (value === null || value === undefined) return null;
@@ -74,6 +95,8 @@ export const detectScriptRun = ({ parsed, isJson }) => {
     // Из ответа, а не из проекта чата: у runScript есть аргумент project, и
     // прогон мог читать соседний репозиторий — тогда filesRead и edits о нём.
     project: str(parsed.project) || null,
+    // Необязателен: скрипт, написанный моделью, источника не называет.
+    source: scriptSource(parsed.source),
     value: scriptValue(parsed.value),
     log: parsed.log,
     filesRead: parsed.filesRead,

@@ -73,6 +73,9 @@ public class ProjectCatalog {
         if (!project.skills().isEmpty()) {
             granted.add(project.skills().size() + " skills");
         }
+        if (project.scriptsManifest() != null) {
+            granted.add("saved scripts");
+        }
         return granted.isEmpty() ? "" : " (" + String.join(", ", granted) + ")";
     }
 
@@ -152,6 +155,7 @@ public class ProjectCatalog {
                             false,
                             List.of(),
                             List.of(),
+                            null,
                             false,
                             false));
         }
@@ -190,6 +194,7 @@ public class ProjectCatalog {
                             untrackedEdits(option),
                             option.allowGlobs(),
                             skills(id, root, option.skills()),
+                            scriptsManifest(id, root, option.scriptsManifest()),
                             option.gitCommands().enabled(),
                             gitPush(option)));
         }
@@ -305,6 +310,34 @@ public class ProjectCatalog {
             resolved.add(new ProjectSkill(name, option.trigger().strip(), file));
         }
         return List.copyOf(resolved);
+    }
+
+    /**
+     * The project's script manifest, resolved against its tree. Absent configuration is the normal
+     * case and means the project has no saved scripts — {@code runSavedScript} is an opt-in per
+     * repository, because the manifest names files that get executed.
+     *
+     * <p>Vetted exactly as far as a skill's file is, and for the same reasons: a path that leaves
+     * the tree is a deployment error and fails the start, while the file's <em>existence</em> is
+     * not checked at all — the list is read at call time from a working tree whose branch can
+     * change, and a branch that legitimately lacks the manifest must cost an empty list there, not
+     * this deployment's startup.
+     */
+    private static @Nullable Path scriptsManifest(String id, Path root, @Nullable String file) {
+        if (!StringUtils.hasText(file)) {
+            return null;
+        }
+        // Textual containment only — a symlink committed into the tree passes it, so where the
+        // path really lands is checked again at each read (SavedScriptCatalog).
+        Path manifest = root.resolve(file).normalize();
+        if (!manifest.startsWith(root) || manifest.equals(root)) {
+            throw new IllegalStateException(
+                    "kb.projects["
+                            + id
+                            + "].scripts-manifest resolves outside the project tree: "
+                            + file);
+        }
+        return manifest;
     }
 
     /**

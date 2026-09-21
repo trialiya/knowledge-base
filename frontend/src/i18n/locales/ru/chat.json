@@ -215,6 +215,10 @@
           "TIMEOUT": "Превышено время",
           "BUDGET": "Превышен лимит",
           "CANCELLED": "Прогон остановлен"
+        },
+        "source": {
+          "PROJECT": "Скрипт проекта",
+          "ATTACHMENT": "Скрипт из вложения"
         }
       },
       "args": {
@@ -400,7 +404,8 @@
     "searchCodebase": "Умный поиск",
     "createFile": "Создание файла",
     "editFile": "Правка файла",
-    "runScript": "Скрипт"
+    "runScript": "Скрипт",
+    "runSavedScript": "Сохранённый скрипт"
   },
   "docChange": {
     "viewChanges": "Посмотреть изменения",

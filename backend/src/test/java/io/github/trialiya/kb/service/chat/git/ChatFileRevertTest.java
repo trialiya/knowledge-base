@@ -352,6 +352,15 @@ class ChatFileRevertTest {
 
     private static Project project() {
         return new Project(
-                "kb", "KB", Path.of("/tmp/kb"), true, false, List.of(), List.of(), true, false);
+                "kb",
+                "KB",
+                Path.of("/tmp/kb"),
+                true,
+                false,
+                List.of(),
+                List.of(),
+                null,
+                true,
+                false);
     }
 }

@@ -12,6 +12,7 @@ import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitEditFunction;
 import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
+import io.github.trialiya.kb.functions.SavedScriptFunction;
 import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
 import io.github.trialiya.kb.functions.SkillFunction;
@@ -24,7 +25,9 @@ import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
 import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
+import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
 import io.github.trialiya.kb.service.chat.skill.SkillService;
@@ -154,6 +157,39 @@ public class ChatConfig {
         }
         log.info("Script tool enabled (runScript)");
         return ScriptFunction.forChat(scriptRunner, gitRegistry);
+    }
+
+    /**
+     * The {@code runSavedScript} tool — the scripts a repository declares in its manifest ({@code
+     * SavedScriptCatalog}). Two gates, and both are about offering the model something that exists:
+     * {@code kb.script.enabled}, because a saved script is executed by the very sandbox that flag
+     * switches off, and at least one configured manifest, because a deployment where no repository
+     * may declare scripts would otherwise get a tool whose whole answer is "unknown script".
+     *
+     * <p>Whether the manifest file is actually there on the current branch is deliberately not
+     * asked here: that is a property of the working tree, it changes while the process runs, and
+     * the empty list it produces is a normal answer rather than a reason to withhold the tool for
+     * the life of the deployment.
+     */
+    @Bean
+    @Nullable
+    public SavedScriptFunction savedScriptFunction(
+            ScriptProperties scriptProperties,
+            SavedScriptCatalog savedScriptCatalog,
+            ScriptRunner scriptRunner,
+            ScriptEditPolicy scriptEditPolicy) {
+        if (!scriptProperties.enabled()) {
+            log.info("Saved-script tool is NOT exposed to the model: kb.script.enabled=false");
+            return null;
+        }
+        if (!savedScriptCatalog.anyManifests()) {
+            log.info(
+                    "Saved-script tool is NOT exposed to the model: no project configured"
+                            + " kb.projects[].scripts-manifest");
+            return null;
+        }
+        log.info("Saved-script tool enabled (runSavedScript)");
+        return new SavedScriptFunction(savedScriptCatalog, scriptRunner, scriptEditPolicy);
     }
 
     /**
@@ -396,6 +432,7 @@ public class ChatConfig {
             ContextItemService contextItemService,
             ObjectProvider<SearchAgentService> searchAgentService,
             ObjectProvider<ScriptFunction> scriptFunction,
+            ObjectProvider<SavedScriptFunction> savedScriptFunction,
             ObjectProvider<SkillFunction> skillFunction,
             ObjectProvider<McpToolRegistry> mcpToolRegistry) {
         List<Object> functions =
@@ -414,6 +451,8 @@ public class ChatConfig {
         gitEditFunction.ifAvailable(functions::add);
         // Present only when kb.script.enabled=true (see scriptFunction bean).
         scriptFunction.ifAvailable(functions::add);
+        // Present only when some project also declares scripts (see savedScriptFunction bean).
+        savedScriptFunction.ifAvailable(functions::add);
         // Present only when there are skills to read (see skillFunction bean).
         skillFunction.ifAvailable(functions::add);
 

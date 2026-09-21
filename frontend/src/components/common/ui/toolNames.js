@@ -54,6 +54,7 @@ export const TOOL_META = {
   createFile: { icon: '➕', category: 'git' },
   editFile: { icon: '✏️', category: 'git' },
   runScript: { icon: '⚙️', category: 'git' },
+  runSavedScript: { icon: '⚙️', category: 'git' },
 };
 
 /** Иконка инструмента с дефолтом для незнакомых имён. */

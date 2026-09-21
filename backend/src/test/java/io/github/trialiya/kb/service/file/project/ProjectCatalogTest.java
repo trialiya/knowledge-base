@@ -62,6 +62,7 @@ class ProjectCatalogTest {
                                         List.of("notes/**"),
                                         null,
                                         null,
+                                        null,
                                         true),
                                 new ProjectOption(
                                         "billing",
@@ -69,6 +70,7 @@ class ProjectCatalogTest {
                                         "/srv/billing",
                                         false,
                                         false,
+                                        null,
                                         null,
                                         null,
                                         null,
@@ -102,6 +104,7 @@ class ProjectCatalogTest {
                                         List.of("notes/**"),
                                         null,
                                         null,
+                                        null,
                                         true)),
                         legacy(null));
 
@@ -123,6 +126,7 @@ class ProjectCatalogTest {
                                         false,
                                         null,
                                         null,
+                                        null,
                                         new GitCommandsOption(true, true),
                                         true),
                                 new ProjectOption(
@@ -131,6 +135,7 @@ class ProjectCatalogTest {
                                         "/srv/billing",
                                         false,
                                         false,
+                                        null,
                                         null,
                                         null,
                                         new GitCommandsOption(true, false),
@@ -150,7 +155,7 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", true, false, null, null, null,
+                                        "kb", null, "/srv/kb", true, false, null, null, null, null,
                                         true)),
                         legacy(null));
 
@@ -176,6 +181,7 @@ class ProjectCatalogTest {
                                         false,
                                         null,
                                         null,
+                                        null,
                                         new GitCommandsOption(false, true),
                                         true)),
                         legacy(null));
@@ -190,7 +196,7 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", " ", "/srv/kb", false, false, null, null, null,
+                                        "kb", " ", "/srv/kb", false, false, null, null, null, null,
                                         true)),
                         legacy(null));
 
@@ -204,7 +210,7 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
                                         true),
                                 new ProjectOption(
                                         "billing",
@@ -212,6 +218,7 @@ class ProjectCatalogTest {
                                         "/srv/billing",
                                         true,
                                         false,
+                                        null,
                                         null,
                                         null,
                                         null,
@@ -236,7 +243,7 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
                                         true),
                                 new ProjectOption(
                                         "billing",
@@ -244,6 +251,7 @@ class ProjectCatalogTest {
                                         "/srv/billing",
                                         false,
                                         false,
+                                        null,
                                         null,
                                         null,
                                         null,
@@ -262,7 +270,7 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
                                         true),
                                 new ProjectOption(
                                         "Not An Id",
@@ -270,6 +278,7 @@ class ProjectCatalogTest {
                                         "",
                                         false,
                                         false,
+                                        null,
                                         null,
                                         null,
                                         null,
@@ -287,7 +296,7 @@ class ProjectCatalogTest {
                                         List.of(
                                                 new ProjectOption(
                                                         "kb", null, "/srv/kb", false, false, null,
-                                                        null, null, false)),
+                                                        null, null, null, false)),
                                         legacy("/srv/legacy")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("every configured project is disabled");
@@ -301,7 +310,7 @@ class ProjectCatalogTest {
                                         List.of(
                                                 new ProjectOption(
                                                         "My Repo", null, "/srv/kb", false, false,
-                                                        null, null, null, true)),
+                                                        null, null, null, null, true)),
                                         legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("My Repo");
@@ -315,7 +324,7 @@ class ProjectCatalogTest {
                                         List.of(
                                                 new ProjectOption(
                                                         "kb", null, " ", false, false, null, null,
-                                                        null, true)),
+                                                        null, null, true)),
                                         legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("No project configured");
@@ -327,7 +336,7 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
                                         true)),
                         legacy(null));
 
@@ -347,7 +356,7 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
                                         true)),
                         legacy(null));
 
@@ -361,7 +370,7 @@ class ProjectCatalogTest {
 
     private static ProjectOption withSkills(SkillOption... skills) {
         return new ProjectOption(
-                "kb", null, "/srv/kb", false, false, null, List.of(skills), null, true);
+                "kb", null, "/srv/kb", false, false, null, List.of(skills), null, null, true);
     }
 
     /** Путь навыка разрешается от дерева проекта; триггер обрезается, порядок — конфигурации. */
@@ -466,7 +475,7 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null,
+                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
                                         true)),
                         legacy(null));
 

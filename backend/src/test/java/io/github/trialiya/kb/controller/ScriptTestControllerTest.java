@@ -32,6 +32,7 @@ class ScriptTestControllerTest {
             new ScriptResult(
                     "default",
                     null,
+                    null,
                     List.of(),
                     new ScriptStats(0, 0, 0, 0, 0),
                     null,

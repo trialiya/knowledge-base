@@ -64,6 +64,7 @@ class GitFunctionTest {
                                 false,
                                 null,
                                 null,
+                                null,
                                 false,
                                 false));
         when(billing.getFileContent(anyString(), any(), any()))

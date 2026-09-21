@@ -215,6 +215,10 @@
           "TIMEOUT": "Timed out",
           "BUDGET": "Budget exceeded",
           "CANCELLED": "Run cancelled"
+        },
+        "source": {
+          "PROJECT": "Project script",
+          "ATTACHMENT": "Attachment script"
         }
       },
       "args": {
@@ -400,7 +404,8 @@
     "searchCodebase": "Smart search",
     "createFile": "Create file",
     "editFile": "Edit file",
-    "runScript": "Script"
+    "runScript": "Script",
+    "runSavedScript": "Saved script"
   },
   "docChange": {
     "viewChanges": "View changes",

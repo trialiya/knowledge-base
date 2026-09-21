@@ -6,6 +6,7 @@ import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
+import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
 import io.github.trialiya.kb.service.chat.skill.SkillService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
@@ -30,6 +31,9 @@ class ProjectPromptServiceTest {
 
     private final SkillService skills = org.mockito.Mockito.mock(SkillService.class);
 
+    private final SavedScriptCatalog savedScripts =
+            org.mockito.Mockito.mock(SavedScriptCatalog.class);
+
     private ProjectPromptService service(String... ids) throws IOException {
         List<ProjectOption> options = List.of(ids).stream().map(this::project).toList();
         ProjectCatalog catalog =
@@ -37,7 +41,9 @@ class ProjectPromptServiceTest {
         GitRegistry registry = TestProjects.registry(options);
         org.mockito.Mockito.when(skills.projectSkills(org.mockito.ArgumentMatchers.any()))
                 .thenReturn("");
-        return new ProjectPromptService(catalog, registry, skills);
+        org.mockito.Mockito.when(savedScripts.projectScripts(org.mockito.ArgumentMatchers.any()))
+                .thenReturn("");
+        return new ProjectPromptService(catalog, registry, skills, savedScripts);
     }
 
     /**
@@ -74,7 +80,7 @@ class ProjectPromptServiceTest {
             throw new IllegalStateException(e);
         }
         return new ProjectOption(
-                id, id.toUpperCase(), dir.toString(), false, false, null, null, null, true);
+                id, id.toUpperCase(), dir.toString(), false, false, null, null, null, null, true);
     }
 
     @Test

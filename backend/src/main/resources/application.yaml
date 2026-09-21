@@ -315,6 +315,14 @@ kb:
       # real directory, and the app refuses to start otherwise. grepContent skips these files
       # unless asked. Empty — tracked files only. e.g. ["notes/**", "build/reports/**"]
       allow-globs: []
+      # Where THIS repository declares the scripts runSavedScript may run: a YAML manifest inside
+      # the tree ({name, file, desc, params, write, timeout} per entry), .kb/scripts.yaml by
+      # convention. The files it names may live anywhere in the tree and must be tracked by git.
+      # Empty — the project has no saved scripts and the tool is not offered: the manifest names
+      # files that get executed, so running what a repository declares is opted into here, while
+      # WHICH scripts those are stays the repository's own business (read at call time, so a pull
+      # or a branch switch changes the list with no restart). Needs kb.script.enabled as well.
+      scripts-manifest: ${PROJECT_SCRIPTS_MANIFEST:}
       # Git commands a USER may run on this repository from the UI (the model gets no tool for
       # any of them). Off, the panel shows no git controls at all. Even on, they are withheld
       # when the working tree is not writable — every one of them writes, a fetch included.
@@ -335,6 +343,7 @@ kb:
       edit-enabled: ${PROJECT2_EDIT_ENABLED:false}
       untracked-edit-enabled: ${PROJECT2_UNTRACKED_EDIT_ENABLED:false}
       allow-globs: []
+      scripts-manifest: ${PROJECT2_SCRIPTS_MANIFEST:}
       git-commands:
         enabled: ${PROJECT2_GIT_COMMANDS_ENABLED:false}
         push-enabled: ${PROJECT2_GIT_PUSH_ENABLED:false}

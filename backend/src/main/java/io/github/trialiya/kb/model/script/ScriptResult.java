@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.script;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.tool.ProjectScoped;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
@@ -21,6 +22,9 @@ import org.jspecify.annotations.Nullable;
  *     {@code runScript} can target a project other than the chat's active one (see {@code
  *     ScriptFunction#runScript}); without it the model cannot tell which repository {@code
  *     filesRead} and {@code edits} belong to
+ * @param source where the script came from when it was not written in the call — a saved script of
+ *     the project, an attachment. Null for a script the model wrote inline: there the call's own
+ *     argument is the text, and repeating a name it does not have would say nothing
  * @param value the script's return value, converted from JSON; null when it returned nothing
  * @param log lines collected via {@code kb.log}
  * @param stats what the run consumed; see {@link ScriptStats}
@@ -31,6 +35,7 @@ import org.jspecify.annotations.Nullable;
  */
 public record ScriptResult(
         String project,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) ScriptRunSource source,
         @Nullable Object value,
         List<String> log,
         ScriptStats stats,
@@ -46,6 +51,7 @@ public record ScriptResult(
     public String getFormattedResponse() {
         return Compact.tag("script")
                 .add("project", project)
+                .add("script", source == null ? null : source.name())
                 .add("files", stats.filesRead())
                 .add("bytes", stats.bytesRead())
                 .add("calls", stats.calls())
@@ -58,6 +64,10 @@ public record ScriptResult(
     @Override
     public Map<String, Object> getResultMeta() {
         Map<String, Object> meta = new LinkedHashMap<>();
+        if (source != null) {
+            meta.put("script", source.name());
+            meta.put("scriptPath", source.path());
+        }
         meta.put("filesRead", stats.filesRead());
         meta.put("bytesRead", stats.bytesRead());
         meta.put("calls", stats.calls());
