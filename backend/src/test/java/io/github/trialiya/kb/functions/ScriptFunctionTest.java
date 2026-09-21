@@ -49,6 +49,7 @@ class ScriptFunctionTest {
                         new ScriptResult(
                                 "billing",
                                 null,
+                                null,
                                 List.of(),
                                 new ScriptStats(0, 0, 0, 0, 0),
                                 null,

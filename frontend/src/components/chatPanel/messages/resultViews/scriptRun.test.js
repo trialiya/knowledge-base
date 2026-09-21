@@ -68,6 +68,42 @@ describe('detectScriptRun — что попадает в «Обзор»', () => 
   });
 });
 
+describe('detectScriptRun — источник скрипта', () => {
+  const source = (over = {}) => ({
+    kind: 'PROJECT',
+    name: 'locale-diff',
+    path: 'frontend/scripts/locale-diff.js',
+    sha: '0f1c2d3e4a5b',
+    args: { area: 'components' },
+    ...over,
+  });
+
+  it('прогон по имени называет скрипт, файл и аргументы', () => {
+    const data = detect(JSON.stringify(result({ source: source() })));
+    expect(data.source).toEqual({
+      kind: 'PROJECT',
+      name: 'locale-diff',
+      path: 'frontend/scripts/locale-diff.js',
+      sha: '0f1c2d3e4a5b',
+      args: '{"area":"components"}',
+    });
+  });
+
+  it('скрипт, написанный моделью, источника не называет — и это не ломает разбор', () => {
+    expect(detect(JSON.stringify(result())).source).toBeNull();
+    expect(detect(JSON.stringify(result({ source: null }))).source).toBeNull();
+  });
+
+  it('половина источника — не источник', () => {
+    expect(detect(JSON.stringify(result({ source: source({ path: undefined }) }))).source).toBeNull();
+    expect(detect(JSON.stringify(result({ source: 'locale-diff' }))).source).toBeNull();
+  });
+
+  it('пустые аргументы не показываются', () => {
+    expect(detect(JSON.stringify(result({ source: source({ args: {} }) }))).source.args).toBeNull();
+  });
+});
+
 describe('detectScriptRun — что остаётся другим видам', () => {
   it('нечисловое значение среди счётчиков — это не статистика', () => {
     expect(detect(JSON.stringify(result({ stats: { calls: 3, mode: 'dry-run' } })))).toBeNull();

@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.chat.script;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -77,6 +78,27 @@ class ScriptSandboxTest {
 
     private ScriptResult run(String script) {
         return runner.run(script, null, RunCancellation.none());
+    }
+
+    /**
+     * Выключатель песочницы проверяет сам движок, а не только поверхности вокруг него.
+     *
+     * <p>Поверхностей уже четыре — инструмент модели, стенд, команда {@code /script}, расписание, —
+     * и каждая отказывает сама, своим текстом. Но «{@code kb.script.enabled=false} — значит
+     * JavaScript не исполняется» должно оставаться правдой и для той, которую напишут завтра:
+     * забыть здесь нельзя, потому что этот метод — единственный, куда приходят все.
+     */
+    @Test
+    void theEngineItselfRefusesWhenScriptsAreSwitchedOff() {
+        ScriptRunner disabled =
+                newRunner(
+                        new ScriptProperties(
+                                false, true, true, false, null, null, null, null, null, null, null,
+                                null, null));
+
+        assertThatThrownBy(() -> disabled.run("return 1;", null, RunCancellation.none()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("kb.script.enabled=false");
     }
 
     // ── The sandbox has no way out ──────────────────────────────────────────
@@ -364,6 +386,78 @@ class ScriptSandboxTest {
         assertThat(result.value()).isEqualTo(Map.of("partial", true, "read", 1));
     }
 
+    // ── Modules ─────────────────────────────────────────────────────────────
+
+    /**
+     * {@code loadScript} читает файл тем же {@code kb.read} и выполняет его как модуль. Это не
+     * {@code require}: node-модулей, сети и файловых API как не было, так и нет — всё, что он
+     * умеет, скрипт умеет и сам.
+     */
+    @Test
+    void loadScriptEvaluatesARepositoryFileAsAModule() {
+        write(
+                repoDir.resolve("lib/util.js"),
+                "module.exports = { twice: function (x) { return x * 2; } };\n");
+        commitAll();
+
+        assertThat(run("return loadScript('lib/util.js').twice(21);").value()).isEqualTo(42);
+    }
+
+    /** Модуль тоже видит {@code kb} и может загружать другие модули. */
+    @Test
+    void aModuleSeesKbAndOtherModules() {
+        write(repoDir.resolve("lib/count.js"), "module.exports = kb.files('**/*.md').length;\n");
+        write(repoDir.resolve("lib/outer.js"), "module.exports = loadScript('lib/count.js');\n");
+        commitAll();
+
+        assertThat(run("return loadScript('lib/outer.js');").value()).isEqualTo(1);
+    }
+
+    /** Два модуля, загружающие друг друга, получают недособранный exports, а не бесконечность. */
+    @Test
+    void mutuallyLoadingModulesDoNotRecurseForever() {
+        write(
+                repoDir.resolve("lib/a.js"),
+                "exports.name = 'a';\nexports.b = loadScript('lib/b.js').name;\n");
+        write(
+                repoDir.resolve("lib/b.js"),
+                "exports.name = 'b';\nexports.a = loadScript('lib/a.js').name;\n");
+        commitAll();
+
+        ScriptResult result = run("var a = loadScript('lib/a.js'); return [a.name, a.b];");
+
+        assertThat(result.error()).isNull();
+        assertThat(result.value()).isEqualTo(List.of("a", "b"));
+    }
+
+    /** Видимость у модуля ровно та же: чего не читает kb.read, того не загрузить. */
+    @Test
+    void loadScriptCannotReachWhatKbReadCannot() {
+        assertThat(run("return loadScript('" + outsideDir + "/passwd');").error())
+                .isNotNull()
+                .extracting(ScriptError::kind)
+                .isEqualTo(ScriptError.Kind.RUNTIME);
+    }
+
+    // ── Arguments ───────────────────────────────────────────────────────────
+
+    /**
+     * Saved scripts brought an {@code args} object into the context, and it must cost the scripts
+     * that never asked for one nothing: an inline script sees an empty object, and — because the
+     * binding is a global and not a parameter of the wrapper — may still declare a name of its own
+     * over it.
+     */
+    @Test
+    void anInlineScriptSeesEmptyArgumentsAndMayShadowThem() {
+        assertThat(run("return Object.keys(args).length;").value()).isEqualTo(0);
+
+        for (String declaration : List.of("let args = 1;", "const args = 1;", "var args = 1;")) {
+            ScriptResult result = run(declaration + "\nreturn args;");
+            assertThat(result.error()).as(declaration).isNull();
+            assertThat(result.value()).as(declaration).isEqualTo(1);
+        }
+    }
+
     // ── Failure reporting ───────────────────────────────────────────────────
 
     @Test
@@ -396,6 +490,9 @@ class ScriptSandboxTest {
                         new ScriptProperties(
                                 true,
                                 false,
+                                true,
+                                false,
+                                null,
                                 null,
                                 null,
                                 null,
@@ -691,6 +788,9 @@ class ScriptSandboxTest {
         return new ScriptProperties(
                 true,
                 false,
+                true,
+                false,
+                null,
                 null,
                 null,
                 null,

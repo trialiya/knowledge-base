@@ -90,6 +90,11 @@ export const defaultAiConfig = {
     active: false,
     editEnabled: true,
     editActive: false,
+    // Бэкенд считает attachmentRun как `attachment-run && enabled`: при выключенной
+    // песочнице «включено по умолчанию» ничего не значит, и панель показывает «нет».
+    attachmentRun: false,
+    attachmentEdit: false,
+    schedules: 0,
     timeoutSeconds: 10,
     maxTimeoutSeconds: 30,
     cancelPollMillis: 50,
@@ -172,5 +177,65 @@ export const strongAndWeakModels = {
  */
 export const scriptEnabled = {
   ...defaultAiConfig,
-  script: { ...defaultAiConfig.script, enabled: true, active: true },
+  script: {
+    ...defaultAiConfig.script,
+    enabled: true,
+    active: true,
+    attachmentRun: true,
+    schedules: 2,
+  },
 };
+
+/**
+ * Что репозиторий объявил в манифесте (`GET /api/settings/script/saved`) — список,
+ * из которого выбирают в стенде сохранённых скриптов. Две записи не для объёма:
+ * у одной объявлены аргументы и свой бюджет, у другой нет ни того, ни другого, и
+ * форма под выбором выглядит в этих двух случаях по-разному.
+ */
+export const savedScripts = {
+  project: 'kb',
+  label: 'Knowledge Base',
+  scripts: [
+    {
+      name: 'locale-diff',
+      desc: 'Чего не хватает в одной локали против другой',
+      file: '.kb/scripts/locale-diff.js',
+      write: false,
+      timeoutSeconds: 20,
+      params: [
+        { name: 'area', desc: 'Раздел локали: chat, settings, common', type: 'string', required: true, defaultValue: null },
+        { name: 'limit', desc: 'Сколько ключей показать', type: 'number', required: false, defaultValue: 50 },
+      ],
+    },
+    {
+      name: 'todo-index',
+      desc: 'Пересобрать docs/todo/.index.md по файлам каталога',
+      file: 'docs/todo/build-index.js',
+      write: true,
+      timeoutSeconds: null,
+      params: [],
+    },
+  ],
+};
+
+/**
+ * Что развёртка запускает сама (`GET /api/settings/script/schedules`): одно
+ * расписание уже отработало, второе с запуска сервера ещё ни разу — это и есть
+ * две строки, которые панель показывает по-разному.
+ */
+export const scriptSchedules = [
+  {
+    name: 'nightly-locale-diff',
+    script: 'locale-diff',
+    project: 'kb',
+    cron: '0 0 3 * * *',
+    lastRun: { at: '2026-09-20T03:00:12Z', ok: true, error: null, elapsedMs: 1840 },
+  },
+  {
+    name: 'weekly-todo-index',
+    script: 'todo-index',
+    project: 'kb',
+    cron: '0 0 4 * * 1',
+    lastRun: null,
+  },
+];

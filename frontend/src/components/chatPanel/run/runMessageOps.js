@@ -134,7 +134,7 @@ export const setRunUsage = (msgs, runId, usage, live) => {
  * Плашка действия пользователя — выполненной git-команды или отката файловых правок ответа:
  * отправитель у неё USER, ходом разговора она не является.
  */
-export const isEventRow = (message) => !!message.gitEvent || !!message.fileRevert;
+export const isEventRow = (message) => !!message.gitEvent || !!message.fileRevert || !!message.scriptEvent;
 
 /**
  * Тот ли это прогон, что чат считает идущим. Прогон в чате открывают ровно двое — RUN_STARTED и

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getFileChangeRefs } from './toolMeta';
+import { SCRIPT_TOOLS, getFileChangeRefs } from './toolMeta';
 import { TOOL_STATUS } from '@/constants/toolStatus';
 import { IconChevronDown, IconUndo } from '@/icons/index';
 import ConfirmModal from '@/components/common/modal/ConfirmModal';
@@ -61,7 +61,7 @@ const FileChangeBlock = ({ toolCalls, project, conversationId, canRevert = false
   const scripted = useMemo(
     () =>
       (toolCalls || []).some(
-        (tc) => tc.name === 'runScript' && tc.status !== TOOL_STATUS.ERROR && tc.resultMeta?.edits?.length > 0,
+        (tc) => SCRIPT_TOOLS.has(tc.name) && tc.status !== TOOL_STATUS.ERROR && tc.resultMeta?.edits?.length > 0,
       ),
     [toolCalls],
   );

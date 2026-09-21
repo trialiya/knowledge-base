@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.git.dto.TextEdit;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.runtime.ChatActionClaim;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class ChatFileRevert {
 
-    private final ChatGitLog chatGitLog;
+    private final ChatActionClaim chatActionClaim;
     private final ChatHistoryService chatHistory;
     private final ChatEventService chatEvents;
     private final GitRegistry gitRegistry;
@@ -60,9 +61,9 @@ public class ChatFileRevert {
      * <p>{@code paths} — какие файлы вернуть; пустой список — все, что ответ правил и что ещё не
      * откачено.
      *
-     * <p>Заявка на чат берётся тем же {@link ChatGitLog#claimIdleAndOwned}, что и у git-команд: чат
-     * чужим не откатывают, а во время прогона — не откатывают вовсе, иначе модель правит те же
-     * файлы, из-под которых их уводят.
+     * <p>Заявка на чат берётся тем же {@link ChatActionClaim#claimIdleAndOwned}, что и у
+     * git-команд: чат чужим не откатывают, а во время прогона — не откатывают вовсе, иначе модель
+     * правит те же файлы, из-под которых их уводят.
      *
      * <p>Репозиторий не спрашивается у вызывающего, а берётся из истории самого чата ({@link
      * ChatHistoryService#lastStampedProject}): селектор проекта переключают сразу после ответа, и
@@ -74,11 +75,11 @@ public class ChatFileRevert {
      *     изменился после ответа
      */
     public FileRevertPayload revertLastAnswer(String conversationId, List<String> paths) {
-        final String claim = chatGitLog.claimIdleAndOwned(conversationId);
+        final String claim = chatActionClaim.claimIdleAndOwned(conversationId);
         try {
             return revertClaimed(conversationId, paths);
         } finally {
-            chatGitLog.release(conversationId, claim);
+            chatActionClaim.release(conversationId, claim);
         }
     }
 
@@ -155,10 +156,10 @@ public class ChatFileRevert {
     /**
      * Репозиторий чата, готовый принимать правки.
      *
-     * <p>Отказ отдаётся кодом прямо отсюда — как это делает {@link ChatGitLog} с чужим и занятым
-     * чатом, и по той же причине: различить «проект настроен, но писать в него нельзя» ({@code
-     * 403}) и «репозиторий не открылся» ({@code 503}) может только тот, кто знает, о каком проекте
-     * речь, а после этого метода id проекта не знает уже никто.
+     * <p>Отказ отдаётся кодом прямо отсюда — как это делает {@link ChatActionClaim} с чужим и
+     * занятым чатом, и по той же причине: различить «проект настроен, но писать в него нельзя»
+     * ({@code 403}) и «репозиторий не открылся» ({@code 503}) может только тот, кто знает, о каком
+     * проекте речь, а после этого метода id проекта не знает уже никто.
      */
     private GitService editable(@Nullable String project) {
         try {

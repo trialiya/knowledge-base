@@ -130,6 +130,7 @@ class ToolArgumentGapsTest {
                                     false,
                                     null,
                                     null,
+                                    null,
                                     false,
                                     false));
             when(registry.forProject(any())).thenReturn(gitService);

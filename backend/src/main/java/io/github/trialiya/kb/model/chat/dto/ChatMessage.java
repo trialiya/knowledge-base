@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,6 +39,12 @@ public record ChatMessage(
          * отката — по нему фронт рисует плашку вместо обычного пузыря, как и у {@link #gitEvent}.
          */
         @Nullable FileRevertMeta fileRevert,
+        /**
+         * Прогон сохранённого скрипта, запущенный пользователем командой {@code /script}; непустой
+         * ровно у ряда этого прогона — по нему фронт рисует карточку прогона вместо пузыря, как и у
+         * {@link #gitEvent}.
+         */
+        @Nullable ScriptEventMeta scriptEvent,
         /**
          * Вопрос был задан во время прогона, а не между ходами; {@code null} у всех остальных.
          * Фронту он нужен по той же причине, что и бэкенду: такой ряд не открывает ход, и всё, что

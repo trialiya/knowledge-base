@@ -315,6 +315,14 @@ kb:
       # real directory, and the app refuses to start otherwise. grepContent skips these files
       # unless asked. Empty — tracked files only. e.g. ["notes/**", "build/reports/**"]
       allow-globs: []
+      # Where THIS repository declares the scripts runSavedScript may run: a YAML manifest inside
+      # the tree ({name, file, desc, params, write, timeout} per entry), .kb/scripts.yaml by
+      # convention. The files it names may live anywhere in the tree and must be tracked by git.
+      # Empty — the project has no saved scripts and the tool is not offered: the manifest names
+      # files that get executed, so running what a repository declares is opted into here, while
+      # WHICH scripts those are stays the repository's own business (read at call time, so a pull
+      # or a branch switch changes the list with no restart). Needs kb.script.enabled as well.
+      scripts-manifest: ${PROJECT_SCRIPTS_MANIFEST:}
       # Git commands a USER may run on this repository from the UI (the model gets no tool for
       # any of them). Off, the panel shows no git controls at all. Even on, they are withheld
       # when the working tree is not writable — every one of them writes, a fetch included.
@@ -335,6 +343,7 @@ kb:
       edit-enabled: ${PROJECT2_EDIT_ENABLED:false}
       untracked-edit-enabled: ${PROJECT2_UNTRACKED_EDIT_ENABLED:false}
       allow-globs: []
+      scripts-manifest: ${PROJECT2_SCRIPTS_MANIFEST:}
       git-commands:
         enabled: ${PROJECT2_GIT_COMMANDS_ENABLED:false}
         push-enabled: ${PROJECT2_GIT_PUSH_ENABLED:false}
@@ -345,6 +354,29 @@ kb:
     # without one — and reaches files only through the injected `kb` object, which goes through the
     # same tracked-files rules as every other tool. Still an explicit opt-in: it is executed code.
     enabled: ${KB_SCRIPT_ENABLED:false}
+    # Let the model run a script that arrived as an attachment: runSavedScript with
+    # "attachment:<id>", for a .js attachment of a chat or of a knowledge-base document. The
+    # sandbox is the same one and such a run is always read-only, so what this adds over a script
+    # the model writes itself is not capability but provenance — the code came from whoever
+    # uploaded the file. On by default wherever scripts are on; a deployment willing to run what
+    # its own repository declares but not what sits in its knowledge base turns it off here.
+    attachment-run: ${KB_SCRIPT_ATTACHMENT_RUN:true}
+    # Let a script that came from an attachment write too, where the project and edit-enabled
+    # below already allow it. Off, and meant to stay off in most deployments: an attachment is code
+    # somebody uploaded, a document's attachment is code somebody ELSE uploaded, and read-only is
+    # what keeps the worst case at "time was wasted". Turning it on says the knowledge base is as
+    # trusted as the repository.
+    attachment-edit: ${KB_SCRIPT_ATTACHMENT_EDIT:false}
+    # Saved scripts this deployment runs on a clock of its own. The repository's manifest says what
+    # MAY be run; that something SHOULD run every night, unattended, on this machine, is the
+    # deployment's decision and lives here, where an operator can see it without reading a branch.
+    # Always read-only — nobody is watching a scheduled run, so there is no diff to review and no
+    # message to attribute a change to. The last outcome of each schedule is in the log and in
+    # Settings → Scripts; a history of runs is a feature of its own and is not one of these.
+    # Entries: name (for the log and the panel), project (empty — the default), script (a name from
+    # that project's manifest; an attachment belongs to a chat, not to a clock), args, cron (six
+    # fields, Spring syntax), timeout-seconds. A bad entry fails the start.
+    schedules: []
     # Let scripts write (kb.edit/kb.create for text, kb.writeBytes/kb.createBytes for bytes).
     # Necessary but not sufficient: the project's kb.projects[].edit-enabled must also be on and
     # its working tree writable — the same two gates as the editFile tool, so scripts can never be

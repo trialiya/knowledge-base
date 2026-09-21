@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptError.Kind;
 import io.github.trialiya.kb.model.script.ScriptResult;
+import io.github.trialiya.kb.model.script.ScriptRunSource;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
@@ -69,10 +70,61 @@ public class ScriptRunner {
      * The script body becomes a function body so that top-level {@code return} works — which is
      * what the handbook tells the model to write. The opening stays on line 1 <em>with</em> the
      * script's own first line, so reported error lines match the script the model sent.
+     *
+     * <p>Arguments are <em>not</em> a parameter of this wrapper. They arrive as a binding, so a
+     * script whose first line is {@code let args = …} still parses: a declaration in the function
+     * body shadows the global, while the same name as the wrapper's parameter would be a redeclared
+     * binding and a syntax error — on scripts that ran before saved scripts existed.
      */
     private static final String PREFIX = "(function(){";
 
     private static final String SUFFIX = "\n})()";
+
+    /**
+     * Загрузчик модулей для скрипта: {@code loadScript('lib/util.js')} читает файл репозитория
+     * через тот же {@code kb.read} — со всеми его правилами видимости и его же бюджетом — и
+     * выполняет как модуль, отдавая {@code module.exports}.
+     *
+     * <p>Он не {@code require}: node-модулей, {@code import}, сети и файловых API в песочнице
+     * по-прежнему нет, и называться именем, которое это обещает, он не должен. Всё, что он умеет, —
+     * то же, что умеет скрипт: прочитать файл, который и так виден.
+     *
+     * <p>Кэш заполняется <em>до</em> вычисления модуля, поэтому два файла, загружающие друг друга,
+     * получают недособранный {@code exports}, а не бесконечную рекурсию — как в CommonJS.
+     *
+     * <p>Строки ошибок внутри модуля считаются от начала его собственного текста: {@code new
+     * Function} компилирует его отдельным источником, и номер строки в {@code ScriptError}
+     * относится к файлу, который скрипт загрузил, а не к самому скрипту.
+     *
+     * <p>В отдельном держателе по той же причине, что и {@link Helpers}: сборка {@link Source}
+     * поднимает полиглот-рантайм, и платить за неё надо с первым скриптом, а не при загрузке
+     * класса.
+     */
+    private static final class Modules {
+        static final Source LOADER =
+                Source.newBuilder(
+                                "js",
+                                """
+                                (function (kb) {
+                                  var cache = {};
+                                  return function loadScript(path) {
+                                    if (Object.prototype.hasOwnProperty.call(cache, path)) {
+                                      return cache[path].exports;
+                                    }
+                                    var module = { exports: {} };
+                                    cache[path] = module;
+                                    var body = kb.read(path);
+                                    var factory = new Function('module', 'exports', 'kb', 'loadScript', body);
+                                    factory(module, module.exports, kb, loadScript);
+                                    return module.exports;
+                                  };
+                                })
+                                """,
+                                "kb-modules.js")
+                        .buildLiteral();
+
+        private Modules() {}
+    }
 
     /**
      * Guest-side JSON helpers, evaluated once per context (see {@link #stringify}).
@@ -93,6 +145,15 @@ public class ScriptRunner {
                                     if (x === undefined) return 'undefined';
                                     var s = JSON.stringify(x);
                                     return s === undefined ? String(x) : s;
+                                  },
+                                  args: function (json) {
+                                    return (function deepFreeze(x) {
+                                      if (x !== null && typeof x === 'object' && !Object.isFrozen(x)) {
+                                        Object.freeze(x);
+                                        Object.keys(x).forEach(function (k) { deepFreeze(x[k]); });
+                                      }
+                                      return x;
+                                    })(JSON.parse(json));
                                   }
                                 })
                                 """,
@@ -183,6 +244,9 @@ public class ScriptRunner {
      *     there is no stoppable run behind the call
      * @throws ScriptCancelledException when the user stopped the run — the one failure that is not
      *     reported back to the model
+     * @throws IllegalStateException scripts are switched off deployment-wide (see {@link
+     *     #requireEnabled()}) — a surface that offers a script is expected to have refused already,
+     *     so this one is a programming error, not a message for a user
      */
     public ScriptResult run(
             String script, @Nullable Integer timeoutSeconds, RunCancellation cancellation) {
@@ -214,7 +278,6 @@ public class ScriptRunner {
      * project, which is what every caller that does not know the run's project gets (see {@code
      * GitRegistry}).
      */
-    @SuppressWarnings("PMD.UseTryWithResources") // see the comment on `Context context` below
     public ScriptResult run(
             String script,
             @Nullable Integer timeoutSeconds,
@@ -222,20 +285,45 @@ public class ScriptRunner {
             boolean forceReadOnly,
             @Nullable ToolInvocationCollector priorInvocations,
             @Nullable String projectId) {
+        return run(
+                new ScriptRequest(
+                        ScriptSource.inline(script),
+                        ScriptArgs.none(),
+                        timeoutSeconds,
+                        forceReadOnly,
+                        priorInvocations,
+                        projectId),
+                cancellation);
+    }
+
+    /**
+     * The run every overload above arrives at, and the only one a saved script can use: its text
+     * comes from the repository and its arguments from the call, so both travel in the {@link
+     * ScriptRequest} instead of being reconstructed here.
+     *
+     * @throws ScriptCancelledException when the user stopped the run — the one failure that is not
+     *     reported back to the model
+     */
+    @SuppressWarnings("PMD.UseTryWithResources") // see the comment on `Context context` below
+    public ScriptResult run(ScriptRequest request, RunCancellation cancellation) {
+        requireEnabled();
         // One repository for the whole run: resolved once here, so a script cannot end up reading
         // one project and writing another.
-        GitService gitService = gitRegistry.forProject(projectId);
+        GitService gitService = gitRegistry.forProject(request.projectId());
         // The id actually resolved, not the argument — echoed into every ScriptResult so the model
         // knows which repository filesRead/edits belong to even when it named no project itself,
         // and also what ScriptSession#requireRead compares a prior read's project against.
         String project = gitService.project().id();
-        ScriptSession session = new ScriptSession(properties, priorInvocations, project);
+        ScriptSession session = new ScriptSession(properties, request.priorInvocations(), project);
+        // Whatever the caller was told about its arguments belongs to the run's own log: the model
+        // reads it back in the result and fixes the next call without a round-trip to ask.
+        request.args().notes().forEach(session::log);
         // Which object is bound IS the permission: with writes off, kb.edit does not exist.
         KbScriptApi api =
-                editPolicy.enabled(projectId) && !forceReadOnly
+                editPolicy.enabled(request.projectId()) && !request.forceReadOnly()
                         ? new KbEditScriptApi(gitService, documentService, session)
                         : new KbScriptApi(gitService, documentService, session);
-        Duration timeout = resolveTimeout(timeoutSeconds);
+        Duration timeout = resolveTimeout(request.timeoutSeconds());
         long deadlineNanos = System.nanoTime() + timeout.toNanos();
 
         AtomicBoolean finished = new AtomicBoolean();
@@ -251,8 +339,18 @@ public class ScriptRunner {
             Value logFormatter = helpers.getMember("log");
             api.bindFormatter(value -> logFormatter.execute(value).asString());
             context.getBindings("js").putMember("kb", api);
+            // Модули — гостевой функцией поверх kb.read, а не новым методом хоста: поверхность
+            // HostAccess от неё не растёт, а бюджет чтения списывается обычным порядком.
+            context.getBindings("js")
+                    .putMember("loadScript", context.eval(Modules.LOADER).execute(api));
 
-            Value returned = context.eval(source(script));
+            // The guest parses its own arguments: JSON.parse, not an object literal in the
+            // source, so a key named __proto__ stays an own property instead of silently becoming
+            // the prototype — and nothing but a string crosses into the context.
+            context.getBindings("js")
+                    .putMember("args", helpers.getMember("args").execute(request.args().json()));
+
+            Value returned = context.eval(source(request.source()));
             Object value = stringify(helpers.getMember("result"), returned, session);
             // Retire the watchdog before writing: the budget it enforces is the script's, and a
             // deadline landing mid-apply would mean a stop request that leaves files half written
@@ -261,20 +359,28 @@ public class ScriptRunner {
             // Only now, with the script finished and its result already converted, does anything
             // reach disk. Every earlier exit — a throw, a budget, a timeout, a user stop — leaves
             // the working tree exactly as the run found it.
-            return success(project, value, session, applyPendingWrites(session, gitService));
+            return success(
+                    project,
+                    request.source().report(),
+                    value,
+                    session,
+                    applyPendingWrites(session, gitService));
         } catch (PolyglotException e) {
-            return failure(project, e, session, cancelReason.get(), timeout);
+            return failure(project, request.source(), e, session, cancelReason.get(), timeout);
         } catch (ScriptLimitExceededException e) {
             // A budget blown outside guest code (converting the return value, say).
             return failed(
-                    project, session, ScriptError.of(Kind.BUDGET, String.valueOf(e.getMessage())));
+                    project,
+                    request.source(),
+                    session,
+                    ScriptError.of(Kind.BUDGET, String.valueOf(e.getMessage())));
         } catch (IllegalStateException e) {
             // The watchdog closed the context while this thread was between guest calls, so the
             // cancellation surfaces as "context is closed" rather than as a guest exception.
             if (cancelReason.get() == null) {
                 throw e;
             }
-            return stopped(project, session, cancelReason.get(), timeout);
+            return stopped(project, request.source(), session, cancelReason.get(), timeout);
         } finally {
             stopWatchdog(finished, watchdog);
             closeQuietly(context);
@@ -282,6 +388,21 @@ public class ScriptRunner {
     }
 
     // ── Sandbox ─────────────────────────────────────────────────────────────
+
+    /**
+     * The sandbox switch, checked here and not only at the surfaces that offer scripts.
+     *
+     * <p>Every script — a model's {@code runScript}, a saved one, the bench, a schedule — arrives
+     * at the run above, so this is the one place where {@code kb.script.enabled=false} can mean
+     * "nothing evaluates JavaScript" for a caller written later too. The surfaces still refuse on
+     * their own, with a message written for whoever is reading; this one exists so that forgetting
+     * to is not a way in.
+     */
+    private void requireEnabled() {
+        if (!properties.enabled()) {
+            throw new IllegalStateException("Scripts are disabled (kb.script.enabled=false)");
+        }
+    }
 
     private Context newContext() {
         return Context.newBuilder("js")
@@ -298,8 +419,9 @@ public class ScriptRunner {
                 .build();
     }
 
-    private static Source source(String script) {
-        return Source.newBuilder("js", PREFIX + script + SUFFIX, "script.js").buildLiteral();
+    private static Source source(ScriptSource script) {
+        return Source.newBuilder("js", PREFIX + script.text() + SUFFIX, script.sourceName())
+                .buildLiteral();
     }
 
     private Thread startWatchdog(
@@ -352,11 +474,13 @@ public class ScriptRunner {
 
     private ScriptResult success(
             String project,
+            @Nullable ScriptRunSource source,
             @Nullable Object value,
             ScriptSession session,
             List<GitEditResult> edits) {
         return new ScriptResult(
                 project,
+                source,
                 value,
                 session.logLines(),
                 session.stats(),
@@ -365,9 +489,11 @@ public class ScriptRunner {
                 edits);
     }
 
-    private ScriptResult failed(String project, ScriptSession session, ScriptError error) {
+    private ScriptResult failed(
+            String project, ScriptSource source, ScriptSession session, ScriptError error) {
         return new ScriptResult(
                 project,
+                source.report(),
                 null,
                 session.logLines(),
                 session.stats(),
@@ -431,17 +557,19 @@ public class ScriptRunner {
      */
     private ScriptResult failure(
             String project,
+            ScriptSource source,
             PolyglotException e,
             ScriptSession session,
             @Nullable Kind cancelReason,
             Duration timeout) {
         if (e.isCancelled() || e.isInterrupted()) {
-            return stopped(project, session, cancelReason, timeout);
+            return stopped(project, source, session, cancelReason, timeout);
         }
         if (e.isHostException()
                 && e.asHostException() instanceof ScriptLimitExceededException limit) {
             return failed(
                     project,
+                    source,
                     session,
                     ScriptError.of(Kind.BUDGET, String.valueOf(limit.getMessage())));
         }
@@ -450,12 +578,16 @@ public class ScriptRunner {
             // language for outline, an invalid regex. The message is already model-readable.
             return failed(
                     project,
+                    source,
                     session,
                     new ScriptError(Kind.RUNTIME, String.valueOf(e.getMessage()), line(e)));
         }
         Kind kind = e.isSyntaxError() ? Kind.SYNTAX : Kind.RUNTIME;
         return failed(
-                project, session, new ScriptError(kind, String.valueOf(e.getMessage()), line(e)));
+                project,
+                source,
+                session,
+                new ScriptError(kind, String.valueOf(e.getMessage()), line(e)));
     }
 
     /**
@@ -463,12 +595,17 @@ public class ScriptRunner {
      * is not — nobody is left to read it, so it leaves as an exception.
      */
     private ScriptResult stopped(
-            String project, ScriptSession session, @Nullable Kind reason, Duration timeout) {
+            String project,
+            ScriptSource source,
+            ScriptSession session,
+            @Nullable Kind reason,
+            Duration timeout) {
         if (reason == Kind.CANCELLED) {
             throw new ScriptCancelledException("Script cancelled: the chat response was stopped");
         }
         return failed(
                 project,
+                source,
                 session,
                 ScriptError.of(
                         Kind.TIMEOUT,

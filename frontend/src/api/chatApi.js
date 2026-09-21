@@ -181,6 +181,17 @@ const chatApi = {
    * только в фокус для него. keepLastRun — `/compact-1`: последний ход разговора остаётся
    * живым. clientMsgId — как у startRun: гасит своё эхо USER_MESSAGE.
    */
+  /**
+   * Команда `/script`: прогон сохранённого скрипта человеком. Ответ — тот же ScriptResult,
+   * что видит модель; ряд истории и событие SCRIPT_RUN бэкенд рассылает сам, поэтому
+   * вкладке ответ нужен только для отказа — сам прогон приедет событием.
+   */
+  runScript: (id, name, args, timeoutSeconds) =>
+    request(`/api/chats/${enc(id)}/script-runs`, {
+      method: 'POST',
+      ...json({ name, args, timeoutSeconds }),
+    }),
+
   compact: (id, text, instructions, keepLastRun, clientMsgId) =>
     request(`/api/chats/${enc(id)}/compact`, {
       method: 'POST',

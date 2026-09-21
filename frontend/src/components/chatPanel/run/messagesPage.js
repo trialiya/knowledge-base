@@ -86,6 +86,18 @@ export const transformPage = (rawMsgs) => {
       });
       continue;
     }
+    // След прогона сохранённого скрипта по команде `/script`: тот же USER без текста,
+    // весь смысл которого в мете (см. ChatHistoryService.appendScriptEvent).
+    if (m.scriptEvent) {
+      bubbles.push({
+        mid: nextMessageId(),
+        dbId: m.id ?? null,
+        sender: SENDER.USER,
+        scriptEvent: m.scriptEvent,
+        timestamp: m.timestamp || null,
+      });
+      continue;
+    }
     if (type === 'system') continue; // прочие системные сообщения (напр. summary) не показываем
     // Протокольные TOOL-сообщения (ответы инструментов) — не для показа: их содержимое
     // видно через плашки/модалку деталей соответствующего сегмента.

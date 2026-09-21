@@ -42,6 +42,9 @@ class ScriptCancellationTest {
                 new ScriptProperties(
                         true,
                         false,
+                        true,
+                        false,
+                        null,
                         null,
                         null,
                         null,

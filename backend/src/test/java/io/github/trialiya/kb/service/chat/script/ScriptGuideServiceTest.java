@@ -23,7 +23,9 @@ class ScriptGuideServiceTest {
     @Test
     void saysNothingAboutScriptsWhenTheToolIsDisabled() {
         ScriptProperties disabled =
-                new ScriptProperties(false, false, null, null, null, null, null, null, null, null);
+                new ScriptProperties(
+                        false, false, true, false, null, null, null, null, null, null, null, null,
+                        null);
 
         ScriptGuideService service = guide(disabled, false);
         assertThat(service.instructions(true)).isEmpty();
@@ -51,7 +53,10 @@ class ScriptGuideServiceTest {
                 new ScriptProperties(
                         true,
                         false,
+                        true,
+                        false,
                         guide,
+                        null,
                         null,
                         null,
                         null,
@@ -164,7 +169,10 @@ class ScriptGuideServiceTest {
         return new ScriptProperties(
                 true,
                 false,
+                true,
+                false,
                 guide,
+                null,
                 null,
                 null,
                 null,

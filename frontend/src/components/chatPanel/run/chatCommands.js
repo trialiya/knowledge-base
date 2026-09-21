@@ -12,7 +12,7 @@
  *   COMPACT   — `/compact` и `/сжать`: сводка вместо всего живого контекста;
  *   COMPACT_1 — `/compact-1` и `/сжать-1`: то же, но последний ход разговора остаётся живым.
  */
-export const CHAT_COMMAND = { COMPACT: 'compact', COMPACT_1: 'compact-1' };
+export const CHAT_COMMAND = { COMPACT: 'compact', COMPACT_1: 'compact-1', SCRIPT: 'script' };
 
 /** Команды сжатия — обе, в порядке от полной к частичной. */
 export const COMPACT_COMMANDS = [CHAT_COMMAND.COMPACT, CHAT_COMMAND.COMPACT_1];
@@ -21,7 +21,23 @@ export const COMPACT_COMMANDS = [CHAT_COMMAND.COMPACT, CHAT_COMMAND.COMPACT_1];
 export const isCompactCommand = (name) => COMPACT_COMMANDS.includes(name);
 
 /** Почему команду сейчас не выполнить (см. chatCommandBlock). */
-export const COMMAND_BLOCK = { RUNNING: 'running', NOTHING_TO_COMPACT: 'nothingToCompact' };
+export const COMMAND_BLOCK = {
+  RUNNING: 'running',
+  NOTHING_TO_COMPACT: 'nothingToCompact',
+  NO_CHAT: 'noChat',
+  NO_SCRIPT_NAME: 'noScriptName',
+};
+
+/**
+ * Отказы не про чат, а про недонабранный текст.
+ *
+ * Их спрашивают у уже набранного: над полем и на отправке — там `/script` без
+ * имени действительно нечем выполнить. Список со слэша спрашивает то же правило
+ * о строке, в которой ничего ещё не набрано, и такой отказ там означал бы
+ * «погасить всегда» — ровно в том месте, где имя и собираются набрать (см.
+ * SlashMenuDropdown).
+ */
+export const INCOMPLETE_COMMAND_BLOCKS = [COMMAND_BLOCK.NO_SCRIPT_NAME];
 
 /**
  * Команды и их триггеры-синонимы. Первый триггер канонический: им команда
@@ -35,6 +51,7 @@ export const COMMAND_BLOCK = { RUNNING: 'running', NOTHING_TO_COMPACT: 'nothingT
 export const COMMANDS = [
   { name: CHAT_COMMAND.COMPACT, triggers: ['/compact', '/сжать'], args: true },
   { name: CHAT_COMMAND.COMPACT_1, triggers: ['/compact-1', '/сжать-1'], args: true },
+  { name: CHAT_COMMAND.SCRIPT, triggers: ['/script', '/скрипт'], args: true },
 ];
 
 /**
@@ -94,5 +111,13 @@ export function chatCommandBlock(command, { running, chatStarted }) {
   if (running) return COMMAND_BLOCK.RUNNING;
   // В ещё не начатом чате сжимать нечего — и заводить его ради команды незачем.
   if (isCompactCommand(command.name) && !chatStarted) return COMMAND_BLOCK.NOTHING_TO_COMPACT;
+  if (command.name === CHAT_COMMAND.SCRIPT) {
+    // Прогон оставляет ряд в истории, а писать его некуда: чат рождается вопросом
+    // или вложением, и разговор, начинающийся с прогона скрипта, — не сценарий.
+    if (!chatStarted) return COMMAND_BLOCK.NO_CHAT;
+    // Имя обязательно: без него непонятно, что запускать, и сервер ответит тем же,
+    // только кругом через сеть.
+    if (!command.args) return COMMAND_BLOCK.NO_SCRIPT_NAME;
+  }
   return null;
 }

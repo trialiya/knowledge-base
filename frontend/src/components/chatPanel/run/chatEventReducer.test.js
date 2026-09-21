@@ -764,6 +764,31 @@ describe('applyChatEvent', () => {
     expect(chat.messages.filter((m) => m.gitEvent)).toHaveLength(1);
   });
 
+  // ─── Прогон скрипта по команде пользователя ────────────────────────────────
+  // Тот же случай, что git-команда: ход человека, ряд в конец, прогон модели не трогается.
+  test('SCRIPT_RUN appends the run row and skips its own echo', () => {
+    const event = {
+      script: 'locale-diff',
+      path: 'frontend/scripts/locale-diff.js',
+      ok: true,
+      value: { missing: 3 },
+      output: '',
+      edited: [],
+      stats: { filesRead: 12, elapsedMs: 420 },
+    };
+    const ev = {
+      type: 'SCRIPT_RUN',
+      payload: { id: 77, createdAt: '2026-09-21T10:00:00', event },
+    };
+    let chat = applyChatEvent(userChat(), ev, ctx);
+
+    expect(last(chat)).toMatchObject({ dbId: 77, sender: 'user', scriptEvent: event });
+    expect(chat.runId).toBe(userChat().runId);
+
+    chat = applyChatEvent(chat, ev, ctx);
+    expect(chat.messages.filter((m) => m.scriptEvent)).toHaveLength(1);
+  });
+
   // ─── Откат файловых правок ответа ──────────────────────────────────────────
   // Ход человека, как и git-команда: ряд в конец ленты, прогон не трогаем.
   test('FILE_REVERT appends the revert row without touching the run', () => {

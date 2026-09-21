@@ -17,13 +17,19 @@ export const DOC_MUTATION_TOOLS = new Set([
   'renameDocumentSections',
 ]);
 
+// Инструменты, правящие файлы скриптом: написанным моделью (`runScript`) и
+// взятым из манифеста проекта (`runSavedScript`). Список один на оба места, где
+// он нужен, — блок изменений и запрет отката (FileChangeBlock.jsx): разъехавшись,
+// они дали бы правки без кнопок или кнопки без правок.
+export const SCRIPT_TOOLS = new Set(['runScript', 'runSavedScript']);
+
 // ── Файловые мутации (git) ────────────────────────────────────────────────────
 // Инструменты, меняющие файлы рабочего дерева. createFile/editFile правят один
 // файл и кладут его в корень resultMeta: { path, operation, additions, deletions,
-// lineCount, diff? }. runScript правит пачкой — те же записи приходят массивом в
+// lineCount, diff? }. Скрипт правит пачкой — те же записи приходят массивом в
 // resultMeta.edits. Для всех них под ответом ИИ показываем блок «изменённые
 // файлы» (FileChangeBlock.jsx) с diff-модалкой.
-export const FILE_MUTATION_TOOLS = new Set(['createFile', 'editFile', 'runScript']);
+export const FILE_MUTATION_TOOLS = new Set(['createFile', 'editFile', ...SCRIPT_TOOLS]);
 
 /** Одна запись мутации → { path, operation, additions, deletions, diff, status } или null. */
 const toFileChangeRef = (meta, status) => {

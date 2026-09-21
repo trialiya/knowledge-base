@@ -223,6 +223,33 @@
   border-color: var(--kb-accent);
 }
 
+/* Однострочные родственники того же поля: рамка, радиус и фокус общие, разнятся
+   только высота и шрифт — у значения аргумента он моноширинный, как у скрипта,
+   которому это значение уезжает, а у выбора из списка — обычный. */
+.set-input,
+.set-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  color: var(--kb-text);
+  background: var(--kb-surface);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.set-input {
+  font-family: var(--kb-font-mono);
+  font-size: 0.83rem;
+}
+
+.set-input:focus,
+.set-select:focus {
+  border-color: var(--kb-accent);
+}
+
 /* ═══════════════════════════════════════════════
    BUTTONS
 ═══════════════════════════════════════════════ */

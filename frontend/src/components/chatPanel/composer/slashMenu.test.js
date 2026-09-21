@@ -9,10 +9,11 @@ describe('slashMenuItems', () => {
     expect(items.map((i) => i.kind)).toEqual([
       SLASH_KIND.COMMAND,
       SLASH_KIND.COMMAND,
+      SLASH_KIND.COMMAND,
       SLASH_KIND.INSERT,
       SLASH_KIND.INSERT,
     ]);
-    expect(triggers('/')).toEqual(['/compact', '/compact-1', '/file', '/doc']);
+    expect(triggers('/')).toEqual(['/compact', '/compact-1', '/script', '/file', '/doc']);
   });
 
   // Ради этого списки и сведены в один: слэш посреди сообщения командой не станет,

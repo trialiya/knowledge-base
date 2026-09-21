@@ -44,6 +44,35 @@ export const COMPACT_DRAFT_NOTICE = {
   messageKey: 'compact.draftMessage',
 };
 
+/** `/script` в чате, который ещё не начат: ряд прогона писать некуда. */
+export const SCRIPT_DRAFT_NOTICE = {
+  icon: '⚙️',
+  titleKey: 'script.unavailableTitle',
+  messageKey: 'script.draftMessage',
+};
+
+/** `/script` без имени: запускать нечего, и сервер ответил бы тем же, только кругом. */
+export const SCRIPT_NAME_NOTICE = {
+  icon: '⚙️',
+  titleKey: 'script.unavailableTitle',
+  messageKey: 'script.noNameMessage',
+};
+
+/** Аргумент набран не как `ключ=значение`: отправлять такое нельзя (см. scriptCommand.js). */
+export const scriptArgumentNotice = (token) => ({
+  icon: '⚙️',
+  titleKey: 'script.unavailableTitle',
+  messageKey: 'script.badArgumentMessage',
+  params: { token },
+});
+
+/** Прогон отказал: имя, аргумент, файл на ветке — словами сервера. */
+export const scriptFailedNotice = (message) => ({
+  icon: '⚙️',
+  titleKey: 'script.failedTitle',
+  message,
+});
+
 /**
  * Отказ по причине, которую назвал `chatCommandBlock`. Композер пишет про ту же
  * причину своей короткой строкой над полем — словарь у них разный (в строку не
@@ -52,6 +81,8 @@ export const COMPACT_DRAFT_NOTICE = {
 export const COMMAND_BLOCK_NOTICE = {
   [COMMAND_BLOCK.RUNNING]: RUN_BUSY_NOTICE,
   [COMMAND_BLOCK.NOTHING_TO_COMPACT]: COMPACT_DRAFT_NOTICE,
+  [COMMAND_BLOCK.NO_CHAT]: SCRIPT_DRAFT_NOTICE,
+  [COMMAND_BLOCK.NO_SCRIPT_NAME]: SCRIPT_NAME_NOTICE,
 };
 
 /** `/compact` по контексту, который уже состоит из одной сводки (ответ 422). */

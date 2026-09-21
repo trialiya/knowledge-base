@@ -145,6 +145,9 @@ class ScriptEditTest {
                         new ScriptProperties(
                                 true,
                                 true,
+                                true,
+                                false,
+                                null,
                                 null,
                                 null,
                                 null,
@@ -894,6 +897,9 @@ class ScriptEditTest {
         return new ScriptProperties(
                 true,
                 true,
+                true,
+                false,
+                null,
                 null,
                 null,
                 null,

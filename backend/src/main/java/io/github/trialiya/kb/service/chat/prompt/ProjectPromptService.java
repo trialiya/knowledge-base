@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.chat.prompt;
 
 import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.model.project.Project;
+import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
 import io.github.trialiya.kb.service.chat.skill.SkillService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
@@ -54,11 +55,23 @@ public class ProjectPromptService {
      */
     private final SkillService skills;
 
+    /**
+     * Сохранённые скрипты активного проекта — здесь по той же причине, что и навыки: список живёт в
+     * репозитории, меняется со сменой проекта и ветки, и в системном промпте рвал бы кэш. Секцию
+     * рендерит сам каталог ({@code SavedScriptCatalog}), чтобы все слова про скрипты проекта жили в
+     * одном месте.
+     */
+    private final SavedScriptCatalog savedScripts;
+
     public ProjectPromptService(
-            ProjectCatalog catalog, GitRegistry gitRegistry, SkillService skills) {
+            ProjectCatalog catalog,
+            GitRegistry gitRegistry,
+            SkillService skills,
+            SavedScriptCatalog savedScripts) {
         this.catalog = catalog;
         this.gitRegistry = gitRegistry;
         this.skills = skills;
+        this.savedScripts = savedScripts;
     }
 
     /**
@@ -77,6 +90,7 @@ public class ProjectPromptService {
                         .formatted(project.label(), project.id(), project.id())
                 + allowGlobs(project, gitRegistry.editsAllowed(project.id()))
                 + skills.projectSkills(project)
+                + savedScripts.projectScripts(project)
                 + timeline(visited)
                 + otherProjects(project, visited);
     }

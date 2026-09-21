@@ -21,6 +21,7 @@ import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.runtime.ChatActionClaim;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
@@ -44,18 +45,18 @@ class ChatFileRevertTest {
 
     private static final String CONV = "conv-1";
 
-    private final ChatGitLog chatGitLog = mock(ChatGitLog.class);
+    private final ChatActionClaim chatActionClaim = mock(ChatActionClaim.class);
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
     private final ChatEventService chatEvents = mock(ChatEventService.class);
     private final GitRegistry gitRegistry = mock(GitRegistry.class);
     private final GitService git = mock(GitService.class);
 
     private final ChatFileRevert revert =
-            new ChatFileRevert(chatGitLog, chatHistory, chatEvents, gitRegistry);
+            new ChatFileRevert(chatActionClaim, chatHistory, chatEvents, gitRegistry);
 
     @BeforeEach
     void setUp() {
-        when(chatGitLog.claimIdleAndOwned(CONV)).thenReturn("claim-1");
+        when(chatActionClaim.claimIdleAndOwned(CONV)).thenReturn("claim-1");
         when(chatHistory.lastStampedProject(CONV)).thenReturn("kb");
         when(gitRegistry.requireEditable("kb")).thenReturn(git);
         when(git.project()).thenReturn(project());
@@ -74,7 +75,7 @@ class ChatFileRevertTest {
         assertThat(payload.event().paths()).containsExactly("a.txt");
         assertThat(payload.event().project()).isEqualTo("kb");
         verify(chatEvents).publish(eq(CONV), eq(ChatEventType.FILE_REVERT), any(), any(), any());
-        verify(chatGitLog).release(CONV, "claim-1");
+        verify(chatActionClaim).release(CONV, "claim-1");
     }
 
     /** Созданный файл удаляется с тем содержимым, с которым его создали, — оно и есть сверка. */
@@ -168,7 +169,7 @@ class ChatFileRevertTest {
 
         verify(git, never()).replaceTrackedFile(anyString(), anyString());
         verify(chatHistory, never()).appendFileRevert(anyString(), any());
-        verify(chatGitLog).release(CONV, "claim-1");
+        verify(chatActionClaim).release(CONV, "claim-1");
     }
 
     /** Названный файл возвращается один: соседний по ответу остаётся как есть. */
@@ -352,6 +353,15 @@ class ChatFileRevertTest {
 
     private static Project project() {
         return new Project(
-                "kb", "KB", Path.of("/tmp/kb"), true, false, List.of(), List.of(), true, false);
+                "kb",
+                "KB",
+                Path.of("/tmp/kb"),
+                true,
+                false,
+                List.of(),
+                List.of(),
+                null,
+                true,
+                false);
     }
 }

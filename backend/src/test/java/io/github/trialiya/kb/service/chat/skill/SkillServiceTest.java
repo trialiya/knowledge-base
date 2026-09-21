@@ -44,6 +44,7 @@ class SkillServiceTest {
                         false,
                         List.of(),
                         List.of(skills),
+                        null,
                         false,
                         false);
         ProjectCatalog catalog = mock(ProjectCatalog.class);
@@ -92,7 +93,8 @@ class SkillServiceTest {
         SkillService service =
                 new SkillService(
                         new ScriptProperties(
-                                false, false, null, null, null, null, null, null, null, null),
+                                false, false, true, false, null, null, null, null, null, null, null,
+                                null, null),
                         mock(ScriptEditPolicy.class),
                         mock(ProjectCatalog.class));
         assertThat(service.anySkills()).isFalse();
@@ -183,7 +185,9 @@ class SkillServiceTest {
 
         // Проекту без навыков секция не достаётся вовсе — блок и так переоплачивается каждый ход.
         Project bare =
-                new Project("bare", "bare", tree, false, false, List.of(), List.of(), false, false);
+                new Project(
+                        "bare", "bare", tree, false, false, List.of(), List.of(), null, false,
+                        false);
         assertThat(service.projectSkills(bare)).isEmpty();
     }
 
@@ -217,11 +221,13 @@ class SkillServiceTest {
                         false,
                         List.of(),
                         List.of(written("release", "# Release")),
+                        null,
                         false,
                         false);
         Project other =
                 new Project(
-                        "other", "other", tree, false, false, List.of(), List.of(), false, false);
+                        "other", "other", tree, false, false, List.of(), List.of(), null, false,
+                        false);
         ProjectCatalog catalog = mock(ProjectCatalog.class);
         when(catalog.projects()).thenReturn(List.of(kb, other));
         when(catalog.find("kb")).thenReturn(Optional.of(kb));
@@ -333,7 +339,8 @@ class SkillServiceTest {
         SkillService service =
                 new SkillService(
                         new ScriptProperties(
-                                false, false, null, null, null, null, null, null, null, null),
+                                false, false, true, false, null, null, null, null, null, null, null,
+                                null, null),
                         mock(ScriptEditPolicy.class),
                         catalogWith("kb", written("release", "# Release")));
 

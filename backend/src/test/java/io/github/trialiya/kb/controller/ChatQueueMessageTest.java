@@ -23,6 +23,7 @@ import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.run.RunOptionsResolver;
+import io.github.trialiya.kb.service.chat.script.ChatScriptRun;
 import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
 import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
 import io.github.trialiya.kb.service.chat.usage.ChatUsageService;
@@ -77,6 +78,7 @@ class ChatQueueMessageTest {
                         contextItemService,
                         mock(ChatTopicService.class),
                         mock(GitRegistry.class),
+                        mock(ChatScriptRun.class),
                         Clock.systemUTC());
     }
 

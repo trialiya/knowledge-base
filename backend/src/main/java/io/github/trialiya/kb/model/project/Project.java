@@ -2,6 +2,7 @@ package io.github.trialiya.kb.model.project;
 
 import java.nio.file.Path;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A repository the assistant works with, as resolved from configuration by {@code ProjectCatalog}:
@@ -29,6 +30,12 @@ import java.util.List;
  *     readSkill} only while the project is the chat's active one, and listed in the {@code
  *     <active-project>} block rather than the system prompt for exactly that reason (see {@code
  *     SkillService})
+ * @param scriptsManifest absolute, normalized path of this project's script manifest — the file in
+ *     which the repository declares the scripts {@code runSavedScript} may run (see {@code
+ *     SavedScriptCatalog}). Null when the deployment configured none, and then the project has no
+ *     saved scripts at all: executing what a repository declares is the deployment's decision, so
+ *     it is named in the configuration rather than discovered in the tree. Textually inside the
+ *     project tree, with the filesystem asked whether it really is at each read
  * @param gitCommandsEnabled whether a <em>user</em> may run git commands on this repository from
  *     the UI — a different grant from {@link #editEnabled()}, which is about what the model writes
  *     into the working tree. The configured intent again: {@code GitRegistry} combines it with the
@@ -45,6 +52,7 @@ public record Project(
         boolean untrackedEditEnabled,
         List<String> allowGlobs,
         List<ProjectSkill> skills,
+        @Nullable Path scriptsManifest,
         boolean gitCommandsEnabled,
         boolean gitPushEnabled) {
 

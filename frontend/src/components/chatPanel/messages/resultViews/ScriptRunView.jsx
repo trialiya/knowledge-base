@@ -62,6 +62,18 @@ const ScriptRunView = ({ data }) => {
 
   return (
     <div className="tool-script">
+      {data.source && (
+        <div className="tool-script__source">
+          <span className="tool-script__source-kind">
+            {t(`toolCall.detail.script.source.${data.source.kind}`, {
+              defaultValue: t('toolCall.detail.script.source.PROJECT'),
+            })}
+          </span>
+          <span className="tool-script__source-name">{data.source.name}</span>
+          <span className="tool-script__source-path">{data.source.path}</span>
+          {data.source.args && <code className="tool-script__source-args">{data.source.args}</code>}
+        </div>
+      )}
       <div className="tool-script__stats">
         {data.project && (
           <div className="tool-script__stat">

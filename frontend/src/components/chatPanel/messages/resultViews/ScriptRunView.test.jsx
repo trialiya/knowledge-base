@@ -42,4 +42,32 @@ describe('ScriptRunView', () => {
     await userEvent.click(head);
     expect(logLines()).toBe(320);
   });
+
+  it('шапка называет запущенный скрипт: тела скрипта в аргументах вызова нет', () => {
+    const data = detectScriptRun(
+      parseResult(
+        JSON.stringify({
+          stats: { filesRead: 2, calls: 5 },
+          log: [],
+          error: null,
+          value: null,
+          filesRead: [],
+          edits: [],
+          source: {
+            kind: 'PROJECT',
+            name: 'locale-diff',
+            path: 'frontend/scripts/locale-diff.js',
+            sha: '0f1c2d3e4a5b',
+            args: { area: 'components' },
+          },
+        }),
+      ),
+    );
+
+    render(<ScriptRunView data={data} />);
+
+    expect(document.querySelector('.tool-script__source-name').textContent).toBe('locale-diff');
+    expect(document.querySelector('.tool-script__source-path').textContent).toBe('frontend/scripts/locale-diff.js');
+    expect(document.querySelector('.tool-script__source-args').textContent).toBe('{"area":"components"}');
+  });
 });

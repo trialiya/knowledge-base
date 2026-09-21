@@ -10,6 +10,8 @@ import useConfigSnapshot from '@/components/common/config/useConfigSnapshot';
 import settingsApi from '@/api/settingsApi';
 import { formatFileSize } from '@/utils/formatting';
 import ScriptBench from './ScriptBench';
+import SavedScriptBench from './SavedScriptBench';
+import ScriptSchedules from './ScriptSchedules';
 
 /**
  * Снимок kb.script.* — песочницы, в которой выполняется инструмент runScript, —
@@ -42,6 +44,10 @@ const ScriptsSections = ({ config }) => {
         <ConfigStatusRow label={t('scripts.status.enabled')} on={script.active} />
         <ConfigBoolRow label={t('scripts.status.editEnabled')} value={script.editEnabled} />
         <ConfigBoolRow label={t('scripts.status.editActive')} value={script.editActive} />
+        {/* Запуск вложений — не право модели поверх скриптов, а происхождение кода:
+            сама песочница та же, и такой прогон всегда read-only. */}
+        <ConfigBoolRow label={t('scripts.status.attachmentRun')} value={script.attachmentRun} />
+        <ConfigBoolRow label={t('scripts.status.attachmentEdit')} value={script.attachmentEdit} />
         {!script.enabled && <p className="config-note">{t('scripts.status.disabledNote')}</p>}
         {/* Правка из скриптов требует трёх согласий (ScriptEditPolicy), поэтому
             разрешение в конфиге и фактическая привязка методов записи — разные строки. */}
@@ -72,6 +78,12 @@ const ScriptsSections = ({ config }) => {
 
       {/* ── Пробный запуск ── */}
       <ScriptBench enabled={script.enabled} />
+
+      {/* ── Скрипты, объявленные репозиторием ── */}
+      <SavedScriptBench enabled={script.enabled} />
+
+      {/* ── Расписание: решение развёртки, а не репозитория ── */}
+      {script.schedules > 0 && <ScriptSchedules />}
     </>
   );
 };

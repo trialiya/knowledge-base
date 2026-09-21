@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import Message from './Message';
 import CompactNotice from './CompactNotice';
 import GitOutputCard from '@/components/common/git/GitOutputCard';
+import ScriptRunCard from './ScriptRunCard';
 import FileRevertNotice from './FileRevertNotice';
 import DocChangeBlock from './DocChangeBlock';
 import FileChangeBlock from './FileChangeBlock';
@@ -333,7 +334,11 @@ const MessageList = ({
                   })}
                 </div>
               )}
-              {msg.fileRevert ? (
+              {msg.scriptEvent ? (
+                // Скрипт запустил человек командой `/script`: карточка прогона вместо
+                // пузыря — ряд несёт только то, что вернул скрипт.
+                <ScriptRunCard event={msg.scriptEvent} />
+              ) : msg.fileRevert ? (
                 // Откат правок ответа — тоже ход человека, и тоже плашкой, а не пузырём.
                 <FileRevertNotice revert={msg.fileRevert} />
               ) : msg.gitEvent ? (
@@ -417,7 +422,7 @@ const revertableAnswer = (messages) => {
       messages[i].fileRevert.paths?.forEach((path) => revertedPaths.add(path));
       continue;
     }
-    if (messages[i].gitEvent) continue;
+    if (messages[i].gitEvent || messages[i].scriptEvent) continue;
     return { index: messages[i].sender === SENDER.AI ? i : -1, revertedPaths };
   }
   return { index: -1, revertedPaths };
