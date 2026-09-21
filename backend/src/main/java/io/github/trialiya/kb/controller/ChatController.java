@@ -671,7 +671,7 @@ public class ChatController {
      * @param invocations плашки вызовов этого ряда: страница истории досинтезирует их из {@code
      *     tool_data}, проекция чата отдаёт что записано
      */
-    private ChatMessage toChatMessage(
+    private static ChatMessage toChatMessage(
             ChatMessageEntity chatMessageEntity, @Nullable List<ToolInvocationMeta> invocations) {
         final String message;
         // «Крошки» вызовов инструментов хранят PREAMBLE + JSON: показываем только преамбулу.
@@ -702,17 +702,20 @@ public class ChatController {
                 meta != null ? meta.compact() : null,
                 meta != null ? meta.gitEvent() : null,
                 meta != null ? meta.fileRevert() : null,
+                meta != null ? meta.scriptEvent() : null,
                 meta != null && meta.interjection() ? Boolean.TRUE : null,
                 meta != null ? meta.usage() : null);
     }
 
     /**
-     * Ряд, оставленный действием пользователя (git-команда, откат файловых правок): текста у него
-     * нет, и показать его можно только по мете.
+     * Ряд, оставленный действием пользователя (git-команда, откат файловых правок, прогон скрипта
+     * по команде {@code /script}): текста у него нет, и показать его можно только по мете.
      */
     private static boolean isEventRow(ChatMessageEntity entity) {
         return entity.getMeta() != null
-                && (entity.getMeta().gitEvent() != null || entity.getMeta().fileRevert() != null);
+                && (entity.getMeta().gitEvent() != null
+                        || entity.getMeta().fileRevert() != null
+                        || entity.getMeta().scriptEvent() != null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

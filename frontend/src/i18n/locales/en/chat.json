@@ -494,6 +494,7 @@
     "unavailableTitle": "The script did not run",
     "draftMessage": "Start the chat with a question first: a script run leaves a row in the history, and there is no history yet.",
     "noNameMessage": "Name the script: /script <name> key=value. The names are the ones this repository declares in its manifest.",
-    "failedTitle": "The script did not run"
+    "failedTitle": "The script did not run",
+    "badArgumentMessage": "Arguments are written as key=value: \"{{token}}\" is not. Retype it — sending it as it is would replace the script's own default with an empty value."
   }
 }

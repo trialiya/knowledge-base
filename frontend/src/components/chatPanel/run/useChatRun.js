@@ -6,7 +6,7 @@ import { RETRY_MODE } from '@/constants/retryMode';
 import { generateUUID } from '@/utils/uuid';
 import { nextMessageId } from '../messages/messageId';
 import { getLastModel, getLastMode } from './lastChoiceStore';
-import { chatLoadErrorNotice, COMMAND_BLOCK_NOTICE, scriptFailedNotice } from './chatNotices';
+import { chatLoadErrorNotice, COMMAND_BLOCK_NOTICE, scriptArgumentNotice, scriptFailedNotice } from './chatNotices';
 import { isChatEmpty } from '../messages/chatHistory';
 import { parseChatCommand, chatCommandBlock, isCompactCommand, CHAT_COMMAND, COMMAND_BLOCK } from './chatCommands';
 import { parseScriptCommand } from '../composer/scriptCommand';
@@ -163,6 +163,13 @@ export default function useChatRun({
         const parsed = parseScriptCommand(command.args);
         if (!parsed) {
           notify(COMMAND_BLOCK_NOTICE[COMMAND_BLOCK.NO_SCRIPT_NAME]);
+          restoreDraft?.();
+          return;
+        }
+        if (parsed.invalid) {
+          // Аргумент без `=` отправлять нельзя: под своим именем с пустым значением он
+          // подменил бы объявленное умолчание — команда сработала бы, сделав не то.
+          notify(scriptArgumentNotice(parsed.invalid));
           restoreDraft?.();
           return;
         }

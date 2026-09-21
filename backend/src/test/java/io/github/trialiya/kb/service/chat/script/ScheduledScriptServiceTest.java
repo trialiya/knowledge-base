@@ -18,8 +18,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.Trigger;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /**
  * Расписание — решение развёртки, а не репозитория, и проверяется здесь именно это: что кривую
@@ -30,7 +30,7 @@ class ScheduledScriptServiceTest {
 
     private final SavedScriptResolver resolver = mock(SavedScriptResolver.class);
     private final ScriptRunner runner = mock(ScriptRunner.class);
-    private final TaskScheduler taskScheduler = mock(TaskScheduler.class);
+    private final ThreadPoolTaskScheduler taskScheduler = mock(ThreadPoolTaskScheduler.class);
 
     @Test
     void registersEveryScheduleAndRunsItReadOnly() {

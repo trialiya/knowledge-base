@@ -58,6 +58,14 @@ export const SCRIPT_NAME_NOTICE = {
   messageKey: 'script.noNameMessage',
 };
 
+/** Аргумент набран не как `ключ=значение`: отправлять такое нельзя (см. scriptCommand.js). */
+export const scriptArgumentNotice = (token) => ({
+  icon: '⚙️',
+  titleKey: 'script.unavailableTitle',
+  messageKey: 'script.badArgumentMessage',
+  params: { token },
+});
+
 /** Прогон отказал: имя, аргумент, файл на ветке — словами сервера. */
 export const scriptFailedNotice = (message) => ({
   icon: '⚙️',

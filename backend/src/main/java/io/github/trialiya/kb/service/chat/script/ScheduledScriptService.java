@@ -5,6 +5,7 @@ import io.github.trialiya.kb.config.model.ScriptProperties.Schedule;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.tools.RunCancellation;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -13,7 +14,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
-import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,11 @@ import org.springframework.stereotype.Service;
  *
  * <p><b>Always read-only</b>, for the reason spelled out on {@link Schedule}: nobody is watching.
  *
+ * <p><b>Its own thread, not the application's.</b> The shared {@code TaskScheduler} is a pool of
+ * one, and it carries the embedding queue's one-second poll: a script with a thirty-second budget
+ * would hold that pool for its whole run. Scripts get a scheduler of their own — which also keeps
+ * two schedules that overlap in time from running the same repository at once.
+ *
  * <p><b>What is kept is the last run of each schedule</b>, in memory, for the Settings panel and
  * the log. Not a history — that is a feature with its own questions (retention, notification, who
  * reads it), and a ring buffer pretending to be one would answer none of them. This answers the
@@ -40,7 +46,11 @@ public class ScheduledScriptService {
     private final ScriptProperties properties;
     private final SavedScriptResolver resolver;
     private final ScriptRunner runner;
-    private final TaskScheduler taskScheduler;
+
+    /**
+     * Built with the first schedule and closed with the application; absent when there are none.
+     */
+    private final ThreadPoolTaskScheduler taskScheduler;
 
     /** Last outcome per schedule name; empty for one that has not fired yet. */
     private final Map<String, LastRun> lastRuns = new ConcurrentHashMap<>();
@@ -49,11 +59,11 @@ public class ScheduledScriptService {
             ScriptProperties properties,
             SavedScriptResolver resolver,
             ScriptRunner runner,
-            TaskScheduler taskScheduler) {
+            ThreadPoolTaskScheduler scriptTaskScheduler) {
         this.properties = properties;
         this.resolver = resolver;
         this.runner = runner;
-        this.taskScheduler = taskScheduler;
+        this.taskScheduler = scriptTaskScheduler;
     }
 
     /**
@@ -83,6 +93,12 @@ public class ScheduledScriptService {
                     schedule.script(),
                     schedule.cron());
         }
+    }
+
+    /** Останавливает свой планировщик вместе с приложением. */
+    @PreDestroy
+    void shutdown() {
+        taskScheduler.shutdown();
     }
 
     private static String requireValid(Schedule schedule, Set<String> names) {

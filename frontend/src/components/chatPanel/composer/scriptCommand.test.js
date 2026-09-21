@@ -40,10 +40,12 @@ describe('parseScriptCommand', () => {
     expect(parseScriptCommand('report files=["a.js"').args).toEqual({ files: '["a.js"' });
   });
 
-  // Опечатка обязана доехать: сервер назовёт её по имени («unknown parameter»),
-  // а молча потерянный токен выглядел бы как сработавшая команда.
-  it('токен без = уезжает как есть', () => {
-    expect(parseScriptCommand('report area').args).toEqual({ area: '' });
+  // Отправлять такое нельзя ни под каким видом: под своим же именем с пустым
+  // значением токен подменил бы объявленное умолчание — команда сработала бы,
+  // сделав не то. Поэтому отказ с названным токеном, а не «как-нибудь».
+  it('токен без = — отказ разбора, а не пустое значение', () => {
+    expect(parseScriptCommand('report area')).toEqual({ invalid: 'area' });
+    expect(parseScriptCommand('report area=docs limit')).toEqual({ invalid: 'limit' });
   });
 
   it('вложение запускается тем же именем', () => {
