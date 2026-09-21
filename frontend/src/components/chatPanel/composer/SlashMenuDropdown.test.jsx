@@ -54,6 +54,26 @@ describe('SlashMenuDropdown', () => {
     expect(compact.querySelector('.picker-item__alt')).toBeNull();
   });
 
+  // Имя скрипта набирают ПОСЛЕ того, как строку выбрали: отказ за ненабранное имя
+  // гасил бы её в любом чате — в том числе в том, где команда прекрасно работает.
+  it('не гасит строку за аргумент, которому негде было набраться', () => {
+    const c = show();
+
+    const script = rows(c).find((r) => r.textContent.includes('/script'));
+    expect(script.className).not.toContain('picker-item--blocked');
+    expect(script.querySelector('.picker-item__reason')).toBeNull();
+    expect(script.querySelector('.picker-item__alt').textContent).toBe('/скрипт');
+  });
+
+  // А вот отказ про сам чат — её же и гасит: ряд прогона писать некуда.
+  it('но гасит её там, где не выполнится и с именем', () => {
+    const c = show({ commandState: { running: false, chatStarted: false } });
+
+    const script = rows(c).find((r) => r.textContent.includes('/script'));
+    expect(script.className).toContain('picker-item--blocked');
+    expect(script.querySelector('.picker-item__reason').textContent).toBe('input.command.blocked.noChat');
+  });
+
   it('на отфильтрованном списке показывает набранное в шапке', () => {
     const c = show({ items: slashMenuItems('/сж'), query: '/сж' });
 

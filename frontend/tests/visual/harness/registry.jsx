@@ -767,11 +767,13 @@ const LIGHT = [
     api: (p) => ({ '/api/settings/ai-config': p, '/api/settings/tools': toolCatalog.builtinTools }),
     render: () => <ToolsSettings />,
   },
+  // Стенд сохранённых скриптов ходит за манифестом сам, всегда — и с выключенной
+  // песочницей тоже: ответ нужен ему, чтобы сказать, из чего выбирать было бы.
   {
     id: 'aiConfig.js#defaultAiConfig@scripts',
     frame: 'center',
-    viewport: [1440, 1560],
-    api: (p) => ({ '/api/settings/ai-config': p }),
+    viewport: [1440, 1660],
+    api: (p) => ({ '/api/settings/ai-config': p, '/api/settings/script/saved': aiConfig.savedScripts }),
     render: () => <ScriptsSettings />,
   },
   {
@@ -795,11 +797,19 @@ const LIGHT = [
     api: (p) => ({ '/api/settings/ai-config': p }),
     render: () => <ModelsSettings />,
   },
+  // Единственный кейс, где видно обе нижние секции группы разом: стенд сохранённых
+  // скриптов и расписание развёртки (оно рисуется только при script.schedules > 0).
+  // Скрипт в стенде не выбран — выбор в родном `<select>` не снимается: его список
+  // рисует система, а не страница.
   {
     id: 'aiConfig.js#scriptEnabled@scripts',
     frame: 'center',
-    viewport: [1440, 1520],
-    api: (p) => ({ '/api/settings/ai-config': p }),
+    viewport: [1440, 1800],
+    api: (p) => ({
+      '/api/settings/ai-config': p,
+      '/api/settings/script/saved': aiConfig.savedScripts,
+      '/api/settings/script/schedules': aiConfig.scriptSchedules,
+    }),
     render: () => <ScriptsSettings />,
   },
   {

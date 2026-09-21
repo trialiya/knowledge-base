@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFileText, IconDoc, IconTerminal } from '@/icons/index';
-import { chatCommandBlock } from '../run/chatCommands';
+import { chatCommandBlock, INCOMPLETE_COMMAND_BLOCKS } from '../run/chatCommands';
 import { SLASH_KIND } from './slashMenu';
 import PickerDropdown from './PickerDropdown';
 
@@ -45,8 +45,12 @@ const SlashMenuDropdown = ({ items, query, selectedIdx, commandState, onSelect, 
     >
       {items.map((item, i) => {
         const isCommand = item.kind === SLASH_KIND.COMMAND;
-        // Причину отказа спрашиваем то же правило, по которому откажет отправка.
-        const block = isCommand ? chatCommandBlock({ name: item.name }, commandState) : null;
+        // Причину отказа спрашиваем то же правило, по которому откажет отправка, — но
+        // только про чат: строка списка это предложение вставить команду, а не она
+        // сама, и отказ за ненабранный аргумент гасил бы её всегда (см.
+        // INCOMPLETE_COMMAND_BLOCKS).
+        const refusal = isCommand ? chatCommandBlock({ name: item.name }, commandState) : null;
+        const block = INCOMPLETE_COMMAND_BLOCKS.includes(refusal) ? null : refusal;
         const desc = t(isCommand ? `input.command.name.${item.name}` : `input.command.insert.${item.name}`);
         return (
           <Fragment key={item.trigger}>

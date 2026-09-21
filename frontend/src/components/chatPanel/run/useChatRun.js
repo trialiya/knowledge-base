@@ -173,9 +173,12 @@ export default function useChatRun({
           restoreDraft?.();
           return;
         }
-        clearDraftText(activeChatId);
         try {
           await chatApi.runScript(activeChatId, parsed.name, parsed.args);
+          // Как и у сжатия: черновик гасит только состоявшийся прогон. Отказать может и
+          // сервер, а вернуть набранное больше неоткуда — поле стёрло текст на отправке,
+          // и restoreDraft читает именно черновик.
+          clearDraftText(activeChatId);
         } catch (e) {
           // Упавший скрипт отказом не считается — он приезжает рядом истории. Сюда
           // попадает только отказ запроса: неизвестное имя, не тот аргумент, занятый чат.

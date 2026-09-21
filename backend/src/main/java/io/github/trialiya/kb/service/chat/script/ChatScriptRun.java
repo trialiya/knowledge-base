@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.chat.script;
 
+import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ScriptRunPayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -14,7 +15,9 @@ import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * A saved script the <b>user</b> runs from a chat with the {@code /script} command.
@@ -40,6 +43,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class ChatScriptRun {
 
+    private final ScriptProperties properties;
     private final ChatActionClaim claim;
     private final RunOptionsResolver runOptions;
     private final SavedScriptResolver resolver;
@@ -51,7 +55,7 @@ public class ChatScriptRun {
     /**
      * Runs {@code name} in {@code conversationId}'s project and records what it did.
      *
-     * @throws org.springframework.web.server.ResponseStatusException the chat is not this user's,
+     * @throws ResponseStatusException scripts are switched off, or the chat is not this user's,
      *     does not exist, or is busy — the same codes every other action on a chat answers with
      * @throws IllegalArgumentException the name or the arguments cannot be satisfied; the caller
      *     turns it into a 400, and nothing was run or recorded
@@ -61,6 +65,13 @@ public class ChatScriptRun {
             String name,
             @Nullable Map<String, Object> args,
             @Nullable Integer timeoutSeconds) {
+        // Before the claim, and before anything is resolved: with the sandbox off there is no run
+        // to hold the chat for. 409 rather than 404 — the command exists, the deployment turned
+        // off what it needs, and that is the same answer the settings bench gives.
+        if (!properties.enabled()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Scripts are disabled (kb.script.enabled=false)");
+        }
         final String token = claim.claimIdleAndOwned(conversationId);
         try {
             // The chat's own project, resolved the way an operation on this chat resolves it: the

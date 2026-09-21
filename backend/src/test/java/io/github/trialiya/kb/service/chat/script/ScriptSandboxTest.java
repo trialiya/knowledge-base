@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.chat.script;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -77,6 +78,27 @@ class ScriptSandboxTest {
 
     private ScriptResult run(String script) {
         return runner.run(script, null, RunCancellation.none());
+    }
+
+    /**
+     * Выключатель песочницы проверяет сам движок, а не только поверхности вокруг него.
+     *
+     * <p>Поверхностей уже четыре — инструмент модели, стенд, команда {@code /script}, расписание, —
+     * и каждая отказывает сама, своим текстом. Но «{@code kb.script.enabled=false} — значит
+     * JavaScript не исполняется» должно оставаться правдой и для той, которую напишут завтра:
+     * забыть здесь нельзя, потому что этот метод — единственный, куда приходят все.
+     */
+    @Test
+    void theEngineItselfRefusesWhenScriptsAreSwitchedOff() {
+        ScriptRunner disabled =
+                newRunner(
+                        new ScriptProperties(
+                                false, true, true, false, null, null, null, null, null, null, null,
+                                null, null));
+
+        assertThatThrownBy(() -> disabled.run("return 1;", null, RunCancellation.none()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("kb.script.enabled=false");
     }
 
     // ── The sandbox has no way out ──────────────────────────────────────────

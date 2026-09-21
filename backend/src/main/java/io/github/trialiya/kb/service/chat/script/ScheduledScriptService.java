@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.scheduling.support.CronTrigger;
@@ -34,6 +35,13 @@ import org.springframework.stereotype.Service;
  * would hold that pool for its whole run. Scripts get a scheduler of their own — which also keeps
  * two schedules that overlap in time from running the same repository at once.
  *
+ * <p>It is built here and not published as a bean, for a reason worth keeping: Spring Boot stands
+ * its shared scheduler up under {@code @ConditionalOnMissingBean(TaskScheduler.class)}, so a {@code
+ * ThreadPoolTaskScheduler} bean of ours would <em>replace</em> the application's instead of
+ * standing beside it — every {@code @Scheduled} method in the codebase would then queue behind the
+ * very scripts this class keeps off them. Built with the first schedule, too: a deployment with
+ * none pays for no thread.
+ *
  * <p><b>What is kept is the last run of each schedule</b>, in memory, for the Settings panel and
  * the log. Not a history — that is a feature with its own questions (retention, notification, who
  * reads it), and a ring buffer pretending to be one would answer none of them. This answers the
@@ -48,22 +56,30 @@ public class ScheduledScriptService {
     private final ScriptRunner runner;
 
     /**
-     * Built with the first schedule and closed with the application; absent when there are none.
+     * Built with the first schedule and closed with the application; stays null when there are
+     * none.
      */
-    private final ThreadPoolTaskScheduler taskScheduler;
+    @Nullable private ThreadPoolTaskScheduler taskScheduler;
 
     /** Last outcome per schedule name; empty for one that has not fired yet. */
     private final Map<String, LastRun> lastRuns = new ConcurrentHashMap<>();
 
+    @Autowired
     public ScheduledScriptService(
-            ScriptProperties properties,
-            SavedScriptResolver resolver,
-            ScriptRunner runner,
-            ThreadPoolTaskScheduler scriptTaskScheduler) {
+            ScriptProperties properties, SavedScriptResolver resolver, ScriptRunner runner) {
         this.properties = properties;
         this.resolver = resolver;
         this.runner = runner;
-        this.taskScheduler = scriptTaskScheduler;
+    }
+
+    /** Тестовый шов: планировщик, который иначе сервис заводит себе сам в {@link #register()}. */
+    ScheduledScriptService(
+            ScriptProperties properties,
+            SavedScriptResolver resolver,
+            ScriptRunner runner,
+            ThreadPoolTaskScheduler taskScheduler) {
+        this(properties, resolver, runner);
+        this.taskScheduler = taskScheduler;
     }
 
     /**
@@ -83,22 +99,46 @@ public class ScheduledScriptService {
                     "kb.script.schedules is configured but kb.script.enabled=false — there is no"
                             + " sandbox to run them in");
         }
+        // Every entry is checked before a thread exists: a bad one aborts the start, and the
+        // scheduler's threads are not daemons — created first, they would hold the JVM up after
+        // the failure that was supposed to end it.
         Set<String> names = new LinkedHashSet<>();
         for (Schedule schedule : properties.schedules()) {
-            String name = requireValid(schedule, names);
-            taskScheduler.schedule(() -> run(schedule), new CronTrigger(schedule.cron()));
+            requireValid(schedule, names);
+        }
+        ThreadPoolTaskScheduler scheduler = scheduler();
+        for (Schedule schedule : properties.schedules()) {
+            scheduler.schedule(() -> run(schedule), new CronTrigger(schedule.cron()));
             log.info(
                     "Scheduled script '{}': {} on '{}', read-only",
-                    name,
+                    schedule.displayName(),
                     schedule.script(),
                     schedule.cron());
         }
     }
 
-    /** Останавливает свой планировщик вместе с приложением. */
+    /** Один поток на все расписания: два пересёкшихся встанут в очередь, а не в одно дерево. */
+    private ThreadPoolTaskScheduler scheduler() {
+        ThreadPoolTaskScheduler existing = taskScheduler;
+        if (existing != null) {
+            return existing;
+        }
+        ThreadPoolTaskScheduler created = new ThreadPoolTaskScheduler();
+        created.setPoolSize(1);
+        created.setThreadNamePrefix("kb-script-cron-");
+        created.setWaitForTasksToCompleteOnShutdown(false);
+        created.initialize();
+        taskScheduler = created;
+        return created;
+    }
+
+    /** Останавливает свой планировщик вместе с приложением; чужих здесь нет. */
     @PreDestroy
     void shutdown() {
-        taskScheduler.shutdown();
+        ThreadPoolTaskScheduler scheduler = taskScheduler;
+        if (scheduler != null) {
+            scheduler.shutdown();
+        }
     }
 
     private static String requireValid(Schedule schedule, Set<String> names) {

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ScriptRunPayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -53,9 +54,19 @@ class ChatScriptRunTest {
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
     private final ChatEventService chatEvents = mock(ChatEventService.class);
 
-    private final ChatScriptRun service =
-            new ChatScriptRun(
-                    claim, runOptions, resolver, runner, editPolicy, chatHistory, chatEvents);
+    private final ChatScriptRun service = service(ScriptProperties.enabledWithDefaults());
+
+    private ChatScriptRun service(ScriptProperties properties) {
+        return new ChatScriptRun(
+                properties,
+                claim,
+                runOptions,
+                resolver,
+                runner,
+                editPolicy,
+                chatHistory,
+                chatEvents);
+    }
 
     @BeforeEach
     void setUp() {
@@ -166,6 +177,28 @@ class ChatScriptRunTest {
 
         verify(claim).release(CONV, CLAIM);
         verifyNoInteractions(runner, chatHistory);
+    }
+
+    /**
+     * Выключенная песочница — отказ команде, а не тихий прогон. Проверяется здесь, потому что
+     * эндпоинт {@code /script} есть всегда: бин контроллера не знает о настройке, и весь отказ
+     * приходит отсюда. 409, как у стенда: команда существует, развёртка выключила то, что ей нужно.
+     */
+    @Test
+    void scriptsSwitchedOffRefuseTheCommandBeforeTheChatIsEvenClaimed() {
+        ChatScriptRun disabled =
+                service(
+                        new ScriptProperties(
+                                false, true, true, false, null, null, null, null, null, null, null,
+                                null, null));
+
+        assertThatThrownBy(() -> disabled.run(CONV, "report", null, null))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("kb.script.enabled=false")
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+
+        verifyNoInteractions(claim, resolver, runner, chatHistory, chatEvents);
     }
 
     private static ScriptResult result(ScriptError error) {

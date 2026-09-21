@@ -79,7 +79,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.security.concurrent.DelegatingSecurityContextExecutorService;
 import reactor.core.scheduler.Schedulers;
 
@@ -201,24 +200,6 @@ public class ChatConfig {
                 savedScriptCatalog.anyManifests(),
                 attachmentScriptService.available());
         return new SavedScriptFunction(savedScriptResolver, scriptRunner, scriptEditPolicy);
-    }
-
-    /**
-     * The scheduler scripts run on — their own, not the application's.
-     *
-     * <p>Spring Boot's shared {@code TaskScheduler} is a pool of one, and the embedding queue polls
-     * it every second: a scheduled script with a thirty-second budget would hold that single thread
-     * for half a minute. One thread here rather than a pool, on purpose — two schedules that
-     * overlap in time then queue instead of walking the same working tree at once.
-     */
-    @Bean
-    public ThreadPoolTaskScheduler scriptTaskScheduler() {
-        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(1);
-        scheduler.setThreadNamePrefix("kb-script-cron-");
-        scheduler.setWaitForTasksToCompleteOnShutdown(false);
-        scheduler.initialize();
-        return scheduler;
     }
 
     /**

@@ -81,13 +81,6 @@ public class ScriptRunner {
     private static final String SUFFIX = "\n})()";
 
     /**
-     * Guest-side JSON helpers, evaluated once per context (see {@link #stringify}).
-     *
-     * <p>In a holder of its own so that it is built on the first script, with the engine, and not
-     * when this class is loaded: building a {@link Source} stands up the polyglot runtime, which is
-     * the very cost {@link #engine()} is late for.
-     */
-    /**
      * Загрузчик модулей для скрипта: {@code loadScript('lib/util.js')} читает файл репозитория
      * через тот же {@code kb.read} — со всеми его правилами видимости и его же бюджетом — и
      * выполняет как модуль, отдавая {@code module.exports}.
@@ -102,6 +95,10 @@ public class ScriptRunner {
      * <p>Строки ошибок внутри модуля считаются от начала его собственного текста: {@code new
      * Function} компилирует его отдельным источником, и номер строки в {@code ScriptError}
      * относится к файлу, который скрипт загрузил, а не к самому скрипту.
+     *
+     * <p>В отдельном держателе по той же причине, что и {@link Helpers}: сборка {@link Source}
+     * поднимает полиглот-рантайм, и платить за неё надо с первым скриптом, а не при загрузке
+     * класса.
      */
     private static final class Modules {
         static final Source LOADER =
@@ -129,6 +126,13 @@ public class ScriptRunner {
         private Modules() {}
     }
 
+    /**
+     * Guest-side JSON helpers, evaluated once per context (see {@link #stringify}).
+     *
+     * <p>In a holder of its own so that it is built on the first script, with the engine, and not
+     * when this class is loaded: building a {@link Source} stands up the polyglot runtime, which is
+     * the very cost {@link #engine()} is late for.
+     */
     private static final class Helpers {
         static final Source JSON =
                 Source.newBuilder(
@@ -240,6 +244,9 @@ public class ScriptRunner {
      *     there is no stoppable run behind the call
      * @throws ScriptCancelledException when the user stopped the run — the one failure that is not
      *     reported back to the model
+     * @throws IllegalStateException scripts are switched off deployment-wide (see {@link
+     *     #requireEnabled()}) — a surface that offers a script is expected to have refused already,
+     *     so this one is a programming error, not a message for a user
      */
     public ScriptResult run(
             String script, @Nullable Integer timeoutSeconds, RunCancellation cancellation) {
@@ -299,6 +306,7 @@ public class ScriptRunner {
      */
     @SuppressWarnings("PMD.UseTryWithResources") // see the comment on `Context context` below
     public ScriptResult run(ScriptRequest request, RunCancellation cancellation) {
+        requireEnabled();
         // One repository for the whole run: resolved once here, so a script cannot end up reading
         // one project and writing another.
         GitService gitService = gitRegistry.forProject(request.projectId());
@@ -380,6 +388,21 @@ public class ScriptRunner {
     }
 
     // ── Sandbox ─────────────────────────────────────────────────────────────
+
+    /**
+     * The sandbox switch, checked here and not only at the surfaces that offer scripts.
+     *
+     * <p>Every script — a model's {@code runScript}, a saved one, the bench, a schedule — arrives
+     * at the run above, so this is the one place where {@code kb.script.enabled=false} can mean
+     * "nothing evaluates JavaScript" for a caller written later too. The surfaces still refuse on
+     * their own, with a message written for whoever is reading; this one exists so that forgetting
+     * to is not a way in.
+     */
+    private void requireEnabled() {
+        if (!properties.enabled()) {
+            throw new IllegalStateException("Scripts are disabled (kb.script.enabled=false)");
+        }
+    }
 
     private Context newContext() {
         return Context.newBuilder("js")
