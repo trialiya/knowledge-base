@@ -46,7 +46,12 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
     private static final String EDIT = "editFile";
 
     /** Правка скрипта: обратимых аргументов у неё нет — весь блок становится неоткатываемым. */
-    private static final String SCRIPT = "runScript";
+    /**
+     * Оба инструмента скрипта: правки любого из них в истории остаются только обрезанными diff'ами,
+     * и откатить по ним нечего — чем скрипт запущен, написан он моделью или взят из манифеста
+     * проекта, для отката не меняет ничего.
+     */
+    private static final Set<String> SCRIPTS = Set.of("runScript", "runSavedScript");
 
     /**
      * Аргументы читаются собственным маппером, а не {@code RecordingToolCallback.parseToolInput}:
@@ -151,10 +156,11 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
             Map<String, String> arguments,
             Map<String, List<TextEdit>> edits,
             Map<String, String> deletions) {
-        if (SCRIPT.equals(call.name()) && changedFiles(call)) {
+        if (SCRIPTS.contains(String.valueOf(call.name())) && changedFiles(call)) {
             throw new FileRevertRefusedException(
-                    "The answer changed files with runScript — those edits can only be undone with"
-                            + " git.");
+                    "The answer changed files with "
+                            + call.name()
+                            + " — those edits can only be undone with git.");
         }
         if (!CREATE.equals(call.name()) && !EDIT.equals(call.name())) {
             return;

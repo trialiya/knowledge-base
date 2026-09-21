@@ -56,6 +56,20 @@ describe('getFileChangeRefs', () => {
     expect(refs[1]).toMatchObject({ operation: 'create', additions: 4, deletions: 0, diff: null, status: 'OK' });
   });
 
+  // Скрипт из манифеста проекта правит теми же записями: разъехавшись с runScript,
+  // список оставил бы правки на диске без единого диффа под ответом.
+  it('expands the edits of a saved script the same way', () => {
+    const refs = getFileChangeRefs({
+      name: 'runSavedScript',
+      status: 'OK',
+      resultMeta: {
+        script: 'bump-copyright',
+        edits: [{ path: 'src/A.java', operation: 'edit', additions: 1, deletions: 1 }],
+      },
+    });
+    expect(refs.map((r) => r.path)).toEqual(['src/A.java']);
+  });
+
   it('returns nothing for a runScript call that changed no files', () => {
     expect(getFileChangeRefs({ name: 'runScript', status: 'OK', resultMeta: { filesRead: 3 } })).toEqual([]);
   });

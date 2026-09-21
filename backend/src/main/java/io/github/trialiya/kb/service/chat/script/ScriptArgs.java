@@ -1,9 +1,7 @@
 package io.github.trialiya.kb.service.chat.script;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.json.JsonWriteFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.github.trialiya.kb.model.script.SavedScript;
 import io.github.trialiya.kb.model.script.ScriptParam;
 import java.util.ArrayList;
@@ -36,12 +34,9 @@ public final class ScriptArgs {
     static final int MAX_ARGS_CHARS = 16 * 1024;
 
     /**
-     * ASCII-only output, so the JSON can be embedded in the guest source as a plain expression: an
-     * unescaped U+2028 inside a string is legal JSON with a history of not being legal JavaScript,
-     * and escaping every non-ASCII character removes the question instead of answering it.
+     * The arguments cross into the sandbox as this text, which the guest's own JSON.parse reads.
      */
-    private static final ObjectMapper MAPPER =
-            JsonMapper.builder().enable(JsonWriteFeature.ESCAPE_NON_ASCII).build();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private ScriptArgs() {}
 
@@ -71,10 +66,15 @@ public final class ScriptArgs {
         Map<String, Object> given = supplied == null ? Map.of() : supplied;
         Map<String, Object> values = new LinkedHashMap<>();
         for (ScriptParam param : script.params()) {
-            // Present-and-null is a value the caller chose; absent is where a default belongs.
-            if (given.containsKey(param.name())) {
-                Object value = given.get(param.name());
-                values.put(param.name(), value == null ? null : coerce(script, param, value));
+            Object value = given.get(param.name());
+            // Present-and-null is a value the caller chose — but never for a required argument,
+            // where null is the absence the declaration exists to refuse.
+            boolean present =
+                    given.containsKey(param.name()) && !(value == null && param.required());
+            if (present && value != null) {
+                values.put(param.name(), coerce(script.name(), param, value));
+            } else if (present) {
+                values.put(param.name(), null);
             } else if (param.defaultValue() != null) {
                 values.put(param.name(), param.defaultValue());
             } else if (param.required()) {
@@ -98,7 +98,16 @@ public final class ScriptArgs {
         return new Bound(values, json(script, values), List.copyOf(notes));
     }
 
-    private static Object coerce(SavedScript script, ScriptParam param, Object value) {
+    /**
+     * The declared default, checked against its own declared type while the manifest is read — a
+     * {@code default: "no"} on a boolean is the manifest's mistake, and finding it at the first
+     * call instead would hand the model an error about a value it never passed.
+     */
+    static Object checkDeclaredDefault(String script, ScriptParam param) {
+        return coerce(script, param, java.util.Objects.requireNonNull(param.defaultValue()));
+    }
+
+    private static Object coerce(String script, ScriptParam param, Object value) {
         return switch (param.type()) {
             case STRING ->
                     value instanceof List<?> || value instanceof Map<?, ?>
@@ -113,7 +122,7 @@ public final class ScriptArgs {
         };
     }
 
-    private static Object number(SavedScript script, ScriptParam param, Object value) {
+    private static Object number(String script, ScriptParam param, Object value) {
         if (value instanceof Number number) {
             return number;
         }
@@ -130,7 +139,7 @@ public final class ScriptArgs {
         }
     }
 
-    private static Object bool(SavedScript script, ScriptParam param, Object value) {
+    private static Object bool(String script, ScriptParam param, Object value) {
         if (value instanceof Boolean flag) {
             return flag;
         }
@@ -141,19 +150,17 @@ public final class ScriptArgs {
         return refuse(script, param, value, "true or false");
     }
 
-    private static Object refuse(
-            SavedScript script, ScriptParam param, Object value, String expected) {
+    private static Object refuse(String script, ScriptParam param, Object value, String expected) {
         throw new IllegalArgumentException(
                 "Script \""
-                        + script.name()
+                        + script
                         + "\": argument \""
                         + param.name()
                         + "\" must be "
                         + expected
                         + ", got "
                         + quote(value)
-                        + ". "
-                        + declaredSentence(script));
+                        + ".");
     }
 
     private static String missing(SavedScript script, ScriptParam param) {

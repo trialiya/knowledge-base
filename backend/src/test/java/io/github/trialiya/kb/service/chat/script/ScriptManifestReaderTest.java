@@ -151,6 +151,47 @@ class ScriptManifestReaderTest {
         assertThat(ScriptManifestReader.parse("!!java.io.File [/etc/passwd]", WHERE)).isEmpty();
     }
 
+    /**
+     * A bare number is seconds, not Spring's milliseconds: every other script budget in the project
+     * is spelled in seconds, and {@code timeout: 30} meaning 30ms is a script that times out on
+     * every call with nothing in the log to say why.
+     */
+    @Test
+    void abareTimeoutNumberIsSeconds() {
+        List<SavedScript> scripts =
+                ScriptManifestReader.parse(
+                        """
+                        scripts:
+                          - { name: a, file: a.js, desc: Bare number, timeout: 30 }
+                          - { name: b, file: b.js, desc: With a unit, timeout: 500ms }
+                        """,
+                        WHERE);
+
+        assertThat(scripts)
+                .extracting(SavedScript::timeout)
+                .containsExactly(Duration.ofSeconds(30), Duration.ofMillis(500));
+    }
+
+    /**
+     * A default is checked against its own declared type while the manifest is read: finding it at
+     * the first call instead would hand the model an error about a value it never passed.
+     */
+    @Test
+    void aDefaultThatDoesNotFitItsTypeIsTheEntrysError() {
+        assertThat(
+                        ScriptManifestReader.parse(
+                                """
+                                scripts:
+                                  - name: a
+                                    file: a.js
+                                    desc: Bad default
+                                    params:
+                                      - { name: limit, type: number, default: soon }
+                                """,
+                                WHERE))
+                .isEmpty();
+    }
+
     @Test
     void aBadTimeoutOrWriteFlagIsTheEntrysError() {
         assertThat(

@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.ai.chat.messages.MessageType;
 
 /**
@@ -178,11 +180,12 @@ class FileRevertPlanTest {
      * diff'ы, а те обрезаны на пятистах строках. Такой ответ откат не трогает вовсе — половина
      * отката хуже отказа.
      */
-    @Test
-    void aScriptThatChangedFilesMakesTheWholeAnswerNonRevertable() {
+    @ParameterizedTest
+    @ValueSource(strings = {"runScript", "runSavedScript"})
+    void aScriptThatChangedFilesMakesTheWholeAnswerNonRevertable(String tool) {
         final ToolInvocationMeta script =
                 new ToolInvocationMeta(
-                        "runScript",
+                        tool,
                         Map.of(),
                         ToolInvocationStatus.OK,
                         null,
@@ -200,7 +203,7 @@ class FileRevertPlanTest {
                                                         List.of(),
                                                         List.of(script, edit("call-2", "b.txt"))))))
                 .isInstanceOf(FileRevertRefusedException.class)
-                .hasMessageContaining("runScript");
+                .hasMessageContaining(tool);
     }
 
     /** Ответ, записанный версией без {@code callId}: аргументов не найти, и откат честно молчит. */

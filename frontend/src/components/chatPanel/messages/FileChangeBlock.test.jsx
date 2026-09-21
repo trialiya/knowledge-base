@@ -67,19 +67,22 @@ describe('FileChangeBlock', () => {
     await waitFor(() => expect(chatApi.revertFiles).toHaveBeenCalledWith('c1', ['src/New.java']));
   });
 
-  it('у ответа, правившего файлы скриптом, кнопок нет вовсе', async () => {
-    const user = userEvent.setup();
-    const script = {
-      name: 'runScript',
-      status: 'OK',
-      resultMeta: { edits: [{ path: 'src/Gen.java', operation: 'edit', additions: 2, deletions: 0 }] },
-    };
-    render(<FileChangeBlock toolCalls={[...toolCalls, script]} project="kb" conversationId="c1" canRevert />);
+  it.each(['runScript', 'runSavedScript'])(
+    'у ответа, правившего файлы скриптом (%s), кнопок нет вовсе',
+    async (tool) => {
+      const user = userEvent.setup();
+      const script = {
+        name: tool,
+        status: 'OK',
+        resultMeta: { edits: [{ path: 'src/Gen.java', operation: 'edit', additions: 2, deletions: 0 }] },
+      };
+      render(<FileChangeBlock toolCalls={[...toolCalls, script]} project="kb" conversationId="c1" canRevert />);
 
-    await expand(user);
+      await expand(user);
 
-    expect(screen.queryByRole('button', { name: 'fileChange.revertFile' })).toBeNull();
-  });
+      expect(screen.queryByRole('button', { name: 'fileChange.revertFile' })).toBeNull();
+    },
+  );
 
   it('у уже откаченного файла кнопки нет, у соседнего — есть', async () => {
     const user = userEvent.setup();

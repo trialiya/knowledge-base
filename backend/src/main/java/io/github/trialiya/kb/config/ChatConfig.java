@@ -185,7 +185,8 @@ public class ChatConfig {
         if (!savedScriptCatalog.anyManifests()) {
             log.info(
                     "Saved-script tool is NOT exposed to the model: no project configured"
-                            + " kb.projects[].scripts-manifest");
+                            + " kb.projects[].scripts-manifest — and neither is the list of saved"
+                            + " scripts in the <active-project> block");
             return null;
         }
         log.info("Saved-script tool enabled (runSavedScript)");

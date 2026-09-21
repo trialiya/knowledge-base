@@ -71,16 +71,14 @@ public class ScriptRunner {
      * what the handbook tells the model to write. The opening stays on line 1 <em>with</em> the
      * script's own first line, so reported error lines match the script the model sent.
      *
-     * <p>The wrapper is a function and not an immediately-invoked one because the arguments arrive
-     * as its parameter: evaluating the source yields the function, and this class calls it with the
-     * guest object it parsed separately (see {@link #run(ScriptRequest, RunCancellation)}). Passing
-     * them that way rather than through a global binding keeps the sandbox's host surface exactly
-     * where it was — nothing new is bound into the context — and leaves a script that declares its
-     * own {@code args} harmless.
+     * <p>Arguments are <em>not</em> a parameter of this wrapper. They arrive as a binding, so a
+     * script whose first line is {@code let args = …} still parses: a declaration in the function
+     * body shadows the global, while the same name as the wrapper's parameter would be a redeclared
+     * binding and a syntax error — on scripts that ran before saved scripts existed.
      */
-    private static final String PREFIX = "(function(args){";
+    private static final String PREFIX = "(function(){";
 
-    private static final String SUFFIX = "\n})";
+    private static final String SUFFIX = "\n})()";
 
     /**
      * Guest-side JSON helpers, evaluated once per context (see {@link #stringify}).
@@ -102,12 +100,14 @@ public class ScriptRunner {
                                     var s = JSON.stringify(x);
                                     return s === undefined ? String(x) : s;
                                   },
-                                  freeze: function deepFreeze(x) {
-                                    if (x !== null && typeof x === 'object' && !Object.isFrozen(x)) {
-                                      Object.freeze(x);
-                                      Object.keys(x).forEach(function (k) { deepFreeze(x[k]); });
-                                    }
-                                    return x;
+                                  args: function (json) {
+                                    return (function deepFreeze(x) {
+                                      if (x !== null && typeof x === 'object' && !Object.isFrozen(x)) {
+                                        Object.freeze(x);
+                                        Object.keys(x).forEach(function (k) { deepFreeze(x[k]); });
+                                      }
+                                      return x;
+                                    })(JSON.parse(json));
                                   }
                                 })
                                 """,
@@ -290,11 +290,13 @@ public class ScriptRunner {
             api.bindFormatter(value -> logFormatter.execute(value).asString());
             context.getBindings("js").putMember("kb", api);
 
-            // Evaluating the source only builds the function; the script itself starts running
-            // in execute(), with the arguments as its parameter.
-            Value script = context.eval(source(request.source()));
-            Value args = helpers.getMember("freeze").execute(context.eval(argsSource(request)));
-            Value returned = script.execute(args);
+            // The guest parses its own arguments: JSON.parse, not an object literal in the
+            // source, so a key named __proto__ stays an own property instead of silently becoming
+            // the prototype — and nothing but a string crosses into the context.
+            context.getBindings("js")
+                    .putMember("args", helpers.getMember("args").execute(request.args().json()));
+
+            Value returned = context.eval(source(request.source()));
             Object value = stringify(helpers.getMember("result"), returned, session);
             // Retire the watchdog before writing: the budget it enforces is the script's, and a
             // deadline landing mid-apply would mean a stop request that leaves files half written
@@ -350,17 +352,6 @@ public class ScriptRunner {
 
     private static Source source(ScriptSource script) {
         return Source.newBuilder("js", PREFIX + script.text() + SUFFIX, script.sourceName())
-                .buildLiteral();
-    }
-
-    /**
-     * The arguments as a guest expression. JSON is a JavaScript expression once parenthesised, and
-     * {@code ScriptArgs} writes it as ASCII, so nothing has to be escaped a second time here — and
-     * nothing crosses into the guest as a host object: what the script gets is an object the engine
-     * built itself.
-     */
-    private static Source argsSource(ScriptRequest request) {
-        return Source.newBuilder("js", "(" + request.args().json() + ")", "kb-args.js")
                 .buildLiteral();
     }
 

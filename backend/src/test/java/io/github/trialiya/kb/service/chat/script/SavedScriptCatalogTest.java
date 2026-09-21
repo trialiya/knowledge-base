@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
+import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.script.SavedScript;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -76,11 +77,30 @@ class SavedScriptCatalogTest {
                 .containsExactly("report", "bump");
     }
 
+    /**
+     * With the sandbox switched off there is no tool to call, so the block must not list anything:
+     * a catalogue naming a tool that no bean registered is paid for on every turn and answers
+     * nothing.
+     */
+    @Test
+    void withScriptsDisabledNothingIsAnnounced() {
+        manifest("scripts:\n  - { name: report, file: tools/report.js, desc: Count }\n");
+        commitAll();
+        SavedScriptCatalog catalog =
+                catalog(
+                        MANIFEST,
+                        new ScriptProperties(
+                                false, false, null, null, null, null, null, null, null, null));
+
+        assertThat(catalog.anyManifests()).isFalse();
+        assertThat(catalog.projectScripts(project)).isEmpty();
+    }
+
     /** No manifest configured is the default state, and it is not an error anywhere. */
     @Test
     void aProjectWithoutAManifestHasNoScripts() {
         commitAll();
-        SavedScriptCatalog catalog = catalog(null);
+        SavedScriptCatalog catalog = catalog((String) null);
 
         assertThat(catalog.anyManifests()).isFalse();
         assertThat(catalog.scripts(TestProjects.ID)).isEmpty();
@@ -223,10 +243,14 @@ class SavedScriptCatalogTest {
     // ── Fixture ─────────────────────────────────────────────────────────────
 
     private SavedScriptCatalog catalog() {
-        return catalog(MANIFEST);
+        return catalog(MANIFEST, ScriptProperties.enabledWithDefaults());
     }
 
     private SavedScriptCatalog catalog(@Nullable String manifestPath) {
+        return catalog(manifestPath, ScriptProperties.enabledWithDefaults());
+    }
+
+    private SavedScriptCatalog catalog(@Nullable String manifestPath, ScriptProperties properties) {
         ProjectOption option =
                 new ProjectOption(
                         TestProjects.ID,
@@ -243,7 +267,7 @@ class SavedScriptCatalogTest {
                 new ProjectCatalog(new ProjectProperties(List.of(option)), new GitProperties(null));
         GitRegistry registry = TestProjects.registry(List.of(option));
         project = projects.defaultProject();
-        return new SavedScriptCatalog(projects, registry);
+        return new SavedScriptCatalog(projects, registry, properties);
     }
 
     private void manifest(String yaml) {

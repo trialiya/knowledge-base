@@ -364,6 +364,25 @@ class ScriptSandboxTest {
         assertThat(result.value()).isEqualTo(Map.of("partial", true, "read", 1));
     }
 
+    // ── Arguments ───────────────────────────────────────────────────────────
+
+    /**
+     * Saved scripts brought an {@code args} object into the context, and it must cost the scripts
+     * that never asked for one nothing: an inline script sees an empty object, and — because the
+     * binding is a global and not a parameter of the wrapper — may still declare a name of its own
+     * over it.
+     */
+    @Test
+    void anInlineScriptSeesEmptyArgumentsAndMayShadowThem() {
+        assertThat(run("return Object.keys(args).length;").value()).isEqualTo(0);
+
+        for (String declaration : List.of("let args = 1;", "const args = 1;", "var args = 1;")) {
+            ScriptResult result = run(declaration + "\nreturn args;");
+            assertThat(result.error()).as(declaration).isNull();
+            assertThat(result.value()).as(declaration).isEqualTo(1);
+        }
+    }
+
     // ── Failure reporting ───────────────────────────────────────────────────
 
     @Test

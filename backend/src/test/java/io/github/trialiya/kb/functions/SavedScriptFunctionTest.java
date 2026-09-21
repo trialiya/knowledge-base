@@ -60,6 +60,9 @@ class SavedScriptFunctionTest {
         write(repoDir.resolve("tools/broken.js"), "var a = 1;\nvar b = ;\nreturn a;\n");
         write(repoDir.resolve("tools/frozen.js"), "args.area = 'changed';\nreturn args.area;\n");
         write(
+                repoDir.resolve("tools/echo.js"),
+                "return { keys: Object.keys(args), area: args.area };\n");
+        write(
                 repoDir.resolve(MANIFEST),
                 """
                 scripts:
@@ -72,6 +75,7 @@ class SavedScriptFunctionTest {
                   - { name: boom, file: tools/boom.js, desc: Always throws }
                   - { name: broken, file: tools/broken.js, desc: Does not parse }
                   - { name: frozen, file: tools/frozen.js, desc: Tries to change its arguments }
+                  - { name: echo, file: tools/echo.js, desc: Returns what it was given }
                   - { name: bump, file: tools/report.js, desc: Would edit files, write: true }
                 """);
         commitAll();
@@ -140,6 +144,31 @@ class SavedScriptFunctionTest {
         assertThat(result.value()).isEqualTo("docs");
     }
 
+    /**
+     * The guest parses the arguments itself, so nothing is re-encoded on the way in: a non-ASCII
+     * value arrives as it was passed, and a key named {@code __proto__} stays an own property
+     * instead of silently becoming the object's prototype — which an object literal in the source
+     * would have made it.
+     */
+    @Test
+    void argumentsArriveAsPassed() {
+        ScriptResult result =
+                function(false)
+                        .runSavedScript(
+                                context,
+                                "echo",
+                                Map.of("area", "документы/раздел", "__proto__", "harmless"),
+                                null);
+
+        assertThat(result.error()).isNull();
+        assertThat(result.value())
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("area", "документы/раздел")
+                .extracting("keys")
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+                .containsExactlyInAnyOrder("area", "__proto__");
+    }
+
     @Test
     void refusesACallThatTheDeclarationCannotSatisfy() {
         SavedScriptFunction function = function(false);
@@ -196,7 +225,7 @@ class SavedScriptFunctionTest {
         ScriptProperties properties = ScriptProperties.enabledWithDefaults();
         ScriptEditPolicy editPolicy = new ScriptEditPolicy(registry, properties);
         return new SavedScriptFunction(
-                new SavedScriptCatalog(projects, registry),
+                new SavedScriptCatalog(projects, registry, properties),
                 new ScriptRunner(registry, null, properties, editPolicy),
                 editPolicy);
     }

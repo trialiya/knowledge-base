@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.chat.script;
 
+import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.script.SavedScript;
@@ -56,12 +57,21 @@ public class SavedScriptCatalog {
     private final ProjectCatalog projects;
     private final GitRegistry gitRegistry;
 
+    /**
+     * The sandbox's own switch. A saved script is run by the engine {@code kb.script.enabled} turns
+     * off, so with scripts off there is nothing to announce — and announcing it anyway would name a
+     * tool that no bean registered.
+     */
+    private final ScriptProperties properties;
+
     /** Parsed manifests by project id, kept only as long as the file behind one does not move. */
     private final Map<String, Cached> cache = new ConcurrentHashMap<>();
 
-    public SavedScriptCatalog(ProjectCatalog projects, GitRegistry gitRegistry) {
+    public SavedScriptCatalog(
+            ProjectCatalog projects, GitRegistry gitRegistry, ScriptProperties properties) {
         this.projects = projects;
         this.gitRegistry = gitRegistry;
+        this.properties = properties;
     }
 
     /**
@@ -70,7 +80,9 @@ public class SavedScriptCatalog {
      * without a single manifest configured, the tool would be a name with an empty shelf behind it.
      */
     public boolean anyManifests() {
-        return projects.projects().stream().anyMatch(project -> project.scriptsManifest() != null);
+        return properties.enabled()
+                && projects.projects().stream()
+                        .anyMatch(project -> project.scriptsManifest() != null);
     }
 
     /** What the project declares right now; empty when it declares nothing or has no manifest. */
@@ -161,6 +173,9 @@ public class SavedScriptCatalog {
      * is rebuilt on every iteration of the tool loop and paid for every turn.
      */
     public String projectScripts(Project project) {
+        if (!properties.enabled()) {
+            return "";
+        }
         List<SavedScript> scripts = scriptsOf(project);
         if (scripts.isEmpty()) {
             return "";

@@ -123,20 +123,32 @@ class ScriptArgsTest {
     }
 
     /**
-     * The JSON is embedded in the guest source as an expression, so it has to be ASCII: an
-     * unescaped U+2028 is legal JSON with a history of not being legal JavaScript.
+     * Explicit null is a value the caller chose — except where the declaration says the argument is
+     * required, and null is precisely the absence it exists to refuse.
      */
     @Test
-    void serializesArgumentsAsAscii() {
+    void anExplicitNullDoesNotSatisfyARequiredArgument() {
+        Map<String, Object> given = new HashMap<>();
+        given.put("since", null);
+
+        assertThatThrownBy(
+                        () ->
+                                ScriptArgs.bind(
+                                        script(param("since", ScriptParam.Type.STRING, true, null)),
+                                        given))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("since");
+    }
+
+    /** What the sandbox parses is this text, so it has to survive the trip unchanged. */
+    @Test
+    void serializesValuesAsJsonTheGuestCanParse() {
         ScriptArgs.Bound bound =
                 ScriptArgs.bind(
                         script(param("area", ScriptParam.Type.STRING, false, null)),
                         Map.of("area", "док" + LINE_SEPARATOR + "и"));
 
-        assertThat(bound.json().chars().allMatch(c -> c < 128)).isTrue();
-        assertThat(bound.json().toLowerCase(java.util.Locale.ROOT))
-                .contains("\\u2028")
-                .doesNotContain(LINE_SEPARATOR);
+        assertThat(bound.json()).isEqualTo("{\"area\":\"док" + LINE_SEPARATOR + "и\"}");
     }
 
     @Test

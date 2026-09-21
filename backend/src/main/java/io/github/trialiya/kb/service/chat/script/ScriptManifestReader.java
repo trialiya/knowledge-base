@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.chat.script;
 import io.github.trialiya.kb.model.script.SavedScript;
 import io.github.trialiya.kb.model.script.ScriptParam;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -163,23 +164,38 @@ final class ScriptManifestReader {
                         ? ScriptParam.Type.STRING
                         : ScriptParam.Type.parse(String.valueOf(fields.get("type")));
         String desc = fields.get("desc") == null ? "" : String.valueOf(fields.get("desc")).strip();
-        return new ScriptParam(name, desc, type, required, fallback);
+        ScriptParam declared = new ScriptParam(name, desc, type, required, fallback);
+        return fallback == null
+                ? declared
+                : new ScriptParam(
+                        name,
+                        desc,
+                        type,
+                        required,
+                        ScriptArgs.checkDeclaredDefault(script, declared));
     }
 
+    /**
+     * Seconds is the unit of a bare number here, not Spring's default of milliseconds: every other
+     * script budget in this project is spelled in seconds ({@code timeoutSeconds}, {@code
+     * kb.script.timeout}), and {@code timeout: 30} silently meaning 30ms is a script that times out
+     * on every call with nothing in the log to say why.
+     */
     private static @Nullable Duration timeout(@Nullable Object raw) {
         if (raw == null) {
             return null;
         }
+        Duration timeout;
         try {
-            Duration timeout = DurationStyle.detectAndParse(String.valueOf(raw).strip());
-            if (timeout.isNegative() || timeout.isZero()) {
-                throw new IllegalArgumentException("timeout must be positive, got \"" + raw + "\"");
-            }
-            return timeout;
-        } catch (IllegalStateException e) {
+            timeout = DurationStyle.detectAndParse(String.valueOf(raw).strip(), ChronoUnit.SECONDS);
+        } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
-                    "timeout \"" + raw + "\" is not a duration (\"25s\", \"500ms\")", e);
+                    "timeout \"" + raw + "\" is not a duration (\"25s\", \"500ms\", \"30\")", e);
         }
+        if (timeout.isNegative() || timeout.isZero()) {
+            throw new IllegalArgumentException("timeout must be positive, got \"" + raw + "\"");
+        }
+        return timeout;
     }
 
     private static Map<?, ?> requireMap(@Nullable Object value, String what) {
