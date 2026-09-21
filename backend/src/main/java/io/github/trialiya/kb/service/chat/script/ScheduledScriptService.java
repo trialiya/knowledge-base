@@ -57,9 +57,10 @@ public class ScheduledScriptService {
 
     /**
      * Built with the first schedule and closed with the application; stays null when there are
-     * none.
+     * none. Volatile because the two ends of its life are two threads: {@code @PostConstruct}
+     * writes it, {@code @PreDestroy} reads it, and Spring does not promise they are the same one.
      */
-    @Nullable private ThreadPoolTaskScheduler taskScheduler;
+    @Nullable private volatile ThreadPoolTaskScheduler taskScheduler;
 
     /** Last outcome per schedule name; empty for one that has not fired yet. */
     private final Map<String, LastRun> lastRuns = new ConcurrentHashMap<>();
@@ -141,7 +142,7 @@ public class ScheduledScriptService {
         }
     }
 
-    private static String requireValid(Schedule schedule, Set<String> names) {
+    private static void requireValid(Schedule schedule, Set<String> names) {
         String where = "kb.script.schedules";
         if (schedule.script() == null || schedule.script().isBlank()) {
             throw new IllegalStateException(where + ": every entry needs a script name");
@@ -167,7 +168,6 @@ public class ScheduledScriptService {
             throw new IllegalStateException(
                     where + ": duplicate name \"" + schedule.displayName() + "\"");
         }
-        return schedule.displayName();
     }
 
     /**
