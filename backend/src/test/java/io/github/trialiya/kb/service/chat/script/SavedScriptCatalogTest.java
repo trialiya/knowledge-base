@@ -90,7 +90,8 @@ class SavedScriptCatalogTest {
                 catalog(
                         MANIFEST,
                         new ScriptProperties(
-                                false, false, null, null, null, null, null, null, null, null));
+                                false, false, true, null, null, null, null, null, null, null,
+                                null));
 
         assertThat(catalog.anyManifests()).isFalse();
         assertThat(catalog.projectScripts(project)).isEmpty();
@@ -152,7 +153,10 @@ class SavedScriptCatalogTest {
 
         ScriptSource source =
                 catalog.source(
-                        TestProjects.ID, catalog.require(TestProjects.ID, "report"), Map.of());
+                        TestProjects.ID,
+                        catalog.require(TestProjects.ID, "report"),
+                        Map.of(),
+                        true);
 
         assertThat(source.text()).contains("kb.files");
         assertThat(source.sourceName()).isEqualTo("tools/report.js");
@@ -175,7 +179,8 @@ class SavedScriptCatalogTest {
                                 catalog.source(
                                         TestProjects.ID,
                                         catalog.require(TestProjects.ID, "fresh"),
-                                        Map.of()))
+                                        Map.of(),
+                                        true))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("fresh");
     }

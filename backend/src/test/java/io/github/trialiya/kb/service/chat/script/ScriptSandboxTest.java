@@ -415,6 +415,7 @@ class ScriptSandboxTest {
                         new ScriptProperties(
                                 true,
                                 false,
+                                true,
                                 null,
                                 null,
                                 null,
@@ -710,6 +711,7 @@ class ScriptSandboxTest {
         return new ScriptProperties(
                 true,
                 false,
+                true,
                 null,
                 null,
                 null,

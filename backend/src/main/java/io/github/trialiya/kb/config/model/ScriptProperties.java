@@ -3,6 +3,7 @@ package io.github.trialiya.kb.config.model;
 import java.time.Duration;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.util.unit.DataSize;
@@ -16,6 +17,15 @@ import org.springframework.util.unit.DataSize;
  *
  * @param enabled expose {@code runScript} to the chat model at all; off by default — a sandbox is
  *     still code execution, so this is an explicit opt-in like {@code kb.mcp.enabled}
+ * @param attachmentRun let the model run a script that arrived as an attachment — {@code
+ *     runSavedScript} with {@code attachment:<id>}. On by default wherever scripts are on: the
+ *     sandbox is the same and such a run is forced read-only, so what it adds over a script the
+ *     model writes itself is not capability but provenance — the code came from whoever uploaded
+ *     the file. A deployment that is willing to run what its own repository declares but not what
+ *     sits in its knowledge base turns this off. Unlike every other flag here it defaults to
+ *     <em>on</em> ({@code @DefaultValue("true")}): it narrows a capability {@code enabled} already
+ *     granted, and defaulting it off would take away the attachment a user just uploaded with no
+ *     line in the configuration to point at
  * @param editEnabled let scripts write — {@code kb.edit} / {@code kb.create} for text, {@code
  *     kb.writeBytes} / {@code kb.createBytes} for raw bytes. Necessary but not sufficient: {@code
  *     kb.projects[].edit-enabled} must be on and the working tree writable, exactly as for the
@@ -41,6 +51,7 @@ import org.springframework.util.unit.DataSize;
 public record ScriptProperties(
         boolean enabled,
         boolean editEnabled,
+        boolean attachmentRun,
         Resource guide,
         Resource extendedGuide,
         Resource editGuide,
@@ -64,6 +75,7 @@ public record ScriptProperties(
     public ScriptProperties(
             boolean enabled,
             boolean editEnabled,
+            @DefaultValue("true") boolean attachmentRun,
             @Nullable Resource guide,
             @Nullable Resource extendedGuide,
             @Nullable Resource editGuide,
@@ -74,6 +86,7 @@ public record ScriptProperties(
             @Nullable Limits limits) {
         this.enabled = enabled;
         this.editEnabled = editEnabled;
+        this.attachmentRun = attachmentRun;
         this.guide = guide != null ? guide : DEFAULT_GUIDE;
         this.extendedGuide = extendedGuide != null ? extendedGuide : DEFAULT_EXTENDED_GUIDE;
         this.editGuide = editGuide != null ? editGuide : DEFAULT_EDIT_GUIDE;
@@ -87,7 +100,8 @@ public record ScriptProperties(
 
     /** All-defaults instance with the tool enabled — for tests and programmatic setups. */
     public static ScriptProperties enabledWithDefaults() {
-        return new ScriptProperties(true, true, null, null, null, null, null, null, null, null);
+        return new ScriptProperties(
+                true, true, true, null, null, null, null, null, null, null, null);
     }
 
     /**

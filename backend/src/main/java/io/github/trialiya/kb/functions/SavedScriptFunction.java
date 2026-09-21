@@ -4,6 +4,7 @@ import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 
 import io.github.trialiya.kb.model.script.SavedScript;
 import io.github.trialiya.kb.model.script.ScriptResult;
+import io.github.trialiya.kb.service.chat.script.AttachmentScriptService;
 import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
 import io.github.trialiya.kb.service.chat.script.ScriptArgs;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
@@ -46,6 +47,9 @@ public class SavedScriptFunction {
 
     private final SavedScriptCatalog catalog;
 
+    /** The other shelf: {@code attachment:<id>}, always read-only (see its own javadoc). */
+    private final AttachmentScriptService attachmentScripts;
+
     private final ScriptRunner scriptRunner;
 
     /** Asked before the run, so a script declared to write is refused where nothing can. */
@@ -54,17 +58,24 @@ public class SavedScriptFunction {
     @Tool(
             description =
                     """
-                    Runs a script this repository saved under a name, with arguments — use it instead of \
-                    writing the same script yourself. The available names, what each does and which \
-                    arguments it takes are listed in the <active-project> block; no other name runs. \
-                    Same sandbox, budgets and result shape as runScript. Returns: value (script result), \
-                    log, stats, filesRead, edits, error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET), and source \
-                    (which script ran, its path and the arguments it got).
+                    Runs a script somebody already wrote, with arguments — use it instead of writing the \
+                    same script yourself. Two things it runs: a script this repository saved under a name \
+                    (the names, what each does and which arguments it takes are listed in the \
+                    <active-project> block; no other name runs), and a JavaScript attachment, named \
+                    "attachment:<id>" with the id from getChatAttachments / getDocumentAttachments — an \
+                    attachment always runs read-only. Same sandbox, budgets and result shape as runScript. \
+                    Returns: value (script result), log, stats, filesRead, edits, error \
+                    (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET), and source (which script ran, its path and the \
+                    arguments it got).
                     """,
             resultConverter = CompactToolResultConverter.class)
     public ScriptResult runSavedScript(
             ToolContext context,
-            @ToolParam(description = "Script name from the <active-project> list.") String name,
+            @ToolParam(
+                            description =
+                                    "Script name from the <active-project> list, or "
+                                            + "\"attachment:<id>\" for a JavaScript attachment.")
+                    String name,
             @ToolParam(
                             description =
                                     "Arguments as an object, e.g. {\"area\": \"frontend/src\"}. "
@@ -79,27 +90,24 @@ public class SavedScriptFunction {
                     @Nullable Integer timeoutSeconds) {
         final String scriptName = requireText(name, "name");
         final String projectId = ProjectContext.from(context);
-        final SavedScript script = catalog.require(projectId, scriptName);
-        final boolean readOnly = !editPolicy.enabled(projectId);
-        requireWritesAvailable(script, readOnly);
-        // Arguments first, source second: a call that cannot be satisfied should not have cost a
-        // read of the working tree, and the arguments are what the model gets wrong.
-        final ScriptArgs.Bound bound = ScriptArgs.bind(script, args);
-        final ScriptSource source = catalog.source(projectId, script, bound.values());
+        final Run run =
+                AttachmentScriptService.addresses(scriptName)
+                        ? attachment(scriptName, args)
+                        : saved(projectId, scriptName, args, timeoutSeconds);
         log.info(
                 "runSavedScript called: '{}' ({}), args={}, project='{}', readOnly={}",
                 scriptName,
-                source.sourceName(),
-                bound.values().keySet(),
+                run.source().sourceName(),
+                run.args().values().keySet(),
                 projectId,
-                readOnly);
+                run.readOnly());
         ScriptResult result =
                 scriptRunner.run(
                         new ScriptRequest(
-                                source,
-                                bound,
-                                timeout(timeoutSeconds, script),
-                                readOnly,
+                                run.source(),
+                                run.args(),
+                                run.timeoutSeconds(),
+                                run.readOnly(),
                                 ToolInvocationCollector.from(context),
                                 projectId),
                         RunCancellation.from(context));
@@ -107,20 +115,41 @@ public class SavedScriptFunction {
         return result;
     }
 
+    /** One resolved call, before the runner is handed anything. */
+    private record Run(
+            ScriptSource source,
+            ScriptArgs.Bound args,
+            @Nullable Integer timeoutSeconds,
+            boolean readOnly) {}
+
     /**
-     * A script the manifest marks as writing, in a place where nothing can write, is refused before
-     * it runs. The declaration grants nothing — {@code ScriptEditPolicy} still decides — but it
-     * lets the refusal name the reason instead of leaving the script to fail halfway through, with
-     * some of its work already done and none of it written.
+     * A script off the project's manifest. Arguments first, source second: a call that cannot be
+     * satisfied should not have cost a read of the working tree, and the arguments are what the
+     * model gets wrong.
      */
-    private static void requireWritesAvailable(SavedScript script, boolean readOnly) {
-        if (script.write() && readOnly) {
-            throw new IllegalArgumentException(
-                    "Script \""
-                            + script.name()
-                            + "\" edits files, and writes are not available here. Tell the user"
-                            + " this needs kb.script.edit-enabled and an editable project.");
-        }
+    private Run saved(
+            @Nullable String projectId,
+            String name,
+            @Nullable Map<String, Object> args,
+            @Nullable Integer timeoutSeconds) {
+        final SavedScript script = catalog.require(projectId, name);
+        final boolean readOnly = !editPolicy.enabled(projectId);
+        final ScriptArgs.Bound bound = ScriptArgs.bind(script, args);
+        return new Run(
+                catalog.source(projectId, script, bound.values(), readOnly),
+                bound,
+                timeout(timeoutSeconds, script),
+                readOnly);
+    }
+
+    /**
+     * An attachment. Nothing declares its arguments, so they pass through as they came; nothing
+     * declares its budget either, so the call's own {@code timeoutSeconds} is all there is; and the
+     * run is read-only whatever the project allows — see {@code AttachmentScriptService}.
+     */
+    private Run attachment(String name, @Nullable Map<String, Object> args) {
+        final ScriptArgs.Bound bound = ScriptArgs.free(name, args);
+        return new Run(attachmentScripts.source(name, bound.values()), bound, null, true);
     }
 
     /**

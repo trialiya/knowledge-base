@@ -56,6 +56,16 @@ public final class ScriptArgs {
     }
 
     /**
+     * Arguments for a script with no declaration behind it — one that arrived as an attachment.
+     * Everything passed goes through as it is: there is nothing to check a name or a type against,
+     * and the note {@link #bind} writes about an undeclared key would fire on every argument.
+     */
+    public static Bound free(String script, @Nullable Map<String, Object> supplied) {
+        Map<String, Object> values = supplied == null ? Map.of() : new LinkedHashMap<>(supplied);
+        return new Bound(values, json(script, values), List.of());
+    }
+
+    /**
      * Binds a call's arguments to what the script declares.
      *
      * @throws IllegalArgumentException a required argument is missing, a value is of the wrong
@@ -95,7 +105,7 @@ public final class ScriptArgs {
                                         + declared(script));
                     }
                 });
-        return new Bound(values, json(script, values), List.copyOf(notes));
+        return new Bound(values, json(script.name(), values), List.copyOf(notes));
     }
 
     /**
@@ -174,14 +184,14 @@ public final class ScriptArgs {
                 + declaredSentence(script);
     }
 
-    private static String json(SavedScript script, Map<String, Object> values) {
+    private static String json(String script, Map<String, Object> values) {
         String json;
         try {
             json = MAPPER.writeValueAsString(values);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException(
                     "Script \""
-                            + script.name()
+                            + script
                             + "\": the arguments are not representable as JSON — pass strings,"
                             + " numbers, booleans, arrays and objects only",
                     e);
@@ -189,7 +199,7 @@ public final class ScriptArgs {
         if (json.length() > MAX_ARGS_CHARS) {
             throw new IllegalArgumentException(
                     "Script \""
-                            + script.name()
+                            + script
                             + "\": the arguments are too large ("
                             + json.length()
                             + " chars, the limit is "

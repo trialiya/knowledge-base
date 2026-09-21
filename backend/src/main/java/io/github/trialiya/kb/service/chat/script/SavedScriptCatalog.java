@@ -120,12 +120,20 @@ public class SavedScriptCatalog {
      * The script's text, as the working tree holds it this second, together with what the result
      * will say about it.
      *
+     * @param readOnly whether the caller will run it without the write methods — asked here, with
+     *     the text, so that no caller can forget it: a script the manifest marks as writing is
+     *     refused before it runs rather than failing halfway through, with some of its work done
+     *     and none of it written
      * @throws IllegalArgumentException the file is missing on this branch, untracked, binary or too
-     *     large — every one of them is a state of the tree, so it is the tool's answer and not a
-     *     server error
+     *     large, or the script writes where nothing may — every one of them is a state of the tree
+     *     or of the permissions, so it is the tool's answer and not a server error
      */
     public ScriptSource source(
-            @Nullable String projectId, SavedScript script, Map<String, Object> args) {
+            @Nullable String projectId,
+            SavedScript script,
+            Map<String, Object> args,
+            boolean readOnly) {
+        requireWritesAvailable(script, readOnly);
         Project project = activeProject(projectId);
         GitFileContent file = readFile(project, script);
         String text = file.content();
@@ -199,6 +207,22 @@ public class SavedScriptCatalog {
                 "\nOnly these names run; anything else is a script you write yourself with"
                         + " `runScript`.");
         return text.toString();
+    }
+
+    /**
+     * The manifest's {@code write} flag grants nothing — {@code ScriptEditPolicy} still decides —
+     * but it lets a surface that cannot write at all (the read-only bench, a project whose edits
+     * are off) refuse by name instead of leaving the script to fail somewhere inside.
+     */
+    private static void requireWritesAvailable(SavedScript script, boolean readOnly) {
+        if (script.write() && readOnly) {
+            throw new IllegalArgumentException(
+                    "Script \""
+                            + script.name()
+                            + "\" edits files, and writes are not available here. It needs"
+                            + " kb.script.edit-enabled, an editable project, and a surface that"
+                            + " writes at all — the settings bench never does.");
+        }
     }
 
     private List<SavedScript> scriptsOf(Project project) {
@@ -309,7 +333,8 @@ public class SavedScriptCatalog {
                                 .toList());
     }
 
-    private static String sha(String text) {
+    /** Short SHA-256 of the text that ran — shared with {@code AttachmentScriptService}. */
+    static String sha(String text) {
         try {
             byte[] digest =
                     MessageDigest.getInstance("SHA-256")

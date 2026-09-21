@@ -22,6 +22,24 @@ const settingsApi = {
   runScript: (script, timeoutSeconds) =>
     request('/api/settings/script/run', { method: 'POST', ...json({ script, timeoutSeconds }) }),
 
+  /**
+   * Что репозиторий объявил в манифесте прямо сейчас: имя, описание, файл, объявленные
+   * аргументы. Список читается из рабочего дерева на каждый запрос, поэтому pull или
+   * смена ветки меняют его без перезапуска сервера.
+   */
+  listSavedScripts: (project) =>
+    request(`/api/settings/script/saved${project ? `?project=${encodeURIComponent(project)}` : ''}`),
+
+  /**
+   * Прогон сохранённого скрипта по имени — тот же движок и те же бюджеты, но код берётся
+   * из репозитория, а не из поля формы. Всегда read-only, как и свободный прогон выше.
+   */
+  runSavedScript: (name, args, timeoutSeconds, project) =>
+    request('/api/settings/script/run-saved', {
+      method: 'POST',
+      ...json({ name, args, timeoutSeconds, project }),
+    }),
+
   /** Server-side snapshot for the admin panel: app, database, git, documents, indexing queue. */
   getSystemInfo: () => request('/api/admin/system'),
 };

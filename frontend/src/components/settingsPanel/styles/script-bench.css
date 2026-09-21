@@ -21,6 +21,48 @@
   color: var(--kb-text-muted);
 }
 
+/* ── Скрипт, объявленный репозиторием (SavedScriptBench) ── */
+.saved-script {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saved-script__desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--kb-text);
+}
+
+.saved-script__file {
+  margin: 0;
+  font-family: var(--kb-font-mono);
+  font-size: 0.75rem;
+  color: var(--kb-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Поле аргумента: подпись над полем, а не рядом — имён бывает длиннее панели. */
+.saved-script__param {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.saved-script__param-name {
+  font-family: var(--kb-font-mono);
+  font-size: 0.78rem;
+  color: var(--kb-text);
+}
+
+.saved-script__param-type {
+  color: var(--kb-text-muted);
+}
+
+.saved-script__required {
+  color: var(--kb-error);
+}
+
 /* ── Ответ прогона ── */
 .script-result {
   display: flex;

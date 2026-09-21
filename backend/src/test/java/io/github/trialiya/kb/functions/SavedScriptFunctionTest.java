@@ -10,6 +10,8 @@ import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.model.script.ScriptRunSource;
+import io.github.trialiya.kb.service.chat.context.AttachmentService;
+import io.github.trialiya.kb.service.chat.script.AttachmentScriptService;
 import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
@@ -43,6 +45,12 @@ class SavedScriptFunctionTest {
     private static final String MANIFEST = ".kb/scripts.yaml";
 
     @TempDir Path repoDir;
+
+    /**
+     * Вложения этому тесту нужны одной веткой: их собственный разбор — в
+     * AttachmentScriptServiceTest.
+     */
+    private final AttachmentService attachments = org.mockito.Mockito.mock(AttachmentService.class);
 
     private final ToolContext context =
             new ToolContext(Map.of(ProjectContext.KEY, TestProjects.ID));
@@ -204,6 +212,60 @@ class SavedScriptFunctionTest {
                 .isNull();
     }
 
+    // ── Attachments ─────────────────────────────────────────────────────────
+
+    /**
+     * The other shelf: a script that arrived as an attachment. It runs in the same sandbox with the
+     * same budgets — and never with the write methods, even here, where the project itself accepts
+     * writes: what is different about an attachment is not what it may do but who wrote it.
+     */
+    @Test
+    void anAttachmentRunsAndRunsReadOnly() {
+        stubAttachment(12, "probe.js", "return [typeof kb.create, args.area];");
+
+        ScriptResult result =
+                function(true)
+                        .runSavedScript(context, "attachment:12", Map.of("area", "docs"), null);
+
+        assertThat(result.error()).isNull();
+        assertThat(result.value()).isEqualTo(List.of("undefined", "docs"));
+        assertThat(result.source()).isNotNull();
+        assertThat(result.source().kind()).isEqualTo(ScriptRunSource.Kind.ATTACHMENT);
+        assertThat(result.source().name()).isEqualTo("attachment:12");
+        assertThat(result.source().path()).isEqualTo("probe.js");
+        // Nothing declares an attachment's arguments, so nothing is noted about them either.
+        assertThat(result.log()).isEmpty();
+    }
+
+    @Test
+    void anAttachmentThatIsNotAScriptIsRefusedBeforeTheSandbox() {
+        stubAttachment(13, "notes.md", "# not a script");
+
+        assertThatThrownBy(
+                        () -> function(false).runSavedScript(context, "attachment:13", null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("notes.md");
+    }
+
+    private void stubAttachment(long id, String fileName, String content) {
+        org.mockito.Mockito.when(attachments.getById(id))
+                .thenReturn(
+                        new io.github.trialiya.kb.model.attachment.dto.Attachment(
+                                id,
+                                io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType
+                                        .CHAT,
+                                null,
+                                "conv-1",
+                                fileName,
+                                "text/plain",
+                                content.length(),
+                                null,
+                                null,
+                                java.time.OffsetDateTime.now(),
+                                java.time.OffsetDateTime.now()));
+        org.mockito.Mockito.when(attachments.getContent(id)).thenReturn(content);
+    }
+
     // ── Fixture ─────────────────────────────────────────────────────────────
 
     private SavedScriptFunction function(boolean editEnabled) {
@@ -226,6 +288,7 @@ class SavedScriptFunctionTest {
         ScriptEditPolicy editPolicy = new ScriptEditPolicy(registry, properties);
         return new SavedScriptFunction(
                 new SavedScriptCatalog(projects, registry, properties),
+                new AttachmentScriptService(attachments, properties),
                 new ScriptRunner(registry, null, properties, editPolicy),
                 editPolicy);
     }

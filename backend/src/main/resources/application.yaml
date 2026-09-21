@@ -354,6 +354,13 @@ kb:
     # without one — and reaches files only through the injected `kb` object, which goes through the
     # same tracked-files rules as every other tool. Still an explicit opt-in: it is executed code.
     enabled: ${KB_SCRIPT_ENABLED:false}
+    # Let the model run a script that arrived as an attachment: runSavedScript with
+    # "attachment:<id>", for a .js attachment of a chat or of a knowledge-base document. The
+    # sandbox is the same one and such a run is always read-only, so what this adds over a script
+    # the model writes itself is not capability but provenance — the code came from whoever
+    # uploaded the file. On by default wherever scripts are on; a deployment willing to run what
+    # its own repository declares but not what sits in its knowledge base turns it off here.
+    attachment-run: ${KB_SCRIPT_ATTACHMENT_RUN:true}
     # Let scripts write (kb.edit/kb.create for text, kb.writeBytes/kb.createBytes for bytes).
     # Necessary but not sufficient: the project's kb.projects[].edit-enabled must also be on and
     # its working tree writable — the same two gates as the editFile tool, so scripts can never be

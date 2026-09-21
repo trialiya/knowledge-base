@@ -25,6 +25,7 @@ import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.service.chat.script.AttachmentScriptService;
 import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
 import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
@@ -160,11 +161,13 @@ public class ChatConfig {
     }
 
     /**
-     * The {@code runSavedScript} tool — the scripts a repository declares in its manifest ({@code
-     * SavedScriptCatalog}). Two gates, and both are about offering the model something that exists:
-     * {@code kb.script.enabled}, because a saved script is executed by the very sandbox that flag
-     * switches off, and at least one configured manifest, because a deployment where no repository
-     * may declare scripts would otherwise get a tool whose whole answer is "unknown script".
+     * The {@code runSavedScript} tool — scripts somebody already wrote: the ones a repository
+     * declares in its manifest ({@code SavedScriptCatalog}) and the ones that arrive as attachments
+     * ({@code AttachmentScriptService}). Offered when there is at least one of the two to run,
+     * because a tool whose every answer is "unknown script" is paid for in every tool listing.
+     *
+     * <p>{@code kb.script.enabled} gates both halves, since either way the script is executed by
+     * the very sandbox that flag switches off.
      *
      * <p>Whether the manifest file is actually there on the current branch is deliberately not
      * asked here: that is a property of the working tree, it changes while the process runs, and
@@ -176,21 +179,26 @@ public class ChatConfig {
     public SavedScriptFunction savedScriptFunction(
             ScriptProperties scriptProperties,
             SavedScriptCatalog savedScriptCatalog,
+            AttachmentScriptService attachmentScriptService,
             ScriptRunner scriptRunner,
             ScriptEditPolicy scriptEditPolicy) {
         if (!scriptProperties.enabled()) {
             log.info("Saved-script tool is NOT exposed to the model: kb.script.enabled=false");
             return null;
         }
-        if (!savedScriptCatalog.anyManifests()) {
+        if (!savedScriptCatalog.anyManifests() && !attachmentScriptService.available()) {
             log.info(
                     "Saved-script tool is NOT exposed to the model: no project configured"
-                            + " kb.projects[].scripts-manifest — and neither is the list of saved"
-                            + " scripts in the <active-project> block");
+                            + " kb.projects[].scripts-manifest and kb.script.attachment-run is off"
+                            + " — there is nothing saved to run");
             return null;
         }
-        log.info("Saved-script tool enabled (runSavedScript)");
-        return new SavedScriptFunction(savedScriptCatalog, scriptRunner, scriptEditPolicy);
+        log.info(
+                "Saved-script tool enabled (runSavedScript): manifests={}, attachments={}",
+                savedScriptCatalog.anyManifests(),
+                attachmentScriptService.available());
+        return new SavedScriptFunction(
+                savedScriptCatalog, attachmentScriptService, scriptRunner, scriptEditPolicy);
     }
 
     /**

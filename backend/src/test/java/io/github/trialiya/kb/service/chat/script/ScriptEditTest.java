@@ -145,6 +145,7 @@ class ScriptEditTest {
                         new ScriptProperties(
                                 true,
                                 true,
+                                true,
                                 null,
                                 null,
                                 null,
@@ -892,6 +893,7 @@ class ScriptEditTest {
 
     private static ScriptProperties withEditLimits(int maxEditedFiles) {
         return new ScriptProperties(
+                true,
                 true,
                 true,
                 null,
