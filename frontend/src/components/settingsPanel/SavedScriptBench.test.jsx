@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SavedScriptBench from './SavedScriptBench';
 import settingsApi from '@/api/settingsApi';
@@ -33,6 +33,14 @@ const CATALOG = {
       ],
     },
     { name: 'bump', desc: 'Правит файлы', file: 'scripts/bump.js', write: true, timeoutSeconds: null, params: [] },
+    {
+      name: 'paths',
+      desc: 'Берёт список путей',
+      file: 'scripts/paths.js',
+      write: false,
+      timeoutSeconds: null,
+      params: [{ name: 'files', desc: 'Пути', type: 'array', required: false, defaultValue: null }],
+    },
   ],
 };
 
@@ -68,6 +76,21 @@ describe('SavedScriptBench', () => {
     // limit остался пустым — его в запросе нет вовсе, и на сервере сработает default манифеста.
     expect(settingsApi.runSavedScript).toHaveBeenCalledWith('locale-diff', { area: 'components' });
     expect(screen.getByText('7')).toBeInTheDocument();
+  });
+
+  // Массив и объект бэкенд строкой не принимает, поэтому такое поле — это JSON,
+  // и разобрать его обязана форма: иначе аргумент нельзя заполнить ничем.
+  it('аргумент-массив уезжает разобранным, а не строкой', async () => {
+    const user = userEvent.setup();
+    render(<SavedScriptBench enabled />);
+
+    await pick(user, 'paths');
+    // fireEvent, а не user.type: в user-event квадратная скобка — начало описателя клавиши.
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '["a.js", "b.js"]' } });
+    await user.click(screen.getByRole('button', { name: 'scripts.bench.run' }));
+
+    await waitFor(() => expect(settingsApi.runSavedScript).toHaveBeenCalled());
+    expect(settingsApi.runSavedScript).toHaveBeenCalledWith('paths', { files: ['a.js', 'b.js'] });
   });
 
   it('у скрипта, объявленного пишущим, кнопка заблокирована: стенд не пишет никогда', async () => {

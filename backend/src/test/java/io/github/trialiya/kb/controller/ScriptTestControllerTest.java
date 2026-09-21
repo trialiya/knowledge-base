@@ -187,23 +187,25 @@ class ScriptTestControllerTest {
         ScriptRunner runner = mock(ScriptRunner.class);
         ScriptTestController controller = controller(runner, true);
 
-        assertThatThrownBy(
-                        () ->
-                                controller.runSaved(
-                                        new SavedScriptRunRequest("repoort", null, null, null)))
-                .hasMessageContaining("report");
-        assertThatThrownBy(
-                        () ->
-                                controller.runSaved(
-                                        new SavedScriptRunRequest("report", null, null, null)))
-                .hasMessageContaining("area");
+        // Each of these is the request's fault, so each is a 400 with the reason in it — not a 500
+        // with a stack trace, which is what an unmapped IllegalArgumentException would have been.
+        assertBadRequest(
+                () -> controller.runSaved(new SavedScriptRunRequest("repoort", null, null, null)),
+                "report");
+        assertBadRequest(
+                () -> controller.runSaved(new SavedScriptRunRequest("report", null, null, null)),
+                "area");
+        assertBadRequest(
+                () ->
+                        controller.runSaved(
+                                new SavedScriptRunRequest(
+                                        "report", Map.of("area", List.of("a")), null, null)),
+                "must be a string");
         // Declared as writing: the bench never writes, so it says so instead of running the script
         // with half its job silently undone.
-        assertThatThrownBy(
-                        () ->
-                                controller.runSaved(
-                                        new SavedScriptRunRequest("bump", null, null, null)))
-                .hasMessageContaining("edits files");
+        assertBadRequest(
+                () -> controller.runSaved(new SavedScriptRunRequest("bump", null, null, null)),
+                "edits files");
         assertThatThrownBy(
                         () -> controller.runSaved(new SavedScriptRunRequest(" ", null, null, null)))
                 .isInstanceOf(ResponseStatusException.class)
@@ -227,6 +229,15 @@ class ScriptTestControllerTest {
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(HttpStatus.CONFLICT);
         verifyNoInteractions(runner);
+    }
+
+    private static void assertBadRequest(
+            org.assertj.core.api.ThrowableAssert.ThrowingCallable call, String saying) {
+        assertThatThrownBy(call)
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining(saying)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     // ── Fixture ─────────────────────────────────────────────────────────────

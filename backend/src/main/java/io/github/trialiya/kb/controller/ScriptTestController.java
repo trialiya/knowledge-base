@@ -114,6 +114,9 @@ public class ScriptTestController {
      * <p>Read-only like everything else here, which also means a script the manifest marks as
      * writing is refused by name rather than run without its writes: half of such a script's work
      * silently not happening is worse than a refusal that says why.
+     *
+     * <p>A failed <em>run</em> is still {@code 200} with {@code error} filled in, exactly as in
+     * {@link #run}: what the 400s below answer is a request that never became a run.
      */
     @PostMapping("/run-saved")
     public ScriptResult runSaved(@RequestBody SavedScriptRunRequest request) {
@@ -122,9 +125,20 @@ public class ScriptTestController {
         if (name.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Script name is empty");
         }
-        SavedScript script = savedScripts.require(request.project(), name);
-        ScriptArgs.Bound bound = ScriptArgs.bind(script, request.args());
-        ScriptSource source = savedScripts.source(request.project(), script, bound.values(), true);
+        // Everything the catalogue and the argument binder refuse is the request's fault — an
+        // unknown name, a missing required argument, a value of the wrong shape, a script that
+        // writes where nothing may. Their messages are written to be read, so they travel as the
+        // 400 they are instead of a 500 with a stack trace behind it (same move as GitController).
+        SavedScript script;
+        ScriptArgs.Bound bound;
+        ScriptSource source;
+        try {
+            script = savedScripts.require(request.project(), name);
+            bound = ScriptArgs.bind(script, request.args());
+            source = savedScripts.source(request.project(), script, bound.values(), true);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
+        }
         log.info(
                 "Settings script bench: saved script '{}' ({}), args={}",
                 name,

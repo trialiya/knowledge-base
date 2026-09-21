@@ -92,7 +92,7 @@ public class SavedScriptFunction {
         final String projectId = ProjectContext.from(context);
         final Run run =
                 AttachmentScriptService.addresses(scriptName)
-                        ? attachment(scriptName, args)
+                        ? attachment(scriptName, args, timeoutSeconds)
                         : saved(projectId, scriptName, args, timeoutSeconds);
         log.info(
                 "runSavedScript called: '{}' ({}), args={}, project='{}', readOnly={}",
@@ -144,12 +144,14 @@ public class SavedScriptFunction {
 
     /**
      * An attachment. Nothing declares its arguments, so they pass through as they came; nothing
-     * declares its budget either, so the call's own {@code timeoutSeconds} is all there is; and the
-     * run is read-only whatever the project allows — see {@code AttachmentScriptService}.
+     * declares a budget either, so the call's own {@code timeoutSeconds} is all there is (null
+     * leaves {@code kb.script.timeout}); and the run is read-only whatever the project allows — see
+     * {@code AttachmentScriptService}.
      */
-    private Run attachment(String name, @Nullable Map<String, Object> args) {
+    private Run attachment(
+            String name, @Nullable Map<String, Object> args, @Nullable Integer timeoutSeconds) {
         final ScriptArgs.Bound bound = ScriptArgs.free(name, args);
-        return new Run(attachmentScripts.source(name, bound.values()), bound, null, true);
+        return new Run(attachmentScripts.source(name, bound.values()), bound, timeoutSeconds, true);
     }
 
     /**

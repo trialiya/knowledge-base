@@ -19,6 +19,28 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### Scripts can now be run from a repository manifest and from attachments
+
+A deployment that already has `kb.script.enabled=true` gains one capability on
+upgrade without doing anything: the model can run a JavaScript **attachment** —
+its own chat's or a knowledge-base document's — with the new `runSavedScript`
+tool (`attachment:<id>`). Such a run is always read-only and uses the same
+sandbox and budgets as `runScript`, so it reads nothing the model could not
+already read; what is new is that the code comes from whoever uploaded the file
+rather than from the model.
+
+- To keep it off: `kb.script.attachment-run: false` (`KB_SCRIPT_ATTACHMENT_RUN`).
+  It defaults to `true` because it only narrows what `kb.script.enabled` already
+  granted.
+
+Scripts the **repository** declares are opt-in and change nothing until
+configured: set `kb.projects[].scripts-manifest` (`.kb/scripts.yaml` by
+convention) to the file in which that repository lists its scripts. Without the
+key the project has no saved scripts, and with no project having it — and
+attachments off — the tool is not offered to the model at all. The files a
+manifest names must be tracked by git; the format is in
+[`docs/проект/конфигурация.md`](docs/проект/конфигурация.md).
+
 ### MCP connections no longer open during startup
 
 An MCP server that was unreachable used to take the whole application with it:

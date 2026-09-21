@@ -237,6 +237,23 @@ class SavedScriptFunctionTest {
         assertThat(result.log()).isEmpty();
     }
 
+    /**
+     * Nothing declares an attachment's budget, so the call's own {@code timeoutSeconds} is the only
+     * one there is — and a run that ignored it would leave the model looping on TIMEOUT with no way
+     * to ask for more. The elapsed time is what the assertion is about: with the argument dropped
+     * this would still time out, just ten seconds later.
+     */
+    @Test
+    void anAttachmentRunsUnderTheCallsOwnTimeout() {
+        stubAttachment(14, "spin.js", "while (true) {}");
+
+        ScriptResult result = function(false).runSavedScript(context, "attachment:14", null, 1);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.TIMEOUT);
+        assertThat(result.stats().elapsedMs()).isLessThan(5_000);
+    }
+
     @Test
     void anAttachmentThatIsNotAScriptIsRefusedBeforeTheSandbox() {
         stubAttachment(13, "notes.md", "# not a script");

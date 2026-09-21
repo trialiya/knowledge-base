@@ -13,15 +13,42 @@ import ScriptRunResult from './ScriptRunResult';
 // Объявленные параметры превращаются в поля формы: их типы и обязательность
 // знает манифест, и повторять их здесь вторым списком незачем.
 
+/**
+ * Значение поля → аргумент.
+ *
+ * Строки, числа и булевы уезжают как набраны: числа и булевы бэкенд приводит сам
+ * (ScriptArgs — слабая модель кавычит всё, и поблажка написана там же). А массив
+ * и объект он строкой не принимает вовсе, поэтому их поле — это JSON, и разбирать
+ * его приходится здесь: иначе такой аргумент нельзя было бы заполнить ничем.
+ * Неразобравшийся JSON отправляется как есть — отказ с объяснением напишет сервер,
+ * а не форма, которая молча проглотила бы опечатку.
+ */
+const argValue = (param, raw) => {
+  if (param.type !== 'array' && param.type !== 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+};
+
 /** Пустая строка — это «не передавали», а не пустое значение аргумента. */
 const collectArgs = (params, values) => {
   const args = {};
   for (const param of params) {
     const raw = values[param.name];
     if (raw === undefined || raw === '') continue;
-    args[param.name] = raw;
+    args[param.name] = argValue(param, raw);
   }
   return args;
+};
+
+/** Подсказка поля: значение по умолчанию, если оно есть, иначе описание — а у JSON-полей их форма. */
+const placeholder = (param) => {
+  if (param.defaultValue != null) return JSON.stringify(param.defaultValue);
+  if (param.type === 'array') return param.desc || '["a", "b"]';
+  if (param.type === 'object') return param.desc || '{"key": "value"}';
+  return param.desc;
 };
 
 const SavedScriptBench = ({ enabled }) => {
@@ -114,7 +141,7 @@ const SavedScriptBench = ({ enabled }) => {
               <input
                 className="set-input"
                 value={values[param.name] ?? ''}
-                placeholder={param.defaultValue == null ? param.desc : String(param.defaultValue)}
+                placeholder={placeholder(param)}
                 onChange={(e) => setValues((prev) => ({ ...prev, [param.name]: e.target.value }))}
               />
             </label>
