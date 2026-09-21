@@ -93,7 +93,8 @@ class SkillServiceTest {
         SkillService service =
                 new SkillService(
                         new ScriptProperties(
-                                false, false, true, null, null, null, null, null, null, null, null),
+                                false, false, true, false, null, null, null, null, null, null, null,
+                                null, null),
                         mock(ScriptEditPolicy.class),
                         mock(ProjectCatalog.class));
         assertThat(service.anySkills()).isFalse();
@@ -338,7 +339,8 @@ class SkillServiceTest {
         SkillService service =
                 new SkillService(
                         new ScriptProperties(
-                                false, false, true, null, null, null, null, null, null, null, null),
+                                false, false, true, false, null, null, null, null, null, null, null,
+                                null, null),
                         mock(ScriptEditPolicy.class),
                         catalogWith("kb", written("release", "# Release")));
 

@@ -11,6 +11,8 @@ import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
+import io.github.trialiya.kb.model.script.ScriptStats;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.util.List;
@@ -71,7 +73,17 @@ class ChatMessageMetaRoundTripTest {
                                 new ProjectSpan("kb", 1, 34),
                                 new ProjectSpan("billing", 35, 92),
                                 new ProjectSpan("kb", 93, 140)),
-                        new FileRevertMeta("billing", List.of("src/App.java", "src/New.java")));
+                        new FileRevertMeta("billing", List.of("src/App.java", "src/New.java")),
+                        new ScriptEventMeta(
+                                "locale-diff",
+                                "frontend/scripts/locale-diff.js",
+                                "billing",
+                                true,
+                                Map.of("missing", 3),
+                                null,
+                                "сверено 12 файлов",
+                                List.of("frontend/src/i18n/ru/chat.json"),
+                                new ScriptStats(12, 2048, 30, 1, 420)));
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(meta);
         final ChatMessageMeta read =

@@ -4,7 +4,7 @@
 
 ### Contract
 - JavaScript ES2023. Script body is a function body: top-level `return` allowed, only way to return.
-- Exactly one object: `kb`. No `require`, `import`, `fetch`, `setTimeout`, `java.*`, `Java.type`, file APIs. Attempts error as `RUNTIME`, not bypasses.
+- Exactly one object: `kb`, plus `loadScript(path)` for repo files (below). No `require`, `import`, `fetch`, `setTimeout`, `java.*`, `Java.type`, file APIs. Attempts error as `RUNTIME`, not bypasses.
 - No state between runs—each starts fresh.
 - Debug output: `kb.log(...)`—appears in `log` field.
 - Response: `value` (return), `log`, `stats`, `filesRead`, `error`.
@@ -28,6 +28,7 @@
 | `kb.searchDocs(query)` | `[{docId, title, snippet}]` | hybrid KB search |
 | `kb.searchDocs(query, limit)` | `[{docId, title, snippet}]` | |
 | `kb.log(x)` | — | strings as-is, objects as JSON |
+| `loadScript(path)` | `module.exports` of that file | repo file as a module — not a Node `require` |
 
 `kb.grep` defaults to **literal substring**. Metacharacters (`|`, `.*`, `^`, `$`)? Pass `{regex: true}`. `context: 3` adds 3 lines around match.
 
@@ -36,6 +37,8 @@
 **Glob:** always use `**/` for any depth—`**/*.java`, not `*.java`. `*.java` matches only root.
 
 **Binary files:** not off-limits, just not text. `kb.read` refuses them (decoded as UTF-8 they'd come back mangled); `kb.readBytes`/`kb.readBase64` return the actual bytes, `kb.stat(path).binary` says which kind a file is, `kb.hash` compares two files without reading either into the script. One byte-read call hands over at most 256 KB, so a big file is read window by window—`kb.stat` first for the size, then a loop over `offset`. `kb.hash` has no such limit: it reads any size and returns 64 chars.
+
+**Modules:** `loadScript('lib/util.js')` reads that repo file through `kb.read` (same visibility, same budget) and runs it as a module: it sees `kb` and `loadScript`, and what it puts in `module.exports` is what you get back. Loaded once per run. Use it for helpers a saved script shares; for anything you write in this call, write it inline — a module is not cheaper, only shared.
 
 **Cached calls:** `kb.files`, `kb.read`, `kb.readBytes`/`kb.readBase64`, `kb.stat`, `kb.hash`, `kb.outline`, `kb.grep`, `kb.searchDocs` with identical args are cached—no cost. Don't cache yourself.
 

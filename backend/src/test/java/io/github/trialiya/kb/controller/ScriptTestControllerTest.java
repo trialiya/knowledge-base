@@ -17,7 +17,11 @@ import io.github.trialiya.kb.controller.ScriptTestController.SavedScriptRunReque
 import io.github.trialiya.kb.controller.ScriptTestController.ScriptRunRequest;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.model.script.ScriptStats;
+import io.github.trialiya.kb.service.chat.context.AttachmentService;
+import io.github.trialiya.kb.service.chat.script.AttachmentScriptService;
 import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
+import io.github.trialiya.kb.service.chat.script.SavedScriptResolver;
+import io.github.trialiya.kb.service.chat.script.ScheduledScriptService;
 import io.github.trialiya.kb.service.chat.script.ScriptRequest;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -48,6 +52,9 @@ class ScriptTestControllerTest {
     private static final String MANIFEST = ".kb/scripts.yaml";
 
     @TempDir Path repoDir;
+
+    /** Вложения стенд не показывает, но резолвер общий — мок нужен, чтобы его собрать. */
+    private final AttachmentService attachments = mock(AttachmentService.class);
 
     private static final ScriptResult EMPTY_RESULT =
             new ScriptResult(
@@ -85,16 +92,20 @@ class ScriptTestControllerTest {
         ProjectCatalog projects =
                 new ProjectCatalog(new ProjectProperties(List.of(option)), new GitProperties(null));
         GitRegistry registry = TestProjects.registry(List.of(option));
+        SavedScriptCatalog catalog = new SavedScriptCatalog(projects, registry, properties);
         return new ScriptTestController(
                 runner,
                 properties,
-                new SavedScriptCatalog(projects, registry, properties),
+                catalog,
+                new SavedScriptResolver(
+                        catalog, new AttachmentScriptService(attachments, properties)),
+                mock(ScheduledScriptService.class),
                 projects);
     }
 
     private static ScriptProperties properties(boolean enabled) {
         return new ScriptProperties(
-                enabled, true, true, null, null, null, null, null, null, null, null);
+                enabled, true, true, false, null, null, null, null, null, null, null, null, null);
     }
 
     @Test

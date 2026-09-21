@@ -112,7 +112,19 @@ class AttachmentScriptServiceTest {
         return new AttachmentScriptService(
                 attachments,
                 new ScriptProperties(
-                        true, true, attachmentRun, null, null, null, null, null, null, null, null));
+                        true,
+                        true,
+                        attachmentRun,
+                        false,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null));
     }
 
     private void stub(long id, String fileName, String contentType, String content) {

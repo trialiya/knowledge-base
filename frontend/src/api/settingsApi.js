@@ -40,6 +40,9 @@ const settingsApi = {
       ...json({ name, args, timeoutSeconds, project }),
     }),
 
+  /** Что развёртка запускает по расписанию и чем кончился последний прогон каждого. */
+  listScriptSchedules: () => request('/api/settings/script/schedules'),
+
   /** Server-side snapshot for the admin panel: app, database, git, documents, indexing queue. */
   getSystemInfo: () => request('/api/admin/system'),
 };

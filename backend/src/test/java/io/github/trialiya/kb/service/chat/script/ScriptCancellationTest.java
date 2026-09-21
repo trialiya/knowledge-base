@@ -43,6 +43,8 @@ class ScriptCancellationTest {
                         true,
                         false,
                         true,
+                        false,
+                        null,
                         null,
                         null,
                         null,

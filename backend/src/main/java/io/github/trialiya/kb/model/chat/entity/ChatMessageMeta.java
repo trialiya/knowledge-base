@@ -57,6 +57,11 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code fileRevert} — откат файловых правок ответа, выполненный пользователем (см. {@link
  * FileRevertMeta}). Признак своего ряда, как и {@code gitEvent}: контент пустой, весь смысл в поле.
  *
+ * <p>{@code scriptEvent} — сохранённый скрипт, который пользователь запустил из этого чата командой
+ * {@code /script} (см. {@link ScriptEventMeta}). Третий ряд той же семьи, что {@code gitEvent} и
+ * {@code fileRevert}: контент пустой, весь смысл в поле, и читателей у него двое — плашка на фронте
+ * и нотис модели.
+ *
  * <p>{@code interjection} — вопрос доставлен ПОСРЕДИ прогона, между итерациями tool-цикла (см.
  * {@code PendingMessageService}): пользователь писал, глядя на ход работы, а не на готовый ответ.
  * Модель предупреждает нотис в {@code ChatHistoryService.promptRow}; для всего, что ищет «последний
@@ -76,7 +81,8 @@ public record ChatMessageMeta(
         boolean interjection,
         @Nullable RunTokenUsage usage,
         List<ProjectSpan> visitedProjects,
-        @Nullable FileRevertMeta fileRevert) {
+        @Nullable FileRevertMeta fileRevert,
+        @Nullable ScriptEventMeta scriptEvent) {
 
     public ChatMessageMeta {
         invocations = invocations == null ? List.of() : invocations;
@@ -105,6 +111,7 @@ public record ChatMessageMeta(
                 false,
                 null,
                 List.of(),
+                null,
                 null);
     }
 
@@ -166,7 +173,7 @@ public record ChatMessageMeta(
     public static ChatMessageMeta ofCompact(CompactMeta compact) {
         return new ChatMessageMeta(
                 null, false, List.of(), List.of(), null, null, null, compact, null, false, null,
-                List.of(), null);
+                List.of(), null, null);
     }
 
     /**
@@ -177,7 +184,7 @@ public record ChatMessageMeta(
     public static ChatMessageMeta ofUsage(RunTokenUsage usage) {
         return new ChatMessageMeta(
                 null, false, List.of(), List.of(), null, null, null, null, null, false, usage,
-                List.of(), null);
+                List.of(), null, null);
     }
 
     /**
@@ -188,7 +195,7 @@ public record ChatMessageMeta(
     public static ChatMessageMeta ofGitEvent(GitEventMeta gitEvent) {
         return new ChatMessageMeta(
                 null, false, List.of(), List.of(), null, null, null, null, gitEvent, false, null,
-                List.of(), null);
+                List.of(), null, null);
     }
 
     /**
@@ -209,7 +216,31 @@ public record ChatMessageMeta(
                 false,
                 null,
                 List.of(),
-                fileRevert);
+                fileRevert,
+                null);
+    }
+
+    /**
+     * Метаданные ряда запуска сохранённого скрипта. Как у ряда git-команды и ряда отката, проект
+     * остаётся внутри самого события: {@code project} на этом уровне значит другое (см. {@link
+     * #ofProject}).
+     */
+    public static ChatMessageMeta ofScriptEvent(ScriptEventMeta scriptEvent) {
+        return new ChatMessageMeta(
+                null,
+                false,
+                List.of(),
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                List.of(),
+                null,
+                scriptEvent);
     }
 
     /**
@@ -232,6 +263,7 @@ public record ChatMessageMeta(
                 true,
                 null,
                 List.of(),
+                null,
                 null);
     }
 
@@ -255,6 +287,7 @@ public record ChatMessageMeta(
                 false,
                 null,
                 visitedProjects,
+                null,
                 null);
     }
 
@@ -277,7 +310,8 @@ public record ChatMessageMeta(
                 interjection,
                 usage,
                 visitedProjects,
-                fileRevert);
+                fileRevert,
+                null);
     }
 
     /**
@@ -299,7 +333,8 @@ public record ChatMessageMeta(
                 interjection,
                 usage,
                 visitedProjects,
-                fileRevert);
+                fileRevert,
+                null);
     }
 
     /**
@@ -323,7 +358,8 @@ public record ChatMessageMeta(
                 interjection,
                 usage,
                 visitedProjects,
-                fileRevert);
+                fileRevert,
+                null);
     }
 
     /**
@@ -345,6 +381,7 @@ public record ChatMessageMeta(
                 interjection,
                 usage,
                 visitedProjects,
-                fileRevert);
+                fileRevert,
+                null);
     }
 }

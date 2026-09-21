@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.chat.memory;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
+import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -19,6 +20,12 @@ import org.jspecify.annotations.Nullable;
  * неправильно, а не от того, что поехали ряды.
  */
 public final class PromptNotices {
+
+    /**
+     * Сколько символов возвращённого скриптом значения уходит в промпт. Сам ряд хранит его целиком;
+     * здесь — та часть, за которую платят каждым ходом, пока ряд жив в окне.
+     */
+    private static final int MAX_NOTICE_VALUE_CHARS = 2000;
 
     private PromptNotices() {}
 
@@ -76,7 +83,7 @@ public final class PromptNotices {
      * нет текста, и читатель, забывший про один из видов, вернул бы вместо него пустоту.
      */
     public static String eventNotice(@Nullable ChatMessageMeta meta) {
-        return gitCommandNotice(meta) + fileRevertNotice(meta);
+        return gitCommandNotice(meta) + fileRevertNotice(meta) + scriptRunNotice(meta);
     }
 
     /**
@@ -138,6 +145,55 @@ public final class PromptNotices {
                 + " revert is their decision about the change, not a failure to fix. When"
                 + " summarizing, preserve this notice verbatim.\n"
                 + "</files-reverted>\n";
+    }
+
+    /**
+     * Текст ряда «пользователь сам запустил сохранённый скрипт». Модели нужны три вещи: что это был
+     * не её вызов, что скрипт вернул — ради этого его и запускали, и какие файлы сдвинулись, если
+     * скрипт писал. Журнал и счётчики не идут: их читает человек там же, где нажимал кнопку.
+     *
+     * <p>Возвращённое значение обрезается здесь, а не при записи: ряд хранит то, что скрипт
+     * действительно вернул (его уже ограничил {@code maxResultChars}), а в промпт на каждом ходу
+     * тащить двадцать килобайт незачем.
+     */
+    static String scriptRunNotice(@Nullable ChatMessageMeta meta) {
+        if (meta == null || meta.scriptEvent() == null) {
+            return "";
+        }
+        final ScriptEventMeta event = meta.scriptEvent();
+        return "<script-run script=\""
+                + attr(event.script())
+                + "\" outcome=\""
+                + (event.ok() ? "ok" : "failed")
+                + "\""
+                + (event.project() == null ? "" : " project=\"" + attr(event.project()) + "\"")
+                + ">\n"
+                + "The user ran this saved script on the project from this chat — not you, and not"
+                + " through any tool of yours.\n"
+                + (event.ok()
+                        ? "It returned: " + value(event) + "\n"
+                        : "It failed: "
+                                + attr(String.valueOf(event.error()))
+                                + " — the user saw this, so do not re-run it without being"
+                                + " asked.\n")
+                + (event.edited().isEmpty()
+                        ? ""
+                        : "It changed these files: "
+                                + attr(String.join(", ", event.edited()))
+                                + " — re-read with the tools anything you are about to rely"
+                                + " on.\n")
+                + "When summarizing, preserve this notice verbatim.\n"
+                + "</script-run>\n";
+    }
+
+    /**
+     * Возврат скрипта для промпта: текстом и коротко — модели он нужен как ответ, а не как файл.
+     */
+    private static String value(ScriptEventMeta event) {
+        final String text = String.valueOf(event.value());
+        return text.length() > MAX_NOTICE_VALUE_CHARS
+                ? attr(text.substring(0, MAX_NOTICE_VALUE_CHARS)) + "… (truncated)"
+                : attr(text);
     }
 
     /**

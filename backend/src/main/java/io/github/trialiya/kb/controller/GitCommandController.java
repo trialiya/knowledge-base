@@ -2,6 +2,7 @@ package io.github.trialiya.kb.controller;
 
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
 import io.github.trialiya.kb.service.chat.git.ChatGitLog;
+import io.github.trialiya.kb.service.chat.runtime.ChatActionClaim;
 import io.github.trialiya.kb.service.file.git.GitBusyException;
 import io.github.trialiya.kb.service.file.git.GitCommandFailedException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -49,10 +50,13 @@ public class GitCommandController {
 
     private final GitRegistry gitRegistry;
     private final ChatGitLog chatGitLog;
+    private final ChatActionClaim chatActionClaim;
 
-    public GitCommandController(GitRegistry gitRegistry, ChatGitLog chatGitLog) {
+    public GitCommandController(
+            GitRegistry gitRegistry, ChatGitLog chatGitLog, ChatActionClaim chatActionClaim) {
         this.gitRegistry = gitRegistry;
         this.chatGitLog = chatGitLog;
+        this.chatActionClaim = chatActionClaim;
     }
 
     /**
@@ -236,13 +240,15 @@ public class GitCommandController {
         // Whose chat it is, and the chat's claim held for as long as the command runs — taken
         // before anything is executed, so a refusal leaves the working tree untouched, and held
         // rather than merely checked, so no run can start alongside the command and race it into
-        // the same history (see ChatGitLog.claimIdleAndOwned).
-        final String claim = chat == null ? null : chatGitLog.claimIdleAndOwned(chat);
+        // the same history (see ChatActionClaim.claimIdleAndOwned).
+        final String claim = chat == null ? null : chatActionClaim.claimIdleAndOwned(chat);
         try {
             return runClaimed(verb, project, chat, command, git);
         } finally {
-            if (claim != null) {
-                chatGitLog.release(chat, claim);
+            // Обе проверки, хотя claim бывает не-null только у названного чата: так это видно и
+            // компилятору (null-анализ у соседнего пакета включён), и читателю.
+            if (chat != null && claim != null) {
+                chatActionClaim.release(chat, claim);
             }
         }
     }

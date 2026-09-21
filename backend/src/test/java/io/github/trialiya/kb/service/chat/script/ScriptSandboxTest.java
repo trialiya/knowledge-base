@@ -364,6 +364,59 @@ class ScriptSandboxTest {
         assertThat(result.value()).isEqualTo(Map.of("partial", true, "read", 1));
     }
 
+    // ── Modules ─────────────────────────────────────────────────────────────
+
+    /**
+     * {@code loadScript} читает файл тем же {@code kb.read} и выполняет его как модуль. Это не
+     * {@code require}: node-модулей, сети и файловых API как не было, так и нет — всё, что он
+     * умеет, скрипт умеет и сам.
+     */
+    @Test
+    void loadScriptEvaluatesARepositoryFileAsAModule() {
+        write(
+                repoDir.resolve("lib/util.js"),
+                "module.exports = { twice: function (x) { return x * 2; } };\n");
+        commitAll();
+
+        assertThat(run("return loadScript('lib/util.js').twice(21);").value()).isEqualTo(42);
+    }
+
+    /** Модуль тоже видит {@code kb} и может загружать другие модули. */
+    @Test
+    void aModuleSeesKbAndOtherModules() {
+        write(repoDir.resolve("lib/count.js"), "module.exports = kb.files('**/*.md').length;\n");
+        write(repoDir.resolve("lib/outer.js"), "module.exports = loadScript('lib/count.js');\n");
+        commitAll();
+
+        assertThat(run("return loadScript('lib/outer.js');").value()).isEqualTo(1);
+    }
+
+    /** Два модуля, загружающие друг друга, получают недособранный exports, а не бесконечность. */
+    @Test
+    void mutuallyLoadingModulesDoNotRecurseForever() {
+        write(
+                repoDir.resolve("lib/a.js"),
+                "exports.name = 'a';\nexports.b = loadScript('lib/b.js').name;\n");
+        write(
+                repoDir.resolve("lib/b.js"),
+                "exports.name = 'b';\nexports.a = loadScript('lib/a.js').name;\n");
+        commitAll();
+
+        ScriptResult result = run("var a = loadScript('lib/a.js'); return [a.name, a.b];");
+
+        assertThat(result.error()).isNull();
+        assertThat(result.value()).isEqualTo(List.of("a", "b"));
+    }
+
+    /** Видимость у модуля ровно та же: чего не читает kb.read, того не загрузить. */
+    @Test
+    void loadScriptCannotReachWhatKbReadCannot() {
+        assertThat(run("return loadScript('" + outsideDir + "/passwd');").error())
+                .isNotNull()
+                .extracting(ScriptError::kind)
+                .isEqualTo(ScriptError.Kind.RUNTIME);
+    }
+
     // ── Arguments ───────────────────────────────────────────────────────────
 
     /**
@@ -416,6 +469,8 @@ class ScriptSandboxTest {
                                 true,
                                 false,
                                 true,
+                                false,
+                                null,
                                 null,
                                 null,
                                 null,
@@ -712,6 +767,8 @@ class ScriptSandboxTest {
                 true,
                 false,
                 true,
+                false,
+                null,
                 null,
                 null,
                 null,

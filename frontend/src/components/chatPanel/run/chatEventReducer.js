@@ -407,6 +407,22 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs };
     }
 
+    // ─── Прогон скрипта по команде пользователя ─────────────────────────────
+    // Тот же случай, что git-команда: ход человека, ряд в конец ленты, дубль по
+    // dbId отбрасывается — вкладка, давшая команду, получает своё же событие.
+    case CHAT_EVENT.SCRIPT_RUN: {
+      const id = payload?.id ?? null;
+      if (id != null && msgs.some((m) => m.dbId === id)) return chat;
+      msgs.push({
+        mid: nextMessageId(),
+        dbId: id,
+        sender: SENDER.USER,
+        scriptEvent: payload?.event,
+        timestamp: payload?.createdAt ?? null,
+      });
+      return { ...chat, messages: msgs };
+    }
+
     // ─── Откат файловых правок ответа ───────────────────────────────────────
     // Тот же случай, что и git-команда: ход человека, ряд в конец ленты, дубль
     // по dbId отбрасывается (вкладка, которая откат запустила, получает своё же

@@ -19,11 +19,13 @@ import io.github.trialiya.kb.model.chat.dto.CompactDetail;
 import io.github.trialiya.kb.model.chat.dto.CompactRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
+import io.github.trialiya.kb.model.chat.dto.ScriptRunRequest;
 import io.github.trialiya.kb.model.chat.dto.StartRunRequest;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.project.ProjectOptions;
+import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -35,6 +37,7 @@ import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.run.RunOptionsResolver;
+import io.github.trialiya.kb.service.chat.script.ChatScriptRun;
 import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
 import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
 import io.github.trialiya.kb.service.chat.usage.ChatUsageService;
@@ -87,6 +90,13 @@ public class ChatController {
     private final ChatTopicService chatTopicService;
     private final GitRegistry gitRegistry;
 
+    /**
+     * Команда {@code /script}: прогон сохранённого скрипта человеком — со своей заявкой на чат и
+     * своим рядом истории (см. {@code ChatScriptRun}). Бин всегда есть: выключены скрипты — отказ
+     * приходит из самого прогона, а не из отсутствия эндпоинта, и текст отказа читает пользователь.
+     */
+    private final ChatScriptRun chatScriptRun;
+
     /** Часы аудита Spring Data — ими же датируется «тронуть чат», см. JdbcConfig#clock. */
     private final Clock clock;
 
@@ -106,6 +116,7 @@ public class ChatController {
             ContextItemService contextItemService,
             ChatTopicService chatTopicService,
             GitRegistry gitRegistry,
+            ChatScriptRun chatScriptRun,
             Clock clock) {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
@@ -122,6 +133,7 @@ public class ChatController {
         this.contextItemService = contextItemService;
         this.chatTopicService = chatTopicService;
         this.gitRegistry = gitRegistry;
+        this.chatScriptRun = chatScriptRun;
         this.clock = clock;
     }
 
@@ -473,6 +485,43 @@ public class ChatController {
         // не за что. Успех же дописал в чат обычную реплику — как и любая, она его освежает.
         chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
         return Map.of("runId", started.runId(), "messageId", started.messageId());
+    }
+
+    /**
+     * Запускает сохранённый скрипт по команде пользователя {@code /script} и отдаёт его результат
+     * целиком — в отличие от сжатия, ждать тут нечего: прогон ограничен бюджетом в секунды, а
+     * смотреть на него всё равно будет тот, кто команду дал.
+     *
+     * <p>Прогон оставляет в истории ряд ({@code ScriptEventMeta}) и рассылает {@code SCRIPT_RUN}
+     * остальным вкладкам, поэтому ответ этого запроса — удобство, а не единственный путь: вкладка,
+     * команду не дававшая, узнает о прогоне тем же событием.
+     *
+     * <p>Отказ разбора — {@code 400} с текстом, который писали, чтобы его прочитали: неизвестное
+     * имя, не хватает обязательного аргумента, аргумент не того типа, файла нет на этой ветке.
+     * Упавший <em>скрипт</em> отказом не считается — это {@code 200} с заполненным {@code error},
+     * как и у стенда: разбирать причину и есть смысл прогона.
+     */
+    @PostMapping("/{conversationId}/script-runs")
+    public ScriptResult runScript(
+            @PathVariable final String conversationId, @RequestBody final ScriptRunRequest body) {
+        if (!StringUtils.hasText(body.name())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Script name is empty");
+        }
+        // Не checkChat: у команды, как и у сжатия, нет смысла в ещё не заведённом чате — ряд
+        // истории писать некуда, а заводить чат скриптом значило бы начинать разговор с ответа.
+        getChatTopic(conversationId);
+        try {
+            final ScriptResult result =
+                    chatScriptRun.run(
+                            conversationId,
+                            body.name().strip(),
+                            body.args(),
+                            body.timeoutSeconds());
+            chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
+            return result;
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(BAD_REQUEST, e.getMessage(), e);
+        }
     }
 
     /**

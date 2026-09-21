@@ -6,10 +6,10 @@ import io.github.trialiya.kb.model.script.SavedScript;
 import io.github.trialiya.kb.model.script.ScriptParam;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
-import io.github.trialiya.kb.service.chat.script.ScriptArgs;
+import io.github.trialiya.kb.service.chat.script.SavedScriptResolver;
+import io.github.trialiya.kb.service.chat.script.ScheduledScriptService;
 import io.github.trialiya.kb.service.chat.script.ScriptRequest;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
-import io.github.trialiya.kb.service.chat.script.ScriptSource;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import io.github.trialiya.kb.tools.RunCancellation;
 import java.util.List;
@@ -54,16 +54,28 @@ public class ScriptTestController {
     /** The saved scripts a project declares — the second half of the bench (see {@link #saved}). */
     private final SavedScriptCatalog savedScripts;
 
+    /** Name plus arguments → a run, by the same rules the model's own tool goes through. */
+    private final SavedScriptResolver resolver;
+
+    /**
+     * Schedules and their last outcome — the panel's read-only view of {@code kb.script.schedules}.
+     */
+    private final ScheduledScriptService scheduledScripts;
+
     private final ProjectCatalog projects;
 
     public ScriptTestController(
             ScriptRunner scriptRunner,
             ScriptProperties scriptProperties,
             SavedScriptCatalog savedScripts,
+            SavedScriptResolver resolver,
+            ScheduledScriptService scheduledScripts,
             ProjectCatalog projects) {
         this.scriptRunner = scriptRunner;
         this.scriptProperties = scriptProperties;
         this.savedScripts = savedScripts;
+        this.resolver = resolver;
+        this.scheduledScripts = scheduledScripts;
         this.projects = projects;
     }
 
@@ -108,6 +120,16 @@ public class ScriptTestController {
     }
 
     /**
+     * What this deployment runs on a clock of its own ({@code kb.script.schedules}) and how each
+     * one went last time. Read-only, like the rest of the panel: a schedule is configuration, and
+     * configuration is not editable at runtime here.
+     */
+    @GetMapping("/schedules")
+    public List<ScheduledScriptService.Status> schedules() {
+        return scheduledScripts.statuses();
+    }
+
+    /**
      * Runs one of those scripts, by name and with arguments — the author's loop: edit the file, run
      * it, read the error with its line.
      *
@@ -129,39 +151,25 @@ public class ScriptTestController {
         // unknown name, a missing required argument, a value of the wrong shape, a script that
         // writes where nothing may. Their messages are written to be read, so they travel as the
         // 400 they are instead of a 500 with a stack trace behind it (same move as GitController).
-        SavedScript script;
-        ScriptArgs.Bound bound;
-        ScriptSource source;
+        ScriptRequest run;
         try {
-            script = savedScripts.require(request.project(), name);
-            bound = ScriptArgs.bind(script, request.args());
-            source = savedScripts.source(request.project(), script, bound.values(), true);
+            run =
+                    resolver.resolve(
+                            request.project(),
+                            name,
+                            request.args(),
+                            request.timeoutSeconds(),
+                            false,
+                            null);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }
         log.info(
                 "Settings script bench: saved script '{}' ({}), args={}",
                 name,
-                source.sourceName(),
-                bound.values().keySet());
-        return scriptRunner.run(
-                new ScriptRequest(
-                        source,
-                        bound,
-                        request.timeoutSeconds() == null
-                                ? seconds(script)
-                                : request.timeoutSeconds(),
-                        true,
-                        null,
-                        request.project()),
-                RunCancellation.none());
-    }
-
-    /** The script's own budget in the unit the runner takes; null leaves the configured default. */
-    private static @Nullable Integer seconds(SavedScript script) {
-        return script.timeout() == null
-                ? null
-                : (int) Math.max(1, Math.ceil(script.timeout().toMillis() / 1000.0));
+                run.source().sourceName(),
+                run.args().values().keySet());
+        return scriptRunner.run(run, RunCancellation.none());
     }
 
     private void requireEnabled() {

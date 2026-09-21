@@ -6,9 +6,10 @@ import { RETRY_MODE } from '@/constants/retryMode';
 import { generateUUID } from '@/utils/uuid';
 import { nextMessageId } from '../messages/messageId';
 import { getLastModel, getLastMode } from './lastChoiceStore';
-import { chatLoadErrorNotice, COMMAND_BLOCK_NOTICE } from './chatNotices';
+import { chatLoadErrorNotice, COMMAND_BLOCK_NOTICE, scriptFailedNotice } from './chatNotices';
 import { isChatEmpty } from '../messages/chatHistory';
-import { parseChatCommand, chatCommandBlock, isCompactCommand, CHAT_COMMAND } from './chatCommands';
+import { parseChatCommand, chatCommandBlock, isCompactCommand, CHAT_COMMAND, COMMAND_BLOCK } from './chatCommands';
+import { parseScriptCommand } from '../composer/scriptCommand';
 import useRunStarter from './useRunStarter';
 
 /**
@@ -143,6 +144,37 @@ export default function useChatRun({
         const keepLastRun = command.name === CHAT_COMMAND.COMPACT_1;
         if (await compactChat(activeChatId, text, command.args, keepLastRun)) clearDraftText(activeChatId);
         else restoreDraft?.();
+        return;
+      }
+
+      // Прогон сохранённого скрипта: тоже команда чату, и тоже со своим эндпоинтом.
+      // Ряд истории и плашку пишет сервер и рассылает событием SCRIPT_RUN — вкладке
+      // остаётся только отказ, если запускать оказалось нечего.
+      if (command?.name === CHAT_COMMAND.SCRIPT) {
+        const block = chatCommandBlock(command, {
+          running: !!chatForSend?.runId,
+          chatStarted: activeChatId !== DRAFT_CHAT_ID && !isChatEmpty(chatForSend),
+        });
+        if (block) {
+          notify(COMMAND_BLOCK_NOTICE[block]);
+          restoreDraft?.();
+          return;
+        }
+        const parsed = parseScriptCommand(command.args);
+        if (!parsed) {
+          notify(COMMAND_BLOCK_NOTICE[COMMAND_BLOCK.NO_SCRIPT_NAME]);
+          restoreDraft?.();
+          return;
+        }
+        clearDraftText(activeChatId);
+        try {
+          await chatApi.runScript(activeChatId, parsed.name, parsed.args);
+        } catch (e) {
+          // Упавший скрипт отказом не считается — он приезжает рядом истории. Сюда
+          // попадает только отказ запроса: неизвестное имя, не тот аргумент, занятый чат.
+          notify(scriptFailedNotice(e.message));
+          restoreDraft?.();
+        }
         return;
       }
 

@@ -15,6 +15,7 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
 import io.github.trialiya.kb.service.chat.git.ChatGitLog;
+import io.github.trialiya.kb.service.chat.runtime.ChatActionClaim;
 import io.github.trialiya.kb.service.file.git.GitBusyException;
 import io.github.trialiya.kb.service.file.git.GitCommandFailedException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -41,10 +42,11 @@ class GitCommandChatTest {
 
     private final GitRegistry gitRegistry = mock(GitRegistry.class);
     private final ChatGitLog chatGitLog = mock(ChatGitLog.class);
+    private final ChatActionClaim chatActionClaim = mock(ChatActionClaim.class);
     private final GitService git = mock(GitService.class);
 
     private final GitCommandController controller =
-            new GitCommandController(gitRegistry, chatGitLog);
+            new GitCommandController(gitRegistry, chatGitLog, chatActionClaim);
 
     private static final GitBranchStatus AFTER =
             new GitBranchStatus(
@@ -81,7 +83,7 @@ class GitCommandChatTest {
      */
     @Test
     void aRefusedChatStopsTheCommandBeforeItRuns() {
-        when(chatGitLog.claimIdleAndOwned(CHAT))
+        when(chatActionClaim.claimIdleAndOwned(CHAT))
                 .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"));
 
         assertThatThrownBy(() -> controller.pull("kb", CHAT))
@@ -156,25 +158,25 @@ class GitCommandChatTest {
      */
     @Test
     void theChatIsFreedEvenWhenTheCommandThrows() {
-        when(chatGitLog.claimIdleAndOwned(CHAT)).thenReturn(CLAIM);
+        when(chatActionClaim.claimIdleAndOwned(CHAT)).thenReturn(CLAIM);
         when(git.push()).thenThrow(new GitCommandFailedException("remote rejected"));
 
         assertThatThrownBy(() -> controller.push("kb", CHAT))
                 .isInstanceOf(ResponseStatusException.class);
 
-        verify(chatGitLog).release(CHAT, CLAIM);
+        verify(chatActionClaim).release(CHAT, CLAIM);
     }
 
     /** Отказ в допуске заявки не оставил, возвращать нечего. */
     @Test
     void aRefusedChatHasNothingToFree() {
-        when(chatGitLog.claimIdleAndOwned(CHAT))
+        when(chatActionClaim.claimIdleAndOwned(CHAT))
                 .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"));
 
         assertThatThrownBy(() -> controller.pull("kb", CHAT))
                 .isInstanceOf(ResponseStatusException.class);
 
-        verify(chatGitLog, never()).release(anyString(), anyString());
+        verify(chatActionClaim, never()).release(anyString(), anyString());
     }
 
     /** Аргумент команды входит в её имя: «switch» без ветки не сказал бы модели ничего. */

@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
@@ -245,6 +246,30 @@ public class ChatHistoryService {
                         false,
                         LocalDateTime.now(),
                         ChatMessageMeta.ofGitEvent(event)));
+    }
+
+    /**
+     * Записывает запуск сохранённого скрипта пользователем — тем же приёмом и по тем же причинам,
+     * что {@link #appendGitEvent}: действие происходит между сообщениями, показать его надо сразу,
+     * а текст для модели собирается на чтении ({@link PromptNotices#scriptRunNotice}).
+     *
+     * <p>Хвост чинится перед записью по той же причине, что и у отката: команду дают в том числе
+     * сразу после ответа, включая остановленный посреди работы инструментов.
+     */
+    @Transactional
+    public ChatMessageEntity appendScriptEvent(String conversationId, ScriptEventMeta event) {
+        repairDanglingToolCalls(conversationId);
+        return chatMessageRepository.save(
+                new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        "",
+                        MessageType.USER,
+                        lastPosition(conversationId) + 1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofScriptEvent(event)));
     }
 
     /**
@@ -550,8 +575,8 @@ public class ChatHistoryService {
      * ищет «последний вопрос», обязано смотреть сквозь два исключения:
      *
      * <ul>
-     *   <li>ряд события — git-команды или отката файловых правок — ничего не спрашивает и ответа не
-     *       ждёт;
+     *   <li>ряд события — git-команды, отката файловых правок или прогона скрипта — ничего не
+     *       спрашивает и ответа не ждёт;
      *   <li>вопрос, доставленный посреди прогона ({@code meta.interjection}), задан внутри уже
      *       идущего хода — ход открыл вопрос выше него.
      * </ul>
@@ -567,13 +592,16 @@ public class ChatHistoryService {
     }
 
     /**
-     * Ряд, который оставило в истории действие пользователя, а не его реплика: git-команда или
-     * откат файловых правок ответа. Текста у такого ряда нет — его собирает {@link PromptNotices}
-     * при чтении, — и ходом разговора он не является.
+     * Ряд, который оставило в истории действие пользователя, а не его реплика: git-команда, откат
+     * файловых правок ответа или прогон сохранённого скрипта по команде {@code /script}. Текста у
+     * такого ряда нет — его собирает {@link PromptNotices} при чтении, — и ходом разговора он не
+     * является.
      */
     static boolean isEventRow(ChatMessageEntity row) {
         return row.getMeta() != null
-                && (row.getMeta().gitEvent() != null || row.getMeta().fileRevert() != null);
+                && (row.getMeta().gitEvent() != null
+                        || row.getMeta().fileRevert() != null
+                        || row.getMeta().scriptEvent() != null);
     }
 
     public void delete(String conversationId) {

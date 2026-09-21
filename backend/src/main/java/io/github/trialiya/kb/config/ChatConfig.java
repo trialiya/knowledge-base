@@ -27,6 +27,7 @@ import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.script.AttachmentScriptService;
 import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
+import io.github.trialiya.kb.service.chat.script.SavedScriptResolver;
 import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
@@ -180,6 +181,7 @@ public class ChatConfig {
             ScriptProperties scriptProperties,
             SavedScriptCatalog savedScriptCatalog,
             AttachmentScriptService attachmentScriptService,
+            SavedScriptResolver savedScriptResolver,
             ScriptRunner scriptRunner,
             ScriptEditPolicy scriptEditPolicy) {
         if (!scriptProperties.enabled()) {
@@ -197,8 +199,7 @@ public class ChatConfig {
                 "Saved-script tool enabled (runSavedScript): manifests={}, attachments={}",
                 savedScriptCatalog.anyManifests(),
                 attachmentScriptService.available());
-        return new SavedScriptFunction(
-                savedScriptCatalog, attachmentScriptService, scriptRunner, scriptEditPolicy);
+        return new SavedScriptFunction(savedScriptResolver, scriptRunner, scriptEditPolicy);
     }
 
     /**

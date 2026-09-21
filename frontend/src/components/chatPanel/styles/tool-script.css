@@ -197,3 +197,107 @@
   color: var(--kb-text);
   white-space: nowrap;
 }
+
+/* ═══════════════════════════════════════════════
+   ЛЕНТА · прогон по команде `/script` (ScriptRunCard)
+   Ряд истории, который оставил прогон, запущенный человеком: что запускали,
+   что вернулось, какие файлы сдвинулись. Родня карточке git-вывода — тот же
+   случай «команду дал человек, написал не он».
+═══════════════════════════════════════════════ */
+.script-run {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--kb-border);
+  border-radius: 10px;
+  background: var(--kb-surface-app);
+  font-size: 0.8rem;
+}
+
+.script-run--failed {
+  border-color: var(--kb-error);
+  background: var(--kb-surface-error);
+}
+
+.script-run__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.script-run__icon {
+  color: var(--kb-text-muted);
+}
+
+.script-run--failed .script-run__icon {
+  color: var(--kb-error);
+}
+
+.script-run__name {
+  font-weight: 700;
+  color: var(--kb-text);
+}
+
+.script-run__path,
+.script-run__stats,
+.script-run__paths {
+  font-family: var(--kb-font-mono);
+  font-size: 0.72rem;
+  color: var(--kb-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.script-run__error {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: var(--kb-text);
+}
+
+.script-run__error-kind {
+  font-weight: 700;
+  color: var(--kb-error);
+}
+
+.script-run__value,
+.script-run__log {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--kb-surface);
+  font-family: var(--kb-font-mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.script-run__edited {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: var(--kb-text-muted);
+}
+
+/* Переключатель журнала — строка, а не кнопка: рядом с ней уже есть кнопки
+   пузыря, и четвёртая рамка в плашке читалась бы как действие над чатом. */
+.script-run__log-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--kb-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.script-run__log-toggle:hover {
+  color: var(--kb-text);
+}

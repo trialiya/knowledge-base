@@ -13,6 +13,7 @@ import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +62,8 @@ public final class ChatMessageMetaToJsonConverter {
             @Nullable Boolean interjection,
             @Nullable RunTokenUsage usage,
             @Nullable List<ProjectSpan> visitedProjects,
-            @Nullable FileRevertMeta fileRevert) {}
+            @Nullable FileRevertMeta fileRevert,
+            @Nullable ScriptEventMeta scriptEvent) {}
 
     /**
      * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
@@ -137,7 +139,8 @@ public final class ChatMessageMetaToJsonConverter {
                         Boolean.TRUE.equals(json.interjection()),
                         json.usage(),
                         json.visitedProjects() == null ? List.of() : json.visitedProjects(),
-                        json.fileRevert());
+                        json.fileRevert(),
+                        json.scriptEvent());
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -209,7 +212,8 @@ public final class ChatMessageMetaToJsonConverter {
                                 source.visitedProjects().isEmpty()
                                         ? null
                                         : source.visitedProjects(),
-                                source.fileRevert()));
+                                source.fileRevert(),
+                                source.scriptEvent()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

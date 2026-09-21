@@ -361,6 +361,22 @@ kb:
     # uploaded the file. On by default wherever scripts are on; a deployment willing to run what
     # its own repository declares but not what sits in its knowledge base turns it off here.
     attachment-run: ${KB_SCRIPT_ATTACHMENT_RUN:true}
+    # Let a script that came from an attachment write too, where the project and edit-enabled
+    # below already allow it. Off, and meant to stay off in most deployments: an attachment is code
+    # somebody uploaded, a document's attachment is code somebody ELSE uploaded, and read-only is
+    # what keeps the worst case at "time was wasted". Turning it on says the knowledge base is as
+    # trusted as the repository.
+    attachment-edit: ${KB_SCRIPT_ATTACHMENT_EDIT:false}
+    # Saved scripts this deployment runs on a clock of its own. The repository's manifest says what
+    # MAY be run; that something SHOULD run every night, unattended, on this machine, is the
+    # deployment's decision and lives here, where an operator can see it without reading a branch.
+    # Always read-only — nobody is watching a scheduled run, so there is no diff to review and no
+    # message to attribute a change to. The last outcome of each schedule is in the log and in
+    # Settings → Scripts; a history of runs is a feature of its own and is not one of these.
+    # Entries: name (for the log and the panel), project (empty — the default), script (a name from
+    # that project's manifest; an attachment belongs to a chat, not to a clock), args, cron (six
+    # fields, Spring syntax), timeout-seconds. A bad entry fails the start.
+    schedules: []
     # Let scripts write (kb.edit/kb.create for text, kb.writeBytes/kb.createBytes for bytes).
     # Necessary but not sufficient: the project's kb.projects[].edit-enabled must also be on and
     # its working tree writable — the same two gates as the editFile tool, so scripts can never be

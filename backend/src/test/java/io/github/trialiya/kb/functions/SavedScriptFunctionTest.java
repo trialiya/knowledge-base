@@ -13,6 +13,7 @@ import io.github.trialiya.kb.model.script.ScriptRunSource;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.script.AttachmentScriptService;
 import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
+import io.github.trialiya.kb.service.chat.script.SavedScriptResolver;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -264,6 +265,23 @@ class SavedScriptFunctionTest {
                 .hasMessageContaining("notes.md");
     }
 
+    /**
+     * Писать вложению можно только там, где это включили отдельно: кода из вложения это касается не
+     * потому, что он слабее, а потому, что принёс его кто-то другой.
+     */
+    @Test
+    void anAttachmentWritesOnlyWhereTheDeploymentAllowedIt() {
+        stubAttachment(15, "probe.js", "return typeof kb.create;");
+
+        assertThat(function(true).runSavedScript(context, "attachment:15", null, null).value())
+                .isEqualTo("undefined");
+        assertThat(
+                        function(true, true)
+                                .runSavedScript(context, "attachment:15", null, null)
+                                .value())
+                .isEqualTo("function");
+    }
+
     private void stubAttachment(long id, String fileName, String content) {
         org.mockito.Mockito.when(attachments.getById(id))
                 .thenReturn(
@@ -286,6 +304,10 @@ class SavedScriptFunctionTest {
     // ── Fixture ─────────────────────────────────────────────────────────────
 
     private SavedScriptFunction function(boolean editEnabled) {
+        return function(editEnabled, false);
+    }
+
+    private SavedScriptFunction function(boolean editEnabled, boolean attachmentEdit) {
         ProjectOption option =
                 new ProjectOption(
                         TestProjects.ID,
@@ -301,11 +323,26 @@ class SavedScriptFunctionTest {
         ProjectCatalog projects =
                 new ProjectCatalog(new ProjectProperties(List.of(option)), new GitProperties(null));
         GitRegistry registry = TestProjects.registry(List.of(option));
-        ScriptProperties properties = ScriptProperties.enabledWithDefaults();
+        ScriptProperties properties =
+                new ScriptProperties(
+                        true,
+                        true,
+                        true,
+                        attachmentEdit,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
         ScriptEditPolicy editPolicy = new ScriptEditPolicy(registry, properties);
         return new SavedScriptFunction(
-                new SavedScriptCatalog(projects, registry, properties),
-                new AttachmentScriptService(attachments, properties),
+                new SavedScriptResolver(
+                        new SavedScriptCatalog(projects, registry, properties),
+                        new AttachmentScriptService(attachments, properties)),
                 new ScriptRunner(registry, null, properties, editPolicy),
                 editPolicy);
     }

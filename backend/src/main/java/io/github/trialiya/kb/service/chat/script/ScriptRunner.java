@@ -87,6 +87,48 @@ public class ScriptRunner {
      * when this class is loaded: building a {@link Source} stands up the polyglot runtime, which is
      * the very cost {@link #engine()} is late for.
      */
+    /**
+     * Загрузчик модулей для скрипта: {@code loadScript('lib/util.js')} читает файл репозитория
+     * через тот же {@code kb.read} — со всеми его правилами видимости и его же бюджетом — и
+     * выполняет как модуль, отдавая {@code module.exports}.
+     *
+     * <p>Он не {@code require}: node-модулей, {@code import}, сети и файловых API в песочнице
+     * по-прежнему нет, и называться именем, которое это обещает, он не должен. Всё, что он умеет, —
+     * то же, что умеет скрипт: прочитать файл, который и так виден.
+     *
+     * <p>Кэш заполняется <em>до</em> вычисления модуля, поэтому два файла, загружающие друг друга,
+     * получают недособранный {@code exports}, а не бесконечную рекурсию — как в CommonJS.
+     *
+     * <p>Строки ошибок внутри модуля считаются от начала его собственного текста: {@code new
+     * Function} компилирует его отдельным источником, и номер строки в {@code ScriptError}
+     * относится к файлу, который скрипт загрузил, а не к самому скрипту.
+     */
+    private static final class Modules {
+        static final Source LOADER =
+                Source.newBuilder(
+                                "js",
+                                """
+                                (function (kb) {
+                                  var cache = {};
+                                  return function loadScript(path) {
+                                    if (Object.prototype.hasOwnProperty.call(cache, path)) {
+                                      return cache[path].exports;
+                                    }
+                                    var module = { exports: {} };
+                                    cache[path] = module;
+                                    var body = kb.read(path);
+                                    var factory = new Function('module', 'exports', 'kb', 'loadScript', body);
+                                    factory(module, module.exports, kb, loadScript);
+                                    return module.exports;
+                                  };
+                                })
+                                """,
+                                "kb-modules.js")
+                        .buildLiteral();
+
+        private Modules() {}
+    }
+
     private static final class Helpers {
         static final Source JSON =
                 Source.newBuilder(
@@ -289,6 +331,10 @@ public class ScriptRunner {
             Value logFormatter = helpers.getMember("log");
             api.bindFormatter(value -> logFormatter.execute(value).asString());
             context.getBindings("js").putMember("kb", api);
+            // Модули — гостевой функцией поверх kb.read, а не новым методом хоста: поверхность
+            // HostAccess от неё не растёт, а бюджет чтения списывается обычным порядком.
+            context.getBindings("js")
+                    .putMember("loadScript", context.eval(Modules.LOADER).execute(api));
 
             // The guest parses its own arguments: JSON.parse, not an object literal in the
             // source, so a key named __proto__ stays an own property instead of silently becoming

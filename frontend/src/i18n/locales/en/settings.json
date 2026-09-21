@@ -155,7 +155,8 @@
       "editActive": "Write methods bound into the sandbox",
       "disabledNote": "The tool is off (kb.script.enabled=false) — the model is never told about scripts, and the test run below is refused.",
       "readOnlyNote": "Script edits are enabled in the configuration but have no effect: the project's kb.projects[].edit-enabled and a writable working tree are also required.",
-      "attachmentRun": "Running attachments (attachment:<id>)"
+      "attachmentRun": "Running attachments (attachment:<id>)",
+      "attachmentEdit": "Attachments may write (attachment-edit)"
     },
     "time": {
       "label": "Execution time",
@@ -200,6 +201,13 @@
       "emptyNote": "This repository declares no scripts: the project has no kb.projects[].scripts-manifest, the current branch does not carry the file, or scripts are switched off entirely.",
       "pick": "Pick a script",
       "writeNote": "This script edits files, and the bench never writes — run it from the chat instead."
+    },
+    "schedules": {
+      "label": "Scheduled runs",
+      "note": "Configured in kb.script.schedules and run by this deployment itself — always read-only, because nobody is watching. The last outcome of each is kept in memory and in the log; there is no run history here.",
+      "never": "has not run since startup",
+      "okAt": "ok · {{at}} · {{ms}} ms",
+      "failedAt": "failed · {{at}} · {{error}}"
     }
   },
   "admin": {

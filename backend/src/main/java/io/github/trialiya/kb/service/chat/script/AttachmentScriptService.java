@@ -15,12 +15,14 @@ import org.springframework.stereotype.Service;
  * Scripts that arrived as attachments — the second shelf {@code runSavedScript} reads from, next to
  * the project's manifest ({@code SavedScriptCatalog}).
  *
- * <p><b>Always read-only</b>, whatever {@code ScriptEditPolicy} says about the project. The
- * sandbox, the budgets and the {@code kb} API are the same as for any other run, so what an
- * attachment adds is not capability but <em>provenance</em>: a document's attachment was uploaded
- * by whoever could edit that document, and a model can be talked into running it by the document's
- * own text. Read-only leaves that scenario costing time and nothing else — the sandbox has no
- * network, and everything such a script can read the model could already read by itself.
+ * <p><b>Read-only unless a deployment says otherwise.</b> The sandbox, the budgets and the {@code
+ * kb} API are the same as for any other run, so what an attachment adds is not capability but
+ * <em>provenance</em>: a document's attachment was uploaded by whoever could edit that document,
+ * and a model can be talked into running it by the document's own text. Read-only leaves that
+ * scenario costing time and nothing else — the sandbox has no network, and everything such a script
+ * can read the model could already read by itself. Writing is the part that does not undo itself,
+ * so it needs {@code kb.script.attachment-edit} on top of every gate a normal write goes through
+ * ({@link #writesAllowed}).
  *
  * <p>Which is also why an attachment is not checked against the current chat: {@code
  * getAttachmentContent} already hands the model the text of any attachment by id, so refusing to
@@ -55,6 +57,15 @@ public class AttachmentScriptService {
     /** Whether attachments may be run at all — {@code kb.script.attachment-run}, under scripts. */
     public boolean available() {
         return properties.enabled() && properties.attachmentRun();
+    }
+
+    /**
+     * Whether such a run may also write ({@code kb.script.attachment-edit}), on top of everything
+     * {@code ScriptEditPolicy} already requires of the project. Off by default and meant to stay
+     * off in most deployments: see this class's javadoc for what read-only is protecting against.
+     */
+    public boolean writesAllowed() {
+        return properties.attachmentEdit();
     }
 
     /** Whether this {@code name} argument addresses an attachment rather than a saved script. */

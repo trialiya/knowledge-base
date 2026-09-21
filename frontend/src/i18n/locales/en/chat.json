@@ -249,15 +249,19 @@
       "toChat": "this goes to the chat, not the model",
       "name": {
         "compact": "compact the chat context",
-        "compact-1": "compact the context, keeping the last exchange"
+        "compact-1": "compact the context, keeping the last exchange",
+        "script": "run a saved script"
       },
       "blocked": {
         "running": "a reply is in progress, the command will not run",
-        "nothingToCompact": "the chat has not started, there is nothing to compact"
+        "nothingToCompact": "the chat has not started, there is nothing to compact",
+        "noChat": "the chat has not started yet — there is no history to record the run in",
+        "noScriptName": "name the script after the command: /script <name>"
       },
       "args": {
         "compact": "<what to focus on>",
-        "compact-1": "<what to focus on>"
+        "compact-1": "<what to focus on>",
+        "script": "<name> key=value"
       },
       "insert": {
         "file": "a repository file — as a link or with its content",
@@ -480,5 +484,16 @@
     "allChanges": "All changes",
     "moreChanges": "More files · {{count}}",
     "restInFiles": "Branches, stash, pull, restore — under Files"
+  },
+  "scriptRun": {
+    "stats": "{{files}} files · {{ms}} ms",
+    "edited": "changed {{count}} file(s):",
+    "log": "Log"
+  },
+  "script": {
+    "unavailableTitle": "The script did not run",
+    "draftMessage": "Start the chat with a question first: a script run leaves a row in the history, and there is no history yet.",
+    "noNameMessage": "Name the script: /script <name> key=value. The names are the ones this repository declares in its manifest.",
+    "failedTitle": "The script did not run"
   }
 }
