@@ -528,7 +528,7 @@ const LIGHT = [
     ['searchCodebaseCall'],
     ['searchDocumentsCall'],
     ['attachmentListCall'],
-    ['insightsCall'],
+    ['dateTimeCall'],
     ['documentOutlineCall'],
     ['fileOutlineCall'],
     // Четвёртый файл (вне git) добавляет блок, который в 900 не помещается.

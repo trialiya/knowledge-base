@@ -44,6 +44,8 @@ public class ToolCallService {
      */
     private static final Set<String> SKIP_TOOLS =
             Set.of(
+                    // Инструмента больше нет, но старые чаты зовут его по образцу своей истории:
+                    // ответ-ошибку модель прочтёт, а плашке с ней в ленте делать нечего.
                     "recordChatInsights",
                     "getUserName",
                     "getCurrentDateTime",

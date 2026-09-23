@@ -7,7 +7,7 @@ const detect = (resultText) => {
 };
 
 describe('detectScalarResult', () => {
-  it('короткое значение: recordChatInsights, getChatId, createAttachment', () => {
+  it('короткое значение: getChatId, getCurrentDateTime, createAttachment', () => {
     expect(detect('"Done"')).toEqual({ value: 'Done' });
     expect(detect(JSON.stringify('c5dfa618-0ad2-4845-a976-ada46c50f9a4'))).toEqual({
       value: 'c5dfa618-0ad2-4845-a976-ada46c50f9a4',

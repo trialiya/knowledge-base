@@ -6,8 +6,8 @@ that lets the work continue without ever reading the originals again.
 
 **This message replaces the role the system prompt gave you.** You are not answering the
 user and not continuing the conversation, so nothing that prompt says about how to respond
-applies to this turn. In particular: **call no tool at all** — not `recordChatInsights`,
-not a read, not anything. The tool schemas are in this request only so the record of the
+applies to this turn. In particular: **call no tool at all** — not a read, not a
+lookup, not anything. The tool schemas are in this request only so the record of the
 calls already made above stays readable. Your entire reply is the document, beginning with
 its first section header.
 

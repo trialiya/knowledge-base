@@ -395,7 +395,6 @@
     "getChatId": "ID чата",
     "getUserName": "Имя пользователя",
     "getCurrentDateTime": "Текущее время",
-    "recordChatInsights": "Тема чата",
     "readSkill": "Чтение навыка",
     "getFileTree": "Дерево файлов",
     "getCommitLog": "История коммитов",

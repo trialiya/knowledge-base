@@ -328,15 +328,13 @@ export const attachmentListCall = {
   createdAt: '2026-08-16T11:22:31',
 };
 
-/** Скаляр: в засеянном чате recordChatInsights плашки не пишет, поэтому фикстура. */
-export const insightsCall = {
-  name: 'recordChatInsights',
-  argumentsRaw: JSON.stringify({
-    insights: 'Пользователь работает над backend/build.gradle и просит хронологию изменений.',
-  }),
+/** Скаляр: в засеянном чате getCurrentDateTime плашки не пишет, поэтому фикстура. */
+export const dateTimeCall = {
+  name: 'getCurrentDateTime',
+  argumentsRaw: JSON.stringify({}),
   status: 'OK',
   error: null,
-  resultText: JSON.stringify('Done'),
+  resultText: JSON.stringify('2026-08-16T11:24:08+03:00[Europe/Moscow]'),
   resultMeta: null,
   createdAt: '2026-08-16T11:24:08',
 };

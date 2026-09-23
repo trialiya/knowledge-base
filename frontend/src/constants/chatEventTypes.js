@@ -17,6 +17,7 @@ export const CHAT_EVENT = {
   FILE_REVERT: 'FILE_REVERT',
   SCRIPT_RUN: 'SCRIPT_RUN',
   REPLAY_GAP: 'REPLAY_GAP',
+  CHAT_TOPIC: 'CHAT_TOPIC',
 };
 
 export const FINISH_REASON = {

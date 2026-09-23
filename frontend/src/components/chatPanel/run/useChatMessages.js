@@ -114,6 +114,9 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
                     createdAt: meta.createdAt ?? chat.createdAt ?? null,
                     updatedAt: meta.updatedAt ?? chat.updatedAt ?? null,
                     aiTopic: meta.aiTopic ?? chat.aiTopic ?? null,
+                    // Название от ИИ приходит событием CHAT_TOPIC уже после ответа, и
+                    // вкладка, которой в тот момент в чате не было, узнаёт его только здесь.
+                    ...(meta.topic ? { title: meta.topic } : {}),
                   }
                 : chat,
             ),

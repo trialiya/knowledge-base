@@ -109,7 +109,7 @@ public class ChatTopicEntity implements Persistable<String> {
         return userTopic;
     }
 
-    /** Название чата, предложенное ИИ (см. {@code recordChatInsights}). */
+    /** Название чата, предложенное ИИ (см. {@code AiTopicService}). */
     @Nullable
     public String getAiTopic() {
         return aiTopic;

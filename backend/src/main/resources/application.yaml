@@ -288,6 +288,19 @@ kb:
       # чем длина документа, который он в итоге пишет.
       reasoning-effort: ${KB_CHAT_SUMMARIZE_REASONING_EFFORT:}
       thinking: ${KB_CHAT_SUMMARIZE_THINKING:}
+    # Название чата: после ответа модели отдельный фоновый запрос читает хвост разговора и
+    # придумывает теме имя. Идёт на 1-м, 3-м, 10-м ответе и дальше на каждом десятом; чат,
+    # переименованный пользователем, не трогает. Что именно из разговора попадает в запрос — см.
+    # TopicPrompt.
+    topic:
+      enabled: ${KB_CHAT_TOPIC_ENABLED:true}
+      # Модель запроса. Пусто — модель чата по умолчанию (spring.ai.openai.chat.model). Та же
+      # оговорка, что у summarize.model: эндпоинт остаётся spring.ai.openai.base-url.
+      model: ${KB_CHAT_TOPIC_MODEL:}
+      # Смысл тот же, что у summarize.reasoning-effort / thinking; размышлять над названием из
+      # пяти слов незачем, так что убавлять стоит и здесь.
+      reasoning-effort: ${KB_CHAT_TOPIC_REASONING_EFFORT:}
+      thinking: ${KB_CHAT_TOPIC_THINKING:}
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true

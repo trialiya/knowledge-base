@@ -39,7 +39,6 @@ export const TOOL_META = {
   getChatId: { icon: '🆔', category: 'chat' },
   getUserName: { icon: '👤', category: 'chat' },
   getCurrentDateTime: { icon: '🕒', category: 'chat' },
-  recordChatInsights: { icon: '🏷️', category: 'chat' },
   readSkill: { icon: '📘', category: 'chat' },
   // ── Git ──
   getFileTree: { icon: '🌳', category: 'git' },

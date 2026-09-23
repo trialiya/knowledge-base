@@ -316,18 +316,11 @@ public class ChatController {
                             if (!chatTopicEntity.getUser().equals(getUser())) {
                                 throw new ResponseStatusException(FORBIDDEN, "Forbidden");
                             }
-                            chatTopicRepository.save(
-                                    new ChatTopicEntity(
-                                            chatTopicEntity.getConversationId(),
-                                            chatTopicEntity.getUser(),
-                                            topic,
-                                            chatTopicEntity.getAiTopic(),
-                                            chatTopicEntity.getModel(),
-                                            chatTopicEntity.getMode(),
-                                            chatTopicEntity.getProject(),
-                                            chatTopicEntity.getCreatedAt(),
-                                            chatTopicEntity.getUpdatedAt(),
-                                            false));
+                            // Одной колонкой: название от ИИ пишется в фоне (AiTopicService),
+                            // и строка, прочитанная здесь, пересохранённая целиком, стёрла бы
+                            // записанное между чтением и записью.
+                            chatTopicRepository.updateUserTopic(
+                                    conversationId, topic, LocalDateTime.now(clock));
                         },
                         () ->
                                 chatTopicRepository.save(

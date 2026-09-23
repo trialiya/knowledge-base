@@ -1279,4 +1279,26 @@ describe('applyChatEvent', () => {
 
     expect(last(chat)).toMatchObject({ sender: 'user', dbId: 42, text: 'и добавь тесты' });
   });
+
+  test('CHAT_TOPIC sets the displayed title and the AI one, leaving the messages alone', () => {
+    const before = { ...userChat(), title: 'Новый чат', aiTopic: null };
+    const chat = applyChatEvent(
+      before,
+      { type: 'CHAT_TOPIC', runId: null, payload: { topic: 'Настройка pgvector', aiTopic: 'Настройка pgvector' } },
+      ctx,
+    );
+    expect(chat.title).toBe('Настройка pgvector');
+    expect(chat.aiTopic).toBe('Настройка pgvector');
+    expect(chat.messages).toEqual(before.messages);
+  });
+
+  test('CHAT_TOPIC keeps a title the user gave while the name was being made', () => {
+    const chat = applyChatEvent(
+      { ...userChat(), title: 'Моё', aiTopic: null },
+      { type: 'CHAT_TOPIC', runId: null, payload: { topic: 'Моё', aiTopic: 'Kafka retries' } },
+      ctx,
+    );
+    expect(chat.title).toBe('Моё');
+    expect(chat.aiTopic).toBe('Kafka retries');
+  });
 });

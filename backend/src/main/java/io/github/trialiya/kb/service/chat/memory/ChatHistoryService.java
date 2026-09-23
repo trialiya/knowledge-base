@@ -586,7 +586,7 @@ public class ChatHistoryService {
      * вызовов навсегда (см. {@link #markRunResult}), а окно сжатия открылось бы на ответе к
      * вопросу, которого в нём уже нет ({@code SummarizeWindow}).
      */
-    static boolean opensATurn(ChatMessageEntity row) {
+    public static boolean opensATurn(ChatMessageEntity row) {
         return row.getType() == MessageType.USER
                 && (row.getMeta() == null || (!isEventRow(row) && !row.getMeta().interjection()));
     }
@@ -597,7 +597,7 @@ public class ChatHistoryService {
      * такого ряда нет — его собирает {@link PromptNotices} при чтении, — и ходом разговора он не
      * является.
      */
-    static boolean isEventRow(ChatMessageEntity row) {
+    public static boolean isEventRow(ChatMessageEntity row) {
         return row.getMeta() != null
                 && (row.getMeta().gitEvent() != null
                         || row.getMeta().fileRevert() != null

@@ -440,6 +440,17 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs };
     }
 
+    // ─── Название чата от ИИ ────────────────────────────────────────────────
+    // Приходит вне прогона, через несколько секунд после RUN_DONE. topic — уже
+    // отображаемое название: если чат успели переименовать, это имя пользователя,
+    // и затирать его предложенным нельзя.
+    case CHAT_EVENT.CHAT_TOPIC:
+      return {
+        ...chat,
+        title: payload?.topic || chat.title,
+        aiTopic: payload?.aiTopic ?? chat.aiTopic ?? null,
+      };
+
     default:
       return chat;
   }

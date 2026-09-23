@@ -16,12 +16,12 @@ vi.mock('@/api/chatApi', () => ({
 describe('loadMessages return value', () => {
   const page = (messages, rest = {}) => ({ messages, hasMore: false, oldestCursor: null, ...rest });
 
-  function setup({ activeRun = {}, messages = [] } = {}) {
-    chatApi.getChatMeta.mockResolvedValue({});
+  function setup({ activeRun = {}, messages = [], meta = {} } = {}) {
+    chatApi.getChatMeta.mockResolvedValue(meta);
     chatApi.getMessages.mockResolvedValue(page(messages));
     chatApi.getActiveRun.mockResolvedValue(activeRun);
 
-    let chats = [{ id: 'c1' }];
+    let chats = [{ id: 'c1', title: 'Новый чат' }];
     const setChats = vi.fn((fn) => {
       chats = typeof fn === 'function' ? fn(chats) : fn;
     });
@@ -39,6 +39,22 @@ describe('loadMessages return value', () => {
 
   afterEach(() => {
     vi.resetAllMocks();
+  });
+
+  test('takes the title the chat got while this tab was elsewhere', async () => {
+    const { result, getChat } = setup({ meta: { topic: 'Настройка pgvector', aiTopic: 'Настройка pgvector' } });
+    await act(async () => {
+      await result.current.loadMessages('c1');
+    });
+    expect(getChat().title).toBe('Настройка pgvector');
+  });
+
+  test('keeps the local title while the chat has no name yet', async () => {
+    const { result, getChat } = setup();
+    await act(async () => {
+      await result.current.loadMessages('c1');
+    });
+    expect(getChat().title).toBe('Новый чат');
   });
 
   test('a parallel call gets the same load, not undefined', async () => {
