@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.chat.topic;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.CHAT_TOPIC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -53,10 +54,7 @@ class AiTopicServiceTest {
         chatTopics = mock(ChatTopicRepository.class);
         chatMessages = mock(ChatMessageRepository.class);
         events = mock(ChatEventService.class);
-        when(chatMessages
-                        .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
-                                CONV))
-                .thenReturn(rows);
+        when(chatMessages.findConversationTurns(CONV)).thenReturn(rows);
     }
 
     @Test
@@ -68,7 +66,7 @@ class AiTopicServiceTest {
 
         service(true).name(CONV);
 
-        verify(chatTopics).updateAiTopic(CONV, "Настройка pgvector");
+        verify(chatTopics).updateAiTopic(CONV, "Настройка pgvector", 1);
         verify(events)
                 .publish(
                         CONV,
@@ -87,12 +85,13 @@ class AiTopicServiceTest {
         service(true).name(CONV);
 
         verify(chatModel, never()).call(any(Prompt.class));
-        verify(chatTopics, never()).updateAiTopic(anyString(), anyString());
+        verify(chatTopics, never()).updateAiTopic(anyString(), anyString(), anyInt());
     }
 
     @Test
     void betweenCheckpointsTheTitleStays() {
         when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title"));
+        when(chatTopics.findAiTopicTurn(CONV)).thenReturn(1);
         turns(2);
 
         service(true).name(CONV);
@@ -103,25 +102,53 @@ class AiTopicServiceTest {
     @Test
     void aCheckpointShowsTheCurrentTitleAndKeepsItWhenTheModelDoes() {
         when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title"));
+        when(chatTopics.findAiTopicTurn(CONV)).thenReturn(1);
         turns(3);
         answerWith("Old title");
 
         service(true).name(CONV);
 
         assertThat(requestText()).startsWith("Current title: Old title");
-        verify(chatTopics, never()).updateAiTopic(anyString(), anyString());
+        verify(chatTopics).updateAiTopicTurn(CONV, 3);
+        verify(chatTopics, never()).updateAiTopic(anyString(), anyString(), anyInt());
         verify(events, never()).publish(any(), any(), any(), any(), any());
     }
 
     @Test
-    void aTitleMissingSinceAFailedRoundIsNotLeftForTheNextCheckpoint() {
-        when(chatTopics.findById(CONV)).thenReturn(chat(null, null));
-        turns(2);
+    void aMissedCheckpointIsTakenByTheNextAnswer() {
+        // Ответ на третьем остановили (или запрос по нему пропустили, пока шёл прежний).
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title"));
+        when(chatTopics.findAiTopicTurn(CONV)).thenReturn(1);
+        turns(4);
         answerWith("Kafka retries");
 
         service(true).name(CONV);
 
-        verify(chatTopics).updateAiTopic(CONV, "Kafka retries");
+        verify(chatTopics).updateAiTopic(CONV, "Kafka retries", 4);
+    }
+
+    @Test
+    void aChatNamedBeforeTurnsWereRecordedIsNamedOnItsNextAnswer() {
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title"));
+        turns(5);
+        answerWith("Kafka retries");
+
+        service(true).name(CONV);
+
+        verify(chatTopics).updateAiTopic(CONV, "Kafka retries", 5);
+    }
+
+    @Test
+    void anUnusableReplyWaitsForTheNextCheckpointInsteadOfTheNextAnswer() {
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, null));
+        turns(1);
+        answerWith("  \n");
+
+        service(true).name(CONV);
+
+        verify(chatTopics).updateAiTopicTurn(CONV, 1);
+        verify(chatTopics, never()).updateAiTopic(anyString(), anyString(), anyInt());
+        verify(events, never()).publish(any(), any(), any(), any(), any());
     }
 
     @Test

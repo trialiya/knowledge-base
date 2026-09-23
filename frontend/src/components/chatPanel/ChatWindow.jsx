@@ -119,7 +119,7 @@ const ChatWindow = ({
     changeModel,
     changeMode,
     changeProject,
-    fetchAndUpdateTitle,
+    refreshChatMeta,
   } = useChatList({
     initialActiveChatId: activeChatId || rememberedChatId,
     initialPropChatId: activeChatId,
@@ -370,7 +370,7 @@ const ChatWindow = ({
     isLocalClientId,
     setChats,
     onChatDeleted: handleRemoteChatDeleted,
-    onRunSettled: fetchAndUpdateTitle,
+    onRunSettled: refreshChatMeta,
     reloadMessages: loadMessages,
     onDocChanged,
     // Правку сделал инструмент этого прогона — значит, в проекте этого чата.

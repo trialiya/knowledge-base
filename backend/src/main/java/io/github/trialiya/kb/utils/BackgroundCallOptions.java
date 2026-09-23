@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.utils;
 
+import java.util.HashMap;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -39,7 +40,15 @@ public final class BackgroundCallOptions {
             options.reasoningEffort(reasoningEffort);
         }
         if (thinking != null) {
-            options.extraBody(Map.of("thinking", Map.of("type", thinking)));
+            // Поверх extra-body модели, а не вместо него: остальные поля (маршрутизация, флаги
+            // провайдера) фоновому запросу нужны так же, как запросу чата.
+            final Map<String, Object> body = new HashMap<>();
+            final @Nullable Map<String, Object> configured = chatModel.getOptions().getExtraBody();
+            if (configured != null) {
+                body.putAll(configured);
+            }
+            body.put("thinking", Map.of("type", thinking));
+            options.extraBody(body);
         }
         return options;
     }

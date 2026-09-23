@@ -37,12 +37,6 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
     void updateUpdatedAt(@Param("convId") String convId, @Param("now") LocalDateTime now);
 
     /**
-     * Название от ИИ — одной колонкой, а не сохранением всей строки: запрос идёт в фоне, и
-     * прочитанная до него строка к моменту записи могла устареть (переименование, смена модели или
-     * проекта). {@code updated_at} не трогается: чат наверх списка поднимает сообщение, а не
-     * название.
-     */
-    /**
      * Название от пользователя — одной колонкой по той же причине, что и {@link #updateAiTopic}.
      * Переименование поднимает чат наверх списка, поэтому {@code updated_at} двигается — часами
      * вызывающего, как и в {@link #updateUpdatedAt}.
@@ -56,9 +50,32 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
             @Param("topic") String topic,
             @Param("now") LocalDateTime now);
 
+    /**
+     * Название от ИИ и номер ответа, на котором оно придумано, — точечно, а не сохранением всей
+     * строки: запрос идёт в фоне, и прочитанная до него строка к моменту записи могла устареть
+     * (переименование, смена модели или проекта). {@code updated_at} не трогается: чат наверх
+     * списка поднимает сообщение, а не название.
+     */
     @Modifying
-    @Query("UPDATE chat_topic SET ai_topic = :topic WHERE conversation_id = :convId")
-    void updateAiTopic(@Param("convId") String convId, @Param("topic") String topic);
+    @Query(
+            "UPDATE chat_topic SET ai_topic = :topic, ai_topic_turn = :turn WHERE conversation_id ="
+                    + " :convId")
+    void updateAiTopic(
+            @Param("convId") String convId, @Param("topic") String topic, @Param("turn") int turn);
+
+    /**
+     * На каком ответе ИИ последний раз назвал чат; {@code null} — не называл, или название
+     * придумано до того, как номер стали записывать. Колонки в {@link ChatTopicEntity} нет
+     * намеренно: её пишет и читает только {@code AiTopicService}, а полное сохранение сущности
+     * пишет лишь свои колонки и эту не трогает.
+     */
+    @Query("SELECT ai_topic_turn FROM chat_topic WHERE conversation_id = :convId")
+    @Nullable Integer findAiTopicTurn(@Param("convId") String convId);
+
+    /** Только номер ответа — запрос прошёл, но названия не поменял (см. {@link #updateAiTopic}). */
+    @Modifying
+    @Query("UPDATE chat_topic SET ai_topic_turn = :turn WHERE conversation_id = :convId")
+    void updateAiTopicTurn(@Param("convId") String convId, @Param("turn") int turn);
 
     @Modifying
     @Query("UPDATE chat_topic SET model = :model WHERE conversation_id = :convId")

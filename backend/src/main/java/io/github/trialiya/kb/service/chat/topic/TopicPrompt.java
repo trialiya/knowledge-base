@@ -18,11 +18,12 @@ import org.springframework.ai.chat.messages.MessageType;
  * вся политика «что читать» здесь, {@link AiTopicService} только зовёт модель и пишет результат.
  *
  * <p><b>Окно</b> — хвост разговора, от свежего к старому: не больше {@value #MAX_MESSAGES}
- * сообщений, набор кончается на том, которым текст дорос до {@value #ENOUGH_CHARS} символов, и
- * никогда не длиннее {@value #MAX_CHARS}. У каждого сообщения ещё и свой предел — у ответа модели
- * ниже, чем у вопроса: иначе один ответ с таблицей съедал бы весь бюджет, и в окно не попадал бы
- * вопрос, который тему и задаёт. Длинное сообщение режется посередине: в начале обычно сама
- * проблема, в конце — к чему пришли, а середина — детали, без которых тему назвать можно.
+ * сообщений, набор кончается на том, которым текст дорос до {@value #ENOUGH_CHARS} символов. У
+ * каждого сообщения свой предел — у ответа модели ниже, чем у вопроса: иначе один ответ с таблицей
+ * съедал бы весь бюджет, и в окно не попадал бы вопрос, который тему и задаёт. Пределы и держат
+ * окно в границах: последнее взятое сообщение добавляет к почти {@value #ENOUGH_CHARS} не больше
+ * {@value #USER_CHARS}. Длинное сообщение режется посередине: в начале обычно сама проблема, в
+ * конце — к чему пришли, а середина — детали, без которых тему назвать можно.
  *
  * <p>Окно кончается последним ответом модели, а не последним рядом чата: запрос идёт в фоне, и к
  * его началу в историю уже может лечь следующий вопрос из очереди — ни ходом, ни текстом он к
@@ -37,7 +38,6 @@ final class TopicPrompt {
 
     static final int MAX_MESSAGES = 6;
     static final int ENOUGH_CHARS = 2_000;
-    static final int MAX_CHARS = 4_000;
     static final int USER_CHARS = 1_000;
     static final int ASSISTANT_CHARS = 600;
     static final int MAX_TOPIC_CHARS = 80;
@@ -54,20 +54,26 @@ final class TopicPrompt {
                     "^/(compact|сжать)(-1)?(\\s|$)",
                     Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
-    /** Размышления, которые часть эндпоинтов отдаёт прямо в тексте ответа. */
-    private static final Pattern THINKING = Pattern.compile("(?s)<think>.*?</think>");
+    /**
+     * Размышления, которые часть эндпоинтов отдаёт прямо в тексте ответа, — и незакрытые тоже:
+     * ответ, оборванный посреди размышлений, названия не содержит.
+     */
+    private static final Pattern THINKING = Pattern.compile("(?s)<think>.*?(</think>|$)");
 
     private static final Pattern LABEL =
             Pattern.compile(
                     "^(title|topic|тема|название)\\s*:\\s*",
                     Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
-    private static final Pattern LEADING_JUNK = Pattern.compile("^[\\s\"'`«»“”„*#_]+");
-
     /**
-     * Без {@code #} и {@code _}: ими названия кончаются по делу — «Async в C#», {@code __init__}.
+     * Обёртка названия: кавычки, заголовок markdown ({@code #} с пробелом) и жирный ({@code **}).
+     * Одиночные {@code #}, {@code *} и {@code _} не трогаются — ими названия начинаются и кончаются
+     * по делу: «Async в C#», {@code __init__}, {@code *.gradle}.
      */
-    private static final Pattern TRAILING_JUNK = Pattern.compile("[\\s\"'`«»“”„*.!。]+$");
+    private static final Pattern LEADING_JUNK =
+            Pattern.compile("^(?:#+\\s+|\\*\\*|[\\s\"'`«»“”„])+");
+
+    private static final Pattern TRAILING_JUNK = Pattern.compile("(?:\\*\\*|[\\s\"'`«»“”„.!。])+$");
 
     private TopicPrompt() {}
 
@@ -75,12 +81,29 @@ final class TopicPrompt {
     record Line(MessageType type, String text) {}
 
     /**
-     * Пора ли назвать чат заново после ответа номер {@code turns}: на первом, третьем, десятом и
-     * дальше на каждом десятом. Чаще незачем — тема разговора меняется медленнее, чем идут ответы,
-     * а название, которое переписывается на каждом, в списке чатов не узнать.
+     * Последняя контрольная точка не позже ответа номер {@code turns}: первый, третий, десятый и
+     * дальше каждый десятый; 0 — ответов нет. Чаще называть незачем — тема разговора меняется
+     * медленнее, чем идут ответы, а название, которое переписывается на каждом, в списке чатов не
+     * узнать.
      */
-    static boolean isCheckpoint(int turns) {
-        return turns == 1 || turns == 3 || (turns > 0 && turns % 10 == 0);
+    static int lastCheckpoint(int turns) {
+        if (turns < 1) {
+            return 0;
+        }
+        if (turns < 3) {
+            return 1;
+        }
+        return turns < 10 ? 3 : turns / 10 * 10;
+    }
+
+    /**
+     * Пора ли назвать чат заново: после ответа, названного последним ({@code namedAt}), пройдена
+     * новая контрольная точка. Именно «пройдена», а не «ответ ровно на ней»: ответ на точке могли
+     * остановить, а запрос по нему — пропустить, пока шёл предыдущий, и тогда точку берёт первый
+     * следующий законченный ответ.
+     */
+    static boolean due(int turns, int namedAt) {
+        return lastCheckpoint(turns) > namedAt;
     }
 
     /**
@@ -114,7 +137,7 @@ final class TopicPrompt {
                 continue;
             }
             final int own = row.getType() == MessageType.USER ? USER_CHARS : ASSISTANT_CHARS;
-            final String kept = shorten(text, Math.min(own, MAX_CHARS - total));
+            final String kept = shorten(text, own);
             picked.addFirst(new Line(row.getType(), kept));
             total += kept.length();
         }
@@ -136,32 +159,35 @@ final class TopicPrompt {
     }
 
     /**
-     * Название из ответа модели: первая непустая строка без кавычек, markdown-разметки, подписи
-     * «Title:» и точки в конце, не длиннее {@value #MAX_TOPIC_CHARS} символов. {@code null} — в
-     * ответе названия нет.
+     * Название из ответа модели: первая строка, в которой после снятия кавычек, markdown-разметки и
+     * подписи «Title:» что-то осталось, без точки в конце, не длиннее {@value #MAX_TOPIC_CHARS}
+     * символов. Подпись на отдельной строке ({@code **Title:**}, а название ниже) так пропускается.
+     * {@code null} — в ответе названия нет.
      */
     static @Nullable String clean(@Nullable String reply) {
         if (reply == null) {
             return null;
         }
-        final String firstLine =
-                THINKING.matcher(reply)
-                        .replaceAll("")
-                        .lines()
-                        .map(String::strip)
-                        .filter(line -> !line.isEmpty())
-                        .findFirst()
-                        .orElse("");
-        String topic = LEADING_JUNK.matcher(firstLine).replaceAll("");
+        return THINKING.matcher(reply)
+                .replaceAll("")
+                .lines()
+                .map(TopicPrompt::cleanLine)
+                .filter(line -> !line.isEmpty())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static String cleanLine(String line) {
+        String topic = LEADING_JUNK.matcher(line).replaceAll("");
         topic = LABEL.matcher(topic).replaceAll("");
         topic = LEADING_JUNK.matcher(topic).replaceAll("");
         topic = TRAILING_JUNK.matcher(topic).replaceAll("");
-        topic = topic.replaceAll("\\s+", " ");
+        topic = topic.replaceAll("\\s+", " ").strip();
         if (topic.length() > MAX_TOPIC_CHARS) {
             final int space = topic.lastIndexOf(' ', MAX_TOPIC_CHARS);
             topic = topic.substring(0, space > 0 ? space : MAX_TOPIC_CHARS).strip();
         }
-        return topic.isEmpty() ? null : topic;
+        return topic;
     }
 
     /**

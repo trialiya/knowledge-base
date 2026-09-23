@@ -10,12 +10,14 @@ import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.utils.BackgroundCallOptions;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
@@ -33,12 +35,14 @@ import org.springframework.stereotype.Service;
  *
  * <p>Идёт в фоне и ответа не задерживает: вкладки узнают о новом названии событием {@code
  * CHAT_TOPIC}. Чат, переименованный пользователем, не трогает вовсе. Когда запрос нужен и что он
- * читает — {@link TopicPrompt}. Если название ещё не придумано (прошлый запрос не удался), оно
- * придумывается на ближайшем ответе, не дожидаясь контрольной точки.
+ * читает — {@link TopicPrompt}; на каком ответе чат назван последний раз, помнит {@code
+ * chat_topic.ai_topic_turn}. Чат, у которого номера нет, называется на ближайшем ответе.
  */
 @Slf4j
 @Service
 public class AiTopicService implements DisposableBean {
+
+    private static final Duration SHUTDOWN_GRACE = Duration.ofSeconds(5);
 
     private final ChatClient chatClient;
     private final ChatTopicRepository chatTopics;
@@ -77,9 +81,17 @@ public class AiTopicService implements DisposableBean {
         this.properties = properties;
     }
 
+    /**
+     * Идущему запросу даётся немного времени дописать название: бины БД закрываются уже после
+     * этого, и запись в закрытый пул только засорила бы лог. Кто не успел — тот не успел, название
+     * подождёт следующего ответа.
+     */
     @Override
-    public void destroy() {
+    public void destroy() throws InterruptedException {
         executor.shutdown();
+        if (!executor.awaitTermination(SHUTDOWN_GRACE.toSeconds(), TimeUnit.SECONDS)) {
+            executor.shutdownNow();
+        }
     }
 
     /** Ответ модели записан — в фоне решить, пора ли назвать чат, и назвать. */
@@ -115,18 +127,17 @@ public class AiTopicService implements DisposableBean {
         if (chat == null || chat.getUserTopic() != null) {
             return;
         }
-        final List<ChatMessageEntity> rows =
-                chatMessages
-                        .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
-                                conversationId);
-        final @Nullable String current = chat.getAiTopic();
-        if (current != null && !TopicPrompt.isCheckpoint(TopicPrompt.turns(rows))) {
+        final List<ChatMessageEntity> rows = chatMessages.findConversationTurns(conversationId);
+        final int turns = TopicPrompt.turns(rows);
+        final @Nullable Integer namedAt = chatTopics.findAiTopicTurn(conversationId);
+        if (namedAt != null && !TopicPrompt.due(turns, namedAt)) {
             return;
         }
         final List<TopicPrompt.Line> excerpt = TopicPrompt.excerpt(rows);
         if (excerpt.isEmpty()) {
             return;
         }
+        final @Nullable String current = chat.getAiTopic();
         final String topic =
                 TopicPrompt.clean(
                         chatClient
@@ -134,14 +145,19 @@ public class AiTopicService implements DisposableBean {
                                 .user(TopicPrompt.request(current, excerpt))
                                 .call()
                                 .content());
+        // Номер ответа пишется и тогда, когда названия не вышло или оно прежнее: следующий запрос
+        // — на следующей точке, а не на каждом ответе, платя за тот же отказ. Сбой самого вызова
+        // (исключение выше) номера не пишет — его пробует уже ближайший ответ.
         if (topic == null) {
             log.warn("[{}] Chat naming returned no title", conversationId);
+            chatTopics.updateAiTopicTurn(conversationId, turns);
             return;
         }
         if (topic.equals(current)) {
+            chatTopics.updateAiTopicTurn(conversationId, turns);
             return;
         }
-        chatTopics.updateAiTopic(conversationId, topic);
+        chatTopics.updateAiTopic(conversationId, topic, turns);
         log.info("[{}] Chat topic: {}", conversationId, topic);
         // Отображаемое название перечитываем: пока шёл запрос, чат могли переименовать, и вкладке
         // нельзя затирать название пользователя предложенным.

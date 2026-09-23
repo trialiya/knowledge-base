@@ -24,10 +24,22 @@ class TopicPromptTest {
     void checkpointsAreTheFirstTheThirdAndEveryTenthAnswer() {
         assertThat(
                         java.util.stream.IntStream.rangeClosed(0, 31)
-                                .filter(TopicPrompt::isCheckpoint)
+                                .map(TopicPrompt::lastCheckpoint)
+                                .distinct()
                                 .boxed()
                                 .toList())
-                .containsExactly(1, 3, 10, 20, 30);
+                .containsExactly(0, 1, 3, 10, 20, 30);
+    }
+
+    @Test
+    void aMissedCheckpointIsTakenByTheNextAnswer() {
+        assertThat(TopicPrompt.due(2, 1)).isFalse();
+        assertThat(TopicPrompt.due(3, 1)).isTrue();
+        // Ответ на третьем остановили — точку берёт четвёртый.
+        assertThat(TopicPrompt.due(4, 1)).isTrue();
+        assertThat(TopicPrompt.due(9, 3)).isFalse();
+        assertThat(TopicPrompt.due(12, 3)).isTrue();
+        assertThat(TopicPrompt.due(12, 10)).isFalse();
     }
 
     @Test
@@ -181,6 +193,11 @@ class TopicPromptTest {
         assertThat(TopicPrompt.clean("<think>hmm\nmaybe</think>\nТема: Git   rebase"))
                 .isEqualTo("Git rebase");
         assertThat(TopicPrompt.clean("Async в C#.")).isEqualTo("Async в C#");
+        assertThat(TopicPrompt.clean("# __init__ в Python")).isEqualTo("__init__ в Python");
+        assertThat(TopicPrompt.clean("*.gradle зависимости")).isEqualTo("*.gradle зависимости");
+        assertThat(TopicPrompt.clean("**Title:**\nНастройка pgvector"))
+                .isEqualTo("Настройка pgvector");
+        assertThat(TopicPrompt.clean("<think>\nstill thinking, cut off")).isNull();
         assertThat(TopicPrompt.clean("   \n")).isNull();
         assertThat(TopicPrompt.clean(null)).isNull();
         assertThat(TopicPrompt.clean("word ".repeat(40)))

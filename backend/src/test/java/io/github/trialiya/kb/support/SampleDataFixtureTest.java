@@ -12,6 +12,7 @@ import io.github.trialiya.kb.repository.DocumentRepository;
 import java.util.List;
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest;
@@ -108,6 +109,28 @@ class SampleDataFixtureTest {
         assertThat(documentRepo.findById(82L).orElseThrow().getParentId()).isEqualTo(81L);
         assertThat(jdbc.queryForList("select id from documents where is_system = true", Long.class))
                 .containsExactly(80L);
+    }
+
+    /**
+     * The conversation read for chat naming: questions and answers only, the protocol left out.
+     * Asserted here because the query spells its columns out by hand, and the fixture is the one
+     * place both the H2 schema and real rows meet it.
+     */
+    @Test
+    void conversationTurnsLeaveTheToolProtocolOut() {
+        final List<ChatMessageEntity> turns =
+                chatMessageRepo.findConversationTurns("c5dfa618-0ad2-4845-a976-ada46c50f9a4");
+
+        assertThat(turns).isNotEmpty();
+        assertThat(turns)
+                .extracting(ChatMessageEntity::getType)
+                .containsOnly(MessageType.USER, MessageType.ASSISTANT);
+        assertThat(turns).extracting(ChatMessageEntity::getToolData).containsOnlyNulls();
+        assertThat(
+                        jdbc.queryForList(
+                                "select ai_topic_turn from chat_topic order by conversation_id",
+                                Integer.class))
+                .containsExactly(3, 1);
     }
 
     @Test

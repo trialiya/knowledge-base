@@ -42,6 +42,23 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     Optional<ChatMessageEntity> findFirstByConversationIdOrderByPositionDesc(String conversationId);
 
     /**
+     * Реплики чата — вопросы и ответы без строк-сводок и без протокола инструментов: TOOL-ряды не
+     * выбираются, а {@code tool_data} не читается вовсе ({@code NULL}). Для читателей, которым
+     * нужен только разговор, а не то, что уезжает модели, — название чата ({@code AiTopicService})
+     * читает его после каждого ответа, и тащить ради этого мегабайты ответов инструментов незачем.
+     */
+    @Query(
+            """
+    SELECT id, conversation_id, content, type, position, summarized, summary, created_at, meta,
+           NULL AS tool_data
+    FROM chat_message
+    WHERE conversation_id = :conversationId AND summary = false
+      AND type IN ('USER', 'ASSISTANT')
+    ORDER BY created_at, position
+    """)
+    List<ChatMessageEntity> findConversationTurns(@Param("conversationId") String conversationId);
+
+    /**
      * Весь чат целиком, включая строки-сводки и уже сжатые ряды, — для разовых проходов по истории
      * ({@code ProjectStampBackfill}). Обычному чтению это не нужно: и промпту, и UI нужна половина
      * чата, и обе половины отбирают запросы выше.

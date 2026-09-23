@@ -34,6 +34,9 @@ every tenth after that), which reads a short tail of the conversation.
   (`KB_CHAT_TOPIC_MODEL`), turn reasoning down with
   `KB_CHAT_TOPIC_REASONING_EFFORT` / `KB_CHAT_TOPIC_THINKING`, or switch naming
   off with `KB_CHAT_TOPIC_ENABLED=false`.
+- **Existing chats** are named once more on their next answer: the migration
+  adds `chat_topic.ai_topic_turn`, and a chat without it counts as never named.
+  A title the user gave is never touched.
 
 ### Scripts can now be run from a repository manifest and from attachments
 

@@ -188,14 +188,14 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
     [patchChat],
   );
 
-  // Фоновое обновление темы чата с бэкенда после ответа.
-  const fetchAndUpdateTitle = useCallback(
+  // Метаданные чата после ответа. Названия здесь нет: его придумывает фоновый запрос
+  // уже после ответа и присылает событием CHAT_TOPIC, а этот запрос, успевший раньше,
+  // вернул бы прежнее и затёр свежее.
+  const refreshChatMeta = useCallback(
     async (chatId) => {
       try {
         const data = await chatApi.getChatMeta(chatId);
-        const newTitle = data.topic;
         patchChat(chatId, (chat) => ({
-          ...(newTitle ? { title: newTitle } : {}),
           model: data.model ?? chat.model ?? null,
           mode: data.mode ?? chat.mode ?? null,
           // Проекта здесь нет намеренно: выбор в селекторе на бэк не пишется до отправки
@@ -207,10 +207,9 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
           // и делается после ответа ассистента (бэк двигает его на каждом
           // сообщении), иначе «Изменён» во вкладке «Инфо» застынет.
           updatedAt: data.updatedAt ?? chat.updatedAt ?? null,
-          aiTopic: data.aiTopic ?? chat.aiTopic ?? null,
         }));
       } catch (err) {
-        console.error('Ошибка обновления темы чата:', err);
+        console.error('Ошибка обновления метаданных чата:', err);
       }
     },
     [patchChat],
@@ -226,6 +225,6 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
     changeModel,
     changeMode,
     changeProject,
-    fetchAndUpdateTitle,
+    refreshChatMeta,
   };
 }

@@ -68,14 +68,16 @@
 -- это id, который ProjectCatalog даёт конфигурации без kb.projects, то есть той самой,
 -- в которой фикстуру и гоняют вручную (PROJECT_PATH=. на h2-профиле). Чужой id здесь
 -- показывал бы предупреждение «проект недоступен» на каждом открытии чата.
-INSERT INTO chat_topic (conversation_id, "user", user_topic, ai_topic, model, project, created_at, updated_at) VALUES
-    ('c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'admin', NULL, 'История коммитов backend/build.gradle', NULL, 'default', '2026-07-18 20:59:02.915088', '2026-07-18 21:01:19.071770'),
+-- ai_topic_turn — на каком ответе названо: у первого чата ответов три, у второго два,
+-- и оба названы на последней пройденной контрольной точке (3 и 1).
+INSERT INTO chat_topic (conversation_id, "user", user_topic, ai_topic, ai_topic_turn, model, project, created_at, updated_at) VALUES
+    ('c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'admin', NULL, 'История коммитов backend/build.gradle', 3, NULL, 'default', '2026-07-18 20:59:02.915088', '2026-07-18 21:01:19.071770'),
     -- Второй чат (hand-added): без вызовов инструментов, зато два прогона подряд.
     -- Нужен списку из двух и более строк (переход между чатами, кнопка удаления
     -- в строках — при одном чате её нет) и поиску по чатам с совпадениями в нескольких
     -- чатах: слово «grep» стоит в обоих, в ответе 1659 — на нескольких строках,
     -- так что карточка результата показывает по строке на каждое вхождение.
-    ('e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13', 'admin', NULL, 'Поиск по репозиторию: grep и семантический', NULL, 'default', '2026-07-19 09:12:40.118206', '2026-07-19 09:15:05.402911');
+    ('e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13', 'admin', NULL, 'Поиск по репозиторию: grep и семантический', 1, NULL, 'default', '2026-07-19 09:12:40.118206', '2026-07-19 09:15:05.402911');
 
 -- ── chat_message (captured conversation, position 1..16) ────────────────────
 INSERT INTO chat_message (id, conversation_id, content, created_at, position, summarized, summary, type, meta, tool_data) VALUES
