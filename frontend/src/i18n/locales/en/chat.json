@@ -208,6 +208,8 @@
         "filesRead": "Files read",
         "pathCount": "{{count}} files",
         "edits": "Changed files",
+        "resultId": "kept as",
+        "resultHint": "A later script of this chat reads this value with kb.result('{{id}}'); saveScriptResult saves it as a file.",
         "line": "line {{line}}",
         "error": {
           "SYNTAX": "Syntax error",
@@ -487,6 +489,7 @@
   },
   "scriptRun": {
     "stats": "{{files}} files · {{ms}} ms",
+    "result": "result {{id}}",
     "edited": "changed {{count}} file(s):",
     "log": "Log"
   },

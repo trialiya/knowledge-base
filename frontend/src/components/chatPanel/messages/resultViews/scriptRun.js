@@ -95,6 +95,9 @@ export const detectScriptRun = ({ parsed, isJson }) => {
     // Из ответа, а не из проекта чата: у runScript есть аргумент project, и
     // прогон мог читать соседний репозиторий — тогда filesRead и edits о нём.
     project: str(parsed.project) || null,
+    // Id, под которым значение сохранено в чате: следующий скрипт читает его
+    // через kb.result(id). Нет — значит, не сохраняли (упал, ничего не вернул).
+    resultId: str(parsed.resultId) || null,
     // Необязателен: скрипт, написанный моделью, источника не называет.
     source: scriptSource(parsed.source),
     value: scriptValue(parsed.value),
