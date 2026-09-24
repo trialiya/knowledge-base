@@ -37,7 +37,7 @@ public final class ScriptResultReader {
      *
      * @throws IllegalArgumentException the script passed no id at all
      */
-    static String canonical(@Nullable String id) {
+    public static String canonical(@Nullable String id) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException(
                     "kb.result needs a result id, e.g. kb.result('r1'); kb.results() lists them.");
@@ -68,7 +68,11 @@ public final class ScriptResultReader {
         return store.list(conversationId);
     }
 
-    private static String available(List<StoredScriptResult> kept) {
+    private String available(List<StoredScriptResult> kept) {
+        if (store != null && !store.enabled()) {
+            return "Keeping script results is switched off in this deployment"
+                    + " (kb.script.results.enabled=false): no run gets an id.";
+        }
         if (kept.isEmpty()) {
             return "It keeps none yet: a result gets its id (resultId in the tool result) when a"
                     + " script finishes and returns a value.";

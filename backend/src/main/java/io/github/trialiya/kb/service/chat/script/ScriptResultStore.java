@@ -30,6 +30,9 @@ public interface ScriptResultStore {
     /** What this chat still keeps, oldest first. */
     List<StoredScriptResult> list(String conversationId);
 
+    /** Whether results are kept at all — what tells "none yet" from "never, here". */
+    boolean enabled();
+
     /**
      * The outcome of {@link #keep}: the id the value can be read back by, or why there is none.
      *

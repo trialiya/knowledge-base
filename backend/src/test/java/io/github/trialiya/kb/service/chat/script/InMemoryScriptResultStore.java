@@ -48,6 +48,11 @@ public final class InMemoryScriptResultStore implements ScriptResultStore {
     }
 
     @Override
+    public boolean enabled() {
+        return true;
+    }
+
+    @Override
     public synchronized List<StoredScriptResult> list(String conversationId) {
         List<StoredScriptResult> list = new ArrayList<>();
         chats.getOrDefault(conversationId, Map.of()).values().forEach(e -> list.add(e.summary()));

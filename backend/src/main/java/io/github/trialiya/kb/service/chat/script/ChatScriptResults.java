@@ -59,7 +59,7 @@ public class ChatScriptResults implements ScriptResultStore {
             // A chat that has no row yet (a run outside any saved conversation) lands here on the
             // foreign key, and so does a database or pool failure. Either way the run itself
             // succeeded — and may already have written files — so it must not turn into an error.
-            log.warn("Script result of chat {} was not kept: {}", conversationId, e.getMessage());
+            log.warn("Script result of chat {} was not kept", conversationId, e);
             return Kept.not(null);
         }
         if (seq > properties.keepPerChat()) {
@@ -125,6 +125,11 @@ public class ChatScriptResults implements ScriptResultStore {
                 .toList();
     }
 
+    @Override
+    public boolean enabled() {
+        return properties.enabled();
+    }
+
     static String idOf(int seq) {
         return "r" + seq;
     }
@@ -134,7 +139,7 @@ public class ChatScriptResults implements ScriptResultStore {
      * "3"} all mean the same result — a weak model drops the prefix as readily as it keeps it, and
      * there is nothing else the digits could mean here.
      */
-    public static OptionalInt seqOf(String id) {
+    static OptionalInt seqOf(String id) {
         String text = id.strip().toLowerCase(Locale.ROOT);
         if (text.startsWith("r")) {
             text = text.substring(1);

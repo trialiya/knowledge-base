@@ -64,7 +64,7 @@ public class ScriptResultFunction {
                                             + "script-result-<id>.json (or .txt for a string).",
                             required = false)
                     @Nullable String fileName) {
-        final String id = requireText(resultId, "resultId").strip();
+        final String id = ScriptResultReader.canonical(requireText(resultId, "resultId"));
         final String chat = conversationId(context);
         final String json = ScriptResultReader.of(store, ResultScope.readOnly(chat)).valueJson(id);
         final JsonNode value = parse(json);
