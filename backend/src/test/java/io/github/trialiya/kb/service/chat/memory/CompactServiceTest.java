@@ -583,8 +583,7 @@ class CompactServiceTest {
         when(chatHistory.liveRows(CONV)).thenReturn(entitiesOf(append(oldWindow, command)));
         when(chatHistory.liveRowsBefore(CONV, 3L)).thenReturn(entitiesOf(oldWindow));
         when(chatHistory.promptRowsFor(eq(CONV), any())).thenReturn(oldWindow);
-        when(chatHistory.saveUserMessage(CONV, "/compact", List.of(), null, null))
-                .thenReturn(command.entity());
+        when(chatHistory.saveCommandMessage(CONV, "/compact")).thenReturn(command.entity());
         answerWith("", new DefaultUsage(12_000, 3, 12_003, null, 0L, 0L));
 
         service().start(CONV, "/compact", null, false, OPTIONS, null);
@@ -673,7 +672,7 @@ class CompactServiceTest {
                 .hasMessageContaining("Nothing to compact");
 
         verify(slots).release(CONV, "run-1");
-        verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), any(), any(), any());
+        verify(chatHistory, never()).saveCommandMessage(anyString(), anyString());
     }
 
     /**
@@ -693,8 +692,7 @@ class CompactServiceTest {
         when(chatHistory.liveRowsBefore(CONV, 3L)).thenReturn(entitiesOf(oldWindow));
         when(chatHistory.promptRowsFor(eq(CONV), any())).thenReturn(oldWindow);
         final ChatMessageEntity saved = command.entity();
-        when(chatHistory.saveUserMessage(CONV, "/compact фокус", List.of(), null, null))
-                .thenReturn(saved);
+        when(chatHistory.saveCommandMessage(CONV, "/compact фокус")).thenReturn(saved);
 
         final CompactService.StartedCompact started =
                 service().start(CONV, "/compact фокус", "фокус", false, OPTIONS, "client-1");
@@ -748,8 +746,7 @@ class CompactServiceTest {
         when(chatHistory.liveRows(CONV)).thenReturn(entitiesOf(append(oldWindow, command)));
         when(chatHistory.liveRowsBefore(CONV, 3L)).thenReturn(entitiesOf(oldWindow));
         when(chatHistory.promptRowsFor(eq(CONV), any())).thenReturn(oldWindow);
-        when(chatHistory.saveUserMessage(CONV, "/compact", List.of(), null, null))
-                .thenReturn(command.entity());
+        when(chatHistory.saveCommandMessage(CONV, "/compact")).thenReturn(command.entity());
         when(repository.findById(command.entity().getId()))
                 .thenReturn(Optional.of(command.entity()));
         answerWith("");
@@ -789,8 +786,7 @@ class CompactServiceTest {
         when(chatHistory.liveRows(CONV)).thenReturn(entitiesOf(append(oldWindow, command)));
         when(chatHistory.liveRowsBefore(CONV, 6L)).thenReturn(entitiesOf(oldWindow));
         when(chatHistory.promptRowsFor(eq(CONV), any())).thenReturn(oldWindow.subList(0, 3));
-        when(chatHistory.saveUserMessage(CONV, "/compact-1", List.of(), null, null))
-                .thenReturn(command.entity());
+        when(chatHistory.saveCommandMessage(CONV, "/compact-1")).thenReturn(command.entity());
 
         service().start(CONV, "/compact-1", null, true, OPTIONS, null);
 
@@ -812,7 +808,7 @@ class CompactServiceTest {
     void aRejectedRoundUnblocksEveryTabWithAnErrorEvent() {
         when(slots.claim(CONV)).thenReturn("run-1");
         when(chatHistory.liveRows(CONV)).thenReturn(entitiesOf(turns(1)));
-        when(chatHistory.saveUserMessage(eq(CONV), anyString(), any(), any(), any()))
+        when(chatHistory.saveCommandMessage(eq(CONV), anyString()))
                 .thenReturn(row(3, MessageType.USER, "/compact").entity());
 
         assertThatThrownBy(

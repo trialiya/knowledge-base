@@ -43,17 +43,17 @@ class TopicPromptTest {
     }
 
     @Test
-    void turnsCountAnsweredQuestionsOnly() {
+    void turnsCountAnswersWritten() {
         user("first");
         assistant("answer 1");
-        row(MessageType.USER, "", ChatMessageMeta.ofInterjection(List.of()), false);
+        row(MessageType.USER, "", ChatMessageMeta.ofInterjection(List.of()));
+        // Второй сегмент того же ответа — tool-цикл, а не новый ответ.
         assistant("answer 1, continued");
         row(
                 MessageType.USER,
                 "",
-                ChatMessageMeta.ofGitEvent(new GitEventMeta("pull", "kb", true, "ok", "main")),
-                false);
-        user("/compact keep the numbers");
+                ChatMessageMeta.ofGitEvent(new GitEventMeta("pull", "kb", true, "ok", "main")));
+        command("/compact keep the numbers");
         compactPlaque();
         user("second");
         assistant("answer 2");
@@ -64,13 +64,22 @@ class TopicPromptTest {
     }
 
     @Test
+    void aBatchOfQueuedQuestionsWithOneAnswerIsOneTurn() {
+        user("first");
+        // Досланное, пока шёл ответ: доставляется всей очередью сразу, отвечает на неё один прогон.
+        user("and also this");
+        user("and this");
+        assistant("answer to all three");
+
+        assertThat(TopicPrompt.turns(rows)).isEqualTo(1);
+    }
+
+    @Test
     void theExcerptEndsWithTheLastAnswerAndSkipsServiceRows() {
         user("How do I configure pgvector?");
-        row(MessageType.ASSISTANT, "old summary", null, true);
         assistant("");
-        row(MessageType.TOOL, "tool output", null, false);
         assistant("Install the extension first.");
-        user("/сжать");
+        command("/сжать");
         compactPlaque();
         user("queued question");
 
@@ -156,14 +165,12 @@ class TopicPromptTest {
                 ChatMessageMeta.ofContextItems(
                         List.of(
                                 new ContextItem(ContextItemKind.ATTACHMENT, "1", "report.pdf"),
-                                new ContextItem(ContextItemKind.ATTACHMENT, "2", "trace.log"))),
-                false);
+                                new ContextItem(ContextItemKind.ATTACHMENT, "2", "trace.log"))));
         row(
                 MessageType.USER,
                 "",
                 ChatMessageMeta.ofContextItems(
-                        List.of(new ContextItem(ContextItemKind.ATTACHMENT, "3", "photo.png"))),
-                false);
+                        List.of(new ContextItem(ContextItemKind.ATTACHMENT, "3", "photo.png"))));
         assistant("Looks fine.");
 
         assertThat(TopicPrompt.excerpt(rows))
@@ -205,11 +212,15 @@ class TopicPromptTest {
     }
 
     private void user(String text) {
-        row(MessageType.USER, text, null, false);
+        row(MessageType.USER, text, null);
     }
 
     private void assistant(String text) {
-        row(MessageType.ASSISTANT, text, null, false);
+        row(MessageType.ASSISTANT, text, null);
+    }
+
+    private void command(String text) {
+        row(MessageType.USER, text, ChatMessageMeta.ofCommand());
     }
 
     private void compactPlaque() {
@@ -217,12 +228,14 @@ class TopicPromptTest {
                 MessageType.ASSISTANT,
                 "",
                 ChatMessageMeta.ofCompact(
-                        new CompactMeta(4, 100, 1, CompactMeta.Kind.COMPACT, null)),
-                false);
+                        new CompactMeta(4, 100, 1, CompactMeta.Kind.COMPACT, null)));
     }
 
-    private void row(
-            MessageType type, String content, @Nullable ChatMessageMeta meta, boolean summary) {
+    /**
+     * Ряды такие, какими их отдаёт {@code ChatMessageRepository.findConversationTurns}: без сводок
+     * и без протокола инструментов — их отсеивает сама выборка.
+     */
+    private void row(MessageType type, String content, @Nullable ChatMessageMeta meta) {
         rows.add(
                 new ChatMessageEntity(
                         rows.size() + 1L,
@@ -231,7 +244,7 @@ class TopicPromptTest {
                         type,
                         rows.size(),
                         false,
-                        summary,
+                        false,
                         LocalDateTime.now(),
                         meta));
     }

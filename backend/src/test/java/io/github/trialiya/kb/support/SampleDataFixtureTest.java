@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.util.List;
 import java.util.Objects;
@@ -46,6 +48,7 @@ class SampleDataFixtureTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private DocumentRepository documentRepo;
     @Autowired private ChatMessageRepository chatMessageRepo;
+    @Autowired private ChatTopicRepository chatTopicRepo;
 
     /**
      * The chat names the project its tools ran in. Asserted because the column is nullable and the
@@ -126,10 +129,10 @@ class SampleDataFixtureTest {
                 .extracting(ChatMessageEntity::getType)
                 .containsOnly(MessageType.USER, MessageType.ASSISTANT);
         assertThat(turns).extracting(ChatMessageEntity::getToolData).containsOnlyNulls();
-        assertThat(
-                        jdbc.queryForList(
-                                "select ai_topic_turn from chat_topic order by conversation_id",
-                                Integer.class))
+        // Через сущность, а не через SQL: колонка новая, и проверять надо в том числе то, что она
+        // доезжает до ChatTopicEntity — по ней AiTopicService и решает, пора ли называть чат.
+        assertThat(chatTopicRepo.findAll())
+                .extracting(ChatTopicEntity::getAiTopicTurn)
                 .containsExactly(3, 1);
     }
 

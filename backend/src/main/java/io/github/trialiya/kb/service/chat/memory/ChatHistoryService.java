@@ -103,8 +103,8 @@ public class ChatHistoryService {
      * осталось бы ни одного носителя: репозиторий пришлось бы каждый раз спрашивать у {@code
      * chat_topic}, на каждой итерации tool-цикла.
      *
-     * @param project канонический id проекта, на котором идёт прогон; {@code null} — вызывающему
-     *     нечего штамповать (команда {@code /compact}, первым сообщением чата не бывающая)
+     * @param project канонический id проекта, на котором идёт прогон; {@code null} — прогон идёт
+     *     без репозитория, и штамповать нечего
      */
     @Transactional
     public ChatMessageEntity saveUserMessage(
@@ -128,6 +128,29 @@ public class ChatHistoryService {
                         LocalDateTime.now(),
                         ChatMessageMeta.ofUserMessage(
                                 contextItems, stamped, marked == null ? null : marked.from())));
+    }
+
+    /**
+     * Ряд слэш-команды чата — {@code /compact} с набранным текстом (см. {@code CompactService}).
+     * Пользовательский текст в ленте, но не реплика: ряд помечен {@code meta.command} и ходом
+     * разговора не считается.
+     *
+     * <p>Проект команде не штампуется: первым сообщением чата она не бывает — сжимать было бы
+     * нечего, — а базовый штамп нужен только там (см. {@link #saveUserMessage}).
+     */
+    @Transactional
+    public ChatMessageEntity saveCommandMessage(String conversationId, String text) {
+        return chatMessageRepository.save(
+                new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        text,
+                        MessageType.USER,
+                        lastPosition(conversationId) + 1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofCommand()));
     }
 
     /**

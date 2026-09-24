@@ -62,8 +62,8 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
             @JsonIgnore @Nullable String apiKey) {
 
         public ModelOption {
-            baseUrl = trimToNull(baseUrl);
-            apiKey = trimToNull(apiKey);
+            baseUrl = ConfigValues.trimToNull(baseUrl);
+            apiKey = ConfigValues.trimToNull(apiKey);
             if (baseUrl != null && apiKey == null) {
                 throw new IllegalArgumentException(
                         "kb.chat model \""
@@ -101,14 +101,6 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
         @JsonProperty("ownEndpoint")
         public boolean hasOwnEndpoint() {
             return baseUrl != null || apiKey != null;
-        }
-
-        private static @Nullable String trimToNull(@Nullable String value) {
-            if (value == null) {
-                return null;
-            }
-            String trimmed = value.trim();
-            return trimmed.isEmpty() ? null : trimmed;
         }
     }
 

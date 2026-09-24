@@ -90,14 +90,8 @@ public record SummarizeProperties(
         @Nullable String thinking) {
 
     public SummarizeProperties {
-        // Пустая строка приходит от `${ПЕРЕМЕННАЯ:}` в application.yaml — «не задано», а не
-        // «задано пустым»: пустая модель, отправленная провайдеру, это отказ на каждом раунде.
-        model = trimToNull(model);
-        reasoningEffort = trimToNull(reasoningEffort);
-        thinking = trimToNull(thinking);
-    }
-
-    private static @Nullable String trimToNull(@Nullable String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+        model = ConfigValues.trimToNull(model);
+        reasoningEffort = ConfigValues.trimToNull(reasoningEffort);
+        thinking = ConfigValues.trimToNull(thinking);
     }
 }

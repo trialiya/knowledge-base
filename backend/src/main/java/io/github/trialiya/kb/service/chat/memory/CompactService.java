@@ -288,9 +288,7 @@ public class CompactService {
                 throw new ResponseStatusException(
                         HttpStatus.UNPROCESSABLE_CONTENT, "Nothing to compact");
             }
-            // Проект команде не штампуется: первым сообщением чата она не бывает (сжимать было бы
-            // нечего), а базовый штамп нужен только там.
-            commandRow = chatHistory.saveUserMessage(conversationId, text, List.of(), null, null);
+            commandRow = chatHistory.saveCommandMessage(conversationId, text);
         } catch (RuntimeException e) {
             slots.release(conversationId, runId);
             throw e;

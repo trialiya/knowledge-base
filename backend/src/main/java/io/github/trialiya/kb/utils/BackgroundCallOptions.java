@@ -52,11 +52,4 @@ public final class BackgroundCallOptions {
         }
         return options;
     }
-
-    /**
-     * Пустая строка от {@code ${ПЕРЕМЕННАЯ:}} в конфигурации — «не задано», а не «задано пустым».
-     */
-    public static @Nullable String trimToNull(@Nullable String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
 }

@@ -1301,4 +1301,14 @@ describe('applyChatEvent', () => {
     expect(chat.title).toBe('Моё');
     expect(chat.aiTopic).toBe('Kafka retries');
   });
+
+  test('CHAT_TOPIC carries a rename from another tab, AI name or not', () => {
+    const chat = applyChatEvent(
+      { ...userChat(), title: 'Новый чат', aiTopic: null },
+      { type: 'CHAT_TOPIC', runId: null, payload: { topic: 'Мой чат', aiTopic: null } },
+      ctx,
+    );
+    expect(chat.title).toBe('Мой чат');
+    expect(chat.aiTopic).toBeNull();
+  });
 });

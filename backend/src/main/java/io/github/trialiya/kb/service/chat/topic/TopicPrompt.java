@@ -29,10 +29,12 @@ import org.springframework.ai.chat.messages.MessageType;
  * его началу в историю уже может лечь следующий вопрос из очереди — ни ходом, ни текстом он к
  * только что законченному ответу не относится.
  *
- * <p>В окно не идут сводки (они пересказывают начало разговора, а название — про то, чем он занят
- * сейчас), плашки сжатия, ряды событий (git, откат, скрипт), сама команда сжатия и ряды без текста
- * — вызовы инструментов. Блоки кода сворачиваются до пометки с языком: для темы они шум. Имена
- * вложений к вопросу, наоборот, добавляются: «разбери этот отчёт» без имени файла пуст.
+ * <p>В окно не идут сводки (их не отдаёт и сама выборка, {@code
+ * ChatMessageRepository.findConversationTurns}: они пересказывают начало разговора, а название —
+ * про то, чем он занят сейчас), плашки сжатия, ряды событий (git, откат, скрипт), ряды слэш-команд
+ * и ряды без текста — вызовы инструментов. Блоки кода сворачиваются до пометки с языком: для темы
+ * они шум. Имена вложений к вопросу, наоборот, добавляются: «разбери этот отчёт» без имени файла
+ * пуст.
  */
 final class TopicPrompt {
 
@@ -44,15 +46,6 @@ final class TopicPrompt {
 
     /** Шов на месте вырезанной середины — его же описывает промпт {@code chat-topic.md}. */
     static final String CUT = " … ";
-
-    /**
-     * Команда сжатия пишется в историю обычным вопросом — с тем текстом, что набрали. Триггеры те
-     * же, что у слэш-команд фронта ({@code chatCommands.js}).
-     */
-    private static final Pattern COMPACT_COMMAND =
-            Pattern.compile(
-                    "^/(compact|сжать)(-1)?(\\s|$)",
-                    Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**
      * Размышления, которые часть эндпоинтов отдаёт прямо в тексте ответа, — и незакрытые тоже:
@@ -107,15 +100,22 @@ final class TopicPrompt {
     }
 
     /**
-     * Сколько ходов в разговоре уже отвечено: вопросы, открывающие ход ({@link
-     * ChatHistoryService#opensATurn}), до последнего ответа модели. Команда сжатия ходом не
-     * считается — отвечает на неё не модель.
+     * Сколько ответов модель уже написала. Считаются именно ответы, а не вопросы: очередь
+     * доставляется целиком ({@code PendingMessageService.flushPlain}), и на три досланных подряд
+     * сообщения приходится один ответ — по вопросам номер контрольной точки убегал бы вперёд от
+     * того, что видно в чате. Ответом счёт открывает вопрос, открывающий ход ({@link
+     * ChatHistoryService#opensATurn}) и не являющийся слэш-командой: сегменты tool-цикла идут
+     * подряд, и без этого каждый из них считался бы отдельным ответом.
      */
     static int turns(List<ChatMessageEntity> rows) {
         int turns = 0;
+        boolean asked = false;
         for (final ChatMessageEntity row : rows.subList(0, answeredEnd(rows))) {
-            if (ChatHistoryService.opensATurn(row) && !isCompactCommand(row)) {
+            if (ChatHistoryService.opensATurn(row) && !isCommand(row)) {
+                asked = true;
+            } else if (asked && isAnswer(row)) {
                 turns++;
+                asked = false;
             }
         }
         return turns;
@@ -192,16 +192,13 @@ final class TopicPrompt {
 
     /**
      * Текст длиннее {@code limit} — начало и конец поровну, между ними {@link #CUT}. Итог не
-     * длиннее {@code limit}.
+     * длиннее {@code limit}; сам предел обязан быть больше шва, и пределы сообщений выше такие.
      */
     static String shorten(String text, int limit) {
         if (text.length() <= limit) {
             return text;
         }
         final int room = limit - CUT.length();
-        if (room <= 0) {
-            return text.substring(0, Math.max(0, limit));
-        }
         int head = (room + 1) / 2;
         if (Character.isHighSurrogate(text.charAt(head - 1))) {
             head--;
@@ -261,29 +258,27 @@ final class TopicPrompt {
     /** Конец отвеченной части истории: индекс за последним ответом модели, 0 — ответов нет. */
     private static int answeredEnd(List<ChatMessageEntity> rows) {
         for (int i = rows.size() - 1; i >= 0; i--) {
-            final ChatMessageEntity row = rows.get(i);
-            if (row.getType() == MessageType.ASSISTANT && !row.isSummary() && !isPlaque(row)) {
+            if (isAnswer(rows.get(i))) {
                 return i + 1;
             }
         }
         return 0;
     }
 
+    private static boolean isAnswer(ChatMessageEntity row) {
+        return row.getType() == MessageType.ASSISTANT && !isPlaque(row);
+    }
+
     private static boolean readable(ChatMessageEntity row) {
-        return (row.getType() == MessageType.USER || row.getType() == MessageType.ASSISTANT)
-                && !row.isSummary()
-                && !isPlaque(row)
-                && !ChatHistoryService.isEventRow(row)
-                && !isCompactCommand(row);
+        return !isPlaque(row) && !ChatHistoryService.isEventRow(row) && !isCommand(row);
     }
 
     private static boolean isPlaque(ChatMessageEntity row) {
         return row.getMeta() != null && row.getMeta().compact() != null;
     }
 
-    private static boolean isCompactCommand(ChatMessageEntity row) {
-        return row.getType() == MessageType.USER
-                && COMPACT_COMMAND.matcher(row.getContent().strip()).find();
+    private static boolean isCommand(ChatMessageEntity row) {
+        return row.getMeta() != null && row.getMeta().command();
     }
 
     private static String text(ChatMessageEntity row) {

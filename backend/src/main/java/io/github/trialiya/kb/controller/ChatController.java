@@ -14,6 +14,7 @@ import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchGroups;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
+import io.github.trialiya.kb.model.chat.dto.ChatTopicPayload;
 import io.github.trialiya.kb.model.chat.dto.ChatUsageTotals;
 import io.github.trialiya.kb.model.chat.dto.CompactDetail;
 import io.github.trialiya.kb.model.chat.dto.CompactRequest;
@@ -232,7 +233,7 @@ public class ChatController {
                                 .filter(
                                         a ->
                                                 (a.getText() != null && !a.getText().isBlank())
-                                                        || isEventRow(a))
+                                                        || ChatHistoryService.isEventRow(a))
                                 .map(a -> toChatMessage(a, a.getInvocations()))
                                 .toList()
                         : null;
@@ -321,6 +322,14 @@ public class ChatController {
                             // записанное между чтением и записью.
                             chatTopicRepository.updateUserTopic(
                                     conversationId, topic, LocalDateTime.now(clock));
+                            // Тем же событием, что и название от ИИ: остальные вкладки меняют
+                            // заголовок сразу, а не при следующем открытии чата.
+                            chatEventService.publish(
+                                    conversationId,
+                                    ChatEventType.CHAT_TOPIC,
+                                    null,
+                                    null,
+                                    new ChatTopicPayload(topic, chatTopicEntity.getAiTopic()));
                         },
                         () ->
                                 chatTopicRepository.save(
@@ -332,8 +341,10 @@ public class ChatController {
                                                 null,
                                                 null,
                                                 null,
-                                                // overwritten by @CreatedDate/@LastModifiedDate
-                                                // auditing before insert
+                                                null,
+                                                // overwritten by
+                                                // @CreatedDate/@LastModifiedDate auditing
+                                                // before insert
                                                 LocalDateTime.now(),
                                                 LocalDateTime.now(),
                                                 true)));
@@ -699,17 +710,6 @@ public class ChatController {
                 meta != null ? meta.scriptEvent() : null,
                 meta != null && meta.interjection() ? Boolean.TRUE : null,
                 meta != null ? meta.usage() : null);
-    }
-
-    /**
-     * Ряд, оставленный действием пользователя (git-команда, откат файловых правок, прогон скрипта
-     * по команде {@code /script}): текста у него нет, и показать его можно только по мете.
-     */
-    private static boolean isEventRow(ChatMessageEntity entity) {
-        return entity.getMeta() != null
-                && (entity.getMeta().gitEvent() != null
-                        || entity.getMeta().fileRevert() != null
-                        || entity.getMeta().scriptEvent() != null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

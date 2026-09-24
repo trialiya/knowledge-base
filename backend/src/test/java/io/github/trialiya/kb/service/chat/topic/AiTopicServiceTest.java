@@ -60,7 +60,7 @@ class AiTopicServiceTest {
     @Test
     void theFirstAnswerNamesTheChatAndTellsTheTabs() {
         when(chatTopics.findById(CONV))
-                .thenReturn(chat(null, null), chat(null, "Настройка pgvector"));
+                .thenReturn(chat(null, null, null), chat(null, "Настройка pgvector", 1));
         turns(1);
         answerWith("«Настройка pgvector»");
 
@@ -79,7 +79,7 @@ class AiTopicServiceTest {
 
     @Test
     void aRenamedChatIsLeftAlone() {
-        when(chatTopics.findById(CONV)).thenReturn(chat("My own title", null));
+        when(chatTopics.findById(CONV)).thenReturn(chat("My own title", null, null));
         turns(1);
 
         service(true).name(CONV);
@@ -90,19 +90,33 @@ class AiTopicServiceTest {
 
     @Test
     void betweenCheckpointsTheTitleStays() {
-        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title"));
-        when(chatTopics.findAiTopicTurn(CONV)).thenReturn(1);
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title", 1));
         turns(2);
 
         service(true).name(CONV);
 
         verify(chatModel, never()).call(any(Prompt.class));
+        // Историю при этом даже не читали — хватило счётчика ответов.
+        verify(chatMessages, never()).findConversationTurns(CONV);
+    }
+
+    @Test
+    void theHistoryIsReadOnlyWhenSegmentsCouldHaveReachedACheckpoint() {
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title", 3));
+        // Ход один, но сегментов tool-цикла в нём много: счётчик рядов обгоняет число ответов, и
+        // историю приходится прочитать — чтобы убедиться, что точка ещё не пройдена.
+        turns(4);
+        when(chatMessages.countAnswerRows(CONV)).thenReturn(12);
+
+        service(true).name(CONV);
+
+        verify(chatMessages).findConversationTurns(CONV);
+        verify(chatModel, never()).call(any(Prompt.class));
     }
 
     @Test
     void aCheckpointShowsTheCurrentTitleAndKeepsItWhenTheModelDoes() {
-        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title"));
-        when(chatTopics.findAiTopicTurn(CONV)).thenReturn(1);
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title", 1));
         turns(3);
         answerWith("Old title");
 
@@ -117,8 +131,7 @@ class AiTopicServiceTest {
     @Test
     void aMissedCheckpointIsTakenByTheNextAnswer() {
         // Ответ на третьем остановили (или запрос по нему пропустили, пока шёл прежний).
-        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title"));
-        when(chatTopics.findAiTopicTurn(CONV)).thenReturn(1);
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title", 1));
         turns(4);
         answerWith("Kafka retries");
 
@@ -129,7 +142,7 @@ class AiTopicServiceTest {
 
     @Test
     void aChatNamedBeforeTurnsWereRecordedIsNamedOnItsNextAnswer() {
-        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title"));
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title", null));
         turns(5);
         answerWith("Kafka retries");
 
@@ -140,7 +153,7 @@ class AiTopicServiceTest {
 
     @Test
     void anUnusableReplyWaitsForTheNextCheckpointInsteadOfTheNextAnswer() {
-        when(chatTopics.findById(CONV)).thenReturn(chat(null, null));
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, null, null));
         turns(1);
         answerWith("  \n");
 
@@ -154,7 +167,7 @@ class AiTopicServiceTest {
     @Test
     void aRenameDuringTheRequestWinsOnTheTabs() {
         when(chatTopics.findById(CONV))
-                .thenReturn(chat(null, null), chat("Renamed meanwhile", "Kafka retries"));
+                .thenReturn(chat(null, null, null), chat("Renamed meanwhile", "Kafka retries", 1));
         turns(1);
         answerWith("Kafka retries");
 
@@ -191,6 +204,7 @@ class AiTopicServiceTest {
             row(MessageType.USER, "question " + i);
             row(MessageType.ASSISTANT, "answer " + i);
         }
+        when(chatMessages.countAnswerRows(CONV)).thenReturn(count);
     }
 
     private void row(MessageType type, String content) {
@@ -224,13 +238,14 @@ class AiTopicServiceTest {
     }
 
     private static Optional<ChatTopicEntity> chat(
-            @Nullable String userTopic, @Nullable String aiTopic) {
+            @Nullable String userTopic, @Nullable String aiTopic, @Nullable Integer aiTopicTurn) {
         return Optional.of(
                 new ChatTopicEntity(
                         CONV,
                         "user",
                         userTopic,
                         aiTopic,
+                        aiTopicTurn,
                         null,
                         null,
                         null,

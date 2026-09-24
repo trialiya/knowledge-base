@@ -63,15 +63,6 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
     void updateAiTopic(
             @Param("convId") String convId, @Param("topic") String topic, @Param("turn") int turn);
 
-    /**
-     * На каком ответе ИИ последний раз назвал чат; {@code null} — не называл, или название
-     * придумано до того, как номер стали записывать. Колонки в {@link ChatTopicEntity} нет
-     * намеренно: её пишет и читает только {@code AiTopicService}, а полное сохранение сущности
-     * пишет лишь свои колонки и эту не трогает.
-     */
-    @Query("SELECT ai_topic_turn FROM chat_topic WHERE conversation_id = :convId")
-    @Nullable Integer findAiTopicTurn(@Param("convId") String convId);
-
     /** Только номер ответа — запрос прошёл, но названия не поменял (см. {@link #updateAiTopic}). */
     @Modifying
     @Query("UPDATE chat_topic SET ai_topic_turn = :turn WHERE conversation_id = :convId")

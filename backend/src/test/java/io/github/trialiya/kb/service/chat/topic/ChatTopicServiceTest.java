@@ -84,6 +84,7 @@ class ChatTopicServiceTest {
                         null,
                         null,
                         null,
+                        null,
                         LocalDateTime.now(),
                         LocalDateTime.now(),
                         true));

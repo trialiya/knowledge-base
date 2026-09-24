@@ -54,9 +54,22 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     FROM chat_message
     WHERE conversation_id = :conversationId AND summary = false
       AND type IN ('USER', 'ASSISTANT')
-    ORDER BY created_at, position
+    ORDER BY created_at, id
     """)
     List<ChatMessageEntity> findConversationTurns(@Param("conversationId") String conversationId);
+
+    /**
+     * Верхняя оценка числа ответов модели в чате: сегменты одного ответа (tool-цикл) лежат
+     * отдельными рядами, и каждый считается сам за себя, — настоящих ответов не больше. Дешёвая
+     * проверка перед выборкой истории: пока оценка не дотягивает до следующей контрольной точки,
+     * называть чат заново точно не пора (см. {@code AiTopicService}).
+     */
+    @Query(
+            """
+    SELECT COUNT(*) FROM chat_message
+    WHERE conversation_id = :conversationId AND summary = false AND type = 'ASSISTANT'
+    """)
+    int countAnswerRows(@Param("conversationId") String conversationId);
 
     /**
      * Весь чат целиком, включая строки-сводки и уже сжатые ряды, — для разовых проходов по истории

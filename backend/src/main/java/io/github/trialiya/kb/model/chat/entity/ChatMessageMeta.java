@@ -62,6 +62,12 @@ import org.jspecify.annotations.Nullable;
  * {@code fileRevert}: контент пустой, весь смысл в поле, и читателей у него двое — плашка на фронте
  * и нотис модели.
  *
+ * <p>{@code command} — ряд написан слэш-командой чата ({@code /compact}), а не репликой: текст у
+ * него пользовательский и в ленте он выглядит обычным вопросом, но ходом разговора не является и
+ * материалом для названия чата не служит (см. {@code TopicPrompt}). Флаг ставится при сохранении —
+ * разбирать текст ряда заново значило бы держать вторую копию списка триггеров фронта ({@code
+ * chatCommands.js}), и разойтись эти копии могли бы молча.
+ *
  * <p>{@code interjection} — вопрос доставлен ПОСРЕДИ прогона, между итерациями tool-цикла (см.
  * {@code PendingMessageService}): пользователь писал, глядя на ход работы, а не на готовый ответ.
  * Модель предупреждает нотис в {@code ChatHistoryService.promptRow}; для всего, что ищет «последний
@@ -82,7 +88,8 @@ public record ChatMessageMeta(
         @Nullable RunTokenUsage usage,
         List<ProjectSpan> visitedProjects,
         @Nullable FileRevertMeta fileRevert,
-        @Nullable ScriptEventMeta scriptEvent) {
+        @Nullable ScriptEventMeta scriptEvent,
+        boolean command) {
 
     public ChatMessageMeta {
         invocations = invocations == null ? List.of() : invocations;
@@ -112,7 +119,8 @@ public record ChatMessageMeta(
                 null,
                 List.of(),
                 null,
-                null);
+                null,
+                false);
     }
 
     public ChatMessageMeta(
@@ -173,7 +181,7 @@ public record ChatMessageMeta(
     public static ChatMessageMeta ofCompact(CompactMeta compact) {
         return new ChatMessageMeta(
                 null, false, List.of(), List.of(), null, null, null, compact, null, false, null,
-                List.of(), null, null);
+                List.of(), null, null, false);
     }
 
     /**
@@ -184,7 +192,7 @@ public record ChatMessageMeta(
     public static ChatMessageMeta ofUsage(RunTokenUsage usage) {
         return new ChatMessageMeta(
                 null, false, List.of(), List.of(), null, null, null, null, null, false, usage,
-                List.of(), null, null);
+                List.of(), null, null, false);
     }
 
     /**
@@ -195,7 +203,7 @@ public record ChatMessageMeta(
     public static ChatMessageMeta ofGitEvent(GitEventMeta gitEvent) {
         return new ChatMessageMeta(
                 null, false, List.of(), List.of(), null, null, null, null, gitEvent, false, null,
-                List.of(), null, null);
+                List.of(), null, null, false);
     }
 
     /**
@@ -217,7 +225,8 @@ public record ChatMessageMeta(
                 null,
                 List.of(),
                 fileRevert,
-                null);
+                null,
+                false);
     }
 
     /**
@@ -240,7 +249,8 @@ public record ChatMessageMeta(
                 null,
                 List.of(),
                 null,
-                scriptEvent);
+                scriptEvent,
+                false);
     }
 
     /**
@@ -264,7 +274,15 @@ public record ChatMessageMeta(
                 null,
                 List.of(),
                 null,
-                null);
+                null,
+                false);
+    }
+
+    /** Метаданные ряда слэш-команды чата: кроме флага {@code command} в них ничего нет. */
+    public static ChatMessageMeta ofCommand() {
+        return new ChatMessageMeta(
+                null, false, List.of(), List.of(), null, null, null, null, null, false, null,
+                List.of(), null, null, true);
     }
 
     /**
@@ -288,7 +306,8 @@ public record ChatMessageMeta(
                 null,
                 visitedProjects,
                 null,
-                null);
+                null,
+                false);
     }
 
     /**
@@ -311,7 +330,8 @@ public record ChatMessageMeta(
                 usage,
                 visitedProjects,
                 fileRevert,
-                null);
+                scriptEvent,
+                command);
     }
 
     /**
@@ -334,7 +354,8 @@ public record ChatMessageMeta(
                 usage,
                 visitedProjects,
                 fileRevert,
-                null);
+                scriptEvent,
+                command);
     }
 
     /**
@@ -359,7 +380,8 @@ public record ChatMessageMeta(
                 usage,
                 visitedProjects,
                 fileRevert,
-                null);
+                scriptEvent,
+                command);
     }
 
     /**
@@ -382,6 +404,7 @@ public record ChatMessageMeta(
                 usage,
                 visitedProjects,
                 fileRevert,
-                null);
+                scriptEvent,
+                command);
     }
 }

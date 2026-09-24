@@ -10,7 +10,6 @@ import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.utils.BackgroundCallOptions;
-import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,7 +41,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class AiTopicService implements DisposableBean {
 
-    private static final Duration SHUTDOWN_GRACE = Duration.ofSeconds(5);
+    private static final int SHUTDOWN_GRACE_SECONDS = 5;
 
     private final ChatClient chatClient;
     private final ChatTopicRepository chatTopics;
@@ -89,17 +88,14 @@ public class AiTopicService implements DisposableBean {
     @Override
     public void destroy() throws InterruptedException {
         executor.shutdown();
-        if (!executor.awaitTermination(SHUTDOWN_GRACE.toSeconds(), TimeUnit.SECONDS)) {
+        if (!executor.awaitTermination(SHUTDOWN_GRACE_SECONDS, TimeUnit.SECONDS)) {
             executor.shutdownNow();
         }
     }
 
     /** Ответ модели записан — в фоне решить, пора ли назвать чат, и назвать. */
     public void afterAnswer(String conversationId) {
-        if (!properties.enabled()) {
-            return;
-        }
-        if (!naming.add(conversationId)) {
+        if (!properties.enabled() || !naming.add(conversationId)) {
             return;
         }
         try {
@@ -127,9 +123,15 @@ public class AiTopicService implements DisposableBean {
         if (chat == null || chat.getUserTopic() != null) {
             return;
         }
+        final @Nullable Integer namedAt = chat.getAiTopicTurn();
+        // Дешёвая оценка вместо истории: между контрольными точками — а это почти каждый ответ —
+        // весь фоновый запрос обходится одним COUNT.
+        if (namedAt != null
+                && !TopicPrompt.due(chatMessages.countAnswerRows(conversationId), namedAt)) {
+            return;
+        }
         final List<ChatMessageEntity> rows = chatMessages.findConversationTurns(conversationId);
         final int turns = TopicPrompt.turns(rows);
-        final @Nullable Integer namedAt = chatTopics.findAiTopicTurn(conversationId);
         if (namedAt != null && !TopicPrompt.due(turns, namedAt)) {
             return;
         }
@@ -150,10 +152,8 @@ public class AiTopicService implements DisposableBean {
         // (исключение выше) номера не пишет — его пробует уже ближайший ответ.
         if (topic == null) {
             log.warn("[{}] Chat naming returned no title", conversationId);
-            chatTopics.updateAiTopicTurn(conversationId, turns);
-            return;
         }
-        if (topic.equals(current)) {
+        if (topic == null || topic.equals(current)) {
             chatTopics.updateAiTopicTurn(conversationId, turns);
             return;
         }

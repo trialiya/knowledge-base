@@ -1,6 +1,5 @@
 package io.github.trialiya.kb.config.model;
 
-import io.github.trialiya.kb.utils.BackgroundCallOptions;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -21,8 +20,8 @@ public record ChatTopicProperties(
         @Nullable String thinking) {
 
     public ChatTopicProperties {
-        model = BackgroundCallOptions.trimToNull(model);
-        reasoningEffort = BackgroundCallOptions.trimToNull(reasoningEffort);
-        thinking = BackgroundCallOptions.trimToNull(thinking);
+        model = ConfigValues.trimToNull(model);
+        reasoningEffort = ConfigValues.trimToNull(reasoningEffort);
+        thinking = ConfigValues.trimToNull(thinking);
     }
 }

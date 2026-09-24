@@ -17,6 +17,7 @@ public class ChatTopicEntity implements Persistable<String> {
     private final String user;
     @Nullable private final String userTopic;
     @Nullable private final String aiTopic;
+    @Nullable private final Integer aiTopicTurn;
     @Nullable private final String model;
     @Nullable private final String mode;
     @Nullable private final String project;
@@ -30,6 +31,7 @@ public class ChatTopicEntity implements Persistable<String> {
             String user,
             @Nullable String userTopic,
             @Nullable String aiTopic,
+            @Nullable Integer aiTopicTurn,
             @Nullable String model,
             @Nullable String mode,
             @Nullable String project,
@@ -40,6 +42,7 @@ public class ChatTopicEntity implements Persistable<String> {
         this.user = user;
         this.userTopic = userTopic;
         this.aiTopic = aiTopic;
+        this.aiTopicTurn = aiTopicTurn;
         this.model = model;
         this.mode = mode;
         this.project = project;
@@ -55,6 +58,7 @@ public class ChatTopicEntity implements Persistable<String> {
             String user,
             @Nullable String userTopic,
             @Nullable String aiTopic,
+            @Nullable Integer aiTopicTurn,
             @Nullable String model,
             @Nullable String mode,
             @Nullable String project,
@@ -65,6 +69,7 @@ public class ChatTopicEntity implements Persistable<String> {
                 user,
                 userTopic,
                 aiTopic,
+                aiTopicTurn,
                 model,
                 mode,
                 project,
@@ -87,6 +92,7 @@ public class ChatTopicEntity implements Persistable<String> {
                 user,
                 userTopic,
                 aiTopic,
+                null,
                 model,
                 null,
                 null,
@@ -113,6 +119,15 @@ public class ChatTopicEntity implements Persistable<String> {
     @Nullable
     public String getAiTopic() {
         return aiTopic;
+    }
+
+    /**
+     * На каком по счёту ответе модели {@code AiTopicService} последний раз назвал чат; {@code null}
+     * — не называл, или название придумано до того, как номер стали записывать.
+     */
+    @Nullable
+    public Integer getAiTopicTurn() {
+        return aiTopicTurn;
     }
 
     /** Название для отображения: пользовательское имеет приоритет над предложенным ИИ. */
