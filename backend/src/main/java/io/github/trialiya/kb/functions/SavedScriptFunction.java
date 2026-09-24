@@ -1,8 +1,10 @@
 package io.github.trialiya.kb.functions;
 
 import static io.github.trialiya.kb.tools.ToolArgs.requireText;
+import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.model.script.ScriptResult;
+import io.github.trialiya.kb.service.chat.script.ResultScope;
 import io.github.trialiya.kb.service.chat.script.SavedScriptResolver;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.chat.script.ScriptRequest;
@@ -58,8 +60,9 @@ public class SavedScriptFunction {
                     "attachment:<id>" with the id from getChatAttachments / getDocumentAttachments — an \
                     attachment always runs read-only. Same sandbox, budgets and result shape as runScript. \
                     Returns: value (script result), log, stats, filesRead, edits, error \
-                    (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET), and source (which script ran, its path and the \
-                    arguments it got).
+                    (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET), source (which script ran, its path and the \
+                    arguments it got), and resultId (the whole value kept for a later script's \
+                    kb.result(id) and for saveScriptResult).
                     """,
             resultConverter = CompactToolResultConverter.class)
     public ScriptResult runSavedScript(
@@ -85,12 +88,13 @@ public class SavedScriptFunction {
         final String projectId = ProjectContext.from(context);
         final ScriptRequest request =
                 resolver.resolve(
-                        projectId,
-                        scriptName,
-                        args,
-                        timeoutSeconds,
-                        editPolicy.enabled(projectId),
-                        ToolInvocationCollector.from(context));
+                                projectId,
+                                scriptName,
+                                args,
+                                timeoutSeconds,
+                                editPolicy.enabled(projectId),
+                                ToolInvocationCollector.from(context))
+                        .withResults(ResultScope.keeping(conversationId(context)));
         log.info(
                 "runSavedScript called: '{}' ({}), args={}, project='{}', readOnly={}",
                 scriptName,

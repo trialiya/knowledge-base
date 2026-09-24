@@ -218,6 +218,14 @@ public final class ScriptSession {
         chargeBytes(bytes, "Ask for fewer hits: kb.searchDocs(query, N).");
     }
 
+    /**
+     * Books a kept result read back with {@code kb.result}: text handed in like any other, and the
+     * one place a script could otherwise pull a megabyte at a time without a single file read.
+     */
+    public void chargeKeptResult(long bytes) {
+        chargeBytes(bytes, "Keep smaller results, or read fewer of them in one run.");
+    }
+
     private void chargeBytes(long bytes, String advice) {
         bytesRead += bytes;
         long maxBytes = limits.maxBytesRead().toBytes();

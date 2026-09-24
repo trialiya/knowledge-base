@@ -38,7 +38,8 @@ class ChatMessageProjectionTest {
                         null,
                         "сверено 12 файлов",
                         List.of("frontend/src/i18n/ru/chat.json"),
-                        new ScriptStats(12, 2048, 30, 1, 420));
+                        new ScriptStats(12, 2048, 30, 1, 420),
+                        null);
 
         final ChatMessage message = project(row(ChatMessageMeta.ofScriptEvent(event)));
 

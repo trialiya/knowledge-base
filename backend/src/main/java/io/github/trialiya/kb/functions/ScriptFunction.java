@@ -2,9 +2,14 @@ package io.github.trialiya.kb.functions;
 
 import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.requireText;
+import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.model.script.ScriptResult;
+import io.github.trialiya.kb.service.chat.script.ResultScope;
+import io.github.trialiya.kb.service.chat.script.ScriptArgs;
+import io.github.trialiya.kb.service.chat.script.ScriptRequest;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
+import io.github.trialiya.kb.service.chat.script.ScriptSource;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.ProjectContext;
@@ -71,7 +76,9 @@ public class ScriptFunction {
                     Use for many-file iteration with tallying/joining/edits; for single searches, reads, \
                     or edits use grepContent / getFileContent / editFile. Full kb reference and limits in \
                     system prompt section "Scripts (runScript)". Returns: value (script result), log, stats, \
-                    filesRead, edits (file diffs), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET with fix hint).
+                    filesRead, edits (file diffs), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET with fix hint), \
+                    resultId (the whole value kept for a later script's kb.result(id) and for \
+                    saveScriptResult).
                     """,
             resultConverter = CompactToolResultConverter.class)
     public ScriptResult runScript(
@@ -110,14 +117,22 @@ public class ScriptFunction {
                 timeout,
                 projectId,
                 readOnly);
+        final String chat = conversationId(context);
         ScriptResult result =
                 scriptRunner.run(
-                        script,
-                        timeout,
-                        RunCancellation.from(context),
-                        readOnly,
-                        ToolInvocationCollector.from(context),
-                        projectId);
+                        new ScriptRequest(
+                                ScriptSource.inline(script),
+                                ScriptArgs.none(),
+                                timeout,
+                                readOnly,
+                                ToolInvocationCollector.from(context),
+                                projectId,
+                                // The sub-agent's value reaches the chat model only through its
+                                // summary, so an id handed out here would be one nobody can name.
+                                forceReadOnly
+                                        ? ResultScope.readOnly(chat)
+                                        : ResultScope.keeping(chat)),
+                        RunCancellation.from(context));
         log.info("runScript finished: {}", result.getFormattedResponse());
         return result;
     }

@@ -61,6 +61,7 @@ class ScriptTestControllerTest {
                     "default",
                     null,
                     null,
+                    null,
                     List.of(),
                     new ScriptStats(0, 0, 0, 0, 0),
                     null,

@@ -158,7 +158,8 @@ class ScheduledScriptServiceTest {
                                 null,
                                 true,
                                 null,
-                                "kb"));
+                                "kb",
+                                null));
     }
 
     private static Schedule schedule(String cron) {
@@ -179,6 +180,7 @@ class ScheduledScriptServiceTest {
     private static ScriptResult result(ScriptError error) {
         return new ScriptResult(
                 "kb",
+                null,
                 null,
                 error == null ? "ok" : null,
                 List.of(),

@@ -1,7 +1,5 @@
 package io.github.trialiya.kb.service.chat.script;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.script.ScriptError;
@@ -163,12 +161,12 @@ public class ScriptRunner {
         private Helpers() {}
     }
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
     private final GitRegistry gitRegistry;
     private final DocumentService documentService;
     private final ScriptProperties properties;
     private final ScriptEditPolicy editPolicy;
+    private final ScriptResultStore resultStore;
+    private final ScriptResultKeeper resultKeeper;
 
     /**
      * One engine, many contexts. The sandbox is a property of the context — each run still gets a
@@ -192,11 +190,14 @@ public class ScriptRunner {
             GitRegistry gitRegistry,
             DocumentService documentService,
             ScriptProperties properties,
-            ScriptEditPolicy editPolicy) {
+            ScriptEditPolicy editPolicy,
+            ScriptResultStore resultStore) {
         this.gitRegistry = gitRegistry;
         this.documentService = documentService;
         this.properties = properties;
         this.editPolicy = editPolicy;
+        this.resultStore = resultStore;
+        this.resultKeeper = new ScriptResultKeeper(resultStore, properties);
     }
 
     private Engine engine() {
@@ -292,7 +293,8 @@ public class ScriptRunner {
                         timeoutSeconds,
                         forceReadOnly,
                         priorInvocations,
-                        projectId),
+                        projectId,
+                        null),
                 cancellation);
     }
 
@@ -318,11 +320,12 @@ public class ScriptRunner {
         // Whatever the caller was told about its arguments belongs to the run's own log: the model
         // reads it back in the result and fixes the next call without a round-trip to ask.
         request.args().notes().forEach(session::log);
+        ScriptResultReader results = ScriptResultReader.of(resultStore, request.results());
         // Which object is bound IS the permission: with writes off, kb.edit does not exist.
         KbScriptApi api =
                 editPolicy.enabled(request.projectId()) && !request.forceReadOnly()
-                        ? new KbEditScriptApi(gitService, documentService, session)
-                        : new KbScriptApi(gitService, documentService, session);
+                        ? new KbEditScriptApi(gitService, documentService, session, results)
+                        : new KbScriptApi(gitService, documentService, session, results);
         Duration timeout = resolveTimeout(request.timeoutSeconds());
         long deadlineNanos = System.nanoTime() + timeout.toNanos();
 
@@ -351,7 +354,7 @@ public class ScriptRunner {
                     .putMember("args", helpers.getMember("args").execute(request.args().json()));
 
             Value returned = context.eval(source(request.source()));
-            Object value = stringify(helpers.getMember("result"), returned, session);
+            String json = stringify(helpers.getMember("result"), returned);
             // Retire the watchdog before writing: the budget it enforces is the script's, and a
             // deadline landing mid-apply would mean a stop request that leaves files half written
             // instead of none. Idempotent with the finally below.
@@ -359,12 +362,12 @@ public class ScriptRunner {
             // Only now, with the script finished and its result already converted, does anything
             // reach disk. Every earlier exit — a throw, a budget, a timeout, a user stop — leaves
             // the working tree exactly as the run found it.
-            return success(
-                    project,
-                    request.source().report(),
-                    value,
-                    session,
-                    applyPendingWrites(session, gitService));
+            List<GitEditResult> edits = applyPendingWrites(session, gitService);
+            // Kept after the writes, not before: a run whose edits failed to apply ends in an
+            // exception, and a kept value would be the result of a run that never completed.
+            ScriptResultKeeper.Delivered delivered =
+                    resultKeeper.deliver(json, request, project, session);
+            return success(project, request.source().report(), delivered, session, edits);
         } catch (PolyglotException e) {
             return failure(project, request.source(), e, session, cancelReason.get(), timeout);
         } catch (ScriptLimitExceededException e) {
@@ -475,13 +478,14 @@ public class ScriptRunner {
     private ScriptResult success(
             String project,
             @Nullable ScriptRunSource source,
-            @Nullable Object value,
+            ScriptResultKeeper.Delivered delivered,
             ScriptSession session,
             List<GitEditResult> edits) {
         return new ScriptResult(
                 project,
+                delivered.resultId(),
                 source,
-                value,
+                delivered.value(),
                 session.logLines(),
                 session.stats(),
                 null,
@@ -493,6 +497,7 @@ public class ScriptRunner {
             String project, ScriptSource source, ScriptSession session, ScriptError error) {
         return new ScriptResult(
                 project,
+                null,
                 source.report(),
                 null,
                 session.logLines(),
@@ -621,37 +626,16 @@ public class ScriptRunner {
     }
 
     /**
-     * Converts the script's return value to plain Java through the guest's own {@code
-     * JSON.stringify}: it drops functions and host leftovers by construction, and gives one place
-     * to enforce the size cap before anything reaches the model's context.
-     *
-     * <p>Oversize isn't fatal: unlike the other run budgets, the model has already done the work by
-     * the time the result is this large, so the truncated value is returned along with a log line
-     * warning about it, rather than throwing away the run.
+     * The script's return value as JSON, through the guest's own {@code JSON.stringify}: it drops
+     * functions and host leftovers by construction. Whole — how much of it the model is shown, and
+     * whether it is kept, is {@link ScriptResultKeeper}'s decision.
      */
-    private @Nullable Object stringify(Value stringifier, Value returned, ScriptSession session) {
+    private static @Nullable String stringify(Value stringifier, Value returned) {
         Value json = stringifier.execute(returned);
         if (json == null || json.isNull() || !json.isString()) {
             return null;
         }
-        String text = json.asString();
-        int max = properties.limits().maxResultChars();
-        if (text.length() > max) {
-            session.log(
-                    "Result truncated: maxResultChars="
-                            + max
-                            + ", but the returned value was "
-                            + text.length()
-                            + " characters. Return a summary (counts, top-N) instead of raw"
-                            + " content next time.");
-            text = text.substring(0, max);
-        }
-        try {
-            return OBJECT_MAPPER.readValue(text, Object.class);
-        } catch (JsonProcessingException e) {
-            log.warn("Script returned a value that is not valid JSON", e);
-            return text;
-        }
+        return json.asString();
     }
 
     private Duration resolveTimeout(@Nullable Integer requestedSeconds) {

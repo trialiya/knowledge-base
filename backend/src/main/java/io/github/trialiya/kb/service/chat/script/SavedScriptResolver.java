@@ -59,7 +59,8 @@ public class SavedScriptResolver {
                     timeoutSeconds,
                     readOnly,
                     priorInvocations,
-                    projectId);
+                    projectId,
+                    null);
         }
         SavedScript script = catalog.require(projectId, name);
         boolean readOnly = !writesAllowed;
@@ -72,7 +73,8 @@ public class SavedScriptResolver {
                 timeout(timeoutSeconds, script),
                 readOnly,
                 priorInvocations,
-                projectId);
+                projectId,
+                null);
     }
 
     /**

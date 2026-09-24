@@ -22,6 +22,9 @@ import org.jspecify.annotations.Nullable;
  *     {@code runScript} can target a project other than the chat's active one (see {@code
  *     ScriptFunction#runScript}); without it the model cannot tell which repository {@code
  *     filesRead} and {@code edits} belong to
+ * @param resultId the id this run's value is kept under in the chat ({@code r3}), for a later
+ *     script's {@code kb.result} and for {@code saveScriptResult}; null when nothing was kept — a
+ *     failed run, a run outside any chat, a value over {@code kb.script.results.max-chars}
  * @param source where the script came from when it was not written in the call — a saved script of
  *     the project, an attachment. Null for a script the model wrote inline: there the call's own
  *     argument is the text, and repeating a name it does not have would say nothing
@@ -35,6 +38,7 @@ import org.jspecify.annotations.Nullable;
  */
 public record ScriptResult(
         String project,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String resultId,
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) ScriptRunSource source,
         @Nullable Object value,
         List<String> log,
@@ -51,6 +55,7 @@ public record ScriptResult(
     public String getFormattedResponse() {
         return Compact.tag("script")
                 .add("project", project)
+                .add("result", resultId)
                 .add("script", source == null ? null : source.name())
                 .add("files", stats.filesRead())
                 .add("bytes", stats.bytesRead())
@@ -64,6 +69,9 @@ public record ScriptResult(
     @Override
     public Map<String, Object> getResultMeta() {
         Map<String, Object> meta = new LinkedHashMap<>();
+        if (resultId != null) {
+            meta.put("resultId", resultId);
+        }
         if (source != null) {
             meta.put("script", source.name());
             meta.put("scriptPath", source.path());

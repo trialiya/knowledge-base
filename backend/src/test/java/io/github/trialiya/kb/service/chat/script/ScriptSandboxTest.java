@@ -73,7 +73,8 @@ class ScriptSandboxTest {
                 gitRegistry,
                 documentService,
                 properties,
-                new ScriptEditPolicy(gitRegistry, properties));
+                new ScriptEditPolicy(gitRegistry, properties),
+                new InMemoryScriptResultStore());
     }
 
     private ScriptResult run(String script) {

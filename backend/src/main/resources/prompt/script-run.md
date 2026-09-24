@@ -5,9 +5,9 @@
 ### Contract
 - JavaScript ES2023. Script body is a function body: top-level `return` allowed, only way to return.
 - Exactly one object: `kb`, plus `loadScript(path)` for repo files (below). No `require`, `import`, `fetch`, `setTimeout`, `java.*`, `Java.type`, file APIs. Attempts error as `RUNTIME`, not bypasses.
-- No state between runs—each starts fresh.
+- No state between runs—each starts fresh. The one bridge: the value an earlier script of this chat returned, by its `resultId` (below).
 - Debug output: `kb.log(...)`—appears in `log` field.
-- Response: `value` (return), `log`, `stats`, `filesRead`, `error`.
+- Response: `value` (return), `log`, `stats`, `filesRead`, `error`, `resultId` (the id this value is kept under, when kept).
 
 ### kb reference
 | Call | Returns | Notes |
@@ -29,6 +29,8 @@
 | `kb.searchDocs(query, limit)` | `[{docId, title, snippet}]` | |
 | `kb.log(x)` | — | strings as-is, objects as JSON |
 | `loadScript(path)` | `module.exports` of that file | repo file as a module — not a Node `require` |
+| `kb.result(id)` | the value | what an earlier script of this chat returned, by its `resultId` (`'r3'`) — whole, even where you saw it truncated |
+| `kb.results()` | `[{id, script, project, chars, createdAt}]` | results this chat keeps, oldest first |
 
 `kb.grep` defaults to **literal substring**. Metacharacters (`|`, `.*`, `^`, `$`)? Pass `{regex: true}`. `context: 3` adds 3 lines around match.
 
@@ -39,6 +41,8 @@
 **Binary files:** not off-limits, just not text. `kb.read` refuses them (decoded as UTF-8 they'd come back mangled); `kb.readBytes`/`kb.readBase64` return the actual bytes, `kb.stat(path).binary` says which kind a file is, `kb.hash` compares two files without reading either into the script. One byte-read call hands over at most 256 KB, so a big file is read window by window—`kb.stat` first for the size, then a loop over `offset`. `kb.hash` has no such limit: it reads any size and returns 64 chars.
 
 **Modules:** `loadScript('lib/util.js')` reads that repo file through `kb.read` (same visibility, same budget) and runs it as a module: it sees `kb` and `loadScript`, and what it puts in `module.exports` is what you get back. Loaded once per run. Use it for helpers a saved script shares; for anything you write in this call, write it inline — a module is not cheaper, only shared.
+
+**Results between scripts:** a script that finishes with a value gets a `resultId` (`r1`, `r2`, … per chat; a `/script` run by the user too — its notice names the id). The value is kept whole, not cut to {{max_result_chars}} chars. So split big work: script 1 collects and returns the raw data, script 2 does `const rows = kb.result('r1')` and returns the summary — the data never has to pass through you, and never has to be pasted into a script. `saveScriptResult` turns a kept value into a chat attachment. Only this chat's results; only the most recent ones are kept—an unknown id's error lists the ones that exist.
 
 **Cached calls:** `kb.files`, `kb.read`, `kb.readBytes`/`kb.readBase64`, `kb.stat`, `kb.hash`, `kb.outline`, `kb.grep`, `kb.searchDocs` with identical args are cached—no cost. Don't cache yourself.
 
@@ -62,6 +66,6 @@ Error twice? Don't rewrite a third time—fall back to `grepContent`/`getFileCon
 
 Read limits assume full repo traversal: hitting them means infinite loop, not big task, so don't self-limit. Last two are real: what script reads stays inside, only `return` and `kb.log` reach you.
 
-`max_result_chars` exceeded? Not an error—script doesn't crash, `value` truncates, `log` warns. Next time return summary (counts, top-N) not raw content, don't rewrite over a non-error.
+`max_result_chars` exceeded? Not an error—script doesn't crash, `value` truncates, `log` warns. When the log says the whole value is kept, read it from the next script with `kb.result(id)` instead of rerunning; otherwise return a summary (counts, top-N) next time. Don't rewrite over a non-error.
 
 Script sees only tracked git files, no `.gitignore`, no access-restricted. Inaccessible file looks missing—no workaround needed.

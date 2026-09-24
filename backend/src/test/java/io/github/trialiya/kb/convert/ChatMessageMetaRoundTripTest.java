@@ -43,7 +43,8 @@ class ChatMessageMetaRoundTripTest {
                 null,
                 "сверено 12 файлов",
                 List.of("frontend/src/i18n/ru/chat.json"),
-                new ScriptStats(12, 2048, 30, 1, 420));
+                new ScriptStats(12, 2048, 30, 1, 420),
+                "r3");
     }
 
     @Test
@@ -96,7 +97,8 @@ class ChatMessageMetaRoundTripTest {
                                 null,
                                 "сверено 12 файлов",
                                 List.of("frontend/src/i18n/ru/chat.json"),
-                                new ScriptStats(12, 2048, 30, 1, 420)),
+                                new ScriptStats(12, 2048, 30, 1, 420),
+                                "r3"),
                         true);
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(meta);
