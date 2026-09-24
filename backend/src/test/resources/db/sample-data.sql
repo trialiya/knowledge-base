@@ -45,6 +45,9 @@
 --    log) and one document attachment (owner_type='document', on doc 77), covering
 --    both FK branches of the chk_attachment_owner constraint.
 --  * embedding_tasks — one hand-added 'pending' row for document 77.
+--  * chat_script_result — one kept result (r1) of the first chat: what an inline runScript
+--    returned, so kb.result('r1') and saveScriptResult have something to find there, and the
+--    number the next kept result gets (r2) is checked against a chat that already has one.
 --  * chat_pending_message — deliberately EMPTY: rows there are transient (a message queued
 --    mid-run, delivered into chat_message within seconds or by crash recovery on startup).
 --    A fixture row would be injected into the captured chat as a real message on every
@@ -691,3 +694,8 @@ INSERT INTO embedding_tasks (id, entity_type, entity_id, status, attempts, creat
 
 ALTER TABLE embedding_tasks ALTER COLUMN id RESTART WITH 2;
 
+-- ── chat_script_result (hand-added: one kept script result of the first chat) ──
+INSERT INTO chat_script_result (id, conversation_id, seq, script, project, value_json, chars, created_at) VALUES
+    (1, 'c5dfa618-0ad2-4845-a976-ada46c50f9a4', 1, NULL, 'default', '{"file":"backend/build.gradle","commits":42}', 44, '2026-07-18 21:00:30.000000');
+
+ALTER TABLE chat_script_result ALTER COLUMN id RESTART WITH 2;

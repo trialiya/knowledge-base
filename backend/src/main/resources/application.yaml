@@ -428,6 +428,15 @@ kb:
       max-result-chars: 20000
       max-edited-files: 20      # writes only; a buggy loop must not rewrite the repository
       max-edited-bytes: 256KB
+    # What a chat keeps of its scripts' results (ChatScriptResults): each finished run's value
+    # gets an id (r1, r2, …), a later script of the same chat reads it with kb.result(id), and
+    # saveScriptResult turns it into a chat attachment. The value is kept WHOLE — not cut to
+    # max-result-chars above, which bounds only what the model sees — so a script can hand a
+    # large intermediate result to the next one without it passing through the model's context.
+    results:
+      enabled: ${KB_SCRIPT_RESULTS_ENABLED:true}
+      max-chars: 1000000        # a larger value is still returned (truncated) but gets no id
+      keep-per-chat: 50         # older results of a chat are dropped as new ones arrive
   mcp:
     # Expose tools from external MCP (Model Context Protocol) servers to the chat model, in
     # addition to the built-in git/document tools. Default off — external MCP servers run
