@@ -9,6 +9,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
@@ -30,6 +31,10 @@ import org.springframework.ai.chat.messages.MessageType;
  * его началу в историю уже может лечь следующий вопрос из очереди — ни ходом, ни текстом он к
  * только что законченному ответу не относится.
  *
+ * <p>Номер хода, по которому считаются контрольные точки ({@link #lastCheckpoint}), сюда не
+ * приезжает вовсе: его даёт {@code ChatMessageRepository.countTurns} одним запросом, без чтения
+ * истории.
+ *
  * <p>В окно не идут сводки (их не отдаёт и сама выборка, {@code
  * ChatMessageRepository.findConversationTurns}: они пересказывают начало разговора, а название —
  * про то, чем он занят сейчас), плашки сжатия, ряды событий (git, откат, скрипт), ряды слэш-команд
@@ -48,12 +53,6 @@ final class TopicPrompt {
     /** Шов на месте вырезанной середины — его же описывает промпт {@code chat-topic.md}. */
     static final String CUT = " … ";
 
-    /**
-     * Размышления, которые часть эндпоинтов отдаёт прямо в тексте ответа, — и незакрытые тоже:
-     * ответ, оборванный посреди размышлений, названия не содержит.
-     */
-    private static final Pattern THINKING = Pattern.compile("(?s)<think>.*?(</think>|$)");
-
     private static final Pattern LABEL =
             Pattern.compile(
                     "^(title|topic|тема|название)\\s*:\\s*",
@@ -67,6 +66,11 @@ final class TopicPrompt {
     private static final Pattern LEADING_JUNK =
             Pattern.compile("^(?:#+\\s+|\\*\\*|[\\s\"'`«»“”„])+");
 
+    /** Забор кода, его язык и всё до закрывающего забора той же длины (или до конца текста). */
+    private static final Pattern CODE_BLOCK =
+            Pattern.compile(
+                    "(?ms)^[ \\t]*(`{3,}|~{3,})[ \\t]*([^\\n]*)$.*?(?:^[ \\t]*\\1[ \\t]*$|\\z)");
+
     private static final Pattern TRAILING_JUNK = Pattern.compile("(?:\\*\\*|[\\s\"'`«»“”„.!。])+$");
 
     private TopicPrompt() {}
@@ -75,8 +79,8 @@ final class TopicPrompt {
     record Line(MessageType type, String text) {}
 
     /**
-     * Последняя контрольная точка не позже ответа номер {@code turns}: первый, третий, десятый и
-     * дальше каждый десятый; 0 — ответов нет. Чаще называть незачем — тема разговора меняется
+     * Последняя контрольная точка не позже хода номер {@code turns}: первый, третий, десятый и
+     * дальше каждый десятый; 0 — ходов нет. Чаще называть незачем — тема разговора меняется
      * медленнее, чем идут ответы, а название, которое переписывается на каждом, в списке чатов не
      * узнать.
      */
@@ -91,35 +95,13 @@ final class TopicPrompt {
     }
 
     /**
-     * Пора ли назвать чат заново: после ответа, названного последним ({@code namedAt}), пройдена
-     * новая контрольная точка. Именно «пройдена», а не «ответ ровно на ней»: ответ на точке могли
+     * Пора ли назвать чат заново: после хода, на котором чат назван ({@code namedAt}), пройдена
+     * новая контрольная точка. Именно «пройдена», а не «ход ровно на ней»: ответ на точке могли
      * остановить, а запрос по нему — пропустить, пока шёл предыдущий, и тогда точку берёт первый
      * следующий законченный ответ.
      */
     static boolean due(int turns, int namedAt) {
         return lastCheckpoint(turns) > namedAt;
-    }
-
-    /**
-     * Сколько ответов модель уже написала. Считаются именно ответы, а не вопросы: очередь
-     * доставляется целиком ({@code PendingMessageService.flushPlain}), и на три досланных подряд
-     * сообщения приходится один ответ — по вопросам номер контрольной точки убегал бы вперёд от
-     * того, что видно в чате. Ответом счёт открывает вопрос, открывающий ход ({@link
-     * ChatHistoryService#opensATurn}) и не являющийся слэш-командой: сегменты tool-цикла идут
-     * подряд, и без этого каждый из них считался бы отдельным ответом.
-     */
-    static int turns(List<ChatMessageEntity> rows) {
-        int turns = 0;
-        boolean asked = false;
-        for (final ChatMessageEntity row : rows.subList(0, answeredEnd(rows))) {
-            if (ChatHistoryService.opensATurn(row) && !isCommand(row)) {
-                asked = true;
-            } else if (asked && isAnswer(row)) {
-                turns++;
-                asked = false;
-            }
-        }
-        return turns;
     }
 
     /** Окно для запроса — от старого к свежему. Пустое, если читать нечего. */
@@ -173,9 +155,7 @@ final class TopicPrompt {
         if (reply == null) {
             return null;
         }
-        return THINKING.matcher(reply)
-                .replaceAll("")
-                .lines()
+        return reply.lines()
                 .map(TopicPrompt::cleanLine)
                 .filter(line -> !line.isEmpty())
                 .findFirst()
@@ -221,46 +201,23 @@ final class TopicPrompt {
     }
 
     /**
-     * Блоки кода — одной пометкой {@code [code: язык]}. Незакрытый блок (ответ оборвали посреди
-     * кода) сворачивается до конца текста.
+     * Блоки кода — одной пометкой {@code [code: язык]}. Закрывает блок забор той же длины, поэтому
+     * длинный забор переживает короткие внутри себя; незакрытый блок (ответ оборвали посреди кода)
+     * сворачивается до конца текста.
      */
     static String collapseCode(String text) {
+        final Matcher block = CODE_BLOCK.matcher(text);
         final StringBuilder out = new StringBuilder();
-        @Nullable String fence = null;
-        for (final String line : text.split("\n", -1)) {
-            final String trimmed = line.strip();
-            if (fence == null) {
-                fence = openingFence(trimmed);
-                if (fence == null) {
-                    out.append(line).append('\n');
-                } else {
-                    final String info = trimmed.substring(fence.length()).strip();
-                    final String language = info.isEmpty() ? "" : info.split("\\s+", 2)[0];
-                    out.append(language.isEmpty() ? "[code]" : "[code: " + language + "]")
-                            .append('\n');
-                }
-            } else if (closes(fence, trimmed)) {
-                fence = null;
-            }
+        while (block.find()) {
+            final String info = block.group(2).strip();
+            final String language = info.isEmpty() ? "" : info.split("\\s+", 2)[0];
+            block.appendReplacement(
+                    out,
+                    Matcher.quoteReplacement(
+                            language.isEmpty() ? "[code]" : "[code: " + language + "]"));
         }
+        block.appendTail(out);
         return out.toString().replaceAll("\n{3,}", "\n\n").strip();
-    }
-
-    private static @Nullable String openingFence(String trimmed) {
-        if (!trimmed.startsWith("```") && !trimmed.startsWith("~~~")) {
-            return null;
-        }
-        final char mark = trimmed.charAt(0);
-        int length = 0;
-        while (length < trimmed.length() && trimmed.charAt(length) == mark) {
-            length++;
-        }
-        return trimmed.substring(0, length);
-    }
-
-    private static boolean closes(String fence, String trimmed) {
-        final char mark = fence.charAt(0);
-        return trimmed.length() >= fence.length() && trimmed.chars().allMatch(c -> c == mark);
     }
 
     /** Конец отвеченной части истории: индекс за последним ответом модели, 0 — ответов нет. */

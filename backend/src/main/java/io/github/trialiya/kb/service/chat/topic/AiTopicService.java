@@ -4,7 +4,6 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.CHAT_TOPIC;
 
 import io.github.trialiya.kb.config.model.ChatTopicProperties;
 import io.github.trialiya.kb.model.chat.dto.ChatTopicPayload;
-import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -16,7 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
@@ -40,8 +38,6 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class AiTopicService implements DisposableBean {
-
-    private static final int SHUTDOWN_GRACE_SECONDS = 5;
 
     private final ChatClient chatClient;
     private final ChatTopicRepository chatTopics;
@@ -80,17 +76,10 @@ public class AiTopicService implements DisposableBean {
         this.properties = properties;
     }
 
-    /**
-     * Идущему запросу даётся немного времени дописать название: бины БД закрываются уже после
-     * этого, и запись в закрытый пул только засорила бы лог. Кто не успел — тот не успел, название
-     * подождёт следующего ответа.
-     */
+    /** Запросы, которых остановка застала в пути, названия не допишут — оно подождёт ответа. */
     @Override
-    public void destroy() throws InterruptedException {
+    public void destroy() {
         executor.shutdown();
-        if (!executor.awaitTermination(SHUTDOWN_GRACE_SECONDS, TimeUnit.SECONDS)) {
-            executor.shutdownNow();
-        }
     }
 
     /** Ответ модели записан — в фоне решить, пора ли назвать чат, и назвать. */
@@ -124,18 +113,14 @@ public class AiTopicService implements DisposableBean {
             return;
         }
         final @Nullable Integer namedAt = chat.getAiTopicTurn();
-        // Дешёвая оценка вместо истории: между контрольными точками — а это почти каждый ответ —
-        // весь фоновый запрос обходится одним COUNT.
-        if (namedAt != null
-                && !TopicPrompt.due(chatMessages.countQuestionRows(conversationId), namedAt)) {
-            return;
-        }
-        final List<ChatMessageEntity> rows = chatMessages.findConversationTurns(conversationId);
-        final int turns = TopicPrompt.turns(rows);
+        final int turns = chatMessages.countTurns(conversationId);
+        // Между контрольными точками — а это почти каждый ответ — весь фоновый запрос обходится
+        // этим COUNT: историю читает только само именование.
         if (namedAt != null && !TopicPrompt.due(turns, namedAt)) {
             return;
         }
-        final List<TopicPrompt.Line> excerpt = TopicPrompt.excerpt(rows);
+        final List<TopicPrompt.Line> excerpt =
+                TopicPrompt.excerpt(chatMessages.findConversationTurns(conversationId));
         if (excerpt.isEmpty()) {
             return;
         }

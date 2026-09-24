@@ -96,23 +96,8 @@ class AiTopicServiceTest {
         service(true).name(CONV);
 
         verify(chatModel, never()).call(any(Prompt.class));
-        // Историю при этом даже не читали — хватило счётчика ответов.
+        // Историю при этом даже не читали — хватило счётчика ходов.
         verify(chatMessages, never()).findConversationTurns(CONV);
-    }
-
-    @Test
-    void theHistoryIsReadWhenUnansweredQuestionsCouldHaveReachedACheckpoint() {
-        when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title", 3));
-        // Ответов четыре, но вопросов больше: досланное пачкой, ряды событий и команды ответа не
-        // получают. Оценка обгоняет правду, и историю приходится прочитать — чтобы убедиться, что
-        // точка ещё не пройдена.
-        turns(4);
-        when(chatMessages.countQuestionRows(CONV)).thenReturn(12);
-
-        service(true).name(CONV);
-
-        verify(chatMessages).findConversationTurns(CONV);
-        verify(chatModel, never()).call(any(Prompt.class));
     }
 
     @Test
@@ -200,12 +185,13 @@ class AiTopicServiceTest {
                 new ChatTopicProperties(enabled, null, null, null));
     }
 
+    /** Разговор из {@code count} ходов — и его же счётчик, который читает сервис. */
     private void turns(int count) {
         for (int i = 1; i <= count; i++) {
             row(MessageType.USER, "question " + i);
             row(MessageType.ASSISTANT, "answer " + i);
         }
-        when(chatMessages.countQuestionRows(CONV)).thenReturn(count);
+        when(chatMessages.countTurns(CONV)).thenReturn(count);
     }
 
     private void row(MessageType type, String content) {

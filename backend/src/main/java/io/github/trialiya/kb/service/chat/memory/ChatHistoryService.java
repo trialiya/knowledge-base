@@ -609,7 +609,7 @@ public class ChatHistoryService {
      * вызовов навсегда (см. {@link #markRunResult}), а окно сжатия открылось бы на ответе к
      * вопросу, которого в нём уже нет ({@code SummarizeWindow}).
      */
-    public static boolean opensATurn(ChatMessageEntity row) {
+    static boolean opensATurn(ChatMessageEntity row) {
         return row.getType() == MessageType.USER
                 && (row.getMeta() == null || (!isEventRow(row) && !row.getMeta().interjection()));
     }

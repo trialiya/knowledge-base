@@ -122,8 +122,8 @@ public class ChatTopicEntity implements Persistable<String> {
     }
 
     /**
-     * На каком по счёту ответе модели {@code AiTopicService} последний раз назвал чат; {@code null}
-     * — не называл, или название придумано до того, как номер стали записывать.
+     * На каком по счёту ходе разговора {@code AiTopicService} последний раз назвал чат; {@code
+     * null} — не называл, или название придумано до того, как номер стали записывать.
      */
     @Nullable
     public Integer getAiTopicTurn() {

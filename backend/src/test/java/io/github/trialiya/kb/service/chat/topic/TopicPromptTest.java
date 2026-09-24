@@ -43,40 +43,12 @@ class TopicPromptTest {
     }
 
     @Test
-    void turnsCountAnswersWritten() {
-        user("first");
-        assistant("answer 1");
-        row(MessageType.USER, "", ChatMessageMeta.ofInterjection(List.of()));
-        // Второй сегмент того же ответа — tool-цикл, а не новый ответ.
-        assistant("answer 1, continued");
+    void theExcerptEndsWithTheLastAnswerAndSkipsServiceRows() {
+        user("How do I configure pgvector?");
         row(
                 MessageType.USER,
                 "",
                 ChatMessageMeta.ofGitEvent(new GitEventMeta("pull", "kb", true, "ok", "main")));
-        command("/compact keep the numbers");
-        compactPlaque();
-        user("second");
-        assistant("answer 2");
-        // Следующий вопрос из очереди уже в истории, но ответа на него ещё нет.
-        user("third, not answered yet");
-
-        assertThat(TopicPrompt.turns(rows)).isEqualTo(2);
-    }
-
-    @Test
-    void aBatchOfQueuedQuestionsWithOneAnswerIsOneTurn() {
-        user("first");
-        // Досланное, пока шёл ответ: доставляется всей очередью сразу, отвечает на неё один прогон.
-        user("and also this");
-        user("and this");
-        assistant("answer to all three");
-
-        assertThat(TopicPrompt.turns(rows)).isEqualTo(1);
-    }
-
-    @Test
-    void theExcerptEndsWithTheLastAnswerAndSkipsServiceRows() {
-        user("How do I configure pgvector?");
         assistant("");
         assistant("Install the extension first.");
         command("/сжать");
@@ -197,8 +169,7 @@ class TopicPromptTest {
         assertThat(TopicPrompt.clean("«Настройка pgvector».")).isEqualTo("Настройка pgvector");
         assertThat(TopicPrompt.clean("**Title:** \"Kafka retries\"\n\nBecause..."))
                 .isEqualTo("Kafka retries");
-        assertThat(TopicPrompt.clean("<think>hmm\nmaybe</think>\nТема: Git   rebase"))
-                .isEqualTo("Git rebase");
+        assertThat(TopicPrompt.clean("Тема: Git   rebase")).isEqualTo("Git rebase");
         assertThat(TopicPrompt.clean("Async в C#.")).isEqualTo("Async в C#");
         assertThat(TopicPrompt.clean("# __init__ в Python")).isEqualTo("__init__ в Python");
         assertThat(TopicPrompt.clean("*.gradle зависимости")).isEqualTo("*.gradle зависимости");
@@ -206,7 +177,6 @@ class TopicPromptTest {
                 .isEqualTo("Настройка pgvector");
         assertThat(TopicPrompt.clean("Sure, here is the title:\n\nНастройка pgvector"))
                 .isEqualTo("Настройка pgvector");
-        assertThat(TopicPrompt.clean("<think>\nstill thinking, cut off")).isNull();
         assertThat(TopicPrompt.clean("   \n")).isNull();
         assertThat(TopicPrompt.clean(null)).isNull();
         assertThat(TopicPrompt.clean("word ".repeat(40)))
