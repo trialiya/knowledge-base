@@ -36,11 +36,10 @@ import org.springframework.ai.chat.messages.MessageType;
  * истории.
  *
  * <p>В окно не идут сводки (их не отдаёт и сама выборка, {@code
- * ChatMessageRepository.findConversationTurns}: они пересказывают начало разговора, а название —
- * про то, чем он занят сейчас), плашки сжатия, ряды событий (git, откат, скрипт), ряды слэш-команд
- * и ряды без текста — вызовы инструментов. Блоки кода сворачиваются до пометки с языком: для темы
- * они шум. Имена вложений к вопросу, наоборот, добавляются: «разбери этот отчёт» без имени файла
- * пуст.
+ * ChatMessageRepository.findLastTurns}: они пересказывают начало разговора, а название — про то,
+ * чем он занят сейчас), плашки сжатия, ряды событий (git, откат, скрипт), ряды слэш-команд и ряды
+ * без текста — вызовы инструментов. Блоки кода сворачиваются до пометки с языком: для темы они шум.
+ * Имена вложений к вопросу, наоборот, добавляются: «разбери этот отчёт» без имени файла пуст.
  */
 final class TopicPrompt {
 
@@ -49,6 +48,14 @@ final class TopicPrompt {
     static final int USER_CHARS = 1_000;
     static final int ASSISTANT_CHARS = 600;
     static final int MAX_TOPIC_CHARS = 80;
+
+    /**
+     * Сколько последних рядов читать. С запасом: {@value #MAX_MESSAGES} непустых сообщений, из
+     * которых собирается окно, в чате с инструментами разбавлены пустыми рядами-сегментами — их у
+     * ответа столько, сколько было итераций tool-цикла. Хвоста хватает, а история в тысячи
+     * сообщений не поднимается в память ради пары тысяч символов.
+     */
+    static final int ROWS_TO_READ = 100;
 
     /** Шов на месте вырезанной середины — его же описывает промпт {@code chat-topic.md}. */
     static final String CUT = " … ";
@@ -173,7 +180,13 @@ final class TopicPrompt {
         }
         if (topic.length() > MAX_TOPIC_CHARS) {
             final int space = topic.lastIndexOf(' ', MAX_TOPIC_CHARS);
-            topic = topic.substring(0, space > 0 ? space : MAX_TOPIC_CHARS).strip();
+            int cut = space > 0 ? space : MAX_TOPIC_CHARS;
+            // Резать по границе символа, а не кодовой единицы: эмодзи в названии — пара, и
+            // половинка от неё уедет в БД и во вкладки знаком вопроса (то же в shorten).
+            if (Character.isHighSurrogate(topic.charAt(cut - 1))) {
+                cut--;
+            }
+            topic = topic.substring(0, cut).strip();
         }
         return topic;
     }

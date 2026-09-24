@@ -42,10 +42,11 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     Optional<ChatMessageEntity> findFirstByConversationIdOrderByPositionDesc(String conversationId);
 
     /**
-     * Реплики чата — вопросы и ответы без строк-сводок и без протокола инструментов: TOOL-ряды не
-     * выбираются, а {@code tool_data} не читается вовсе ({@code NULL}). Для читателей, которым
-     * нужен только разговор, а не то, что уезжает модели, — название чата ({@code AiTopicService})
-     * читает его после каждого ответа, и тащить ради этого мегабайты ответов инструментов незачем.
+     * Хвост реплик чата — вопросы и ответы без строк-сводок и без протокола инструментов: TOOL-ряды
+     * не выбираются, а {@code tool_data} не читается вовсе ({@code NULL}). От свежего к старому, не
+     * больше {@code limit} рядов: читателю нужны несколько последних сообщений, а не история
+     * целиком — название чата ({@code AiTopicService}) собирает по ним окно в пару тысяч символов,
+     * и тащить ради этого мегабайты ответов инструментов незачем.
      */
     @Query(
             """
@@ -54,20 +55,23 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     FROM chat_message
     WHERE conversation_id = :conversationId AND summary = false
       AND type IN ('USER', 'ASSISTANT')
-    ORDER BY created_at, id
+    ORDER BY created_at DESC, id DESC
+    LIMIT :limit
     """)
-    List<ChatMessageEntity> findConversationTurns(@Param("conversationId") String conversationId);
+    List<ChatMessageEntity> findLastTurns(
+            @Param("conversationId") String conversationId, @Param("limit") int limit);
 
     /**
      * Сколько ходов в чате — по нему название чата (см. {@code AiTopicService}) решает, пройдена ли
      * очередная контрольная точка. Ход — вопрос пользователя: ряды с пустым текстом (git-команда,
      * откат файловых правок, запуск скрипта) вопросами не являются и не считаются.
      *
-     * <p>Считать ответы было бы точнее — досланная пачкой очередь получает один ответ на несколько
-     * вопросов, а у ответа с инструментами рядов столько, сколько было итераций tool-цикла, — но
-     * точность тут не нужна: номер хода никому не показывается, он решает только, через сколько
-     * ответов чат назовут заново. Зато один {@code COUNT} избавляет от чтения истории после каждого
-     * ответа.
+     * <p>Счёт нарочно грубый, и это не то же самое, что {@code ChatHistoryService.opensATurn}:
+     * строка слэш-команды, вопрос, доставленный посреди прогона, и досланная пачкой очередь идут в
+     * него наравне с обычным вопросом, хотя ответ на пачку один; неотвеченный вопрос, уже лёгший в
+     * историю, тоже считается — и тогда контрольную точку берёт окно, которое кончается прошлым
+     * ответом. Номер хода никому не показывается, он решает только, через сколько ответов чат
+     * назовут заново, — а точный счёт стоил бы чтения истории после каждого ответа.
      */
     @Query(
             """

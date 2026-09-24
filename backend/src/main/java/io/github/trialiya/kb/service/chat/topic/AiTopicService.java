@@ -119,8 +119,12 @@ public class AiTopicService implements DisposableBean {
         if (namedAt != null && !TopicPrompt.due(turns, namedAt)) {
             return;
         }
+        // Выборка отдаёт хвост от свежего к старому — окно собирается по обычному порядку.
         final List<TopicPrompt.Line> excerpt =
-                TopicPrompt.excerpt(chatMessages.findConversationTurns(conversationId));
+                TopicPrompt.excerpt(
+                        chatMessages
+                                .findLastTurns(conversationId, TopicPrompt.ROWS_TO_READ)
+                                .reversed());
         if (excerpt.isEmpty()) {
             return;
         }

@@ -34,6 +34,14 @@ every tenth after that), which reads a short tail of the conversation.
   (`KB_CHAT_TOPIC_MODEL`), turn reasoning down with
   `KB_CHAT_TOPIC_REASONING_EFFORT` / `KB_CHAT_TOPIC_THINKING`, or switch naming
   off with `KB_CHAT_TOPIC_ENABLED=false`.
+- **Old chats keep calling the tool for a while.** The `recordChatInsights` calls and their
+  responses stay in the stored history of chats created before this change, and the model tends to
+  copy that pattern: the call fails with "unknown tool" and costs one extra round. The chat is not
+  broken by it — the error is answered and the run continues, and the failed call is not shown in
+  the feed — and the habit fades as the history is compacted. Stripping those calls from the
+  history when the prompt is built is tracked in
+  [#425](https://github.com/trialiya/knowledge-base/issues/425); until then, `/compact` on a busy
+  old chat is what ends it for good.
 - **Existing chats** are named once more on their next answer: the migration
   adds `chat_topic.ai_topic_turn`, and a chat without it counts as never named.
   A title the user gave is never touched.

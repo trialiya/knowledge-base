@@ -449,7 +449,9 @@ export function applyChatEvent(chat, ev, ctx) {
       return {
         ...chat,
         title: payload.topic,
-        aiTopic: payload.aiTopic ?? null,
+        // Пустое aiTopic — «не знаю», а не «сбросить»: событие переименования несёт его таким,
+        // каким оно было на чтении строки, и фоновая запись могла лечь уже после.
+        aiTopic: payload.aiTopic ?? chat.aiTopic ?? null,
       };
 
     default:

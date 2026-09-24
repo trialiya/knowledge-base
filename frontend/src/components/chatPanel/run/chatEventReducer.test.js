@@ -1311,4 +1311,14 @@ describe('applyChatEvent', () => {
     expect(chat.title).toBe('Мой чат');
     expect(chat.aiTopic).toBeNull();
   });
+
+  test('CHAT_TOPIC without an AI name keeps the one the tab already knows', () => {
+    const chat = applyChatEvent(
+      { ...userChat(), title: 'Новый чат', aiTopic: 'Настройка pgvector' },
+      { type: 'CHAT_TOPIC', runId: null, payload: { topic: 'Мой чат', aiTopic: null } },
+      ctx,
+    );
+    expect(chat.title).toBe('Мой чат');
+    expect(chat.aiTopic).toBe('Настройка pgvector');
+  });
 });

@@ -122,9 +122,17 @@ class SampleDataFixtureTest {
     @Test
     void conversationTurnsLeaveTheToolProtocolOut() {
         final List<ChatMessageEntity> turns =
-                chatMessageRepo.findConversationTurns("c5dfa618-0ad2-4845-a976-ada46c50f9a4");
+                chatMessageRepo.findLastTurns("c5dfa618-0ad2-4845-a976-ada46c50f9a4", 100);
 
         assertThat(turns).isNotEmpty();
+        // От свежего к старому — так выборка и объявлена: окно названия собирается с хвоста.
+        assertThat(turns)
+                .extracting(ChatMessageEntity::getCreatedAt)
+                .isSortedAccordingTo(java.util.Comparator.reverseOrder());
+        assertThat(chatMessageRepo.findLastTurns("c5dfa618-0ad2-4845-a976-ada46c50f9a4", 3))
+                .extracting(ChatMessageEntity::getId)
+                .containsExactlyElementsOf(
+                        turns.subList(0, 3).stream().map(ChatMessageEntity::getId).toList());
         assertThat(turns)
                 .extracting(ChatMessageEntity::getType)
                 .containsOnly(MessageType.USER, MessageType.ASSISTANT);

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -54,7 +55,8 @@ class AiTopicServiceTest {
         chatTopics = mock(ChatTopicRepository.class);
         chatMessages = mock(ChatMessageRepository.class);
         events = mock(ChatEventService.class);
-        when(chatMessages.findConversationTurns(CONV)).thenReturn(rows);
+        // Выборка отдаёт хвост от свежего к старому; view, а не копия — ряды дописывают тесты.
+        when(chatMessages.findLastTurns(eq(CONV), anyInt())).thenReturn(rows.reversed());
     }
 
     @Test
@@ -97,7 +99,7 @@ class AiTopicServiceTest {
 
         verify(chatModel, never()).call(any(Prompt.class));
         // Историю при этом даже не читали — хватило счётчика ходов.
-        verify(chatMessages, never()).findConversationTurns(CONV);
+        verify(chatMessages, never()).findLastTurns(anyString(), anyInt());
     }
 
     @Test
