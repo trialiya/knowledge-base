@@ -200,6 +200,28 @@ class ScriptResultSharingTest {
         assertThat(result.error().message()).contains("maxBytesRead");
     }
 
+    @Test
+    void anIdWrittenAnyWayIsOneResultChargedOnceButEveryReadIsACall() {
+        run(ResultScope.keeping(CHAT), "return 'x'.repeat(100);");
+
+        ScriptResult result =
+                run(
+                        ResultScope.keeping(CHAT),
+                        "return [kb.result('r1'), kb.result('R1'), kb.result('1')]"
+                                + ".map(v => v.length);");
+
+        assertThat(result.value()).isEqualTo(List.of(100, 100, 100));
+        assertThat(result.stats().bytesRead()).isEqualTo(102);
+        assertThat(result.stats().calls()).isEqualTo(3);
+    }
+
+    @Test
+    void noIdAtAllIsAskedForByName() {
+        ScriptResult result = run(ResultScope.keeping(CHAT), "return kb.result(null);");
+
+        assertThat(result.error().message()).contains("kb.result needs a result id");
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private ScriptResult run(@Nullable ResultScope scope, String script) {

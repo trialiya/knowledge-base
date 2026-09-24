@@ -1,11 +1,13 @@
 package io.github.trialiya.kb.service.chat.script;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.config.model.ScriptResultProperties;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
@@ -44,21 +46,29 @@ import org.springframework.util.unit.DataSize;
 @Service
 public class ScriptGuideService {
 
+    /** The section on {@code kb.result} and {@code saveScriptResult} — see {@link #render}. */
+    private static final Resource RESULTS_GUIDE =
+            new ClassPathResource("prompt/script-run-results.md");
+
     private final ScriptEditPolicy editPolicy;
     private final String instructionsForWeakModel;
     private final String instructionsForStrongModel;
     private final String readOnlyInstructionsForWeakModel;
     private final String readOnlyInstructionsForStrongModel;
 
-    public ScriptGuideService(ScriptProperties properties, ScriptEditPolicy editPolicy) {
+    public ScriptGuideService(
+            ScriptProperties properties,
+            ScriptResultProperties results,
+            ScriptEditPolicy editPolicy) {
         this.editPolicy = editPolicy;
-        this.instructionsForWeakModel = properties.enabled() ? render(properties, true, true) : "";
+        this.instructionsForWeakModel =
+                properties.enabled() ? render(properties, results, true, true) : "";
         this.instructionsForStrongModel =
-                properties.enabled() ? render(properties, false, true) : "";
+                properties.enabled() ? render(properties, results, false, true) : "";
         this.readOnlyInstructionsForWeakModel =
-                properties.enabled() ? render(properties, true, false) : "";
+                properties.enabled() ? render(properties, results, true, false) : "";
         this.readOnlyInstructionsForStrongModel =
-                properties.enabled() ? render(properties, false, false) : "";
+                properties.enabled() ? render(properties, results, false, false) : "";
     }
 
     /**
@@ -102,11 +112,19 @@ public class ScriptGuideService {
     }
 
     private static String render(
-            ScriptProperties properties, boolean extended, boolean editEnabled) {
+            ScriptProperties properties,
+            ScriptResultProperties results,
+            boolean extended,
+            boolean editEnabled) {
         // Two independent gates. The write appendices are added only when kb.edit/kb.create are
         // actually bound, so the handbook can never describe a method the sandbox does not have;
         // the extended halves are added only for a run whose model is flagged weak.
         StringBuilder handbook = new StringBuilder(read(properties.guide()));
+        // Kept results are a deployment switch of their own: with it off no run gets a resultId,
+        // and a handbook describing kb.result would send the model after ids it never sees.
+        if (results.enabled()) {
+            append(handbook, RESULTS_GUIDE);
+        }
         if (extended) {
             append(handbook, properties.extendedGuide());
         }

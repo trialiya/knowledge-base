@@ -128,7 +128,7 @@ for (var i = 0; i < docs.length; i++) {
 return out;
 ```
 
-Continue from an earlier script's value (its `resultId` was `r1`):
+Continue from an earlier script's value (when the response carried `resultId: "r1"`):
 ```js
 var rows = kb.result("r1");                       // the whole value, even if you saw it cut
 var byDir = {};
@@ -143,5 +143,5 @@ return byDir;
 - **Don't read unneeded files.** Traversing whole repo is fine and sometimes needed—budget sufficient. Pointless: read whole file for one line.
 - **Don't apply regex over read text if `kb.grep` works.** Grep is indexed, returns only matched lines, not file.
 - **Don't return raw file contents.** Paths, lines, counts, short snippets.
-- **Don't keep state between calls.** None exists—except the returned value, which the next script reads with `kb.result(id)`. Never paste a result back into a script by hand.
+- **Don't keep state between calls.** None exists—except a returned value that got a `resultId`, which the next script reads with `kb.result(id)`. Never paste a result back into a script by hand.
 - **Don't seek filesystem workarounds.** None; attempts just waste calls.

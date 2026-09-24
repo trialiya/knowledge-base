@@ -83,13 +83,15 @@ public class ScriptResultFunction {
     }
 
     /**
-     * What the file is by its name — the model named it {@code .csv} because it built a CSV — and,
-     * when the name says nothing, by what the value is.
+     * A string is whatever its name says — the model named it {@code .csv} because the script built
+     * a CSV. Anything else was written as JSON here, and is labelled so whatever it was named: a
+     * {@code .md} holding JSON is still JSON.
      */
     private static @Nullable String contentType(String name, JsonNode value) {
-        return MediaTypeFactory.getMediaType(name)
-                .map(MediaType::toString)
-                .orElse(value.isTextual() ? null : MediaType.APPLICATION_JSON_VALUE);
+        if (!value.isTextual()) {
+            return MediaType.APPLICATION_JSON_VALUE;
+        }
+        return MediaTypeFactory.getMediaType(name).map(MediaType::toString).orElse(null);
     }
 
     private static JsonNode parse(String json) {

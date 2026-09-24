@@ -359,7 +359,7 @@ public class ScriptRunner {
             // deadline landing mid-apply would mean a stop request that leaves files half written
             // instead of none. Idempotent with the finally below.
             stopWatchdog(finished, watchdog);
-            // Only now, with the script finished and its result already converted, does anything
+            // Only now, with the script finished and its value already serialised, does anything
             // reach disk. Every earlier exit — a throw, a budget, a timeout, a user stop — leaves
             // the working tree exactly as the run found it.
             List<GitEditResult> edits = applyPendingWrites(session, gitService);

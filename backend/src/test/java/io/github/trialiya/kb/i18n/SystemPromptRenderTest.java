@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.config.model.ScriptResultProperties;
 import io.github.trialiya.kb.config.model.SystemPromptProperties;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
@@ -44,7 +45,10 @@ class SystemPromptRenderTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(org.mockito.ArgumentMatchers.nullable(String.class))).thenReturn(true);
         String handbook =
-                new ScriptGuideService(ScriptProperties.enabledWithDefaults(), policy)
+                new ScriptGuideService(
+                                ScriptProperties.enabledWithDefaults(),
+                                ScriptResultProperties.defaults(),
+                                policy)
                         .instructions(true);
         assertThat(handbook).contains("kb.grep", "kb.edit", "{", "}");
 

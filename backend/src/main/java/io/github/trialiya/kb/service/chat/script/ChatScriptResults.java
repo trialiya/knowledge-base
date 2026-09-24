@@ -12,7 +12,6 @@ import java.util.OptionalInt;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
-import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +23,10 @@ import org.springframework.stereotype.Service;
  * that starts at one in every chat is both harder to get wrong and says nothing about other chats.
  * Two runs of one chat do not normally overlap — a chat runs one answer or one command at a time —
  * but the unique key would still catch it, and the loser takes the next number.
+ *
+ * <p>{@link #keep} must not be called inside an open transaction: on Postgres the duplicate key it
+ * recovers from would mark that transaction rollback-only. Its callers are the script runs, which
+ * hold none; every repository call here is a transaction of its own.
  */
 @AllArgsConstructor
 @Slf4j
@@ -49,43 +52,55 @@ public class ChatScriptResults implements ScriptResultStore {
                             + properties.maxChars()
                             + ", so no later script can read it with kb.result. Return less.");
         }
+        final int seq;
         try {
-            for (int attempt = 1; ; attempt++) {
-                final int seq = repository.maxSeq(conversationId) + 1;
-                try {
-                    repository.save(
-                            new ChatScriptResultEntity(
-                                    0L,
-                                    conversationId,
-                                    seq,
-                                    script,
-                                    project,
-                                    json,
-                                    json.length(),
-                                    LocalDateTime.now()));
-                } catch (DuplicateKeyException e) {
-                    if (attempt < SEQ_ATTEMPTS) {
-                        continue;
-                    }
-                    throw e;
-                }
-                if (seq > properties.keepPerChat()) {
-                    repository.deleteUpTo(conversationId, seq - properties.keepPerChat());
-                }
-                return Kept.as(idOf(seq));
-            }
-        } catch (DataAccessException e) {
+            seq = insert(conversationId, script, project, json);
+        } catch (RuntimeException e) {
             // A chat that has no row yet (a run outside any saved conversation) lands here on the
-            // foreign key, and so does a database hiccup. Either way the run itself succeeded.
+            // foreign key, and so does a database or pool failure. Either way the run itself
+            // succeeded — and may already have written files — so it must not turn into an error.
             log.warn("Script result of chat {} was not kept: {}", conversationId, e.getMessage());
             return Kept.not(null);
+        }
+        if (seq > properties.keepPerChat()) {
+            try {
+                repository.deleteUpTo(conversationId, seq - properties.keepPerChat());
+            } catch (RuntimeException e) {
+                // The new row is in; failing to drop old ones only delays that until the next.
+                log.warn("Old script results of chat {} were not dropped", conversationId, e);
+            }
+        }
+        return Kept.as(idOf(seq));
+    }
+
+    private int insert(
+            String conversationId, @Nullable String script, String project, String json) {
+        for (int attempt = 1; ; attempt++) {
+            final int seq = repository.maxSeq(conversationId) + 1;
+            try {
+                repository.save(
+                        new ChatScriptResultEntity(
+                                0L,
+                                conversationId,
+                                seq,
+                                script,
+                                project,
+                                json,
+                                json.length(),
+                                LocalDateTime.now()));
+                return seq;
+            } catch (DuplicateKeyException e) {
+                if (attempt >= SEQ_ATTEMPTS) {
+                    throw e;
+                }
+            }
         }
     }
 
     @Override
     public Optional<String> valueJson(String conversationId, String id) {
         final OptionalInt seq = seqOf(id);
-        if (seq.isEmpty()) {
+        if (!properties.enabled() || seq.isEmpty()) {
             return Optional.empty();
         }
         return repository
@@ -95,6 +110,9 @@ public class ChatScriptResults implements ScriptResultStore {
 
     @Override
     public List<StoredScriptResult> list(String conversationId) {
+        if (!properties.enabled()) {
+            return List.of();
+        }
         return repository.listWithoutValues(conversationId).stream()
                 .map(
                         row ->
@@ -116,7 +134,7 @@ public class ChatScriptResults implements ScriptResultStore {
      * "3"} all mean the same result — a weak model drops the prefix as readily as it keeps it, and
      * there is nothing else the digits could mean here.
      */
-    static OptionalInt seqOf(String id) {
+    public static OptionalInt seqOf(String id) {
         String text = id.strip().toLowerCase(Locale.ROOT);
         if (text.startsWith("r")) {
             text = text.substring(1);

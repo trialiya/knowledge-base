@@ -19,6 +19,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -458,17 +459,27 @@ public class KbScriptApi {
      * The value an earlier script of this chat returned, kept under {@code id} ({@code "r3"}) —
      * whole, even where the model itself was only shown the first {@code max-result-chars} of it.
      * Charged against the byte budget like any other text handed in.
+     *
+     * <p>Unlike the other cached calls, a repeat still costs a call: every one hands the guest a
+     * fresh deep copy, and a loop re-reading a large value would otherwise be bounded by nothing
+     * but the wall clock.
      */
     @HostAccess.Export
-    public @Nullable Object result(String id) {
+    public @Nullable Object result(@Nullable String id) {
+        String canonical = ScriptResultReader.canonical(id);
+        AtomicBoolean fetched = new AtomicBoolean();
         Object value =
                 session.call(
-                        Arrays.<Object>asList("result", id),
+                        Arrays.<Object>asList("result", canonical),
                         () -> {
-                            String json = results.valueJson(id);
+                            fetched.set(true);
+                            String json = results.valueJson(canonical);
                             session.chargeKeptResult(utf8Length(json));
-                            return parse(id, json);
+                            return parse(canonical, json);
                         });
+        if (!fetched.get()) {
+            session.chargeCall();
+        }
         return toGuest(value);
     }
 

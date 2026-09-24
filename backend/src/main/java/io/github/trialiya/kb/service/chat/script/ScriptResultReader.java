@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.chat.script;
 
 import io.github.trialiya.kb.model.script.StoredScriptResult;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
@@ -27,6 +28,22 @@ public final class ScriptResultReader {
         return scope == null
                 ? new ScriptResultReader(null, null)
                 : new ScriptResultReader(store, scope.conversationId());
+    }
+
+    /**
+     * The one spelling of {@code id} — {@code "R3"} and {@code "3"} are {@code "r3"} — so a cache
+     * keyed on it charges a result once, however the script wrote its name. An id that is not one
+     * comes back as written, and is refused with the list when read.
+     *
+     * @throws IllegalArgumentException the script passed no id at all
+     */
+    static String canonical(@Nullable String id) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException(
+                    "kb.result needs a result id, e.g. kb.result('r1'); kb.results() lists them.");
+        }
+        OptionalInt seq = ChatScriptResults.seqOf(id);
+        return seq.isPresent() ? ChatScriptResults.idOf(seq.getAsInt()) : id.strip();
     }
 
     /** The value kept under {@code id}, as JSON. */

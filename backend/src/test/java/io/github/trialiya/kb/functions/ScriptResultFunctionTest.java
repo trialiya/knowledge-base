@@ -88,4 +88,13 @@ class ScriptResultFunctionTest {
                 .hasMessageContaining("resultId");
         verify(attachments, never()).createFromText(any(), any(), any(), any());
     }
+
+    @Test
+    void jsonIsLabelledJsonWhateverTheNameSays() {
+        store.keep(CHAT, null, "kb", "[1]");
+
+        function.saveScriptResult(context, "r1", "list.md");
+
+        verify(attachments).createFromText(eq(CHAT), eq("list.md"), eq("application/json"), any());
+    }
 }

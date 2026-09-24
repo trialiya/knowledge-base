@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.config.model.ScriptResultProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
@@ -52,7 +53,8 @@ class ChatConfigSubAgentScriptsAvailableTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(nullable(String.class))).thenReturn(true);
         ScriptProperties properties = ScriptProperties.enabledWithDefaults();
-        ScriptGuideService guides = new ScriptGuideService(properties, policy);
+        ScriptGuideService guides =
+                new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy);
         SkillService skills = new SkillService(properties, policy, mock(ProjectCatalog.class));
 
         String weak = ChatConfig.subAgentScriptInstructions(guides, skills, true);

@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.chat.script;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.trialiya.kb.config.CommonConfig;
@@ -125,5 +126,22 @@ class ChatScriptResultsTest {
 
         assertThat(kept.id()).isNull();
         assertThat(kept.note()).isNull();
+    }
+
+    @Test
+    void switchedOffReadsNothingKeptWhileItWasOn() {
+        ChatScriptResults results = results(new ScriptResultProperties(false, 1000, 50));
+
+        assertThat(results.valueJson(CHAT, "r1")).isEmpty();
+        assertThat(results.list(CHAT)).isEmpty();
+    }
+
+    @Test
+    void aNonPositiveLimitIsRefusedAtStartup() {
+        assertThatThrownBy(() -> new ScriptResultProperties(true, 1000, 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("enabled=false");
+        assertThatThrownBy(() -> new ScriptResultProperties(true, -1, 10))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }
