@@ -33,6 +33,19 @@ class ChatMessageMetaRoundTripTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private static ScriptEventMeta scriptEvent() {
+        return new ScriptEventMeta(
+                "locale-diff",
+                "frontend/scripts/locale-diff.js",
+                "billing",
+                true,
+                Map.of("missing", 3),
+                null,
+                "сверено 12 файлов",
+                List.of("frontend/src/i18n/ru/chat.json"),
+                new ScriptStats(12, 2048, 30, 1, 420));
+    }
+
     @Test
     void everyFieldSurvivesWriteThenRead() {
         final ChatMessageMeta meta =
@@ -83,13 +96,32 @@ class ChatMessageMetaRoundTripTest {
                                 null,
                                 "сверено 12 файлов",
                                 List.of("frontend/src/i18n/ru/chat.json"),
-                                new ScriptStats(12, 2048, 30, 1, 420)));
+                                new ScriptStats(12, 2048, 30, 1, 420)),
+                        true);
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(meta);
         final ChatMessageMeta read =
                 new ChatMessageMetaToJsonConverter.Reader(objectMapper).convert(json);
 
         assertThat(read).isEqualTo(meta);
+    }
+
+    /**
+     * Точечные копии ({@code withRun} и соседи) меняют то, что названо, и сохраняют всё остальное:
+     * собери такая копия мету заново коротким конструктором — поле, о котором она не знает, пропало
+     * бы молча, и ряд потерял бы свою плашку.
+     */
+    @Test
+    void aTargetedCopyKeepsTheFieldsItDoesNotChange() {
+        final ChatMessageMeta scriptRow = ChatMessageMeta.ofScriptEvent(scriptEvent());
+
+        assertThat(scriptRow.withRun("run-2", "deepseek-chat").scriptEvent())
+                .isEqualTo(scriptEvent());
+        assertThat(
+                        ChatMessageMeta.ofCommand()
+                                .withUsage(new RunTokenUsage(1, 1, 0, 1, 1, 0, 0, 2, 1))
+                                .command())
+                .isTrue();
     }
 
     /**

@@ -31,6 +31,7 @@ import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.runtime.RunScope;
+import io.github.trialiya.kb.service.chat.topic.AiTopicService;
 import io.github.trialiya.kb.tools.ChatToolset;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
@@ -90,6 +91,7 @@ public class ChatRunService {
     private final ChatMemory chatMemory;
     private final ChatHistoryService chatHistory;
     private final SummarizeService summarizeService;
+    private final AiTopicService aiTopics;
     private final PendingSummaryService pendingSummaries;
     private final AutoCompactService autoCompact;
     private final ChatModelProperties chatModels;
@@ -116,6 +118,7 @@ public class ChatRunService {
             ChatMemory chatMemory,
             ChatHistoryService chatHistory,
             SummarizeService summarizeService,
+            AiTopicService aiTopics,
             PendingSummaryService pendingSummaries,
             AutoCompactService autoCompact,
             ChatModelProperties chatModels,
@@ -131,6 +134,7 @@ public class ChatRunService {
         this.chatMemory = chatMemory;
         this.chatHistory = chatHistory;
         this.summarizeService = summarizeService;
+        this.aiTopics = aiTopics;
         this.pendingSummaries = pendingSummaries;
         this.autoCompact = autoCompact;
         this.chatModels = chatModels;
@@ -596,6 +600,8 @@ public class ChatRunService {
         liveSink.accept(new ToolCallsMessage(metas));
         events.publish(scope.conversationId(), RUN_DONE, scope.runId(), null, null);
         summarizeService.trySummarize(scope.conversationId());
+        // Только за законченным ответом: оборванный и упавший названию чата не повод.
+        aiTopics.afterAnswer(scope.conversationId());
     }
 
     /**

@@ -13,7 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.github.trialiya.kb.config.ChatConfig;
 import io.github.trialiya.kb.config.ChatModelRegistry;
 import io.github.trialiya.kb.config.model.SystemPromptProperties;
-import io.github.trialiya.kb.functions.TopicFunction;
+import io.github.trialiya.kb.functions.ChatInfoFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.tool.ToolData;
@@ -140,7 +140,7 @@ class CompactPromptCacheTest {
         // должно ловить расхождение именно в ней.
         toolset =
                 new ChatToolset(
-                        Stream.of(ToolCallbacks.from(new TopicFunction(chatTopicRepository())))
+                        Stream.of(ToolCallbacks.from(new ChatInfoFunction()))
                                 .<ToolCallback>map(RecordingToolCallback::new)
                                 .toList(),
                         List.of());

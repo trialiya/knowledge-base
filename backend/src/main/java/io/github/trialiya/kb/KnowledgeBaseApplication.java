@@ -4,6 +4,7 @@ import io.github.trialiya.kb.config.model.BackfillProperties;
 import io.github.trialiya.kb.config.model.ChatModeProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
+import io.github.trialiya.kb.config.model.ChatTopicProperties;
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.GitProperties;
@@ -35,6 +36,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     ChatModelProperties.class,
     ChatModeProperties.class,
     ChatTimeoutProperties.class,
+    ChatTopicProperties.class,
     SecurityProperties.class,
     SummarizeProperties.class,
     SystemPromptProperties.class

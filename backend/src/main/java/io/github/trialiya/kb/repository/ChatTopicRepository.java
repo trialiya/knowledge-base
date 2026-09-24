@@ -36,6 +36,38 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
     @Query("UPDATE chat_topic SET updated_at = :now WHERE conversation_id = :convId")
     void updateUpdatedAt(@Param("convId") String convId, @Param("now") LocalDateTime now);
 
+    /**
+     * Название от пользователя — одной колонкой по той же причине, что и {@link #updateAiTopic}.
+     * Переименование поднимает чат наверх списка, поэтому {@code updated_at} двигается — часами
+     * вызывающего, как и в {@link #updateUpdatedAt}.
+     */
+    @Modifying
+    @Query(
+            "UPDATE chat_topic SET user_topic = :topic, updated_at = :now WHERE conversation_id ="
+                    + " :convId")
+    void updateUserTopic(
+            @Param("convId") String convId,
+            @Param("topic") String topic,
+            @Param("now") LocalDateTime now);
+
+    /**
+     * Название от ИИ и номер ответа, на котором оно придумано, — точечно, а не сохранением всей
+     * строки: запрос идёт в фоне, и прочитанная до него строка к моменту записи могла устареть
+     * (переименование, смена модели или проекта). {@code updated_at} не трогается: чат наверх
+     * списка поднимает сообщение, а не название.
+     */
+    @Modifying
+    @Query(
+            "UPDATE chat_topic SET ai_topic = :topic, ai_topic_turn = :turn WHERE conversation_id ="
+                    + " :convId")
+    void updateAiTopic(
+            @Param("convId") String convId, @Param("topic") String topic, @Param("turn") int turn);
+
+    /** Только номер ответа — запрос прошёл, но названия не поменял (см. {@link #updateAiTopic}). */
+    @Modifying
+    @Query("UPDATE chat_topic SET ai_topic_turn = :turn WHERE conversation_id = :convId")
+    void updateAiTopicTurn(@Param("convId") String convId, @Param("turn") int turn);
+
     @Modifying
     @Query("UPDATE chat_topic SET model = :model WHERE conversation_id = :convId")
     void updateModel(@Param("convId") String convId, @Param("model") @Nullable String model);

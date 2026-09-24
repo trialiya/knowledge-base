@@ -623,7 +623,7 @@ SSE-поток событий чата: стриминг ответа + крос
 
 **Response:** `text/event-stream` (SSE)
 - `ChatEvent` — каждое событие: `seq`, `type`, `runId`, `clientMsgId`, `payload`
-- Типы: `USER_MESSAGE`, `RUN_STARTED`, `STREAM`, `TOOL_CALL`, `TOOL_CALLS`, `RUN_USAGE`, `RUN_DONE`, `RUN_STOPPED`, `RUN_ERROR`, `REPLAY_GAP`, `CHAT_DELETED`, `COMPACT_STARTED`, `COMPACT_DONE`, `COMPACT_ERROR`, `COMPACT_APPLIED`, `GIT_COMMAND`, `SCRIPT_RUN`
+- Типы: `USER_MESSAGE`, `RUN_STARTED`, `STREAM`, `TOOL_CALL`, `TOOL_CALLS`, `RUN_USAGE`, `RUN_DONE`, `RUN_STOPPED`, `RUN_ERROR`, `REPLAY_GAP`, `CHAT_DELETED`, `COMPACT_STARTED`, `COMPACT_DONE`, `COMPACT_ERROR`, `COMPACT_APPLIED`, `GIT_COMMAND`, `SCRIPT_RUN`, `CHAT_TOPIC`
 - `COMPACT_DONE` несёт `CompactPayload`:
   `{ "messageId": 512, "messages": 42, "summaryChars": 3800, "kind": "COMPACT",
   "createdAt": "2026-08-25T12:00:00", "usage": { … }, "carried": { … } }` — id строки-плашки
@@ -640,6 +640,12 @@ SSE-поток событий чата: стриминг ответа + крос
   строки команды `/compact`, на которую этот замер записан (`null` в обоих полях — раунда не было
   вовсе). Деньги за такой раунд заплачены, и вкладка досчитывает их в итог чата сразу, не дожидаясь
   перезагрузки
+- `CHAT_TOPIC` несёт `ChatTopicPayload`: `{ "topic": "…", "aiTopic": "…" }` — отображаемое
+  название чата после записи (`topic`) и название от ИИ, известное на этот момент (`aiTopic`;
+  `null` — ИИ чат ещё не называл). Расходятся, если чат переименовали, пока шёл запрос названия.
+  Приходит двумя путями: за названием от ИИ — вне прогона, через несколько секунд после `RUN_DONE`;
+  за переименованием (`PUT /api/chats/{id}/topic`) — сразу, чтобы заголовок сменился и в остальных
+  вкладках
 - `COMPACT_APPLIED` несёт тот же `CompactPayload` и приходит на плашку, которую не просил
   пользователь: применённая фоновая сводка (`kind: SUMMARIZE`, `runId` пустой — поводом была пауза
   или размер контекста) или авто-сжатие у предела окна модели (`kind: AUTO_COMPACT`, `runId`

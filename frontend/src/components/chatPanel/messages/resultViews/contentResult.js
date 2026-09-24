@@ -24,7 +24,7 @@ const TITLE_FIELDS = ['path', 'fileName', 'title'];
 const COLLECTION_FIELDS = ['files', 'sections', 'symbols', 'edits', 'parentList', 'items', 'log'];
 
 // Короткая однострочная строка — это значение, а не содержимое: `getChatId` и
-// `recordChatInsights` в текстовом вьювере смотрелись бы нелепо.
+// `getCurrentDateTime` в текстовом вьювере смотрелись бы нелепо.
 const MIN_TEXT_LEN = 200;
 
 // Больше двух десятков текстов за вызов — это уже не «содержимое», а выдача:

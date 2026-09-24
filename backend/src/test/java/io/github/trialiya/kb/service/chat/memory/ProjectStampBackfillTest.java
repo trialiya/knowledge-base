@@ -141,6 +141,7 @@ class ProjectStampBackfillTest {
                                         null,
                                         null,
                                         null,
+                                        null,
                                         project,
                                         LocalDateTime.now(),
                                         LocalDateTime.now(),

@@ -42,6 +42,46 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     Optional<ChatMessageEntity> findFirstByConversationIdOrderByPositionDesc(String conversationId);
 
     /**
+     * Хвост реплик чата — вопросы и ответы без строк-сводок и без протокола инструментов: TOOL-ряды
+     * не выбираются, а {@code tool_data} не читается вовсе ({@code NULL}). От свежего к старому, не
+     * больше {@code limit} рядов: читателю нужны несколько последних сообщений, а не история
+     * целиком — название чата ({@code AiTopicService}) собирает по ним окно в пару тысяч символов,
+     * и тащить ради этого мегабайты ответов инструментов незачем.
+     */
+    @Query(
+            """
+    SELECT id, conversation_id, content, type, position, summarized, summary, created_at, meta,
+           NULL AS tool_data
+    FROM chat_message
+    WHERE conversation_id = :conversationId AND summary = false
+      AND type IN ('USER', 'ASSISTANT')
+    ORDER BY created_at DESC, id DESC
+    LIMIT :limit
+    """)
+    List<ChatMessageEntity> findLastTurns(
+            @Param("conversationId") String conversationId, @Param("limit") int limit);
+
+    /**
+     * Сколько ходов в чате — по нему название чата (см. {@code AiTopicService}) решает, пройдена ли
+     * очередная контрольная точка. Ход — вопрос пользователя: ряды с пустым текстом (git-команда,
+     * откат файловых правок, запуск скрипта) вопросами не являются и не считаются.
+     *
+     * <p>Счёт нарочно грубый, и это не то же самое, что {@code ChatHistoryService.opensATurn}:
+     * строка слэш-команды, вопрос, доставленный посреди прогона, и досланная пачкой очередь идут в
+     * него наравне с обычным вопросом, хотя ответ на пачку один; неотвеченный вопрос, уже лёгший в
+     * историю, тоже считается — и тогда контрольную точку берёт окно, которое кончается прошлым
+     * ответом. Номер хода никому не показывается, он решает только, через сколько ответов чат
+     * назовут заново, — а точный счёт стоил бы чтения истории после каждого ответа.
+     */
+    @Query(
+            """
+    SELECT COUNT(*) FROM chat_message
+    WHERE conversation_id = :conversationId AND summary = false
+      AND type = 'USER' AND content <> ''
+    """)
+    int countTurns(@Param("conversationId") String conversationId);
+
+    /**
      * Весь чат целиком, включая строки-сводки и уже сжатые ряды, — для разовых проходов по истории
      * ({@code ProjectStampBackfill}). Обычному чтению это не нужно: и промпту, и UI нужна половина
      * чата, и обе половины отбирают запросы выше.

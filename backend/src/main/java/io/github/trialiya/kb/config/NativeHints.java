@@ -2,6 +2,7 @@ package io.github.trialiya.kb.config;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import io.github.trialiya.kb.functions.AttachmentFunction;
+import io.github.trialiya.kb.functions.ChatInfoFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitEditFunction;
 import io.github.trialiya.kb.functions.GitFunction;
@@ -10,7 +11,6 @@ import io.github.trialiya.kb.functions.SavedScriptFunction;
 import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
 import io.github.trialiya.kb.functions.SkillFunction;
-import io.github.trialiya.kb.functions.TopicFunction;
 import io.github.trialiya.kb.service.chat.script.KbEditScriptApi;
 import io.github.trialiya.kb.service.chat.script.KbScriptApi;
 import java.io.IOException;
@@ -53,7 +53,7 @@ import org.springframework.util.ClassUtils;
  * Методы держателей-бинов регистрирует {@code
  * org.springframework.ai.aot.ToolBeanRegistrationAotProcessor} — но именно бинов: он обрабатывает
  * определения бинов, а часть держателей ими не является. {@code ChatConfig} создаёт их прямо в теле
- * бин-метода ({@code new TopicFunction(...)} и соседи), а копию {@code ScriptFunction} для
+ * бин-метода ({@code new ChatInfoFunction()} и соседи), а копию {@code ScriptFunction} для
  * поискового суб-агента — фабрикой там же ({@code ScriptFunction.readOnly}). Без регистрации методы
  * в образе есть, а аннотаций на них нет, и сборка инструментов падает с «No @Tool annotated methods
  * found». Держатели перечислены списком, а не найдены сканированием: полноту списка держит {@code
@@ -98,7 +98,7 @@ public class NativeHints implements RuntimeHintsRegistrar {
                     ScriptFunction.class,
                     SearchAgentFunction.class,
                     SkillFunction.class,
-                    TopicFunction.class);
+                    ChatInfoFunction.class);
 
     /** Классы, чьи объекты связываются с гостевым {@code kb} — см. {@code ScriptRunner}. */
     private static final List<Class<?>> SCRIPT_APIS =

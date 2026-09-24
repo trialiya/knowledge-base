@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.utils;
 
-import static io.github.trialiya.kb.functions.TopicFunction.USER_NAME;
+import static io.github.trialiya.kb.functions.ChatInfoFunction.USER_NAME;
 
 import io.github.trialiya.kb.tools.ProjectContext;
 import io.github.trialiya.kb.tools.RunCancellation;

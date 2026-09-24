@@ -9,8 +9,8 @@ import org.jspecify.annotations.Nullable;
  *
  * @param topic display title — the user's own title if the chat was renamed, otherwise the
  *     assistant-proposed one. Kept pre-resolved so callers that only render a title need no
- *     fallback logic. {@code null} until the assistant proposes one via {@code recordChatInsights}.
- * @param aiTopic title proposed by the assistant ({@code recordChatInsights}), or null. Shown
+ *     fallback logic. {@code null} until the first answer has been named ({@code AiTopicService}).
+ * @param aiTopic title proposed by the assistant ({@code AiTopicService}), or null. Shown
  *     separately in the chat "Info" panel (alongside {@link #topic}) so a renamed chat can still
  *     display what the assistant would have called it. {@code userTopic} itself isn't exposed:
  *     nothing needs it once {@code topic} and {@code aiTopic} disagree, that already means the user

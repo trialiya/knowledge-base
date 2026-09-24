@@ -4,14 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.util.List;
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest;
@@ -45,6 +48,7 @@ class SampleDataFixtureTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private DocumentRepository documentRepo;
     @Autowired private ChatMessageRepository chatMessageRepo;
+    @Autowired private ChatTopicRepository chatTopicRepo;
 
     /**
      * The chat names the project its tools ran in. Asserted because the column is nullable and the
@@ -108,6 +112,36 @@ class SampleDataFixtureTest {
         assertThat(documentRepo.findById(82L).orElseThrow().getParentId()).isEqualTo(81L);
         assertThat(jdbc.queryForList("select id from documents where is_system = true", Long.class))
                 .containsExactly(80L);
+    }
+
+    /**
+     * The conversation read for chat naming: questions and answers only, the protocol left out.
+     * Asserted here because the query spells its columns out by hand, and the fixture is the one
+     * place both the H2 schema and real rows meet it.
+     */
+    @Test
+    void conversationTurnsLeaveTheToolProtocolOut() {
+        final List<ChatMessageEntity> turns =
+                chatMessageRepo.findLastTurns("c5dfa618-0ad2-4845-a976-ada46c50f9a4", 100);
+
+        assertThat(turns).isNotEmpty();
+        // От свежего к старому — так выборка и объявлена: окно названия собирается с хвоста.
+        assertThat(turns)
+                .extracting(ChatMessageEntity::getCreatedAt)
+                .isSortedAccordingTo(java.util.Comparator.reverseOrder());
+        assertThat(chatMessageRepo.findLastTurns("c5dfa618-0ad2-4845-a976-ada46c50f9a4", 3))
+                .extracting(ChatMessageEntity::getId)
+                .containsExactlyElementsOf(
+                        turns.subList(0, 3).stream().map(ChatMessageEntity::getId).toList());
+        assertThat(turns)
+                .extracting(ChatMessageEntity::getType)
+                .containsOnly(MessageType.USER, MessageType.ASSISTANT);
+        assertThat(turns).extracting(ChatMessageEntity::getToolData).containsOnlyNulls();
+        // Через сущность, а не через SQL: колонка новая, и проверять надо в том числе то, что она
+        // доезжает до ChatTopicEntity — по ней AiTopicService и решает, пора ли называть чат.
+        assertThat(chatTopicRepo.findAll())
+                .extracting(ChatTopicEntity::getAiTopicTurn)
+                .containsExactlyInAnyOrder(3, 1);
     }
 
     @Test

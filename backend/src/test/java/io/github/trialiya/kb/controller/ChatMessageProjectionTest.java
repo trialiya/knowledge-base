@@ -8,6 +8,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
 import io.github.trialiya.kb.model.script.ScriptStats;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,7 +44,8 @@ class ChatMessageProjectionTest {
 
         assertThat(message.scriptEvent()).isEqualTo(event);
         assertThat(message.content()).isEmpty();
-        assertThat(isEventRow(row(ChatMessageMeta.ofScriptEvent(event)))).isTrue();
+        assertThat(ChatHistoryService.isEventRow(row(ChatMessageMeta.ofScriptEvent(event))))
+                .isTrue();
     }
 
     /** Соседний ряд того же сорта — чтобы тест ловил обрыв в любой из двух веток фильтра. */
@@ -52,14 +54,14 @@ class ChatMessageProjectionTest {
         final GitEventMeta event = new GitEventMeta("pull", "kb", true, "Fast-forward", "main");
 
         assertThat(project(row(ChatMessageMeta.ofGitEvent(event))).gitEvent()).isEqualTo(event);
-        assertThat(isEventRow(row(ChatMessageMeta.ofGitEvent(event)))).isTrue();
+        assertThat(ChatHistoryService.isEventRow(row(ChatMessageMeta.ofGitEvent(event)))).isTrue();
     }
 
     /** Обычный вопрос рядом события не является — иначе фильтр пустых потерял бы смысл. */
     @Test
-    void anOrdinaryQuestionIsNotAnEventRow() throws Exception {
+    void anOrdinaryQuestionIsNotAnEventRow() {
         assertThat(
-                        isEventRow(
+                        ChatHistoryService.isEventRow(
                                 new ChatMessageEntity(
                                         1L,
                                         "conv-1",
@@ -74,8 +76,8 @@ class ChatMessageProjectionTest {
                 .isFalse();
     }
 
-    // Оба метода приватные и статические не случайно: они деталь контроллера, а не его API.
-    // Тест зовёт их рефлексией, чтобы не расширять видимость ради проверки.
+    // Метод приватный и статический не случайно: он деталь контроллера, а не его API. Тест зовёт
+    // его рефлексией, чтобы не расширять видимость ради проверки.
 
     private static ChatMessage project(ChatMessageEntity entity) throws Exception {
         final Method method =
@@ -83,13 +85,6 @@ class ChatMessageProjectionTest {
                         "toChatMessage", ChatMessageEntity.class, List.class);
         method.setAccessible(true);
         return (ChatMessage) method.invoke(null, entity, List.of());
-    }
-
-    private static boolean isEventRow(ChatMessageEntity entity) throws Exception {
-        final Method method =
-                ChatController.class.getDeclaredMethod("isEventRow", ChatMessageEntity.class);
-        method.setAccessible(true);
-        return (boolean) method.invoke(null, entity);
     }
 
     private static ChatMessageEntity row(ChatMessageMeta meta) {

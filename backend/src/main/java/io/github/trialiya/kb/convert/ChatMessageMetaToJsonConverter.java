@@ -63,7 +63,8 @@ public final class ChatMessageMetaToJsonConverter {
             @Nullable RunTokenUsage usage,
             @Nullable List<ProjectSpan> visitedProjects,
             @Nullable FileRevertMeta fileRevert,
-            @Nullable ScriptEventMeta scriptEvent) {}
+            @Nullable ScriptEventMeta scriptEvent,
+            @Nullable Boolean command) {}
 
     /**
      * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
@@ -140,7 +141,8 @@ public final class ChatMessageMetaToJsonConverter {
                         json.usage(),
                         json.visitedProjects() == null ? List.of() : json.visitedProjects(),
                         json.fileRevert(),
-                        json.scriptEvent());
+                        json.scriptEvent(),
+                        Boolean.TRUE.equals(json.command()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -213,7 +215,9 @@ public final class ChatMessageMetaToJsonConverter {
                                         ? null
                                         : source.visitedProjects(),
                                 source.fileRevert(),
-                                source.scriptEvent()));
+                                source.scriptEvent(),
+                                // false не выписывается — см. interjection выше.
+                                source.command() ? Boolean.TRUE : null));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

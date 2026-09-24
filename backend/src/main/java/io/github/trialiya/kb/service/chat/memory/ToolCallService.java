@@ -44,6 +44,8 @@ public class ToolCallService {
      */
     private static final Set<String> SKIP_TOOLS =
             Set.of(
+                    // Не инструмент: имя из истории старых чатов, которое модель повторяет по
+                    // образцу. Ответ-ошибку она прочтёт, а плашке с ней в ленте делать нечего.
                     "recordChatInsights",
                     "getUserName",
                     "getCurrentDateTime",

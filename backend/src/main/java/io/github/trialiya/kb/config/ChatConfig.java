@@ -8,6 +8,7 @@ import io.github.trialiya.kb.config.model.McpProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.AttachmentFunction;
+import io.github.trialiya.kb.functions.ChatInfoFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitEditFunction;
 import io.github.trialiya.kb.functions.GitFunction;
@@ -16,9 +17,7 @@ import io.github.trialiya.kb.functions.SavedScriptFunction;
 import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
 import io.github.trialiya.kb.functions.SkillFunction;
-import io.github.trialiya.kb.functions.TopicFunction;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
-import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.SearchAgentService;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -433,7 +432,6 @@ public class ChatConfig {
      */
     @Bean
     public ChatToolset chatToolset(
-            ChatTopicRepository chatTopicRepository,
             ChatMessageRepository chatMessageRepository,
             GitFunction gitFunction,
             ObjectProvider<GitEditFunction> gitEditFunction,
@@ -448,7 +446,7 @@ public class ChatConfig {
         List<Object> functions =
                 new ArrayList<>(
                         List.of(
-                                new TopicFunction(chatTopicRepository),
+                                new ChatInfoFunction(),
                                 new MessageLookupFunction(
                                         chatMessageRepository, contextItemService),
                                 documentFunction,

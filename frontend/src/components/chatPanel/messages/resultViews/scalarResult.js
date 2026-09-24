@@ -1,6 +1,5 @@
 // Что режим «Обзор» показывает для формы «скаляр»: одно короткое значение —
-// `getChatId`, `getUserName`, `getCurrentDateTime`, `createAttachment`,
-// `recordChatInsights` («Done»).
+// `getChatId`, `getUserName`, `getCurrentDateTime`, `createAttachment`.
 //
 // Смысл вида ровно один: не разворачивать на весь экран секцию `pre` с тёмным
 // фоном и подсветкой ради семи символов.

@@ -395,7 +395,6 @@
     "getChatId": "Chat id",
     "getUserName": "User name",
     "getCurrentDateTime": "Current time",
-    "recordChatInsights": "Chat topic",
     "readSkill": "Read skill",
     "getFileTree": "File tree",
     "getCommitLog": "Commit log",

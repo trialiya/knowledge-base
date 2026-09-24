@@ -180,7 +180,7 @@ describe('detectContentResult — что попадает в «Обзор»', ()
 });
 
 describe('detectContentResult — что остаётся в JSON', () => {
-  it('короткий скаляр: getChatId, recordChatInsights', () => {
+  it('короткий скаляр: getChatId, getCurrentDateTime', () => {
     expect(detect('"Done"')).toBeNull();
     expect(detect(JSON.stringify('a1b2c3'))).toBeNull();
     expect(detect('42')).toBeNull();
