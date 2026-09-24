@@ -383,7 +383,7 @@ public class ChatConfig {
      */
     static String subAgentScriptInstructions(
             ScriptGuideService scriptGuideService, SkillService skillService, boolean weak) {
-        String reference = scriptGuideService.readOnlyInstructions(false);
+        String reference = scriptGuideService.subAgentInstructions();
         return weak ? reference + "\n\n" + skillService.textOf("script-writing") : reference;
     }
 

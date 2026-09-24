@@ -193,6 +193,31 @@ class ScriptGuideServiceTest {
                 .doesNotContain("kb.result", "resultId", "saveScriptResult");
     }
 
+    /**
+     * Сабагент читает результаты чата, но свои не сохраняет; при выключенном хранении — ни слова.
+     */
+    @Test
+    void theSubAgentIsToldItReadsResultsButKeepsNone() {
+        ScriptProperties properties = ScriptProperties.enabledWithDefaults();
+        ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
+        when(policy.enabled(nullable(String.class))).thenReturn(true);
+
+        String subAgent =
+                new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy)
+                        .subAgentInstructions();
+
+        assertThat(subAgent)
+                .contains("kb.result(id)", "kb.results()", "Your own runs keep nothing")
+                .doesNotContain("saveScriptResult", "kb.edit", "readSkill");
+        assertThat(
+                        new ScriptGuideService(
+                                        properties,
+                                        new ScriptResultProperties(false, 1000, 10),
+                                        policy)
+                                .subAgentInstructions())
+                .doesNotContain("kb.result");
+    }
+
     /** {@code properties} with one guide and one byte budget varied; the rest stay at defaults. */
     private static ScriptProperties sized(Resource guide, DataSize maxBytesRead) {
         return new ScriptProperties(
