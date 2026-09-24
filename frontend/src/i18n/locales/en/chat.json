@@ -408,7 +408,8 @@
     "createFile": "Create file",
     "editFile": "Edit file",
     "runScript": "Script",
-    "runSavedScript": "Saved script"
+    "runSavedScript": "Saved script",
+    "saveScriptResult": "Save script result"
   },
   "docChange": {
     "viewChanges": "View changes",

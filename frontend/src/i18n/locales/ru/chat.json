@@ -408,7 +408,8 @@
     "createFile": "Создание файла",
     "editFile": "Правка файла",
     "runScript": "Скрипт",
-    "runSavedScript": "Сохранённый скрипт"
+    "runSavedScript": "Сохранённый скрипт",
+    "saveScriptResult": "Сохранение результата скрипта"
   },
   "docChange": {
     "viewChanges": "Посмотреть изменения",

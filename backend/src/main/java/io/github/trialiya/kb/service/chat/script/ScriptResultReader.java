@@ -6,14 +6,14 @@ import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
 /**
- * What {@code kb.result} / {@code kb.results} see: one chat's kept results, or — for a run that
- * belongs to no chat — the refusal that says so.
+ * What {@code kb.result} / {@code kb.results} — and {@code saveScriptResult} — see: one chat's kept
+ * results, or — for a run that belongs to no chat — the refusal that says so.
  *
  * <p>Every refusal is an {@link IllegalArgumentException}, which the runner reports as a RUNTIME
  * error with the message intact: the model's next move depends on which of "no chat", "no such id"
  * and "dropped as too old" it was, so the message names the ids that do exist.
  */
-final class ScriptResultReader {
+public final class ScriptResultReader {
 
     private final @Nullable ScriptResultStore store;
     private final @Nullable String conversationId;
@@ -23,14 +23,14 @@ final class ScriptResultReader {
         this.conversationId = conversationId;
     }
 
-    static ScriptResultReader of(ScriptResultStore store, @Nullable ResultScope scope) {
+    public static ScriptResultReader of(ScriptResultStore store, @Nullable ResultScope scope) {
         return scope == null
                 ? new ScriptResultReader(null, null)
                 : new ScriptResultReader(store, scope.conversationId());
     }
 
     /** The value kept under {@code id}, as JSON. */
-    String valueJson(String id) {
+    public String valueJson(String id) {
         if (store == null || conversationId == null) {
             throw noChat();
         }
