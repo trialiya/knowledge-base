@@ -101,12 +101,13 @@ class AiTopicServiceTest {
     }
 
     @Test
-    void theHistoryIsReadOnlyWhenSegmentsCouldHaveReachedACheckpoint() {
+    void theHistoryIsReadWhenUnansweredQuestionsCouldHaveReachedACheckpoint() {
         when(chatTopics.findById(CONV)).thenReturn(chat(null, "Old title", 3));
-        // Ход один, но сегментов tool-цикла в нём много: счётчик рядов обгоняет число ответов, и
-        // историю приходится прочитать — чтобы убедиться, что точка ещё не пройдена.
+        // Ответов четыре, но вопросов больше: досланное пачкой, ряды событий и команды ответа не
+        // получают. Оценка обгоняет правду, и историю приходится прочитать — чтобы убедиться, что
+        // точка ещё не пройдена.
         turns(4);
-        when(chatMessages.countAnswerRows(CONV)).thenReturn(12);
+        when(chatMessages.countQuestionRows(CONV)).thenReturn(12);
 
         service(true).name(CONV);
 
@@ -204,7 +205,7 @@ class AiTopicServiceTest {
             row(MessageType.USER, "question " + i);
             row(MessageType.ASSISTANT, "answer " + i);
         }
-        when(chatMessages.countAnswerRows(CONV)).thenReturn(count);
+        when(chatMessages.countQuestionRows(CONV)).thenReturn(count);
     }
 
     private void row(MessageType type, String content) {

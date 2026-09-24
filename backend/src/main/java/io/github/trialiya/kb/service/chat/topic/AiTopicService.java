@@ -127,7 +127,7 @@ public class AiTopicService implements DisposableBean {
         // Дешёвая оценка вместо истории: между контрольными точками — а это почти каждый ответ —
         // весь фоновый запрос обходится одним COUNT.
         if (namedAt != null
-                && !TopicPrompt.due(chatMessages.countAnswerRows(conversationId), namedAt)) {
+                && !TopicPrompt.due(chatMessages.countQuestionRows(conversationId), namedAt)) {
             return;
         }
         final List<ChatMessageEntity> rows = chatMessages.findConversationTurns(conversationId);

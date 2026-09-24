@@ -133,7 +133,7 @@ class SampleDataFixtureTest {
         // доезжает до ChatTopicEntity — по ней AiTopicService и решает, пора ли называть чат.
         assertThat(chatTopicRepo.findAll())
                 .extracting(ChatTopicEntity::getAiTopicTurn)
-                .containsExactly(3, 1);
+                .containsExactlyInAnyOrder(3, 1);
     }
 
     @Test

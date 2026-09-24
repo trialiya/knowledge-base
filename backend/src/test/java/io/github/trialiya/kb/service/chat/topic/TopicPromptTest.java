@@ -204,6 +204,8 @@ class TopicPromptTest {
         assertThat(TopicPrompt.clean("*.gradle зависимости")).isEqualTo("*.gradle зависимости");
         assertThat(TopicPrompt.clean("**Title:**\nНастройка pgvector"))
                 .isEqualTo("Настройка pgvector");
+        assertThat(TopicPrompt.clean("Sure, here is the title:\n\nНастройка pgvector"))
+                .isEqualTo("Настройка pgvector");
         assertThat(TopicPrompt.clean("<think>\nstill thinking, cut off")).isNull();
         assertThat(TopicPrompt.clean("   \n")).isNull();
         assertThat(TopicPrompt.clean(null)).isNull();

@@ -59,17 +59,22 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     List<ChatMessageEntity> findConversationTurns(@Param("conversationId") String conversationId);
 
     /**
-     * Верхняя оценка числа ответов модели в чате: сегменты одного ответа (tool-цикл) лежат
-     * отдельными рядами, и каждый считается сам за себя, — настоящих ответов не больше. Дешёвая
-     * проверка перед выборкой истории: пока оценка не дотягивает до следующей контрольной точки,
-     * называть чат заново точно не пора (см. {@code AiTopicService}).
+     * Верхняя оценка числа ответов модели в чате: у каждого ответа есть открывший его вопрос, а вот
+     * ответ есть не у каждого USER-ряда — ряды событий, досланная пачкой очередь и строки
+     * слэш-команд ответа не получают. Дешёвая проверка перед выборкой истории: пока оценка не
+     * дотягивает до следующей контрольной точки, называть чат заново точно не пора (см. {@code
+     * AiTopicService}).
+     *
+     * <p>Считаются вопросы, а не ASSISTANT-ряды: у ответа с вызовами инструментов рядов столько,
+     * сколько было итераций tool-цикла, и такая оценка обгоняла бы правду в разы — то есть не
+     * отсекала бы ничего.
      */
     @Query(
             """
     SELECT COUNT(*) FROM chat_message
-    WHERE conversation_id = :conversationId AND summary = false AND type = 'ASSISTANT'
+    WHERE conversation_id = :conversationId AND summary = false AND type = 'USER'
     """)
-    int countAnswerRows(@Param("conversationId") String conversationId);
+    int countQuestionRows(@Param("conversationId") String conversationId);
 
     /**
      * Весь чат целиком, включая строки-сводки и уже сжатые ряды, — для разовых проходов по истории

@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.chat.topic;
 
+import io.github.trialiya.kb.config.model.ChatTopicProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
@@ -161,8 +162,12 @@ final class TopicPrompt {
     /**
      * Название из ответа модели: первая строка, в которой после снятия кавычек, markdown-разметки и
      * подписи «Title:» что-то осталось, без точки в конце, не длиннее {@value #MAX_TOPIC_CHARS}
-     * символов. Подпись на отдельной строке ({@code **Title:**}, а название ниже) так пропускается.
-     * {@code null} — в ответе названия нет.
+     * символов. Подпись на отдельной строке ({@code **Title:**}, а название ниже) так пропускается,
+     * как и подводка («Here is the title:»): названия двоеточием не кончаются. {@code null} — в
+     * ответе названия нет.
+     *
+     * <p>Промпт просит одно название и ничего больше, но модель для этого запроса выбирают
+     * подешевле ({@link ChatTopicProperties}) — а такая слушается хуже.
      */
     static @Nullable String clean(@Nullable String reply) {
         if (reply == null) {
@@ -183,6 +188,9 @@ final class TopicPrompt {
         topic = LEADING_JUNK.matcher(topic).replaceAll("");
         topic = TRAILING_JUNK.matcher(topic).replaceAll("");
         topic = topic.replaceAll("\\s+", " ").strip();
+        if (topic.endsWith(":")) {
+            return "";
+        }
         if (topic.length() > MAX_TOPIC_CHARS) {
             final int space = topic.lastIndexOf(' ', MAX_TOPIC_CHARS);
             topic = topic.substring(0, space > 0 ? space : MAX_TOPIC_CHARS).strip();
