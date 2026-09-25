@@ -8,7 +8,7 @@ plugins {
     id 'com.github.spotbugs' version '6.5.11'
     id 'com.gorylenko.gradle-git-properties' version '4.0.1'
     // apply false: плагин включается по флагу ниже, иначе он меняет обычный bootJar.
-    id 'org.graalvm.buildtools.native' version '1.1.12' apply false
+    id 'org.graalvm.buildtools.native' version '1.1.14' apply false
 }
 
 group = 'io.github.trialiya.kb'
