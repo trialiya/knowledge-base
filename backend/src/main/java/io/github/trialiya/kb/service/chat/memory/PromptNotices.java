@@ -150,7 +150,9 @@ public final class PromptNotices {
     /**
      * Текст ряда «пользователь сам запустил сохранённый скрипт». Модели нужны три вещи: что это был
      * не её вызов, что скрипт вернул — ради этого его и запускали, и какие файлы сдвинулись, если
-     * скрипт писал. Журнал и счётчики не идут: их читает человек там же, где нажимал кнопку.
+     * скрипт писал. Журнал и счётчики не идут: их читает человек там же, где нажимал кнопку. Плюс
+     * id, под которым значение сохранено целиком: в нотис оно попадает обрезанным, а скрипт модели
+     * прочитает его через {@code kb.result} без пересказа.
      *
      * <p>Возвращённое значение обрезается здесь, а не при записи: ряд хранит то, что скрипт
      * действительно вернул (его уже ограничил {@code maxResultChars}), а в промпт на каждом ходу
@@ -167,6 +169,7 @@ public final class PromptNotices {
                 + (event.ok() ? "ok" : "failed")
                 + "\""
                 + (event.project() == null ? "" : " project=\"" + attr(event.project()) + "\"")
+                + (event.resultId() == null ? "" : " result=\"" + attr(event.resultId()) + "\"")
                 + ">\n"
                 + "The user ran this saved script on the project from this chat — not you, and not"
                 + " through any tool of yours.\n"
@@ -176,6 +179,13 @@ public final class PromptNotices {
                                 + attr(String.valueOf(event.error()))
                                 + " — the user saw this, so do not re-run it without being"
                                 + " asked.\n")
+                + (event.resultId() == null
+                        ? ""
+                        : "Its whole value is kept as "
+                                + attr(event.resultId())
+                                + ": a script of yours can read it with kb.result('"
+                                + attr(event.resultId())
+                                + "').\n")
                 + (event.edited().isEmpty()
                         ? ""
                         : "It changed these files: "

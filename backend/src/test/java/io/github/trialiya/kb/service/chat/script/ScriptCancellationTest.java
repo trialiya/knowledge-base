@@ -60,7 +60,8 @@ class ScriptCancellationTest {
                         gitRegistry,
                         null,
                         properties,
-                        new ScriptEditPolicy(gitRegistry, properties));
+                        new ScriptEditPolicy(gitRegistry, properties),
+                        new InMemoryScriptResultStore());
     }
 
     @Test

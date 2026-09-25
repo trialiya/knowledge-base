@@ -1,11 +1,13 @@
 package io.github.trialiya.kb.service.chat.script;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.config.model.ScriptResultProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -19,6 +21,13 @@ import org.springframework.util.unit.DataSize;
  * deployment-wide switch.
  */
 class ScriptGuideServiceTest {
+
+    /**
+     * Results kept off, so a guide rendered from a stub markdown is that markdown alone — the
+     * results section has a switch of its own and a test of its own.
+     */
+    private static final ScriptResultProperties NO_RESULTS =
+            new ScriptResultProperties(false, 1000, 10);
 
     @Test
     void saysNothingAboutScriptsWhenTheToolIsDisabled() {
@@ -158,10 +167,79 @@ class ScriptGuideServiceTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(nullable(String.class))).thenReturn(true);
         when(policy.enabled("readonly")).thenReturn(false);
-        ScriptGuideService service = new ScriptGuideService(properties, policy);
+        ScriptGuideService service =
+                new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy);
 
         assertThat(service.instructions(true, "writable")).contains("kb.edit");
         assertThat(service.instructions(true, "readonly")).doesNotContain("kb.edit");
+    }
+
+    /** Без хранения результатов модель не должна слышать про id, которых не получит. */
+    @Test
+    void theResultsSectionFollowsItsOwnSwitch() {
+        ScriptProperties properties = ScriptProperties.enabledWithDefaults();
+        ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
+
+        assertThat(
+                        new ScriptGuideService(
+                                        properties, ScriptResultProperties.defaults(), policy)
+                                .instructions(false))
+                .contains("kb.result(id)", "saveScriptResult");
+        assertThat(
+                        new ScriptGuideService(
+                                        properties,
+                                        new ScriptResultProperties(false, 1000, 10),
+                                        policy)
+                                .instructions(false))
+                .doesNotContain("kb.result", "resultId", "saveScriptResult");
+    }
+
+    /**
+     * Справочник обещает, что сохранённое значение целое там, где модель видела обрезанное; потолок
+     * хранения ниже обрезки это обещание нарушил бы молча.
+     */
+    @Test
+    void aKeepingCeilingBelowWhatTheModelIsShownFailsStartup() {
+        ScriptProperties properties = ScriptProperties.enabledWithDefaults();
+        ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
+        int shown = properties.limits().maxResultChars();
+
+        assertThatThrownBy(
+                        () ->
+                                new ScriptGuideService(
+                                        properties,
+                                        new ScriptResultProperties(true, shown - 1, 10),
+                                        policy))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("kb.script.results.max-chars");
+        // Выключенное хранение ничего не обещает — проверять нечего.
+        new ScriptGuideService(
+                properties, new ScriptResultProperties(false, shown - 1, 10), policy);
+    }
+
+    /**
+     * Сабагент читает результаты чата, но свои не сохраняет; при выключенном хранении — ни слова.
+     */
+    @Test
+    void theSubAgentIsToldItReadsResultsButKeepsNone() {
+        ScriptProperties properties = ScriptProperties.enabledWithDefaults();
+        ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
+        when(policy.enabled(nullable(String.class))).thenReturn(true);
+
+        String subAgent =
+                new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy)
+                        .subAgentInstructions();
+
+        assertThat(subAgent)
+                .contains("kb.result(id)", "kb.results()", "Your own runs keep nothing")
+                .doesNotContain("saveScriptResult", "kb.edit", "readSkill");
+        assertThat(
+                        new ScriptGuideService(
+                                        properties,
+                                        new ScriptResultProperties(false, 1000, 10),
+                                        policy)
+                                .subAgentInstructions())
+                .doesNotContain("kb.result");
     }
 
     /** {@code properties} with one guide and one byte budget varied; the rest stay at defaults. */
@@ -187,6 +265,6 @@ class ScriptGuideServiceTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled()).thenReturn(editEnabled);
         when(policy.enabled(nullable(String.class))).thenReturn(editEnabled);
-        return new ScriptGuideService(properties, policy);
+        return new ScriptGuideService(properties, NO_RESULTS, policy);
     }
 }

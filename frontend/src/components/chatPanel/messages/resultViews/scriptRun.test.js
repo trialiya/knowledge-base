@@ -39,6 +39,11 @@ describe('detectScriptRun — что попадает в «Обзор»', () => 
     expect(detect(JSON.stringify(result())).project).toBeNull();
   });
 
+  it('id сохранённого значения берётся из ответа; нет его — значит, не сохраняли', () => {
+    expect(detect(JSON.stringify(result({ resultId: 'r3' }))).resultId).toBe('r3');
+    expect(detect(JSON.stringify(result())).resultId).toBeNull();
+  });
+
   it('правки разбирает вид diff’а, а не второй такой же разбор здесь', () => {
     const data = detect(JSON.stringify(result({ edits: [edit('a.jsx'), edit('b.css')], stats: { filesEdited: 2 } })));
     expect(data.edits).toHaveLength(1);

@@ -208,6 +208,8 @@
         "filesRead": "Прочитанные файлы",
         "pathCount": "файлов: {{count}}",
         "edits": "Изменённые файлы",
+        "resultId": "сохранён как",
+        "resultHint": "Следующий скрипт этого чата читает это значение через kb.result('{{id}}'); saveScriptResult сохраняет его в файл.",
         "line": "строка {{line}}",
         "error": {
           "SYNTAX": "Синтаксическая ошибка",
@@ -408,7 +410,8 @@
     "createFile": "Создание файла",
     "editFile": "Правка файла",
     "runScript": "Скрипт",
-    "runSavedScript": "Сохранённый скрипт"
+    "runSavedScript": "Сохранённый скрипт",
+    "saveScriptResult": "Сохранение результата скрипта"
   },
   "docChange": {
     "viewChanges": "Посмотреть изменения",
@@ -488,6 +491,7 @@
   },
   "scriptRun": {
     "stats": "файлов: {{files}} · {{ms}} мс",
+    "result": "результат {{id}}",
     "edited": "изменено файлов: {{count}}",
     "log": "Журнал"
   },

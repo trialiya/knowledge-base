@@ -2,16 +2,14 @@ package io.github.trialiya.kb.functions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.model.script.ScriptStats;
+import io.github.trialiya.kb.service.chat.script.ResultScope;
+import io.github.trialiya.kb.service.chat.script.ScriptRequest;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ProjectContext;
@@ -19,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ToolContext;
 
 /**
@@ -44,10 +44,11 @@ class ScriptFunctionTest {
                                 canonical(call.getArgument(0))
                                         .equals(canonical(call.getArgument(1))));
         function = ScriptFunction.forChat(runner, gitRegistry);
-        when(runner.run(anyString(), anyInt(), any(), anyBoolean(), any(), any()))
+        when(runner.run(any(ScriptRequest.class), any()))
                 .thenReturn(
                         new ScriptResult(
                                 "billing",
+                                null,
                                 null,
                                 null,
                                 List.of(),
@@ -63,7 +64,7 @@ class ScriptFunctionTest {
 
         function.runScript(context, "return 1;", null, "billing");
 
-        verify(runner).run(anyString(), anyInt(), any(), anyBoolean(), any(), eq("billing"));
+        assertThat(ran().projectId()).isEqualTo("billing");
     }
 
     @Test
@@ -72,7 +73,7 @@ class ScriptFunctionTest {
 
         function.runScript(context, "return 1;", null, null);
 
-        verify(runner).run(anyString(), anyInt(), any(), anyBoolean(), any(), eq("kb"));
+        assertThat(ran().projectId()).isEqualTo("kb");
     }
 
     @Test
@@ -81,7 +82,7 @@ class ScriptFunctionTest {
 
         function.runScript(context, "return 1;", null, "  ");
 
-        verify(runner).run(anyString(), anyInt(), any(), anyBoolean(), any(), eq("kb"));
+        assertThat(ran().projectId()).isEqualTo("kb");
     }
 
     @Test
@@ -92,7 +93,9 @@ class ScriptFunctionTest {
 
         // forceReadOnly=true: the repository the user chose for this chat is the only one a run
         // may write to, so the argument cannot be a way around that choice.
-        verify(runner).run(anyString(), anyInt(), any(), eq(true), any(), eq("billing"));
+        assertThat(ran())
+                .extracting(ScriptRequest::forceReadOnly, ScriptRequest::projectId)
+                .containsExactly(true, "billing");
     }
 
     @Test
@@ -101,7 +104,9 @@ class ScriptFunctionTest {
 
         function.runScript(context, "kb.edit(...)", null, null);
 
-        verify(runner).run(anyString(), anyInt(), any(), eq(false), any(), eq("kb"));
+        assertThat(ran())
+                .extracting(ScriptRequest::forceReadOnly, ScriptRequest::projectId)
+                .containsExactly(false, "kb");
     }
 
     @Test
@@ -110,7 +115,9 @@ class ScriptFunctionTest {
 
         function.runScript(context, "kb.edit(...)", null, "kb");
 
-        verify(runner).run(anyString(), anyInt(), any(), eq(false), any(), eq("kb"));
+        assertThat(ran())
+                .extracting(ScriptRequest::forceReadOnly, ScriptRequest::projectId)
+                .containsExactly(false, "kb");
     }
 
     @Test
@@ -119,7 +126,9 @@ class ScriptFunctionTest {
 
         ScriptFunction.readOnly(runner, gitRegistry).runScript(context, "kb.edit(...)", null, null);
 
-        verify(runner).run(anyString(), anyInt(), any(), eq(true), any(), eq("kb"));
+        assertThat(ran())
+                .extracting(ScriptRequest::forceReadOnly, ScriptRequest::projectId)
+                .containsExactly(true, "kb");
     }
 
     @Test
@@ -130,7 +139,9 @@ class ScriptFunctionTest {
 
         function.runScript(context, "kb.edit(...)", null, "kb");
 
-        verify(runner).run(anyString(), anyInt(), any(), eq(false), any(), eq("kb"));
+        assertThat(ran())
+                .extracting(ScriptRequest::forceReadOnly, ScriptRequest::projectId)
+                .containsExactly(false, "kb");
     }
 
     @Test
@@ -141,6 +152,31 @@ class ScriptFunctionTest {
 
         assertThat(result.project()).isEqualTo("billing");
         assertThat(result.getFormattedResponse()).contains("billing");
+    }
+
+    @Test
+    void theChatsCopyKeepsItsResultInTheChat() {
+        ToolContext context = new ToolContext(Map.of(ChatMemory.CONVERSATION_ID, "chat-1"));
+
+        function.runScript(context, "return 1;", null, null);
+
+        assertThat(ran().results()).isEqualTo(ResultScope.keeping("chat-1"));
+    }
+
+    @Test
+    void theSubAgentsCopyReadsTheChatsResultsButKeepsNone() {
+        ToolContext context = new ToolContext(Map.of(ChatMemory.CONVERSATION_ID, "chat-1"));
+
+        ScriptFunction.readOnly(runner, gitRegistry).runScript(context, "return 1;", null, null);
+
+        assertThat(ran().results()).isEqualTo(ResultScope.readOnly("chat-1"));
+    }
+
+    /** The one request the function handed the runner. */
+    private ScriptRequest ran() {
+        ArgumentCaptor<ScriptRequest> request = ArgumentCaptor.forClass(ScriptRequest.class);
+        verify(runner).run(request.capture(), any());
+        return request.getValue();
     }
 
     /** What {@code ProjectCatalog#require} does: no project named means the default one, "kb". */

@@ -160,6 +160,8 @@ class SampleDataFixtureTest {
                 .isEqualTo(2);
         assertThat(jdbc.queryForObject("select count(*) from embedding_tasks", Integer.class))
                 .isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from chat_script_result", Integer.class))
+                .isEqualTo(1);
         // Пусто намеренно (см. шапку sample-data.sql): строка фикстуры доставлялась бы в чат
         // настоящим сообщением на каждом старте ручного стенда. Запрос при этом держит таблицу
         // в контракте фикстуры — уехавшая из db/migration-h2 схема уронит его первым.

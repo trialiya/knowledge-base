@@ -37,8 +37,11 @@ public final class KbEditScriptApi extends KbScriptApi {
     private final ScriptSession session;
 
     public KbEditScriptApi(
-            GitService gitService, DocumentService documentService, ScriptSession session) {
-        super(gitService, documentService, session);
+            GitService gitService,
+            DocumentService documentService,
+            ScriptSession session,
+            ScriptResultReader results) {
+        super(gitService, documentService, session, results);
         this.gitService = gitService;
         this.session = session;
     }

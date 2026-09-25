@@ -21,6 +21,8 @@ import org.jspecify.annotations.Nullable;
  *     honours a file another tool already showed this response (see {@code ScriptSession}); null
  *     where there is no such session (background jobs, tests)
  * @param projectId the repository the run reads and writes; null — the default project
+ * @param results the chat whose kept results the run reads and, if it says so, adds to; null for a
+ *     run that belongs to no chat
  */
 public record ScriptRequest(
         ScriptSource source,
@@ -28,4 +30,12 @@ public record ScriptRequest(
         @Nullable Integer timeoutSeconds,
         boolean forceReadOnly,
         @Nullable ToolInvocationCollector priorInvocations,
-        @Nullable String projectId) {}
+        @Nullable String projectId,
+        @Nullable ResultScope results) {
+
+    /** The same run, belonging to {@code results}'s chat. */
+    public ScriptRequest withResults(ResultScope results) {
+        return new ScriptRequest(
+                source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results);
+    }
+}

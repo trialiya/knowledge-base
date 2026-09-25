@@ -82,7 +82,8 @@ class ChatScriptRunTest {
                                 null,
                                 true,
                                 null,
-                                "kb"));
+                                "kb",
+                                null));
         when(chatHistory.appendScriptEvent(eq(CONV), any())).thenReturn(row());
     }
 
@@ -107,6 +108,34 @@ class ChatScriptRunTest {
                         any(),
                         any(ScriptRunPayload.class));
         verify(claim).release(CONV, CLAIM);
+    }
+
+    /** Значение прогона хранится в чате, как у прогонов модели, и его id уезжает в нотис. */
+    @Test
+    void theRunsValueIsKeptInTheChatAndItsIdRecorded() {
+        final ScriptResult kept = result(null);
+        when(runner.run(any(ScriptRequest.class), any()))
+                .thenReturn(
+                        new ScriptResult(
+                                kept.project(),
+                                "r2",
+                                kept.source(),
+                                kept.value(),
+                                kept.log(),
+                                kept.stats(),
+                                null,
+                                kept.filesRead(),
+                                kept.edits()));
+
+        service.run(CONV, "report", null, null);
+
+        final ArgumentCaptor<ScriptRequest> request = ArgumentCaptor.forClass(ScriptRequest.class);
+        verify(runner).run(request.capture(), any());
+        assertThat(request.getValue().results()).isEqualTo(ResultScope.keeping(CONV));
+        final ArgumentCaptor<ScriptEventMeta> event =
+                ArgumentCaptor.forClass(ScriptEventMeta.class);
+        verify(chatHistory).appendScriptEvent(eq(CONV), event.capture());
+        assertThat(event.getValue().resultId()).isEqualTo("r2");
     }
 
     /**
@@ -204,6 +233,7 @@ class ChatScriptRunTest {
     private static ScriptResult result(ScriptError error) {
         return new ScriptResult(
                 "kb",
+                null,
                 new ScriptRunSource(
                         ScriptRunSource.Kind.PROJECT,
                         "report",

@@ -1,11 +1,13 @@
 package io.github.trialiya.kb.service.chat.script;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.config.model.ScriptResultProperties;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
@@ -44,21 +46,50 @@ import org.springframework.util.unit.DataSize;
 @Service
 public class ScriptGuideService {
 
+    /** The section on {@code kb.result} and {@code saveScriptResult} — see {@link #render}. */
+    private static final Resource RESULTS_GUIDE =
+            new ClassPathResource("prompt/script-run-results.md");
+
+    /**
+     * The same section as the search sub-agent needs it: its runs read the chat's results but keep
+     * none ({@code ResultScope#readOnly}), and it has no {@code saveScriptResult} — the chat's
+     * section would promise it a {@code resultId} and a tool it never gets.
+     */
+    private static final Resource SUB_AGENT_RESULTS_GUIDE =
+            new ClassPathResource("prompt/script-run-results-subagent.md");
+
     private final ScriptEditPolicy editPolicy;
     private final String instructionsForWeakModel;
     private final String instructionsForStrongModel;
     private final String readOnlyInstructionsForWeakModel;
     private final String readOnlyInstructionsForStrongModel;
+    private final String subAgentInstructions;
 
-    public ScriptGuideService(ScriptProperties properties, ScriptEditPolicy editPolicy) {
+    public ScriptGuideService(
+            ScriptProperties properties,
+            ScriptResultProperties results,
+            ScriptEditPolicy editPolicy) {
         this.editPolicy = editPolicy;
-        this.instructionsForWeakModel = properties.enabled() ? render(properties, true, true) : "";
+        requireKeepingCeiling(properties, results);
+        // Kept results are a deployment switch of their own: with it off no run gets a resultId,
+        // and a handbook describing kb.result would send the model after ids it never sees.
+        @Nullable Resource chatResults = results.enabled() ? RESULTS_GUIDE : null;
+        this.instructionsForWeakModel =
+                properties.enabled() ? render(properties, chatResults, true, true) : "";
         this.instructionsForStrongModel =
-                properties.enabled() ? render(properties, false, true) : "";
+                properties.enabled() ? render(properties, chatResults, false, true) : "";
         this.readOnlyInstructionsForWeakModel =
-                properties.enabled() ? render(properties, true, false) : "";
+                properties.enabled() ? render(properties, chatResults, true, false) : "";
         this.readOnlyInstructionsForStrongModel =
-                properties.enabled() ? render(properties, false, false) : "";
+                properties.enabled() ? render(properties, chatResults, false, false) : "";
+        this.subAgentInstructions =
+                properties.enabled()
+                        ? render(
+                                properties,
+                                results.enabled() ? SUB_AGENT_RESULTS_GUIDE : null,
+                                false,
+                                false)
+                        : "";
     }
 
     /**
@@ -87,26 +118,60 @@ public class ScriptGuideService {
     }
 
     /**
-     * The handbook without the write appendix, whatever the edit policy says — for the search
-     * sub-agent, which is read-only by construction and must stay that way even in a deployment
-     * where the main chat may edit files. Also the answer {@link #instructions} itself returns for
-     * a project that takes no writes.
+     * The chat's handbook without the write appendix, whatever the edit policy says — the answer
+     * {@link #instructions} returns for a project that takes no writes. The search sub-agent,
+     * read-only too, has a rendering of its own: {@link #subAgentInstructions}.
      *
      * @param weak whether the extended half — the order to load the {@code script-writing} skill —
-     *     is included. The sub-agent passes {@code false} whatever its model: it has no {@code
-     *     readSkill} to obey the order with, and {@code ChatConfig} appends the skill's text to it
-     *     directly instead
+     *     is included
      */
     public String readOnlyInstructions(boolean weak) {
         return weak ? readOnlyInstructionsForWeakModel : readOnlyInstructionsForStrongModel;
     }
 
+    /**
+     * The handbook for the search sub-agent: read-only, no order to load a skill (it has no {@code
+     * readSkill} — {@code ChatConfig} appends the skill's text itself), and the results section
+     * written for a caller that reads the chat's results without adding to them.
+     */
+    public String subAgentInstructions() {
+        return subAgentInstructions;
+    }
+
+    /**
+     * The results section promises the model that a kept value is whole where its own copy was cut
+     * to {@code max-result-chars}. A keeping ceiling below that cut breaks the promise quietly: a
+     * value between the two reaches the model uncut yet gets no id. Refused at startup instead.
+     */
+    private static void requireKeepingCeiling(
+            ScriptProperties properties, ScriptResultProperties results) {
+        int shown = properties.limits().maxResultChars();
+        if (properties.enabled() && results.enabled() && results.maxChars() < shown) {
+            throw new IllegalArgumentException(
+                    "kb.script.results.max-chars ("
+                            + results.maxChars()
+                            + ") must not be below kb.script.limits.max-result-chars ("
+                            + shown
+                            + "): a kept result has to hold at least what the model is shown");
+        }
+    }
+
+    /**
+     * @param resultsSection what the handbook says about kept results; null — nothing, because
+     *     keeping is off
+     */
     private static String render(
-            ScriptProperties properties, boolean extended, boolean editEnabled) {
+            ScriptProperties properties,
+            @Nullable Resource resultsSection,
+            boolean extended,
+            boolean editEnabled) {
         // Two independent gates. The write appendices are added only when kb.edit/kb.create are
         // actually bound, so the handbook can never describe a method the sandbox does not have;
         // the extended halves are added only for a run whose model is flagged weak.
         StringBuilder handbook = new StringBuilder(read(properties.guide()));
+        if (resultsSection != null) {
+            append(handbook, resultsSection);
+        }
         if (extended) {
             append(handbook, properties.extendedGuide());
         }

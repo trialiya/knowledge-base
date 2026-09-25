@@ -243,6 +243,7 @@
 }
 
 .script-run__path,
+.script-run__result,
 .script-run__stats,
 .script-run__paths {
   font-family: var(--kb-font-mono);

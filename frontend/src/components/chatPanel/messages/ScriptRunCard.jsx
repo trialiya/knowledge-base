@@ -31,6 +31,11 @@ const ScriptRunCard = ({ event }) => {
         </span>
         <span className="script-run__name">{event.script}</span>
         {event.path && <span className="script-run__path">{event.path}</span>}
+        {event.resultId && (
+          <span className="script-run__result" title={t('toolCall.detail.script.resultHint', { id: event.resultId })}>
+            {t('scriptRun.result', { id: event.resultId })}
+          </span>
+        )}
         {event.stats && (
           <span className="script-run__stats">
             {t('scriptRun.stats', { files: event.stats.filesRead, ms: event.stats.elapsedMs })}

@@ -33,6 +33,8 @@ import org.jspecify.annotations.Nullable;
  * @param edited paths the run created or modified; empty for a read-only run and for a failed one,
  *     which writes nothing at all
  * @param stats what the run spent — the same counters the tool's own result carries
+ * @param resultId the id the value is kept under in the chat ({@code r3}), which the notice hands
+ *     the model so a script of its own can read the value; null when nothing was kept
  */
 public record ScriptEventMeta(
         String script,
@@ -43,7 +45,8 @@ public record ScriptEventMeta(
         @Nullable ScriptError error,
         String output,
         List<String> edited,
-        ScriptStats stats) {
+        ScriptStats stats,
+        @Nullable String resultId) {
 
     public ScriptEventMeta {
         output = output == null ? "" : output;
@@ -62,6 +65,7 @@ public record ScriptEventMeta(
                 result.error(),
                 String.join("\n", result.log()),
                 result.edits().stream().map(GitEditResult::path).toList(),
-                result.stats());
+                result.stats(),
+                result.resultId());
     }
 }

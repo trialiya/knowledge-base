@@ -70,4 +70,25 @@ describe('ScriptRunView', () => {
     expect(document.querySelector('.tool-script__source-path').textContent).toBe('frontend/scripts/locale-diff.js');
     expect(document.querySelector('.tool-script__source-args').textContent).toBe('{"area":"components"}');
   });
+
+  it('плитка называет id, под которым значение сохранено для следующего скрипта', () => {
+    const data = detectScriptRun(
+      parseResult(
+        JSON.stringify({
+          resultId: 'r3',
+          stats: { filesRead: 2, calls: 5 },
+          log: [],
+          error: null,
+          value: 1,
+          filesRead: [],
+          edits: [],
+        }),
+      ),
+    );
+
+    render(<ScriptRunView data={data} />);
+
+    const tile = screen.getByText('r3').closest('.tool-script__stat');
+    expect(tile.getAttribute('title')).toContain("kb.result('r3')");
+  });
 });

@@ -1,12 +1,17 @@
 package io.github.trialiya.kb.service.chat.script;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.script.StoredScriptResult;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.service.file.git.GitService;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -14,6 +19,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -67,9 +73,12 @@ public class KbScriptApi {
      */
     private static final int MAX_BYTES_PER_CALL = 256 * 1024;
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final GitService gitService;
     private final DocumentService documentService;
     private final ScriptSession session;
+    private final ScriptResultReader results;
 
     /**
      * Guest-side formatter for {@link #log}, injected after the context exists. Java's view of a JS
@@ -79,10 +88,14 @@ public class KbScriptApi {
     private @Nullable Function<Value, String> formatter;
 
     public KbScriptApi(
-            GitService gitService, DocumentService documentService, ScriptSession session) {
+            GitService gitService,
+            DocumentService documentService,
+            ScriptSession session,
+            ScriptResultReader results) {
         this.gitService = gitService;
         this.documentService = documentService;
         this.session = session;
+        this.results = results;
     }
 
     void bindFormatter(Function<Value, String> formatter) {
@@ -438,6 +451,90 @@ public class KbScriptApi {
                             return result;
                         });
         return ProxyArray.fromList(freshRows(rows));
+    }
+
+    // ── Kept results ────────────────────────────────────────────────────────
+
+    /**
+     * The value an earlier script of this chat returned, kept under {@code id} ({@code "r3"}) —
+     * whole, even where the model itself was only shown the first {@code max-result-chars} of it.
+     * Charged against the byte budget like any other text handed in.
+     *
+     * <p>Unlike the other cached calls, a repeat still costs a call: every one hands the guest a
+     * fresh deep copy, and a loop re-reading a large value would otherwise be bounded by nothing
+     * but the wall clock.
+     */
+    @HostAccess.Export
+    public @Nullable Object result(@Nullable String id) {
+        String canonical = ScriptResultReader.canonical(id);
+        AtomicBoolean fetched = new AtomicBoolean();
+        Object value =
+                session.call(
+                        Arrays.<Object>asList("result", canonical),
+                        () -> {
+                            fetched.set(true);
+                            String json = results.valueJson(canonical);
+                            session.chargeKeptResult(utf8Length(json));
+                            return parse(canonical, json);
+                        });
+        if (!fetched.get()) {
+            session.chargeCall();
+        }
+        return toGuest(value);
+    }
+
+    /** The chat's kept results, oldest first: id, script, project, chars, createdAt. */
+    @HostAccess.Export
+    public Object results() {
+        List<Map<String, Object>> rows =
+                session.call(
+                        List.<Object>of("results"),
+                        () -> {
+                            List<Map<String, Object>> list = new ArrayList<>();
+                            for (StoredScriptResult kept : results.list()) {
+                                Map<String, Object> row = new LinkedHashMap<>();
+                                row.put("id", kept.id());
+                                row.put("script", kept.script());
+                                row.put("project", kept.project());
+                                row.put("chars", kept.chars());
+                                row.put("createdAt", kept.createdAt().toString());
+                                list.add(row);
+                            }
+                            return list;
+                        });
+        return ProxyArray.fromList(freshRows(rows));
+    }
+
+    private static @Nullable Object parse(String id, String json) {
+        try {
+            return OBJECT_MAPPER.readValue(json, Object.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Kept result '" + id + "' is not valid JSON", e);
+        }
+    }
+
+    /**
+     * Plain JSON data as the guest sees it: a map becomes an object, a list an array, and every
+     * level is a fresh copy — the cached value underneath must survive a script that edits what it
+     * was given (see {@link #freshRows}). A number too wide for a double never came out of {@code
+     * JSON.stringify} to begin with; it is narrowed rather than handed over as a host object.
+     */
+    @SuppressWarnings("unchecked")
+    private static @Nullable Object toGuest(@Nullable Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> copy = new LinkedHashMap<>();
+            ((Map<String, Object>) map).forEach((k, v) -> copy.put(k, toGuest(v)));
+            return ProxyObject.fromMap(copy);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> copy = new ArrayList<>(list.size());
+            list.forEach(v -> copy.add(toGuest(v)));
+            return ProxyArray.fromList(copy);
+        }
+        if (value instanceof BigInteger || value instanceof BigDecimal) {
+            return ((Number) value).doubleValue();
+        }
+        return value;
     }
 
     // ── Output ──────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import io.github.trialiya.kb.advisor.TokenUsageAdvisor;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.McpProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.config.model.ScriptResultProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.ChatInfoFunction;
@@ -15,6 +16,7 @@ import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.functions.SavedScriptFunction;
 import io.github.trialiya.kb.functions.ScriptFunction;
+import io.github.trialiya.kb.functions.ScriptResultFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
 import io.github.trialiya.kb.functions.SkillFunction;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
@@ -30,6 +32,7 @@ import io.github.trialiya.kb.service.chat.script.SavedScriptResolver;
 import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
+import io.github.trialiya.kb.service.chat.script.ScriptResultStore;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
 import io.github.trialiya.kb.service.chat.skill.SkillService;
 import io.github.trialiya.kb.service.document.DocumentService;
@@ -202,6 +205,30 @@ public class ChatConfig {
     }
 
     /**
+     * The {@code saveScriptResult} tool — a kept script result saved as a chat attachment. Offered
+     * where there can be something to save: scripts run and their results are kept. With either off
+     * no run ever gets a {@code resultId}, and the tool would only answer "no such result".
+     */
+    @Bean
+    @Nullable
+    public ScriptResultFunction scriptResultFunction(
+            ScriptProperties scriptProperties,
+            ScriptResultProperties scriptResultProperties,
+            ScriptResultStore scriptResultStore,
+            AttachmentService attachmentService) {
+        if (!scriptProperties.enabled() || !scriptResultProperties.enabled()) {
+            log.info(
+                    "Script-result tool is NOT exposed to the model: kb.script.enabled={},"
+                            + " kb.script.results.enabled={}",
+                    scriptProperties.enabled(),
+                    scriptResultProperties.enabled());
+            return null;
+        }
+        log.info("Script-result tool enabled (saveScriptResult)");
+        return new ScriptResultFunction(scriptResultStore, attachmentService);
+    }
+
+    /**
      * How a tool name the model invented is answered — see {@link UnknownToolCallbackResolver},
      * which also explains why replacing the framework's resolver is the safe direction.
      * Load-bearing only together with {@code spring.ai.tools.resolution.fallback.enabled=true} in
@@ -356,7 +383,7 @@ public class ChatConfig {
      */
     static String subAgentScriptInstructions(
             ScriptGuideService scriptGuideService, SkillService skillService, boolean weak) {
-        String reference = scriptGuideService.readOnlyInstructions(false);
+        String reference = scriptGuideService.subAgentInstructions();
         return weak ? reference + "\n\n" + skillService.textOf("script-writing") : reference;
     }
 
@@ -441,6 +468,7 @@ public class ChatConfig {
             ObjectProvider<SearchAgentService> searchAgentService,
             ObjectProvider<ScriptFunction> scriptFunction,
             ObjectProvider<SavedScriptFunction> savedScriptFunction,
+            ObjectProvider<ScriptResultFunction> scriptResultFunction,
             ObjectProvider<SkillFunction> skillFunction,
             ObjectProvider<McpToolRegistry> mcpToolRegistry) {
         List<Object> functions =
@@ -461,6 +489,8 @@ public class ChatConfig {
         scriptFunction.ifAvailable(functions::add);
         // Present only when some project also declares scripts (see savedScriptFunction bean).
         savedScriptFunction.ifAvailable(functions::add);
+        // Present only when scripts run and keep their results (see scriptResultFunction bean).
+        scriptResultFunction.ifAvailable(functions::add);
         // Present only when there are skills to read (see skillFunction bean).
         skillFunction.ifAvailable(functions::add);
 

@@ -33,6 +33,7 @@ export const TOOL_META = {
   getAttachmentContent: { icon: '📎', category: 'attachment' },
   getAttachmentContentByFileName: { icon: '📎', category: 'attachment' },
   createAttachment: { icon: '📎', category: 'attachment' },
+  saveScriptResult: { icon: '📎', category: 'attachment' },
   searchAttachments: { icon: '🔎', category: 'attachment' },
   // ── Чат / служебные ──
   getOriginalMessages: { icon: '💬', category: 'chat' },

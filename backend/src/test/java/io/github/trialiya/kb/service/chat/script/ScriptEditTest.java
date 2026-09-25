@@ -890,7 +890,11 @@ class ScriptEditTest {
 
     private static ScriptRunner newRunner(GitRegistry gitRegistry, ScriptProperties properties) {
         return new ScriptRunner(
-                gitRegistry, null, properties, new ScriptEditPolicy(gitRegistry, properties));
+                gitRegistry,
+                null,
+                properties,
+                new ScriptEditPolicy(gitRegistry, properties),
+                new InMemoryScriptResultStore());
     }
 
     private static ScriptProperties withEditLimits(int maxEditedFiles) {

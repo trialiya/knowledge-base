@@ -62,6 +62,6 @@ Error twice? Don't rewrite a third time—fall back to `grepContent`/`getFileCon
 
 Read limits assume full repo traversal: hitting them means infinite loop, not big task, so don't self-limit. Last two are real: what script reads stays inside, only `return` and `kb.log` reach you.
 
-`max_result_chars` exceeded? Not an error—script doesn't crash, `value` truncates, `log` warns. Next time return summary (counts, top-N) not raw content, don't rewrite over a non-error.
+`max_result_chars` exceeded? Not an error—script doesn't crash, `value` truncates, `log` warns. Next time return summary (counts, top-N) not raw content. Don't rewrite over a non-error.
 
 Script sees only tracked git files, no `.gitignore`, no access-restricted. Inaccessible file looks missing—no workaround needed.

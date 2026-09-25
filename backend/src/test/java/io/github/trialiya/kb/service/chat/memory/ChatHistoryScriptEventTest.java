@@ -63,7 +63,8 @@ class ChatHistoryScriptEventTest {
                                         null,
                                         "сверено 12 файлов",
                                         List.of("frontend/src/i18n/ru/chat.json"),
-                                        new ScriptStats(12, 2048, 30, 1, 420)))));
+                                        new ScriptStats(12, 2048, 30, 1, 420),
+                                        null))));
 
         final String text = service.promptRows(CONV).getFirst().text();
 
@@ -76,6 +77,34 @@ class ChatHistoryScriptEventTest {
                 .contains("preserve this notice verbatim");
         // Журнал и счётчики модели не идут: их читает человек там же, где давал команду.
         assertThat(text).doesNotContain("сверено 12 файлов").doesNotContain("2048");
+    }
+
+    /**
+     * Значение в нотисе обрезано, а целиком оно лежит под id — модель должна узнать этот id, чтобы
+     * её скрипт прочитал значение через {@code kb.result}, не пересказывая его.
+     */
+    @Test
+    void theModelIsToldWhereTheWholeValueIsKept() {
+        givenStored(
+                List.of(
+                        scriptRow(
+                                0,
+                                new ScriptEventMeta(
+                                        "locale-diff",
+                                        null,
+                                        "kb",
+                                        true,
+                                        "3 ключа",
+                                        null,
+                                        "",
+                                        List.of(),
+                                        new ScriptStats(1, 1, 1, 0, 1),
+                                        "r4"))));
+
+        assertThat(service.promptRows(CONV).getFirst().text())
+                .contains("project=\"kb\" result=\"r4\">")
+                .contains("kept as r4")
+                .contains("kb.result('r4')");
     }
 
     /** Упавший прогон — тоже ряд: модели важнее узнать, что скрипт НЕ сделал того, что обещает. */
@@ -95,7 +124,8 @@ class ChatHistoryScriptEventTest {
                                                 ScriptError.Kind.TIMEOUT, "Timed out", null),
                                         "",
                                         List.of(),
-                                        new ScriptStats(3, 100, 5, 0, 10_000)))));
+                                        new ScriptStats(3, 100, 5, 0, 10_000),
+                                        null))));
 
         final String text = service.promptRows(CONV).getFirst().text();
 
@@ -124,7 +154,8 @@ class ChatHistoryScriptEventTest {
                                         null,
                                         "",
                                         List.of(),
-                                        new ScriptStats(0, 0, 0, 0, 1)))));
+                                        new ScriptStats(0, 0, 0, 0, 1),
+                                        null))));
 
         final String text = service.promptRows(CONV).getFirst().text();
 
@@ -151,7 +182,8 @@ class ChatHistoryScriptEventTest {
                                         null,
                                         "",
                                         List.of(),
-                                        new ScriptStats(0, 0, 0, 0, 1))));
+                                        new ScriptStats(0, 0, 0, 0, 1),
+                                        null)));
 
         assertThat(ChatHistoryService.tailAfterLastUser(rows)).contains(answer);
     }
