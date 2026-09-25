@@ -70,6 +70,7 @@ public class ScriptGuideService {
             ScriptResultProperties results,
             ScriptEditPolicy editPolicy) {
         this.editPolicy = editPolicy;
+        requireKeepingCeiling(properties, results);
         // Kept results are a deployment switch of their own: with it off no run gets a resultId,
         // and a handbook describing kb.result would send the model after ids it never sees.
         @Nullable Resource chatResults = results.enabled() ? RESULTS_GUIDE : null;
@@ -135,6 +136,24 @@ public class ScriptGuideService {
      */
     public String subAgentInstructions() {
         return subAgentInstructions;
+    }
+
+    /**
+     * The results section promises the model that a kept value is whole where its own copy was cut
+     * to {@code max-result-chars}. A keeping ceiling below that cut breaks the promise quietly: a
+     * value between the two reaches the model uncut yet gets no id. Refused at startup instead.
+     */
+    private static void requireKeepingCeiling(
+            ScriptProperties properties, ScriptResultProperties results) {
+        int shown = properties.limits().maxResultChars();
+        if (properties.enabled() && results.enabled() && results.maxChars() < shown) {
+            throw new IllegalArgumentException(
+                    "kb.script.results.max-chars ("
+                            + results.maxChars()
+                            + ") must not be below kb.script.limits.max-result-chars ("
+                            + shown
+                            + "): a kept result has to hold at least what the model is shown");
+        }
     }
 
     /**

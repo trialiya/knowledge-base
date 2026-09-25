@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.chat.script;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -191,6 +192,29 @@ class ScriptGuideServiceTest {
                                         policy)
                                 .instructions(false))
                 .doesNotContain("kb.result", "resultId", "saveScriptResult");
+    }
+
+    /**
+     * Справочник обещает, что сохранённое значение целое там, где модель видела обрезанное; потолок
+     * хранения ниже обрезки это обещание нарушил бы молча.
+     */
+    @Test
+    void aKeepingCeilingBelowWhatTheModelIsShownFailsStartup() {
+        ScriptProperties properties = ScriptProperties.enabledWithDefaults();
+        ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
+        int shown = properties.limits().maxResultChars();
+
+        assertThatThrownBy(
+                        () ->
+                                new ScriptGuideService(
+                                        properties,
+                                        new ScriptResultProperties(true, shown - 1, 10),
+                                        policy))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("kb.script.results.max-chars");
+        // Выключенное хранение ничего не обещает — проверять нечего.
+        new ScriptGuideService(
+                properties, new ScriptResultProperties(false, shown - 1, 10), policy);
     }
 
     /**

@@ -69,8 +69,11 @@ class ChatConfigSubAgentScriptsAvailableTest {
         assertThat(weak).doesNotContain("kb.edit");
         // Результаты чата он читает, но своих не сохраняет и инструмента сохранения не имеет:
         // раздел для него — свой, без обещания resultId и saveScriptResult.
-        assertThat(strong)
-                .contains("kb.result(id)", "Your own runs keep nothing")
-                .doesNotContain("saveScriptResult", "gets a `resultId`");
+        // Слабой модели дописан ещё и навык — он не должен обещать обратного.
+        for (String instructions : new String[] {weak, strong}) {
+            assertThat(instructions)
+                    .contains("kb.result(id)", "Your own runs keep nothing")
+                    .doesNotContain("saveScriptResult", "gets a `resultId`", "got a `resultId`");
+        }
     }
 }

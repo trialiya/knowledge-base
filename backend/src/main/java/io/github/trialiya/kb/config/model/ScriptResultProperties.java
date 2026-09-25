@@ -15,7 +15,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param enabled keep results at all; off, a script's result gets no id, {@code kb.result} finds
  *     nothing — rows kept while it was on included — and the handbook does not mention any of it
  * @param maxChars the largest value (as JSON) that is kept; a larger one is still returned to the
- *     model, truncated to {@code kb.script.limits.max-result-chars}, but gets no id
+ *     model, truncated to {@code kb.script.limits.max-result-chars}, but gets no id; below that
+ *     limit it is refused at startup ({@code ScriptGuideService})
  * @param keepPerChat how many of a chat's most recent results stay readable; older ones are dropped
  *     as new ones arrive
  */
