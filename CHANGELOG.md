@@ -13,7 +13,13 @@ An entry ends with the number of the pull request it came from — the
 reasoning behind a change lives there, not here. Sections released before
 this rule was adopted carry no such numbers.
 
-## [Unreleased]
+## [1.1.0-RC1] — 2026-09-25
+
+The first candidate for 1.1.0: a dark theme, scripts that live in the
+repository instead of being rewritten in every chat, a `/compact` that spares
+the last turn, and an MCP server that can no longer keep the application from
+starting. Four changes ask something of a running deployment — they are
+listed under "Upgrading" below and spelled out in [`UPDATING.md`](UPDATING.md).
 
 ### Added
 
@@ -23,6 +29,25 @@ this rule was adopted carry no such numbers.
   is not the light one inverted — it has its own neutral scale and a blue
   accent, because a lightened violet turns the whole screen lilac. (#397,
   #398)
+- Saved scripts. A repository lists its own JavaScript scripts in a manifest
+  (`kb.projects[].scripts-manifest`, `.kb/scripts.yaml` by convention) with a
+  name, a description and declared arguments; the model runs one by name with
+  the new `runSavedScript` tool instead of writing the code again, and a
+  JavaScript attachment of a chat or a document runs the same way
+  (`attachment:<id>`, always read-only). Arguments are checked before the run.
+  People run the same scripts from "Settings → Scripts" and with
+  `/script <name> key=value` in the chat; `kb.script.schedules` runs them on a
+  cron schedule, read-only. The manifest is read at call time, so a pull or a
+  branch switch changes the list without a restart. Scripts share code with
+  `loadScript(path)`. Everything here needs `kb.script.enabled`. (#423)
+- Script results carry over within a chat: every finished run keeps its value
+  whole under an id (`r1`, `r2`, …), a later script of the same chat reads it
+  with `kb.result(id)`, and the new `saveScriptResult` tool turns it into a chat
+  attachment without passing the value through the model. On by default
+  wherever scripts are (`kb.script.results.enabled`). (#427)
+- `/compact-1` (`/сжать-1`) compacts the conversation except its last turn: the
+  files just read and the output just produced stay verbatim, only what came
+  before goes into the summary. (#418)
 - Files now shows pictures as pictures: an image opened in the file browser is
   rendered instead of the "binary file — preview unavailable" placeholder, and
   an SVG opens as the drawing with a toggle in its metadata row for switching
@@ -30,13 +55,27 @@ this rule was adopted carry no such numbers.
 - Files a project admits for reading but git does not track (`allow-globs`) are
   labelled as such where the assistant reports them: in search result cards, in
   the file heading of a grep answer, and in the tool-call details. (#400)
+- The settings panel shows each MCP connection as pending, up or down, and the
+  tool catalogue marks the tools of a server that is down. (#420)
 
 ### Changed
 
+- The chat title is written by a short background request after an answer — on
+  the 1st, 3rd and 10th answer and every tenth after that — instead of by the
+  `recordChatInsights` tool the model had to call at the start of every answer.
+  That tool is gone; a chat renamed by hand is left alone, and a new title
+  reaches every open tab at once. The request can run on a cheaper model or be
+  switched off (`kb.chat.topic.*`). (#424)
+- MCP connections are opened in the background after startup and retried while
+  they are down (`kb.mcp.retry-interval-ms`), instead of during startup, where
+  one unreachable server failed the whole boot — even with `kb.mcp.enabled`
+  off. The tools of a server that is down stay in the model's tool list and
+  answer with an error, so an outage does not invalidate every chat's cached
+  prompt prefix. (#420)
 - The `getUncommittedChanges` tool answers about the tracked half of the working
   tree only. Untracked files from the `allow-globs` area take the new
-  `includeUntracked: true` argument — see [`UPDATING.md`](UPDATING.md). The
-  Files panel is unchanged and still shows both halves. (#400)
+  `includeUntracked: true` argument. The Files panel is unchanged and still
+  shows both halves. (#400)
 
 ### Fixed
 
@@ -50,6 +89,11 @@ this rule was adopted carry no such numbers.
   used to come back as `docs/2024` at some invented line number, which the model
   would then try to read; with context lines around the match the broken path
   could also drop the whole block from the answer. (#403)
+- Opening a file that git still tracks but that is no longer in the working
+  tree — deleted, renamed, or reverted — now says "file not found" (and, in the
+  changes mode, shows the deletion's diff) instead of "failed to load content".
+  The path answers like any other missing one rather than failing the whole
+  request, so the tree and the breadcrumbs stay on screen. (#416)
 - Deleting a folder in the knowledge base says that the whole subtree goes with
   it, and a document open from inside that folder is no longer left in the
   centre pane, where the next edit would have failed with a 404. (#413)
@@ -83,13 +127,29 @@ this rule was adopted carry no such numbers.
 - Opening a chat costs one tool-call index query per page of history instead of
   one per message. (#399)
 
-### Fixed
+### Upgrading
 
-- Opening a file that git still tracks but that is no longer in the working
-  tree — deleted, renamed, or reverted — now says "file not found" (and, in the
-  changes mode, shows the deletion's diff) instead of "failed to load content".
-  The path answers like any other missing one rather than failing the whole
-  request, so the tree and the breadcrumbs stay on screen.
+Assembled from [`UPDATING.md`](UPDATING.md), which says what to do about each.
+None of them affects a fresh install.
+
+- A system prompt of your own (`kb.system-prompt.prompt`) must lose the lines
+  telling the model to call `recordChatInsights`. The background title request
+  is paid and runs on the chat's default model unless `kb.chat.topic.model`
+  points elsewhere. (#424)
+- `spring.ai.mcp.client.initialized` is now `false`; a deployment that sets it
+  back to `true` gets the failing startup back. The state of each connection is
+  in the settings panel and in a `WARN` on every change. (#420)
+- With `kb.script.enabled` on, the model can now run a JavaScript attachment;
+  `kb.script.attachment-run: false` keeps that off. Repository scripts stay off
+  until a project sets `scripts-manifest`. (#423)
+- `getUncommittedChanges` lists untracked `allow-globs` files only when asked.
+  Matters only to projects that configure `allow-globs`. (#400)
+
+### Build
+
+- `org.graalvm.buildtools.native` 1.1.12 → 1.1.14; in the frontend Vitest
+  5.0.1, happy-dom 20.14.5, react-i18next 17.0.14 and `@testing-library/dom`
+  10.4.2. (#421, #422)
 
 ## [1.0.0] — 2026-09-16
 
@@ -319,7 +379,7 @@ a deployment that was already running from `main` before this release.
   meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
-[Unreleased]: https://github.com/trialiya/knowledge-base/compare/v1.0.0...HEAD
+[1.1.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC1
 [1.0.0]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0
 [1.0.0-RC3]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC3
 [1.0.0-RC2]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC2

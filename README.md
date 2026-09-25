@@ -4,8 +4,10 @@ An AI assistant for working with a Git repository: search across code and
 change history, answers to questions about the project, and a knowledge base
 that lives alongside the code.
 
-Current version: **1.0.0**. See the [changelog](CHANGELOG.md) for the full
-feature set and the known limitations of this release.
+Current version: **1.1.0-RC1** — a release candidate for 1.1.0: the feature
+set is complete, what is left is testing it outside the machine it was built
+on. See the [changelog](CHANGELOG.md) for the full feature set and the known
+limitations of this release.
 
 ## What it is
 
@@ -41,7 +43,8 @@ history, documentation that doesn't drift from the code.
   so it survives a page reload
 - 🗜️ **Context compaction** — the chat summarizes its own history in the
   background, and `/compact` (or an automatic pass near the model's context
-  limit) keeps a long conversation from dying on request length
+  limit) keeps a long conversation from dying on request length; `/compact-1`
+  does the same but keeps the last turn verbatim
 - 🐙 **Git analysis** — reading files, commit history, diffs, grep across the
   repository, structural code analysis (tree-sitter)
 - 📂 **"Files" panel** — browse the repository (tree, contents, latest
@@ -53,6 +56,10 @@ history, documentation that doesn't drift from the code.
   a short JavaScript program that walks the repository in one call. It has no
   filesystem: files are reached only through an injected API, under the same
   rules and explicit budgets. Disabled by default (`kb.script.enabled`)
+- 🧰 **Saved scripts** — a repository lists its scripts in a manifest, and the
+  model runs them by name instead of writing the code again; people run the
+  same scripts from the settings, with `/script` in the chat, or on a
+  schedule. A script's result stays in the chat for the next script to read
 - 🗂️ **Several repositories at once** — the project is chosen per chat and
   travels with file links and tool calls
 
@@ -90,13 +97,15 @@ history, documentation that doesn't drift from the code.
 
 - 🔌 **Any OpenAI-compatible API** — including local models: your code
   never has to leave your machine
-- 🧩 **MCP** — connect external tools via MCP servers (disabled by default)
+- 🧩 **MCP** — connect external tools via MCP servers (disabled by default);
+  a server that is down costs its own tools, not the application's startup
 - 🐳 **Docker** — ready-made compose files for both database options:
   PostgreSQL 17 + pgvector for the full stack, or the bundled H2 for a run
   without a database and without semantic search
 - ⚙️ **Administration** — AI/search configuration snapshots, a phrase
   library, reindexing, system information
 - 🌍 **English and Russian** interface, switchable in the header
+- 🌓 **Light and dark theme**, or whichever the system prefers
 
 ## Quick start
 

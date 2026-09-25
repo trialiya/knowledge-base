@@ -17,7 +17,7 @@ feature that just works after the upgrade belongs there, not here.
 stops working as before, and what to do about it. Name the config keys, files
 and commands involved — the reader is holding a deployment, not a diff.
 
-## Unreleased
+## 1.1.0-RC1
 
 ### The chat title is no longer a tool call
 
