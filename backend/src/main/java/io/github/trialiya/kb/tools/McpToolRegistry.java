@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
@@ -371,7 +372,11 @@ public class McpToolRegistry {
             apply(prefixGenerator, builder::toolNamePrefixGenerator);
             apply(metaConverter, builder::toolContextToMcpMetaConverter);
             SyncMcpToolCallbackProvider provider = builder.build();
-            add(sources, connectionName(clientName, client.getClientInfo().name()), provider);
+            add(
+                    sources,
+                    connectionName(clientName, client.getClientInfo().name()),
+                    provider,
+                    client::isInitialized);
         }
         for (McpAsyncClient client : asyncClients) {
             AsyncMcpToolCallbackProvider.Builder builder =
@@ -383,7 +388,11 @@ public class McpToolRegistry {
             // The async provider answers the same call the sync one does, blocking on the reply
             // inside: the probe already runs on a virtual thread, so there is nothing here to
             // make non-blocking, and the request timeout is the client's either way.
-            add(sources, connectionName(clientName, client.getClientInfo().name()), provider);
+            add(
+                    sources,
+                    connectionName(clientName, client.getClientInfo().name()),
+                    provider,
+                    client::isInitialized);
         }
         return Collections.unmodifiableMap(sources);
     }
@@ -395,13 +404,31 @@ public class McpToolRegistry {
     }
 
     private static void add(
-            Map<String, ToolSource> sources, String name, ToolCallbackProvider provider) {
+            Map<String, ToolSource> sources,
+            String name,
+            ToolCallbackProvider provider,
+            BooleanSupplier hasSession) {
         ToolSource source =
                 () -> {
-                    // The provider caches the tool list of a connection it has already read; a
-                    // probe exists to find out whether that list still holds.
-                    invalidateCache(provider);
-                    return List.of(provider.getToolCallbacks());
+                    boolean hadSession = hasSession.getAsBoolean();
+                    try {
+                        return read(provider);
+                    } catch (RuntimeException e) {
+                        // A server restarted since the last probe answers the old session id with
+                        // «unknown session»: the client drops the session, but fails the request
+                        // that learned it. Asking again opens a fresh one, so a restart costs no
+                        // round. Only a session this very call lost is worth it — a server that is
+                        // simply down leaves the session in place, and a second attempt would
+                        // double its timeout for nothing.
+                        if (!hadSession || hasSession.getAsBoolean()) {
+                            throw e;
+                        }
+                        log.info(
+                                "MCP connection '{}' lost its session, opening a new one: {}",
+                                name,
+                                e.toString());
+                        return read(provider);
+                    }
                 };
         // Two transports may carry the same connection name — a misconfiguration, but not one
         // that should cost a server its tools: the name then stands for both, and either of
@@ -417,6 +444,15 @@ public class McpToolRegistry {
                     return () ->
                             Stream.concat(existing.list().stream(), added.list().stream()).toList();
                 });
+    }
+
+    /**
+     * The provider caches the tool list of a connection it has already read; a probe exists to find
+     * out whether that list still holds.
+     */
+    private static List<ToolCallback> read(ToolCallbackProvider provider) {
+        invalidateCache(provider);
+        return List.of(provider.getToolCallbacks());
     }
 
     /**

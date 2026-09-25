@@ -121,13 +121,11 @@ class McpReconnectTest {
     /**
      * The client still holds the session id of the server that went away, and the restarted server
      * answers it with «unknown session» (404). The SDK drops the session on that answer but fails
-     * the request that got it, so the first round after a restart still finds the connection down
-     * and the fresh session is opened by the round after — a recovery of up to two intervals, and a
-     * tool call landing in that gap is answered with an error. Two rounds is the bound pinned here:
-     * a client that reconnects in one keeps this green.
+     * the request that got it; the source asks again at once, so the first round after a restart
+     * already finds the connection up.
      */
     @Test
-    void aRestartedServerIsUsableAgainWithinTwoRounds() {
+    void aRestartedServerIsUsableAgainAfterOneRound() {
         startServer();
         registry.connect();
         awaitProbes(1);
@@ -141,9 +139,6 @@ class McpReconnectTest {
 
         startServer();
         probeRound();
-        if (registry.statuses().getFirst().status() != Status.UP) {
-            probeRound();
-        }
 
         assertThat(registry.statuses())
                 .containsExactly(new ConnectionStatus(CONNECTION, Status.UP, 1));
