@@ -154,7 +154,7 @@ class ToolCatalogServiceTest {
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private static List<ToolCallback> builtin() {
-        return Arrays.asList(ToolCallbacks.from(new DocumentFunction(null, null)));
+        return Arrays.asList(ToolCallbacks.from(new DocumentFunction(null, null, null)));
     }
 
     private static List<ToolInfo> catalog(List<ToolCallback> builtin) {

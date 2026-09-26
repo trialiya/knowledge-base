@@ -21,19 +21,17 @@ import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.SectionRename;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
-import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
+import io.github.trialiya.kb.tools.EarlierToolResults;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ExactEdit;
 import io.github.trialiya.kb.utils.MarkdownSections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ToolContext;
@@ -60,22 +58,30 @@ import org.springframework.ai.tool.annotation.ToolParam;
  *   <li>{@link #createDocument} — create a new document or folder.
  *   <li>{@link #updateDocument} — edit title and/or content of an existing document.
  *   <li>{@link #editDocument} — exact-match fragment replacement inside a document.
+ *   <li>{@link #retryDocumentWrite} — repeat a write refused by the read-before-write guard.
  *   <li>{@link #deleteDocument} — delete a document (and its descendants).
  *   <li>{@link #copyAttachmentToDocument} — copy an attachment from the current chat to a document.
  * </ul>
  */
 @Slf4j
-@AllArgsConstructor
 public class DocumentFunction {
 
     private final DocumentService documentService;
     private final AttachmentService attachmentService;
+    private final DocumentReadGuard readGuard;
 
-    // Tool names referenced by the read-before-write guards below, kept in one place instead of
-    // repeated string literals scattered across the guard methods.
-    private static final String TOOL_GET_DOCUMENT = "getDocument";
-    private static final String TOOL_GET_DOCUMENT_OUTLINE = "getDocumentOutline";
-    private static final String TOOL_GET_DOCUMENT_SECTION = "getDocumentSection";
+    /**
+     * @param earlier the tool results of the chat's live window — what lets a document read in an
+     *     earlier turn count for a write in this one (see {@link DocumentReadGuard})
+     */
+    public DocumentFunction(
+            DocumentService documentService,
+            AttachmentService attachmentService,
+            EarlierToolResults earlier) {
+        this.documentService = documentService;
+        this.attachmentService = attachmentService;
+        this.readGuard = new DocumentReadGuard(documentService, earlier);
+    }
 
     /** Where {@link #insertDocumentSection} places the new section relative to its anchor. */
     public enum InsertPosition {
@@ -353,8 +359,8 @@ public class DocumentFunction {
      *
      * <ul>
      *   <li>Read-before-write guard (same idea as {@link #updateDocument}): the section must have
-     *       been read via {@link #getDocumentSection} (same path) or {@link #getDocument} earlier
-     *       in the same chat-response session.
+     *       been read via {@link #getDocumentSection} (same path) or {@link #getDocument} — see
+     *       {@link DocumentReadGuard}.
      *   <li>{@code expectedDescriptionVersion} (from outline/section) is compared with the current
      *       one inside the transaction — a concurrent edit yields a conflict error instead of
      *       splicing against stale section boundaries.
@@ -369,7 +375,7 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Replace one markdown section. Read the section first (getDocumentSection) or full document (getDocument) in this same response. One operation per call; re-read outline afterward.",
+                    "Replace one markdown section. Read the section first (getDocumentSection) or full document (getDocument); a read earlier in the chat counts while the document is unchanged. One operation per call; re-read outline afterward.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort updateDocumentSection(
             ToolContext context,
@@ -398,7 +404,7 @@ public class DocumentFunction {
                 sectionPath,
                 version);
 
-        requireSectionReadInThisResponse(context, id, sectionPath, "updateDocumentSection");
+        readGuard.requireSectionRead(context, id, sectionPath);
         if (newContent.isBlank()) {
             throw new IllegalArgumentException(
                     "newContent пуст. Передай полный новый текст секции, начиная с её заголовка.");
@@ -421,9 +427,9 @@ public class DocumentFunction {
 
     /**
      * Inserts a new markdown section before or after an existing section subtree. Requires the
-     * document structure to have been read in the same chat-response session ({@link
-     * #getDocumentOutline}, {@link #getDocument} or {@link #getDocumentSection} of the anchor) and
-     * the version check of {@link DocumentService#patchDescription}.
+     * document structure to have been read ({@link #getDocumentOutline}, {@link #getDocument} or
+     * {@link #getDocumentSection} of the anchor — see {@link DocumentReadGuard}) and the version
+     * check of {@link DocumentService#patchDescription}.
      *
      * @param context tool context (provides the per-response tool invocation log)
      * @param documentId document id
@@ -464,7 +470,7 @@ public class DocumentFunction {
                 position,
                 version);
 
-        requireStructureReadInThisResponse(context, id, anchorSectionPath);
+        readGuard.requireStructureRead(context, id, anchorSectionPath);
         boolean before = position == InsertPosition.BEFORE;
         if (before && MarkdownSections.PREAMBLE_PATH.equals(anchorSectionPath)) {
             throw new IllegalArgumentException(
@@ -521,7 +527,7 @@ public class DocumentFunction {
                 sectionPath,
                 version);
 
-        requireSectionReadInThisResponse(context, id, sectionPath, "deleteDocumentSection");
+        readGuard.requireSectionRead(context, id, sectionPath);
 
         return documentService
                 .patchDescription(
@@ -565,7 +571,7 @@ public class DocumentFunction {
                 renames == null ? null : renames.size(),
                 version);
 
-        requireStructureReadInThisResponse(context, id, null);
+        readGuard.requireStructureRead(context, id, null);
         requireNonEmpty(renames, "renames");
         if (renames.stream().map(SectionRename::sectionPath).distinct().count() != renames.size()) {
             throw new IllegalArgumentException("Пути секций в renames должны быть уникальными.");
@@ -696,10 +702,10 @@ public class DocumentFunction {
     /**
      * Updates an existing document's title and/or content.
      *
-     * <p>Guard: a content update ({@code description != null}) is rejected unless this document was
-     * already read via {@link #getDocument} earlier in the same chat-response session (checked
-     * against the request-scoped {@link ToolInvocationCollector}). This prevents the model from
-     * blindly overwriting content it has never seen.
+     * <p>Guard: a content update ({@code description != null}) is rejected unless the model has
+     * seen this document through {@link #getDocument} — in this response, or earlier in the chat at
+     * the current version (see {@link DocumentReadGuard}). This prevents the model from blindly
+     * overwriting content it has never seen.
      *
      * @param context tool context (provides the per-response tool invocation log)
      * @param documentId document id
@@ -734,7 +740,7 @@ public class DocumentFunction {
                             + "Call the tool again with the field you want to change.");
         }
         if (description != null) {
-            requireReadInThisResponse(context, id);
+            readGuard.requireDocumentRead(context, id);
         }
 
         UpdateDocumentRequest req = new UpdateDocumentRequest();
@@ -822,127 +828,68 @@ public class DocumentFunction {
     }
 
     /**
-     * Rejects a content update if the document was not successfully read via {@link #getDocument}
-     * earlier within the same chat-response session. When no {@link ToolInvocationCollector} is
-     * present in the context (background jobs, tests), the check is skipped.
+     * Replays a write that {@link DocumentReadGuard} refused, with the arguments the model sent the
+     * first time — taken from the run's {@link ToolInvocationCollector}, where the refused call is
+     * kept whole ({@code argumentsRaw}). What it saves is the model resending a document's worth of
+     * text only to prove it has now read the document.
+     *
+     * <p>The replay goes through the same tool method, guard included: it passes only once the read
+     * the refusal asked for has happened. Only calls of this response can be replayed — the
+     * collector is per-run, and {@code callRef} is its call index.
+     *
+     * @param context tool context (provides the per-response tool invocation log)
+     * @param callRef the call index named in the refusal
+     * @return the result of the replayed write
      */
-    private static void requireReadInThisResponse(ToolContext context, long documentId) {
-        final ToolInvocationCollector collector = ToolInvocationCollector.from(context);
-        if (collector == null) {
-            return;
-        }
-        final String id = String.valueOf(documentId);
-        final boolean wasRead =
-                collector.snapshot().stream()
-                        .anyMatch(
-                                inv ->
-                                        TOOL_GET_DOCUMENT.equals(inv.name())
-                                                && ToolInvocationCollector.ToolInvocationStatus.OK
-                                                        == inv.status()
-                                                && id.equals(
-                                                        String.valueOf(
-                                                                inv.arguments()
-                                                                        .get("documentId"))));
-        if (!wasRead) {
-            throw new IllegalStateException(
-                    "Документ id="
-                            + documentId
-                            + " НЕ обновлён: его содержимое не было прочитано в этом ответе. "
-                            + "Сначала вызови getDocument(documentId="
-                            + documentId
-                            + "), чтобы увидеть текущее содержимое и не потерять данные, затем "
-                            + "повтори updateDocument.");
-        }
-    }
+    @Tool(
+            description =
+                    """
+                    Repeat a document write that was refused because the document had not been \
+                    read — with exactly the arguments of that call, so its content need not be \
+                    sent again. First make the read the refusal asks for. callRef comes from the \
+                    refusal; only calls of this same response can be repeated.
+                    """,
+            resultConverter = CompactToolResultConverter.class)
+    public DocumentShort retryDocumentWrite(
+            ToolContext context,
+            @ToolParam(description = "callRef from the refusal message.") Integer callRef) {
+        final int ref = requireInt(callRef, "callRef");
+        final DocumentReadGuard.RefusedWrite refused = DocumentReadGuard.refusedWrite(context, ref);
 
-    /**
-     * Section flavour of the read-before-write guard: the update is allowed after a successful
-     * {@link #getDocumentSection} of the same document+section or a successful {@link #getDocument}
-     * of the whole document within the same chat-response session. When no {@link
-     * ToolInvocationCollector} is present in the context (background jobs, tests), the check is
-     * skipped.
-     */
-    private static void requireSectionReadInThisResponse(
-            ToolContext context, long documentId, String sectionPath, String retryTool) {
-        final boolean wasRead =
-                wasReadInThisResponse(
-                        context,
-                        documentId,
-                        inv ->
-                                TOOL_GET_DOCUMENT.equals(inv.name())
-                                        || (TOOL_GET_DOCUMENT_SECTION.equals(inv.name())
-                                                && sectionPath.equals(
-                                                        inv.arguments().get("sectionPath"))));
-        if (!wasRead) {
-            throw new IllegalStateException(
-                    "Секция '"
-                            + sectionPath
-                            + "' документа id="
-                            + documentId
-                            + " НЕ изменена: её содержимое не было прочитано в этом ответе. "
-                            + "Сначала вызови getDocumentSection(documentId="
-                            + documentId
-                            + ", sectionPath=\""
-                            + sectionPath
-                            + "\") или getDocument(documentId="
-                            + documentId
-                            + "), затем повтори "
-                            + retryTool
-                            + ".");
-        }
-    }
+        log.info("retryDocumentWrite called: callRef={} tool={}", ref, refused.tool());
 
-    /**
-     * Structure flavour of the read-before-write guard (insert/rename): satisfied by {@link
-     * #getDocumentOutline} or {@link #getDocument} of the document, or — when {@code
-     * anchorSectionPath} is given — {@link #getDocumentSection} of that section, within the same
-     * chat-response session.
-     */
-    private static void requireStructureReadInThisResponse(
-            ToolContext context, long documentId, @Nullable String anchorSectionPath) {
-        final boolean wasRead =
-                wasReadInThisResponse(
-                        context,
-                        documentId,
-                        inv ->
-                                TOOL_GET_DOCUMENT.equals(inv.name())
-                                        || TOOL_GET_DOCUMENT_OUTLINE.equals(inv.name())
-                                        || (anchorSectionPath != null
-                                                && TOOL_GET_DOCUMENT_SECTION.equals(inv.name())
-                                                && anchorSectionPath.equals(
-                                                        inv.arguments().get("sectionPath"))));
-        if (!wasRead) {
-            throw new IllegalStateException(
-                    "Документ id="
-                            + documentId
-                            + " НЕ изменён: его структура не была прочитана в этом ответе. "
-                            + "Сначала вызови getDocumentOutline(documentId="
-                            + documentId
-                            + ") или getDocument(documentId="
-                            + documentId
-                            + "), затем повтори операцию.");
-        }
-    }
-
-    /**
-     * True if a successful read matching {@code readMatches} for this document happened earlier in
-     * the same chat-response session. Without a {@link ToolInvocationCollector} in the context
-     * (background jobs, tests) the guard is skipped.
-     */
-    private static boolean wasReadInThisResponse(
-            ToolContext context, long documentId, Predicate<ToolInvocation> readMatches) {
-        final ToolInvocationCollector collector = ToolInvocationCollector.from(context);
-        if (collector == null) {
-            return true;
-        }
-        final String id = String.valueOf(documentId);
-        return collector.snapshot().stream()
-                .filter(
-                        inv ->
-                                ToolInvocationCollector.ToolInvocationStatus.OK == inv.status()
-                                        && id.equals(
-                                                String.valueOf(inv.arguments().get("documentId"))))
-                .anyMatch(readMatches);
+        final long id = requireId(refused.argument("documentId", Object.class), "documentId");
+        return switch (refused.tool()) {
+            case "updateDocument" ->
+                    updateDocument(
+                            context,
+                            id,
+                            refused.argument("title", String.class),
+                            refused.argument("description", String.class));
+            case "updateDocumentSection" ->
+                    updateDocumentSection(
+                            context,
+                            id,
+                            refused.text("sectionPath"),
+                            refused.content("newContent"),
+                            refused.expectedVersion());
+            case "insertDocumentSection" ->
+                    insertDocumentSection(
+                            context,
+                            id,
+                            refused.text("anchorSectionPath"),
+                            requireValue(
+                                    refused.argument("position", InsertPosition.class), "position"),
+                            refused.content("newContent"),
+                            refused.expectedVersion());
+            case "deleteDocumentSection" ->
+                    deleteDocumentSection(
+                            context, id, refused.text("sectionPath"), refused.expectedVersion());
+            case "renameDocumentSections" ->
+                    renameDocumentSections(
+                            context, id, refused.renames(), refused.expectedVersion());
+            default -> throw new IllegalStateException("not a guarded write: " + refused.tool());
+        };
     }
 
     /** Rejects section content that does not start with an ATX markdown heading. */

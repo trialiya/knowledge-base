@@ -21,6 +21,7 @@ import io.github.trialiya.kb.model.doc.dto.SectionRename;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.document.DocumentService;
+import io.github.trialiya.kb.tools.EarlierToolResults;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.LocalDateTime;
@@ -53,7 +54,9 @@ class DocumentFunctionSectionToolsTest {
     @BeforeEach
     void setUp() {
         documentService = mock(DocumentService.class);
-        function = new DocumentFunction(documentService, mock(AttachmentService.class));
+        function =
+                new DocumentFunction(
+                        documentService, mock(AttachmentService.class), EarlierToolResults.NONE);
         collector = new ToolInvocationCollector();
         context = new ToolContext(Map.of(ToolInvocationCollector.KEY, collector));
 

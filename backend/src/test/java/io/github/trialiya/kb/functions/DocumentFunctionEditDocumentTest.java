@@ -12,6 +12,7 @@ import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentShort;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.document.DocumentService;
+import io.github.trialiya.kb.tools.EarlierToolResults;
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
@@ -42,7 +43,9 @@ class DocumentFunctionEditDocumentTest {
     @BeforeEach
     void setUp() {
         documentService = mock(DocumentService.class);
-        function = new DocumentFunction(documentService, mock(AttachmentService.class));
+        function =
+                new DocumentFunction(
+                        documentService, mock(AttachmentService.class), EarlierToolResults.NONE);
         patched = new AtomicReference<>();
         storedAs(MD);
     }

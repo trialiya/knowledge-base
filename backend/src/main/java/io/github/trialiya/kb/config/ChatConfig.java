@@ -24,6 +24,7 @@ import io.github.trialiya.kb.service.SearchAgentService;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.script.AttachmentScriptService;
@@ -282,8 +283,11 @@ public class ChatConfig {
 
     @Bean
     public DocumentFunction documentFunction(
-            DocumentService documentService, AttachmentService attachmentService) {
-        return new DocumentFunction(documentService, attachmentService);
+            DocumentService documentService,
+            AttachmentService attachmentService,
+            ChatHistoryService chatHistoryService) {
+        return new DocumentFunction(
+                documentService, attachmentService, chatHistoryService::liveToolResponses);
     }
 
     /**

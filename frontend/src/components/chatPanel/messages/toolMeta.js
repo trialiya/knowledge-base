@@ -15,6 +15,7 @@ export const DOC_MUTATION_TOOLS = new Set([
   'insertDocumentSection',
   'deleteDocumentSection',
   'renameDocumentSections',
+  'retryDocumentWrite',
 ]);
 
 // Инструменты, правящие файлы скриптом: написанным моделью (`runScript`) и

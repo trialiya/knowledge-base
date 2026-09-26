@@ -26,6 +26,7 @@ export const TOOL_META = {
   insertDocumentSection: { icon: '➕', category: 'doc' },
   deleteDocumentSection: { icon: '🗑️', category: 'doc' },
   renameDocumentSections: { icon: '✏️', category: 'doc' },
+  retryDocumentWrite: { icon: '🔁', category: 'doc' },
   copyAttachmentToDocument: { icon: '📎', category: 'doc' },
   // ── Вложения ──
   getDocumentAttachments: { icon: '📎', category: 'attachment' },
