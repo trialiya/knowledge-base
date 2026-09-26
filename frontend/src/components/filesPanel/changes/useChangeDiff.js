@@ -16,7 +16,7 @@ import gitApi from '@/api/gitApi';
  * центр говорит именно это.
  */
 export default function useChangeDiff({ project, path, rev = '', refreshToken, refsToken, enabled }) {
-  const refs = rev ? (refsToken ?? 0) : 0;
+  const refs = rev ? refsToken ?? 0 : 0;
   const requestKey = enabled && path ? `${refreshToken ?? 0} ${refs} ${project ?? ''} ${rev}\n${path}` : null;
   const [answer, setAnswer] = useState(null);
 

@@ -35,10 +35,9 @@ describe('useSnapshotCommit', () => {
     ['refsToken', { refreshToken: 0, refsToken: 1 }],
   ])('asks again when %s moves', async (_, moved) => {
     gitApi.getCommit.mockResolvedValue({ hash: 'abc', files: [] });
-    const { rerender, result } = renderHook(
-      (tokens) => useSnapshotCommit({ project: 'kb', rev: 'main', ...tokens }),
-      { initialProps: { refreshToken: 0, refsToken: 0 } },
-    );
+    const { rerender, result } = renderHook((tokens) => useSnapshotCommit({ project: 'kb', rev: 'main', ...tokens }), {
+      initialProps: { refreshToken: 0, refsToken: 0 },
+    });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     rerender(moved);
