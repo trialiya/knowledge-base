@@ -29,18 +29,19 @@ describe('useSnapshotCommit', () => {
     expect(result.current.untracked).toEqual([]);
   });
 
-  /** Ветка после коммита или pull называет уже другой коммит. */
-  test('asks again when the refs move', async () => {
+  /** Ветка после коммита, pull или switch — и remote-ветка после fetch — называет уже другой коммит. */
+  test.each([
+    ['refreshToken', { refreshToken: 1, refsToken: 0 }],
+    ['refsToken', { refreshToken: 0, refsToken: 1 }],
+  ])('asks again when %s moves', async (_, moved) => {
     gitApi.getCommit.mockResolvedValue({ hash: 'abc', files: [] });
     const { rerender, result } = renderHook(
-      (token) => useSnapshotCommit({ project: 'kb', rev: 'main', refsToken: token }),
-      {
-        initialProps: 0,
-      },
+      (tokens) => useSnapshotCommit({ project: 'kb', rev: 'main', ...tokens }),
+      { initialProps: { refreshToken: 0, refsToken: 0 } },
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    rerender(1);
+    rerender(moved);
 
     await waitFor(() => expect(gitApi.getCommit).toHaveBeenCalledTimes(2));
   });

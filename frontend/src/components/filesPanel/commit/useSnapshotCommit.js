@@ -6,15 +6,17 @@ import gitApi from '@/api/gitApi';
  * без патчей — их спрашивают по одному, открывая файл (см. useChangeDiff).
  *
  * Один запрос на двоих: вкладке «Коммит» справа и режиму «Изменения» слева.
- * `refsToken` в ключе — потому что ревизия бывает веткой: после коммита или
- * pull она называет уже другой коммит.
+ * Оба токена в ключе — потому что ревизия бывает веткой или `HEAD`, и назвать
+ * она может уже другой коммит: после коммита, pull или switch (`refreshToken`)
+ * и после fetch (`refsToken`, для remote-веток). Тот же ключ у патча открытого
+ * файла (useChangeDiff) — иначе список и diff показывали бы разные коммиты.
  *
  * Возвращает то же, что useUncommittedChanges (`tracked`/`untracked`), чтобы
  * список слева не знал, чьи изменения показывает; неотслеживаемых у коммита
  * не бывает.
  */
-export default function useSnapshotCommit({ project, rev, refsToken }) {
-  const requestKey = rev ? `${refsToken ?? 0} ${project ?? ''} ${rev}` : null;
+export default function useSnapshotCommit({ project, rev, refreshToken, refsToken }) {
+  const requestKey = rev ? `${refreshToken ?? 0} ${refsToken ?? 0} ${project ?? ''} ${rev}` : null;
   const [answer, setAnswer] = useState(null);
 
   useEffect(() => {

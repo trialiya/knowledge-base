@@ -73,9 +73,9 @@ const FilesPanelForProject = ({
     refreshToken,
   });
 
-  const diff = useChangeDiff({ project, path, rev, refreshToken, enabled: showChanges });
+  const diff = useChangeDiff({ project, path, rev, refreshToken, refsToken: gitRefsToken, enabled: showChanges });
   // Коммит снимка нужен и вкладке «Коммит», и списку слева — один запрос на обоих.
-  const snapshotCommit = useSnapshotCommit({ project, rev, refsToken: gitRefsToken });
+  const snapshotCommit = useSnapshotCommit({ project, rev, refreshToken, refsToken: gitRefsToken });
   const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
 
   // Одно уведомление на панель: git-команда отказывает словами самого git

@@ -40,4 +40,31 @@ describe('useChangeDiff', () => {
     expect(result.current.entry).toBeNull();
     expect(result.current.error).toBeNull();
   });
+
+  /** Список слева после fetch переспрашивается — открытый патч обязан вслед за ним. */
+  test('in a snapshot a moved remote ref asks for the patch again', async () => {
+    gitApi.getCommit.mockResolvedValue({ hash: 'abc', files: [] });
+    const { rerender, result } = renderHook(
+      (refsToken) => useChangeDiff({ project: 'kb', path: 'a.js', rev: 'origin/main', refsToken, enabled: true }),
+      { initialProps: 0 },
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    rerender(1);
+
+    await waitFor(() => expect(gitApi.getCommit).toHaveBeenCalledTimes(2));
+  });
+
+  test('in the working tree a moved remote ref changes nothing', async () => {
+    gitApi.getStatus.mockResolvedValue([]);
+    const { rerender, result } = renderHook(
+      (refsToken) => useChangeDiff({ project: 'kb', path: 'a.js', refsToken, enabled: true }),
+      { initialProps: 0 },
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    rerender(1);
+
+    expect(gitApi.getStatus).toHaveBeenCalledTimes(1);
+  });
 });

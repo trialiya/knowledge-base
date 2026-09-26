@@ -8,13 +8,16 @@ import gitApi from '@/api/gitApi';
  *
  * `rev` — панель показывает снимок ревизии: тогда изменение — это то, что с
  * файлом сделал сам коммит, а не незакоммиченная правка (у снимка их не бывает).
+ * Тогда в ключ входит и `refsToken`: после fetch remote-ветка называет другой
+ * коммит — ровно как у списка слева (useSnapshotCommit).
  *
  * Ответ — `null`, если изменения у файла нет (открыли файл из обычного дерева,
  * а diff-режим остался включённым): это не ошибка, а «нечего показывать», и
  * центр говорит именно это.
  */
-export default function useChangeDiff({ project, path, rev = '', refreshToken, enabled }) {
-  const requestKey = enabled && path ? `${refreshToken ?? 0} ${project ?? ''} ${rev}\n${path}` : null;
+export default function useChangeDiff({ project, path, rev = '', refreshToken, refsToken, enabled }) {
+  const refs = rev ? (refsToken ?? 0) : 0;
+  const requestKey = enabled && path ? `${refreshToken ?? 0} ${refs} ${project ?? ''} ${rev}\n${path}` : null;
   const [answer, setAnswer] = useState(null);
 
   useEffect(() => {
