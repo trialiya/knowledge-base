@@ -5,6 +5,8 @@ import FileContent from './FileContent';
 import FilesToolbar from './FilesToolbar';
 import FileInfo from './FileInfo';
 import ChangesList from './changes/ChangesList';
+import CommitInfo from './commit/CommitInfo';
+import useSnapshotCommit from './commit/useSnapshotCommit';
 import useUncommittedChanges, { UNTRACKED_STATUS } from './changes/useUncommittedChanges';
 import useChangeDiff from './changes/useChangeDiff';
 import { readChangesFlat, saveChangesFlat } from './changes/changesLayout';
@@ -21,14 +23,16 @@ import ErrorModal from '@/components/common/modal/ErrorModal';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
 import { resolveProjectChoice } from '@/components/common/config/projectChoice';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
-import { IconInfo } from '@/icons/index';
+import { IconHistory, IconInfo } from '@/icons/index';
 import { RIGHT_TAB } from '@/constants/rightTabs';
+import { FILE_TAB } from '@/constants/fileTabs';
 import './filesPanel.css';
 
 /**
  * GitHub-стиль просмотр репозитория: дерево слева, содержимое файла/каталога
  * в центре. Раскладка — общая (WorkspaceLayout); справа вкладка «Инфо»
- * (метаданные пути и последний коммит), как в чате и базе знаний.
+ * (метаданные пути и последний коммит), как в чате и базе знаний, а в снимке
+ * ревизии ещё и «Коммит» — о самом снимке.
  *
  * `project` — репозиторий, который показывает панель; приходит из адреса
  * (пусто — дефолтный). Смена проекта — это перемонтирование всего содержимого
@@ -56,10 +60,10 @@ const FilesPanelForProject = ({
   const { t } = useTranslation('files');
   // Снимок ревизии — режим только для чтения: незакоммиченного в нём нет, и
   // команды, которые двигают рабочее дерево, к тому, что показано, отношения
-  // не имеют. Поэтому режим изменений в нём выключен целиком, а не спрятан из
-  // тулбара: адрес с `?changes=1&rev=…` мог пережить переключение.
+  // не имеют. Режим «Изменения» в нём показывает то, что поменял сам коммит, —
+  // источник списка и патча другой, строки и diff те же.
   const snapshot = !!rev;
-  const showChanges = changes && !snapshot;
+  const showChanges = changes;
 
   const { treeCache, loadingDirs, expanded, toggleExpand, content, contentLoading, selectNode } = useFileTree({
     project,
@@ -69,7 +73,9 @@ const FilesPanelForProject = ({
     refreshToken,
   });
 
-  const diff = useChangeDiff({ project, path, refreshToken, enabled: showChanges });
+  const diff = useChangeDiff({ project, path, rev, refreshToken, refsToken: gitRefsToken, enabled: showChanges });
+  // Коммит снимка нужен и вкладке «Коммит», и списку слева — один запрос на обоих.
+  const snapshotCommit = useSnapshotCommit({ project, rev, refreshToken, refsToken: gitRefsToken });
   const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
 
   // Одно уведомление на панель: git-команда отказывает словами самого git
@@ -84,8 +90,9 @@ const FilesPanelForProject = ({
   const changeList = useUncommittedChanges({
     project,
     refreshToken,
-    enabled: showChanges || actions.dialog === 'commit',
+    enabled: (showChanges && !snapshot) || actions.dialog === 'commit',
   });
+  const listed = snapshot ? snapshotCommit : changeList;
   // Панель дополняет контракт окон тем, чего сам `useGitActions` собрать не мог:
   // список спрашивается лениво, по открытому окну.
   const dialogGit = useMemo(
@@ -126,17 +133,34 @@ const FilesPanelForProject = ({
   const diffPending = showChanges && !!path && diff.loading;
   const showDiff = showChanges && (diffChoice ?? (!!diff.entry && diff.entry.status !== UNTRACKED_STATUS));
 
-  const rightTabs = useMemo(
-    () => [
+  const rightTabs = useMemo(() => {
+    const tabs = [
       {
         key: RIGHT_TAB.INFO,
         label: t('tabs.info'),
         icon: <IconInfo size={15} />,
         content: <FileInfo content={content} loading={contentLoading} path={path} project={project} rev={rev} />,
       },
-    ],
-    [t, content, contentLoading, path, project, rev],
-  );
+    ];
+    if (snapshot) {
+      tabs.push({
+        key: FILE_TAB.COMMIT,
+        label: t('tabs.commit'),
+        icon: <IconHistory size={15} />,
+        content: (
+          <CommitInfo
+            rev={rev}
+            commit={snapshotCommit.commit}
+            loading={snapshotCommit.loading}
+            error={snapshotCommit.error}
+            changesShown={showChanges}
+            onShowChanges={onChangesToggle}
+          />
+        ),
+      });
+    }
+    return tabs;
+  }, [t, content, contentLoading, path, project, rev, snapshot, snapshotCommit, showChanges, onChangesToggle]);
 
   return (
     <>
@@ -153,7 +177,7 @@ const FilesPanelForProject = ({
             ) : (
               t('panel.tree')
             ),
-          ariaLabel: t(showChanges ? 'panel.changes' : 'panel.tree'),
+          ariaLabel: t(showChanges ? (snapshot ? 'panel.commitChanges' : 'panel.changes') : 'panel.tree'),
           toolbar: (
             <FilesToolbar
               project={project}
@@ -176,16 +200,18 @@ const FilesPanelForProject = ({
             <div className="files-panel-tree">
               {showChanges ? (
                 <ChangesList
-                  tracked={changeList.tracked}
-                  untracked={changeList.untracked}
+                  tracked={listed.tracked}
+                  untracked={listed.untracked}
                   flat={flat}
-                  loading={changeList.loading}
-                  error={changeList.error}
+                  loading={listed.loading}
+                  error={listed.error}
                   selectedPath={path}
                   onSelect={selectNode}
+                  snapshot={snapshot}
                   // Откат правки предлагается только там, где проекту разрешены
                   // команды: без разрешения кнопка отвечала бы отказом сервера.
-                  onDiscard={git.capabilities?.commands && !git.running ? actions.askDiscard : null}
+                  // Коммит откатывать нечем — снимок только для чтения.
+                  onDiscard={!snapshot && git.capabilities?.commands && !git.running ? actions.askDiscard : null}
                 />
               ) : (
                 <FileTree

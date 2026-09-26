@@ -54,8 +54,21 @@ const ChangesSection = ({ title, entries, flat, selectedPath, collapsed, onToggl
 /**
  * Левый блок в режиме «Изменения». Раскладка (плоская/иерархия) приходит
  * пропом: её помнит панель, а не список, — переключатель живёт в тулбаре.
+ *
+ * `snapshot` — список показывает не незакоммиченное, а файлы, изменённые
+ * коммитом снимка: строки те же, меняются только подписи.
  */
-const ChangesList = ({ tracked, untracked, flat, loading, error, selectedPath, onSelect, onDiscard }) => {
+const ChangesList = ({
+  tracked,
+  untracked,
+  flat,
+  loading,
+  error,
+  selectedPath,
+  onSelect,
+  onDiscard,
+  snapshot = false,
+}) => {
   const { t } = useTranslation('files');
   const handleKeyDown = useListNavigation();
   // Свёрнутые каталоги, а не раскрытые: по умолчанию раскрыто всё, и набор
@@ -78,7 +91,7 @@ const ChangesList = ({ tracked, untracked, flat, loading, error, selectedPath, o
       // Роль контейнера следует раскладке: плоский перечень — listbox,
       // иерархия — tree (см. правила левой панели).
       role={flat ? 'listbox' : 'tree'}
-      aria-label={t('panel.changes')}
+      aria-label={t(snapshot ? 'panel.commitChanges' : 'panel.changes')}
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
@@ -94,12 +107,12 @@ const ChangesList = ({ tracked, untracked, flat, loading, error, selectedPath, o
       )}
       {empty && (
         <div className="ws-hint" role="none">
-          {t('changes.empty')}
+          {t(snapshot ? 'changes.commitEmpty' : 'changes.empty')}
         </div>
       )}
       {tracked.length > 0 && (
         <ChangesSection
-          title={t('changes.tracked')}
+          title={t(snapshot ? 'changes.inCommit' : 'changes.tracked')}
           entries={tracked}
           flat={flat}
           selectedPath={selectedPath}

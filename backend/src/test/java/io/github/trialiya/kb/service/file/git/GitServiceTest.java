@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.file.git;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
@@ -513,6 +514,64 @@ class GitServiceTest {
         assertThat(files)
                 .extracting(GitDiffEntry::oldPath)
                 .containsExactly("origin.txt", "origin.txt");
+    }
+
+    /**
+     * The file browser's view of one commit: the message with its body, every file it changed
+     * without patches, and — asked by path — one file with its patch.
+     */
+    @Test
+    void getCommitDescribesOneCommitAndItsFilesAndPatchesOneFileOnRequest() {
+        writeFile("kept.txt", "a\n");
+        writeFile("gone.txt", "bye\n");
+        commitAll("base");
+        writeFile("kept.txt", "a\nb\n");
+        deleteFile("gone.txt");
+        commitAll("subject\n\nwhy it changed");
+
+        GitCommit commit = service.getCommit("HEAD", false, null);
+        assertThat(commit.message()).isEqualTo("subject");
+        assertThat(commit.body()).isEqualTo("why it changed");
+        assertThat(commit.files())
+                .extracting(GitDiffEntry::status, GitDiffEntry::path)
+                .containsExactlyInAnyOrder(tuple("M", "kept.txt"), tuple("D", "gone.txt"));
+        assertThat(commit.files()).allSatisfy(f -> assertThat(f.patch()).isNull());
+
+        GitDiffEntry deleted = service.getCommit("HEAD", true, "gone.txt").files().getFirst();
+        assertThat(deleted.status()).isEqualTo("D");
+        assertThat(deleted.patch()).contains("-bye");
+        assertThat(service.getCommit("HEAD~1", true, "nowhere.txt").files()).isEmpty();
+    }
+
+    /**
+     * A renamed file opened in the browser by its new name is still a rename: the path picks the
+     * entry after rename detection instead of hiding the file's old side from it.
+     */
+    @Test
+    void getCommitByPathKeepsARenameARename() {
+        writeFile("old-name.txt", "one\ntwo\nthree\n");
+        commitAll();
+        runGit("mv", "old-name.txt", "new-name.txt");
+        runGit("commit", "-q", "-m", "rename");
+
+        List<GitDiffEntry> files = service.getCommit("HEAD", true, "new-name.txt").files();
+
+        assertThat(files)
+                .singleElement()
+                .satisfies(
+                        entry -> {
+                            assertThat(entry.status()).isEqualTo("R");
+                            assertThat(entry.oldPath()).isEqualTo("old-name.txt");
+                        });
+    }
+
+    @Test
+    void getCommitOfAnUnknownRevisionIsAnArgumentError() {
+        writeFile("a.txt", "a\n");
+        commitAll();
+
+        assertThatThrownBy(() -> service.getCommit("nosuchbranch", false, null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
