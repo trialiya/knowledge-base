@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import InfoList from '@/components/common/ui/InfoList';
 import { formatDateTime } from '@/utils/formatting';
+import './commitInfo.css';
 
 /**
  * Вкладка «Коммит» правой панели — о снимке целиком, а не об открытом файле:
@@ -39,14 +40,19 @@ const CommitInfo = ({ rev, commit, loading, error, changesShown, onShowChanges }
     },
   ];
 
-  const note =
-    files.length > 0 && !changesShown ? (
-      <button type="button" className="btn btn--ghost btn--xs" onClick={() => onShowChanges(true)}>
-        {t('commit.showChanges')}
-      </button>
-    ) : null;
-
-  return <InfoList rows={rows} note={note} />;
+  // Кнопка под списком, а не в `note` InfoList: та плашка — для предупреждений.
+  return (
+    <>
+      <InfoList rows={rows} />
+      {files.length > 0 && !changesShown && (
+        <div className="commit-info__actions">
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => onShowChanges(true)}>
+            {t('commit.showChanges')}
+          </button>
+        </div>
+      )}
+    </>
+  );
 };
 
 export default CommitInfo;
