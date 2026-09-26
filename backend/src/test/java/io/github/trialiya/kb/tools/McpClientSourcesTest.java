@@ -11,6 +11,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.mcp.DefaultMcpToolNamePrefixGenerator;
 import reactor.core.publisher.Mono;
 
 /**
@@ -69,6 +70,33 @@ class McpClientSourcesTest {
         assertThat(sources).containsOnlyKeys("custom-name");
     }
 
+    /**
+     * The starter's generator renames a tool it has not seen before but whose name is taken, and a
+     * tool whose description changed is one it has not seen. The registry re-reads every interval,
+     * so with that generator an edited description would rename the tool on the next probe.
+     */
+    @Test
+    void aToolKeepsItsNameWhenItsDescriptionChanges() {
+        McpAsyncClient client = asyncClient("jira", "issue");
+        when(client.listTools())
+                .thenReturn(
+                        Mono.just(listToolsResult("issue", "Looks an issue up")),
+                        Mono.just(listToolsResult("issue", "Looks an issue up, faster")));
+
+        ToolSource source =
+                McpToolRegistry.sources(
+                                List.of(),
+                                List.of(client),
+                                CLIENT_NAME,
+                                null,
+                                new DefaultMcpToolNamePrefixGenerator(),
+                                null)
+                        .get("jira");
+
+        assertThat(source.list().getFirst().getToolDefinition().name()).isEqualTo("issue");
+        assertThat(source.list().getFirst().getToolDefinition().name()).isEqualTo("issue");
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private static McpAsyncClient asyncClient(String connection, String toolName) {
@@ -94,11 +122,15 @@ class McpClientSourcesTest {
     }
 
     private static McpSchema.ListToolsResult listToolsResult(String toolName) {
+        return listToolsResult(toolName, toolName);
+    }
+
+    private static McpSchema.ListToolsResult listToolsResult(String toolName, String description) {
         return new McpSchema.ListToolsResult(
                 List.of(
                         McpSchema.Tool.builder()
                                 .name(toolName)
-                                .description(toolName)
+                                .description(description)
                                 .inputSchema(Map.of("type", "object"))
                                 .build()),
                 null,

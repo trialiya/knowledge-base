@@ -14,6 +14,7 @@ import io.github.trialiya.kb.config.model.ScriptProperties.Schedule;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.model.script.ScriptStats;
+import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,11 @@ class ScheduledScriptServiceTest {
     private final SavedScriptResolver resolver = mock(SavedScriptResolver.class);
     private final ScriptRunner runner = mock(ScriptRunner.class);
     private final ThreadPoolTaskScheduler taskScheduler = mock(ThreadPoolTaskScheduler.class);
+    private final ProjectCatalog projects = mock(ProjectCatalog.class);
+
+    {
+        when(projects.isAllowed("kb")).thenReturn(true);
+    }
 
     @Test
     void registersEveryScheduleAndRunsItReadOnly() {
@@ -119,6 +125,19 @@ class ScheduledScriptServiceTest {
         assertThatThrownBy(
                         () -> service(schedule("0 0 3 * * *"), schedule("0 0 4 * * *")).register())
                 .hasMessageContaining("duplicate name");
+
+        assertThatThrownBy(
+                        () ->
+                                service(
+                                                new Schedule(
+                                                        null,
+                                                        "kbb",
+                                                        "report",
+                                                        Map.of(),
+                                                        "0 0 3 * * *",
+                                                        null))
+                                        .register())
+                .hasMessageContaining("unknown project \"kbb\"");
     }
 
     /** Расписание без песочницы — опечатка в конфигурации, а не молчаливо мёртвая задача. */
@@ -129,6 +148,7 @@ class ScheduledScriptServiceTest {
                         properties(false, List.of(schedule("0 0 3 * * *"))),
                         resolver,
                         runner,
+                        projects,
                         taskScheduler);
 
         assertThatThrownBy(service::register).hasMessageContaining("kb.script.enabled=false");
@@ -168,7 +188,7 @@ class ScheduledScriptServiceTest {
 
     private ScheduledScriptService service(Schedule... schedules) {
         return new ScheduledScriptService(
-                properties(true, List.of(schedules)), resolver, runner, taskScheduler);
+                properties(true, List.of(schedules)), resolver, runner, projects, taskScheduler);
     }
 
     private static ScriptProperties properties(boolean enabled, List<Schedule> schedules) {

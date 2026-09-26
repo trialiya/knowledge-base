@@ -13,10 +13,11 @@ import gitApi from '@/api/gitApi';
  *
  * Возвращает то же, что useUncommittedChanges (`tracked`/`untracked`), чтобы
  * список слева не знал, чьи изменения показывает; неотслеживаемых у коммита
- * не бывает.
+ * не бывает. `enabled: false` — запроса нет вовсе (вкладка закрыта, режим
+ * «Изменения» выключен).
  */
-export default function useSnapshotCommit({ project, rev, refreshToken, refsToken }) {
-  const requestKey = rev ? `${refreshToken ?? 0} ${refsToken ?? 0} ${project ?? ''} ${rev}` : null;
+export default function useSnapshotCommit({ project, rev, refreshToken, refsToken, enabled = true }) {
+  const requestKey = rev && enabled ? `${refreshToken ?? 0} ${refsToken ?? 0} ${project ?? ''} ${rev}` : null;
   const [answer, setAnswer] = useState(null);
 
   useEffect(() => {

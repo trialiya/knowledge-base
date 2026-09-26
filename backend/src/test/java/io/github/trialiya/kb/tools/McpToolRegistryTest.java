@@ -185,6 +185,40 @@ class McpToolRegistryTest {
     }
 
     /**
+     * Two tools of one name would fail every chat request, not just the second one. The connection
+     * listed first keeps the name whichever server answered first — here the second one is up
+     * before the first, and still does not take it.
+     */
+    @Test
+    void aToolNameIsPublishedOnceAndTheFirstConfiguredConnectionKeepsIt() {
+        AtomicReference<List<ToolCallback>> first = new AtomicReference<>(List.of());
+        McpToolRegistry registry =
+                new McpToolRegistry(
+                        sources(
+                                "jira",
+                                first::get,
+                                "github",
+                                () -> List.of(tool("search"), tool("issue"))));
+
+        registry.connect();
+        awaitProbed(registry);
+        assertThat(names(registry)).containsExactly("search", "issue");
+
+        first.set(List.of(tool("issue")));
+        registry.onToolsChanged(
+                new org.springframework.ai.mcp.McpToolsChangedEvent("jira", List.of()));
+
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(
+                        () -> assertThat(names(registry)).containsExactly("issue", "search"));
+        assertThat(registry.statuses())
+                .containsExactly(
+                        new ConnectionStatus("jira", Status.UP, 1),
+                        new ConnectionStatus("github", Status.UP, 2));
+    }
+
+    /**
      * A round is as slow as its slowest connection — a server that answers nothing holds its probe
      * until the request times out. What must not happen is that it holds everyone else's tools with
      * it: connections probed before it are already offered to the model.

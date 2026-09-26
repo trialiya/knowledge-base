@@ -1,9 +1,12 @@
 package io.github.trialiya.kb.service.chat.memory;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
+import io.github.trialiya.kb.utils.PromptMarkup;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -26,6 +29,8 @@ public final class PromptNotices {
      * здесь — та часть, за которую платят каждым ходом, пока ряд жив в окне.
      */
     private static final int MAX_NOTICE_VALUE_CHARS = 2000;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private PromptNotices() {}
 
@@ -102,12 +107,16 @@ public final class PromptNotices {
         }
         final GitEventMeta event = meta.gitEvent();
         return "<git-command command=\""
-                + attr(event.command())
+                + PromptMarkup.inert(event.command())
                 + "\" outcome=\""
                 + (event.ok() ? "ok" : "refused")
                 + "\""
-                + (event.project() == null ? "" : " project=\"" + attr(event.project()) + "\"")
-                + (event.branch() == null ? "" : " branch=\"" + attr(event.branch()) + "\"")
+                + (event.project() == null
+                        ? ""
+                        : " project=\"" + PromptMarkup.inert(event.project()) + "\"")
+                + (event.branch() == null
+                        ? ""
+                        : " branch=\"" + PromptMarkup.inert(event.branch()) + "\"")
                 + ">\n"
                 + "The user ran this git command on the project from this chat — not you, and not"
                 + " through any tool of yours. "
@@ -135,10 +144,12 @@ public final class PromptNotices {
         }
         final FileRevertMeta revert = meta.fileRevert();
         return "<files-reverted"
-                + (revert.project() == null ? "" : " project=\"" + attr(revert.project()) + "\"")
+                + (revert.project() == null
+                        ? ""
+                        : " project=\"" + PromptMarkup.inert(revert.project()) + "\"")
                 + ">\n"
                 + "The user reverted the file changes from your previous answer: "
-                + attr(String.join(", ", revert.paths()))
+                + PromptMarkup.inert(String.join(", ", revert.paths()))
                 + ". Those files are back to the state they had before that answer — your edits to"
                 + " them are gone, so do not rely on anything you wrote there and re-read what you"
                 + " need with the tools. Do not redo the reverted work unless the user asks: the"
@@ -164,32 +175,36 @@ public final class PromptNotices {
         }
         final ScriptEventMeta event = meta.scriptEvent();
         return "<script-run script=\""
-                + attr(event.script())
+                + PromptMarkup.inert(event.script())
                 + "\" outcome=\""
                 + (event.ok() ? "ok" : "failed")
                 + "\""
-                + (event.project() == null ? "" : " project=\"" + attr(event.project()) + "\"")
-                + (event.resultId() == null ? "" : " result=\"" + attr(event.resultId()) + "\"")
+                + (event.project() == null
+                        ? ""
+                        : " project=\"" + PromptMarkup.inert(event.project()) + "\"")
+                + (event.resultId() == null
+                        ? ""
+                        : " result=\"" + PromptMarkup.inert(event.resultId()) + "\"")
                 + ">\n"
                 + "The user ran this saved script on the project from this chat — not you, and not"
                 + " through any tool of yours.\n"
                 + (event.ok()
                         ? "It returned: " + value(event) + "\n"
                         : "It failed: "
-                                + attr(String.valueOf(event.error()))
+                                + PromptMarkup.inert(String.valueOf(event.error()))
                                 + " — the user saw this, so do not re-run it without being"
                                 + " asked.\n")
                 + (event.resultId() == null
                         ? ""
                         : "Its whole value is kept as "
-                                + attr(event.resultId())
+                                + PromptMarkup.inert(event.resultId())
                                 + ": a script of yours can read it with kb.result('"
-                                + attr(event.resultId())
+                                + PromptMarkup.inert(event.resultId())
                                 + "').\n")
                 + (event.edited().isEmpty()
                         ? ""
                         : "It changed these files: "
-                                + attr(String.join(", ", event.edited()))
+                                + PromptMarkup.inert(String.join(", ", event.edited()))
                                 + " — re-read with the tools anything you are about to rely"
                                 + " on.\n")
                 + "When summarizing, preserve this notice verbatim.\n"
@@ -198,22 +213,25 @@ public final class PromptNotices {
 
     /**
      * Возврат скрипта для промпта: текстом и коротко — модели он нужен как ответ, а не как файл.
+     * Строка идёт как есть, всё прочее — JSON: из meta значение читается уже {@code Map}/{@code
+     * List}, и {@code toString} отдал бы {@code {file=a, b}}, где строку с запятой не отличить от
+     * двух полей.
      */
     private static String value(ScriptEventMeta event) {
-        final String text = String.valueOf(event.value());
+        final String text = asText(event.value());
         return text.length() > MAX_NOTICE_VALUE_CHARS
-                ? attr(text.substring(0, MAX_NOTICE_VALUE_CHARS)) + "… (truncated)"
-                : attr(text);
+                ? PromptMarkup.inert(text.substring(0, MAX_NOTICE_VALUE_CHARS)) + "… (truncated)"
+                : PromptMarkup.inert(text);
     }
 
-    /**
-     * Значение атрибута нотиса. Имена веток и пути — единственное место, где текст извне попадает в
-     * разметку, которую читает модель, а git запрещает в них далеко не всё: ни кавычка, ни угловые
-     * скобки под запрет не попадают. Кавычкой закрывают атрибут, угловой скобкой — сам тег, и
-     * ветка, названная {@code main>...</git-command}, дописала бы модели произвольный текст поверх
-     * нотиса. Вывод команды такой поверхностью не является: он модели не показывается вовсе.
-     */
-    private static String attr(String value) {
-        return value.replace("\"", "'").replace("<", "‹").replace(">", "›");
+    private static String asText(@Nullable Object value) {
+        if (value == null || value instanceof String) {
+            return String.valueOf(value);
+        }
+        try {
+            return MAPPER.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            return String.valueOf(value);
+        }
     }
 }

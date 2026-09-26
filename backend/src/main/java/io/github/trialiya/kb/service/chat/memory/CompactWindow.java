@@ -62,10 +62,13 @@ public record CompactWindow(List<ChatMessageEntity> compacted, List<ChatMessageE
     }
 
     /**
-     * Сжимать нечего, когда живого контекста нет вовсе или он уже состоит из одной сводки: сжатие
-     * сводки в сводку — это раунд, который ничего не экономит и при этом теряет детали.
+     * Сжимать нечего, когда в окне нет ни одной реплики разговора — только сводки и ряды событий
+     * ({@link ChatHistoryService#isEventRow}). Сжатие сводки в сводку — раунд, который ничего не
+     * экономит и при этом теряет детали, а плашка git-команды или прогона скрипта повода для него
+     * не даёт: без неё раунд сжимал бы ту же сводку ради одной строки уведомления.
      */
     static boolean nothingToCompact(List<ChatMessageEntity> rows) {
-        return rows.stream().filter(row -> !row.isSummary()).findAny().isEmpty();
+        return rows.stream()
+                .noneMatch(row -> !row.isSummary() && !ChatHistoryService.isEventRow(row));
     }
 }

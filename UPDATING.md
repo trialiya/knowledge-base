@@ -17,6 +17,33 @@ feature that just works after the upgrade belongs there, not here.
 stops working as before, and what to do about it. Name the config keys, files
 and commands involved — the reader is holding a deployment, not a diff.
 
+## Unreleased
+
+### A script schedule naming an unknown project fails the start
+
+`kb.script.schedules[].project` is now checked against `kb.projects` at
+startup, like the rest of the entry. A schedule whose `project` names no
+configured project used to register and fail on every firing; now the
+application refuses to start with `kb.script.schedules[<name>].project:
+unknown project "<id>"`. Fix the id or remove the entry before upgrading.
+
+The same id is no longer replaced with the default project when a saved script
+is run: `POST /api/settings/script/run-saved` with an unknown `project` answers
+400 instead of reading the script from the default repository, and the model's
+`runSavedScript` in a chat whose stored project no longer exists gets an
+"Unknown project" error. Nothing to do unless a client relied on the fallback.
+
+### MCP tools keep their names, duplicates are left out
+
+MCP tools are no longer renamed `alt_N_<name>` when a server changes a tool's
+description or reports a new version, and a tool name is offered to the model
+once: when two connections advertise the same name, the connection listed
+first under `spring.ai.mcp.client.*.connections` keeps it, and an MCP tool
+named like a built-in one is not offered at all. Each case is logged once as a
+WARN. If the model was relying on an `alt_N_` name, or on the second of two
+same-named tools, rename the tool on the server or reorder the connections.
+A custom `McpToolNamePrefixGenerator` bean is still used as is.
+
 ## 1.1.0-RC1
 
 ### The chat title is no longer a tool call

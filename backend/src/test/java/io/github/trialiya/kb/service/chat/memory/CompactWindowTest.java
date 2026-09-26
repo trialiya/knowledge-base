@@ -93,6 +93,20 @@ class CompactWindowTest {
     }
 
     /**
+     * Плашка события перед сбережённым ходом повода для раунда не даёт: сжимать пришлось бы ту же
+     * сводку ради одной строки уведомления.
+     */
+    @Test
+    void aSummaryAndAnEventRowBeforeTheKeptTurnAreNothingToCompact() {
+        final List<ChatMessageEntity> live = new ArrayList<>();
+        live.add(summaryRow(0));
+        live.add(gitEventRow(1));
+        live.addAll(turns(1));
+
+        assertThat(CompactWindow.of(live, true).isEmpty()).isTrue();
+    }
+
+    /**
      * Хода в окне нет вовсе — беречь нечего, и деление выходит таким же, как у {@code /compact}.
      * Что из этого следует для плашки, решает уже {@code CompactService.commandTarget}.
      */

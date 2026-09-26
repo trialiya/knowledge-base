@@ -26,6 +26,7 @@ import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
 import { IconHistory, IconInfo } from '@/icons/index';
 import { RIGHT_TAB } from '@/constants/rightTabs';
 import { FILE_TAB } from '@/constants/fileTabs';
+import { previewKind } from '@/utils/filePreview';
 import './filesPanel.css';
 
 /**
@@ -64,18 +65,31 @@ const FilesPanelForProject = ({
   // источник списка и патча другой, строки и diff те же.
   const snapshot = !!rev;
   const showChanges = changes;
+  // Сигнал «показанное могло устареть». У снимка их два: ревизия бывает веткой,
+  // и после fetch (`gitRefsToken`) она называет уже другой коммит — дерево и
+  // файл обязаны перейти на него вместе со списком и diff (useSnapshotCommit),
+  // иначе слева и в центре оказались бы разные коммиты.
+  const contentToken = snapshot ? `${refreshToken ?? 0}.${gitRefsToken ?? 0}` : refreshToken;
 
   const { treeCache, loadingDirs, expanded, toggleExpand, content, contentLoading, selectNode } = useFileTree({
     project,
     rev,
     path,
     onPathChange,
-    refreshToken,
+    refreshToken: contentToken,
   });
 
   const diff = useChangeDiff({ project, path, rev, refreshToken, refsToken: gitRefsToken, enabled: showChanges });
-  // Коммит снимка нужен и вкладке «Коммит», и списку слева — один запрос на обоих.
-  const snapshotCommit = useSnapshotCommit({ project, rev, refreshToken, refsToken: gitRefsToken });
+  // Коммит снимка нужен и вкладке «Коммит», и списку слева — один запрос на обоих,
+  // и только пока хоть один из них на экране: без пути ответ несёт строку каждого
+  // файла коммита, а у коммита с vendor-обновлением их тысячи.
+  const snapshotCommit = useSnapshotCommit({
+    project,
+    rev,
+    refreshToken,
+    refsToken: gitRefsToken,
+    enabled: showChanges || panels?.rightTab === FILE_TAB.COMMIT,
+  });
   const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
 
   // Одно уведомление на панель: git-команда отказывает словами самого git
@@ -131,7 +145,10 @@ const FilesPanelForProject = ({
   // причине центр ждёт этот ответ наравне с содержимым — иначе кадр между ними
   // показывает не то, на что кликнули (у удалённого файла — «не найдено»).
   const diffPending = showChanges && !!path && diff.loading;
-  const showDiff = showChanges && (diffChoice ?? (!!diff.entry && diff.entry.status !== UNTRACKED_STATUS));
+  // Картинку смотрят рисунком: текстового патча у неё нет, и diff по умолчанию
+  // показал бы заглушку вместо самого изменения.
+  const diffByDefault = !!diff.entry && diff.entry.status !== UNTRACKED_STATUS && previewKind(path) !== 'image';
+  const showDiff = showChanges && (diffChoice ?? diffByDefault);
 
   const rightTabs = useMemo(() => {
     const tabs = [
@@ -238,7 +255,7 @@ const FilesPanelForProject = ({
             // Дерево и содержимое перезапрашивает useFileTree, а байты картинки
             // грузит браузер по неизменному адресу — без этого токена он остался
             // бы с прошлой картинкой там, где файл уже другой.
-            reloadToken={refreshToken}
+            reloadToken={contentToken}
             loading={contentLoading || diffPending}
             onNavigate={onPathChange}
             // Тумблер «оригинал ↔ diff» показываем только там, где есть что

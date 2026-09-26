@@ -105,16 +105,12 @@ class McpReconnectTest {
     @Test
     void aServerStartedAfterTheApplicationIsPickedUpByTheNextRound() {
         registry.connect();
-        awaitProbes(1);
-        assertThat(registry.statuses())
-                .containsExactly(new ConnectionStatus(CONNECTION, Status.DOWN, 0));
+        awaitRound(1, new ConnectionStatus(CONNECTION, Status.DOWN, 0));
         assertThat(registry.callbacks()).isEmpty();
 
         startServer();
-        probeRound();
+        probeRound(new ConnectionStatus(CONNECTION, Status.UP, 1));
 
-        assertThat(registry.statuses())
-                .containsExactly(new ConnectionStatus(CONNECTION, Status.UP, 1));
         assertThat(callTool()).contains("answered");
     }
 
@@ -128,41 +124,40 @@ class McpReconnectTest {
     void aRestartedServerIsUsableAgainAfterOneRound() {
         startServer();
         registry.connect();
-        awaitProbes(1);
+        awaitRound(1, new ConnectionStatus(CONNECTION, Status.UP, 1));
         assertThat(callTool()).contains("answered");
 
         stopServer();
-        probeRound();
-        assertThat(registry.statuses())
-                .containsExactly(new ConnectionStatus(CONNECTION, Status.DOWN, 1));
+        probeRound(new ConnectionStatus(CONNECTION, Status.DOWN, 1));
         assertThatThrownBy(this::callTool).isInstanceOf(ToolExecutionException.class);
 
         startServer();
-        probeRound();
+        probeRound(new ConnectionStatus(CONNECTION, Status.UP, 1));
 
-        assertThat(registry.statuses())
-                .containsExactly(new ConnectionStatus(CONNECTION, Status.UP, 1));
         assertThat(callTool()).contains("answered");
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    /** One scheduled round, run now, returning once its probe has answered or failed. */
-    private void probeRound() {
+    /** One scheduled round, run now, returning once it has published {@code expected}. */
+    private void probeRound(ConnectionStatus expected) {
         int before = probes.get();
         registry.refreshAll();
-        awaitProbes(before + 1);
+        awaitRound(before + 1, expected);
     }
 
     /**
      * {@code probes} counts inside the source, a moment before the registry publishes what the
-     * probe found, so the wait is for the published status to settle as well.
+     * probe found — and the status of the round before is still published in that moment, so the
+     * wait is for the status this round has to arrive at, not merely for a status. No other round
+     * runs meanwhile (the schedule is not wired here), so a wrong outcome times out rather than
+     * being replaced by a later round's.
      */
-    private void awaitProbes(int count) {
+    private void awaitRound(int count, ConnectionStatus expected) {
         Awaitility.await().atMost(Duration.ofSeconds(15)).until(() -> probes.get() >= count);
         Awaitility.await()
                 .atMost(Duration.ofSeconds(5))
-                .until(() -> registry.statuses().getFirst().status() != Status.PENDING);
+                .untilAsserted(() -> assertThat(registry.statuses()).containsExactly(expected));
     }
 
     private String callTool() {

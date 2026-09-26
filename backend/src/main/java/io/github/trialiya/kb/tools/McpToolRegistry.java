@@ -5,6 +5,7 @@ import io.modelcontextprotocol.client.McpSyncClient;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,8 +19,10 @@ import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.AsyncMcpToolCallbackProvider;
+import org.springframework.ai.mcp.DefaultMcpToolNamePrefixGenerator;
 import org.springframework.ai.mcp.McpToolFilter;
 import org.springframework.ai.mcp.McpToolNamePrefixGenerator;
+import org.springframework.ai.mcp.McpToolUtils;
 import org.springframework.ai.mcp.McpToolsChangedEvent;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.mcp.ToolContextToMcpMetaConverter;
@@ -102,6 +105,19 @@ public class McpToolRegistry {
      */
     private record Snapshot(List<ToolCallback> callbacks, List<ConnectionStatus> statuses) {}
 
+    /**
+     * The starter's naming without its memory. {@link DefaultMcpToolNamePrefixGenerator} remembers
+     * every name it has handed out, keyed by the tool's whole definition, and names a tool it has
+     * not seen before but whose name is taken {@code alt_N_<name>}. The starter reads a server
+     * once; this class re-reads it every interval, so a server that edits a tool's description, or
+     * reports a new version after a restart, would see that tool renamed on the next probe, and
+     * again on the one after — a new name for the model, a new prompt prefix for the cache, and
+     * calls in the history that no longer match a tool. Duplicate names are settled in {@link
+     * #snapshot()} instead, where the configuration order decides.
+     */
+    private static final McpToolNamePrefixGenerator STABLE_NAMES =
+            (connection, tool) -> McpToolUtils.format(tool.name());
+
     private final Map<String, ToolSource> sources;
     private final Map<String, Connection> connections = new ConcurrentHashMap<>();
 
@@ -115,6 +131,12 @@ public class McpToolRegistry {
     private final Set<String> queued = ConcurrentHashMap.newKeySet();
 
     private volatile Snapshot snapshot = new Snapshot(List.of(), List.of());
+
+    /**
+     * The tools {@link #snapshot()} left out as duplicates last time, as {@code "name
+     * (connection)"} — kept only so a clash is logged when it appears, not on every probe.
+     */
+    private Set<String> shadowed = Set.of();
 
     /**
      * Only one of the two client lists is ever non-empty — the autoconfiguration registers sync or
@@ -134,9 +156,9 @@ public class McpToolRegistry {
                         syncClients.getIfAvailable(List::of),
                         asyncClients.getIfAvailable(List::of),
                         commonProperties.getIfAvailable(McpClientCommonProperties::new).getName(),
-                        toolFilter.getIfAvailable(),
-                        prefixGenerator.getIfAvailable(),
-                        metaConverter.getIfAvailable()));
+                        toolFilter.getIfUnique(),
+                        prefixGenerator.getIfUnique(),
+                        metaConverter.getIfUnique()));
     }
 
     McpToolRegistry(Map<String, ToolSource> sources) {
@@ -308,21 +330,40 @@ public class McpToolRegistry {
      * is decided here rather than at probe time, because it is what the connection's state means to
      * a caller: a tool of a connection that is down keeps its definition — the model is offered the
      * same tool list either way — and answers a call with an error.
+     *
+     * <p>A tool name is published once: the provider refuses a request that carries two tools of
+     * one name, so a second one — two servers advertising the same tool, or two transports under
+     * one connection name — would fail every chat request rather than just itself. The connection
+     * listed first in the configuration keeps the name, which does not depend on which server
+     * happened to answer first.
      */
     private Snapshot snapshot() {
         List<ToolCallback> callbacks = new ArrayList<>();
         List<ConnectionStatus> statuses = new ArrayList<>();
+        Set<String> names = new HashSet<>();
+        Set<String> dropped = new HashSet<>();
         sources.keySet()
                 .forEach(
                         name -> {
                             Connection connection = connections.getOrDefault(name, pending());
-                            connection.tools().stream()
-                                    .map(tool -> published(tool, name, connection.status()))
-                                    .forEach(callbacks::add);
+                            for (ToolCallback tool : connection.tools()) {
+                                String toolName = tool.getToolDefinition().name();
+                                if (names.add(toolName)) {
+                                    callbacks.add(published(tool, name, connection.status()));
+                                } else {
+                                    dropped.add(toolName + " (" + name + ")");
+                                }
+                            }
                             statuses.add(
                                     new ConnectionStatus(
                                             name, connection.status(), connection.tools().size()));
                         });
+        if (!dropped.isEmpty() && !dropped.equals(shadowed)) {
+            log.warn(
+                    "MCP tools left out, their names are taken by a connection listed earlier: {}",
+                    dropped);
+        }
+        shadowed = Set.copyOf(dropped);
         return new Snapshot(List.copyOf(callbacks), List.copyOf(statuses));
     }
 
@@ -351,7 +392,9 @@ public class McpToolRegistry {
      *
      * <p>Tool name prefixes, the tool filter and the tool-context converter are passed on because
      * the provider built here replaces the one the starter would have built: without them a tool
-     * would reach the model under a different name than the starter gives it.
+     * would reach the model under a different name than the starter gives it. The one exception is
+     * the starter's own {@link DefaultMcpToolNamePrefixGenerator}, which is replaced by {@link
+     * #STABLE_NAMES}: see there.
      */
     // The clients are beans: the autoconfiguration hands them out already open and closes them
     // with the context (CloseableMcpSyncClients / CloseableMcpAsyncClients). Closing one here
@@ -365,11 +408,17 @@ public class McpToolRegistry {
             @Nullable McpToolNamePrefixGenerator prefixGenerator,
             @Nullable ToolContextToMcpMetaConverter metaConverter) {
         Map<String, ToolSource> sources = new LinkedHashMap<>();
+        McpToolNamePrefixGenerator names =
+                prefixGenerator == null
+                                || prefixGenerator.getClass()
+                                        == DefaultMcpToolNamePrefixGenerator.class
+                        ? STABLE_NAMES
+                        : prefixGenerator;
         for (McpSyncClient client : syncClients) {
             SyncMcpToolCallbackProvider.Builder builder =
                     SyncMcpToolCallbackProvider.builder().mcpClients(client);
             apply(toolFilter, builder::toolFilter);
-            apply(prefixGenerator, builder::toolNamePrefixGenerator);
+            builder.toolNamePrefixGenerator(names);
             apply(metaConverter, builder::toolContextToMcpMetaConverter);
             SyncMcpToolCallbackProvider provider = builder.build();
             add(
@@ -382,7 +431,7 @@ public class McpToolRegistry {
             AsyncMcpToolCallbackProvider.Builder builder =
                     AsyncMcpToolCallbackProvider.builder().mcpClients(client);
             apply(toolFilter, builder::toolFilter);
-            apply(prefixGenerator, builder::toolNamePrefixGenerator);
+            builder.toolNamePrefixGenerator(names);
             apply(metaConverter, builder::toolContextToMcpMetaConverter);
             AsyncMcpToolCallbackProvider provider = builder.build();
             // The async provider answers the same call the sync one does, blocking on the reply

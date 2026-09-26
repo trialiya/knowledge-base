@@ -170,6 +170,18 @@ class AiTopicServiceTest {
                         new ChatTopicPayload("Renamed meanwhile", "Kafka retries"));
     }
 
+    /** Удалённому чату название не нужно — и событие о нём пришло бы после CHAT_DELETED. */
+    @Test
+    void aChatDeletedDuringTheRequestIsNotAnnounced() {
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, null, null), Optional.empty());
+        turns(1);
+        answerWith("Kafka retries");
+
+        service(true).name(CONV);
+
+        verify(events, never()).publish(any(), any(), any(), any(), any());
+    }
+
     @Test
     void switchedOffItDoesNothing() {
         service(false).afterAnswer(CONV);
