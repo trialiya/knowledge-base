@@ -204,8 +204,8 @@ class TopicPromptTest {
     }
 
     /**
-     * Ряды такие, какими их отдаёт {@code ChatMessageRepository.findConversationTurns}: без сводок
-     * и без протокола инструментов — их отсеивает сама выборка.
+     * Ряды такие, какими их отдаёт {@code ChatMessageRepository.findLastTurns}: без сводок и без
+     * протокола инструментов — их отсеивает сама выборка.
      */
     private void row(MessageType type, String content, @Nullable ChatMessageMeta meta) {
         rows.add(

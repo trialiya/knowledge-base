@@ -58,7 +58,7 @@ public class SavedScriptFunction {
                     (the names, what each does and which arguments it takes are listed in the \
                     <active-project> block; no other name runs), and a JavaScript attachment, named \
                     "attachment:<id>" with the id from getChatAttachments / getDocumentAttachments — an \
-                    attachment always runs read-only. Same sandbox, budgets and result shape as runScript. \
+                    attachment runs read-only unless this deployment lets attachments write. Same sandbox, budgets and result shape as runScript. \
                     Returns: value (script result), log, stats, filesRead, edits, error \
                     (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET), source (which script ran, its path and the \
                     arguments it got), and resultId (the whole value kept for a later script's \
@@ -81,7 +81,8 @@ public class SavedScriptFunction {
             @ToolParam(
                             description =
                                     "Time limit in seconds. Omit to use the script's own budget "
-                                            + "(default 10, max 30).",
+                                            + "or the deployment default; larger values are"
+                                            + " cut to the deployment ceiling.",
                             required = false)
                     @Nullable Integer timeoutSeconds) {
         final String scriptName = requireText(name, "name");

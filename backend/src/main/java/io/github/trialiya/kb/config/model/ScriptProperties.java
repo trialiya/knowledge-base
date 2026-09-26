@@ -24,21 +24,23 @@ import org.springframework.util.unit.DataSize;
  *     sandbox is the same and such a run is forced read-only, so what it adds over a script the
  *     model writes itself is not capability but provenance — the code came from whoever uploaded
  *     the file. A deployment that is willing to run what its own repository declares but not what
- *     sits in its knowledge base turns this off. Unlike every other flag here it defaults to
- *     <em>on</em> ({@code @DefaultValue("true")}): it narrows a capability {@code enabled} already
- *     granted, and defaulting it off would take away the attachment a user just uploaded with no
- *     line in the configuration to point at
+ *     sits in its knowledge base turns this off. Defaults to <em>on</em>
+ *     ({@code @DefaultValue("true")}): it narrows a capability {@code enabled} already granted, and
+ *     defaulting it off would take away the attachment a user just uploaded with no line in the
+ *     configuration to point at
  * @param attachmentEdit let a script that came from an attachment write too, where the project and
- *     {@code editEnabled} already allow writing. Off by default, and deliberately the one flag here
- *     that has to be turned on by hand: an attachment is code somebody uploaded, a document's
- *     attachment is code somebody <em>else</em> uploaded, and read-only is what keeps the worst
- *     case at "time was wasted". A deployment that turns it on is saying its knowledge base is as
- *     trusted as its repository
+ *     {@code editEnabled} already allow writing. Off by default, and meant to stay off in most
+ *     deployments: an attachment is code somebody uploaded, a document's attachment is code
+ *     somebody <em>else</em> uploaded, and read-only is what keeps the worst case at "time was
+ *     wasted". A deployment that turns it on is saying its knowledge base is as trusted as its
+ *     repository
  * @param editEnabled let scripts write — {@code kb.edit} / {@code kb.create} for text, {@code
  *     kb.writeBytes} / {@code kb.createBytes} for raw bytes. Necessary but not sufficient: {@code
  *     kb.projects[].edit-enabled} must be on and the working tree writable, exactly as for the
  *     {@code editFile} tool (see {@code ScriptEditPolicy}). Separate from that flag so a deployment
- *     can keep the edit tools and still hand the model read-only scripts
+ *     can keep the edit tools and still hand the model read-only scripts. Defaults to <em>on</em>
+ *     for the reason {@code attachmentRun} does: it narrows what {@code enabled} and the project's
+ *     own flag already granted
  * @param guide the reference half of the markdown handbook, injected into the system prompt for as
  *     long as the tool is enabled (see {@code ScriptGuideService})
  * @param extendedGuide the standing order to load the {@code script-writing} skill before writing a
@@ -87,7 +89,7 @@ public record ScriptProperties(
 
     public ScriptProperties(
             boolean enabled,
-            boolean editEnabled,
+            @DefaultValue("true") boolean editEnabled,
             @DefaultValue("true") boolean attachmentRun,
             boolean attachmentEdit,
             @Nullable Resource guide,

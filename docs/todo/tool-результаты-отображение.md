@@ -35,8 +35,8 @@
 ```
 
 ```jsonc
-// recordChatInsights — на весь экран разворачивается вот это
-"Done"
+// getChatId — на весь экран разворачивается вот это
+"8f3c…"
 ```
 
 Три отдельные болячки:
@@ -159,8 +159,7 @@
 
 ### H. Скаляр (4)
 
-`getChatId`, `getUserName`, `getCurrentDateTime` → `String`; `createAttachment` → `long`;
-`recordChatInsights` → `void` («Done»).
+`getChatId`, `getUserName`, `getCurrentDateTime` → `String`; `createAttachment` → `long`.
 
 Нужно: одна строка в шапке результата, без секции `pre` вообще.
 
@@ -231,7 +230,7 @@ MCP тоже. При отрисовке любого JSON-узла:
   tree,          // ✅ parentId | level | диапазон строк | путь → skeleton, оглавления, файлы
   recordList,    // ✅ массив однотипных плоских объектов  → все списочные (форма C)
   content,       // ✅ длинное content|description|text|report → файлы, вложения, секции, отчёты
-  scalar,        // ✅ строка/число/булево ≤ 200 симв.     → getChatId, recordChatInsights, …
+  scalar,        // ✅ строка/число/булево ≤ 200 симв.     → getChatId, getUserName, …
 ]
 ```
 

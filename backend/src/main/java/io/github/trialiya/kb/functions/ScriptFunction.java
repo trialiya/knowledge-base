@@ -90,7 +90,8 @@ public class ScriptFunction {
                     String script,
             @ToolParam(
                             description =
-                                    "Time limit in seconds. Default 10, max 30 (values over max truncated silently).",
+                                    "Time limit in seconds. Omit for the deployment default; values over the"
+                                            + " deployment ceiling are cut to it silently.",
                             required = false)
                     @Nullable Integer timeoutSeconds,
             @ToolParam(

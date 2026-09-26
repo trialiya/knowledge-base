@@ -113,9 +113,9 @@ public class ChatConfig {
      * bean method returns {@code null} (Spring then registers no bean), so the model never sees
      * tools that could only fail with an I/O error.
      *
-     * <p>Presence is therefore a weaker statement than it used to be: it says the tools are worth
-     * offering, not that any given project accepts them. A call naming a read-only project is
-     * refused by {@code GitRegistry#requireEditable}, through the tool error channel.
+     * <p>Presence therefore says the tools are worth offering, not that any given project accepts
+     * them. A call naming a read-only project is refused by {@code GitRegistry#requireEditable},
+     * through the tool error channel.
      *
      * <p>When absent, {@code chatClient} simply omits the tools — read-only mode needs no other
      * configuration. The search sub-agent is unaffected either way: its {@code allowed-tools} list
@@ -147,9 +147,9 @@ public class ChatConfig {
      * because the prompt side reads exactly that ({@code ScriptGuideService}, {@code SkillService})
      * and the two must not be able to disagree. They could: property binding accepts {@code 1},
      * {@code yes} and {@code on} for a boolean, none of which {@code havingValue = "true"} matches,
-     * so {@code KB_SCRIPT_ENABLED=1} used to produce a deployment whose system prompt carried the
-     * whole {@code runScript} handbook while the tool itself was missing — every script the model
-     * then wrote ended the run.
+     * so {@code KB_SCRIPT_ENABLED=1} would give a deployment whose system prompt carries the whole
+     * {@code runScript} handbook while the tool itself is missing — every script the model then
+     * wrote would end the run.
      */
     @Bean
     @Nullable
@@ -412,9 +412,10 @@ public class ChatConfig {
         if (!mcpProperties.enabled()) {
             return null;
         }
-        // The starter's own off switch for MCP tools. It used to work by removing the
-        // ToolCallbackProvider bean; the providers are built per connection here now, so it is
-        // honoured here or nowhere — and a deployment that set it meant "no MCP tools".
+        // The starter's own off switch for MCP tools. The starter reads it for the aggregate
+        // provider bean nothing here uses — the providers are built per connection by the
+        // registry — so it is honoured here or nowhere, and a deployment that set it meant "no
+        // MCP tools".
         if (!toolCallbacksEnabled(mcpCommonProperties)) {
             log.warn(
                     "kb.mcp.enabled is on, but spring.ai.mcp.client.toolcallback.enabled is off:"

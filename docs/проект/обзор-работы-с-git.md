@@ -338,7 +338,7 @@ stash и только потом отказывает, и панель, обно
 | Слой | Файлы |
 |---|---|
 | Проекты | `config/model/ProjectProperties.java`, `config/model/GitProperties.java` (запасная однопроектная форма `kb.git.project-path`, когда `kb.projects` пуст), `model/project/Project.java`, `service/file/project/ProjectCatalog.java`, `tools/ProjectContext.java` |
-| Репозиторий | `service/file/git/` — `GitRegistry`, `GitService`, `GitWriter`, `GitBranches`, `GitCommands`, `GitGrepRunner`/`GitGrep`, `RepoPaths`, `VisibleFiles`, `Pathspec`, `RepoFiles`, `FileViews`, `CommitFiles`, `RepoBrowse`, `Diffs` |
+| Репозиторий | `service/file/git/` — `GitRegistry`, `GitService`, `GitWriter`, `GitBranches`, `GitCommands`, `GitGrepRunner`/`GitGrep`, `RepoPaths`, `VisibleFiles`, `Pathspec`, `RepoFiles`, `FileViews`, `CommitFiles`, `RepoBrowse`, `Diffs`, `PreviewMedia` |
 | Инструменты | `functions/GitFunction.java`, `functions/GitEditFunction.java`, `service/chat/script/ScriptEditPolicy.java` |
 | Эндпоинты | `controller/GitController.java`, `controller/GitCommandController.java`, `controller/ChatFileRevertController.java` |
 | Чат | `service/chat/git/` — `ChatGitLog`, `ChatFileRevert`, `FileRevertPlan`; `model/chat/entity/GitEventMeta.java` |

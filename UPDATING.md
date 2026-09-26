@@ -78,7 +78,8 @@ every tenth after that), which reads a short tail of the conversation.
 A deployment that already has `kb.script.enabled=true` gains one capability on
 upgrade without doing anything: the model can run a JavaScript **attachment** —
 its own chat's or a knowledge-base document's — with the new `runSavedScript`
-tool (`attachment:<id>`). Such a run is always read-only and uses the same
+tool (`attachment:<id>`). Such a run is read-only (unless you turn on
+`kb.script.attachment-edit`, off by default) and uses the same
 sandbox and budgets as `runScript`, so it reads nothing the model could not
 already read; what is new is that the code comes from whoever uploaded the file
 rather than from the model.
@@ -126,8 +127,8 @@ flag saying which is which.
 No action is required for a deployment that runs with MCP off, or with servers
 that are up. For one that was relying on a failed startup to signal a broken MCP
 configuration: that signal is now the «Настройки → Инструменты» panel, which
-reports each connection as `PENDING`/`UP`/`DOWN`, and a `WARN` in the log when a
-connection changes state (a server that stays down is retried quietly, at DEBUG,
+reports each connection as `PENDING`/`UP`/`DOWN`, and the log: a `WARN` when a
+connection goes down, an `INFO` when it is up again (a server that stays down is retried quietly, at DEBUG,
 so it cannot bury the log).
 
 ### `getUncommittedChanges` no longer reports untracked files unless asked
