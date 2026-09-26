@@ -115,7 +115,7 @@ class ProjectStampBackfillTest {
                 position,
                 MessageType.USER,
                 false,
-                new ChatMessageMeta(null, false, List.of(), List.of(), to, from));
+                ChatMessageMeta.builder().project(to).projectSwitchFrom(from).build());
     }
 
     private static ChatMessageEntity legacySummary(long position, @Nullable String project) {
@@ -195,11 +195,7 @@ class ProjectStampBackfillTest {
     @Test
     void aChatAlreadyStampedIsLeftAlone() {
         stored(
-                row(
-                        1,
-                        MessageType.USER,
-                        false,
-                        new ChatMessageMeta(null, false, List.of(), List.of(), "kb", null)),
+                row(1, MessageType.USER, false, ChatMessageMeta.builder().project("kb").build()),
                 question(2));
         chatProject("kb");
 
@@ -260,8 +256,11 @@ class ProjectStampBackfillTest {
                         40,
                         MessageType.ASSISTANT,
                         true,
-                        new ChatMessageMeta(
-                                "run-7", false, List.of(), List.of(), "kb", null, "gpt-5")));
+                        ChatMessageMeta.builder()
+                                .runId("run-7")
+                                .project("kb")
+                                .model("gpt-5")
+                                .build()));
         chatProject("kb");
 
         backfill(CONV);

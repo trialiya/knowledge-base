@@ -127,7 +127,7 @@ class ToolCallServiceTest {
         final ChatMessageEntity segment =
                 entity(
                         MessageType.ASSISTANT,
-                        new ChatMessageMeta(RUN, false, List.of(stored)),
+                        ChatMessageMeta.builder().runId(RUN).invocations(List.of(stored)).build(),
                         new ToolData(
                                 List.of(
                                         new ToolData.Call(
@@ -156,7 +156,7 @@ class ToolCallServiceTest {
         final ChatMessageEntity segment =
                 entity(
                         MessageType.ASSISTANT,
-                        new ChatMessageMeta(RUN, false, List.of(stored)),
+                        ChatMessageMeta.builder().runId(RUN).invocations(List.of(stored)).build(),
                         new ToolData(
                                 List.of(
                                         new ToolData.Call(
@@ -212,7 +212,7 @@ class ToolCallServiceTest {
         final ChatMessageEntity segment =
                 entity(
                         MessageType.ASSISTANT,
-                        new ChatMessageMeta(RUN, false, List.of(stored)),
+                        ChatMessageMeta.builder().runId(RUN).invocations(List.of(stored)).build(),
                         new ToolData(
                                 List.of(
                                         new ToolData.Call(
@@ -231,7 +231,7 @@ class ToolCallServiceTest {
         final ChatMessageEntity segment =
                 entity(
                         MessageType.ASSISTANT,
-                        new ChatMessageMeta(null, false, List.of()).withRun(RUN, "gpt-5"),
+                        ChatMessageMeta.EMPTY.withRun(RUN, "gpt-5"),
                         new ToolData(
                                 List.of(
                                         new ToolData.Call(

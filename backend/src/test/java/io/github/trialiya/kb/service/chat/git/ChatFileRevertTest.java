@@ -334,7 +334,7 @@ class ChatFileRevertTest {
                 false,
                 false,
                 LocalDateTime.now(),
-                new ChatMessageMeta("run-1", false, invocations),
+                ChatMessageMeta.builder().runId("run-1").invocations(invocations).build(),
                 new ToolData(calls, null));
     }
 

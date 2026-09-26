@@ -205,9 +205,7 @@ public class ProjectStampBackfill {
             }
             final ChatMessageEntity stamped =
                     row.withMeta(
-                            (meta == null
-                                            ? new ChatMessageMeta(null, false, List.of(), List.of())
-                                            : meta)
+                            (meta == null ? ChatMessageMeta.EMPTY : meta)
                                     .withProjectSwitch(leading, null));
             rows.set(i, stamped);
             return Optional.of(stamped);

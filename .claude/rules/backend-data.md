@@ -51,8 +51,12 @@ Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`
   write side. The projection lists its fields explicitly (so a column written by
   another version stays readable), and nothing in the compiler notices a field
   missing from it: the value simply persists as `null`. Mocked-repository tests
-  don't notice either — `ChatMessageMetaRoundTripTest` is what fails, and it
-  stops compiling when a field is added, which is the point.
+  don't notice either — `ChatMessageMetaRoundTripTest` is what fails: it walks
+  the record's components, so a field its full sample does not set fails there,
+  and a field set there but missing from the projection fails the round trip.
+- **Build a `ChatMessageMeta` with its builder** (`builder()`, `toBuilder()`,
+  the `of*` factories), never positionally: a dozen fields, most of one type,
+  and a copy that lists them by hand drops the one it forgot without a word.
 
 ## Chat memory
 
