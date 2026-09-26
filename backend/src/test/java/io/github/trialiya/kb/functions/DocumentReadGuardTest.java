@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -214,6 +215,10 @@ class DocumentReadGuardTest {
     @Nested
     class RetryOfARefusedWrite {
 
+        private String ref(int index) {
+            return collector.callRef(index);
+        }
+
         private ToolCallback recorded(String name) {
             ToolCallback callback =
                     Stream.of(ToolCallbacks.from(function))
@@ -247,11 +252,11 @@ class DocumentReadGuardTest {
                                                     "{\"documentId\":42,\"description\":\"long text\"}",
                                                     context))
                     .isInstanceOf(ToolExecutionException.class)
-                    .hasMessageContaining("retryDocumentWrite(callRef=0)");
+                    .hasMessageContaining("retryDocumentWrite(callRef=\"" + ref(0) + "\")");
             verify(documentService, never()).update(anyLong(), any());
 
             recordRead();
-            DocumentShort result = function.retryDocumentWrite(context, 0);
+            DocumentShort result = function.retryDocumentWrite(context, ref(0));
 
             assertThat(result.id()).isEqualTo(DOC_ID);
             verify(documentService)
@@ -273,7 +278,7 @@ class DocumentReadGuardTest {
                                                     context))
                     .isInstanceOf(ToolExecutionException.class);
 
-            assertThatThrownBy(() -> function.retryDocumentWrite(context, 0))
+            assertThatThrownBy(() -> function.retryDocumentWrite(context, ref(0)))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("getDocument");
             verify(documentService, never()).update(anyLong(), any());
@@ -291,10 +296,10 @@ class DocumentReadGuardTest {
                                                     "expectedDescriptionVersion":3}""",
                                                     context))
                     .isInstanceOf(ToolExecutionException.class)
-                    .hasMessageContaining("callRef=0");
+                    .hasMessageContaining("callRef=\"" + ref(0) + "\"");
 
             recordRead();
-            function.retryDocumentWrite(context, 0);
+            function.retryDocumentWrite(context, ref(0));
 
             verify(documentService).patchDescription(anyLong(), eq(3), any());
         }
@@ -310,12 +315,14 @@ class DocumentReadGuardTest {
                     .isInstanceOf(ToolExecutionException.class);
             // Retried before reading: refused again, and this refusal names the retry's own call.
             assertThatThrownBy(
-                            () -> recorded("retryDocumentWrite").call("{\"callRef\":0}", context))
+                            () ->
+                                    recorded("retryDocumentWrite")
+                                            .call("{\"callRef\":\"" + ref(0) + "\"}", context))
                     .isInstanceOf(ToolExecutionException.class)
-                    .hasMessageContaining("retryDocumentWrite(callRef=1)");
+                    .hasMessageContaining("retryDocumentWrite(callRef=\"" + ref(1) + "\")");
 
             recordRead();
-            function.retryDocumentWrite(context, 1);
+            function.retryDocumentWrite(context, ref(1));
 
             verify(documentService)
                     .update(
@@ -326,13 +333,54 @@ class DocumentReadGuardTest {
         }
 
         @Test
+        void anAppliedRetryCannotBeAppliedAgain() {
+            assertThatThrownBy(
+                            () ->
+                                    recorded("updateDocument")
+                                            .call(
+                                                    "{\"documentId\":42,\"description\":\"old\"}",
+                                                    context))
+                    .isInstanceOf(ToolExecutionException.class);
+            recordRead();
+            // Through the recording wrapper, so the successful replay is in the collector.
+            recorded("retryDocumentWrite").call("{\"callRef\":\"" + ref(0) + "\"}", context);
+
+            assertThatThrownBy(() -> function.retryDocumentWrite(context, ref(0)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("already been applied");
+            verify(documentService, times(1)).update(anyLong(), any());
+        }
+
+        @Test
+        void aCallRefOfAnotherResponseDoesNotReachThisOne() {
+            assertThatThrownBy(
+                            () ->
+                                    recorded("updateDocument")
+                                            .call(
+                                                    "{\"documentId\":42,\"description\":\"x\"}",
+                                                    context))
+                    .isInstanceOf(ToolExecutionException.class);
+            recordRead();
+            String earlierTurnRef = new ToolInvocationCollector().callRef(0);
+            // Collision of the random run tags is 1 in ~1.6M; the assertion would then be vacuous.
+            org.junit.jupiter.api.Assumptions.assumeFalse(earlierTurnRef.equals(ref(0)));
+
+            assertThatThrownBy(() -> function.retryDocumentWrite(context, earlierTurnRef))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("earlier turn");
+            assertThatThrownBy(() -> function.retryDocumentWrite(context, "0"))
+                    .isInstanceOf(IllegalArgumentException.class);
+            verify(documentService, never()).update(anyLong(), any());
+        }
+
+        @Test
         void onlyARefusedWriteOfThisResponseCanBeRetried() {
             recordRead();
 
-            assertThatThrownBy(() -> function.retryDocumentWrite(context, 0))
+            assertThatThrownBy(() -> function.retryDocumentWrite(context, ref(0)))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("callRef=0");
-            assertThatThrownBy(() -> function.retryDocumentWrite(context, 99))
+                    .hasMessageContaining("callRef=" + ref(0));
+            assertThatThrownBy(() -> function.retryDocumentWrite(context, ref(99)))
                     .isInstanceOf(IllegalArgumentException.class);
         }
     }

@@ -19,6 +19,7 @@ import io.github.trialiya.kb.tools.RecordingToolCallback;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
@@ -159,7 +160,7 @@ final class DocumentReadGuard {
                 || readEarlierAndUnchanged(context, documentId, covers)) {
             return;
         }
-        throw new IllegalStateException(refusal + retryHint());
+        throw new IllegalStateException(refusal + retryHint(collector));
     }
 
     private static boolean readInThisResponse(
@@ -240,16 +241,16 @@ final class DocumentReadGuard {
      * Where the refused call can be picked up again. The call index is only ever missing outside a
      * recorded call — and there the rule itself is skipped, so the fallback is for form's sake.
      */
-    private static String retryHint() {
-        final OptionalInt ref = RecordingToolCallback.currentCallIndex();
-        if (ref.isEmpty()) {
+    private static String retryHint(ToolInvocationCollector collector) {
+        final OptionalInt index = RecordingToolCallback.currentCallIndex();
+        if (index.isEmpty()) {
             return " Затем повтори вызов.";
         }
         return " Затем, если после чтения этот вызов по-прежнему верен, вызови"
-                + " retryDocumentWrite(callRef="
-                + ref.getAsInt()
-                + ") — он выполнит этот же вызов с теми же аргументами, пересылать текст заново не"
-                + " нужно. Если текст надо поменять — вызови инструмент заново.";
+                + " retryDocumentWrite(callRef=\""
+                + collector.callRef(index.getAsInt())
+                + "\") — он выполнит этот же вызов с теми же аргументами, пересылать текст заново"
+                + " не нужно. Если текст надо поменять — вызови инструмент заново.";
     }
 
     /**
@@ -291,41 +292,75 @@ final class DocumentReadGuard {
 
     /**
      * The call of this response that {@code callRef} names, provided it is a refused write this
-     * rule guards — anything else is not a replay but a new call, and the model is told to make it.
-     *
-     * <p>A refused replay counts as the write it replays: its own refusal names its own call index
-     * (the guard cannot tell a replay from a first attempt), so that index is followed back to the
-     * original. Each hop goes to an earlier call, which is what ends the walk.
+     * rule guards and has not been replayed successfully yet — anything else is not a replay but a
+     * new call, and the model is told to make it. A ref of another response is refused by its run
+     * tag (see {@link ToolInvocationCollector#callRef}); a replayed one is refused because
+     * replaying it again would put back text that later edits have already changed.
      */
-    static RefusedWrite refusedWrite(ToolContext context, int callRef) {
+    static RefusedWrite refusedWrite(ToolContext context, String callRef) {
         final ToolInvocationCollector collector = ToolInvocationCollector.from(context);
-        final List<ToolInvocation> calls =
-                collector == null ? List.of() : collector.completedSnapshot();
-        int ref = callRef;
-        while (true) {
-            final ToolInvocation refused = refusedCall(calls, ref, callRef);
-            final JsonNode args = argumentsOf(refused, callRef);
-            if (!RETRY_TOOL.equals(refused.name())) {
-                return new RefusedWrite(refused.name(), args);
-            }
-            final int next = args.path("callRef").asInt(-1);
-            if (next < 0 || next >= ref) {
-                throw notARefusedWrite(callRef);
-            }
-            ref = next;
+        if (collector == null) {
+            throw notARefusedWrite(callRef);
         }
+        final List<ToolInvocation> calls = collector.completedSnapshot();
+        final int origin = origin(collector, calls, callRef);
+        if (origin < 0) {
+            throw notARefusedWrite(callRef);
+        }
+        final boolean replayed =
+                calls.stream()
+                        .filter(inv -> RETRY_TOOL.equals(inv.name()))
+                        .filter(inv -> ToolInvocationStatus.OK == inv.status())
+                        .anyMatch(inv -> origin(collector, calls, refOf(inv)) == origin);
+        if (replayed) {
+            throw new IllegalArgumentException(
+                    "callRef="
+                            + callRef
+                            + " has already been applied by an earlier retryDocumentWrite. To"
+                            + " change the document again, read it and call the write tool anew.");
+        }
+        final ToolInvocation refused = refusedCall(calls, origin).orElseThrow();
+        return new RefusedWrite(refused.name(), argumentsOf(refused, callRef));
     }
 
-    private static ToolInvocation refusedCall(List<ToolInvocation> calls, int ref, int asked) {
+    /**
+     * The index of the guarded write {@code ref} leads to, or -1. A refused replay counts as the
+     * write it replays: its own refusal names its own call (the guard cannot tell a replay from a
+     * first attempt), so the walk follows its {@code callRef} back. Each hop goes to an earlier
+     * call, which is what ends the walk.
+     */
+    private static int origin(
+            ToolInvocationCollector collector, List<ToolInvocation> calls, @Nullable String ref) {
+        int index = collector.callIndexOf(ref).orElse(-1);
+        while (index >= 0) {
+            final ToolInvocation call = refusedCall(calls, index).orElse(null);
+            if (call == null) {
+                return -1;
+            }
+            if (!RETRY_TOOL.equals(call.name())) {
+                return index;
+            }
+            final int next = collector.callIndexOf(refOf(call)).orElse(-1);
+            index = next < index ? next : -1;
+        }
+        return -1;
+    }
+
+    private static Optional<ToolInvocation> refusedCall(List<ToolInvocation> calls, int index) {
         return calls.stream()
-                .filter(inv -> inv.callIndex() == ref)
+                .filter(inv -> inv.callIndex() == index)
                 .filter(inv -> ToolInvocationStatus.ERROR == inv.status())
                 .filter(inv -> GUARDED_WRITES.contains(inv.name()) || RETRY_TOOL.equals(inv.name()))
-                .reduce((first, second) -> second)
-                .orElseThrow(() -> notARefusedWrite(asked));
+                .reduce((first, second) -> second);
     }
 
-    private static JsonNode argumentsOf(ToolInvocation refused, int asked) {
+    /** The {@code callRef} a replay call was made with, or null. */
+    private static @Nullable String refOf(ToolInvocation retry) {
+        final JsonNode args = readTree(retry.argumentsRaw());
+        return args == null ? null : textOrNull(args.get("callRef"));
+    }
+
+    private static JsonNode argumentsOf(ToolInvocation refused, String asked) {
         final JsonNode args = readTree(refused.argumentsRaw());
         if (args != null && args.isObject()) {
             return args;
@@ -338,11 +373,12 @@ final class DocumentReadGuard {
                         + " again with its arguments.");
     }
 
-    private static IllegalArgumentException notARefusedWrite(int callRef) {
+    private static IllegalArgumentException notARefusedWrite(String callRef) {
         return new IllegalArgumentException(
                 "callRef="
                         + callRef
-                        + " is not a refused document write of this response. Call the write tool"
-                        + " again with its arguments.");
+                        + " is not a refused document write of this response (a callRef from an"
+                        + " earlier turn cannot be retried). Call the write tool again with its"
+                        + " arguments.");
     }
 }

@@ -834,11 +834,11 @@ public class DocumentFunction {
      * text only to prove it has now read the document.
      *
      * <p>The replay goes through the same tool method, guard included: it passes only once the read
-     * the refusal asked for has happened. Only calls of this response can be replayed — the
-     * collector is per-run, and {@code callRef} is its call index.
+     * the refusal asked for has happened. Only calls of this response can be replayed, and each
+     * only once — see {@link DocumentReadGuard#refusedWrite}.
      *
      * @param context tool context (provides the per-response tool invocation log)
-     * @param callRef the call index named in the refusal
+     * @param callRef the call reference named in the refusal
      * @return the result of the replayed write
      */
     @Tool(
@@ -847,13 +847,13 @@ public class DocumentFunction {
                     Repeat a document write that was refused because the document had not been \
                     read — with exactly the arguments of that call, so its content need not be \
                     sent again. First make the read the refusal asks for. callRef comes from the \
-                    refusal; only calls of this same response can be repeated.
+                    refusal; only calls of this same response can be repeated, each once.
                     """,
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort retryDocumentWrite(
             ToolContext context,
-            @ToolParam(description = "callRef from the refusal message.") Integer callRef) {
-        final int ref = requireInt(callRef, "callRef");
+            @ToolParam(description = "callRef from the refusal message.") String callRef) {
+        final String ref = requireText(callRef, "callRef");
         final DocumentReadGuard.RefusedWrite refused = DocumentReadGuard.refusedWrite(context, ref);
 
         log.info("retryDocumentWrite called: callRef={} tool={}", ref, refused.tool());
