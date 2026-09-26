@@ -60,10 +60,7 @@ class ActiveProjectNoticeTest {
     }
 
     private static ChatMessageEntity stamp(long position, String project) {
-        return row(
-                position,
-                MessageType.USER,
-                new ChatMessageMeta(null, false, List.of(), List.of(), project, null));
+        return row(position, MessageType.USER, ChatMessageMeta.builder().project(project).build());
     }
 
     /** Маркер смены: этим вопросом чат перешёл из {@code from} в {@code to}. */
@@ -71,7 +68,7 @@ class ActiveProjectNoticeTest {
         return row(
                 position,
                 MessageType.USER,
-                new ChatMessageMeta(null, false, List.of(), List.of(), to, from));
+                ChatMessageMeta.builder().project(to).projectSwitchFrom(from).build());
     }
 
     /** Строка-сводка: след сжатой части приходит её спанами. */

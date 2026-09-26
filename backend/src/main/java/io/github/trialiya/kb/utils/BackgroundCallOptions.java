@@ -1,8 +1,10 @@
 package io.github.trialiya.kb.utils;
 
+import io.github.trialiya.kb.config.model.BackgroundModelProperties;
 import java.util.HashMap;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 
@@ -22,17 +24,20 @@ public final class BackgroundCallOptions {
     private BackgroundCallOptions() {}
 
     /**
-     * @param model id модели запроса; {@code null} — модель чата по умолчанию
-     * @param reasoningEffort {@code reasoning_effort}; {@code null} — поле не отправляется
-     * @param thinking {@code type} поля {@code thinking} в теле запроса; {@code null} — поле не
-     *     отправляется вовсе: эндпоинт, который его не знает, отвергает весь запрос
+     * Клиент фонового запроса: модель чата с опциями из {@code properties} поверх её собственных.
+     * Системный промпт, инструменты и прочее вызывающий дописывает сам.
      */
-    public static OpenAiChatOptions.Builder of(
-            OpenAiChatModel chatModel,
-            @Nullable String model,
-            @Nullable String reasoningEffort,
-            @Nullable String thinking) {
+    public static ChatClient.Builder clientBuilder(
+            OpenAiChatModel chatModel, BackgroundModelProperties properties) {
+        return ChatClient.builder(chatModel).defaultOptions(of(chatModel, properties));
+    }
+
+    private static OpenAiChatOptions.Builder of(
+            OpenAiChatModel chatModel, BackgroundModelProperties properties) {
         final OpenAiChatOptions.Builder options = chatModel.getOptions().mutate();
+        final @Nullable String model = properties.model();
+        final @Nullable String reasoningEffort = properties.reasoningEffort();
+        final @Nullable String thinking = properties.thinking();
         if (model != null) {
             options.model(model);
         }

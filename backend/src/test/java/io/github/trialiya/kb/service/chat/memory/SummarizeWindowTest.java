@@ -590,7 +590,7 @@ class SummarizeWindowTest {
                                         "x".repeat(argumentChars))),
                         null);
         final ChatMessageMeta meta =
-                new ChatMessageMeta(
+                ChatMessageMeta.ofToolCalls(
                         List.of(
                                 new ToolInvocationMeta(
                                         "search",

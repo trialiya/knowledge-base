@@ -608,7 +608,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                         false,
                         false,
                         base.plusMinutes(1),
-                        new ChatMessageMeta("run-1", true, List.of())));
+                        ChatMessageMeta.builder().runId("run-1").toolCalls(true).build()));
         messageRepo.save(
                 entity(
                         conv,

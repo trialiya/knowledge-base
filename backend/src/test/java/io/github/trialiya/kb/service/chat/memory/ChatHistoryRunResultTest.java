@@ -207,7 +207,10 @@ class ChatHistoryRunResultTest {
                 row(
                         2,
                         MessageType.ASSISTANT,
-                        new ChatMessageMeta(RUN, false, List.of(invocation))));
+                        ChatMessageMeta.builder()
+                                .runId(RUN)
+                                .invocations(List.of(invocation))
+                                .build()));
 
         mark(RunTokenUsage.EMPTY);
 
@@ -223,10 +226,7 @@ class ChatHistoryRunResultTest {
         // не заводит), и написаны они той моделью, что стояла тогда.
         history(
                 row(1, MessageType.USER, null),
-                row(
-                        2,
-                        MessageType.ASSISTANT,
-                        new ChatMessageMeta(null, false, List.of()).withRun("run-0", "gpt-4")),
+                row(2, MessageType.ASSISTANT, ChatMessageMeta.EMPTY.withRun("run-0", "gpt-4")),
                 row(3, MessageType.ASSISTANT, null));
 
         mark(RunTokenUsage.EMPTY);

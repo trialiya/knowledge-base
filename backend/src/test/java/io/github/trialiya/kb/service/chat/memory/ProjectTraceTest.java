@@ -38,12 +38,12 @@ class ProjectTraceTest {
 
     /** Базовый штамп первого сообщения: проект без «откуда». */
     private static ChatMessageEntity stamp(long position, String project) {
-        return row(position, new ChatMessageMeta(null, false, List.of(), List.of(), project, null));
+        return row(position, ChatMessageMeta.builder().project(project).build());
     }
 
     /** Маркер смены: этим сообщением чат перешёл из {@code from} в {@code to}. */
     private static ChatMessageEntity switched(long position, String from, String to) {
-        return row(position, new ChatMessageMeta(null, false, List.of(), List.of(), to, from));
+        return row(position, ChatMessageMeta.builder().project(to).projectSwitchFrom(from).build());
     }
 
     private static ChatMessageEntity plain(long position) {

@@ -122,27 +122,29 @@ public final class ChatMessageMetaToJsonConverter {
                 String trimmed = source.trim();
                 if (trimmed.startsWith("[")) {
                     // Legacy format: bare array — это всегда «крошки» вызовов инструментов.
-                    return new ChatMessageMeta(objectMapper.readValue(trimmed, LIST_TYPE));
+                    return ChatMessageMeta.ofToolCalls(objectMapper.readValue(trimmed, LIST_TYPE));
                 }
                 // New format: {"runId":"...","toolCalls":true,"invocations":[...]}. Поле toolCalls
                 // проставлено и в новых записях, и в старых (см. миграцию backfill).
                 MetaJson json = objectMapper.readValue(trimmed, MetaJson.class);
-                return new ChatMessageMeta(
-                        json.runId(),
-                        Boolean.TRUE.equals(json.toolCalls()),
-                        json.invocations(),
-                        contextItemsOf(json.contextItems()),
-                        json.project(),
-                        json.projectSwitchFrom(),
-                        json.model(),
-                        json.compact(),
-                        json.gitEvent(),
-                        Boolean.TRUE.equals(json.interjection()),
-                        json.usage(),
-                        json.visitedProjects() == null ? List.of() : json.visitedProjects(),
-                        json.fileRevert(),
-                        json.scriptEvent(),
-                        Boolean.TRUE.equals(json.command()));
+                return ChatMessageMeta.builder()
+                        .runId(json.runId())
+                        .toolCalls(Boolean.TRUE.equals(json.toolCalls()))
+                        .invocations(json.invocations())
+                        .contextItems(contextItemsOf(json.contextItems()))
+                        .project(json.project())
+                        .projectSwitchFrom(json.projectSwitchFrom())
+                        .model(json.model())
+                        .compact(json.compact())
+                        .gitEvent(json.gitEvent())
+                        .interjection(Boolean.TRUE.equals(json.interjection()))
+                        .usage(json.usage())
+                        .visitedProjects(
+                                json.visitedProjects() == null ? List.of() : json.visitedProjects())
+                        .fileRevert(json.fileRevert())
+                        .scriptEvent(json.scriptEvent())
+                        .command(Boolean.TRUE.equals(json.command()))
+                        .build();
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }

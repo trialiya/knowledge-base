@@ -87,7 +87,8 @@ public record SummarizeProperties(
         int charsPerToken,
         @Nullable String model,
         @Nullable String reasoningEffort,
-        @Nullable String thinking) {
+        @Nullable String thinking)
+        implements BackgroundModelProperties {
 
     public SummarizeProperties {
         model = ConfigValues.trimToNull(model);

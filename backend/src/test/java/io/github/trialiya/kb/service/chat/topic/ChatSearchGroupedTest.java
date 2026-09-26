@@ -60,9 +60,7 @@ class ChatSearchGroupedTest {
                 false,
                 false,
                 T0.plusMinutes(minutesAfterT0),
-                new ChatMessageMeta(
-                        null, true, List.of(), List.of(), null, null, null, null, null, false, null,
-                        List.of(), null, null, false));
+                ChatMessageMeta.builder().toolCalls(true).build());
     }
 
     @Test

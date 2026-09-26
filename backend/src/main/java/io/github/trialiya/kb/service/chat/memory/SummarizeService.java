@@ -96,14 +96,7 @@ public class SummarizeService implements DisposableBean {
             SummarizeProperties summarizeProperties,
             ContextItemService contextItemService) {
         this.chatClient =
-                ChatClient.builder(openAiChatModel)
-                        // Опции раунда — из SummarizeProperties, поверх опций самой модели.
-                        .defaultOptions(
-                                BackgroundCallOptions.of(
-                                        openAiChatModel,
-                                        summarizeProperties.model(),
-                                        summarizeProperties.reasoningEffort(),
-                                        summarizeProperties.thinking()))
+                BackgroundCallOptions.clientBuilder(openAiChatModel, summarizeProperties)
                         .defaultSystem(summarizerPrompt)
                         .defaultTools(
                                 new MessageLookupFunction(

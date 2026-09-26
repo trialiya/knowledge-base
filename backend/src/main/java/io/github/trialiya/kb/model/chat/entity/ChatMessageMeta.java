@@ -2,6 +2,7 @@ package io.github.trialiya.kb.model.chat.entity;
 
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.util.List;
+import lombok.Builder;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -73,7 +74,13 @@ import org.jspecify.annotations.Nullable;
  * Модель предупреждает нотис в {@code ChatHistoryService.promptRow}; для всего, что ищет «последний
  * вопрос» хода ({@code tailAfterLastUser} и его фронтовый двойник), такой ряд обязан быть
  * прозрачным — ход открыл не он.
+ *
+ * <p><b>Собирается только билдером</b> ({@link #builder()}, {@link #toBuilder()}), а не позиционным
+ * конструктором: полей полтора десятка, у большинства один тип, и каждое новое поле правило бы все
+ * места сборки — пропущенное молча теряло поле при копировании. Незаданное — {@code null}, {@code
+ * false} или пустой список.
  */
+@Builder(toBuilder = true)
 public record ChatMessageMeta(
         @Nullable String runId,
         boolean toolCalls,
@@ -91,63 +98,18 @@ public record ChatMessageMeta(
         @Nullable ScriptEventMeta scriptEvent,
         boolean command) {
 
+    /** Мета, которой нечего о себе сказать: все поля по умолчанию. */
+    public static final ChatMessageMeta EMPTY = builder().build();
+
     public ChatMessageMeta {
         invocations = invocations == null ? List.of() : invocations;
         contextItems = contextItems == null ? List.of() : contextItems;
         visitedProjects = visitedProjects == null ? List.of() : visitedProjects;
     }
 
-    public ChatMessageMeta(
-            @Nullable String runId,
-            boolean toolCalls,
-            List<ToolInvocationMeta> invocations,
-            List<ContextItem> contextItems,
-            @Nullable String project,
-            @Nullable String projectSwitchFrom,
-            @Nullable String model) {
-        this(
-                runId,
-                toolCalls,
-                invocations,
-                contextItems,
-                project,
-                projectSwitchFrom,
-                model,
-                null,
-                null,
-                false,
-                null,
-                List.of(),
-                null,
-                null,
-                false);
-    }
-
-    public ChatMessageMeta(
-            @Nullable String runId,
-            boolean toolCalls,
-            List<ToolInvocationMeta> invocations,
-            List<ContextItem> contextItems,
-            @Nullable String project,
-            @Nullable String projectSwitchFrom) {
-        this(runId, toolCalls, invocations, contextItems, project, projectSwitchFrom, null);
-    }
-
-    public ChatMessageMeta(
-            @Nullable String runId,
-            boolean toolCalls,
-            List<ToolInvocationMeta> invocations,
-            List<ContextItem> contextItems) {
-        this(runId, toolCalls, invocations, contextItems, null, null);
-    }
-
-    public ChatMessageMeta(
-            @Nullable String runId, boolean toolCalls, List<ToolInvocationMeta> invocations) {
-        this(runId, toolCalls, invocations, List.of());
-    }
-
-    public ChatMessageMeta(List<ToolInvocationMeta> invocations) {
-        this(null, true, invocations, List.of());
+    /** Метаданные «крошки» вызовов инструментов: флаг {@code toolCalls} и сами вызовы. */
+    public static ChatMessageMeta ofToolCalls(List<ToolInvocationMeta> invocations) {
+        return builder().toolCalls(true).invocations(invocations).build();
     }
 
     /**
@@ -166,22 +128,23 @@ public record ChatMessageMeta(
         if (contextItems.isEmpty() && project == null) {
             return null;
         }
-        return new ChatMessageMeta(
-                null, false, List.of(), contextItems, project, projectSwitchFrom);
+        return builder()
+                .contextItems(contextItems)
+                .project(project)
+                .projectSwitchFrom(projectSwitchFrom)
+                .build();
     }
 
     /** Метаданные сообщения пользователя: кроме приложенного контекста в них ничего нет. */
     public static ChatMessageMeta ofContextItems(List<ContextItem> contextItems) {
-        return new ChatMessageMeta(null, false, List.of(), contextItems);
+        return builder().contextItems(contextItems).build();
     }
 
     /**
      * Метаданные строки-плашки «контекст сжат»: что именно сделало сжатие и где лежит его сводка.
      */
     public static ChatMessageMeta ofCompact(CompactMeta compact) {
-        return new ChatMessageMeta(
-                null, false, List.of(), List.of(), null, null, null, compact, null, false, null,
-                List.of(), null, null, false);
+        return builder().compact(compact).build();
     }
 
     /**
@@ -190,9 +153,7 @@ public record ChatMessageMeta(
      * CompactService}). Замер на USER-ряду бывает только так.
      */
     public static ChatMessageMeta ofUsage(RunTokenUsage usage) {
-        return new ChatMessageMeta(
-                null, false, List.of(), List.of(), null, null, null, null, null, false, usage,
-                List.of(), null, null, false);
+        return builder().usage(usage).build();
     }
 
     /**
@@ -201,9 +162,7 @@ public record ChatMessageMeta(
      * этот ряд историю ни во что не переводит.
      */
     public static ChatMessageMeta ofGitEvent(GitEventMeta gitEvent) {
-        return new ChatMessageMeta(
-                null, false, List.of(), List.of(), null, null, null, null, gitEvent, false, null,
-                List.of(), null, null, false);
+        return builder().gitEvent(gitEvent).build();
     }
 
     /**
@@ -211,22 +170,7 @@ public record ChatMessageMeta(
      * самого события: {@code project} на этом уровне значит другое (см. {@link #ofProject}).
      */
     public static ChatMessageMeta ofFileRevert(FileRevertMeta fileRevert) {
-        return new ChatMessageMeta(
-                null,
-                false,
-                List.of(),
-                List.of(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                null,
-                List.of(),
-                fileRevert,
-                null,
-                false);
+        return builder().fileRevert(fileRevert).build();
     }
 
     /**
@@ -235,22 +179,7 @@ public record ChatMessageMeta(
      * #ofProject}).
      */
     public static ChatMessageMeta ofScriptEvent(ScriptEventMeta scriptEvent) {
-        return new ChatMessageMeta(
-                null,
-                false,
-                List.of(),
-                List.of(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                null,
-                List.of(),
-                null,
-                scriptEvent,
-                false);
+        return builder().scriptEvent(scriptEvent).build();
     }
 
     /**
@@ -260,29 +189,12 @@ public record ChatMessageMeta(
      * хода нужна и тогда.
      */
     public static ChatMessageMeta ofInterjection(List<ContextItem> contextItems) {
-        return new ChatMessageMeta(
-                null,
-                false,
-                List.of(),
-                contextItems,
-                null,
-                null,
-                null,
-                null,
-                null,
-                true,
-                null,
-                List.of(),
-                null,
-                null,
-                false);
+        return builder().contextItems(contextItems).interjection(true).build();
     }
 
     /** Метаданные ряда слэш-команды чата: кроме флага {@code command} в них ничего нет. */
     public static ChatMessageMeta ofCommand() {
-        return new ChatMessageMeta(
-                null, false, List.of(), List.of(), null, null, null, null, null, false, null,
-                List.of(), null, null, true);
+        return builder().command(true).build();
     }
 
     /**
@@ -292,22 +204,7 @@ public record ChatMessageMeta(
      */
     public static ChatMessageMeta ofProject(
             @Nullable String project, List<ProjectSpan> visitedProjects) {
-        return new ChatMessageMeta(
-                null,
-                false,
-                List.of(),
-                List.of(),
-                project,
-                null,
-                null,
-                null,
-                null,
-                false,
-                null,
-                visitedProjects,
-                null,
-                null,
-                false);
+        return builder().project(project).visitedProjects(visitedProjects).build();
     }
 
     /**
@@ -316,22 +213,7 @@ public record ChatMessageMeta(
      * плашки вызовов ({@code invocations}) обязаны пережить этот проход.
      */
     public ChatMessageMeta withRun(String runId, String model) {
-        return new ChatMessageMeta(
-                runId,
-                toolCalls,
-                invocations,
-                contextItems,
-                project,
-                projectSwitchFrom,
-                model,
-                compact,
-                gitEvent,
-                interjection,
-                usage,
-                visitedProjects,
-                fileRevert,
-                scriptEvent,
-                command);
+        return toBuilder().runId(runId).model(model).build();
     }
 
     /**
@@ -340,22 +222,7 @@ public record ChatMessageMeta(
      * один вызов заставило бы вызывающего передавать {@code null} на каждом ряду, кроме последнего.
      */
     public ChatMessageMeta withUsage(RunTokenUsage usage) {
-        return new ChatMessageMeta(
-                runId,
-                toolCalls,
-                invocations,
-                contextItems,
-                project,
-                projectSwitchFrom,
-                model,
-                compact,
-                gitEvent,
-                interjection,
-                usage,
-                visitedProjects,
-                fileRevert,
-                scriptEvent,
-                command);
+        return toBuilder().usage(usage).build();
     }
 
     /**
@@ -366,45 +233,12 @@ public record ChatMessageMeta(
      */
     public ChatMessageMeta withProjectTrace(
             @Nullable String project, List<ProjectSpan> visitedProjects) {
-        return new ChatMessageMeta(
-                runId,
-                toolCalls,
-                invocations,
-                contextItems,
-                project,
-                projectSwitchFrom,
-                model,
-                compact,
-                gitEvent,
-                interjection,
-                usage,
-                visitedProjects,
-                fileRevert,
-                scriptEvent,
-                command);
+        return toBuilder().project(project).visitedProjects(visitedProjects).build();
     }
 
-    /**
-     * Копия с заменённым маркером смены проекта. Как и {@link #withRun} — точечная замена, а не
-     * пересборка через короткий конструктор: остальные поля обязаны пережить перезапись.
-     */
+    /** Копия с заменённым маркером смены проекта; остальные поля переживают перезапись. */
     public ChatMessageMeta withProjectSwitch(
             @Nullable String project, @Nullable String projectSwitchFrom) {
-        return new ChatMessageMeta(
-                runId,
-                toolCalls,
-                invocations,
-                contextItems,
-                project,
-                projectSwitchFrom,
-                model,
-                compact,
-                gitEvent,
-                interjection,
-                usage,
-                visitedProjects,
-                fileRevert,
-                scriptEvent,
-                command);
+        return toBuilder().project(project).projectSwitchFrom(projectSwitchFrom).build();
     }
 }

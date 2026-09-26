@@ -15,8 +15,10 @@ import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
 import io.github.trialiya.kb.model.script.ScriptStats;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
+import java.lang.reflect.RecordComponent;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -25,9 +27,9 @@ import org.junit.jupiter.api.Test;
  * проекцию, получишь поле, которое пишется и читается как {@code null}. Компилятор об этом молчит —
  * молчит и любой тест на моках репозитория.
  *
- * <p>Здесь метаданные собираются позиционным (каноническим) конструктором и прогоняются
- * запись→чтение целиком. Добавили поле — тест перестанет компилироваться, дописали его сюда, но не
- * в проекцию — тест упадёт на сравнении.
+ * <p>Здесь метаданные со всеми заполненными полями прогоняются запись→чтение целиком. Что поля
+ * заполнены все, проверяет сам тест, перебирая компоненты записи: добавили поле, но не в образец —
+ * тест упадёт на этой проверке, дописали в образец, но не в проекцию — на сравнении.
  */
 class ChatMessageMetaRoundTripTest {
 
@@ -47,12 +49,12 @@ class ChatMessageMetaRoundTripTest {
                 "r3");
     }
 
-    @Test
-    void everyFieldSurvivesWriteThenRead() {
-        final ChatMessageMeta meta =
-                new ChatMessageMeta(
-                        "run-1",
-                        true,
+    /** Мета, у которой заполнено каждое поле — см. {@link #everyFieldOfTheSampleIsSet}. */
+    private static ChatMessageMeta full() {
+        return ChatMessageMeta.builder()
+                .runId("run-1")
+                .toolCalls(true)
+                .invocations(
                         List.of(
                                 new ToolInvocationMeta(
                                         "searchDocuments",
@@ -63,43 +65,52 @@ class ChatMessageMetaRoundTripTest {
                                         true,
                                         3,
                                         "гист",
-                                        "call-0")),
+                                        "call-0")))
+                .contextItems(
                         List.of(
                                 new ContextItem(
                                         ContextItemKind.ATTACHMENT,
                                         "7",
                                         "report.md",
-                                        Map.of("size", 12))),
-                        "billing",
-                        "default",
-                        "deepseek-chat",
+                                        Map.of("size", 12))))
+                .project("billing")
+                .projectSwitchFrom("default")
+                .model("deepseek-chat")
+                .compact(
                         new CompactMeta(
                                 21,
                                 4096,
                                 512,
                                 CompactMeta.Kind.SUMMARIZE,
-                                new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 61_900, 2)),
-                        new GitEventMeta("pull", "billing", true, "Fast-forward", "main"),
-                        true,
+                                new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 61_900, 2)))
+                .gitEvent(new GitEventMeta("pull", "billing", true, "Fast-forward", "main"))
+                .interjection(true)
+                .usage(
                         new RunTokenUsage(
-                                12_400, 11_400, 700, 320, 31_000, 24_000, 1_100, 31_320, 3),
+                                12_400, 11_400, 700, 320, 31_000, 24_000, 1_100, 31_320, 3))
+                .visitedProjects(
                         List.of(
                                 new ProjectSpan("kb", 1, 34),
                                 new ProjectSpan("billing", 35, 92),
-                                new ProjectSpan("kb", 93, 140)),
-                        new FileRevertMeta("billing", List.of("src/App.java", "src/New.java")),
-                        new ScriptEventMeta(
-                                "locale-diff",
-                                "frontend/scripts/locale-diff.js",
-                                "billing",
-                                true,
-                                Map.of("missing", 3),
-                                null,
-                                "сверено 12 файлов",
-                                List.of("frontend/src/i18n/ru/chat.json"),
-                                new ScriptStats(12, 2048, 30, 1, 420),
-                                "r3"),
-                        true);
+                                new ProjectSpan("kb", 93, 140)))
+                .fileRevert(new FileRevertMeta("billing", List.of("src/App.java", "src/New.java")))
+                .scriptEvent(scriptEvent())
+                .command(true)
+                .build();
+    }
+
+    @Test
+    void everyFieldOfTheSampleIsSet() {
+        for (RecordComponent component : ChatMessageMeta.class.getRecordComponents()) {
+            assertThat(isDefault(valueOf(component, full())))
+                    .as("ChatMessageMeta.%s is not set in full()", component.getName())
+                    .isFalse();
+        }
+    }
+
+    @Test
+    void everyFieldSurvivesWriteThenRead() {
+        final ChatMessageMeta meta = full();
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(meta);
         final ChatMessageMeta read =
@@ -115,15 +126,41 @@ class ChatMessageMetaRoundTripTest {
      */
     @Test
     void aTargetedCopyKeepsTheFieldsItDoesNotChange() {
-        final ChatMessageMeta scriptRow = ChatMessageMeta.ofScriptEvent(scriptEvent());
+        final ChatMessageMeta meta = full();
 
-        assertThat(scriptRow.withRun("run-2", "deepseek-chat").scriptEvent())
-                .isEqualTo(scriptEvent());
-        assertThat(
-                        ChatMessageMeta.ofCommand()
-                                .withUsage(new RunTokenUsage(1, 1, 0, 1, 1, 0, 0, 2, 1))
-                                .command())
-                .isTrue();
+        assertSameExcept(meta, meta.withRun("run-2", "gpt-5"), "runId", "model");
+        assertSameExcept(
+                meta, meta.withUsage(new RunTokenUsage(1, 1, 0, 1, 1, 0, 0, 2, 1)), "usage");
+        assertSameExcept(
+                meta, meta.withProjectTrace("kb", List.of()), "project", "visitedProjects");
+        assertSameExcept(
+                meta, meta.withProjectSwitch("kb", "billing"), "project", "projectSwitchFrom");
+    }
+
+    private static void assertSameExcept(
+            ChatMessageMeta before, ChatMessageMeta after, String... changed) {
+        final Set<String> skip = Set.of(changed);
+        for (RecordComponent component : ChatMessageMeta.class.getRecordComponents()) {
+            if (!skip.contains(component.getName())) {
+                assertThat(valueOf(component, after))
+                        .as("ChatMessageMeta.%s after the copy", component.getName())
+                        .isEqualTo(valueOf(component, before));
+            }
+        }
+    }
+
+    private static Object valueOf(RecordComponent component, ChatMessageMeta meta) {
+        try {
+            return component.getAccessor().invoke(meta);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static boolean isDefault(Object value) {
+        return value == null
+                || Boolean.FALSE.equals(value)
+                || (value instanceof List<?> list && list.isEmpty());
     }
 
     /**

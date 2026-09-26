@@ -189,7 +189,7 @@ public class ChatHistoryService {
 
     /** Мета, поверх которой переписывается пометка проекта: у вопроса её могло не быть вовсе. */
     private static ChatMessageMeta base(@Nullable ChatMessageMeta meta) {
-        return meta == null ? new ChatMessageMeta(null, false, List.of(), List.of()) : meta;
+        return meta == null ? ChatMessageMeta.EMPTY : meta;
     }
 
     /**
@@ -560,7 +560,9 @@ public class ChatHistoryService {
             final ChatMessageMeta base =
                     existing != null
                             ? existing
-                            : new ChatMessageMeta(null, false, metas == null ? List.of() : metas);
+                            : ChatMessageMeta.builder()
+                                    .invocations(metas == null ? List.of() : metas)
+                                    .build();
             updated.add(answer.withMeta(base.withRun(runId, model)));
         }
         if (!usage.isEmpty()) {

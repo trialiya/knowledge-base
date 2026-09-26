@@ -62,13 +62,7 @@ public class AiTopicService implements DisposableBean {
             ChatEventService events,
             ChatTopicProperties properties) {
         this.chatClient =
-                ChatClient.builder(openAiChatModel)
-                        .defaultOptions(
-                                BackgroundCallOptions.of(
-                                        openAiChatModel,
-                                        properties.model(),
-                                        properties.reasoningEffort(),
-                                        properties.thinking()))
+                BackgroundCallOptions.clientBuilder(openAiChatModel, properties)
                         .defaultSystem(prompt)
                         .build();
         this.chatTopics = chatTopics;

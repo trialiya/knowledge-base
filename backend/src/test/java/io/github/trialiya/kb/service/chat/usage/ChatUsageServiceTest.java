@@ -211,6 +211,6 @@ class ChatUsageServiceTest {
                                                 null))
                         .toList();
         return new ChatUsageRow(
-                MessageType.ASSISTANT, new ChatMessageMeta(invocations).withUsage(usage));
+                MessageType.ASSISTANT, ChatMessageMeta.ofToolCalls(invocations).withUsage(usage));
     }
 }

@@ -147,17 +147,18 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         index(conv, "call_1", segment.getId(), toolRow.getId());
         messageRepo.save(
                 segment.withMeta(
-                        new ChatMessageMeta(
-                                runId,
-                                false,
-                                List.of(
-                                        meta(
-                                                "updateDocument",
-                                                ToolInvocationStatus.OK,
-                                                null,
-                                                Map.of("id", 7),
-                                                0,
-                                                "call_1")))));
+                        ChatMessageMeta.builder()
+                                .runId(runId)
+                                .invocations(
+                                        List.of(
+                                                meta(
+                                                        "updateDocument",
+                                                        ToolInvocationStatus.OK,
+                                                        null,
+                                                        Map.of("id", 7),
+                                                        0,
+                                                        "call_1")))
+                                .build()));
 
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_1");
 
@@ -202,24 +203,25 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         index(conv, "call_1", segment.getId(), toolRow.getId());
         messageRepo.save(
                 segment.withMeta(
-                        new ChatMessageMeta(
-                                runId,
-                                false,
-                                List.of(
-                                        meta(
-                                                "first",
-                                                ToolInvocationStatus.OK,
-                                                null,
-                                                null,
-                                                0,
-                                                "call_0"),
-                                        meta(
-                                                "second",
-                                                ToolInvocationStatus.OK,
-                                                null,
-                                                null,
-                                                1,
-                                                "call_1")))));
+                        ChatMessageMeta.builder()
+                                .runId(runId)
+                                .invocations(
+                                        List.of(
+                                                meta(
+                                                        "first",
+                                                        ToolInvocationStatus.OK,
+                                                        null,
+                                                        null,
+                                                        0,
+                                                        "call_0"),
+                                                meta(
+                                                        "second",
+                                                        ToolInvocationStatus.OK,
+                                                        null,
+                                                        null,
+                                                        1,
+                                                        "call_1")))
+                                .build()));
 
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_1");
 
@@ -271,17 +273,18 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         index(conv, "call_real", segment.getId(), toolRow.getId());
         messageRepo.save(
                 segment.withMeta(
-                        new ChatMessageMeta(
-                                runId,
-                                false,
-                                List.of(
-                                        meta(
-                                                "searchDocuments",
-                                                ToolInvocationStatus.OK,
-                                                null,
-                                                null,
-                                                1,
-                                                "call_real")))));
+                        ChatMessageMeta.builder()
+                                .runId(runId)
+                                .invocations(
+                                        List.of(
+                                                meta(
+                                                        "searchDocuments",
+                                                        ToolInvocationStatus.OK,
+                                                        null,
+                                                        null,
+                                                        1,
+                                                        "call_real")))
+                                .build()));
 
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_real");
 
@@ -312,17 +315,18 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         index(conv, "call_err", segment.getId(), null);
         messageRepo.save(
                 segment.withMeta(
-                        new ChatMessageMeta(
-                                runId,
-                                false,
-                                List.of(
-                                        meta(
-                                                "searchCodebase",
-                                                ToolInvocationStatus.ERROR,
-                                                "boom: index unavailable",
-                                                null,
-                                                0,
-                                                "call_err")))));
+                        ChatMessageMeta.builder()
+                                .runId(runId)
+                                .invocations(
+                                        List.of(
+                                                meta(
+                                                        "searchCodebase",
+                                                        ToolInvocationStatus.ERROR,
+                                                        "boom: index unavailable",
+                                                        null,
+                                                        0,
+                                                        "call_err")))
+                                .build()));
 
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_err");
 
@@ -429,17 +433,18 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                 save(
                         conv,
                         MessageType.ASSISTANT,
-                        new ChatMessageMeta(
-                                runId,
-                                false,
-                                List.of(
-                                        meta(
-                                                "searchCodebase",
-                                                ToolInvocationStatus.OK,
-                                                null,
-                                                null,
-                                                0,
-                                                "call_done"))),
+                        ChatMessageMeta.builder()
+                                .runId(runId)
+                                .invocations(
+                                        List.of(
+                                                meta(
+                                                        "searchCodebase",
+                                                        ToolInvocationStatus.OK,
+                                                        null,
+                                                        null,
+                                                        0,
+                                                        "call_done")))
+                                .build(),
                         new ToolData(
                                 List.of(
                                         new ToolData.Call(
@@ -529,17 +534,18 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         index(conv, "call_0", segment.getId(), null);
         messageRepo.save(
                 segment.withMeta(
-                        new ChatMessageMeta(
-                                runId,
-                                false,
-                                List.of(
-                                        meta(
-                                                "first",
-                                                ToolInvocationStatus.OK,
-                                                null,
-                                                null,
-                                                0,
-                                                "call_0")))));
+                        ChatMessageMeta.builder()
+                                .runId(runId)
+                                .invocations(
+                                        List.of(
+                                                meta(
+                                                        "first",
+                                                        ToolInvocationStatus.OK,
+                                                        null,
+                                                        null,
+                                                        0,
+                                                        "call_0")))
+                                .build()));
 
         assertThat(toolCalls().findToolCallDetail(conv, "call_missing")).isEmpty();
         assertThat(toolCalls().findToolCallDetail(UUID.randomUUID().toString(), "call_0"))
