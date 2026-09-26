@@ -106,7 +106,7 @@ const McpConnections = ({ mcp }) => {
         />
       </ConfigBlock>
       {anyDown && (
-        <p className="config-note">{t('tools.mcp.retryNote', { seconds: Math.round(mcp.retryIntervalMs / 1000) })}</p>
+        <p className="config-note">{t('tools.mcp.retryNote', { seconds: +(mcp.retryIntervalMs / 1000).toFixed(1) })}</p>
       )}
     </>
   );

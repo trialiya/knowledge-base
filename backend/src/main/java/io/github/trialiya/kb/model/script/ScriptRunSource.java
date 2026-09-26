@@ -29,7 +29,10 @@ public record ScriptRunSource(
     public enum Kind {
         /** A file of the active project, declared in its script manifest. */
         PROJECT,
-        /** An attachment of the chat or of a document — always read-only. */
+        /**
+         * An attachment of the chat or of a document — read-only unless {@code
+         * kb.script.attachment-edit} is on.
+         */
         ATTACHMENT
     }
 }

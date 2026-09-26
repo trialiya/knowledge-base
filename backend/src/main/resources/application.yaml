@@ -105,10 +105,9 @@ spring:
         # no server process for a stdio connection. Whether the model gets MCP tools is decided
         # in one place, kb.mcp.enabled, which is also what the Settings panel reports.
         initialized: false
-        # toolcallback.enabled: true — the starter's own off switch for MCP tools. It used to
-        # work by removing its ToolCallbackProvider bean; the providers are built per connection
-        # by McpToolRegistry now, so ChatConfig checks the flag itself and creates no registry
-        # when it is off. Left at the default here: kb.mcp.enabled is the switch to use.
+        # toolcallback.enabled: true — the starter's own off switch for MCP tools. The providers
+        # are built per connection by McpToolRegistry, not by the starter, so ChatConfig checks
+        # the flag itself and creates no registry when it is off. Left at the default here: kb.mcp.enabled is the switch to use.
         # type: SYNC | ASYNC — left at the starter's default (SYNC) because both work. It decides
         # which client beans the starter registers, and McpToolRegistry probes either kind; the
         # request timeout below is what bounds a probe in both cases, so ASYNC buys nothing here
@@ -369,10 +368,11 @@ kb:
     enabled: ${KB_SCRIPT_ENABLED:false}
     # Let the model run a script that arrived as an attachment: runSavedScript with
     # "attachment:<id>", for a .js attachment of a chat or of a knowledge-base document. The
-    # sandbox is the same one and such a run is always read-only, so what this adds over a script
-    # the model writes itself is not capability but provenance — the code came from whoever
-    # uploaded the file. On by default wherever scripts are on; a deployment willing to run what
-    # its own repository declares but not what sits in its knowledge base turns it off here.
+    # sandbox is the same one and such a run is read-only unless attachment-edit below says
+    # otherwise, so what this adds over a script the model writes itself is not capability but
+    # provenance — the code came from whoever uploaded the file. On by default wherever scripts
+    # are on; a deployment willing to run what its own repository declares but not what sits in
+    # its knowledge base turns it off here.
     attachment-run: ${KB_SCRIPT_ATTACHMENT_RUN:true}
     # Let a script that came from an attachment write too, where the project and edit-enabled
     # below already allow it. Off, and meant to stay off in most deployments: an attachment is code

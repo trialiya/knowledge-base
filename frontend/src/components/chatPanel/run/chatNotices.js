@@ -37,7 +37,7 @@ export const RUN_BUSY_NOTICE = {
   messageKey: 'errorModal.busyMessage',
 };
 
-/** `/compact` в чате, который ещё не начат: сжимать нечего, и заводить чат ради этого незачем. */
+/** `/compact` или `/compact-1` в чате, который ещё не начат: сжимать нечего, и заводить чат ради этого незачем. */
 export const COMPACT_DRAFT_NOTICE = {
   icon: '🗜️',
   titleKey: 'compact.unavailableTitle',
