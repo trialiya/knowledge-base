@@ -62,6 +62,22 @@ class GitControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /** Коммит без ревизии не назван вовсе: «рабочее дерево» у этого запроса не ответ. */
+    @Test
+    void aCommitWithoutRevisionIsABadRequest() throws Exception {
+        mockMvc.perform(get("/api/git/commit").param("rev", " "))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void anUnknownCommitIsABadRequest() throws Exception {
+        when(git.getCommit("nosuchtag", false, null))
+                .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag"));
+
+        mockMvc.perform(get("/api/git/commit").param("rev", "nosuchtag"))
+                .andExpect(status().isBadRequest());
+    }
+
     /**
      * Картинка отдаётся с типом, взятым по расширению, — и без права на что-либо активное внутри:
      * SVG умеет и скрипты, и открыть такой ответ можно прямым переходом, а не только из {@code

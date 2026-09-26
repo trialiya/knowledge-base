@@ -519,13 +519,46 @@ public class GitService {
         boolean includeBody = hashes.size() == 1;
         List<GitCommit> result = new ArrayList<>();
         for (String hash : hashes) {
-            result.add(diffForSingleCommit(hash, includePatch, spec, includeBody));
+            result.add(diffForSingleCommit(hash, includePatch, spec, includeBody, null));
         }
         return result;
     }
 
+    /**
+     * One commit as the file browser describes the snapshot it shows: the full message and the
+     * files the commit changed against its first parent (a root commit — against the empty tree, a
+     * merge — against the branch it was merged into, as {@code git show --first-parent} reads it).
+     *
+     * <p>Unlike {@link #getCommitDiff}, {@code rev} is one revision and is never split on commas:
+     * it comes from the revision picker, where a comma is part of what was typed, not a list.
+     *
+     * <p>With {@code filePath} the answer holds that file's entry alone — what the browser asks
+     * for, with the patch, when it opens one file of the commit. The path is matched after rename
+     * detection rather than handed to the diff as a filter: a filter hides the other side of a
+     * rename, and a renamed file would come back as a whole new file.
+     *
+     * @param rev anything git reads as a commit — a full or short hash, a branch, a tag, {@code
+     *     HEAD~2}
+     */
+    public GitCommit getCommit(
+            @NonNull String rev, boolean includePatch, @Nullable String filePath) {
+        String only =
+                (filePath == null || filePath.isBlank())
+                        ? null
+                        : RepoPaths.toForwardSlashes(filePath.strip());
+        return diffForSingleCommit(rev.strip(), includePatch, null, true, only);
+    }
+
+    /**
+     * @param filePath narrows the diff itself — the tool's reading of a path, renames included
+     * @param only keeps the entry reported under this path, found among the whole commit's entries
+     */
     private GitCommit diffForSingleCommit(
-            String hash, boolean includePatch, @Nullable String filePath, boolean includeBody) {
+            String hash,
+            boolean includePatch,
+            @Nullable String filePath,
+            boolean includeBody,
+            @Nullable String only) {
         try (RevWalk revWalk = new RevWalk(repository);
                 ObjectReader reader = repository.newObjectReader()) {
             RevCommit commit = revWalk.parseCommit(resolveCommitId(hash));
@@ -549,6 +582,7 @@ public class GitService {
                     formatter.setPathFilter(PathFilterGroup.createFromStrings(List.of(filePath)));
                 }
                 for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
+                    if (only != null && !only.equals(reportedPath(entry))) continue;
                     entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
                 }
             }
@@ -1721,6 +1755,13 @@ public class GitService {
         patchOut.reset();
         formatter.format(entry);
         return patchOut.toString(StandardCharsets.UTF_8);
+    }
+
+    /** The path {@link #toGitDiffEntry} files an entry under: the old one only for a deletion. */
+    private static String reportedPath(DiffEntry entry) {
+        return entry.getChangeType() == DiffEntry.ChangeType.DELETE
+                ? entry.getOldPath()
+                : entry.getNewPath();
     }
 
     private static @Nullable String normalizedDiffPath(String path) {

@@ -4,7 +4,8 @@
     "changes": "Незакоммиченные изменения",
     "mode": "Режим панели",
     "modeFiles": "Файлы",
-    "modeChanges": "Изменения"
+    "modeChanges": "Изменения",
+    "commitChanges": "Изменения коммита"
   },
   "tree": {
     "loading": "Загрузка…",
@@ -57,7 +58,8 @@
     "close": "Закрыть"
   },
   "tabs": {
-    "info": "Инфо"
+    "info": "Инфо",
+    "commit": "Коммит"
   },
   "changes": {
     "tracked": "Отслеживаемые",
@@ -75,7 +77,10 @@
       "C": "Скопирован",
       "U": "Не отслеживается"
     },
-    "noPatch": "Показать изменение нечем — бинарный или слишком большой файл"
+    "noPatch": "Показать изменение нечем — бинарный или слишком большой файл",
+    "inCommit": "Изменены в коммите",
+    "commitEmpty": "Коммит не меняет ни одного файла",
+    "notInCommit": "Коммит не менял этот файл"
   },
   "git": {
     "branch": "Ветка",
@@ -142,5 +147,20 @@
   "find": {
     "placeholder": "Поиск в файле…",
     "truncated": "файл показан не целиком"
+  },
+  "commit": {
+    "hash": "Коммит",
+    "revision": "Ревизия",
+    "author": "Автор",
+    "date": "Дата",
+    "message": "Название",
+    "body": "Описание",
+    "files": "Файлы",
+    "filesSummary_one": "{{count}} файл · +{{additions}} −{{deletions}}",
+    "filesSummary_few": "{{count}} файла · +{{additions}} −{{deletions}}",
+    "filesSummary_many": "{{count}} файлов · +{{additions}} −{{deletions}}",
+    "filesSummary_other": "{{count}} файла · +{{additions}} −{{deletions}}",
+    "showChanges": "Показать изменённые файлы",
+    "loadError": "Не удалось загрузить коммит"
   }
 }

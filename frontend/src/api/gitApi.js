@@ -1,7 +1,7 @@
 // ─── Git API ───────────────────────────────────────────────────────────────
 // Тонкие обёртки вокруг /api/git/* — поиск файлов репозитория для автодополнения
 // в композере чата, чтение содержимого (превью/разворачивание чипа при отправке)
-// и история коммитов для вкладки «Инфо» файлового браузера.
+// и история коммитов для вкладок «Инфо» и «Коммит» файлового браузера.
 //
 // Адрес файла — это ПАРА (проект, путь), а не один путь: один и тот же
 // `backend/build.gradle` есть в каждом репозитории. Проект необязателен и по
@@ -319,6 +319,23 @@ const gitApi = {
     if (rev) params.set('rev', rev);
     const [qs, init] = opts(params, project, signal);
     return request(`/api/git/commits${qs}`, init);
+  },
+
+  /**
+   * Один коммит так, как его описывает снимок файлового браузера: полное
+   * сообщение и файлы, которые он изменил относительно первого родителя.
+   * Возвращает GitCommit { hash, shortHash, author, email, date, message, body,
+   * files: GitDiffEntry[] }.
+   *
+   * Патчи — как у getStatus: только с `patch: true` и по одному файлу (`path`),
+   * тогда `files` несёт запись этого файла или пуст, если коммит его не менял.
+   */
+  getCommit: (rev, { path, patch = false, project, signal } = {}) => {
+    const params = new URLSearchParams({ rev });
+    if (path) params.set('path', path);
+    if (patch) params.set('patch', 'true');
+    const [qs, init] = opts(params, project, signal);
+    return request(`/api/git/commit${qs}`, init);
   },
 
   /**

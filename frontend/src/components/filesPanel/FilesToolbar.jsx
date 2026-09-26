@@ -30,9 +30,11 @@ const FilesToolbar = ({
   const { t } = useTranslation('files');
 
   // В снимке ревизии из тулбара уходит всё, что про рабочее дерево: строка
-  // ветки с её командами, переключатель «Изменения» и поиск по имени. Не
-  // «выключено и серо», а именно нет: незакоммиченных изменений у коммита не
-  // бывает, и предлагать их значило бы обещать ответ, которого не существует.
+  // ветки с её командами и поиск по имени. Не «выключено и серо», а именно нет:
+  // предлагать их значило бы обещать ответ про то, чего на экране нет.
+  // Переключатель «Изменения» остаётся, но значит другое — файлы, изменённые
+  // самим коммитом: незакоммиченных у снимка не бывает, а этот вопрос о нём
+  // задают первым.
   const snapshot = !!rev;
 
   return (
@@ -56,39 +58,38 @@ const FilesToolbar = ({
           }}
         />
       )}
-      {!snapshot && (
-        <div className="files-toolbar__row">
-          <div className="files-toolbar__modes" role="group" aria-label={t('panel.mode')}>
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              aria-pressed={!changes}
-              onClick={() => onChangesToggle(false)}
-            >
-              {t('panel.modeFiles')}
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              aria-pressed={changes}
-              onClick={() => onChangesToggle(true)}
-            >
-              {t('panel.modeChanges')}
-            </button>
-          </div>
-          {changes && (
-            <button
-              type="button"
-              className="icon-btn"
-              aria-pressed={!flat}
-              title={flat ? t('changes.layoutTree') : t('changes.layoutFlat')}
-              onClick={() => onFlatToggle(!flat)}
-            >
-              {flat ? <IconFolder size={16} /> : <IconList size={15} />}
-            </button>
-          )}
+      <div className="files-toolbar__row">
+        <div className="files-toolbar__modes" role="group" aria-label={t('panel.mode')}>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            aria-pressed={!changes}
+            onClick={() => onChangesToggle(false)}
+          >
+            {t('panel.modeFiles')}
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            aria-pressed={changes}
+            title={snapshot ? t('panel.commitChanges') : undefined}
+            onClick={() => onChangesToggle(true)}
+          >
+            {t('panel.modeChanges')}
+          </button>
         </div>
-      )}
+        {changes && (
+          <button
+            type="button"
+            className="icon-btn"
+            aria-pressed={!flat}
+            title={flat ? t('changes.layoutTree') : t('changes.layoutFlat')}
+            onClick={() => onFlatToggle(!flat)}
+          >
+            {flat ? <IconFolder size={16} /> : <IconList size={15} />}
+          </button>
+        )}
+      </div>
       {/* Поиск по имени спрашивает рабочее дерево: в снимке он открывал бы
           пути, которых в нём может не быть. */}
       {!snapshot && <FileSearch project={project} onSelect={onSelect} />}

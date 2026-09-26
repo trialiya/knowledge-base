@@ -44,10 +44,11 @@ import org.springframework.web.server.ResponseStatusException;
  * plus the ancestor directories) in a single round trip, while {@code GET /tree} lists the direct
  * children of a single directory (a chevron click in that tree); {@code GET /status} lists the
  * working tree's uncommitted changes for the panel's review mode; {@code GET /commits} returns
- * commit history for a path. All delegate to {@link GitService}, which enforces tracked-files-only
- * access, path-traversal guards and binary/size limits. {@code GET /files/raw} serves the bytes of
- * a previewable file (an image) straight to an {@code <img>}; {@code GET /capabilities} is the one
- * endpoint about the project rather than its content: which git controls the panel may show.
+ * commit history for a path, {@code GET /commit} one commit with the files it changed. All delegate
+ * to {@link GitService}, which enforces tracked-files-only access, path-traversal guards and
+ * binary/size limits. {@code GET /files/raw} serves the bytes of a previewable file (an image)
+ * straight to an {@code <img>}; {@code GET /capabilities} is the one endpoint about the project
+ * rather than its content: which git controls the panel may show.
  */
 @RestController
 @RequestMapping("/api/git")
@@ -157,6 +158,33 @@ public class GitController {
                         at == null
                                 ? git.getCommitLog(limit, path, body)
                                 : git.getCommitLog(limit, path, body, at));
+    }
+
+    /**
+     * One commit with its full message and the files it changed against its first parent — what the
+     * file browser shows about the revision it is viewing: the "Commit" tab and the left panel's
+     * changes mode inside a snapshot.
+     *
+     * <p>Like {@code /status}, patches are opt-in and meant for one file at a time: the list needs
+     * only the counters, and with {@code path} the answer carries just that file's entry — empty
+     * when the commit did not touch it.
+     */
+    @GetMapping("/commit")
+    public GitCommit getCommit(
+            @RequestParam("rev") String rev,
+            @RequestParam(name = "path", required = false) @Nullable String path,
+            @RequestParam(name = "patch", defaultValue = "false") boolean patch,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        String at = revision(rev);
+        if (at == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "rev must not be blank");
+        }
+        final String scope = path != null && !path.isBlank() ? path : null;
+        if (scope != null) {
+            requireSafePath(scope);
+        }
+        GitService git = git(project);
+        return read(() -> git.getCommit(at, patch, scope));
     }
 
     /**

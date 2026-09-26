@@ -4,7 +4,8 @@
     "changes": "Uncommitted changes",
     "mode": "Panel mode",
     "modeFiles": "Files",
-    "modeChanges": "Changes"
+    "modeChanges": "Changes",
+    "commitChanges": "Commit changes"
   },
   "tree": {
     "loading": "Loading…",
@@ -57,7 +58,8 @@
     "close": "Close"
   },
   "tabs": {
-    "info": "Info"
+    "info": "Info",
+    "commit": "Commit"
   },
   "changes": {
     "tracked": "Tracked",
@@ -75,7 +77,10 @@
       "C": "Copied",
       "U": "Untracked"
     },
-    "noPatch": "Change preview unavailable — binary or oversized file"
+    "noPatch": "Change preview unavailable — binary or oversized file",
+    "inCommit": "Changed in commit",
+    "commitEmpty": "This commit changes no files",
+    "notInCommit": "This commit did not change the file"
   },
   "git": {
     "branch": "Branch",
@@ -142,5 +147,18 @@
   "find": {
     "placeholder": "Search this file…",
     "truncated": "the file is shown in part"
+  },
+  "commit": {
+    "hash": "Commit",
+    "revision": "Revision",
+    "author": "Author",
+    "date": "Date",
+    "message": "Subject",
+    "body": "Description",
+    "files": "Files",
+    "filesSummary_one": "{{count}} file · +{{additions}} −{{deletions}}",
+    "filesSummary_other": "{{count}} files · +{{additions}} −{{deletions}}",
+    "showChanges": "Show changed files",
+    "loadError": "Failed to load the commit"
   }
 }

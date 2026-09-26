@@ -38,17 +38,17 @@ describe('FilesToolbar', () => {
   });
 
   /**
-   * Ради этого режим и отдельный: у коммита не бывает незакоммиченных
-   * изменений, а команды двигают рабочее дерево — то есть не то, что показано.
-   * Поэтому их здесь нет вовсе, а не «есть, но серые»: серая кнопка обещает,
-   * что где-то за ней ответ всё-таки есть.
+   * Команды двигают рабочее дерево — то есть не то, что показано. Поэтому их
+   * здесь нет вовсе, а не «есть, но серые»: серая кнопка обещает, что где-то за
+   * ней ответ всё-таки есть. Режим «Изменения» остаётся: в снимке он значит
+   * файлы, изменённые самим коммитом.
    */
-  test('a snapshot offers nothing that belongs to the working tree', () => {
+  test('a snapshot offers nothing that belongs to the working tree, but keeps its changes', () => {
     const { container } = renderToolbar({ rev: 'v1' });
 
     expect(container.querySelector('.git-branch')).toBeNull();
-    expect(screen.queryByText('panel.modeChanges')).not.toBeInTheDocument();
     expect(screen.queryByTestId('file-search')).not.toBeInTheDocument();
+    expect(screen.getByText('panel.modeChanges')).toHaveAttribute('title', 'panel.commitChanges');
     // А сам ответ на «что я вижу» — остаётся, и называет ревизию.
     expect(screen.getByText('v1')).toBeInTheDocument();
   });
