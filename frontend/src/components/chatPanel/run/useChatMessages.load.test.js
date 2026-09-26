@@ -186,3 +186,53 @@ describe('loadMessages return value', () => {
     expect(getChat()).toMatchObject({ runId: null, runKind: null, runStartedAt: null });
   });
 });
+
+/**
+ * CHAT_TOPIC reaches only the chat whose stream is open. A chat left before its title
+ * arrived asks the backend on the way back — unless a title landed meanwhile.
+ */
+describe('returning to a loaded chat', () => {
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  function setup(meta) {
+    chatApi.getChatMeta.mockResolvedValue(meta);
+    let chats = [
+      { id: 'c1', title: 'Новый чат', aiTopic: null, messages: [] },
+      { id: 'c2', title: 'Другой', aiTopic: null, messages: [] },
+    ];
+    const setChats = vi.fn((fn) => {
+      chats = typeof fn === 'function' ? fn(chats) : fn;
+    });
+    const hook = renderHook(
+      ({ activeChatId }) =>
+        useChatMessages({ chats, getChats: () => chats, setChats, activeChatId, onLoadError: vi.fn() }),
+      { initialProps: { activeChatId: 'c1' } },
+    );
+    return { ...hook, getChat: () => chats[0], setTitle: (title) => (chats[0] = { ...chats[0], title }) };
+  }
+
+  test('picks up the title that arrived while the tab was in another chat', async () => {
+    const { rerender, getChat } = setup({ topic: 'Настройка pgvector', aiTopic: 'Настройка pgvector' });
+    rerender({ activeChatId: 'c2' });
+    await act(async () => {
+      rerender({ activeChatId: 'c1' });
+    });
+    expect(getChat().title).toBe('Настройка pgvector');
+    expect(getChat().aiTopic).toBe('Настройка pgvector');
+  });
+
+  test('does not overwrite a title that changed while the request was out', async () => {
+    let answer;
+    const { rerender, getChat, setTitle } = setup();
+    chatApi.getChatMeta.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    rerender({ activeChatId: 'c2' });
+    rerender({ activeChatId: 'c1' });
+    setTitle('Переименован');
+    await act(async () => {
+      answer({ topic: 'Старое', aiTopic: 'Старое' });
+    });
+    expect(getChat().title).toBe('Переименован');
+  });
+});

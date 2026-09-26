@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.chat.script;
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties.Schedule;
 import io.github.trialiya.kb.model.script.ScriptResult;
+import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import io.github.trialiya.kb.tools.RunCancellation;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -54,6 +55,7 @@ public class ScheduledScriptService {
     private final ScriptProperties properties;
     private final SavedScriptResolver resolver;
     private final ScriptRunner runner;
+    private final ProjectCatalog projects;
 
     /**
      * Built with the first schedule and closed with the application; stays null when there are
@@ -67,10 +69,14 @@ public class ScheduledScriptService {
 
     @Autowired
     public ScheduledScriptService(
-            ScriptProperties properties, SavedScriptResolver resolver, ScriptRunner runner) {
+            ScriptProperties properties,
+            SavedScriptResolver resolver,
+            ScriptRunner runner,
+            ProjectCatalog projects) {
         this.properties = properties;
         this.resolver = resolver;
         this.runner = runner;
+        this.projects = projects;
     }
 
     /** Тестовый шов: планировщик, который иначе сервис заводит себе сам в {@link #register()}. */
@@ -78,8 +84,9 @@ public class ScheduledScriptService {
             ScriptProperties properties,
             SavedScriptResolver resolver,
             ScriptRunner runner,
+            ProjectCatalog projects,
             ThreadPoolTaskScheduler taskScheduler) {
-        this(properties, resolver, runner);
+        this(properties, resolver, runner, projects);
         this.taskScheduler = taskScheduler;
     }
 
@@ -142,7 +149,7 @@ public class ScheduledScriptService {
         }
     }
 
-    private static void requireValid(Schedule schedule, Set<String> names) {
+    private void requireValid(Schedule schedule, Set<String> names) {
         String where = "kb.script.schedules";
         if (schedule.script() == null || schedule.script().isBlank()) {
             throw new IllegalStateException(where + ": every entry needs a script name");
@@ -163,6 +170,19 @@ public class ScheduledScriptService {
                             + "].cron is not a cron expression: \""
                             + schedule.cron()
                             + "\" (six fields, e.g. \"0 0 3 * * *\")");
+        }
+        // A project nobody configured would pass here and fail on every firing instead — the
+        // month-to-notice failure this check exists to turn into a failed start.
+        if (schedule.project() != null
+                && !schedule.project().isBlank()
+                && !projects.isAllowed(schedule.project())) {
+            throw new IllegalStateException(
+                    where
+                            + "["
+                            + schedule.displayName()
+                            + "].project: unknown project \""
+                            + schedule.project()
+                            + "\"");
         }
         if (!names.add(schedule.displayName())) {
             throw new IllegalStateException(

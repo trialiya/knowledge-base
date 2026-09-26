@@ -112,6 +112,20 @@ export function invalidateFileListings() {
   }
 }
 
+/**
+ * То же, но только у снимков ревизий. Ревизия бывает веткой — `origin/main`
+ * после fetch называет уже другой коммит, — а рабочего дерева fetch не трогает,
+ * и его листинги выбрасывать незачем.
+ */
+export function invalidateSnapshotListings() {
+  for (const [scope, store] of projects) {
+    if (!scope.endsWith('\n')) {
+      store.dirs.clear();
+      store.at = 0;
+    }
+  }
+}
+
 /** Каталоги-предки пути (от корня), сам путь не включается. */
 export function ancestorsOf(path) {
   const dirs = [''];

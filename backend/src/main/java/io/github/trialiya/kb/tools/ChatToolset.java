@@ -1,8 +1,12 @@
 package io.github.trialiya.kb.tools;
 
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 
 /**
@@ -29,14 +33,27 @@ import org.springframework.ai.tool.ToolCallback;
  * <p>A dedicated type rather than a {@code List<ToolCallback>} bean: Spring AI resolves tool beans
  * by type, and a bare collection of callbacks in the context would be picked up as an ambient tool
  * source on top of the explicit wiring.
+ *
+ * <p>An MCP tool named like a built-in one is left out of the MCP half: the provider refuses a
+ * request carrying two tools of one name, and a server can announce such a tool at any time via
+ * {@code tools/list_changed} — without this, one server would fail every chat request.
  */
+@Slf4j
 public final class ChatToolset {
 
     private final List<ToolCallback> builtin;
+    private final Set<String> builtinNames;
     private final Supplier<List<ToolCallback>> mcp;
+
+    /** MCP tool names already reported as clashing, so the WARN is once per name, not per call. */
+    private final Set<String> reportedClashes = ConcurrentHashMap.newKeySet();
 
     public ChatToolset(List<ToolCallback> builtin, Supplier<List<ToolCallback>> mcp) {
         this.builtin = List.copyOf(builtin);
+        this.builtinNames =
+                this.builtin.stream()
+                        .map(tool -> tool.getToolDefinition().name())
+                        .collect(Collectors.toUnmodifiableSet());
         this.mcp = mcp;
     }
 
@@ -57,7 +74,7 @@ public final class ChatToolset {
      * prefix, does not move every time a server blinks.
      */
     public List<ToolCallback> mcp() {
-        return List.copyOf(mcp.get());
+        return mcpTools().toList();
     }
 
     /**
@@ -66,6 +83,21 @@ public final class ChatToolset {
      * #mcp()} per request.
      */
     public ToolCallback[] all() {
-        return Stream.concat(builtin.stream(), mcp.get().stream()).toArray(ToolCallback[]::new);
+        return Stream.concat(builtin.stream(), mcpTools()).toArray(ToolCallback[]::new);
+    }
+
+    private Stream<ToolCallback> mcpTools() {
+        return mcp.get().stream().filter(this::notABuiltinName);
+    }
+
+    private boolean notABuiltinName(ToolCallback tool) {
+        String name = tool.getToolDefinition().name();
+        if (!builtinNames.contains(name)) {
+            return true;
+        }
+        if (reportedClashes.add(name)) {
+            log.warn("MCP tool '{}' left out: a built-in tool has that name", name);
+        }
+        return false;
     }
 }

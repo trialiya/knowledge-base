@@ -197,6 +197,40 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
     [getChats, setChats],
   );
 
+  // Название от ИИ приходит событием CHAT_TOPIC уже после ответа, а поток открыт только у
+  // активного чата: ушли из чата раньше — событие прошло мимо, и при возвращении название
+  // спрашиваем у бэка. Берётся оно, только если за время запроса ни название, ни aiTopic не
+  // сменились (событием или переименованием): иначе ответ, ушедший раньше, затёр бы свежее.
+  const refreshTitle = useCallback(
+    async (chatId) => {
+      const before = getChats().find((c) => c.id === chatId);
+      if (!before) return;
+      try {
+        const meta = await chatApi.getChatMeta(chatId);
+        setChats((prev) =>
+          prev.map((chat) =>
+            chat.id === chatId && chat.title === before.title && chat.aiTopic === before.aiTopic
+              ? { ...chat, aiTopic: meta.aiTopic ?? chat.aiTopic ?? null, ...(meta.topic ? { title: meta.topic } : {}) }
+              : chat,
+          ),
+        );
+      } catch (err) {
+        console.error('Ошибка обновления названия чата:', err);
+      }
+    },
+    [getChats, setChats],
+  );
+
+  // Только возвращение в уже загруженный чат: первое открытие название берёт из loadMessages.
+  const previousActiveIdRef = useRef(activeChatId);
+  useEffect(() => {
+    if (previousActiveIdRef.current === activeChatId) return;
+    previousActiveIdRef.current = activeChatId;
+    if (!activeChatId || activeChatId === DRAFT_CHAT_ID) return;
+    const chat = getChats().find((c) => c.id === activeChatId);
+    if (Array.isArray(chat?.messages)) refreshTitle(activeChatId);
+  }, [activeChatId, getChats, refreshTitle]);
+
   // Триггер: при смене активного чата грузим его сообщения (если ещё не загружены и
   // он не помечен ошибочным) и запоминаем реально существующий чат в localStorage.
   useEffect(() => {

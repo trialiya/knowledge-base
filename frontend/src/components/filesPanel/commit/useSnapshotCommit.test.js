@@ -15,6 +15,14 @@ describe('useSnapshotCommit', () => {
     expect(result.current.tracked).toEqual([]);
   });
 
+  /** Без открытой вкладки «Коммит» и режима «Изменения» список файлов коммита не нужен никому. */
+  test('asks nothing while disabled', () => {
+    const { result } = renderHook(() => useSnapshotCommit({ project: 'kb', rev: 'main', enabled: false }));
+
+    expect(gitApi.getCommit).not.toHaveBeenCalled();
+    expect(result.current.loading).toBe(false);
+  });
+
   /** Список слева не должен знать, чьи изменения показывает. */
   test('hands the commit files out in the shape of the uncommitted list', async () => {
     const files = [{ status: 'M', path: 'a.js', additions: 1, deletions: 0 }];

@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.script.SavedScript;
 import io.github.trialiya.kb.model.script.ScriptRunSource;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
+import io.github.trialiya.kb.utils.PromptMarkup;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -301,8 +302,12 @@ public class SavedScriptCatalog {
         }
     }
 
+    /**
+     * Strict, like the git registry the run itself goes through: falling back to the default here
+     * would read the script out of one repository and then fail to run it in the one named.
+     */
     private Project activeProject(@Nullable String projectId) {
-        return projects.find(projectId).orElseGet(projects::defaultProject);
+        return projects.require(projectId);
     }
 
     private String availableList(Project project) {
@@ -315,9 +320,13 @@ public class SavedScriptCatalog {
                 + ".";
     }
 
-    /** The catalogue line, on one line and bounded: the description comes from the repository. */
+    /**
+     * The catalogue line, on one line, bounded and inert: the description comes from the
+     * repository, and inside {@code <active-project>} a {@code </active-project>} of its own would
+     * end the block and hand the rest of the line to the model as instructions.
+     */
     private static String describe(SavedScript script) {
-        String desc = script.desc().replaceAll("\\s+", " ").strip();
+        String desc = PromptMarkup.inert(script.desc().replaceAll("\\s+", " ").strip());
         return desc.length() > MAX_DESC_CHARS ? desc.substring(0, MAX_DESC_CHARS) + "…" : desc;
     }
 
@@ -329,7 +338,10 @@ public class SavedScriptCatalog {
                 + String.join(
                         ", ",
                         script.params().stream()
-                                .map(param -> param.name() + (param.required() ? "" : "?"))
+                                .map(
+                                        param ->
+                                                PromptMarkup.inert(param.name())
+                                                        + (param.required() ? "" : "?"))
                                 .toList());
     }
 

@@ -5,7 +5,9 @@ import {
   putDirs,
   putExpanded,
   invalidatePath,
+  invalidateSnapshotListings,
   resetFileTreeCache,
+  treeScope,
 } from './fileTreeStore';
 
 /** Кэш разложен по проектам — тесты работают в одном. */
@@ -82,5 +84,22 @@ describe('fileTreeStore: проекты не делят кэш', () => {
 
     expect(readDir('kb', 'a')).toBeUndefined();
     expect(readDir('billing', 'a')).toEqual([]);
+  });
+});
+
+/** fetch двигает remote-ветки: снимок на имени ветки устарел, рабочее дерево — нет. */
+describe('fileTreeStore: invalidateSnapshotListings', () => {
+  beforeEach(() => resetFileTreeCache());
+
+  test('drops the listings of snapshots and keeps those of the working tree', () => {
+    const tree = treeScope(PROJECT, '');
+    const snapshot = treeScope(PROJECT, 'origin/main');
+    putDirs(tree, { '': [{ name: 'a' }] });
+    putDirs(snapshot, { '': [{ name: 'b' }] });
+
+    invalidateSnapshotListings();
+
+    expect(readDir(tree, '')).toEqual([{ name: 'a' }]);
+    expect(readDir(snapshot, '')).toBeUndefined();
   });
 });

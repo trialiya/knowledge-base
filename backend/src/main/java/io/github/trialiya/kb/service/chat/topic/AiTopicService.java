@@ -10,6 +10,7 @@ import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.utils.BackgroundCallOptions;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -148,13 +149,14 @@ public class AiTopicService implements DisposableBean {
         }
         chatTopics.updateAiTopic(conversationId, topic, turns);
         log.info("[{}] Chat topic: {}", conversationId, topic);
-        // Отображаемое название перечитываем: пока шёл запрос, чат могли переименовать, и вкладке
-        // нельзя затирать название пользователя предложенным.
-        final @Nullable String display =
-                chatTopics
-                        .findById(conversationId)
-                        .map(ChatTopicEntity::getDisplayTopic)
-                        .orElse(topic);
+        // Строку перечитываем: пока шёл запрос, чат могли переименовать — вкладке нельзя затирать
+        // название пользователя предложенным — или удалить, и тогда событие пришло бы уже после
+        // CHAT_DELETED.
+        final ChatTopicEntity named = chatTopics.findById(conversationId).orElse(null);
+        if (named == null) {
+            return;
+        }
+        final String display = Objects.requireNonNullElse(named.getDisplayTopic(), topic);
         events.publish(
                 conversationId, CHAT_TOPIC, null, null, new ChatTopicPayload(display, topic));
     }

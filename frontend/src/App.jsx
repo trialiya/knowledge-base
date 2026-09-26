@@ -18,6 +18,7 @@ import { invalidateFilePreviewCache, invalidateAllFilePreviewCache } from '@/com
 import {
   invalidatePath as invalidateFileTreePath,
   invalidateFileListings,
+  invalidateSnapshotListings,
   treeScope,
 } from '@/components/filesPanel/fileTreeStore';
 import '@/App.css';
@@ -187,7 +188,12 @@ function App() {
    * подвинувшийся в одной, обязан подвинуться в другой.
    */
   const [gitRefsTick, setGitRefsTick] = useState(0);
-  const handleGitRefsChanged = useCallback(() => setGitRefsTick((n) => n + 1), []);
+  // Снимок ревизии стоит на имени, а не на коммите: remote-ветка после fetch
+  // называет уже другой коммит, и его листинги должны уйти вместе со счётчиками.
+  const handleGitRefsChanged = useCallback(() => {
+    invalidateSnapshotListings();
+    setGitRefsTick((n) => n + 1);
+  }, []);
 
   // Регистрируем переход в Files для DocLinkTooltip (кнопка "Открыть" у
   // файловой ссылки) — компонент смонтирован в чате/KB, на много уровней
