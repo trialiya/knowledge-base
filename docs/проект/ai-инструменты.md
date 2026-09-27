@@ -282,10 +282,11 @@ untracked. В выдаче инструментов они помечены `[un
 - **Гейт видимости на историю не применяется:** всё, что лежит в коммите, — уже история репозитория, и `getCommitDiff` отдаёт то же содержимое патчем
 
 ### `getFileOutline`
-Структурный анализ файла кода (классы, методы, поля и т.д.).
+Структурный анализ файла кода (классы, методы, поля и т.д.) или markdown-файла (заголовки).
 - **Параметры:** `filePath` (String), `project` (String|null — работать в другом репозитории вместо проекта чата, см. «Проект в аргументах» ниже)
 - **Возвращает:** `ToolResult` с id репозитория и `GitFileOutline` в `result` (поля `path`, `tracked`, `language`, `lineCount`, `parser`) со списком `GitSymbol` (имя, `startLine`, `endLine`). `tracked=false` — файл из зоны `allow-globs`, тем же полем и с тем же смыслом, что у `getFileContent`
-- **Движок:** tree-sitter (Java, TypeScript, Python, SQL) → фолбэк на regex при недоступности tree-sitter. Поле `parser` показывает, какой движок использован (`tree-sitter` или `regex`).
+- **Движок:** tree-sitter (Java, TypeScript, Python, SQL) → фолбэк на regex при недоступности tree-sitter. Поле `parser` показывает, какой движок использован (`tree-sitter`, `regex` или `markdown`).
+- **Markdown (`.md`, `.markdown`):** разбор тот же, что у `getDocumentOutline` для документов базы знаний (`MarkdownSections`): ATX-заголовки, заголовки внутри fenced-блоков пропускаются. Символ — `kind` `h1`…`h6` (текст до первого заголовка — `preamble`), `name` — текст заголовка, `signature` — путь секции (`Установка > Docker`), диапазон строк — всё поддерево секции, так что подраздел вложен в родителя, как метод в класс. `parser` — `markdown`.
 
 ### `searchFiles`
 Поиск файлов в репозитории по имени/пути.

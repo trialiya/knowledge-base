@@ -834,9 +834,9 @@ public class GitService {
     }
 
     /**
-     * Returns a structural outline (classes, methods, functions, ...) of a source file without its
-     * full text. Backed by tree-sitter when available, regex otherwise; the {@code parser} field
-     * reports which was used.
+     * Returns a structural outline (classes, methods, functions, ...; headings for markdown) of a
+     * source file without its full text. Backed by tree-sitter when available, regex otherwise, and
+     * by the document section parser for markdown; the {@code parser} field reports which was used.
      *
      * <p>Serves the untracked files {@code allow-globs} admit on the same terms {@link
      * #getFileContent} does, and says which it answered about in the outline's {@code tracked}
@@ -844,7 +844,7 @@ public class GitService {
      *
      * @param filePath path relative to repo root
      * @throws IllegalArgumentException if the file is binary or its language is not supported for
-     *     outlining (supported: java, javascript, typescript, python, sql)
+     *     outlining (supported: java, javascript, typescript, python, sql, markdown)
      */
     public GitFileOutline getFileOutline(@NonNull String filePath) {
         FileBytes fb = readTrackedFile(filePath);
@@ -857,7 +857,8 @@ public class GitService {
             throw new IllegalArgumentException(
                     "Unsupported language for outline: "
                             + (language == null ? "unknown" : language)
-                            + " (supported: java, javascript, typescript, python, sql)");
+                            + " (supported: java, javascript, typescript, python, sql,"
+                            + " markdown)");
         }
 
         String source = RepoFiles.decodeToLf(fb.bytes());

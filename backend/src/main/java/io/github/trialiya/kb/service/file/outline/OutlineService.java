@@ -21,10 +21,17 @@ public class OutlineService {
 
     /** Languages for which an outline is meaningful at all. */
     private static final Set<String> SUPPORTED_LANGUAGES =
-            Set.of("java", "javascript", "typescript", "python", "sql");
+            Set.of(
+                    "java",
+                    "javascript",
+                    "typescript",
+                    "python",
+                    "sql",
+                    MarkdownOutlineParser.LANGUAGE);
 
     private final CodeOutlineParser treeSitter;
     private final CodeOutlineParser regex;
+    private final CodeOutlineParser markdown = new MarkdownOutlineParser();
 
     public OutlineService() {
         this(new TreeSitterOutlineParser(), new RegexOutlineParser());
@@ -53,6 +60,9 @@ public class OutlineService {
      * @param source full file content
      */
     public OutlineResult outline(String language, String source) {
+        if (markdown.supports(language)) {
+            return new OutlineResult(markdown.name(), markdown.parse(language, source));
+        }
         if (treeSitter.supports(language)) {
             List<GitSymbol> symbols = treeSitter.parse(language, source);
             // If tree-sitter yielded nothing (e.g. parse hiccup), try regex before giving up.
