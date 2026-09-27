@@ -6,6 +6,14 @@ import { fetchRunState, IDLE_RUN_STATE } from './activeRun';
 import { transformPage, trimActiveRunTail, attachLeadingMetas } from './messagesPage';
 
 /**
+ * `prev.map(fn)` — но тот же массив, если чата в списке нет. Загрузка открытого чата может
+ * вернуться, когда его в списке нет: ссылка открыта раньше, чем пришёл список, или список
+ * пришёл без него. Новый массив без изменений всё равно сменил бы `chats`, эффект загрузки
+ * ниже увидел бы тот же чат без сообщений и спросил снова — и так без конца.
+ */
+const patchIfListed = (prev, chatId, fn) => (prev.some((c) => c.id === chatId) ? prev.map(fn) : prev);
+
+/**
  * Загрузка и пагинация сообщений активного чата. Владеет своими защитными ref-ами
  * (повторные/параллельные загрузки) и состоянием загрузки; сами сообщения пишет в общий
  * стейт чатов через переданный setChats. Возвращаемый loadingMessages — про активный чат:
@@ -95,7 +103,7 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
 
           failedChatIdsRef.current.delete(chatId);
           setChats((prev) =>
-            prev.map((chat) =>
+            patchIfListed(prev, chatId, (chat) =>
               chat.id === chatId
                 ? {
                     ...chat,
@@ -128,7 +136,7 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
           const isNotFound = status === 404;
           failedChatIdsRef.current.add(chatId);
           setChats((prev) =>
-            prev.map((chat) =>
+            patchIfListed(prev, chatId, (chat) =>
               chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: status } : chat,
             ),
           );
@@ -222,12 +230,19 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
   );
 
   // Только возвращение в уже загруженный чат: первое открытие название берёт из loadMessages.
+  // Черновик, получивший на отправке настоящий id, — не возвращение: чата на бэке ещё нет
+  // (его создаёт отправка, которая ещё в пути), и вопрос о названии упал бы в 404, а
+  // название ему всё равно принесёт событие. Отличить это от ухода из черновика в другой чат
+  // просто: на отправке запись черновика в списке и становится новым чатом, а уход её не трогает.
   const previousActiveIdRef = useRef(activeChatId);
   useEffect(() => {
-    if (previousActiveIdRef.current === activeChatId) return;
+    const previous = previousActiveIdRef.current;
+    if (previous === activeChatId) return;
     previousActiveIdRef.current = activeChatId;
     if (!activeChatId || activeChatId === DRAFT_CHAT_ID) return;
-    const chat = getChats().find((c) => c.id === activeChatId);
+    const chats = getChats();
+    if (previous === DRAFT_CHAT_ID && !chats.some((c) => c.id === DRAFT_CHAT_ID)) return;
+    const chat = chats.find((c) => c.id === activeChatId);
     if (Array.isArray(chat?.messages)) refreshTitle(activeChatId);
   }, [activeChatId, getChats, refreshTitle]);
 

@@ -4,6 +4,23 @@ import chatApi from '@/api/chatApi';
 import { DRAFT_CHAT_ID } from '@/constants/storage';
 
 /**
+ * Ответ первичной загрузки поверх того, что уже есть в стейте. Пока список шёл, в панели
+ * могли успеть отправить первое сообщение: черновик стал настоящим чатом, а сервер, ответивший
+ * раньше, о нём не знает. Замени список ответом — и открытый чат пропал бы из него вместе с
+ * лентой, а сам чат остался бы без записи, по которой его грузить.
+ *
+ * Поэтому уже известное остаётся как есть — и чат, которого нет в ответе (он встаёт сверху,
+ * как любой новый), и чат, который в ответе есть: локальная запись свежее, в ней лента и
+ * состояние прогона.
+ */
+const keepLocal = (prev, loaded) => {
+  if (!prev.length) return loaded;
+  const known = new Map(prev.map((c) => [c.id, c]));
+  const loadedIds = new Set(loaded.map((c) => c.id));
+  return [...prev.filter((c) => !loadedIds.has(c.id)), ...loaded.map((c) => known.get(c.id) ?? c)];
+};
+
+/**
  * Владелец списка чатов: сам стейт, первичная загрузка с бэка и точечные правки
  * (переименование, обновление темы после ответа).
  *
@@ -21,7 +38,10 @@ import { DRAFT_CHAT_ID } from '@/constants/storage';
  * @param {Function} p.selectChat           (id, opts) => void — поднять выбор в навигацию
  */
 export default function useChatList({ initialActiveChatId, initialPropChatId, makeDraft, selectChat }) {
-  const [chats, setChats] = useState([]);
+  // Черновик — сразу, а не с ответом списка: он локальный, серверу о нём знать нечего, а
+  // композер открытого `/chat/new` принимает текст раньше, чем список приходит. Без записи
+  // отправке было бы нечего превратить в настоящий чат.
+  const [chats, setChats] = useState(() => (initialActiveChatId === DRAFT_CHAT_ID ? [makeDraft()] : []));
 
   // Зеркало для синхронного чтения из колбэков (см. про getChats выше).
   const chatsRef = useRef(chats);
@@ -79,12 +99,13 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
 
         if (currentId === DRAFT_CHAT_ID) {
           // Перезагрузка на черновике: бэк о нём ничего не знает и знать не должен.
-          // Показываем свежий пустой черновик, не пытаясь его грузить (никакой ошибки).
-          setChats([makeDraft(), ...chatList]);
+          // Сам черновик заведён при монтировании (см. useState выше) — к нему
+          // добавляется список, не пытаясь черновик грузить (никакой ошибки).
+          setChats((prev) => keepLocal(prev, chatList));
           if (!fromUrl) selectChat(DRAFT_CHAT_ID, { navigate: false });
         } else if (currentId && existsInList) {
           // Чат из URL/localStorage реально существует — открываем как есть.
-          setChats(chatList);
+          setChats((prev) => keepLocal(prev, chatList));
           // Если id пришёл НЕ из адреса (запомненный чат из localStorage), навигация
           // о нём ещё не знает: без этого заход на `/` показывал бы чат, а адрес
           // оставался бы «голым» /chat — такой ссылкой не поделиться.
@@ -101,7 +122,7 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
             model: null,
             notFound: true,
           };
-          setChats([placeholder, ...chatList]);
+          setChats((prev) => keepLocal(prev, [placeholder, ...chatList]));
         } else {
           // Чат в URL не задан (его нет вовсе, либо id из localStorage устарел) —
           // ошибку НЕ показываем: открываем первый существующий чат, а если чатов
@@ -110,10 +131,10 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
           // (deep link на файл/документ), пользователя оттуда не уводим.
           const firstId = chatList[0]?.id;
           if (firstId) {
-            setChats(chatList);
+            setChats((prev) => keepLocal(prev, chatList));
             selectChat(firstId, { navigate: false });
           } else {
-            setChats([makeDraft()]);
+            setChats((prev) => keepLocal(prev, [makeDraft()]));
             selectChat(DRAFT_CHAT_ID, { navigate: false });
           }
         }
