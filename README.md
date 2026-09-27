@@ -4,7 +4,7 @@ An AI assistant for working with a Git repository: search across code and
 change history, answers to questions about the project, and a knowledge base
 that lives alongside the code.
 
-Current version: **1.1.0-RC1** — a release candidate for 1.1.0: the feature
+Current version: **1.1.0-RC2** — a release candidate for 1.1.0: the feature
 set is complete, what is left is testing it outside the machine it was built
 on. See the [changelog](CHANGELOG.md) for the full feature set and the known
 limitations of this release.
@@ -48,7 +48,9 @@ history, documentation that doesn't drift from the code.
 - 🐙 **Git analysis** — reading files, commit history, diffs, grep across the
   repository, structural code analysis (tree-sitter)
 - 📂 **"Files" panel** — browse the repository (tree, contents, latest
-  commit) in a GitHub-like style, insert files into the chat
+  commit) in a GitHub-like style, jump through a file by its structure —
+  classes and methods, or the headings of a Markdown file — open any commit
+  with its message and changed files, insert files into the chat
 - 🔍 **Hybrid search** — keyword + semantic (vector), across three
   categories: repository files, knowledge-base documents and chats; a result
   opens straight at the match
