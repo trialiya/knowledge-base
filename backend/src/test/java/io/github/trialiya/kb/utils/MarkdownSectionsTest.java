@@ -95,6 +95,36 @@ class MarkdownSectionsTest {
         }
 
         @Test
+        void backtickRunWithBacktickInInfoStringIsInlineCodeNotAFence() {
+            String md = "# A\n```js``` is inline\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly("A", "B");
+        }
+
+        @Test
+        void tildeFenceInfoStringMayContainBackticks() {
+            String md = "# A\n~~~ `x`\n# hidden\n~~~\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly("A", "B");
+        }
+
+        @Test
+        void recognisesHeadingsAndFencesInCrlfText() {
+            String md = "intro\r\n# A #\r\n```\r\n# hidden\r\n```\r\n## A1\r\ntext\r\n# B\r\n";
+
+            List<Section> sections = MarkdownSections.parse(md);
+
+            assertThat(sections)
+                    .extracting(Section::path)
+                    .containsExactly(MarkdownSections.PREAMBLE_PATH, "A", "A > A1", "B");
+            assertThat(contentOf(md, "A > A1")).isEqualTo("## A1\r\ntext\r\n");
+        }
+
+        @Test
         void textBeforeFirstHeadingBecomesPreamble() {
             String md = "intro line\n\n# A\ntext\n";
 
@@ -295,6 +325,15 @@ class MarkdownSectionsTest {
             String result = MarkdownSections.renameHeading(md, section(md, "Старое"), "Новое");
 
             assertThat(result).isEqualTo("## Новое\nтело\n");
+        }
+
+        @Test
+        void keepsCrlfLineEndingOfTheRenamedHeading() {
+            String md = "# A\r\n## Старое\r\nтело\r\n";
+
+            String result = MarkdownSections.renameHeading(md, section(md, "A > Старое"), "Новое");
+
+            assertThat(result).isEqualTo("# A\r\n## Новое\r\nтело\r\n");
         }
     }
 }

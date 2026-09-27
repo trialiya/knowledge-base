@@ -15,7 +15,8 @@ import java.util.regex.Pattern;
  * heading of the same or higher level — i.e. the whole subtree including subsections. Text before
  * the first heading forms a special {@value #PREAMBLE_PATH} section. Headings inside fenced code
  * blocks (``` / ~~~) are ignored. Setext headings ({@code ===} / {@code ---} underlines) are NOT
- * supported.
+ * supported. Lines may end in {@code \n} or {@code \r\n}: a text synced from a Windows checkout
+ * keeps its CRLF, and offsets always point into the text as given.
  *
  * <p>Sections are addressed by a human-readable path of ancestor titles joined with {@value
  * #PATH_SEPARATOR} (e.g. {@code "Установка > Docker"}). Duplicate paths get an occurrence suffix:
@@ -157,6 +158,8 @@ public final class MarkdownSections {
         int lineEnd = markdown.indexOf('\n', section.startOffset());
         if (lineEnd == -1) {
             lineEnd = markdown.length();
+        } else if (lineEnd > section.startOffset() && markdown.charAt(lineEnd - 1) == '\r') {
+            lineEnd--;
         }
         return markdown.substring(0, section.startOffset())
                 + "#".repeat(section.level())
@@ -180,9 +183,12 @@ public final class MarkdownSections {
             int newline = markdown.indexOf('\n', pos);
             int lineEnd = newline == -1 ? length : newline;
             String line = markdown.substring(pos, lineEnd);
+            if (line.endsWith("\r")) {
+                line = line.substring(0, line.length() - 1);
+            }
 
             Matcher fence = FENCE.matcher(line);
-            if (fence.matches()) {
+            if (fence.matches() && (inFence || opensFence(fence))) {
                 String marker = fence.group(1);
                 if (!inFence) {
                     inFence = true;
@@ -204,6 +210,15 @@ public final class MarkdownSections {
             pos = lineEnd + 1;
         }
         return headings;
+    }
+
+    /**
+     * Whether a fence-looking line really opens a code block: after a backtick marker the info
+     * string may not contain a backtick (CommonMark), so {@code ```js``` text} is inline code and
+     * must not hide every heading below it.
+     */
+    private static boolean opensFence(Matcher fence) {
+        return fence.group(1).charAt(0) == '~' || fence.group(2).indexOf('`') < 0;
     }
 
     /** Strips optional trailing closing hashes: {@code "Title ###"} → {@code "Title"}. */
