@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.doc.dto.DocumentGrepMatch;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistory;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistoryShort;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
+import io.github.trialiya.kb.model.doc.dto.DocumentSkeletonNode;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
@@ -156,32 +157,23 @@ public class DocumentService {
     }
 
     /**
-     * Flat tree skeleton: only id + title + type + parentId + hasChildren. Used by the AI tool so
-     * the model gets the full structure without the heavy description content.
+     * Flat tree skeleton: id, title, type, parentId, versions, hasChildren — no content. Used by
+     * the AI tool so the model gets the full structure without the heavy description content.
      */
-    public List<DocumentNode> getTreeSkeleton() {
+    public List<DocumentSkeletonNode> getTreeSkeleton() {
         Set<Long> parentIds = repo.findAllParentIds();
         return StreamSupport.stream(repo.findAll().spliterator(), false)
                 .map(
                         e ->
-                                new DocumentNode(
+                                new DocumentSkeletonNode(
                                         Objects.requireNonNull(e.getId()),
                                         e.getTitle(),
                                         e.getType().getValue(),
                                         e.getParentId(),
                                         e.getVersion(),
-                                        "", // description omitted in skeleton
                                         e.getDescriptionVersion(),
-                                        null, // createdAt omitted in skeleton
-                                        null, // updatedAt omitted in skeleton
-                                        Collections.emptyList(),
                                         parentIds.contains(e.getId()),
-                                        e.isSystem(),
-                                        // summary fields omitted in skeleton —
-                                        // UI does not need them for tree navigation
-                                        null,
-                                        false,
-                                        null))
+                                        e.isSystem()))
                 .collect(Collectors.toList());
     }
 

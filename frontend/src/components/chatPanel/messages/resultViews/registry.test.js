@@ -79,21 +79,17 @@ describe('detectResultView', () => {
     expect(detectResultView(files).id).toBe('tree');
   });
 
-  // `getTreeSkeleton` и `findDocumentsByName` возвращают одни и те же
-  // DocumentNode, но заполняют их по-разному: скелет отдаёт пустое описание,
-  // поиск по имени — снипет в 150 символов (`toStubNode`). Тесты ниже держат
-  // обе настоящие формы, а не общий знаменатель между ними.
+  // `getTreeSkeleton` отдаёт `DocumentSkeletonNode` — узел без содержимого,
+  // дат и `children`; `findDocumentsByName` — полный `DocumentNode` со снипетом
+  // в 150 символов (`toStubNode`). Тесты ниже держат обе настоящие формы, а не
+  // общий знаменатель между ними.
   const skeleton = (id, title, parentId) => ({
     id,
     title,
     type: 'document',
     parentId,
     version: 2,
-    description: '',
     descriptionVersion: 3,
-    createdAt: null,
-    updatedAt: null,
-    children: [],
     hasChildren: false,
     system: false,
   });
@@ -102,9 +98,11 @@ describe('detectResultView', () => {
     description,
     createdAt: '2026-05-01T10:00:00',
     updatedAt: '2026-08-01T12:00:00',
+    children: [],
+    summaryStale: false,
   });
 
-  it('getTreeSkeleton — tree: описание пустое, а записи ссылаются друг на друга', () => {
+  it('getTreeSkeleton — tree: записи ссылаются друг на друга, parentId есть и у корня', () => {
     expect(detectResultView(JSON.stringify([skeleton(1, 'Проект', null), skeleton(7, 'Модели', 1)])).id).toBe('tree');
   });
 
