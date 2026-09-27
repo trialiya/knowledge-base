@@ -144,6 +144,22 @@ class SampleDataFixtureTest {
                 .containsExactlyInAnyOrder(3, 1);
     }
 
+    /**
+     * Колонка рассуждения доезжает до сущности — по ней история возвращает рассуждение модели (см.
+     * {@code ReasoningAdvisor}); у рядов без него — {@code null}, а не пустая строка.
+     */
+    @Test
+    void theReasoningColumnReachesTheEntity() {
+        assertThat(chatMessageRepo.findById(1639L))
+                .get()
+                .extracting(ChatMessageEntity::getReasoning)
+                .isEqualTo("Нужна история файла — начну с getCommitLog по backend/build.gradle.");
+        assertThat(chatMessageRepo.findById(1638L))
+                .get()
+                .extracting(ChatMessageEntity::getReasoning)
+                .isNull();
+    }
+
     @Test
     void loadsAllFixtureTables() {
         assertThat(jdbc.queryForObject("select count(*) from chat_topic", Integer.class))

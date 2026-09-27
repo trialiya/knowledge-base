@@ -81,7 +81,7 @@ class CompactServiceTest {
 
     /** Настройки чата: их собирает контроллер тем же резолвом, что и для обычного прогона. */
     private static final CompactService.CompactOptions OPTIONS =
-            new CompactService.CompactOptions(null, false, "kb", "MODE");
+            new CompactService.CompactOptions(null, false, "kb", "MODE", false);
 
     private ChatMessageRepository repository;
     private PendingSummaryService pendingSummaries;

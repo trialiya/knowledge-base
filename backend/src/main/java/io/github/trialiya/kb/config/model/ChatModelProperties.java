@@ -51,6 +51,13 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      * @param apiKey the token for this model. Inherited from {@code spring.ai.openai.api-key} when
      *     absent. May be set on its own — same host, separate token (separate quota or account) —
      *     but never omitted alongside a {@code baseUrl}.
+     * @param replayReasoning whether this model gets its own past reasoning ({@code
+     *     reasoning_content}) back on the assistant messages of the history. A thinking model with
+     *     tools (DeepSeek) expects it — without it the provider renders a finished turn differently
+     *     from the one in progress, and the prompt cache breaks right after the previous question
+     *     on every turn that follows a turn with tool calls. Off by default: an endpoint that does
+     *     not know the field rejects the whole request (spring-ai#6968), and the reasoning stays
+     *     stored either way, so switching it on later needs no migration of history.
      */
     public record ModelOption(
             String id,
@@ -59,7 +66,8 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
             @DefaultValue("true") boolean streamUsage,
             @Nullable Integer contextTokens,
             @JsonIgnore @Nullable String baseUrl,
-            @JsonIgnore @Nullable String apiKey) {
+            @JsonIgnore @Nullable String apiKey,
+            @DefaultValue("false") boolean replayReasoning) {
 
         public ModelOption {
             baseUrl = ConfigValues.trimToNull(baseUrl);
@@ -81,7 +89,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
         @Override
         public String toString() {
             return ("ModelOption[id=%s, label=%s, weak=%s, streamUsage=%s, contextTokens=%s,"
-                            + " baseUrl=%s, apiKey=%s]")
+                            + " baseUrl=%s, apiKey=%s, replayReasoning=%s]")
                     .formatted(
                             id,
                             label,
@@ -89,7 +97,8 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
                             streamUsage,
                             contextTokens,
                             baseUrl,
-                            apiKey == null ? null : "***");
+                            apiKey == null ? null : "***",
+                            replayReasoning);
         }
 
         /**
@@ -160,5 +169,21 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
                 .findFirst()
                 .map(ModelOption::streamUsage)
                 .orElse(true);
+    }
+
+    /**
+     * Возвращать ли этой модели её рассуждения в истории. Разбор {@code id} — тот же, что у {@link
+     * #isWeak}; неизвестная модель — нет: лишнее поле эндпоинт, который его не знает, отвергает
+     * вместе с запросом, а недостающее стоит только промаха кэша.
+     */
+    public boolean replayReasoning(@Nullable String id) {
+        if (id == null || id.equals(defaultModel.id())) {
+            return defaultModel.replayReasoning();
+        }
+        return models.stream()
+                .filter(m -> id.equals(m.id()))
+                .findFirst()
+                .map(ModelOption::replayReasoning)
+                .orElse(false);
     }
 }

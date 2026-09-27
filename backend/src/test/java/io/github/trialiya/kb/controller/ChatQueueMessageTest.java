@@ -60,7 +60,8 @@ class ChatQueueMessageTest {
 
         final ChatModelProperties models =
                 new ChatModelProperties(
-                        new ModelOption("gpt", "GPT", true, true, null, null, null), List.of());
+                        new ModelOption("gpt", "GPT", true, true, null, null, null, false),
+                        List.of());
         controller =
                 new ChatController(
                         models,

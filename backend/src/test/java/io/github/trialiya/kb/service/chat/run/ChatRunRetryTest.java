@@ -85,7 +85,14 @@ class ChatRunRetryTest {
                         mock(AutoCompactService.class),
                         new ChatModelProperties(
                                 new ModelOption(
-                                        "default-model", "Default", true, true, null, null, null),
+                                        "default-model",
+                                        "Default",
+                                        true,
+                                        true,
+                                        null,
+                                        null,
+                                        null,
+                                        false),
                                 List.of()),
                         events,
                         mock(SystemPromptService.class),

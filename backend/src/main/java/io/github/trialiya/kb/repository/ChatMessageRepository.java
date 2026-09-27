@@ -43,15 +43,15 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
 
     /**
      * Хвост реплик чата — вопросы и ответы без строк-сводок и без протокола инструментов: TOOL-ряды
-     * не выбираются, а {@code tool_data} не читается вовсе ({@code NULL}). От свежего к старому, не
-     * больше {@code limit} рядов: читателю нужны несколько последних сообщений, а не история
-     * целиком — название чата ({@code AiTopicService}) собирает по ним окно в пару тысяч символов,
-     * и тащить ради этого мегабайты ответов инструментов незачем.
+     * не выбираются, а {@code tool_data} и {@code reasoning} не читаются вовсе ({@code NULL}). От
+     * свежего к старому, не больше {@code limit} рядов: читателю нужны несколько последних
+     * сообщений, а не история целиком — название чата ({@code AiTopicService}) собирает по ним окно
+     * в пару тысяч символов, и тащить ради этого мегабайты ответов инструментов незачем.
      */
     @Query(
             """
     SELECT id, conversation_id, content, type, position, summarized, summary, created_at, meta,
-           NULL AS tool_data
+           NULL AS tool_data, NULL AS reasoning
     FROM chat_message
     WHERE conversation_id = :conversationId AND summary = false
       AND type IN ('USER', 'ASSISTANT')

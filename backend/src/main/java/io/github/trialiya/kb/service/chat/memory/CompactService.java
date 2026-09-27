@@ -178,12 +178,16 @@ public class CompactService {
      * @param weakModel {@code ChatModelProperties#isWeak} от {@link #model}
      * @param project проект чата; {@code null} — дефолтный проект списка
      * @param modeInstructions инструкции режима чата; пустая строка — «без режима»
+     * @param replayReasoning {@code ChatModelProperties#replayReasoning} от {@link #model}:
+     *     рассуждения ответов входят в историю чата на тех же правах, что и их текст, и без них
+     *     раунд разошёлся бы с кэшем уже на первом ответе окна
      */
     public record CompactOptions(
             @Nullable String model,
             boolean weakModel,
             @Nullable String project,
-            String modeInstructions) {}
+            String modeInstructions,
+            boolean replayReasoning) {}
 
     /**
      * Чем раунд закрывается — всё, чем сжатие по команде отличается от автоматического ({@code
@@ -444,7 +448,8 @@ public class CompactService {
             CompactTarget target,
             @Nullable String instructions,
             CompactOptions options) {
-        final List<Message> history = rows.stream().map(PromptRow::toMessage).toList();
+        final List<Message> history =
+                rows.stream().map(row -> row.toMessage(options.replayReasoning())).toList();
         final long startPosition = rows.getFirst().entity().getPosition();
         final long oldEndPosition = rows.getLast().entity().getPosition();
         final @Nullable String model = options.model();

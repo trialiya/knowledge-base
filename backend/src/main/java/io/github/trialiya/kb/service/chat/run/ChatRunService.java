@@ -490,7 +490,8 @@ public class ChatRunService {
                             resolvedModel,
                             weakModel,
                             options.project(),
-                            options.modeInstructions()),
+                            options.modeInstructions(),
+                            chatModels.replayReasoning(resolvedModel)),
                     scope::addCall);
             // The client, not just the model option, follows the resolved model: an entry of
             // kb.chat.models with its own base-url/api-key is served by a connection of its own.

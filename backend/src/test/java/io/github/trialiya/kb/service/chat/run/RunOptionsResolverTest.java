@@ -50,7 +50,7 @@ class RunOptionsResolverTest {
         resolver =
                 new RunOptionsResolver(
                         new ChatModelProperties(
-                                new ModelOption("gpt", "GPT", true, true, null, null, null),
+                                new ModelOption("gpt", "GPT", true, true, null, null, null, false),
                                 List.of()),
                         new ChatModeProperties(List.of()),
                         modeService,

@@ -3,6 +3,7 @@ package io.github.trialiya.kb;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import io.github.trialiya.kb.advisor.ReasoningAdvisor;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
@@ -123,6 +124,30 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         assertThat(reloaded)
                 .extracting(Message::getMessageType)
                 .containsExactlyInAnyOrder(MessageType.USER, MessageType.ASSISTANT);
+    }
+
+    /**
+     * Рассуждение ответа переживает запись и чтение на настоящей схеме (колонка {@code reasoning})
+     * и уходит в промпт только по просьбе — см. {@code ChatModelProperties#replayReasoning}.
+     */
+    @Test
+    void reasoningRoundTripsAndIsReplayedOnlyOnRequest() {
+        String conv = newConversation();
+        ChatHistoryService memory = memory();
+
+        memory.append(
+                conv,
+                List.of(
+                        new UserMessage("Почему упала сборка?"),
+                        AssistantMessage.builder()
+                                .content("Из-за зависимости.")
+                                .properties(Map.of("kbReasoning", new StringBuilder("Смотрю лог.")))
+                                .build()));
+
+        assertThat(memory.promptMessages(conv, true).getLast().getMetadata())
+                .containsEntry(ReasoningAdvisor.REASONING_CONTENT, "Смотрю лог.");
+        assertThat(memory.promptMessages(conv, false).getLast().getMetadata())
+                .doesNotContainKey(ReasoningAdvisor.REASONING_CONTENT);
     }
 
     @Test

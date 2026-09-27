@@ -221,7 +221,8 @@ class ChatRunStopMetaTest {
                 mock(PendingSummaryService.class),
                 mock(AutoCompactService.class),
                 new ChatModelProperties(
-                        new ModelOption("default-model", "Default", true, true, null, null, null),
+                        new ModelOption(
+                                "default-model", "Default", true, true, null, null, null, false),
                         List.of()),
                 events,
                 mock(SystemPromptService.class),

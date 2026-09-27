@@ -484,7 +484,8 @@ public class ChatController {
                                 options.model(),
                                 options.weakModel(),
                                 options.project(),
-                                options.modeInstructions()),
+                                options.modeInstructions(),
+                                chatModelProperties.replayReasoning(options.model())),
                         body.clientMsgId());
         // Строго после start: 409/422 не сохраняют сообщения, и поднимать за них чат в списке
         // не за что. Успех же дописал в чат обычную реплику — как и любая, она его освежает.

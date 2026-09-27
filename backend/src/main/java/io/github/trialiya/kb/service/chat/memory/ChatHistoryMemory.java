@@ -1,5 +1,8 @@
 package io.github.trialiya.kb.service.chat.memory;
 
+import io.github.trialiya.kb.config.model.ChatModelProperties;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -32,10 +35,24 @@ import org.springframework.stereotype.Service;
 public class ChatHistoryMemory implements ChatMemory {
 
     private final ChatHistoryService history;
+    private final ChatEventService events;
+    private final RunRegistry runs;
+    private final ChatModelProperties models;
 
+    /**
+     * Рассуждения прошлых ответов возвращаются модели, только если их ждёт модель ИДУЩЕГО прогона
+     * ({@link ChatModelProperties#replayReasoning}): решает тот, кто получит запрос, а не тот, кто
+     * рассуждал, — в чате модель меняют, и эндпоинт, не знающий {@code reasoning_content}, отверг
+     * бы запрос целиком. Без идущего прогона спросить некого — не возвращаются.
+     */
     @Override
     public List<Message> get(String conversationId) {
-        return history.promptMessages(conversationId);
+        final boolean replayReasoning =
+                events.activeRunId(conversationId)
+                        .flatMap(runs::find)
+                        .map(scope -> models.replayReasoning(scope.model()))
+                        .orElse(false);
+        return history.promptMessages(conversationId, replayReasoning);
     }
 
     @Override

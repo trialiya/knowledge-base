@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.CommonConfig;
+import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
@@ -113,7 +114,12 @@ class PrePersistedUserMessageTest {
      */
     private ChatClient chatClient(
             ChatModel model, ChatHistoryService memory, boolean withToolLoop) {
-        ChatMemory chatMemory = new ChatHistoryMemory(memory);
+        ChatMemory chatMemory =
+                new ChatHistoryMemory(
+                        memory,
+                        mock(ChatEventService.class),
+                        new RunRegistry(),
+                        mock(ChatModelProperties.class));
         List<Advisor> advisors = new java.util.ArrayList<>();
         if (withToolLoop) {
             advisors.add(
