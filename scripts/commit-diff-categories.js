@@ -22,12 +22,21 @@
  * Usage:
  *   node scripts/commit-diff-categories.js [<commit>] [--file <path>]
  *   node scripts/commit-diff-categories.js --table [<N>]
+ *   node scripts/commit-diff-categories.js --pr [<base>] [<head>]
+ *   node scripts/commit-diff-categories.js --loc [--rev <rev>] <path>...
  *
  * <commit> defaults to HEAD. --file restricts the report to one path in the
  * commit (for spot-checking the classifier before trusting the full report).
  * --table prints one row per commit for the last N commits (default 10,
  * newest first): file count, the usual +added/-removed, and per-category
  * added-minus-removed deltas.
+ * --pr prints the same table for every commit of <base>..<head> (defaults:
+ * origin/main, HEAD) plus a "PR итого" row taken from the net diff between the
+ * merge base and <head> — not the sum of the rows, since a line added in one
+ * commit and removed in the next is no change to the PR.
+ * --loc counts a whole file (working tree, or <rev>:<path> with --rev). With
+ * the full text there is no unknown state, so every line resolves; "эффективные"
+ * lines are code + import — what the file-size rule in CLAUDE.md measures.
  */
 
 const { execFileSync } = require("child_process");
@@ -243,12 +252,16 @@ function pathFromDiffBlock(block) {
   return pick.replace(/^[ab]\//, "");
 }
 
-function parseCommitDiff(commit) {
-  const raw = execFileSync(
-    "git",
-    ["-c", "core.quotePath=false", "show", "--no-color", "-p", "--format=", "-M", commit],
-    { maxBuffer: 1024 * 1024 * 256 },
-  ).toString("utf8");
+function git(args) {
+  return execFileSync("git", ["-c", "core.quotePath=false", ...args], {
+    maxBuffer: 1024 * 1024 * 256,
+  }).toString("utf8");
+}
+
+// diffArgs: ["show", "--format=", <commit>] or ["diff", <from>, <to>].
+function parseDiff(diffArgs) {
+  const [cmd, ...rest] = diffArgs;
+  const raw = git([cmd, "--no-color", "-p", "-M", ...rest]);
 
   const lines = raw.split("\n");
   const blocks = [];
@@ -287,10 +300,14 @@ function formatCounts(c) {
   );
 }
 
-// Classifies every non-binary file of a commit, aggregating per-category
-// added/removed counts. Shared by the per-commit report and the table mode.
-function analyzeCommit(commit, onlyFile) {
-  let files = parseCommitDiff(commit).filter((f) => !f.isBinary);
+function commitDiff(commit) {
+  return ["show", "--format=", commit];
+}
+
+// Classifies every non-binary file of a diff, aggregating per-category
+// added/removed counts. Shared by the per-commit report, the table and --pr.
+function analyzeDiff(diffArgs, onlyFile) {
+  let files = parseDiff(diffArgs).filter((f) => !f.isBinary);
   if (onlyFile) files = files.filter((f) => f.path === onlyFile);
 
   const totals = {
@@ -327,7 +344,7 @@ function analyzeCommit(commit, onlyFile) {
 }
 
 function printCommitReport(commit, onlyFile) {
-  const { totals, perFile, fileCount } = analyzeCommit(commit, onlyFile);
+  const { totals, perFile, fileCount } = analyzeDiff(commitDiff(commit), onlyFile);
   if (onlyFile && fileCount === 0) {
     console.error(`Файл не найден в коммите ${commit}: ${onlyFile}`);
     process.exit(1);
@@ -367,8 +384,8 @@ function fmtDelta(n) {
   return n > 0 ? `+${n}` : `${n}`;
 }
 
-function getLastCommits(n) {
-  return execFileSync("git", ["log", `-n${n}`, "--format=%h %s"], { encoding: "utf8" })
+function listCommits(logArgs) {
+  return git(["log", "--format=%h %s", ...logArgs])
     .split("\n")
     .filter(Boolean)
     .map((line) => {
@@ -381,56 +398,159 @@ function truncate(s, max) {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
 
-function printCommitTable(n) {
-  const commits = getLastCommits(n);
-  const header = [
-    "Коммит",
-    "Файлов",
-    "+/-",
-    "Служебные",
-    "Документация",
-    "Import",
-    "Комментарии",
-    "Пустые",
-    "Код",
-    "Не определено",
+const TABLE_HEADER = [
+  "Коммит",
+  "Файлов",
+  "+/-",
+  "Служебные",
+  "Документация",
+  "Import",
+  "Комментарии",
+  "Пустые",
+  "Код",
+  "Не определено",
+];
+
+function sumCounts(c) {
+  return c.import + c.comment + c.empty + c.code + c.undetermined;
+}
+
+function tableRow(label, { totals, fileCount }) {
+  const { build, doc, source } = totals;
+  const added = build.added + doc.added + sumCounts(source.added);
+  const removed = build.removed + doc.removed + sumCounts(source.removed);
+  const delta = (k) => fmtDelta(source.added[k] - source.removed[k]);
+  return [
+    label,
+    String(fileCount),
+    `+${added} -${removed}`,
+    fmtDelta(build.added - build.removed),
+    fmtDelta(doc.added - doc.removed),
+    delta("import"),
+    delta("comment"),
+    delta("empty"),
+    delta("code"),
+    delta("undetermined"),
   ];
-  const rows = [header];
+}
 
-  for (const { hash, subject } of commits) {
-    const { totals, fileCount } = analyzeCommit(hash);
-    const totalAdded = totals.build.added + totals.doc.added + totals.source.added.import
-      + totals.source.added.comment + totals.source.added.empty + totals.source.added.code
-      + totals.source.added.undetermined;
-    const totalRemoved = totals.build.removed + totals.doc.removed + totals.source.removed.import
-      + totals.source.removed.comment + totals.source.removed.empty + totals.source.removed.code
-      + totals.source.removed.undetermined;
-
-    rows.push([
-      `${hash} ${truncate(subject, 40)}`,
-      String(fileCount),
-      `+${totalAdded} -${totalRemoved}`,
-      fmtDelta(totals.build.added - totals.build.removed),
-      fmtDelta(totals.doc.added - totals.doc.removed),
-      fmtDelta(totals.source.added.import - totals.source.removed.import),
-      fmtDelta(totals.source.added.comment - totals.source.removed.comment),
-      fmtDelta(totals.source.added.empty - totals.source.removed.empty),
-      fmtDelta(totals.source.added.code - totals.source.removed.code),
-      fmtDelta(totals.source.added.undetermined - totals.source.removed.undetermined),
-    ]);
-  }
-
+// A row of null prints as a separator line.
+function printTable(header, body) {
+  const rows = [header, ...body.filter(Boolean)];
   const widths = header.map((_, col) => Math.max(...rows.map((r) => r[col].length)));
   const printRow = (r) => console.log("| " + r.map((c, i) => c.padEnd(widths[i])).join(" | ") + " |");
-  printRow(rows[0]);
-  console.log("| " + widths.map((w) => "-".repeat(w)).join(" | ") + " |");
-  for (const r of rows.slice(1)) printRow(r);
+  const separator = () => console.log("| " + widths.map((w) => "-".repeat(w)).join(" | ") + " |");
+  printRow(header);
+  separator();
+  for (const r of body) {
+    if (r) printRow(r);
+    else separator();
+  }
+}
+
+function commitRows(commits) {
+  return commits.map(({ hash, subject }) =>
+    tableRow(`${hash} ${truncate(subject, 40)}`, analyzeDiff(commitDiff(hash))),
+  );
+}
+
+function printCommitTable(n) {
+  printTable(TABLE_HEADER, commitRows(listCommits([`-n${n}`])));
+}
+
+function printPrTable(base, head) {
+  const mergeBase = git(["merge-base", base, head]).trim();
+  const commits = listCommits([`${mergeBase}..${head}`]);
+  if (commits.length === 0) {
+    console.log(`Нет коммитов в ${base}..${head}`);
+    return;
+  }
+  console.log(`PR: ${base}..${head} — ${commits.length} коммит(ов), база ${mergeBase.slice(0, 8)}\n`);
+  const total = tableRow("PR итого (net diff)", analyzeDiff(["diff", mergeBase, head]));
+  printTable(TABLE_HEADER, [...commitRows(commits), null, total]);
+}
+
+function readFileAt(path, rev) {
+  if (rev) return git(["show", `${rev}:${path}`]);
+  return require("fs").readFileSync(path, "utf8");
+}
+
+// Whole-file counterpart of processSourceFile: the file starts at line 1, so
+// the state is known from the first line on and nothing is undetermined.
+function countFileLines(path, rev) {
+  const text = readFileAt(path, rev);
+  const lines = text.split("\n");
+  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop(); // trailing newline
+  const category = classifyFile(path);
+  if (category !== "source") return { path, category, total: lines.length };
+
+  const importRe = importRegexFor(extOf(path));
+  const counts = emptyCounts();
+  let state = "normal";
+  for (const line of lines) {
+    const r = classifySourceLine(line.trim(), state, importRe);
+    state = r.nextState;
+    counts[r.category]++;
+  }
+  return { path, category, total: lines.length, counts };
+}
+
+function printFileLoc(paths, rev) {
+  const header = ["Файл", "Всего", "Эффективные", "Код", "Import", "Комментарии", "Пустые"];
+  const body = [];
+  const sum = { total: 0, effective: 0, code: 0, import: 0, comment: 0, empty: 0 };
+  for (const path of paths) {
+    const r = countFileLines(path, rev);
+    if (!r.counts) {
+      const kind = r.category === "doc" ? "документация" : "служебный";
+      body.push([`${path} (${kind})`, String(r.total), "—", "—", "—", "—", "—"]);
+      continue;
+    }
+    const c = r.counts;
+    const effective = c.code + c.import;
+    body.push([path, r.total, effective, c.code, c.import, c.comment, c.empty].map(String));
+    sum.total += r.total;
+    sum.effective += effective;
+    for (const k of ["code", "import", "comment", "empty"]) sum[k] += c[k];
+  }
+  if (paths.length > 1) {
+    body.push(null);
+    body.push(["Итого (основные файлы)", sum.total, sum.effective, sum.code, sum.import, sum.comment, sum.empty].map(String));
+  }
+  printTable(header, body);
+}
+
+function defaultBase() {
+  try {
+    git(["rev-parse", "--verify", "--quiet", "origin/main"]);
+    return "origin/main";
+  } catch {
+    return "main";
+  }
 }
 
 function main() {
   const args = process.argv.slice(2);
   if (args[0] === "--table") {
     printCommitTable(Number(args[1]) || 10);
+    return;
+  }
+  if (args[0] === "--pr") {
+    printPrTable(args[1] || defaultBase(), args[2] || "HEAD");
+    return;
+  }
+  if (args[0] === "--loc") {
+    let rev = null;
+    const paths = [];
+    for (let i = 1; i < args.length; i++) {
+      if (args[i] === "--rev") rev = args[++i];
+      else paths.push(args[i]);
+    }
+    if (paths.length === 0) {
+      console.error("Укажите хотя бы один файл: --loc [--rev <rev>] <path>...");
+      process.exit(1);
+    }
+    printFileLoc(paths, rev);
     return;
   }
 
