@@ -112,18 +112,21 @@ User: "In the 'Configuration' section of the 'Setup Guide', change X to Y"
 
 2. Get outline:
    getDocumentOutline(id)
-   → Returns: all sections, their paths like "Setup Guide / Configuration"
+   → Returns: all sections, their paths like "Setup Guide > Configuration", descriptionVersion
 
 3. Read one section:
-   getDocumentSection(id, "Setup Guide / Configuration")
-   → Returns: content of that section only
+   getDocumentSection(id, "Setup Guide > Configuration")
+   → Returns: content of that section only, descriptionVersion
+   Already read earlier in this chat and not edited since? Skip — the old read still counts.
 
 4. Update it:
-   updateDocumentSection(id, "Setup Guide / Configuration", new_content)
-   → Changes only that section, not the whole doc
+   updateDocumentSection(id, "Setup Guide > Configuration", "## Configuration\n…", descriptionVersion)
+   → Changes only that section, not the whole doc. newContent starts with the section's heading.
 ```
 
 **Key: outline before deep edits.** Don't pass entire document to update.
+
+**Refused as unread?** Make the read the refusal names, then `retryDocumentWrite(callRef)` with the `callRef` it gives — the call is repeated as sent, no need to write the content again.
 
 ### Example 2b: "Fix one wording everywhere it occurs"
 
@@ -172,15 +175,15 @@ User: "Insert new section after 'Overview' in document X"
    → See current structure
 
 2. Insert:
-   insertDocumentSection(id, "Overview", "New Section", "content here")
+   insertDocumentSection(id, "Overview", "AFTER", "## New Section\ncontent here", descriptionVersion)
    → Changes descriptionVersion, invalidates old paths
 
 3. Re-read outline:
    getDocumentOutline(id)
-   → See new structure + new sectionPath
+   → See new structure + new sectionPath + new descriptionVersion
 
 4. If renumbering: (example: renaming "Section 1" → "Section 2" because you inserted)
-   renameDocumentSections(id, {"old_path_1": "new_path_1", ...})
+   renameDocumentSections(id, [{"sectionPath": "Doc > Section 1", "newTitle": "Section 2"}, ...], descriptionVersion)
 ```
 
 **Key: outline after each structural change.** Paths change; old references stale.

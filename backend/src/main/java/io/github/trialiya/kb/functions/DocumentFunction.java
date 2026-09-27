@@ -375,7 +375,7 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Replace one markdown section. Read the section first (getDocumentSection) or full document (getDocument); a read earlier in the chat counts while the document is unchanged. One operation per call; re-read outline afterward.",
+                    "Replace one markdown section. Read section (getDocumentSection) or document (getDocument) first. One operation per call; re-read outline afterward.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort updateDocumentSection(
             ToolContext context,
@@ -715,7 +715,7 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Update document title and/or content. Read document (getDocument) first if changing content.",
+                    "Update document title and/or content. Content replaces the whole text: prefer editDocument for a fragment, updateDocumentSection for a section. Read document (getDocument) first if changing content.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort updateDocument(
             ToolContext context,

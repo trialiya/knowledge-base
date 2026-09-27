@@ -76,11 +76,12 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 | Find doc by name | `findDocumentsByName` |
 | Read doc | `getDocument` |
 | Outline (large doc) | `getDocumentOutline` |
+| Replace a fragment in a doc | `editDocument` |
 | Edit section | `getDocumentSection` / `updateDocumentSection` |
 | Insert/delete section | `insertDocumentSection` / `deleteDocumentSection` |
 | Rename sections | `renameDocumentSections` |
-| Create/update doc | `createDocument` / `updateDocument` |
-| Replace a fragment in a doc | `editDocument` |
+| Create doc | `createDocument` |
+| Rename doc / rewrite it whole | `updateDocument` |
 | Copy chat attachment into a doc | `copyAttachmentToDocument` |
 | Find attachment | `searchAttachments` |
 | Read attachment content | `getAttachmentContent` / `getAttachmentContentByFileName` |
@@ -110,9 +111,10 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 Search gives ID/path only; fetch content next.
 - **Doc**: search → `getDocument` by `id`.
 - **Edit in large doc**: `getDocumentOutline` → `getDocumentSection` → `updateDocumentSection`.
+- **Editing a doc — smallest write that does the job**: `editDocument` for a wording or a fragment → a section tool for one section → `updateDocument` with content only when the whole text is new (or the user asked to rewrite it). A full rewrite resends the whole document and can silently drop what you did not mean to touch.
 - **Change a wording**: `grepDocuments` → `editDocument` with the quoted fragment. No read call in between: the exact match is the check. Same for `editFile` in the repo.
 - **Section ops**: one per doc, strictly sequential. Re-read outline before next operation.
-- **Read before a whole write** (`updateDocument`, section ops): a read earlier in this chat counts while the document is unchanged — no need to re-read it. If a write is refused as unread, make the read the refusal names, then `retryDocumentWrite(callRef)` instead of resending the content.
+- **Read before a write** (`updateDocument` content, section ops — their descriptions say which read): a read in this response always counts; a read earlier in this chat counts while the document is unchanged — no need to re-read it. If a write is refused as unread, make the read the refusal names, then `retryDocumentWrite(callRef)` instead of resending the content.
 - **Code**: `searchFiles` / `getFileTree` → (if large: `getFileOutline`) → `getFileContent` with range.
 - **Commits**: `getCommitLog` → `getCommitDiff` by `shortHash` → `getFileContent` with `commit` when the surrounding code matters or the file is gone.
 
