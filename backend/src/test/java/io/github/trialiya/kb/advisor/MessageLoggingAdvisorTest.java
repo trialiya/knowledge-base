@@ -25,6 +25,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.annotation.Tool;
@@ -147,6 +148,26 @@ class MessageLoggingAdvisorTest {
         askWith(OpenAiChatOptions.builder().model("m"));
 
         assertThat(paramsHashOf(paramsLine(0))).isEqualTo(paramsHashOf(paramsLine(1)));
+    }
+
+    /**
+     * Равные форматы ответа — один хэш: у {@code ResponseFormat} нет своего {@code toString}, и
+     * рендер по умолчанию подставил бы адрес объекта, разный у каждого запроса.
+     */
+    @Test
+    void anEqualResponseFormatGivesTheSameParamsHash() {
+        askWith(OpenAiChatOptions.builder().model("m").responseFormat(jsonSchema()));
+        askWith(OpenAiChatOptions.builder().model("m").responseFormat(jsonSchema()));
+
+        assertThat(paramsLine(0)).contains("responseFormat={type=JSON_SCHEMA");
+        assertThat(paramsHashOf(paramsLine(0))).isEqualTo(paramsHashOf(paramsLine(1)));
+    }
+
+    private static OpenAiChatModel.ResponseFormat jsonSchema() {
+        final OpenAiChatModel.ResponseFormat format = new OpenAiChatModel.ResponseFormat();
+        format.setType(OpenAiChatModel.ResponseFormat.Type.JSON_SCHEMA);
+        format.setJsonSchema("{\"type\":\"object\"}");
+        return format;
     }
 
     /** Хэш отдельной схемы — только на TRACE: на DEBUG строка tools одна на весь набор. */

@@ -20,6 +20,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
+import org.springframework.ai.openai.OpenAiChatModel.ResponseFormat;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
@@ -198,7 +199,7 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
             fields.put("strict", openAi.getStrict());
             fields.put("reasoningEffort", openAi.getReasoningEffort());
             fields.put("verbosity", openAi.getVerbosity());
-            fields.put("responseFormat", openAi.getResponseFormat());
+            fields.put("responseFormat", render(openAi.getResponseFormat()));
             fields.put("seed", openAi.getSeed());
             fields.put("promptCacheKey", openAi.getPromptCacheKey());
             fields.put("extraBody", openAi.getExtraBody());
@@ -219,6 +220,23 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
                                             : text.substring(0, PARAM_PREVIEW) + "…");
                 });
         out.append("  params hash ").append(hash).append("  ").append(shown).append('\n');
+    }
+
+    /**
+     * Формат ответа текстом, одинаковым у равных форматов. Свой рендер, а не {@code toString}: у
+     * {@code ResponseFormat} он не переопределён, и в хэш попадал бы адрес объекта — байт в байт
+     * одинаковые запросы расходились бы на каждом вызове.
+     */
+    private static @Nullable String render(@Nullable ResponseFormat format) {
+        return format == null
+                ? null
+                : "{type="
+                        + format.getType()
+                        + ", strict="
+                        + format.getStrict()
+                        + ", jsonSchema="
+                        + format.getJsonSchema()
+                        + "}";
     }
 
     /** Одно сообщение: номер, роль, вес, хэш префикса и начало текста. */
