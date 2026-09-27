@@ -42,6 +42,16 @@ import { readUrl, buildUrl, currentUrl, initialNav, popNav } from './navUrl';
  * ним, ждёт ответа вместе с ним. Спросить и уйти всё равно поэтому нельзя.
  * Ушли из раздела другим путём (в поиск, «Назад») — вопрос снят.
  *
+ * «Назад»/«Вперёд» браузер отменить не даёт, а вопрос нужен и им: сменив
+ * документ базы знаний, они выбросили бы несохранённые правки (уход в другой
+ * раздел правки не теряет — база смонтирована всегда). Поэтому каждая запись
+ * истории, которую пишет стор, помечена номером (`kbIndex`) в пределах сессии
+ * вкладки (`kbSession`). Такой переход стор возвращает на место —
+ * `history.go` на ту же разницу обратно — и откладывает до ответа;
+ * «уйти» повторяет его тем же `history.go`. Запись без метки (чужая или из
+ * прошлой загрузки страницы) пропускается без вопроса: разница до неё
+ * неизвестна.
+ *
  * ── Переход в другой раздел приносит его раскладку ─────────────────────────
  * Любой переход, меняющий раздел (вкладка, файл из чата, документ из поиска),
  * подставляет запомненную для целевого раздела раскладку панелей — иначе
@@ -56,9 +66,22 @@ import { readUrl, buildUrl, currentUrl, initialNav, popNav } from './navUrl';
  * @param {object}   [options]
  * @param {Function} [options.canLeave] `(prev, next) => boolean` — можно ли
  *   уйти из раздела `prev.view` в `next.view`; не задан — всегда можно
+ * @param {Function} [options.canReplaceDoc] `() => boolean` — можно ли без
+ *   вопроса сменить документ, открытый в базе знаний («Назад»/«Вперёд»);
+ *   не задан — всегда можно
  */
-export function createNavStore({ canLeave = () => true } = {}) {
+export function createNavStore({ canLeave = () => true, canReplaceDoc = () => true } = {}) {
   let nav = initialNav();
+
+  // ── Место в истории (см. «Уход с несохранёнными правками») ─────────────────
+  // Сессия переживает перезагрузку: её метка лежит в самой записи.
+  const loaded = window.history.state;
+  const session = loaded?.kbSession || Math.random().toString(36).slice(2);
+  let index = loaded?.kbSession === session && Number.isInteger(loaded.kbIndex) ? loaded.kbIndex : 0;
+  const entry = () => ({ kbSession: session, kbIndex: index });
+  // Следующий popstate вызван самим стором: 'restore' — возврат на место
+  // отложенного перехода, 'replay' — его повтор после «уйти».
+  let transit = null;
 
   // ── Память «последнего открытого» в каждом разделе (вне URL) ────────────────
   // Адрес описывает только текущую запись истории, поэтому «Назад» на /chat
@@ -74,18 +97,27 @@ export function createNavStore({ canLeave = () => true } = {}) {
   };
 
   // Отложенный переход: { updater, history, view } — ждёт ответа на вопрос
-  // canLeave; view — раздел, в который просятся; null — вопроса нет.
+  // canLeave; { delta, view } — «Назад»/«Вперёд», ждущий canReplaceDoc; view —
+  // раздел, в который просятся; null — вопроса нет.
   let pending = null;
 
   const listeners = new Set();
   // Снимок для useSyncExternalStore: новый объект только когда есть что
   // перерисовать.
-  let snapshot = { nav, pendingView: null };
+  let snapshot = { nav, pendingView: null, pendingDiscard: false };
 
   function emit() {
-    snapshot = { nav, pendingView: pending ? pending.view : null };
+    snapshot = { nav, pendingView: pending ? pending.view : null, pendingDiscard: pending?.delta != null };
     listeners.forEach((cb) => cb());
   }
+
+  /**
+   * Сменит ли состояние `next` документ, открытый в базе знаний. Её документ —
+   * последний открытый в ней (`memory.docId`): в другом разделе он остаётся
+   * смонтированным, а голый /knowledge его не сбрасывает.
+   */
+  const replacesDoc = (next) =>
+    next.view === 'knowledge' && (!!next.search || (next.docId != null && next.docId !== memory.docId));
 
   /** Запомнить открытое и раскладку панелей раздела. */
   function remember(prev, next) {
@@ -110,7 +142,10 @@ export function createNavStore({ canLeave = () => true } = {}) {
     const url = buildUrl(next);
     // Адрес не изменился — записи истории не плодим (например, изменилось
     // лишь то, что в адрес не пишется).
-    if (url !== currentUrl()) window.history[history === 'push' ? 'pushState' : 'replaceState']({}, '', url);
+    if (url !== currentUrl()) {
+      if (history === 'push') index += 1;
+      window.history[history === 'push' ? 'pushState' : 'replaceState'](entry(), '', url);
+    }
     remember(prev, next);
     emit();
   }
@@ -378,11 +413,31 @@ export function createNavStore({ canLeave = () => true } = {}) {
       replace((prev) => (prev.docFind === next ? prev : { ...prev, docFind: next, docSection: '' }));
     },
 
+    /**
+     * Документ удалён: ни адрес, ни возврат в раздел не должны вести на него —
+     * иначе перезагрузка или клик по вкладке показали бы «Документ не найден».
+     * Запись на месте, а не переход: пользователь никуда не уходил.
+     */
+    forgetDoc(docId) {
+      const id = docId == null ? null : String(docId);
+      if (id === null) return;
+      if (memory.docId === id) memory.docId = null;
+      replace((prev) => (prev.docId === id ? { ...prev, docId: null, docFind: '', docSection: '' } : prev));
+    },
+
     // ── Отложенный переход ─────────────────────────────────────────────────
 
     /** Ответ «уйти»: отложенный переход проигрывается от текущего состояния. */
     confirmLeave() {
       if (!pending) return;
+      if (pending.delta != null) {
+        const { delta } = pending;
+        pending = null;
+        transit = 'replay';
+        window.history.go(delta);
+        emit();
+        return;
+      }
       const { updater, history } = pending;
       pending = null;
       const next = updater(nav);
@@ -412,8 +467,9 @@ export function createNavStore({ canLeave = () => true } = {}) {
      * канонизируется снова — кнопка выглядела бы сломанной.
      */
     canonicalize() {
-      const url = buildUrl(nav);
-      if (url !== currentUrl()) window.history.replaceState({}, '', url);
+      // Метка ставится и тогда, когда адрес уже канонический: без неё к этой
+      // записи нельзя было бы вернуться «Вперёд» с вопросом.
+      window.history.replaceState(entry(), '', buildUrl(nav));
       // Раскладка, с которой раздел открыли (в том числе принесённая ссылкой),
       // запоминается сразу: иначе первый же уход в другой раздел и возврат
       // подставили бы вместо неё запомненную ранее. Здесь, а не при создании
@@ -421,9 +477,25 @@ export function createNavStore({ canLeave = () => true } = {}) {
       savePanelState(nav.view, { leftCollapsed: nav.leftCollapsed, rightTab: nav.rightTab });
     },
     /** «Назад»/«Вперёд»: адрес уже сменил браузер, состояние читается из него. */
-    onPopState() {
+    onPopState(event) {
+      if (transit === 'restore') {
+        transit = null; // вернулись на запись, с которой ушли, — состояние то же
+        return;
+      }
+      const state = event?.state;
+      const target = state?.kbSession === session && Number.isInteger(state.kbIndex) ? state.kbIndex : null;
+      const next = popNav();
+      if (transit !== 'replay' && target !== null && target !== index && replacesDoc(next) && !canReplaceDoc()) {
+        pending = { delta: target - index, view: next.view };
+        transit = 'restore';
+        window.history.go(index - target);
+        emit();
+        return;
+      }
+      transit = null;
+      if (target !== null) index = target;
       const prev = nav;
-      nav = popNav();
+      nav = next;
       // Вопрос про уход относился к записи, с которой ушли кнопкой браузера.
       pending = null;
       remember(prev, nav);

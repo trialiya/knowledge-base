@@ -43,6 +43,7 @@ const KnowledgeBase = ({
   refreshSignal,
   onRefreshingChange,
   onOpenDoc,
+  onDocDeleted,
   onSearch,
   mutatedDocs,
   panels,
@@ -84,7 +85,16 @@ const KnowledgeBase = ({
     handleRefresh,
     handleDiscardConfirm,
     handleDiscardCancel,
-  } = useKnowledgeBase({ docId, search, mode, onOpenDoc, onSearch, mutatedDocs });
+    guard,
+  } = useKnowledgeBase({
+    docId,
+    search,
+    mode,
+    onOpenDoc,
+    onDocDeleted,
+    onSearch,
+    mutatedDocs,
+  });
 
   // Состояние детали (черновик описания, полноэкранный режим, история) поднято
   // сюда: его делят ЦЕНТР (редактор) и ПРАВАЯ панель (описание, вложения) —
@@ -221,6 +231,7 @@ const KnowledgeBase = ({
           onUpdate={handleUpdate}
           contentDraft={contentDraft}
           setContentDraft={setContentDraft}
+          guard={guard}
           tree={tree}
           onNavigate={selectNode}
         />

@@ -177,7 +177,12 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
         {...dragHandlers}
         onClick={() => {
           onSelect(node);
-          if (isFolder) toggleOpenVisual();
+          // Первый клик по папке — выбор: раскрыть, но не свернуть уже раскрытую.
+          // Сворачивает повторный клик по выбранной или шеврон.
+          if (isFolder) {
+            if (isSelected) toggleOpenVisual();
+            else setOpen(true);
+          }
         }}
       >
         <DragHandle disabled={isSystem} />

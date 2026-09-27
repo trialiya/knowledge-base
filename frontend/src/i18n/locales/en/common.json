@@ -51,6 +51,8 @@
     "title": "Unsaved changes",
     "message": "The knowledge base editor has unsaved changes. Leave the knowledge base? They will stay in the editor but will not be saved.",
     "confirm": "Leave",
+    "discardMessage": "The knowledge base editor has unsaved changes. If you go on, they will be lost.",
+    "discardConfirm": "Go on without saving",
     "cancel": "Stay"
   },
   "attachments": {

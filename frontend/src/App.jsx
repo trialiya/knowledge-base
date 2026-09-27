@@ -38,16 +38,21 @@ const TABS = [
 // Поиск — исключение: искать посреди правки документа — обычное дело, и
 // спрашивать про несохранённое на каждый Enter незачем.
 const canLeaveView = (prev, next) => prev.view !== 'knowledge' || next.view === 'search' || !isEditorDirty();
+// «Назад»/«Вперёд» к другому документу базы знаний правки уже выбрасывает —
+// об этом вопрос другой (см. navStore).
+const canReplaceDoc = () => !isEditorDirty();
 
 function App() {
   const { t } = useTranslation();
   const {
     nav,
     pendingView,
+    pendingDiscard,
     confirmLeave,
     cancelLeave,
     switchView,
     openDoc,
+    forgetDoc,
     openSearch,
     refineSearch,
     setSearch,
@@ -60,7 +65,7 @@ function App() {
     setDocFind,
     toggleLeftPanel,
     setRightTab,
-  } = useAppNavigation({ canLeave: canLeaveView });
+  } = useAppNavigation({ canLeave: canLeaveView, canReplaceDoc });
   const view = nav.view; // 'chat' | 'knowledge' | 'files' | 'search' | 'admin' | 'settings'
 
   // Раскладка панелей рабочей области. Живёт в URL (общая для всех разделов
@@ -269,6 +274,7 @@ function App() {
             refreshSignal={refreshTick}
             onRefreshingChange={setKbRefreshing}
             onOpenDoc={openDoc}
+            onDocDeleted={forgetDoc}
             onSearch={setSearch}
             mutatedDocs={docMutations}
             panels={panels}
@@ -329,8 +335,8 @@ function App() {
         open={!!pendingView}
         icon="✏️"
         title={t('unsaved.title')}
-        message={t('unsaved.message')}
-        confirmLabel={t('unsaved.confirm')}
+        message={t(pendingDiscard ? 'unsaved.discardMessage' : 'unsaved.message')}
+        confirmLabel={t(pendingDiscard ? 'unsaved.discardConfirm' : 'unsaved.confirm')}
         cancelLabel={t('unsaved.cancel')}
         onConfirm={confirmLeave}
         onCancel={cancelLeave}
