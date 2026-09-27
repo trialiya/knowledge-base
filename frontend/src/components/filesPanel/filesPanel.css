@@ -35,6 +35,11 @@
 .files-project-picker .lb-select__trigger[aria-expanded='true'] {
   color: var(--kb-accent);
 }
+/* Список — тем же шрифтом, что заголовок над ним: открытый селектор не должен
+   переходить на моноширинный, раз закрытый на нём не написан. */
+.files-project-picker .lb-select__option {
+  font-family: inherit;
+}
 
 /* ── Tree ── */
 
