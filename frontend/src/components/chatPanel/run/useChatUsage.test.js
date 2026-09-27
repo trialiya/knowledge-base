@@ -106,6 +106,15 @@ describe('useChatUsage', () => {
     await waitFor(() => expect(chatApi.getUsage).toHaveBeenCalledWith('chat-1'));
   });
 
+  // Уход из черновика в существующий чат прогона не запускает — итоги того чата нужны сразу.
+  test('уход из черновика в другой чат спрашивает его итоги сразу', async () => {
+    const { rerender } = renderHook(({ id }) => useChatUsage(id, [], false), { initialProps: { id: 'new' } });
+
+    rerender({ id: 'chat-1' });
+
+    await waitFor(() => expect(chatApi.getUsage).toHaveBeenCalledWith('chat-1'));
+  });
+
   // Чужие числа в новом чате хуже пустой вкладки: пока свои не приехали, показывать нечего.
   test('при переходе в другой чат прежние итоги не показываются', async () => {
     const { result, rerender } = renderHook(({ id }) => useChatUsage(id, [answer(measured)], false), {

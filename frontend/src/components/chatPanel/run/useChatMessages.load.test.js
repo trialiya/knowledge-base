@@ -259,6 +259,27 @@ describe('a draft that just became a chat', () => {
     });
     expect(chatApi.getChatMeta).not.toHaveBeenCalled();
   });
+
+  /** Уход из черновика в уже загруженный чат — обычное возвращение: черновик остаётся на месте. */
+  test('leaving the draft for a loaded chat still refreshes that chat title', async () => {
+    chatApi.getChatMeta.mockResolvedValue({ topic: 'Свежее', aiTopic: 'Свежее' });
+    let chats = [
+      { id: DRAFT_CHAT_ID, title: 'Новый чат', messages: [] },
+      { id: 'c1', title: 'Старое', messages: [] },
+    ];
+    const setChats = vi.fn((fn) => {
+      chats = typeof fn === 'function' ? fn(chats) : fn;
+    });
+    const { rerender } = renderHook(
+      ({ activeChatId }) =>
+        useChatMessages({ chats, getChats: () => chats, setChats, activeChatId, onLoadError: vi.fn() }),
+      { initialProps: { activeChatId: DRAFT_CHAT_ID } },
+    );
+    await act(async () => {
+      rerender({ activeChatId: 'c1' });
+    });
+    expect(chats[1].title).toBe('Свежее');
+  });
 });
 
 /**

@@ -34,13 +34,14 @@ const useChatUsage = (chatId, messages, running) => {
   // Черновик, ставший чатом на отправке, получает id раньше, чем бэк создаёт чат, — в том же
   // рендере, где стартует его первый прогон. Спроси итоги сразу — и запрос обгонял бы создание
   // чата с ответом 404. Считать им до конца этого прогона нечего, а по его завершении
-  // (`running` → false) эффект спросит сам. Прежний id пишется в эффекте — во время рендера ref
-  // не трогаем.
+  // (`running` → false) эффект спросит сам. Уход из черновика в другой чат на этот случай не
+  // похож — прогон с ним не стартует, — и итоги того чата спрашиваются сразу. Прежний id
+  // пишется в эффекте — во время рендера ref не трогаем.
   const previousChatIdRef = useRef(chatId);
   useEffect(() => {
-    const fromDraft = previousChatIdRef.current === DRAFT_CHAT_ID;
+    const startedFromDraft = previousChatIdRef.current === DRAFT_CHAT_ID && running;
     previousChatIdRef.current = chatId;
-    if (!chatId || chatId === DRAFT_CHAT_ID || fromDraft) {
+    if (!chatId || chatId === DRAFT_CHAT_ID || startedFromDraft) {
       return undefined;
     }
     // Зависимость от `running` перечитывает итоги по завершении прогона — по нему-то они и
