@@ -62,7 +62,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | `tracked` | boolean | Отслеживается ли файл git'ом; `false` — файл из зоны `allow-globs` |
 | `language` | String | Определённый язык |
 | `lineCount` | int | Всего строк |
-| `parser` | String | `"tree-sitter"` или `"regex"` (фолбэк) |
+| `parser` | String | `"tree-sitter"`, `"regex"` (фолбэк) или `"markdown"` |
 | `symbols` | List\<GitSymbol\> | Символы в порядке появления |
 
 ### OutlineResult
@@ -70,7 +70,7 @@ DTO-обёртка для `getFileOutline`. Реализует `ToolCallResponse
 
 | Поле | Тип | Описание |
 |---|---|---|
-| `parser` | String | `"tree-sitter"` или `"regex"` |
+| `parser` | String | `"tree-sitter"`, `"regex"` или `"markdown"` |
 | `symbols` | List\<GitSymbol\> | Символы в порядке появления |
 
 `getResultMeta()`: `parser`, `symbols` (массив `getResultMeta()` каждого символа).
@@ -80,7 +80,7 @@ DTO-обёртка для `getFileOutline`. Реализует `ToolCallResponse
 
 | Поле | Тип | Описание |
 |---|---|---|
-| `kind` | String | Вид: class, interface, enum, record, method, function, field, import, table, view... |
+| `kind` | String | Вид: class, interface, enum, record, method, function, field, import, table, view...; у markdown — h1…h6, preamble |
 | `name` | String | Имя символа |
 | `signature` | String | Сигнатура/заголовок (может быть null) |
 | `startLine` | int | Первая строка (1-based) |

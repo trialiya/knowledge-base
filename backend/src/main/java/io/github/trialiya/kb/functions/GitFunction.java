@@ -292,9 +292,9 @@ public class GitFunction {
     // ── File outline ──────────────────────────────────────────────────────────
 
     /**
-     * Returns a structural outline (classes, methods, functions, ...) of a source file without its
-     * full text. Lets the model map a large file cheaply, then read only the relevant lines via
-     * {@link #getFileContent}.
+     * Returns a structural outline (classes, methods, functions, ...; headings for markdown) of a
+     * source file without its full text. Lets the model map a large file cheaply, then read only
+     * the relevant lines via {@link #getFileContent}.
      *
      * <p>Reaches the same files {@link #getFileContent} does — the untracked ones a project's
      * {@code allow-globs} admit included — and the outline's {@code tracked} field says which it
@@ -305,7 +305,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Structural outline of source code (classes, methods, functions) with line ranges, without full text.",
+                    "Structural outline of source code (classes, methods, functions) or of a markdown file (headings) with line ranges, without full text.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<GitFileOutline> getFileOutline(
             ToolContext context,

@@ -8,7 +8,7 @@ import java.util.Map;
  * Один символ в структурном обзоре файла (класс, метод, функция, поле и т.д.).
  *
  * @param kind вид символа: "class", "interface", "enum", "record", "method", "function", "field",
- *     "import", "table", "view" и т.д.
+ *     "import", "table", "view" и т.д.; у markdown — "h1"…"h6" и "preamble"
  * @param name имя символа
  * @param signature сигнатура/заголовок (например, "public List&lt;String&gt; foo(int x)"), либо
  *     null

@@ -18,7 +18,7 @@ import org.jspecify.annotations.Nullable;
  *     одном файле, и различаться они не должны
  * @param language определённый язык, либо null
  * @param lineCount общее количество строк
- * @param parser имя использованного парсера: "tree-sitter" или "regex" (фолбэк)
+ * @param parser имя использованного парсера: "tree-sitter", "regex" (фолбэк) или "markdown"
  * @param symbols список символов в порядке появления в файле
  */
 public record GitFileOutline(

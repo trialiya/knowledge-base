@@ -25,7 +25,9 @@ public final class LanguageDetector {
                     Map.entry("py", "python"),
                     Map.entry("pyi", "python"),
                     Map.entry("pyw", "python"),
-                    Map.entry("sql", "sql"));
+                    Map.entry("sql", "sql"),
+                    Map.entry("md", "markdown"),
+                    Map.entry("markdown", "markdown"));
 
     /**
      * Returns the canonical language id for a path, or {@code null} if the extension is unknown.
