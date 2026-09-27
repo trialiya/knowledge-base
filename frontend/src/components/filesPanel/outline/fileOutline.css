@@ -1,0 +1,28 @@
+/* Правая панель даёт телу поля карточки, а строки списка подсвечиваются на
+   всю ширину, как в левой панели, — поля по горизонтали забираем обратно. */
+.file-outline {
+  margin: 0 -0.75rem;
+}
+
+/* Вид символа (class, method, table) — справочный: мелко и приглушённо, чтобы
+   читалось имя, а не колонка видов. */
+.file-outline__kind {
+  flex: none;
+  font-size: 0.7rem;
+  color: var(--kb-text-faint);
+}
+
+/* Номер строки — тоже справочный и не сжимается: обрезается имя, а не число. */
+.file-outline__line {
+  flex: none;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--kb-text-faint);
+}
+
+/* Преамбула — не заголовок, а «начало файла»: курсивом, чтобы не читалась
+   как раздел с таким именем. */
+.file-outline__row--preamble .ws-item__label {
+  font-style: italic;
+  color: var(--kb-text-muted);
+}

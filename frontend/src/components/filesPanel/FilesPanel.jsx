@@ -23,7 +23,7 @@ import { resolveProjectChoice } from '@/components/common/config/projectChoice';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
 import { FILE_TAB } from '@/constants/fileTabs';
 import buildFileTabs from './filesSidebar';
-import useSectionJump from './sections/useSectionJump';
+import useOutlineJump from './outline/useOutlineJump';
 import { previewKind } from '@/utils/filePreview';
 import './filesPanel.css';
 
@@ -148,7 +148,7 @@ const FilesPanelForProject = ({
   const diffByDefault = !!diff.entry && diff.entry.status !== UNTRACKED_STATUS && previewKind(path) !== 'image';
   const showDiff = showChanges && (diffChoice ?? diffByDefault);
 
-  const { jump, onJump } = useSectionJump(path);
+  const { jump, onJump } = useOutlineJump(path);
 
   const rightTabs = useMemo(
     () =>

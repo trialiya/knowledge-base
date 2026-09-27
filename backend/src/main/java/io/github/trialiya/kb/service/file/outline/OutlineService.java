@@ -19,7 +19,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class OutlineService {
 
-    /** Languages for which an outline is meaningful at all. */
+    /**
+     * Languages for which an outline is meaningful at all. The file browser's outline tab mirrors
+     * this set ({@code OUTLINE_LANGUAGES} in {@code filesPanel/outline/outlineRows.js}) to decide
+     * whether to show itself — keep the two in step.
+     */
     private static final Set<String> SUPPORTED_LANGUAGES =
             Set.of(
                     "java",

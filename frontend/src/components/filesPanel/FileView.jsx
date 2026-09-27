@@ -14,7 +14,7 @@ const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
       <table className="file-code__table">
         <tbody>
           {lines.map((line, i) => (
-            // Номер строки как адрес — для прокрутки к разделу (FileView), и
+            // Номер строки как адрес — для прокрутки к символу структуры (FileView), и
             // только там, где нумерация честная.
             <tr key={i} data-line={showLineNumbers ? fromLine + i : undefined}>
               {showLineNumbers && <td className="file-code__gutter">{fromLine + i}</td>}
@@ -31,7 +31,7 @@ const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
 
 /**
  * Заголовок разметки с номером своей строки в исходнике (`data-line`) — по нему
- * вкладка «Разделы» прокручивает к разделу: номер строки бэкенд отдаёт, а
+ * вкладка «Структура» прокручивает к символу: номер строки бэкенд отдаёт, а
  * DOM-заголовок по нему иначе не найти.
  */
 const withLine = (Tag) =>
@@ -123,12 +123,12 @@ const FileView = ({
   const togglable = (kind === 'vector' || kind === 'markdown') && !file.binary && !showDiff;
   // Усечённый большой файл — голова и хвост без середины: номера строк после
   // разрыва в разметке не совпадают с исходником, и прокрутка по ним увела бы
-  // не туда. У такого файла заголовки номеров не несут, и к разделу не едем.
+  // не туда. У такого файла строки номеров не несут, и к символу не едем.
   const excerpt = file.truncated && file.fromLine == null;
 
-  // Прокрутка к разделу: и в разметке, и в исходнике строка помечена
+  // Прокрутка к символу структуры: и в разметке, и в исходнике строка помечена
   // `data-line`. Эффект следует объекту `jump`, а не строке — повторный клик по
-  // тому же разделу возвращает к нему.
+  // тому же символу возвращает к нему.
   useEffect(() => {
     if (!jump) return;
     rootRef.current?.querySelector(`[data-line="${jump.line}"]`)?.scrollIntoView({ block: 'start' });

@@ -1149,8 +1149,8 @@
     уносит поле из DOM, и blur, который обычно его гасит, может не прийти.
 
 - id: files-markdown-sections-tab
-  component: FileSections
-  path: frontend/src/components/filesPanel/sections/FileSections.jsx
+  component: FileOutline
+  path: frontend/src/components/filesPanel/outline/FileOutline.jsx
   title: Вкладка «Разделы» у markdown-файла и прокрутка центра к разделу
   status: verified
   origin:
@@ -1158,17 +1158,40 @@
   preconditions:
     viewport: [1440, 900]
     auth: admin
-    route: /files/README.md?right=sections
+    route: /files/README.md?right=outline
   expected:
     - Справа раскрыта вкладка «Разделы» — заголовки README, h2 на ступеньку правее h1, h3 ещё правее; справа от имени приглушённый номер строки
     - Клик по разделу в исходнике (вид по умолчанию) ставит строку его заголовка первой в центре, строка раздела подсвечена как выбранная
     - После переключения в Markdown-рендеринг (👁) клик по разделу ставит первым его заголовок
-    - У не-markdown файла вкладки на рельсе нет; в консоли нет ошибок
+    - Вид символа («h2») у разделов не подписан; в консоли нет ошибок
   notes: |
     Снято целиком на живом бэкенде (профиль playwright-smoke), фикстуры не
-    нужны: README.md этого репозитория и есть данные. Прокрутка ищет в
+    нужны: README.md этого репозитория и есть данные. С тех пор вкладка общая
+    с кодом и живёт под ключом outline — у кода она «Структура», см.
+    files-code-outline-tab. Прокрутка ищет в
     FileView элемент с data-line — у строки кода и у заголовка разметки один
     и тот же номер строки исходника.
+
+- id: files-code-outline-tab
+  component: FileOutline
+  path: frontend/src/components/filesPanel/outline/FileOutline.jsx
+  title: Вкладка «Структура» у файла с кодом — символы по строкам и прокрутка к символу
+  status: verified
+  origin:
+    - Сессия 2026-09-27, вкладка «Структура» для кода
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /files/backend/src/main/java/io/github/trialiya/kb/controller/GitController.java?right=outline
+  expected:
+    - Справа раскрыта вкладка «Структура» — class GitController на верхнем уровне, его конструктор и методы на ступеньку правее
+    - Перед именем приглушённая подпись вида (class, constructor, method), справа — номер строки; при наведении — полная сигнатура
+    - Клик по методу ставит его первую строку первой в центре, строка метода подсвечена как выбранная
+    - У файла без структуры (yaml, txt) вкладки на рельсе нет; в консоли нет ошибок
+  notes: |
+    Снято на живом бэкенде, как files-markdown-sections-tab. Java разбирает
+    tree-sitter; JSX идёт через regex-фолбэк и отдаёт только часть функций —
+    это качество разбора на бэкенде, вкладка показывает, что пришло.
 
 - id: files-crumbs-remeasured-on-new-path
   component: HeadCrumbs
