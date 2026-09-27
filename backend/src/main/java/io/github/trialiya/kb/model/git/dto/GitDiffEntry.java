@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import org.jspecify.annotations.Nullable;
 
@@ -8,6 +9,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Репозиторий запись не называет: он один на всю выдачу и назван обёрткой ответа ({@code
  * ToolResult}).
+ *
+ * <p>Пустые поля ({@code oldPath}, {@code patchHeader}, {@code patch}) в JSON не печатаются: на
+ * коммите в сотню файлов их {@code null} заметно раздувает ответ модели.
  *
  * @param status статус: A (added), M (modified), D (deleted), R (renamed), C (copied), а для
  *     рабочего дерева ещё и U (untracked) — файл, который git не отслеживает и который проект
@@ -24,11 +28,11 @@ import org.jspecify.annotations.Nullable;
 public record GitDiffEntry(
         String status,
         String path,
-        @Nullable String oldPath,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String oldPath,
         int additions,
         int deletions,
-        @Nullable String patchHeader,
-        @Nullable String patch)
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String patchHeader,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String patch)
         implements ToolCallResponseItem {
 
     @Override
