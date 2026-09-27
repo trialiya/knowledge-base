@@ -84,6 +84,7 @@ const KnowledgeBase = ({
     handleRefresh,
     handleDiscardConfirm,
     handleDiscardCancel,
+    guard,
   } = useKnowledgeBase({ docId, search, mode, onOpenDoc, onSearch, mutatedDocs });
 
   // Состояние детали (черновик описания, полноэкранный режим, история) поднято
@@ -221,6 +222,7 @@ const KnowledgeBase = ({
           onUpdate={handleUpdate}
           contentDraft={contentDraft}
           setContentDraft={setContentDraft}
+          guard={guard}
           tree={tree}
           onNavigate={selectNode}
         />

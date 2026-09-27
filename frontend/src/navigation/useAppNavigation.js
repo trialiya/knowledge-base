@@ -13,12 +13,16 @@ import { createNavStore } from './navStore';
  * @param {Function} [options.canLeave] `(prev, next) => boolean` — спрашивается
  *   перед уходом в другой раздел; отказ откладывает переход до confirmLeave
  *   (см. navStore). Читается один раз, при создании стора.
- * @returns `{ nav, pendingView, confirmLeave, cancelLeave, ...переходы }` —
- *   `pendingView` — раздел, в который просятся, пока вопрос об уходе открыт
+ * @param {Function} [options.canReplaceDoc] `() => boolean` — спрашивается перед
+ *   «Назад»/«Вперёд», которые сменили бы документ базы знаний; отказ
+ *   возвращает адрес на место до confirmLeave. Читается там же.
+ * @returns `{ nav, pendingView, pendingDiscard, confirmLeave, cancelLeave, ...переходы }` —
+ *   `pendingView` — раздел, в который просятся, пока вопрос об уходе открыт;
+ *   `pendingDiscard` — вопрос задан «Назад»/«Вперёд», и уход правки выбросит
  */
 export default function useAppNavigation(options) {
   const [store] = useState(() => createNavStore(options));
-  const { nav, pendingView } = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const { nav, pendingView, pendingDiscard } = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
   useEffect(() => {
     store.canonicalize();
@@ -26,5 +30,5 @@ export default function useAppNavigation(options) {
     return () => window.removeEventListener('popstate', store.onPopState);
   }, [store]);
 
-  return { nav, pendingView, ...store.api };
+  return { nav, pendingView, pendingDiscard, ...store.api };
 }

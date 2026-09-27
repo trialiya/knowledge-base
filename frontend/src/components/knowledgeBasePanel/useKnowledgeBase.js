@@ -754,5 +754,6 @@ export default function useKnowledgeBase({
     handleRefresh: guardedRefresh,
     handleDiscardConfirm,
     handleDiscardCancel,
+    guard,
   };
 }

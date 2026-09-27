@@ -238,3 +238,80 @@ describe('раскладка панелей при смене раздела', (
     expect(url()).toBe('/knowledge/doc/5?right=attachments');
   });
 });
+
+describe('«Назад»/«Вперёд» с несохранёнными правками', () => {
+  // Браузер уже сменил адрес: стор возвращает его через history.go и спрашивает.
+  // go подменён — popstate, который он вызвал бы, тесты проигрывают сами.
+  let go;
+  beforeEach(() => {
+    go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+  });
+  afterEach(() => go.mockRestore());
+
+  /** popstate на запись `entry` — так, как его прислал бы браузер. */
+  const popTo = (entry) => {
+    window.history.replaceState(entry.state, '', entry.href);
+    window.dispatchEvent(new PopStateEvent('popstate', { state: entry.state }));
+  };
+  const here = () => ({ state: window.history.state, href: url() });
+
+  const twoDocs = (options) => {
+    window.history.replaceState(null, '', '/knowledge/doc/5');
+    const s = mount(options);
+    const first = here();
+    s.openDoc('7');
+    return { s, first, second: here() };
+  };
+
+  it('без правок меняет документ сразу', () => {
+    const { s, first } = twoDocs({ canReplaceDoc: () => true });
+    popTo(first);
+    expect(s.nav().docId).toBe('5');
+    expect(go).not.toHaveBeenCalled();
+  });
+
+  it('с правками возвращает адрес, спрашивает и повторяет переход после подтверждения', () => {
+    const { s, first, second } = twoDocs({ canReplaceDoc: () => false });
+    popTo(first);
+    expect(go).toHaveBeenLastCalledWith(1);
+    expect(s.nav().docId).toBe('7');
+    expect(s.pendingView()).toBe('knowledge');
+
+    popTo(second); // браузер вернулся по go(1)
+    expect(s.nav().docId).toBe('7');
+
+    s.confirmLeave();
+    expect(go).toHaveBeenLastCalledWith(-1);
+    expect(s.pendingView()).toBeNull();
+    popTo(first); // повтор — уже без вопроса
+    expect(s.nav().docId).toBe('5');
+    expect(go).toHaveBeenCalledTimes(2);
+  });
+
+  it('«остаться» оставляет документ и вопрос снимает', () => {
+    const { s, first, second } = twoDocs({ canReplaceDoc: () => false });
+    popTo(first);
+    popTo(second);
+    s.cancelLeave();
+    expect(s.pendingView()).toBeNull();
+    expect(s.nav().docId).toBe('7');
+    expect(url()).toBe('/knowledge/doc/7');
+  });
+
+  it('уход в другой раздел не спрашивает — база знаний правки не теряет', () => {
+    window.history.replaceState(null, '', '/chat');
+    const s = mount({ canReplaceDoc: () => false });
+    const chat = here();
+    s.openDoc('7');
+    popTo(chat);
+    expect(s.nav().view).toBe('chat');
+    expect(go).not.toHaveBeenCalled();
+  });
+
+  it('к записи без метки стора переходит без вопроса', () => {
+    const { s } = twoDocs({ canReplaceDoc: () => false });
+    back('/knowledge/doc/5');
+    expect(s.nav().docId).toBe('5');
+    expect(go).not.toHaveBeenCalled();
+  });
+});
