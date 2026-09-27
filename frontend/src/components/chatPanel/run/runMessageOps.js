@@ -7,6 +7,7 @@
 import { nextMessageId } from '../messages/messageId';
 import { SENDER } from '@/constants/messageSender';
 import { TOOL_STATUS } from '@/constants/toolStatus';
+import { isCompactCommand, parseChatCommand } from './chatCommands';
 
 // Совпадение вызовов. И живое событие TOOL_CALL, и итоговая мета прогона несут протокольный
 // callId и сквозной callIndex — по ним вызов опознаётся однозначно. Фолбэк на name+arguments
@@ -149,7 +150,12 @@ export const unansweredQuestionMid = (messages) => {
   for (let i = (messages?.length ?? 0) - 1; i >= 0; i--) {
     const m = messages[i];
     if (isEventRow(m)) continue;
-    return m.sender === SENDER.USER && !m.queued ? m.mid : null;
+    // Две оговорки. `/compact` — ряд истории, но не вопрос модели: отвечает на него сжатие, и
+    // упавшее оставляет его последним рядом (пузырь ошибки живёт только во вкладке). Отказ бэка
+    // (retryRefused, см. useRunStarter) — фронт с ним разошёлся, и кнопка ведёт к тому же 422.
+    const question =
+      m.sender === SENDER.USER && !m.queued && !m.retryRefused && !isCompactCommand(parseChatCommand(m.text)?.name);
+    return question ? m.mid : null;
   }
   return null;
 };

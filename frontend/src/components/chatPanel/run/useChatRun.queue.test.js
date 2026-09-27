@@ -139,6 +139,26 @@ describe('useChatRun — отправка во время прогона', () =>
     expect(messages()).toHaveLength(3);
   });
 
+  /** Фронт и бэк разошлись в том, что считать вопросом без ответа, — кнопка обязана уйти. */
+  test('422 на ответ по вопросу помечает его отказом', async () => {
+    chats = [
+      {
+        id: CHAT,
+        runId: null,
+        messages: [
+          { mid: 'm1', sender: 'ai', text: 'ответ' },
+          { mid: 'm2', sender: 'user', text: 'и добавь тесты' },
+        ],
+      },
+    ];
+    chatApi.startRun.mockRejectedValue({ status: 422 });
+    const { result } = setup();
+
+    await act(() => result.current.retryMessage('m2'));
+
+    expect(messages().at(-1).retryRefused).toBe(true);
+  });
+
   test('на вопрос, за которым уже есть ответ, повтор не запускается', async () => {
     chats = [
       {

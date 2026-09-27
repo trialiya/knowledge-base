@@ -71,6 +71,27 @@ describe('MessageList — вопрос без ответа', () => {
     expect(answerButtons()).toHaveLength(0);
   });
 
+  /** Упавшее сжатие после перезагрузки: пузырь ошибки жил только во вкладке, в ленте — сама команда. */
+  test('/compact — не вопрос модели, кнопки ответа под ним нет', () => {
+    render(
+      <MessageList
+        conversationId="c1"
+        messages={[ai('m1'), user('m2', { text: '/compact про миграции' })]}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(answerButtons()).toHaveLength(0);
+  });
+
+  test('после отказа бэка (retryRefused) кнопка ответа не возвращается', () => {
+    render(
+      <MessageList conversationId="c1" messages={[ai('m1'), user('m2', { retryRefused: true })]} onRetry={vi.fn()} />,
+    );
+
+    expect(answerButtons()).toHaveLength(0);
+  });
+
   test('плашка git-команды за вопросом ходом не считается', () => {
     render(
       <MessageList
