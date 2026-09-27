@@ -21,8 +21,10 @@ import java.util.regex.Pattern;
  *
  * <p>Sections are addressed by a human-readable path of ancestor titles joined with {@value
  * #PATH_SEPARATOR} (e.g. {@code "Установка > Docker"}). Duplicate paths get an occurrence suffix:
- * the second {@code "FAQ > Вопрос"} becomes {@code "FAQ > Вопрос[2]"}. Paths are computed over the
- * whole document in one pass, so they are stable as long as the text does not change.
+ * the second {@code "FAQ > Вопрос"} becomes {@code "FAQ > Вопрос[2]"}, and the suffix stays in the
+ * paths of its subsections — {@code "FAQ[2] > Вопрос"} lives under the second {@code "FAQ"}. Paths
+ * are computed over the whole document in one pass, so they are stable as long as the text does not
+ * change. {@code common/preview/sectionAnchor.js} on the frontend recomputes them by the same rule.
  */
 public final class MarkdownSections {
 
@@ -80,7 +82,9 @@ public final class MarkdownSections {
             sections.add(new Section(PREAMBLE_PATH, 0, "", 0, firstHeadingOffset, 0));
         }
 
-        List<RawHeading> stack = new ArrayList<>();
+        // Ancestors with their final paths, suffix included: a child of the second "A" is
+        // "A[2] > X", addressed under the parent it really belongs to.
+        List<Ancestor> stack = new ArrayList<>();
         Map<String, Integer> pathCounts = new HashMap<>();
         for (int i = 0; i < headings.size(); i++) {
             RawHeading h = headings.get(i);
@@ -88,16 +92,13 @@ public final class MarkdownSections {
             while (!stack.isEmpty() && stack.get(stack.size() - 1).level() >= h.level()) {
                 stack.remove(stack.size() - 1);
             }
-            stack.add(h);
-            StringBuilder path = new StringBuilder();
-            for (RawHeading ancestor : stack) {
-                if (path.length() > 0) {
-                    path.append(PATH_SEPARATOR);
-                }
-                path.append(ancestor.title());
-            }
-            int occurrence = pathCounts.merge(path.toString(), 1, Integer::sum);
-            String finalPath = occurrence == 1 ? path.toString() : path + "[" + occurrence + "]";
+            String path =
+                    stack.isEmpty()
+                            ? h.title()
+                            : stack.get(stack.size() - 1).path() + PATH_SEPARATOR + h.title();
+            int occurrence = pathCounts.merge(path, 1, Integer::sum);
+            String finalPath = occurrence == 1 ? path : path + "[" + occurrence + "]";
+            stack.add(new Ancestor(h.level(), finalPath));
 
             int end = length;
             int subsections = 0;
@@ -176,6 +177,8 @@ public final class MarkdownSections {
     }
 
     private record RawHeading(int offset, int level, String title) {}
+
+    private record Ancestor(int level, String path) {}
 
     /** Collects ATX headings with their offsets, skipping fenced code blocks. */
     private static List<RawHeading> scanHeadings(String markdown) {

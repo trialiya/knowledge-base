@@ -19,6 +19,16 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### Section paths under a repeated heading change
+
+A subsection of a repeated heading is now addressed through its parent's
+suffix: under the second `# FAQ`, `## Вопрос` is `FAQ[2] > Вопрос`, not
+`FAQ > Вопрос[2]`. Only documents where a heading path repeats are affected.
+A path saved before the upgrade — in an old chat the model continues, or in a
+`/knowledge/doc/N?find=…&section=…` link — no longer finds that section: the
+model gets a "not found" error that lists the current paths, the link
+falls back to the first match in the document. Nothing to do.
+
 ### A script schedule naming an unknown project fails the start
 
 `kb.script.schedules[].project` is now checked against `kb.projects` at

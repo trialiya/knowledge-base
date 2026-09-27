@@ -95,6 +95,17 @@ class MarkdownSectionsTest {
         }
 
         @Test
+        void subsectionsOfARepeatedHeadingCarryItsSuffix() {
+            String md = "# A\n## X\n# A\n## X\n## X\n### Y\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly(
+                            "A", "A > X", "A[2]", "A[2] > X", "A[2] > X[2]", "A[2] > X[2] > Y");
+            assertThat(contentOf(md, "A[2] > X[2]")).isEqualTo("## X\n### Y\n");
+        }
+
+        @Test
         void backtickRunWithBacktickInInfoStringIsInlineCodeNotAFence() {
             String md = "# A\n```js``` is inline\n# B\n";
 
