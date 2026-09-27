@@ -19,6 +19,7 @@ import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
@@ -37,6 +38,7 @@ import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -792,6 +794,7 @@ public class ChatRunService {
         // В буфере — только хвост текущего сегмента: завершённые сегменты (и их tool-сообщения)
         // advisor-цепочка уже сохранила по ходу прогона (см. onNext).
         final String partial = buffer.toString().strip();
+        boolean markerOnly = false;
         try {
             // Прервали во время выполнения инструментов — хвостовой assistant.tool_calls
             // остался без TOOL-ответа; достраиваем пару СТРОГО ДО записи частичного текста:
@@ -806,6 +809,14 @@ public class ChatRunService {
                 // что генерацию остановили/она упала, а не получился полный ответ.
                 chatMemory.add(conversationId, new AssistantMessage(partial + "\n\n" + marker));
                 log.info("Saved partial reply for {} ({} chars)", conversationId, partial.length());
+            } else if (chatHistory.unansweredUserMessage(conversationId).isEmpty()) {
+                // Текста нет, но прогон успел поработать инструментами: одна метка отдельным
+                // рядом. Без неё последним рядом прогона остался бы ответ из одних вызовов — после
+                // перезагрузки ни признака обрыва, ни итога прогона (плашке негде встать). Только
+                // когда последний ряд уже не вопрос: иначе метка закрыла бы «Повторить» на
+                // вопросе, на который модель ещё ничего не сказала (unansweredUserMessage).
+                chatMemory.add(conversationId, new AssistantMessage(marker));
+                markerOnly = true;
             }
         } catch (Exception e) {
             log.warn("Failed to persist partial reply for {}", conversationId, e);
@@ -821,7 +832,7 @@ public class ChatRunService {
                             scope.runId(),
                             scope.model(),
                             scope.usage(),
-                            scope.calls(),
+                            markerOnly ? withMarkerRow(scope.calls()) : scope.calls(),
                             toolCollector.completedSnapshot());
             // Тот же финальный список, что уходит вкладкам за успешным прогоном (см. onComplete):
             // живые TOOL_CALL-события несут только имя и аргументы, а блоки «изменённые файлы» и
@@ -840,6 +851,18 @@ public class ChatRunService {
         } catch (Exception e) {
             log.warn("Failed to attach run meta for {}", conversationId, e);
         }
+    }
+
+    /**
+     * Замеры обращений с местом под ряд-метку: её пишет не обращение к модели, и без пустого замера
+     * рядов прогона стало бы больше, чем замеров, — {@code markRunResult} счёл бы хвост чужим и не
+     * проставил контекст никому. Лишний пустой замер в хвосте безвреден, если метку занимает уже
+     * упавшее обращение.
+     */
+    private static List<TokenUsage> withMarkerRow(List<TokenUsage> calls) {
+        final List<TokenUsage> padded = new ArrayList<>(calls);
+        padded.add(TokenUsage.EMPTY);
+        return padded;
     }
 
     private static ChatEventType eventType(Object payload) {
