@@ -596,6 +596,7 @@ public class ChatRunService {
                         scope.runId(),
                         scope.model(),
                         scope.usage(),
+                        scope.calls(),
                         toolCollector.completedSnapshot());
         liveSink.accept(new ToolCallsMessage(metas));
         events.publish(scope.conversationId(), RUN_DONE, scope.runId(), null, null);
@@ -820,6 +821,7 @@ public class ChatRunService {
                             scope.runId(),
                             scope.model(),
                             scope.usage(),
+                            scope.calls(),
                             toolCollector.completedSnapshot());
             // Тот же финальный список, что уходит вкладкам за успешным прогоном (см. onComplete):
             // живые TOOL_CALL-события несут только имя и аргументы, а блоки «изменённые файлы» и

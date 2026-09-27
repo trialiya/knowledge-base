@@ -82,7 +82,8 @@ class ChatRunStopMetaTest {
                                         false,
                                         LocalDateTime.now(),
                                         null));
-        when(chatHistory.markRunResult(anyString(), anyString(), any(), any(), anyList()))
+        when(chatHistory.markRunResult(
+                        anyString(), anyString(), any(), any(), anyList(), anyList()))
                 .thenReturn(List.of(editFile()));
         events = spy(new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))));
         runs = new RunRegistry();

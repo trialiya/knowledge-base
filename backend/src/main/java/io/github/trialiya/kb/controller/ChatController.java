@@ -709,7 +709,8 @@ public class ChatController {
                 meta != null ? meta.fileRevert() : null,
                 meta != null ? meta.scriptEvent() : null,
                 meta != null && meta.interjection() ? Boolean.TRUE : null,
-                meta != null ? meta.usage() : null);
+                meta != null ? meta.usage() : null,
+                meta != null ? meta.contextTokens() : null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

@@ -137,6 +137,8 @@ export const transformPage = (rawMsgs) => {
       ) {
         prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(toolCallOf)];
         if (m.runId && !prev.toolCallsRunId) prev.toolCallsRunId = m.runId;
+        // Пузырь теперь кончается этим обращением — и контекст после него уже его.
+        if (m.contextTokens != null) prev.contextTokens = m.contextTokens;
         carryUsageToPrev();
         continue;
       }
@@ -164,6 +166,9 @@ export const transformPage = (rawMsgs) => {
       // своей команды (CompactService.spentRound). Плашку он не рисует (её рисует только
       // пузырь ответа), но в итог чата обязан попасть, поэтому здесь не отбрасывается.
       ...(m.usage ? { usage: m.usage } : {}),
+      // Контекст после обращения к модели, написавшего сегмент (markRunResult) — подсказка на
+      // пузыре, у которого нет плашки итога.
+      ...(m.contextTokens != null && type !== 'user' ? { contextTokens: m.contextTokens } : {}),
       // Вызовы инструментов этого сегмента (раздельное сохранение): плашки под пузырём.
       ...(metas.length && type !== 'user'
         ? { toolCalls: metas.map(toolCallOf), ...(m.runId ? { toolCallsRunId: m.runId } : {}) }

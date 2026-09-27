@@ -77,6 +77,7 @@ const Message = ({
   queued = false,
   modelLabel,
   usage,
+  contextTokens,
 }) => {
   const { t, i18n } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
@@ -101,6 +102,12 @@ const Message = ({
   // Разбивка — в подсказке: в футере на неё нет места, а нужна она редко. Сверху три числа про
   // сам разговор, снизу — total input, который без строки про кэш выглядит необъяснимо большим.
   const usageTitle = hasUsage(usage) ? usageTooltip(usage, t, 'message.tokensContext') : undefined;
+  // Контекст после обращения к модели, написавшего этот сегмент, — у сегментов, которые плашкой
+  // итога не отмечены: у последнего ответа прогона то же число уже стоит в самой плашке.
+  const contextTitle =
+    sender === SENDER.AI && !hasUsage(usage) && Number(contextTokens) > 0
+      ? t('message.contextAfterMessage', { context: formatTokens(contextTokens) })
+      : undefined;
 
   // Пузырь — только контент сообщения, без футера
   const bubble = (
@@ -227,6 +234,7 @@ const Message = ({
     <div
       className={`message-block message-block--${sender}${searchActive ? ' message-block--search-hit' : ''}`}
       data-mid={mid ?? undefined}
+      title={contextTitle}
     >
       {!toolCallsOnly && bubble}
       {!toolCallsOnly && footer}

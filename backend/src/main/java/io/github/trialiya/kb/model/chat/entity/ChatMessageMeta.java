@@ -55,6 +55,11 @@ import org.jspecify.annotations.Nullable;
  * заставила бы читающего выбирать между одинаковыми. Есть только у прогонов, где эндпоинт отдавал
  * usage в стриме, — {@code null} здесь значит «не измерено», а не «ноль».
  *
+ * <p>{@code contextTokens} — сколько занято контекста после обращения к модели, написавшего этот
+ * ряд (см. {@link TokenUsage#contextTokens}). В отличие от {@code usage} — у каждого ASSISTANT-ряда
+ * прогона, включая ответы с одними вызовами инструментов: это замер одного обращения, а не итог, и
+ * в итоги по чату он не входит. {@code null} — не измерено.
+ *
  * <p>{@code fileRevert} — откат файловых правок ответа, выполненный пользователем (см. {@link
  * FileRevertMeta}). Признак своего ряда, как и {@code gitEvent}: контент пустой, весь смысл в поле.
  *
@@ -93,6 +98,7 @@ public record ChatMessageMeta(
         @Nullable GitEventMeta gitEvent,
         boolean interjection,
         @Nullable RunTokenUsage usage,
+        @Nullable Long contextTokens,
         List<ProjectSpan> visitedProjects,
         @Nullable FileRevertMeta fileRevert,
         @Nullable ScriptEventMeta scriptEvent,
@@ -223,6 +229,11 @@ public record ChatMessageMeta(
      */
     public ChatMessageMeta withUsage(RunTokenUsage usage) {
         return toBuilder().usage(usage).build();
+    }
+
+    /** Копия с контекстом после обращения, написавшего ряд; {@code null} — не измерено. */
+    public ChatMessageMeta withContextTokens(@Nullable Long contextTokens) {
+        return toBuilder().contextTokens(contextTokens).build();
     }
 
     /**

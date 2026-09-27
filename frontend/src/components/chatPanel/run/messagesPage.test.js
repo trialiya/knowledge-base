@@ -97,6 +97,23 @@ describe('transformPage', () => {
     expect(bubbles[0].toolCallsRunId).toBe('r1');
   });
 
+  test('carries the context after each model call onto its bubble; a merged segment brings its own', () => {
+    const { bubbles } = transformPage([
+      {
+        id: 1,
+        content: 'смотрю',
+        type: 'ASSISTANT',
+        runId: 'r1',
+        contextTokens: 1040,
+        toolInvocationMetas: [meta('a', 0)],
+      },
+      { id: 2, content: '', type: 'ASSISTANT', runId: 'r1', contextTokens: 1390, toolInvocationMetas: [meta('b', 1)] },
+      { id: 3, content: 'ответ', type: 'ASSISTANT', runId: 'r1', contextTokens: 1500 },
+      { id: 4, content: 'вопрос', type: 'USER', contextTokens: 7 },
+    ]);
+    expect(bubbles.map((b) => b.contextTokens)).toEqual([1390, 1500, undefined]);
+  });
+
   test('does not merge a tool-calls-only segment into a bubble of a different run', () => {
     const { bubbles } = transformPage([
       { id: 1, content: 'старый ответ', type: 'ASSISTANT', runId: 'r0', toolInvocationMetas: [meta('getDocument', 0)] },

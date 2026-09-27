@@ -374,6 +374,7 @@ const MessageList = ({
                   timestamp={msg.timestamp}
                   modelLabel={modelLabelOf(modelOptions, msg.model)}
                   usage={msg.usage}
+                  contextTokens={msg.contextTokens}
                   toolCallsRunId={msg.toolCallsRunId ?? msg.runId}
                   error={msg.error}
                   contextItems={msg.contextItems}

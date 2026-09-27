@@ -14,6 +14,7 @@
     "answeredBy": "Ответила модель {{model}}",
     "tokens": "{{context}} в контексте",
     "tokensContext": "Контекст после этого ответа: {{context}} токенов",
+    "contextAfterMessage": "Контекст после этого сообщения: {{context}} токенов",
     "tokensMiss": "Input (Cache miss): {{input}}",
     "tokensOutput": "Output: {{output}}"
   },

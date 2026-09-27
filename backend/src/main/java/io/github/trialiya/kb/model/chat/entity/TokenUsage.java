@@ -94,6 +94,15 @@ public record TokenUsage(
                 .normalized();
     }
 
+    /**
+     * Сколько занято контекста после этого обращения: весь его вход плюс его же выход — то, с чего
+     * начнётся следующее. {@code null} — вход не измерен: замер из одного выхода сказал бы о
+     * размере ответа, а не разговора (то же правило, что у {@link RunTokenUsage.Tally#with}).
+     */
+    public @Nullable Long contextTokens() {
+        return promptTokens > 0 ? promptTokens + completionTokens : null;
+    }
+
     /** Замеры разных обращений к модели: сумма. */
     public TokenUsage plus(TokenUsage other) {
         return new TokenUsage(
