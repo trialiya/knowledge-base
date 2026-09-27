@@ -146,7 +146,8 @@ class SampleDataFixtureTest {
 
     /**
      * Колонка рассуждения доезжает до сущности — по ней история возвращает рассуждение модели (см.
-     * {@code ReasoningAdvisor}); у рядов без него — {@code null}, а не пустая строка.
+     * {@code AssistantChatMessage#REASONING_CONTENT}); у рядов без него — {@code null}, а не пустая
+     * строка.
      */
     @Test
     void theReasoningColumnReachesTheEntity() {

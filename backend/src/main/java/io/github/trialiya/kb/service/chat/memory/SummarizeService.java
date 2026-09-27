@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.chat.memory;
 import static io.github.trialiya.kb.utils.ChatUtils.context;
 
 import io.github.trialiya.kb.advisor.RoundUsageAdvisor;
+import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -84,6 +85,7 @@ public class SummarizeService implements DisposableBean {
     private final SummaryWriter summaryWriter;
     private final PendingSummaryService pendingSummaries;
     private final SummarizeProperties summarizeProperties;
+    private final ChatModelProperties chatModels;
 
     public SummarizeService(
             OpenAiChatModel openAiChatModel,
@@ -94,7 +96,8 @@ public class SummarizeService implements DisposableBean {
             SummaryWriter summaryWriter,
             PendingSummaryService pendingSummaries,
             SummarizeProperties summarizeProperties,
-            ContextItemService contextItemService) {
+            ContextItemService contextItemService,
+            ChatModelProperties chatModels) {
         this.chatClient =
                 BackgroundCallOptions.clientBuilder(openAiChatModel, summarizeProperties)
                         .defaultSystem(summarizerPrompt)
@@ -108,6 +111,7 @@ public class SummarizeService implements DisposableBean {
         this.pendingSummaries = pendingSummaries;
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
         this.summarizeProperties = summarizeProperties;
+        this.chatModels = chatModels;
     }
 
     @Override
@@ -141,10 +145,19 @@ public class SummarizeService implements DisposableBean {
         // prompt below and the character estimate inside SummarizeWindow both measure exactly that
         // — and the estimate is what weighs a slice the provider's measurements do not cover.
         final List<ChatPendingSummaryEntity> parked = pendingSummaries.parked(conversationId);
+        // Модель чата — та, на которой пойдёт следующий запрос, если в нём не выберут другую: от
+        // неё зависит, уедут ли рассуждения ответов, а значит, весят ли они в окне.
+        final boolean replayReasoning =
+                chatModels.replayReasoning(
+                        chatTopicRepository
+                                .findById(conversationId)
+                                .map(ChatTopicEntity::getModel)
+                                .orElse(null));
         final SummarizeWindow window =
                 new SummarizeWindow(
                         withParked(chatHistory.promptRows(conversationId), parked),
-                        summarizeProperties);
+                        summarizeProperties,
+                        replayReasoning);
 
         // The second mix is spelled out only when it differs — that is, when the window carries
         // empty TOOL protocol rows: context the model pays for but the summarizer never sees.

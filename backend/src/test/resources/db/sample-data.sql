@@ -196,7 +196,7 @@ INSERT INTO chat_message (id, conversation_id, content, created_at, position, su
 ALTER TABLE chat_message ALTER COLUMN id RESTART WITH 1662;
 
 -- Рассуждение модели у ответа с вызовом инструмента (hand-added): колонка reasoning,
--- то, что ReasoningAdvisor собирает со стрима и что возвращается модели с replay-reasoning.
+-- то, что модель прислала в reasoning_content и что возвращается ей с replay-reasoning.
 UPDATE chat_message SET reasoning = 'Нужна история файла — начну с getCommitLog по backend/build.gradle.' WHERE id = 1639;
 
 -- ── tool_call_index (callId -> chat_message id, see ToolCallService#findToolCallDetail) ──

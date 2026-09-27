@@ -3,7 +3,6 @@ package io.github.trialiya.kb;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import io.github.trialiya.kb.advisor.ReasoningAdvisor;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
@@ -14,6 +13,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -141,13 +141,16 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                         new UserMessage("Почему упала сборка?"),
                         AssistantMessage.builder()
                                 .content("Из-за зависимости.")
-                                .properties(Map.of("kbReasoning", new StringBuilder("Смотрю лог.")))
+                                .properties(
+                                        Map.of(
+                                                AssistantChatMessage.REASONING_CONTENT,
+                                                "Смотрю лог."))
                                 .build()));
 
         assertThat(memory.promptMessages(conv, true).getLast().getMetadata())
-                .containsEntry(ReasoningAdvisor.REASONING_CONTENT, "Смотрю лог.");
+                .containsEntry(AssistantChatMessage.REASONING_CONTENT, "Смотрю лог.");
         assertThat(memory.promptMessages(conv, false).getLast().getMetadata())
-                .doesNotContainKey(ReasoningAdvisor.REASONING_CONTENT);
+                .doesNotContainKey(AssistantChatMessage.REASONING_CONTENT);
     }
 
     @Test

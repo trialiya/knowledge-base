@@ -5,10 +5,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.github.trialiya.kb.advisor.ReasoningAdvisor;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
@@ -64,7 +64,9 @@ class ChatHistoryReasoningTest {
                 AssistantMessage.builder()
                         .content("Ответ.")
                         .properties(
-                                Map.of("kbReasoning", new StringBuilder("Сначала история файла.")))
+                                Map.of(
+                                        AssistantChatMessage.REASONING_CONTENT,
+                                        "Сначала история файла."))
                         .build();
 
         history.append(CONV, List.of(answer));
@@ -95,7 +97,7 @@ class ChatHistoryReasoningTest {
         final ChatHistoryMemory memory = new ChatHistoryMemory(history, events, runs, models());
 
         assertThat(memory.get(CONV).getLast().getMetadata())
-                .doesNotContainKey(ReasoningAdvisor.REASONING_CONTENT);
+                .doesNotContainKey(AssistantChatMessage.REASONING_CONTENT);
     }
 
     private @org.jspecify.annotations.Nullable Object reasoningSentTo(String model) {
@@ -103,7 +105,7 @@ class ChatHistoryReasoningTest {
         when(events.activeRunId(CONV)).thenReturn(Optional.of(RUN + model));
         final List<Message> prompt =
                 new ChatHistoryMemory(history, events, runs, models()).get(CONV);
-        return prompt.getLast().getMetadata().get(ReasoningAdvisor.REASONING_CONTENT);
+        return prompt.getLast().getMetadata().get(AssistantChatMessage.REASONING_CONTENT);
     }
 
     private void storedAnswerWithReasoning() {

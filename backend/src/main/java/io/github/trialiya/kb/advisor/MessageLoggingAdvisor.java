@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.advisor;
 
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -51,7 +52,12 @@ import reactor.core.publisher.Flux;
  * <p><b>Параметры запроса — своей строкой {@code params}</b>, со своим хэшем, вне накопительного:
  * модель, {@code tool_choice}, {@code reasoning_effort} и прочее в текст промпта не входят, но
  * провайдер вправе держать для них отдельный кэш. Разошедшийся {@code params} при совпавших строках
- * ниже — это ответ «кэш сорвали настройки, а не текст».
+ * ниже — это ответ «кэш сорвали настройки, а не текст». Строка показывает опции самого запроса, как
+ * их видит advisor: умолчания модели ({@code spring.ai.openai.chat.options.*}) {@code
+ * OpenAiChatModel} подмешивает позже, и запрос без своих опций (раунд {@code /compact}) печатает
+ * пустой набор. Настройки доставки, а не генерации ({@code stream_options}, {@code store}, {@code
+ * service_tier}), в хэш не идут: прогон их задаёт всегда, раунд сжатия — никогда, и хэш расходился
+ * бы у запросов, которые кэш на деле делят.
  *
  * <p><b>На {@code TRACE} у каждой схемы свой хэш</b> — чтобы разошедшийся {@code tools} сразу
  * называл инструмент, а не отправлял сравнивать 33 тысячи символов схем.
@@ -194,10 +200,7 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
             fields.put("verbosity", openAi.getVerbosity());
             fields.put("responseFormat", openAi.getResponseFormat());
             fields.put("seed", openAi.getSeed());
-            fields.put("streamOptions", openAi.getStreamOptions());
             fields.put("promptCacheKey", openAi.getPromptCacheKey());
-            fields.put("serviceTier", openAi.getServiceTier());
-            fields.put("store", openAi.getStore());
             fields.put("extraBody", openAi.getExtraBody());
         }
         final Prefix hash = new Prefix();
@@ -224,12 +227,13 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
         // Роль идёт в хэш, но не в вес: она у сообщения не полезная нагрузка, а «чей это ряд», и
         // прибавка постоянной длины к каждой строке только мешала бы сравнивать веса глазами.
         prefix.add(message.getMessageType().getValue());
-        // Рассуждение, которое уедет модели как reasoning_content (см. ReasoningAdvisor), — такая
+        // Рассуждение, которое уедет модели как reasoning_content (см. AssistantChatMessage), —
+        // такая
         // же
         // часть префикса, как текст: разное рассуждение у одного и того же ответа рвёт кэш, и лог,
         // его не считающий, показал бы совпавшие хэши ровно в месте обрыва.
         final long reasoningChars =
-                message.getMetadata().get(ReasoningAdvisor.REASONING_CONTENT)
+                message.getMetadata().get(AssistantChatMessage.REASONING_CONTENT)
                                 instanceof String reasoning
                         ? prefix.add(reasoning)
                         : 0;

@@ -20,6 +20,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.entity.TokenUsage;
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
@@ -41,9 +42,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
@@ -442,6 +445,7 @@ public class ChatRunService {
         final String conversationId = scope.conversationId();
         final String runId = scope.runId();
         final StringBuffer buffer = new StringBuffer();
+        final AtomicReference<CallReasoning> reasoning = new AtomicReference<>(CallReasoning.NONE);
         final Consumer<Object> liveSink =
                 payload -> events.publish(conversationId, eventType(payload), runId, null, payload);
         // Инструмент пошёл — значит, итерация стрима завершилась и её сегмент уже сохранён
@@ -543,9 +547,16 @@ public class ChatRunService {
             final Disposable disposable =
                     spec.stream()
                             .chatResponse()
-                            .doFinally(signal -> onTerminal(scope, buffer, toolCollector, signal))
+                            .doFinally(
+                                    signal ->
+                                            onTerminal(
+                                                    scope,
+                                                    buffer,
+                                                    reasoning.get(),
+                                                    toolCollector,
+                                                    signal))
                             .subscribe(
-                                    response -> onNext(buffer, liveSink, response),
+                                    response -> onNext(buffer, reasoning, liveSink, response),
                                     error -> log.error("Stream error {}", conversationId, error),
                                     () -> onComplete(scope, toolCollector, liveSink));
             // Остановку могли запросить, пока задача ещё не подписалась на стрим, — attach
@@ -559,7 +570,43 @@ public class ChatRunService {
         }
     }
 
-    private void onNext(StringBuffer buffer, Consumer<Object> liveSink, ChatResponse response) {
+    /**
+     * Рассуждение обращения, чьи чанки шли последними, — для частичного сохранения ({@link
+     * #persistPartial}): обращение, оборванное посреди стрима, advisor памяти не записывает, и его
+     * рассуждение иначе пропало бы вместе с ним. {@code OpenAiChatModel} кладёт в каждый чанк
+     * нарастающий итог, поэтому хранить нужно последний, а не копить; обращения различаются по id
+     * ответа — у следующего итог начинается заново.
+     */
+    private record CallReasoning(@Nullable String callId, String text) {
+
+        static final CallReasoning NONE = new CallReasoning(null, "");
+
+        CallReasoning next(ChatResponse response) {
+            final String id = response.getMetadata().getId();
+            final String total =
+                    response.getResult() != null
+                                    && response.getResult()
+                                                    .getOutput()
+                                                    .getMetadata()
+                                                    .get(AssistantChatMessage.REASONING_CONTENT)
+                                            instanceof String running
+                            ? running
+                            : "";
+            if (Objects.equals(id, callId)) {
+                return total.isEmpty() ? this : new CallReasoning(id, total);
+            }
+            return new CallReasoning(id, total);
+        }
+    }
+
+    private void onNext(
+            StringBuffer buffer,
+            AtomicReference<CallReasoning> reasoning,
+            Consumer<Object> liveSink,
+            ChatResponse response) {
+        if (response != null) {
+            reasoning.updateAndGet(current -> current.next(response));
+        }
         final String chunk =
                 Optional.ofNullable(response)
                         .map(ChatResponse::getResult)
@@ -615,13 +662,14 @@ public class ChatRunService {
     private void onTerminal(
             RunScope scope,
             StringBuffer buffer,
+            CallReasoning reasoning,
             ToolInvocationCollector toolCollector,
             SignalType signal) {
         if (signal == SignalType.CANCEL) {
-            persistPartial(scope, buffer, toolCollector, STOPPED_MARKER);
+            persistPartial(scope, buffer, reasoning.text(), toolCollector, STOPPED_MARKER);
             events.publish(scope.conversationId(), RUN_STOPPED, scope.runId(), null, null);
         } else if (signal == SignalType.ON_ERROR) {
-            persistPartial(scope, buffer, toolCollector, ERROR_MARKER);
+            persistPartial(scope, buffer, reasoning.text(), toolCollector, ERROR_MARKER);
             events.publish(
                     scope.conversationId(),
                     RUN_ERROR,
@@ -785,6 +833,7 @@ public class ChatRunService {
     private void persistPartial(
             RunScope scope,
             StringBuffer buffer,
+            String reasoning,
             ToolInvocationCollector toolCollector,
             String marker) {
         if (!scope.claimPersist()) {
@@ -808,7 +857,9 @@ public class ChatRunService {
             if (!partial.isBlank()) {
                 // Помечаем сохранённый ответ как оборванный — чтобы после reload было видно,
                 // что генерацию остановили/она упала, а не получился полный ответ.
-                chatMemory.add(conversationId, new AssistantMessage(partial + "\n\n" + marker));
+                chatMemory.add(
+                        conversationId,
+                        partialAnswer(conversationId, partial + "\n\n" + marker, reasoning));
                 log.info("Saved partial reply for {} ({} chars)", conversationId, partial.length());
             } else if (chatHistory.unansweredUserMessage(conversationId).isEmpty()) {
                 // Текста нет, но прогон успел поработать инструментами: одна метка отдельным
@@ -816,7 +867,7 @@ public class ChatRunService {
                 // перезагрузки ни признака обрыва, ни итога прогона (плашке негде встать). Только
                 // когда последний ряд уже не вопрос: иначе метка закрыла бы «Повторить» на
                 // вопросе, на который модель ещё ничего не сказала (unansweredUserMessage).
-                chatMemory.add(conversationId, new AssistantMessage(marker));
+                chatMemory.add(conversationId, partialAnswer(conversationId, marker, reasoning));
                 markerOnly = true;
             }
         } catch (Exception e) {
@@ -852,6 +903,23 @@ public class ChatRunService {
         } catch (Exception e) {
             log.warn("Failed to attach run meta for {}", conversationId, e);
         }
+    }
+
+    /**
+     * Оборванный ответ вместе с рассуждением оборванного обращения. Рассуждение, которое уже лежит
+     * на ряду прогона, не повторяется: так бывает, когда обращение закончилось вызовом
+     * инструментов, а оборвалась их работа, — его ряд advisor памяти записал целиком.
+     */
+    private AssistantMessage partialAnswer(String conversationId, String text, String reasoning) {
+        final boolean alreadyStored =
+                chatHistory.lastAnswerRows(conversationId).stream()
+                        .anyMatch(row -> reasoning.equals(row.getReasoning()));
+        return reasoning.isEmpty() || alreadyStored
+                ? new AssistantMessage(text)
+                : AssistantMessage.builder()
+                        .content(text)
+                        .properties(Map.of(AssistantChatMessage.REASONING_CONTENT, reasoning))
+                        .build();
     }
 
     /**

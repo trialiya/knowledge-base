@@ -2,7 +2,6 @@ package io.github.trialiya.kb.config;
 
 import io.github.trialiya.kb.advisor.InterjectionAdvisor;
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
-import io.github.trialiya.kb.advisor.ReasoningAdvisor;
 import io.github.trialiya.kb.advisor.TokenUsageAdvisor;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.McpProperties;
@@ -654,11 +653,6 @@ public class ChatConfig {
         //       which is the only protocol-safe insertion point for a USER row (see the
         //       advisor's own javadoc).
         //
-        //   ReasoningAdvisor          (MIN+500)                      — INSIDE the loop, inside
-        //       memory: accumulates the call's reasoning_content across its chunks, so that the
-        //       answer memory saves carries all of it (the aggregator keeps only the last chunk's
-        //       metadata). Stored with the row and replayed to models that expect it.
-        //
         //   TokenUsageAdvisor         (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop:
         //       tallies the run's tokens. Must sit inside: the tool-call chunk carrying an
         //       iteration's usage never leaves the loop, so from outside only the last
@@ -688,7 +682,6 @@ public class ChatConfig {
                         .scheduler(Schedulers.boundedElastic())
                         .build());
         advisors.add(new InterjectionAdvisor(pendingMessageService));
-        advisors.add(new ReasoningAdvisor());
         advisors.add(new TokenUsageAdvisor(chatEventService, runRegistry));
         advisors.add(new MessageLoggingAdvisor());
 

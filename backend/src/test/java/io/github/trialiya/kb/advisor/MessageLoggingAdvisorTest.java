@@ -9,6 +9,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -136,6 +137,18 @@ class MessageLoggingAdvisorTest {
         assertThat(lines(0).get(3)).isEqualTo(lines(1).get(3)); // SYSTEM: текст тот же
     }
 
+    /**
+     * Настройки доставки в хэш не идут: прогон всегда просит счётчик токенов в стриме, раунд сжатия
+     * — никогда, а кэш провайдера они делят.
+     */
+    @Test
+    void streamOptionsDoNotTouchTheParamsHash() {
+        askWith(OpenAiChatOptions.builder().model("m").streamUsage(true));
+        askWith(OpenAiChatOptions.builder().model("m"));
+
+        assertThat(paramsHashOf(paramsLine(0))).isEqualTo(paramsHashOf(paramsLine(1)));
+    }
+
     /** Хэш отдельной схемы — только на TRACE: на DEBUG строка tools одна на весь набор. */
     @Test
     void eachToolGetsItsOwnHashOnTraceOnly() {
@@ -209,7 +222,8 @@ class MessageLoggingAdvisorTest {
                         new UserMessage("q"),
                         AssistantMessage.builder()
                                 .content("ответ")
-                                .properties(Map.of(ReasoningAdvisor.REASONING_CONTENT, reasoning))
+                                .properties(
+                                        Map.of(AssistantChatMessage.REASONING_CONTENT, reasoning))
                                 .build())
                 .user("ещё")
                 .call()

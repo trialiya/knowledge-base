@@ -108,7 +108,8 @@ public class AutoCompactService {
         }
         // Вес всего живого окна, а не сжимаемого среза: порог здесь про то, сколько уедет
         // провайдеру со следующим запросом, — а уедет оно целиком.
-        final SummarizeWindow.Weight weight = new SummarizeWindow(rows, properties).windowTokens();
+        final SummarizeWindow.Weight weight =
+                new SummarizeWindow(rows, properties, options.replayReasoning()).windowTokens();
         if (weight.tokens() < limit) {
             log.debug(
                     "[{}] No auto-compaction — live window {} is under the {} token limit",

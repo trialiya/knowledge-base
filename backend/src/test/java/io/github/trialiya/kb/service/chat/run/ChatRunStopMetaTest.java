@@ -20,6 +20,7 @@ import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.TokenUsage;
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.AutoCompactService;
@@ -48,6 +49,7 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -171,6 +173,71 @@ class ChatRunStopMetaTest {
         runService.stopAll();
 
         verify(chatMemory, never()).add(anyString(), any(Message.class));
+    }
+
+    /**
+     * Остановили посреди рассуждения: обращение advisor памяти не записал, и его рассуждение
+     * доезжает до истории только через ряд-метку. В чанке — нарастающий итог, как его кладёт {@code
+     * OpenAiChatModel}, и берётся последний, а не сумма.
+     */
+    @Test
+    void aStopMidReasoningKeepsTheReasoningOnTheMarkerRow() {
+        runService = runService(Flux.just(thinking("Сначала"), thinking("Сначала история")));
+        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+
+        runService.stopAll();
+
+        final ArgumentCaptor<Message> written = ArgumentCaptor.captor();
+        verify(chatMemory).add(eq(CONV), written.capture());
+        assertThat(written.getValue().getMetadata())
+                .containsEntry(AssistantChatMessage.REASONING_CONTENT, "Сначала история");
+    }
+
+    /**
+     * Обращение закончилось вызовом инструментов, а оборвалась их работа: его рассуждение уже лежит
+     * на ряду вызова, и метка его не повторяет.
+     */
+    @Test
+    void theMarkerRowDoesNotRepeatReasoningAlreadyStored() {
+        when(chatHistory.lastAnswerRows(CONV))
+                .thenReturn(
+                        List.of(
+                                new ChatMessageEntity(
+                                        2L,
+                                        CONV,
+                                        "",
+                                        MessageType.ASSISTANT,
+                                        2,
+                                        false,
+                                        false,
+                                        LocalDateTime.now(),
+                                        null,
+                                        null,
+                                        "Сначала история")));
+        runService = runService(Flux.just(thinking("Сначала история")));
+        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+
+        runService.stopAll();
+
+        final ArgumentCaptor<Message> written = ArgumentCaptor.captor();
+        verify(chatMemory).add(eq(CONV), written.capture());
+        assertThat(written.getValue().getMetadata())
+                .doesNotContainKey(AssistantChatMessage.REASONING_CONTENT);
+    }
+
+    /** Чанк рассуждения одного обращения ({@code id} — его ответ), без текста. */
+    private static ChatResponse thinking(String runningTotal) {
+        return new ChatResponse(
+                List.of(
+                        new Generation(
+                                AssistantMessage.builder()
+                                        .content("")
+                                        .properties(
+                                                Map.of(
+                                                        AssistantChatMessage.REASONING_CONTENT,
+                                                        runningTotal))
+                                        .build())),
+                ChatResponseMetadata.builder().id("chatcmpl-1").build());
     }
 
     private static ChatResponse chunk(String text) {

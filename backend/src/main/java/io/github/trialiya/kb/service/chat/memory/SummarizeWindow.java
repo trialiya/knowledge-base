@@ -52,8 +52,20 @@ final class SummarizeWindow {
     private final long cutoffPosition;
     private final Weight sliceWeight;
 
+    /**
+     * Уезжают ли модели рассуждения ответов ({@code ChatModelProperties#replayReasoning}) — тогда
+     * они такая же часть окна, как текст, и оценка обязана их считать; иначе они лежат в истории,
+     * но не весят ничего.
+     */
+    private final boolean replayReasoning;
+
     SummarizeWindow(List<PromptRow> rows, SummarizeProperties properties) {
+        this(rows, properties, false);
+    }
+
+    SummarizeWindow(List<PromptRow> rows, SummarizeProperties properties, boolean replayReasoning) {
         this.properties = properties;
+        this.replayReasoning = replayReasoning;
         this.summaries =
                 rows.stream().map(PromptRow::entity).filter(ChatMessageEntity::isSummary).toList();
         // allLive keeps the blank-text TOOL protocol rows — their payloads occupy the model's
@@ -359,8 +371,8 @@ final class SummarizeWindow {
         return (int) (chars / properties.charsPerToken());
     }
 
-    private static long charsOf(Stream<PromptRow> rows) {
-        return rows.mapToLong(SummarizeWindow::messageChars).sum();
+    private long charsOf(Stream<PromptRow> rows) {
+        return rows.mapToLong(this::messageChars).sum();
     }
 
     /**
@@ -369,8 +381,12 @@ final class SummarizeWindow {
      * inventory, rendered at read time and stored nowhere; counting the stored column would leave
      * the whole inventory outside the estimate, and an attachment summary has no length limit.
      */
-    private static long messageChars(PromptRow row) {
+    private long messageChars(PromptRow row) {
         long chars = PER_MESSAGE_CHARS + row.text().length();
+        final String reasoning = row.entity().getReasoning();
+        if (replayReasoning && reasoning != null) {
+            chars += reasoning.length();
+        }
         final ToolData toolData = row.entity().getToolData();
         if (toolData != null) {
             if (toolData.toolCalls() != null) {

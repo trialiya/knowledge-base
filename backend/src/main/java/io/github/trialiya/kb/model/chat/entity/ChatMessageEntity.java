@@ -37,8 +37,9 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
 
     /**
      * Рассуждение модели, написавшее этот ASSISTANT-ряд ({@code reasoning_content}), — то, что
-     * провайдер с режимом рассуждений ждёт обратно в истории (см. {@code ReasoningAdvisor}). {@code
-     * null} — модель не рассуждала или ряд записан не её ответом.
+     * провайдер с режимом рассуждений ждёт обратно в истории (см. {@code
+     * AssistantChatMessage#REASONING_CONTENT}). {@code null} — модель не рассуждала или ряд записан
+     * не её ответом.
      */
     @Nullable private final String reasoning;
 

@@ -463,6 +463,34 @@ class SummarizeWindowTest {
         assertThat(window.worthARound()).isFalse();
     }
 
+    /**
+     * Рассуждение ответа весит, только когда оно уезжает модели: хранится оно при любом флаге, и
+     * без флага посчитать его значило бы сжимать окно раньше, чем оно выросло.
+     */
+    @Test
+    void storedReasoningWeighsOnlyWhenItIsReplayed() {
+        final ChatMessageEntity answer =
+                new ChatMessageEntity(
+                        2,
+                        CONV,
+                        "ok",
+                        MessageType.ASSISTANT,
+                        1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        null,
+                        null,
+                        text(40_000));
+        final List<PromptRow> live =
+                List.of(row(0, MessageType.USER), new PromptRow(answer, answer.getContent()));
+
+        final long withoutReplay = new SummarizeWindow(live, PRODUCTION).windowTokens().tokens();
+        final long withReplay = new SummarizeWindow(live, PRODUCTION, true).windowTokens().tokens();
+
+        assertThat(withReplay - withoutReplay).isEqualTo(40_000L / PRODUCTION.charsPerToken());
+    }
+
     // -------------------------------------------------------------------------
 
     private static SummarizeWindow window(List<PromptRow> rows, SummarizeProperties properties) {

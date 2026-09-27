@@ -1,6 +1,5 @@
 package io.github.trialiya.kb.service.chat.memory;
 
-import io.github.trialiya.kb.advisor.ReasoningAdvisor;
 import io.github.trialiya.kb.model.chat.dto.MessageCursor;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
@@ -10,6 +9,7 @@ import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
 import io.github.trialiya.kb.model.chat.entity.TokenUsage;
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
@@ -232,9 +232,7 @@ public class ChatHistoryService {
                                                 LocalDateTime.now(),
                                                 null,
                                                 p.toolData(),
-                                                // Рассуждение ответа — чтобы вернуть его модели
-                                                // в следующих запросах (ReasoningAdvisor).
-                                                ReasoningAdvisor.reasoningOf(p.message())))
+                                                reasoningOf(p.message())))
                         .toList();
         final List<ChatMessageEntity> saved = new ArrayList<>();
         chatMessageRepository.saveAll(newRows).forEach(saved::add);
@@ -662,6 +660,21 @@ public class ChatHistoryService {
     }
 
     /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */
+    /**
+     * Рассуждение, с которым модель написала ответ, — чтобы вернуть его ей в следующих запросах
+     * (см. {@code ChatModelProperties#replayReasoning}). Собирать его здесь не нужно: {@code
+     * OpenAiChatModel} кладёт в каждый чанк стрима нарастающий итог обращения, и собранный
+     * advisor-ом памяти ответ несёт его целиком.
+     */
+    private static @Nullable String reasoningOf(Message message) {
+        return message instanceof AssistantMessage
+                        && message.getMetadata().get(AssistantChatMessage.REASONING_CONTENT)
+                                instanceof String reasoning
+                        && !reasoning.isEmpty()
+                ? reasoning
+                : null;
+    }
+
     private static @Nullable ToolData toolDataOf(Message message) {
         if (message instanceof AssistantMessage assistantMessage
                 && assistantMessage.hasToolCalls()) {

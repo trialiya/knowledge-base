@@ -3,6 +3,7 @@ package io.github.trialiya.kb.config.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -128,14 +129,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      * one unable to use the tool at all — the cheaper mistake is the safe default.
      */
     public boolean isWeak(@Nullable String id) {
-        if (id == null || id.equals(defaultModel.id())) {
-            return defaultModel.weak();
-        }
-        return models.stream()
-                .filter(m -> id.equals(m.id()))
-                .findFirst()
-                .map(ModelOption::weak)
-                .orElse(true);
+        return option(id).map(ModelOption::weak).orElse(true);
     }
 
     /**
@@ -144,14 +138,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      * не делать ничего, а не выбирать его за конфигурацию.
      */
     public @Nullable Integer contextTokens(@Nullable String id) {
-        if (id == null || id.equals(defaultModel.id())) {
-            return defaultModel.contextTokens();
-        }
-        return models.stream()
-                .filter(m -> id.equals(m.id()))
-                .findFirst()
-                .map(ModelOption::contextTokens)
-                .orElse(null);
+        return option(id).map(ModelOption::contextTokens).orElse(null);
     }
 
     /**
@@ -161,14 +148,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      * цифры навсегда.
      */
     public boolean streamUsage(@Nullable String id) {
-        if (id == null || id.equals(defaultModel.id())) {
-            return defaultModel.streamUsage();
-        }
-        return models.stream()
-                .filter(m -> id.equals(m.id()))
-                .findFirst()
-                .map(ModelOption::streamUsage)
-                .orElse(true);
+        return option(id).map(ModelOption::streamUsage).orElse(true);
     }
 
     /**
@@ -177,13 +157,18 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      * вместе с запросом, а недостающее стоит только промаха кэша.
      */
     public boolean replayReasoning(@Nullable String id) {
+        return option(id).map(ModelOption::replayReasoning).orElse(false);
+    }
+
+    /**
+     * Модель по id — общий разбор для вопросов «что у этой модели»: {@code null} и id модели по
+     * умолчанию — она сама, иначе — одна из {@link #models}; неизвестный id — пусто, и что это
+     * значит, решает каждый вопрос сам (у каждого своя безопасная сторона).
+     */
+    private Optional<ModelOption> option(@Nullable String id) {
         if (id == null || id.equals(defaultModel.id())) {
-            return defaultModel.replayReasoning();
+            return Optional.of(defaultModel);
         }
-        return models.stream()
-                .filter(m -> id.equals(m.id()))
-                .findFirst()
-                .map(ModelOption::replayReasoning)
-                .orElse(false);
+        return models.stream().filter(m -> id.equals(m.id())).findFirst();
     }
 }
