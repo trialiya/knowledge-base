@@ -498,8 +498,12 @@ export default function useKnowledgeBase({
     try {
       const res = await api.create(body);
       if (res.ok) {
+        const created = await res.json();
         setShowAddModal(false);
         await refreshScope(body.parentId ?? null);
+        // Созданное открываем сразу — его для того и создавали. Через guard:
+        // модалку можно открыть и поверх несохранённых правок другого документа.
+        if (created?.id != null) guard(() => selectNode(created.id));
       }
     } catch {
       /* noop */
