@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import useChatMessages from './useChatMessages';
 import chatApi from '@/api/chatApi';
 import { RUN_KIND } from '@/constants/runKind';
+import { DRAFT_CHAT_ID } from '@/constants/storage';
 
 vi.mock('@/api/chatApi', () => ({
   default: { getChatMeta: vi.fn(), getMessages: vi.fn(), getActiveRun: vi.fn() },
@@ -234,5 +235,60 @@ describe('returning to a loaded chat', () => {
       answer({ topic: 'Старое', aiTopic: 'Старое' });
     });
     expect(getChat().title).toBe('Переименован');
+  });
+});
+
+/**
+ * Черновик получает настоящий id на отправке, раньше, чем бэк создаст чат: вопрос о
+ * названии в этот момент — 404 в консоль, а название всё равно придёт событием.
+ */
+describe('a draft that just became a chat', () => {
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test('is not asked for its title', async () => {
+    let chats = [{ id: 'c1', title: 'Новый чат', messages: [{ mid: 1, text: 'вопрос' }] }];
+    const { rerender } = renderHook(
+      ({ activeChatId }) =>
+        useChatMessages({ chats, getChats: () => chats, setChats: vi.fn(), activeChatId, onLoadError: vi.fn() }),
+      { initialProps: { activeChatId: DRAFT_CHAT_ID } },
+    );
+    await act(async () => {
+      rerender({ activeChatId: 'c1' });
+    });
+    expect(chatApi.getChatMeta).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Загрузка открытого чата, которого нет в списке, не меняет список вовсе. Новый массив без
+ * изменений снова разбудил бы эффект загрузки — тот видит тот же чат без сообщений и
+ * спрашивает опять, без конца.
+ */
+describe('loading a chat the list does not hold', () => {
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test.each([
+    ['loads', () => chatApi.getMessages.mockResolvedValue({ messages: [], hasMore: false })],
+    ['fails', () => chatApi.getMessages.mockRejectedValue(Object.assign(new Error('404'), { status: 404 }))],
+  ])('leaves the list as it was when the load %s', async (_, arrange) => {
+    chatApi.getChatMeta.mockResolvedValue({});
+    chatApi.getActiveRun.mockResolvedValue({});
+    arrange();
+    const list = [{ id: 'other', title: 'Другой', messages: null }];
+    let chats = list;
+    const setChats = vi.fn((fn) => {
+      chats = typeof fn === 'function' ? fn(chats) : fn;
+    });
+    const { result } = renderHook(() =>
+      useChatMessages({ chats: [], getChats: () => chats, setChats, activeChatId: null, onLoadError: vi.fn() }),
+    );
+    await act(async () => {
+      await result.current.loadMessages('missing');
+    });
+    expect(chats).toBe(list);
   });
 });

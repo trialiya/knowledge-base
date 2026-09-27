@@ -22,6 +22,14 @@ import { transformPage, trimActiveRunTail, attachLeadingMetas } from './messages
  *             loadOlderMessages: (id:string)=>Promise<boolean>,
  *             failedChatIdsRef: object }}
  */
+/**
+ * `prev.map(fn)` — но тот же массив, если чата в списке нет. Загрузка открытого чата может
+ * вернуться, когда его в списке нет: ссылка открыта раньше, чем пришёл список, или список
+ * пришёл без него. Новый массив без изменений всё равно сменил бы `chats`, эффект загрузки
+ * ниже увидел бы тот же чат без сообщений и спросил снова — и так без конца.
+ */
+const patchIfListed = (prev, chatId, fn) => (prev.some((c) => c.id === chatId) ? prev.map(fn) : prev);
+
 export default function useChatMessages({ chats, getChats, setChats, activeChatId, onLoadError }) {
   // Какие чаты грузятся прямо сейчас. Множество, а не один флаг: загрузки идут
   // параллельно (переключение чатов, догоняющая сверка прогона), и «грузится» на экране
@@ -95,7 +103,7 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
 
           failedChatIdsRef.current.delete(chatId);
           setChats((prev) =>
-            prev.map((chat) =>
+            patchIfListed(prev, chatId, (chat) =>
               chat.id === chatId
                 ? {
                     ...chat,
@@ -128,7 +136,7 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
           const isNotFound = status === 404;
           failedChatIdsRef.current.add(chatId);
           setChats((prev) =>
-            prev.map((chat) =>
+            patchIfListed(prev, chatId, (chat) =>
               chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: status } : chat,
             ),
           );
@@ -222,11 +230,15 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
   );
 
   // Только возвращение в уже загруженный чат: первое открытие название берёт из loadMessages.
+  // Черновик, получивший на отправке настоящий id, — не возвращение: чата на бэке ещё нет
+  // (его создаёт отправка, которая ещё в пути), и вопрос о названии упал бы в 404, а
+  // название ему всё равно принесёт событие.
   const previousActiveIdRef = useRef(activeChatId);
   useEffect(() => {
-    if (previousActiveIdRef.current === activeChatId) return;
+    const previous = previousActiveIdRef.current;
+    if (previous === activeChatId) return;
     previousActiveIdRef.current = activeChatId;
-    if (!activeChatId || activeChatId === DRAFT_CHAT_ID) return;
+    if (!activeChatId || activeChatId === DRAFT_CHAT_ID || previous === DRAFT_CHAT_ID) return;
     const chat = getChats().find((c) => c.id === activeChatId);
     if (Array.isArray(chat?.messages)) refreshTitle(activeChatId);
   }, [activeChatId, getChats, refreshTitle]);
