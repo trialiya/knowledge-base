@@ -54,4 +54,11 @@ class NullPruningToolResultConverterTest {
         assertThat(converter.convert(null, void.class))
                 .isEqualTo(new CompactToolResultConverter().convert(null, void.class));
     }
+
+    @Test
+    void keepsToolResultWrapperIntact() {
+        String json = converter.convert(new ToolResult<>("kb", null), null);
+
+        assertThat(json).isEqualTo("{\"project\":\"kb\",\"result\":null}");
+    }
 }

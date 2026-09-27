@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.github.trialiya.kb.model.tool.ToolResult;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -36,7 +37,13 @@ public class NullPruningToolResultConverter extends CompactToolResultConverter {
             return json; // не JSON — чистить нечего
         }
         if (tree == null || !tree.isContainerNode()) return json;
-        prune(tree);
+        // Обёртку ToolResult не трогаем: фронт распаковывает её только при ровно двух ключах
+        // (registry.js), и выкинутый «result: null» оставил бы голый project.
+        if (result instanceof ToolResult<?> && tree.get("result") != null) {
+            prune(tree.get("result"));
+        } else {
+            prune(tree);
+        }
         return tree.toString();
     }
 
@@ -66,19 +73,16 @@ public class NullPruningToolResultConverter extends CompactToolResultConverter {
         records.forEach(record -> record.fieldNames().forEachRemaining(names::add));
         List<String> allNull =
                 names.stream()
-                        .filter(
-                                name ->
-                                        records.stream()
-                                                .allMatch(
-                                                        r ->
-                                                                r.path(name).isNull()
-                                                                        || r.path(name)
-                                                                                .isMissingNode()))
+                        .filter(name -> records.stream().allMatch(r -> isAbsent(r.get(name))))
                         .toList();
         for (ObjectNode record : records) {
             record.remove(allNull);
             record.forEach(NullPruningToolResultConverter::prune);
         }
         return true;
+    }
+
+    private static boolean isAbsent(@Nullable JsonNode value) {
+        return value == null || value.isNull();
     }
 }
