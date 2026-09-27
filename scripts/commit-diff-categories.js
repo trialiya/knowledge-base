@@ -4,7 +4,10 @@
  *   - служебные/сборочные файлы   — total only, no breakdown
  *   - документация                — total only, no breakdown
  *   - основные (исходные) файлы   — broken down into:
- *       import/package · javadoc/комментарии · пустые строки · код
+ *       import/package · javadoc/комментарии · пустые строки · скобки · код
+ *     "скобки" is a line of closing/opening brackets only (}); ) ]; …) or
+ *     "try {"; "код" is every other line with code outside comments.
+ *     A source file is any extension with an entry in SYNTAX below.
  *   - не удалось определить       — a changed line in a source file whose
  *     category can't be told from the diff hunk alone (e.g. plain text that
  *     may be a javadoc paragraph or may be code, with the block-comment
@@ -77,16 +80,41 @@ const BUILD_EXTENSIONS = new Set([
   ".ini",
 ]);
 
-const SOURCE_EXTENSIONS = new Set([
-  ".java",
-  ".js",
-  ".jsx",
-  ".ts",
-  ".tsx",
-  ".css",
-  ".scss",
-  ".less",
-]);
+// Comment and string syntax of each source language. `line` — tokens that
+// comment out the rest of the line; `blocks` — [open, close] pairs; `quotes`
+// — string delimiters, inside which comment tokens mean nothing (so
+// "/chat/**" is code, not the start of a block comment).
+const C_BLOCK = [["/*", "*/"]];
+const SYNTAX = {
+  ".java": { line: ["//"], blocks: C_BLOCK, quotes: ['"', "'"] },
+  ".js": { line: ["//"], blocks: C_BLOCK, quotes: ['"', "'", "`"] },
+  ".css": { line: [], blocks: C_BLOCK, quotes: ['"', "'"] }, // "//" is not a CSS comment: url(http://…)
+  ".scss": { line: ["//"], blocks: C_BLOCK, quotes: ['"', "'"] },
+  ".sql": { line: ["--"], blocks: C_BLOCK, quotes: ["'", '"'] },
+  // "#" opens a comment only at a word start: $#, ${#arr} and a#b are code.
+  ".sh": { line: ["#"], hashAtWordStart: true, blocks: [], quotes: ['"', "'"] },
+  ".ps1": { line: ["#"], hashAtWordStart: true, blocks: [["<#", "#>"]], quotes: ['"', "'"] },
+  ".bat": { lineStartCi: ["rem ", "@rem ", "::"], line: [], blocks: [], quotes: ['"'] },
+  // A docstring is a string statement, so it opens only where nothing precedes
+  // it on the line; x = """…""" is code.
+  ".py": {
+    line: ["#"],
+    blocks: [['"""', '"""'], ["'''", "'''"]],
+    blockAtLineStart: true,
+    quotes: ['"', "'"],
+  },
+  ".html": { line: [], blocks: [["<!--", "-->"]], quotes: [] }, // apostrophes in text aren't quotes
+  ".json": { line: [], blocks: [], quotes: ['"'] },
+};
+SYNTAX[".jsx"] = SYNTAX[".js"];
+SYNTAX[".ts"] = SYNTAX[".js"];
+SYNTAX[".tsx"] = SYNTAX[".js"];
+SYNTAX[".mjs"] = SYNTAX[".js"];
+SYNTAX[".cjs"] = SYNTAX[".js"];
+SYNTAX[".less"] = SYNTAX[".scss"];
+SYNTAX[".bash"] = SYNTAX[".sh"];
+SYNTAX[".cmd"] = SYNTAX[".bat"];
+SYNTAX[".htm"] = SYNTAX[".html"];
 
 function extOf(path) {
   const base = path.split("/").pop();
@@ -110,73 +138,161 @@ function classifyFile(path) {
   ) {
     return "build";
   }
-  if (SOURCE_EXTENSIONS.has(ext)) {
+  if (SYNTAX[ext]) {
     return "source";
   }
   return "build"; // anything unrecognized (assets, fixtures, etc.) — general/service bucket
 }
 
+// Tested against a line's code part — comments already cut out.
 function importRegexFor(ext) {
   if (ext === ".java") {
     return /^(package|import)\s+\S.*;$/;
   }
-  if ([".js", ".jsx", ".ts", ".tsx"].includes(ext)) {
+  if (SYNTAX[ext] === SYNTAX[".js"]) {
     return /^(import\b.*|export\s+(\*|\{[^}]*\})\s*from\s+['"][^'"]+['"];?|(const|let|var)\s+.+=\s*require\(.*\)\s*;?)$/;
   }
-  if ([".css", ".scss", ".less"].includes(ext)) {
+  if (ext === ".css") {
     return /^@import\b/;
+  }
+  if (SYNTAX[ext] === SYNTAX[".scss"]) {
+    return /^@(import|use|forward)\b/;
+  }
+  if (SYNTAX[ext] === SYNTAX[".sh"]) {
+    return /^(source|\.)\s+\S/;
+  }
+  if (ext === ".ps1") {
+    return /^(Import-Module\b|\.\s+\S)/i;
+  }
+  if (ext === ".py") {
+    return /^(import\s+\S|from\s+\S+\s+import\b)/;
   }
   return /$^/; // never matches
 }
 
+function languageFor(path) {
+  const ext = extOf(path);
+  return { syntax: SYNTAX[ext], importRe: importRegexFor(ext) };
+}
+
 function emptyCounts() {
-  return { import: 0, comment: 0, empty: 0, code: 0, undetermined: 0 };
+  return { import: 0, comment: 0, empty: 0, brace: 0, code: 0, undetermined: 0 };
+}
+
+// Lines that only close (or open) a construct: }); ) }; ], — plus "try {".
+// They carry no logic of their own, so they are kept out of the code count.
+function isBraceOnly(code) {
+  const compact = code.replace(/\s+/g, "");
+  return /^[()[\]{};,]+$/.test(compact) || compact === "try{";
+}
+
+// Line state: "normal", "unknown" (hunk context too short to tell), or the
+// close token of the block comment the line starts inside, e.g. "*/".
+//
+// Splits one trimmed line into its code part (strings kept verbatim) and
+// reports whether any comment was on it. `bare` is the code part with string
+// contents dropped — for telling whether a stray "*/" is real syntax.
+function scanLine(line, state, syntax) {
+  if (state === "normal" && syntax.lineStartCi) {
+    const lower = line.toLowerCase();
+    if (syntax.lineStartCi.some((t) => lower.startsWith(t) || lower === t.trim())) {
+      return { code: "", bare: "", comment: true, state };
+    }
+  }
+  let code = "";
+  let bare = "";
+  let comment = false;
+  let block = state === "normal" ? null : state;
+  let i = 0;
+  scan: while (i < line.length) {
+    if (block) {
+      comment = true;
+      const idx = line.indexOf(block, i);
+      if (idx === -1) break;
+      i = idx + block.length;
+      block = null;
+      continue;
+    }
+    for (const t of syntax.line) {
+      if (line.startsWith(t, i) && (!syntax.hashAtWordStart || i === 0 || /\s/.test(line[i - 1]))) {
+        comment = true;
+        break scan;
+      }
+    }
+    for (const [open, close] of syntax.blocks) {
+      if (line.startsWith(open, i) && (!syntax.blockAtLineStart || code.trim() === "")) {
+        comment = true;
+        block = close;
+        i += open.length;
+        continue scan;
+      }
+    }
+    const ch = line[i];
+    if (syntax.quotes.includes(ch)) {
+      let j = i + 1;
+      while (j < line.length && line[j] !== ch) j += line[j] === "\\" ? 2 : 1;
+      code += line.slice(i, j + 1);
+      bare += ch + ch;
+      i = j + 1;
+      continue;
+    }
+    code += ch;
+    bare += ch;
+    i++;
+  }
+  return { code: code.trim(), bare, comment, state: block || "normal" };
+}
+
+function categorize(scan, importRe) {
+  if (scan.code === "") return "comment";
+  // JSX comment {/* … */}: the braces are only the comment's wrapper.
+  if (scan.comment && scan.code.replace(/\s+/g, "") === "{}") return "comment";
+  if (importRe.test(scan.code)) return "import";
+  if (isBraceOnly(scan.code)) return "brace";
+  return "code";
+}
+
+function classifyKnown(trimmed, state, lang) {
+  const scan = scanLine(trimmed, state, lang.syntax);
+  return { category: categorize(scan, lang.importRe), nextState: scan.state };
 }
 
 // One hunk-scoped state machine, applied separately to the old-file side and
-// the new-file side of a hunk (they can resolve independently).
-function classifyLine(trimmed, state) {
+// the new-file side of a hunk (they can resolve independently). In "unknown"
+// state the line is read both ways — as code and as the inside of each block
+// comment kind — and only a reading the line itself supports is taken.
+function classifySourceLine(trimmed, state, lang) {
   if (trimmed === "") {
     return { category: "empty", nextState: state };
   }
-  if (state === "inBlockComment") {
-    const closeIdx = trimmed.lastIndexOf("*/");
-    const reopenIdx = trimmed.lastIndexOf("/*");
-    const nextState = closeIdx !== -1 && closeIdx > reopenIdx ? "normal" : "inBlockComment";
-    return { category: "comment", nextState };
+  if (state !== "unknown") {
+    return classifyKnown(trimmed, state, lang);
   }
-  return null; // caller handles "normal"/"unknown" with the import regex in scope
-}
 
-function classifySourceLine(trimmed, state, importRe) {
-  const blockResult = classifyLine(trimmed, state);
-  if (blockResult) return blockResult;
+  const asCode = classifyKnown(trimmed, "normal", lang);
+  // An import or a whole-line "//" comment is taken as outside a block comment.
+  const lineComment = lang.syntax.line.some((t) => trimmed.startsWith(t));
+  if (asCode.category === "import" || (asCode.category === "comment" && lineComment)) {
+    return asCode;
+  }
+  const asComment = lang.syntax.blocks.map(([, close]) => ({
+    close,
+    ...classifyKnown(trimmed, close, lang),
+  }));
+  const readings = [asCode, ...asComment];
+  if (readings.every((r) => r.category === asCode.category)) {
+    const sameState = readings.every((r) => r.nextState === asCode.nextState);
+    return { category: asCode.category, nextState: sameState ? asCode.nextState : "unknown" };
+  }
 
-  if (importRe.test(trimmed)) {
-    return { category: "import", nextState: state === "unknown" ? "normal" : state };
-  }
-  if (trimmed.startsWith("//")) {
-    return { category: "comment", nextState: state === "unknown" ? "normal" : state };
-  }
-  const openIdx = trimmed.indexOf("/*");
-  const closeIdx = trimmed.indexOf("*/");
-  if (openIdx !== -1) {
-    const closesAfterOpen = closeIdx !== -1 && closeIdx > openIdx;
-    return { category: "comment", nextState: closesAfterOpen ? "normal" : "inBlockComment" };
-  }
-  if (closeIdx !== -1) {
-    // A lone "*/" with no opening on this line: state must have been an
-    // (unseen) block comment all along — resolves "unknown" retroactively.
-    return { category: "comment", nextState: "normal" };
-  }
-  if (state === "unknown") {
-    if (trimmed.startsWith("*")) {
-      // Javadoc-style continuation line, e.g. " * some paragraph text".
-      return { category: "comment", nextState: "inBlockComment" };
-    }
-    return { category: "undetermined", nextState: "unknown" };
-  }
-  return { category: "code", nextState: "normal" };
+  const codeScan = scanLine(trimmed, "normal", lang.syntax);
+  // A close token as bare syntax can't be code — the line ends a block comment.
+  const closed = asComment.find((r) => codeScan.bare.includes(r.close));
+  if (closed) return closed;
+  // Javadoc-style continuation line, e.g. " * some paragraph text".
+  const cBlock = asComment.find((r) => r.close === "*/");
+  if (cBlock && trimmed.startsWith("*")) return cBlock;
+  return { category: "undetermined", nextState: "unknown" };
 }
 
 function parseHunkHeader(line) {
@@ -186,8 +302,7 @@ function parseHunkHeader(line) {
 }
 
 function processSourceFile(path, hunks) {
-  const ext = extOf(path);
-  const importRe = importRegexFor(ext);
+  const lang = languageFor(path);
   const added = emptyCounts();
   const removed = emptyCounts();
 
@@ -201,14 +316,14 @@ function processSourceFile(path, hunks) {
       const text = raw.slice(1);
       const trimmed = text.trim();
       if (marker === " ") {
-        oldState = classifySourceLine(trimmed, oldState, importRe).nextState;
-        newState = classifySourceLine(trimmed, newState, importRe).nextState;
+        oldState = classifySourceLine(trimmed, oldState, lang).nextState;
+        newState = classifySourceLine(trimmed, newState, lang).nextState;
       } else if (marker === "-") {
-        const r = classifySourceLine(trimmed, oldState, importRe);
+        const r = classifySourceLine(trimmed, oldState, lang);
         oldState = r.nextState;
         removed[r.category]++;
       } else if (marker === "+") {
-        const r = classifySourceLine(trimmed, newState, importRe);
+        const r = classifySourceLine(trimmed, newState, lang);
         newState = r.nextState;
         added[r.category]++;
       }
@@ -290,11 +405,12 @@ function parseDiff(diffArgs) {
 }
 
 function formatCounts(c) {
-  const total = c.import + c.comment + c.empty + c.code + c.undetermined;
+  const total = sumCounts(c);
   return (
     `    import/package: ${c.import}\n` +
     `    комментарии:    ${c.comment}\n` +
     `    пустые строки:  ${c.empty}\n` +
+    `    скобки:         ${c.brace}\n` +
     `    код:            ${c.code}\n` +
     `    не определено:  ${c.undetermined}\n` +
     `    итого:          ${total}`
@@ -408,12 +524,13 @@ const TABLE_HEADER = [
   "Import",
   "Комментарии",
   "Пустые",
+  "Скобки",
   "Код",
   "Не определено",
 ];
 
 function sumCounts(c) {
-  return c.import + c.comment + c.empty + c.code + c.undetermined;
+  return Object.values(c).reduce((a, b) => a + b, 0);
 }
 
 function tableRow(label, { totals, fileCount }) {
@@ -430,6 +547,7 @@ function tableRow(label, { totals, fileCount }) {
     delta("import"),
     delta("comment"),
     delta("empty"),
+    delta("brace"),
     delta("code"),
     delta("undetermined"),
   ];
@@ -485,11 +603,11 @@ function countFileLines(path, rev) {
   const category = classifyFile(path);
   if (category !== "source") return { path, category, total: lines.length };
 
-  const importRe = importRegexFor(extOf(path));
+  const lang = languageFor(path);
   const counts = emptyCounts();
   let state = "normal";
   for (const line of lines) {
-    const r = classifySourceLine(line.trim(), state, importRe);
+    const r = classifySourceLine(line.trim(), state, lang);
     state = r.nextState;
     counts[r.category]++;
   }
@@ -497,24 +615,25 @@ function countFileLines(path, rev) {
 }
 
 function printFileLoc(paths, rev) {
-  const header = ["Файл", "Всего", "Эффективные", "Import", "Комментарии", "Пустые"];
+  const header = ["Файл", "Всего", "Эффективные", "Import", "Комментарии", "Пустые", "Скобки"];
+  const cols = ["code", "import", "comment", "empty", "brace"];
   const body = [];
-  const sum = { total: 0, code: 0, import: 0, comment: 0, empty: 0 };
+  const sum = { total: 0, ...Object.fromEntries(cols.map((k) => [k, 0])) };
   for (const path of paths) {
     const r = countFileLines(path, rev);
     if (!r.counts) {
       const kind = r.category === "doc" ? "документация" : "служебный";
-      body.push([`${path} (${kind})`, String(r.total), "—", "—", "—", "—"]);
+      body.push([`${path} (${kind})`, String(r.total), ...cols.map(() => "—")]);
       continue;
     }
     const c = r.counts;
-    body.push([path, r.total, c.code, c.import, c.comment, c.empty].map(String));
+    body.push([path, r.total, ...cols.map((k) => c[k])].map(String));
     sum.total += r.total;
-    for (const k of ["code", "import", "comment", "empty"]) sum[k] += c[k];
+    for (const k of cols) sum[k] += c[k];
   }
   if (paths.length > 1) {
     body.push(null);
-    body.push(["Итого (основные файлы)", sum.total, sum.code, sum.import, sum.comment, sum.empty].map(String));
+    body.push(["Итого (основные файлы)", sum.total, ...cols.map((k) => sum[k])].map(String));
   }
   printTable(header, body);
 }
