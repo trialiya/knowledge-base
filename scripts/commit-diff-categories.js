@@ -25,6 +25,8 @@
  *   node scripts/commit-diff-categories.js --table [<N>]
  *   node scripts/commit-diff-categories.js --pr [<base>] [<head>]
  *   node scripts/commit-diff-categories.js --loc [--rev <rev>] <path>...
+ * Any mode takes --no-tests: test sources (isTestPath) are left out as if
+ * they weren't there.
  *
  * <commit> defaults to HEAD. --file restricts the report to one path in the
  * commit (repo-relative, as git prints it).
@@ -185,6 +187,17 @@ function classifyFile(path) {
     return "source";
   }
   return "build"; // anything unrecognized (assets, fixtures, etc.) — general/service bucket
+}
+
+// Test sources and fixtures by the repo's layout: backend/src/test,
+// frontend/tests, *.test.js(x), *Test/*IT.java and the Vitest setup file.
+function isTestPath(path) {
+  return (
+    /(^|\/)(tests?|__tests__)\//.test(path) ||
+    /\.(test|spec)\.[cm]?[jt]sx?$/.test(path) ||
+    /(Test|Tests|IT)\.java$/.test(path) ||
+    /(^|\/)setupTests\.[jt]s$/.test(path)
+  );
 }
 
 function emptyCounts() {
@@ -533,9 +546,10 @@ function commitDiff(commit) {
 
 // Classifies every non-binary file of a diff, aggregating per-category
 // added/removed counts. Shared by the per-commit report, the table and --pr.
-function analyzeDiff(diffArgs, onlyFile) {
+function analyzeDiff(diffArgs, { onlyFile, noTests } = {}) {
   let files = parseDiff(diffArgs).filter((f) => !f.isBinary);
   if (onlyFile) files = files.filter((f) => f.path === onlyFile);
+  if (noTests) files = files.filter((f) => !isTestPath(f.path));
   for (const f of files) f.category = classifyFile(f.path);
 
   const blobIds = new Set();
@@ -573,8 +587,9 @@ function analyzeDiff(diffArgs, onlyFile) {
   return { totals, perFile, fileCount: files.length };
 }
 
-function printCommitReport(commit, onlyFile) {
-  const { totals, perFile, fileCount } = analyzeDiff(commitDiff(commit), onlyFile);
+function printCommitReport(commit, opts) {
+  const { onlyFile } = opts;
+  const { totals, perFile, fileCount } = analyzeDiff(commitDiff(commit), opts);
   if (onlyFile && fileCount === 0) {
     fail(`Файл не найден в коммите ${commit}: ${onlyFile}`);
   }
@@ -674,19 +689,19 @@ function printTable(header, body) {
   }
 }
 
-function commitRows(commits) {
+function commitRows(commits, opts) {
   return commits.map(({ hash, subject, isMerge }) => {
     const label = `${hash} ${truncate(subject, 40)}`;
     if (isMerge) return [label, "слияние", ...TABLE_HEADER.slice(2).map(() => "—")];
-    return tableRow(label, analyzeDiff(commitDiff(hash)));
+    return tableRow(label, analyzeDiff(commitDiff(hash), opts));
   });
 }
 
-function printCommitTable(n) {
-  printTable(TABLE_HEADER, commitRows(listCommits([`-n${n}`])));
+function printCommitTable(n, opts) {
+  printTable(TABLE_HEADER, commitRows(listCommits([`-n${n}`]), opts));
 }
 
-function printPrTable(base, head) {
+function printPrTable(base, head, opts) {
   const mergeBase = git(["merge-base", base, head]).toString("utf8").trim();
   const commits = listCommits([`${mergeBase}..${head}`]);
   if (commits.length === 0) {
@@ -694,8 +709,8 @@ function printPrTable(base, head) {
     return;
   }
   console.log(`PR: ${base}..${head} — ${commits.length} коммит(ов), база ${mergeBase.slice(0, 8)}\n`);
-  const total = tableRow("PR итого (net diff)", analyzeDiff(["diff", mergeBase, head]));
-  printTable(TABLE_HEADER, [...commitRows(commits), null, total]);
+  const total = tableRow("PR итого (net diff)", analyzeDiff(["diff", mergeBase, head], opts));
+  printTable(TABLE_HEADER, [...commitRows(commits, opts), null, total]);
 }
 
 function fail(message) {
@@ -703,12 +718,19 @@ function fail(message) {
   process.exit(1);
 }
 
+let repoRoot = null;
+
 // `arg` is relative to the current directory, as typed in a shell; the
-// repo-relative form is what classifyFile and `git show rev:path` need.
+// repo-relative form is what classifyFile, isTestPath and `git show rev:path`
+// need.
+function repoPath(arg) {
+  repoRoot ??= git(["rev-parse", "--show-toplevel"]).toString("utf8").trim();
+  return nodePath.relative(repoRoot, nodePath.resolve(arg)).split(nodePath.sep).join("/");
+}
+
 function readFileArg(arg, rev) {
-  const root = git(["rev-parse", "--show-toplevel"]).toString("utf8").trim();
   const absolute = nodePath.resolve(arg);
-  const path = nodePath.relative(root, absolute).split(nodePath.sep).join("/");
+  const path = repoPath(arg);
   try {
     const text = rev
       ? git(["show", `${rev}:${path}`], { quiet: true }).toString("utf8")
@@ -731,7 +753,8 @@ function countFile(arg, rev) {
   return { path, category, total, counts };
 }
 
-function printFileLoc(args, rev) {
+function printFileLoc(args, { rev, noTests }) {
+  if (noTests) args = args.filter((arg) => !isTestPath(repoPath(arg)));
   const header = ["Файл", "Всего", "Эффективный код", "Код", "Import", "Комментарии", "Пустые"];
   const columns = (c) => [c.effective, c.brace + c.effective, c.import, c.comment, c.empty];
   const body = [];
@@ -764,13 +787,14 @@ function defaultBase() {
 }
 
 function main() {
-  const args = process.argv.slice(2);
+  const noTests = process.argv.includes("--no-tests");
+  const args = process.argv.slice(2).filter((a) => a !== "--no-tests");
   if (args[0] === "--table") {
-    printCommitTable(Number(args[1]) || 10);
+    printCommitTable(Number(args[1]) || 10, { noTests });
     return;
   }
   if (args[0] === "--pr") {
-    printPrTable(args[1] || defaultBase(), args[2] || "HEAD");
+    printPrTable(args[1] || defaultBase(), args[2] || "HEAD", { noTests });
     return;
   }
   if (args[0] === "--loc") {
@@ -783,7 +807,7 @@ function main() {
     if (paths.length === 0) {
       fail("Укажите хотя бы один файл: --loc [--rev <rev>] <path>...");
     }
-    printFileLoc(paths, rev);
+    printFileLoc(paths, { rev, noTests });
     return;
   }
 
@@ -796,7 +820,7 @@ function main() {
       commit = args[i];
     }
   }
-  printCommitReport(commit, onlyFile);
+  printCommitReport(commit, { onlyFile, noTests });
 }
 
 if (require.main === module) {
