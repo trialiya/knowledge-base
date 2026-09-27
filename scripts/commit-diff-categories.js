@@ -71,6 +71,7 @@ const BUILD_BASENAMES = new Set([
 ]);
 const BUILD_PATH_PREFIXES = [".github/", ".claude/", "gradle/", "docker/"];
 const BUILD_EXTENSIONS = new Set([
+  ".json", // mostly i18n locale files — resources, not code
   ".yml",
   ".yaml",
   ".lock",
@@ -104,7 +105,6 @@ const SYNTAX = {
     quotes: ['"', "'"],
   },
   ".html": { line: [], blocks: [["<!--", "-->"]], quotes: [] }, // apostrophes in text aren't quotes
-  ".json": { line: [], blocks: [], quotes: ['"'] },
 };
 SYNTAX[".jsx"] = SYNTAX[".js"];
 SYNTAX[".ts"] = SYNTAX[".js"];
