@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import FileSections from './FileSections';
+import FileOutline from './FileOutline';
 import gitApi from '@/api/gitApi';
 
 vi.mock('@/api/gitApi');
@@ -18,9 +18,10 @@ const SYMBOLS = [
   { kind: 'h2', name: 'FAQ', signature: 'FAQ', startLine: 9, endLine: 12 },
 ];
 
-const show = (props = {}) => render(<FileSections path="docs/guide.md" project="kb" onJump={() => {}} {...props} />);
+const show = (props = {}) =>
+  render(<FileOutline path="docs/guide.md" project="kb" language="markdown" onJump={() => {}} {...props} />);
 
-describe('FileSections', () => {
+describe('FileOutline', () => {
   afterEach(() => vi.resetAllMocks());
 
   test('спрашивает структуру у той же ревизии, что показана в центре', async () => {
@@ -34,15 +35,15 @@ describe('FileSections', () => {
     );
   });
 
-  // Файл начинается с «##» — самый мелкий уровень и есть верхний, ступеньки
-  // вправо у всего списка быть не должно.
-  test('вкладывает по уровню, считая от самого мелкого заголовка файла', async () => {
+  // Файл начинается с «##» — верхний уровень у него «##», ступеньки вправо у
+  // всего списка быть не должно. Вид символа («h2») у markdown не подписан.
+  test('markdown: вкладывает разделы по строкам, без подписи вида', async () => {
     gitApi.getFileOutline.mockResolvedValue(outline(SYMBOLS));
     show();
 
     const rows = await screen.findAllByRole('treeitem');
     expect(rows.map((r) => [r.textContent, r.getAttribute('aria-level')])).toEqual([
-      ['sections.preamble1', '1'],
+      ['outline.preamble1', '1'],
       ['Установка3', '1'],
       ['Docker5', '2'],
       ['FAQ9', '1'],
@@ -60,7 +61,7 @@ describe('FileSections', () => {
     await user.click(await screen.findByText('Docker'));
     expect(onJump).toHaveBeenCalledWith(5);
 
-    rerender(<FileSections path="docs/guide.md" project="kb" onJump={onJump} activeLine={5} />);
+    rerender(<FileOutline path="docs/guide.md" project="kb" language="markdown" onJump={onJump} activeLine={5} />);
     expect(screen.getByText('Docker').closest('[role="treeitem"]')).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -68,7 +69,7 @@ describe('FileSections', () => {
     gitApi.getFileOutline.mockResolvedValue(outline([SYMBOLS[0]]));
     show();
 
-    expect(await screen.findByText('sections.empty')).toBeInTheDocument();
+    expect(await screen.findByText('outline.emptyMarkdown')).toBeInTheDocument();
     expect(screen.queryByRole('treeitem')).not.toBeInTheDocument();
   });
 
@@ -76,7 +77,7 @@ describe('FileSections', () => {
     gitApi.getFileOutline.mockRejectedValue(new Error('400'));
     show();
 
-    expect(await screen.findByText('sections.loadError')).toBeInTheDocument();
+    expect(await screen.findByText('outline.loadError')).toBeInTheDocument();
   });
 
   /** Правка, pull или откат меняют и заголовки: токен обновления — повод спросить снова. */
@@ -85,8 +86,34 @@ describe('FileSections', () => {
     const { rerender } = show({ refreshToken: 0 });
     await screen.findByText('Docker');
 
-    rerender(<FileSections path="docs/guide.md" project="kb" onJump={() => {}} refreshToken={1} />);
+    rerender(<FileOutline path="docs/guide.md" project="kb" language="markdown" onJump={() => {}} refreshToken={1} />);
 
     await waitFor(() => expect(gitApi.getFileOutline).toHaveBeenCalledTimes(2));
+  });
+
+  test('код: подписывает вид, вкладывает методы в класс, сигнатура — подсказкой', async () => {
+    gitApi.getFileOutline.mockResolvedValue({
+      path: 'src/App.java',
+      language: 'java',
+      symbols: [
+        { kind: 'class', name: 'App', signature: 'public class App', startLine: 3, endLine: 20 },
+        { kind: 'method', name: 'run', signature: 'public void run(String arg)', startLine: 5, endLine: 9 },
+      ],
+    });
+    render(<FileOutline path="src/App.java" project="kb" language="java" onJump={() => {}} />);
+
+    const rows = await screen.findAllByRole('treeitem');
+    expect(rows.map((r) => [r.textContent, r.getAttribute('aria-level')])).toEqual([
+      ['classApp3', '1'],
+      ['methodrun5', '2'],
+    ]);
+    expect(rows[1]).toHaveAttribute('title', 'public void run(String arg)');
+  });
+
+  test('код без символов — своя подсказка, не про заголовки', async () => {
+    gitApi.getFileOutline.mockResolvedValue({ path: 'a.py', language: 'python', symbols: [] });
+    render(<FileOutline path="a.py" project="kb" language="python" onJump={() => {}} />);
+
+    expect(await screen.findByText('outline.empty')).toBeInTheDocument();
   });
 });

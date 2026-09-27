@@ -60,6 +60,7 @@
   "tabs": {
     "info": "Info",
     "sections": "Sections",
+    "outline": "Outline",
     "commit": "Commit"
   },
   "changes": {
@@ -162,10 +163,11 @@
     "showChanges": "Show changed files",
     "loadError": "Failed to load the commit"
   },
-  "sections": {
-    "aria": "File sections",
-    "empty": "No headings in this file",
-    "loadError": "Could not load the sections",
+  "outline": {
+    "aria": "File outline",
+    "empty": "No classes or functions found in this file",
+    "emptyMarkdown": "No headings in this file",
+    "loadError": "Could not load the outline",
     "preamble": "Start of file"
   }
 }
