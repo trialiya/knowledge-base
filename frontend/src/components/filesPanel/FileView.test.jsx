@@ -99,4 +99,52 @@ describe('FileView', () => {
 
     expect(screen.getByText('file.binary')).toBeInTheDocument();
   });
+
+  describe('прокрутка к разделу', () => {
+    const md = { content: 'вступление\n\n## Установка\nтекст\n## FAQ\n', binary: false, lineCount: 6, sizeBytes: 50 };
+    let scrolled;
+    beforeEach(() => {
+      scrolled = [];
+      Element.prototype.scrollIntoView = vi.fn(function scrollIntoView() {
+        scrolled.push(this);
+      });
+    });
+    afterEach(() => {
+      delete Element.prototype.scrollIntoView;
+    });
+
+    // Markdown открывается исходником: строка кода помечена своим номером.
+    test('в исходнике едет к строке кода, и повторный клик едет снова', () => {
+      const { rerender } = render(<FileView file={md} path="guide.md" />);
+
+      rerender(<FileView file={md} path="guide.md" jump={{ path: 'guide.md', line: 3 }} />);
+      rerender(<FileView file={md} path="guide.md" jump={{ path: 'guide.md', line: 3 }} />);
+
+      expect(scrolled).toHaveLength(2);
+      expect(scrolled[0].tagName).toBe('TR');
+      expect(scrolled[0]).toHaveTextContent('## Установка');
+    });
+
+    test('в разметке едет к заголовку с этой строкой исходника', async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(<FileView file={md} path="guide.md" />);
+      await user.click(screen.getByRole('button'));
+
+      rerender(<FileView file={md} path="guide.md" jump={{ path: 'guide.md', line: 5 }} />);
+
+      expect(scrolled).toHaveLength(1);
+      expect(scrolled[0].tagName).toBe('H2');
+      expect(scrolled[0]).toHaveTextContent('FAQ');
+    });
+
+    // Голова и хвост без середины: номер строки в хвосте указывал бы не туда.
+    test('у усечённого большого файла к разделу не едет', () => {
+      const excerpt = { ...md, truncated: true, fromLine: null };
+      const { rerender } = render(<FileView file={excerpt} path="guide.md" />);
+
+      rerender(<FileView file={excerpt} path="guide.md" jump={{ path: 'guide.md', line: 5 }} />);
+
+      expect(scrolled).toHaveLength(0);
+    });
+  });
 });

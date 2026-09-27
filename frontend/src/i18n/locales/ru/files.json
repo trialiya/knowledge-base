@@ -59,6 +59,7 @@
   },
   "tabs": {
     "info": "Инфо",
+    "sections": "Разделы",
     "commit": "Коммит"
   },
   "changes": {
@@ -162,5 +163,11 @@
     "filesSummary_other": "{{count}} файла · +{{additions}} −{{deletions}}",
     "showChanges": "Показать изменённые файлы",
     "loadError": "Не удалось загрузить коммит"
+  },
+  "sections": {
+    "aria": "Разделы файла",
+    "empty": "В файле нет заголовков",
+    "loadError": "Не удалось получить разделы",
+    "preamble": "Начало файла"
   }
 }

@@ -7,11 +7,15 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.trialiya.kb.model.git.dto.GitFileBytes;
+import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.model.git.dto.GitSymbol;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -59,6 +63,35 @@ class GitControllerTest {
                         get("/api/git/files/content")
                                 .param("path", "README.md")
                                 .param("rev", "nosuchtag"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** Обзор с ревизией читает снимок, без неё — рабочее дерево. */
+    @Test
+    void anOutlineIsReadFromTheRevisionWhenOneIsNamed() throws Exception {
+        when(git.getFileOutlineAt("v1", "README.md"))
+                .thenReturn(
+                        new GitFileOutline(
+                                "README.md",
+                                true,
+                                "markdown",
+                                2,
+                                "markdown",
+                                List.of(new GitSymbol("h1", "Title", "Title", 1, 2))));
+
+        mockMvc.perform(get("/api/git/files/outline").param("path", "README.md").param("rev", "v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.symbols[0].signature").value("Title"))
+                .andExpect(jsonPath("$.symbols[0].startLine").value(1));
+    }
+
+    /** Язык, для которого обзора нет, — ошибка запроса, а не сервера. */
+    @Test
+    void anOutlineOfAnUnsupportedFileIsABadRequest() throws Exception {
+        when(git.getFileOutline("notes.txt"))
+                .thenThrow(new IllegalArgumentException("Unsupported language for outline"));
+
+        mockMvc.perform(get("/api/git/files/outline").param("path", "notes.txt"))
                 .andExpect(status().isBadRequest());
     }
 

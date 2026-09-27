@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileBytes;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
+import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
@@ -128,6 +129,21 @@ public class GitController {
                         at == null
                                 ? git.getFileContent(path, from, to)
                                 : git.getFileContentAt(at, path, from, to));
+    }
+
+    /**
+     * Structural outline of a file — the file browser's "Sections" tab asks it for a markdown file.
+     * 400 for a binary file or a language the outline does not support.
+     */
+    @GetMapping("/files/outline")
+    public GitFileOutline getFileOutline(
+            @RequestParam("path") String path,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        requireSafePath(path);
+        GitService git = git(project);
+        String at = revision(rev);
+        return read(() -> at == null ? git.getFileOutline(path) : git.getFileOutlineAt(at, path));
     }
 
     /**

@@ -59,6 +59,7 @@
   },
   "tabs": {
     "info": "Info",
+    "sections": "Sections",
     "commit": "Commit"
   },
   "changes": {
@@ -160,5 +161,11 @@
     "filesSummary_other": "{{count}} files · +{{additions}} −{{deletions}}",
     "showChanges": "Show changed files",
     "loadError": "Failed to load the commit"
+  },
+  "sections": {
+    "aria": "File sections",
+    "empty": "No headings in this file",
+    "loadError": "Could not load the sections",
+    "preamble": "Start of file"
   }
 }

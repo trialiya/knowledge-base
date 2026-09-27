@@ -15,7 +15,6 @@ import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
-import io.github.trialiya.kb.model.git.dto.OutlineResult;
 import io.github.trialiya.kb.model.git.dto.TextEdit;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.file.outline.LanguageDetector;
@@ -848,24 +847,20 @@ public class GitService {
      */
     public GitFileOutline getFileOutline(@NonNull String filePath) {
         FileBytes fb = readTrackedFile(filePath);
-        String language = LanguageDetector.detect(fb.path());
+        return FileOutlines.of(outlineService, fb.path(), fb.tracked(), fb.bytes());
+    }
 
-        if (fb.binary()) {
-            throw new IllegalArgumentException("Cannot outline a binary file: " + fb.path());
-        }
-        if (language == null || !outlineService.isLanguageSupported(language)) {
-            throw new IllegalArgumentException(
-                    "Unsupported language for outline: "
-                            + (language == null ? "unknown" : language)
-                            + " (supported: java, javascript, typescript, python, sql,"
-                            + " markdown)");
-        }
-
-        String source = RepoFiles.decodeToLf(fb.bytes());
-        int total = source.split("\n", -1).length;
-        OutlineResult result = outlineService.outline(language, source);
-        return new GitFileOutline(
-                fb.path(), fb.tracked(), language, total, result.parser(), result.symbols());
+    /**
+     * The same outline as {@link #getFileOutline}, of the file as of a commit — read from the
+     * commit's tree on the terms of {@link #getFileContentAt}.
+     *
+     * @throws IllegalArgumentException if the revision is unknown, the commit holds no file at that
+     *     path, or the file is binary or in a language the outline does not support
+     */
+    public GitFileOutline getFileOutlineAt(@NonNull String commitHash, @NonNull String filePath) {
+        String normalized = normalizePath(filePath);
+        CommitFiles.Blob blob = CommitFiles.read(repository, commitHash.strip(), normalized);
+        return FileOutlines.of(outlineService, normalized, true, blob.bytes());
     }
 
     // ── Bytes (binary files included) ───────────────────────────────────────
@@ -1013,12 +1008,10 @@ public class GitService {
     }
 
     /**
-     * Bytes of a validated, visible file, whether it sniffed as binary, and whether git tracks it —
-     * the last one straight off the gate that cleared the read, so the answer costs no second index
-     * lookup.
+     * Bytes of a validated, visible file and whether git tracks it — straight off the gate that
+     * cleared the read, so the answer costs no second index lookup.
      */
-    private record FileBytes(
-            String path, byte[] bytes, long size, boolean binary, boolean tracked) {}
+    private record FileBytes(String path, byte[] bytes, long size, boolean tracked) {}
 
     /**
      * Validates that {@code filePath} is a file this project serves and reads it once. Centralises
@@ -1055,7 +1048,7 @@ public class GitService {
         } catch (IOException e) {
             throw new IllegalStateException("Cannot read file: " + normalized, e);
         }
-        return new FileBytes(normalized, bytes, size, RepoFiles.isBinary(bytes), tracked);
+        return new FileBytes(normalized, bytes, size, tracked);
     }
 
     // ── The repository itself ───────────────────────────────────────────────

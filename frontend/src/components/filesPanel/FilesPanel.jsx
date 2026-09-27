@@ -3,9 +3,7 @@ import { useTranslation } from 'react-i18next';
 import FileTree from './FileTree';
 import FileContent from './FileContent';
 import FilesToolbar from './FilesToolbar';
-import FileInfo from './FileInfo';
 import ChangesList from './changes/ChangesList';
-import CommitInfo from './commit/CommitInfo';
 import useSnapshotCommit from './commit/useSnapshotCommit';
 import useUncommittedChanges, { UNTRACKED_STATUS } from './changes/useUncommittedChanges';
 import useChangeDiff from './changes/useChangeDiff';
@@ -23,9 +21,9 @@ import ErrorModal from '@/components/common/modal/ErrorModal';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
 import { resolveProjectChoice } from '@/components/common/config/projectChoice';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
-import { IconHistory, IconInfo } from '@/icons/index';
-import { RIGHT_TAB } from '@/constants/rightTabs';
 import { FILE_TAB } from '@/constants/fileTabs';
+import buildFileTabs from './filesSidebar';
+import useSectionJump from './sections/useSectionJump';
 import { previewKind } from '@/utils/filePreview';
 import './filesPanel.css';
 
@@ -150,34 +148,41 @@ const FilesPanelForProject = ({
   const diffByDefault = !!diff.entry && diff.entry.status !== UNTRACKED_STATUS && previewKind(path) !== 'image';
   const showDiff = showChanges && (diffChoice ?? diffByDefault);
 
-  const rightTabs = useMemo(() => {
-    const tabs = [
-      {
-        key: RIGHT_TAB.INFO,
-        label: t('tabs.info'),
-        icon: <IconInfo size={15} />,
-        content: <FileInfo content={content} loading={contentLoading} path={path} project={project} rev={rev} />,
-      },
-    ];
-    if (snapshot) {
-      tabs.push({
-        key: FILE_TAB.COMMIT,
-        label: t('tabs.commit'),
-        icon: <IconHistory size={15} />,
-        content: (
-          <CommitInfo
-            rev={rev}
-            commit={snapshotCommit.commit}
-            loading={snapshotCommit.loading}
-            error={snapshotCommit.error}
-            changesShown={showChanges}
-            onShowChanges={onChangesToggle}
-          />
-        ),
-      });
-    }
-    return tabs;
-  }, [t, content, contentLoading, path, project, rev, snapshot, snapshotCommit, showChanges, onChangesToggle]);
+  const { jump, onJump } = useSectionJump(path);
+
+  const rightTabs = useMemo(
+    () =>
+      buildFileTabs({
+        t,
+        content,
+        contentLoading,
+        path,
+        project,
+        rev,
+        contentToken,
+        snapshot,
+        snapshotCommit,
+        showChanges,
+        onChangesToggle,
+        jump,
+        onJump,
+      }),
+    [
+      t,
+      content,
+      contentLoading,
+      path,
+      project,
+      rev,
+      contentToken,
+      snapshot,
+      snapshotCommit,
+      showChanges,
+      onChangesToggle,
+      jump,
+      onJump,
+    ],
+  );
 
   return (
     <>
@@ -266,6 +271,7 @@ const FilesPanelForProject = ({
             find={find}
             findRegex={findRegex}
             onFindChange={onFindChange}
+            jump={jump}
           />
         }
         right={rightTabs}

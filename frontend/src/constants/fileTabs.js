@@ -5,4 +5,6 @@
 export const FILE_TAB = {
   // Только в снимке ревизии: у рабочего дерева «своего» коммита нет.
   COMMIT: 'commit',
+  // Только у markdown-файла: его разделы по заголовкам.
+  SECTIONS: 'sections',
 };
