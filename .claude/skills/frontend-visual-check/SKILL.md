@@ -69,6 +69,11 @@ a screen never enters the dark theme later than the light one. Read a pair
 side by side — the difference between the two shots is the theme's whole
 contribution, since the scenario, the data and the steps are shared.
 
+A registry entry can opt out with `dark: false` — for a case whose dark theme
+adds nothing a neighbouring entry's dark shot does not already show. It is an
+exception list, not an inclusion list: a new screen still gets its twin by
+default. Say next to the flag which entry covers those parts in the dark theme.
+
 **Every shot is compared with its baseline** in `frontend/tests/visual/baselines/`
 (those are in git — without them there is nothing to compare against), so a
 changed screen is caught by the run rather than by your eye. A mismatch writes

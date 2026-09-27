@@ -129,10 +129,11 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
         }
         console.error('Failed to start run:', error);
         // 422 — повторять уже нечего: чат ушёл вперёд (другая вкладка, гонка с событием).
-        // Снимаем кнопку с этого пузыря: дальше диалог продолжается обычным сообщением.
+        // Снимаем кнопку с этого пузыря: дальше диалог продолжается обычным сообщением. У вопроса
+        // без ответа кнопка выводится из ленты, а не из retryMode, — ему нужен свой флаг отказа.
         if (error?.status === 422) {
           patchMessages(conversationId, (msgs) =>
-            msgs.map((m) => (m.mid === retryMid ? { ...m, retryMode: undefined } : m)),
+            msgs.map((m) => (m.mid === retryMid ? { ...m, retryMode: undefined, retryRefused: true } : m)),
           );
           notify(RETRY_UNAVAILABLE_NOTICE);
           return;

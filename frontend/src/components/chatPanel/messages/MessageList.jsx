@@ -13,6 +13,8 @@ import { modelLabelOf } from '../run/useModelConfig';
 import { compactSavingsIn } from './tokenUsage';
 import { toolRunsIn } from './toolRuns';
 import { SENDER } from '@/constants/messageSender';
+import { RETRY_MODE } from '@/constants/retryMode';
+import { lastQuestionIndexIn, unansweredQuestionMid } from '../run/runMessageOps';
 import { buildMatcher, collectMatchRanges } from '@/components/common/search/findMatches';
 import useMatchRanges from '@/components/common/search/useMatchRanges';
 import useMatchHighlight from '@/components/common/search/useMatchHighlight';
@@ -98,6 +100,14 @@ const MessageList = ({
   // Экономия каждого сжатия — одним проходом по ленте: «после» плашка ищет вперёд по ней, и
   // спрашивать это на каждой плашке значило бы обходить ленту столько раз, сколько в ней сжатий.
   const compactSavings = useMemo(() => compactSavingsIn(messages, hasMore), [messages, hasMore]);
+
+  // Вопрос без ответа — кнопка ответа под ним. Пока идёт прогон, последний ход — тоже вопрос,
+  // но отвечать на него уже взялись.
+  const unansweredMid = useMemo(
+    () => (onRetry && !isStreaming ? unansweredQuestionMid(messages) : null),
+    [messages, onRetry, isStreaming],
+  );
+  const lastQuestionIndex = useMemo(() => lastQuestionIndexIn(messages), [messages]);
 
   const scrollToBottom = (smooth = false) => {
     const el = containerRef.current;
@@ -372,7 +382,18 @@ const MessageList = ({
                   // (см. constants/retryMode.js): после начатого ответа модели её нет вовсе.
                   // Передаём сам обработчик, а не замыкание на сообщение: замыкание было бы
                   // новым на каждый рендер и обесценило бы memo пузыря — mid он знает сам.
-                  onRetry={onRetry && msg.error && msg.retryMode ? onRetry : undefined}
+                  // CONTINUE отвечает на последний вопрос чата, поэтому годится, только пока за
+                  // ошибкой нового вопроса нет: встал вопрос из очереди — кнопка одна, под ним
+                  // (unansweredMid).
+                  onRetry={
+                    onRetry &&
+                    ((msg.error &&
+                      msg.retryMode &&
+                      (msg.retryMode !== RETRY_MODE.CONTINUE || index > lastQuestionIndex)) ||
+                      msg.mid === unansweredMid)
+                      ? onRetry
+                      : undefined
+                  }
                   conversationId={conversationId}
                   onNavigateToDoc={onNavigateToDoc}
                   mid={msg.mid}

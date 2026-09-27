@@ -7,6 +7,7 @@
 import { nextMessageId } from '../messages/messageId';
 import { SENDER } from '@/constants/messageSender';
 import { TOOL_STATUS } from '@/constants/toolStatus';
+import { isCompactCommand, parseChatCommand } from './chatCommands';
 
 // Совпадение вызовов. И живое событие TOOL_CALL, и итоговая мета прогона несут протокольный
 // callId и сквозной callIndex — по ним вызов опознаётся однозначно. Фолбэк на name+arguments
@@ -135,6 +136,42 @@ export const setRunUsage = (msgs, runId, usage, live) => {
  * отправитель у неё USER, ходом разговора она не является.
  */
 export const isEventRow = (message) => !!message.gitEvent || !!message.fileRevert || !!message.scriptEvent;
+
+/**
+ * Вопрос, на который чат так и не ответил: последний ход ленты — сообщение пользователя, уже
+ * лежащее в истории (не «ожидает отправки»). Так остаётся сообщение из очереди, которое бэкенд
+ * доставил за остановленным или упавшим прогоном, не запуская ответ. Правило то же, что у
+ * ChatHistoryService.unansweredUserMessage, — повтор на нём бэк примет. Идёт ли прогон, здесь не
+ * проверяется: во время прогона последний ход — тоже вопрос, и решает вызывающий.
+ *
+ * @returns mid такого вопроса или null
+ */
+export const unansweredQuestionMid = (messages) => {
+  for (let i = (messages?.length ?? 0) - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (isEventRow(m)) continue;
+    // Две оговорки. `/compact` — ряд истории, но не вопрос модели: отвечает на него сжатие, и
+    // упавшее оставляет его последним рядом (пузырь ошибки живёт только во вкладке). Отказ бэка
+    // (retryRefused, см. useRunStarter) — фронт с ним разошёлся, и кнопка ведёт к тому же 422.
+    const question =
+      m.sender === SENDER.USER && !m.queued && !m.retryRefused && !isCompactCommand(parseChatCommand(m.text)?.name);
+    return question ? m.mid : null;
+  }
+  return null;
+};
+
+/**
+ * Индекс последнего вопроса пользователя, уже лежащего в истории, или -1. Плашки действий — не
+ * вопросы; «ожидает отправки» — тоже нет: повтор прогона сначала доставит очередь сам (см.
+ * ChatRunService.start), так что вопросом истории такое сообщение станет только с доставкой.
+ */
+export const lastQuestionIndexIn = (messages) => {
+  for (let i = (messages?.length ?? 0) - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.sender === SENDER.USER && !m.queued && !isEventRow(m)) return i;
+  }
+  return -1;
+};
 
 /**
  * Тот ли это прогон, что чат считает идущим. Прогон в чате открывают ровно двое — RUN_STARTED и

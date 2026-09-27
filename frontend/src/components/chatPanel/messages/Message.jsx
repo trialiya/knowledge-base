@@ -188,12 +188,29 @@ const Message = ({
       </div>
     ) : (
       <div className="message-footer message-footer--user">
-        <CopyButton
-          value={text ?? ''}
-          keepEmpty
-          title={t('message.copyMessage')}
-          className="icon-btn--sm icon-btn--quiet"
-        />
+        <div className="message-footer__actions">
+          {/* У вопроса кнопка бывает одна — ответить на него: на неотвеченный вопрос её
+              передаёт MessageList (см. unansweredQuestionMid). */}
+          {onRetry && (
+            <>
+              <span className="message-footer__unanswered">{t('message.unanswered')}</span>
+              <button
+                className="btn btn--xs btn--ghost"
+                onClick={() => onRetry(mid)}
+                title={t('message.answerHint')}
+                type="button"
+              >
+                ↻ {t('message.answer')}
+              </button>
+            </>
+          )}
+          <CopyButton
+            value={text ?? ''}
+            keepEmpty
+            title={t('message.copyMessage')}
+            className="icon-btn--sm icon-btn--quiet"
+          />
+        </div>
         {timeLabel && (
           <span className="message-footer__time" title={timeTitle ?? undefined}>
             {timeLabel}

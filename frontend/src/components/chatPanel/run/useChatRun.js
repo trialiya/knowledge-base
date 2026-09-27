@@ -11,6 +11,7 @@ import { isChatEmpty } from '../messages/chatHistory';
 import { parseChatCommand, chatCommandBlock, isCompactCommand, CHAT_COMMAND, COMMAND_BLOCK } from './chatCommands';
 import { parseScriptCommand } from '../composer/scriptCommand';
 import useRunStarter from './useRunStarter';
+import { unansweredQuestionMid } from './runMessageOps';
 
 /**
  * Отправка сообщения, повтор после ошибки и остановка генерации.
@@ -309,7 +310,8 @@ export default function useChatRun({
   //     USER_MESSAGE — сразу во всех вкладках, поэтому локально его не трогаем.
   //   • RESEND — сбой самого POST /runs: вопрос не сохранён, отправляем его текст заново.
   //     Пузырь пользователя уже на месте — новый не добавляем, эхо гасится по clientMsgId.
-  // Пузырей без retryMode здесь не бывает: у них нет и кнопки (см. MessageList).
+  // Третий случай — вопрос без ответа (unansweredQuestionMid): это CONTINUE с кнопкой под
+  // самим вопросом. Других пузырей здесь не бывает: у них нет и кнопки (см. MessageList).
   // Пузырь ищем по mid, а не по индексу в массиве: догрузка старых страниц
   // добавляет сообщения В НАЧАЛО списка, и индекс из замыкания рендера успел бы
   // устареть — фильтр по индексу снял бы не тот пузырь.
@@ -320,12 +322,15 @@ export default function useChatRun({
       // pending в другом чате повтору здесь не мешает (как и в isStreaming).
       if (!chat || chat.runId || pendingRunChatId === activeChatId) return;
       const target = (chat.messages || []).find((m) => m.mid === mid);
-      if (!target || target.sender !== SENDER.AI || !target.error) return;
+      if (!target) return;
+      // Вопрос без ответа (см. unansweredQuestionMid) — тот же CONTINUE, только кнопка под ним.
+      const unanswered = target.sender === SENDER.USER && unansweredQuestionMid(chat.messages) === mid;
+      if (!unanswered && (target.sender !== SENDER.AI || !target.error)) return;
       const model = resolveModelForSend(chat);
       const mode = resolveModeForSend(chat);
       const project = resolveProjectForSend(chat);
 
-      if (target.retryMode === RETRY_MODE.CONTINUE) {
+      if (unanswered || target.retryMode === RETRY_MODE.CONTINUE) {
         runConversation(activeChatId, { retry: true, retryMid: mid, model, mode, project });
         return;
       }

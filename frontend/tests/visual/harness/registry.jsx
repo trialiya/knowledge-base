@@ -52,6 +52,7 @@ import * as aiConfig from '../fixtures/aiConfig';
 import * as chatCodeBlocks from '../fixtures/chatCodeBlocks';
 import * as chatCommandMessage from '../fixtures/chatCommandMessage';
 import * as chatFailedAnswer from '../fixtures/chatFailedAnswer';
+import * as chatUnansweredQueued from '../fixtures/chatUnansweredQueued';
 import * as chatFind from '../fixtures/chatFind';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
@@ -392,6 +393,24 @@ const LIGHT = [
   {
     id: 'chatFailedAnswer.js#failedAnswer',
     frame: 'center',
+    render: (p) => <MessageList conversationId="chat-1" messages={p} onRetry={noop} />,
+  },
+
+  // Вопрос из очереди, доставленный за упавшим прогоном: без ответа, и кнопка ответа под ним —
+  // единственная кнопка ленты на пузыре пользователя. Два кадра: ответ успел начаться (у ошибки
+  // повтора нет) и не успел (у ошибки повтор был бы, но он ответил бы на последний вопрос).
+  // Без тёмного двойника: пузыри и ошибку в тёмной теме держит chatFailedAnswer, а кнопка —
+  // общая .btn--xs .btn--ghost, как «Исходник» под каждым ответом.
+  {
+    id: 'chatUnansweredQueued.js#afterPartialAnswer',
+    frame: 'center',
+    dark: false,
+    render: (p) => <MessageList conversationId="chat-1" messages={p} onRetry={noop} />,
+  },
+  {
+    id: 'chatUnansweredQueued.js#beforeFirstToken',
+    frame: 'center',
+    dark: false,
     render: (p) => <MessageList conversationId="chat-1" messages={p} onRetry={noop} />,
   },
 
@@ -889,18 +908,31 @@ const LIGHT = [
 // разницу сценариев, и `<кейс>-dark.png` рядом с `<кейс>.png` читается как «вот
 // то же самое в тёмной».
 //
-// Двойник заводится всем экранам, а не избранным: список «где тёмная тема важна»
-// ветшает молча — новый экран в него просто не попадает, и никто об этом не
-// узнает. Платим вдвое большим набором эталонов и вдвое более долгим прогоном.
-// Взамен покрыто то, чего не видит styles/tokens.test.js: тот ловит роль,
-// забытую в одной из тем, но не то, как выбранные оттенки ложатся друг на друга —
-// светлый текст на бледной заливке проходит любой тест на роли и не читается.
-const REGISTRY = [...LIGHT, ...LIGHT.map((entry) => ({ ...entry, id: `${entry.id}@dark`, theme: 'dark' }))];
+// Двойник заводится всем экранам по умолчанию, а не избранным: список «где тёмная
+// тема важна» ветшает молча — новый экран в него просто не попадает, и никто об
+// этом не узнает. Платим вдвое большим набором эталонов и вдвое более долгим
+// прогоном. Взамен покрыто то, чего не видит styles/tokens.test.js: тот ловит
+// роль, забытую в одной из тем, но не то, как выбранные оттенки ложатся друг на
+// друга — светлый текст на бледной заливке проходит любой тест на роли и не читается.
+//
+// `dark: false` в записи снимает двойник с одного кейса — когда тёмная тема в нём
+// ничего не добавляет к тому, что уже снято у соседей. Список исключений, а не
+// включений: новый экран по-прежнему попадает в тёмную тему сам. Рядом с флагом —
+// комментарий, какой кейс уже держит тёмную тему этих элементов.
+const REGISTRY = [
+  ...LIGHT,
+  ...LIGHT.filter((entry) => entry.dark !== false).map(({ dark: _drop, ...entry }) => ({
+    ...entry,
+    id: `${entry.id}@dark`,
+    theme: 'dark',
+  })),
+];
 
 const MODULES = {
   'aiConfig.js': aiConfig,
   'chatHeader.js': chatHeader,
   'chatFailedAnswer.js': chatFailedAnswer,
+  'chatUnansweredQueued.js': chatUnansweredQueued,
   'chatFind.js': chatFind,
   'chatCodeBlocks.js': chatCodeBlocks,
   'chatCommandMessage.js': chatCommandMessage,
