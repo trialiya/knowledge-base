@@ -14,9 +14,10 @@ import java.util.regex.Pattern;
  * <p>Model: a section is an ATX heading ({@code #}…{@code ######}) plus everything up to the next
  * heading of the same or higher level — i.e. the whole subtree including subsections. Text before
  * the first heading forms a special {@value #PREAMBLE_PATH} section. Headings inside fenced code
- * blocks (``` / ~~~) are ignored. Setext headings ({@code ===} / {@code ---} underlines) are NOT
- * supported. Lines may end in {@code \n} or {@code \r\n}: a text synced from a Windows checkout
- * keeps its CRLF, and offsets always point into the text as given.
+ * blocks (``` / ~~~) are ignored, including a block opened on a list-item line ({@code - ```sh}).
+ * Setext headings ({@code ===} / {@code ---} underlines) are NOT supported. Lines may end in {@code
+ * \n} or {@code \r\n}: a text synced from a Windows checkout keeps its CRLF, and offsets always
+ * point into the text as given.
  *
  * <p>Sections are addressed by a human-readable path of ancestor titles joined with {@value
  * #PATH_SEPARATOR} (e.g. {@code "Установка > Docker"}). Duplicate paths get an occurrence suffix:
@@ -34,8 +35,14 @@ public final class MarkdownSections {
     private static final Pattern HEADING =
             Pattern.compile("^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?[ \\t]*$");
 
-    /** Opening/closing code fence: 0–3 leading spaces, 3+ backticks or tildes. */
-    private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
+    /**
+     * Code fence line: indent (group 1), list-item markers the fence may follow on the same line
+     * (group 2, e.g. {@code "- "} or {@code "1. "}), 3+ backticks or tildes (group 3), the rest
+     * (group 4). How much indent is allowed depends on whether the line opens or closes a block —
+     * see {@link #scanHeadings}.
+     */
+    private static final Pattern FENCE =
+            Pattern.compile("^( *)((?:(?:[-*+]|\\d{1,9}[.)])[ \\t]+)*)(`{3,}|~{3,})(.*)$");
 
     private MarkdownSections() {}
 
@@ -176,6 +183,9 @@ public final class MarkdownSections {
         boolean inFence = false;
         char fenceChar = 0;
         int fenceLength = 0;
+        // Column the open block's content starts at: 0 at top level, past the marker in a list
+        // item ("- ```" → 2), where the closing fence sits indented to match that content.
+        int fenceColumn = 0;
 
         int pos = 0;
         int length = markdown.length();
@@ -188,15 +198,23 @@ public final class MarkdownSections {
             }
 
             Matcher fence = FENCE.matcher(line);
-            if (fence.matches() && (inFence || opensFence(fence))) {
-                String marker = fence.group(1);
+            if (fence.matches()) {
+                int indent = fence.group(1).length();
+                String listMarkers = fence.group(2);
+                String marker = fence.group(3);
+                String rest = fence.group(4);
                 if (!inFence) {
-                    inFence = true;
-                    fenceChar = marker.charAt(0);
-                    fenceLength = marker.length();
-                } else if (marker.charAt(0) == fenceChar
+                    if (indent <= 3 && opensFence(marker, rest)) {
+                        inFence = true;
+                        fenceChar = marker.charAt(0);
+                        fenceLength = marker.length();
+                        fenceColumn = indent + listMarkers.length();
+                    }
+                } else if (listMarkers.isEmpty()
+                        && indent <= fenceColumn + 3
+                        && marker.charAt(0) == fenceChar
                         && marker.length() >= fenceLength
-                        && fence.group(2).isBlank()) {
+                        && rest.isBlank()) {
                     inFence = false;
                 }
             } else if (!inFence) {
@@ -217,8 +235,8 @@ public final class MarkdownSections {
      * string may not contain a backtick (CommonMark), so {@code ```js``` text} is inline code and
      * must not hide every heading below it.
      */
-    private static boolean opensFence(Matcher fence) {
-        return fence.group(1).charAt(0) == '~' || fence.group(2).indexOf('`') < 0;
+    private static boolean opensFence(String marker, String infoString) {
+        return marker.charAt(0) == '~' || infoString.indexOf('`') < 0;
     }
 
     /** Strips optional trailing closing hashes: {@code "Title ###"} → {@code "Title"}. */

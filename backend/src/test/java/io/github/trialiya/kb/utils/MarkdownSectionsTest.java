@@ -113,6 +113,44 @@ class MarkdownSectionsTest {
         }
 
         @Test
+        void fenceOpenedOnListItemLineHidesItsContent() {
+            // The shell comment is code, and the indented closing fence must close the block
+            // rather than open a new one that would swallow "# B".
+            String md = "# A\n- ```sh\n  # comment\n  ```\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly("A", "B");
+        }
+
+        @Test
+        void fenceInNestedOrderedItemClosesAtItsContentIndent() {
+            String md = "# A\n  10. ```py\n      # comment\n      ```\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly("A", "B");
+        }
+
+        @Test
+        void listItemFenceLineDoesNotCloseAnOpenBlock() {
+            String md = "```md\n- ```\n# hidden\n```\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly(MarkdownSections.PREAMBLE_PATH, "B");
+        }
+
+        @Test
+        void topLevelFenceStillIgnoresClosingIndentedFourSpaces() {
+            String md = "```\n    ```\n# hidden\n```\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly(MarkdownSections.PREAMBLE_PATH, "B");
+        }
+
+        @Test
         void recognisesHeadingsAndFencesInCrlfText() {
             String md = "intro\r\n# A #\r\n```\r\n# hidden\r\n```\r\n## A1\r\ntext\r\n# B\r\n";
 
