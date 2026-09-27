@@ -286,7 +286,9 @@ untracked. В выдаче инструментов они помечены `[un
 Структурный анализ файла кода (классы, методы, поля и т.д.) или markdown-файла (заголовки).
 - **Параметры:** `filePath` (String), `project` (String|null — работать в другом репозитории вместо проекта чата, см. «Проект в аргументах» ниже)
 - **Возвращает:** `ToolResult` с id репозитория и `GitFileOutline` в `result` (поля `path`, `tracked`, `language`, `lineCount`, `parser`) со списком `GitSymbol` (имя, `startLine`, `endLine`). `tracked=false` — файл из зоны `allow-globs`, тем же полем и с тем же смыслом, что у `getFileContent`
-- **Движок:** tree-sitter (Java, TypeScript, Python, SQL) → фолбэк на regex при недоступности tree-sitter. Поле `parser` показывает, какой движок использован (`tree-sitter`, `regex` или `markdown`).
+- **Движок:** tree-sitter (Java, JavaScript/JSX, TypeScript, Python) → фолбэк на regex при недоступности tree-sitter или пустом результате; SQL — только regex. Поле `parser` показывает, какой движок использован (`tree-sitter`, `regex` или `markdown`).
+- **JS/TS:** кроме `function`, классов и методов — функции, хранящиеся в значениях: стрелочная функция или `function`-выражение в `const`/`let`/`var` верхнего уровня модуля (в том числе под `export`) — `function` (так объявлены компоненты React); поле класса со стрелочной функцией и функция в объекте верхнего уровня (`const api = { load: () => … }`) — `method`. Такие же `const` внутри тела функции — локальные колбэки и в обзор не попадают. `.tsx` разбирается грамматикой TypeScript без JSX.
+- **Сигнатура** у JS/TS/Python — всё объявление до тела, а не первая строка: `export const List = ({ items, onPick }) =>`, `def f(a, b) -> int`.
 - **Markdown (`.md`, `.markdown`):** разбор тот же, что у `getDocumentOutline` для документов базы знаний (`MarkdownSections`): ATX-заголовки, заголовки внутри fenced-блоков пропускаются. Символ — `kind` `h1`…`h6` (текст до первого заголовка — `preamble`), `name` — текст заголовка, `signature` — путь секции (`Установка > Docker`), диапазон строк — всё поддерево секции, так что подраздел вложен в родителя, как метод в класс. `parser` — `markdown`.
 
 ### `searchFiles`

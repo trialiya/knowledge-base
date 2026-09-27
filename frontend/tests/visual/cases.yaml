@@ -1190,8 +1190,8 @@
     - У файла без структуры (yaml, txt) вкладки на рельсе нет; в консоли нет ошибок
   notes: |
     Снято на живом бэкенде, как files-markdown-sections-tab. Java разбирает
-    tree-sitter; JSX идёт через regex-фолбэк и отдаёт только часть функций —
-    это качество разбора на бэкенде, вкладка показывает, что пришло.
+    tree-sitter; JSX — тоже tree-sitter: компоненты в модульных const
+    (FileView.jsx → CodeView, withLine, ImageView, FileView).
 
 - id: files-crumbs-remeasured-on-new-path
   component: HeadCrumbs

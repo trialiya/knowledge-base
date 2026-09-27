@@ -141,6 +141,7 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
     private void walk(TSNode node, byte[] src, String language, List<GitSymbol> out) {
         if (node == null || node.isNull()) return;
         String kind = symbolKind(language, node.getType());
+        if (kind == null && isScript(language)) kind = functionValueKind(node);
         if (kind != null) {
             String name = nameOf(node, src);
             if (name != null) {
@@ -197,8 +198,99 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
             return cap(sb.toString());
         }
 
-        // JS/TS/Python/SQL: no annotations on params, so first non-annotation line is enough.
-        return cap(firstNonAnnotationLine(node, src));
+        // JS/TS/Python: everything up to the body — the head may span lines (a component's
+        // destructured props, a TS return type), and its first line alone would end mid-list.
+        String head = headBeforeBody(node, src);
+        return cap(head != null ? head : firstNonAnnotationLine(node, src));
+    }
+
+    // ── Functions held in values (JS/TS) ─────────────────────────────────────
+
+    private static boolean isScript(String language) {
+        return language.equals("javascript") || language.equals("typescript");
+    }
+
+    /**
+     * Kind of a JS/TS node that names a function without declaring one: {@code const Foo = () =>
+     * …}, a class field holding an arrow function, an entry of a module-level object of functions
+     * ({@code const api = { load: () => … }}). React components and most modern modules are written
+     * this way, so without it a file of them outlines as nothing.
+     *
+     * <p>Only module-level {@code const}s count: the same form inside a function body is a local
+     * callback, and listing every {@code onClick} of a component would bury its structure.
+     */
+    @Nullable
+    private static String functionValueKind(TSNode node) {
+        if (!isFunctionValue(node.getChildByFieldName("value"))) return null;
+        return switch (node.getType()) {
+            case "variable_declarator" -> isModuleLevel(node) ? "function" : null;
+            case "field_definition", "public_field_definition" -> "method";
+            case "pair" -> {
+                TSNode object = node.getParent();
+                TSNode holder = object == null || object.isNull() ? null : object.getParent();
+                yield holder != null
+                                && !holder.isNull()
+                                && holder.getType().equals("variable_declarator")
+                                && isModuleLevel(holder)
+                        ? "method"
+                        : null;
+            }
+            default -> null;
+        };
+    }
+
+    private static boolean isFunctionValue(@Nullable TSNode value) {
+        if (value == null || value.isNull()) return false;
+        return switch (value.getType()) {
+            case "arrow_function",
+                    "function_expression",
+                    "function",
+                    "generator_function",
+                    "generator_function_expression" ->
+                    true;
+            default -> false;
+        };
+    }
+
+    /** A declarator in a {@code const}/{@code let}/{@code var} at the top of the module. */
+    private static boolean isModuleLevel(TSNode declarator) {
+        TSNode declaration = declarator.getParent();
+        if (declaration == null || declaration.isNull()) return false;
+        TSNode owner = declaration.getParent();
+        if (owner == null || owner.isNull()) return false;
+        if (owner.getType().equals("export_statement")) owner = owner.getParent();
+        return owner != null && !owner.isNull() && owner.getType().equals("program");
+    }
+
+    /**
+     * Source from where the symbol is declared up to its body, whitespace-collapsed, without the
+     * opening brace or colon — or null when the node has no body to stop at. A function held in a
+     * value starts at its declaration ({@code export const Foo = ({ a, b }) =>}), so the reader
+     * sees how it is bound, not only its parameter list.
+     */
+    @Nullable
+    private static String headBeforeBody(TSNode node, byte[] src) {
+        TSNode value = node.getChildByFieldName("value");
+        boolean held = isFunctionValue(value);
+        TSNode body = (held ? value : node).getChildByFieldName("body");
+        if (body == null || body.isNull()) return null;
+        TSNode start = node;
+        if (held && node.getType().equals("variable_declarator")) {
+            start = node.getParent();
+            TSNode exported = start.getParent();
+            if (exported != null
+                    && !exported.isNull()
+                    && exported.getType().equals("export_statement")) {
+                start = exported;
+            }
+        }
+        int from = start.getStartByte();
+        int to = Math.min(body.getStartByte(), src.length);
+        if (from < 0 || from >= to) return null;
+        String head =
+                new String(src, from, to - from, java.nio.charset.StandardCharsets.UTF_8).strip();
+        if (head.endsWith("{") || head.endsWith(":")) head = head.substring(0, head.length() - 1);
+        return head.strip();
     }
 
     /**
