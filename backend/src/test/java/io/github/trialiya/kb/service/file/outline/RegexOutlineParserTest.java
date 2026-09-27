@@ -18,10 +18,12 @@ class RegexOutlineParserTest {
     }
 
     @Test
-    void javaTypesAndMethodsButNotControlFlow() {
+    void javaTypesMethodsAndConstructorsButNotControlFlow() {
         String src =
                 """
                 public final class Repo {
+                    public Repo(Path root) {
+                    }
                     public static <T> Map<String, List<T>> index(List<T> items) throws IOException {
                         if (items.isEmpty()) {
                         }
@@ -32,7 +34,7 @@ class RegexOutlineParserTest {
                 }
                 """;
         assertEquals(
-                List.of("class Repo", "method index", "method spaced"),
+                List.of("class Repo", "method Repo", "method index", "method spaced"),
                 kindsAndNames(parser.parse("java", src)));
     }
 
@@ -49,6 +51,15 @@ class RegexOutlineParserTest {
                         Duration.ofSeconds(2), () -> parser.parse("java", line.repeat(20)));
 
         assertEquals(List.of(), symbols);
+    }
+
+    /** Регулярки Java рекурсивны на повторах групп: такая строка переполнила бы стек. */
+    @Test
+    void anOverlongLineIsSkippedAndTheRestIsStillRead() {
+        String src = "public ".repeat(20_000) + "(\nclass After {}\n";
+
+        assertEquals(List.of("class After"), kindsAndNames(parser.parse("java", src)));
+        assertEquals(2, parser.parse("java", src).get(0).startLine());
     }
 
     @Test
