@@ -185,4 +185,107 @@ class TreeSitterOutlineParserTest {
         assertNotNull(find(symbols, "speak").findFirst().orElse(null));
         assertNotNull(find(symbols, "helper").findFirst().orElse(null));
     }
+
+    /** Компоненты React — стрелочные функции в модульных const, с разметкой JSX внутри. */
+    @Test
+    void jsxComponentsHeldInConstsAreFunctions() {
+        Assumptions.assumeTrue(parser.supports("javascript"));
+        String src =
+                """
+                import { useState } from 'react';
+
+                const Row = ({ label }) => <li>{label}</li>;
+
+                export const List = ({
+                  items,
+                  onPick,
+                }) => {
+                  const handleClick = (item) => onPick(item);
+                  return <ul>{items.map((i) => <Row key={i} label={i} />)}</ul>;
+                };
+
+                export default function App() {
+                  const [x] = useState(0);
+                  return <List items={[x]} onPick={() => {}} />;
+                }
+                """;
+        List<GitSymbol> symbols = parser.parse("javascript", src);
+
+        assertEquals(List.of("Row", "List", "App"), symbols.stream().map(GitSymbol::name).toList());
+        GitSymbol list = symbols.get(1);
+        assertEquals("function", list.kind());
+        assertEquals(5, list.startLine());
+        assertEquals(11, list.endLine());
+        // Весь заголовок до тела, а не первая строка, оборванная на «({».
+        assertEquals("export const List = ({ items, onPick, }) =>", list.signature());
+        assertEquals("const Row = ({ label }) =>", symbols.get(0).signature());
+    }
+
+    /** Модульный объект функций (api-клиент) и поле класса со стрелочной функцией — методы. */
+    @Test
+    void functionsInModuleObjectsAndClassFieldsAreMethods() {
+        Assumptions.assumeTrue(parser.supports("javascript"));
+        String src =
+                """
+                const api = {
+                  load: (id) => fetch(id),
+                  save(doc) { return doc; },
+                  limit: 10,
+                };
+
+                class Store {
+                  refresh = async () => {
+                    await api.load(1);
+                  };
+                }
+
+                function outer() {
+                  const local = { inner: () => 1 };
+                  return local;
+                }
+                """;
+        List<GitSymbol> symbols = parser.parse("javascript", src);
+
+        assertEquals(
+                List.of("load", "save", "Store", "refresh", "outer"),
+                symbols.stream().map(GitSymbol::name).toList());
+        assertEquals("method", symbols.get(0).kind());
+        assertEquals("load: (id) =>", symbols.get(0).signature());
+        assertEquals("method", symbols.get(3).kind());
+    }
+
+    @Test
+    void typescriptArrowFunctionKeepsItsTypes() {
+        Assumptions.assumeTrue(parser.supports("typescript"));
+        String src =
+                """
+                export const sum = (a: number, b: number): number => {
+                  return a + b;
+                };
+                """;
+        GitSymbol sum = parser.parse("typescript", src).get(0);
+
+        assertEquals("function", sum.kind());
+        assertEquals("export const sum = (a: number, b: number): number =>", sum.signature());
+    }
+
+    /** Декоратор — не часть сигнатуры: у TS он дочерний узел класса и метода. */
+    @Test
+    void typescriptDecoratorsStayOutOfTheSignature() {
+        Assumptions.assumeTrue(parser.supports("typescript"));
+        String src =
+                """
+                @Injectable({ providedIn: 'root' })
+                export class Store {
+                  @Input()
+                  load(id: string): void {}
+                }
+                """;
+        List<GitSymbol> symbols = parser.parse("typescript", src);
+
+        assertEquals("class Store", find(symbols, "Store").findFirst().orElseThrow().signature());
+        GitSymbol load = find(symbols, "load").findFirst().orElseThrow();
+        assertEquals("load(id: string): void", load.signature());
+        assertEquals(4, load.startLine());
+    }
 }
