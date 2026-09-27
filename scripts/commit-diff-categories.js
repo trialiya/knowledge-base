@@ -4,9 +4,10 @@
  *   - служебные/сборочные файлы   — total only, no breakdown
  *   - документация                — total only, no breakdown
  *   - основные (исходные) файлы   — broken down into:
- *       import/package · javadoc/комментарии · пустые строки · скобки · код
- *     "скобки" is a line of closing/opening brackets only (}); ) ]; …) or
- *     "try {"; "код" is every other line with code outside comments.
+ *       import/package · javadoc/комментарии · пустые строки · код
+ *     "код" is every line with code outside comments, imports aside; its
+ *     "эффективный" part leaves out lines of brackets only (}); ) ]; …) and
+ *     "try {", which carry no logic of their own.
  *     A source file is any extension with an entry in SYNTAX below.
  *   - не удалось определить       — a changed line in a source file whose
  *     category can't be told from the diff hunk alone (e.g. plain text that
@@ -38,9 +39,8 @@
  * merge base and <head> — not the sum of the rows, since a line added in one
  * commit and removed in the next is no change to the PR.
  * --loc counts a whole file (working tree, or <rev>:<path> with --rev). With
- * the full text there is no unknown state, so every line resolves; "эффективные"
- * lines are the code category alone — imports excluded, unlike the grep in
- * CLAUDE.md's file-size rule, which counts them.
+ * the full text there is no unknown state, so every line resolves. It is the
+ * measure CLAUDE.md's file-size rule points to.
  */
 
 const { execFileSync } = require("child_process");
@@ -176,11 +176,12 @@ function languageFor(path) {
 }
 
 function emptyCounts() {
-  return { import: 0, comment: 0, empty: 0, brace: 0, code: 0, undetermined: 0 };
+  // "brace" + "effective" together make up the reported "код".
+  return { import: 0, comment: 0, empty: 0, brace: 0, effective: 0, undetermined: 0 };
 }
 
 // Lines that only close (or open) a construct: }); ) }; ], — plus "try {".
-// They carry no logic of their own, so they are kept out of the code count.
+// Code, but not effective code.
 function isBraceOnly(code) {
   const compact = code.replace(/\s+/g, "");
   return /^[()[\]{};,]+$/.test(compact) || compact === "try{";
@@ -249,7 +250,7 @@ function categorize(scan, importRe) {
   if (scan.comment && scan.code.replace(/\s+/g, "") === "{}") return "comment";
   if (importRe.test(scan.code)) return "import";
   if (isBraceOnly(scan.code)) return "brace";
-  return "code";
+  return "effective";
 }
 
 function classifyKnown(trimmed, state, lang) {
@@ -410,8 +411,7 @@ function formatCounts(c) {
     `    import/package: ${c.import}\n` +
     `    комментарии:    ${c.comment}\n` +
     `    пустые строки:  ${c.empty}\n` +
-    `    скобки:         ${c.brace}\n` +
-    `    код:            ${c.code}\n` +
+    `    код:            ${c.brace + c.effective} (эффективный: ${c.effective})\n` +
     `    не определено:  ${c.undetermined}\n` +
     `    итого:          ${total}`
   );
@@ -524,8 +524,8 @@ const TABLE_HEADER = [
   "Import",
   "Комментарии",
   "Пустые",
-  "Скобки",
   "Код",
+  "Эффективный код",
   "Не определено",
 ];
 
@@ -547,8 +547,8 @@ function tableRow(label, { totals, fileCount }) {
     delta("import"),
     delta("comment"),
     delta("empty"),
-    delta("brace"),
-    delta("code"),
+    fmtDelta(source.added.brace + source.added.effective - source.removed.brace - source.removed.effective),
+    delta("effective"),
     delta("undetermined"),
   ];
 }
@@ -615,25 +615,24 @@ function countFileLines(path, rev) {
 }
 
 function printFileLoc(paths, rev) {
-  const header = ["Файл", "Всего", "Эффективные", "Import", "Комментарии", "Пустые", "Скобки"];
-  const cols = ["code", "import", "comment", "empty", "brace"];
+  const header = ["Файл", "Всего", "Эффективный код", "Код", "Import", "Комментарии", "Пустые"];
+  const columns = (c) => [c.effective, c.brace + c.effective, c.import, c.comment, c.empty];
   const body = [];
-  const sum = { total: 0, ...Object.fromEntries(cols.map((k) => [k, 0])) };
+  const sum = { total: 0, ...emptyCounts() };
   for (const path of paths) {
     const r = countFileLines(path, rev);
     if (!r.counts) {
       const kind = r.category === "doc" ? "документация" : "служебный";
-      body.push([`${path} (${kind})`, String(r.total), ...cols.map(() => "—")]);
+      body.push([`${path} (${kind})`, String(r.total), ...columns(emptyCounts()).map(() => "—")]);
       continue;
     }
-    const c = r.counts;
-    body.push([path, r.total, ...cols.map((k) => c[k])].map(String));
+    body.push([path, r.total, ...columns(r.counts)].map(String));
     sum.total += r.total;
-    for (const k of cols) sum[k] += c[k];
+    for (const k of Object.keys(r.counts)) sum[k] += r.counts[k];
   }
   if (paths.length > 1) {
     body.push(null);
-    body.push(["Итого (основные файлы)", sum.total, ...cols.map((k) => sum[k])].map(String));
+    body.push(["Итого (основные файлы)", sum.total, ...columns(sum)].map(String));
   }
   printTable(header, body);
 }
