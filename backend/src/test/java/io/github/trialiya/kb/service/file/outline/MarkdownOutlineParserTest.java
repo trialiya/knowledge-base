@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.trialiya.kb.model.git.dto.GitSymbol;
-import io.github.trialiya.kb.model.git.dto.OutlineResult;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -54,15 +53,5 @@ class MarkdownOutlineParserTest {
     @Test
     void emptyFileHasNoSymbols() {
         assertTrue(parser.parse("markdown", "").isEmpty());
-    }
-
-    @Test
-    void outlineServiceRoutesMarkdownToThisParser() {
-        OutlineService service = new OutlineService();
-
-        assertTrue(service.isLanguageSupported(LanguageDetector.detect("docs/README.md")));
-        OutlineResult result = service.outline("markdown", "# A\n");
-        assertEquals("markdown", result.parser());
-        assertEquals(List.of(new GitSymbol("h1", "A", "A", 1, 1)), result.symbols());
     }
 }

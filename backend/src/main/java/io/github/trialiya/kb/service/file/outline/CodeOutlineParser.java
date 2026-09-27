@@ -5,9 +5,9 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Extracts a list of top-level symbols (classes, methods, functions, fields, imports, tables, ...)
- * from source code. Implementations may use a real grammar (tree-sitter) or a lightweight regex
- * fallback. Callers should treat the result as best-effort structural metadata, not a guarantee.
+ * Extracts the declared symbols (classes, methods, functions, tables, headings, ...) of a file.
+ * Implementations may use a real grammar (tree-sitter) or a lightweight regex fallback. Callers
+ * should treat the result as best-effort structural metadata, not a guarantee.
  */
 public interface CodeOutlineParser {
 
@@ -25,11 +25,12 @@ public interface CodeOutlineParser {
 
     /**
      * Parses {@code source} and returns its symbols in document order. Must never throw on
-     * malformed input — return an empty list instead.
+     * malformed input.
      *
      * @param language canonical language id
      * @param source full file content
-     * @return symbols, possibly empty
+     * @return symbols, empty when the file declares none; {@code null} when this parser could not
+     *     read the file at all — the caller may then try another one
      */
-    List<GitSymbol> parse(String language, String source);
+    @Nullable List<GitSymbol> parse(String language, String source);
 }

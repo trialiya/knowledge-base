@@ -132,8 +132,8 @@ public class GitController {
     }
 
     /**
-     * Structural outline of a file — the file browser's "Sections" tab asks it for a markdown file.
-     * 400 for a binary file or a language the outline does not support.
+     * Structural outline of a file — what the file browser's "Outline" tab lists: symbols of code,
+     * sections of markdown. 400 for a binary file or a language the outline does not support.
      */
     @GetMapping("/files/outline")
     public GitFileOutline getFileOutline(

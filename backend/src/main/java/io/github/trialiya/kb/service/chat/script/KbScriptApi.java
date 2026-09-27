@@ -336,7 +336,9 @@ public class KbScriptApi {
                 });
     }
 
-    /** Structural outline (classes, methods, ...) of a tracked source file, without its text. */
+    /**
+     * Structural outline (classes, methods, ...; headings of markdown) of a file, without its text.
+     */
     @HostAccess.Export
     public Object outline(String path) {
         String canonical = canonical(path);

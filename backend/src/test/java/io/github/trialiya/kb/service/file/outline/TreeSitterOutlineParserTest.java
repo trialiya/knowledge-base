@@ -1,9 +1,6 @@
 package io.github.trialiya.kb.service.file.outline;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.trialiya.kb.model.git.dto.GitSymbol;
 import java.util.List;
@@ -13,17 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * End-to-end tests for {@link TreeSitterOutlineParser} against the real tree-sitter Java grammar.
- *
- * <p>These verify the signature-building behaviour that previously regressed:
- *
- * <ul>
- *   <li>method parameters appear in the signature (not empty parens),
- *   <li>access modifiers appear (public/private/…),
- *   <li>annotations — including ones with multi-byte (Cyrillic) arguments — never leak into the
- *       signature,
- *   <li>start line points at the declaration, not a leading annotation.
- * </ul>
+ * End-to-end tests for {@link TreeSitterOutlineParser} against the real tree-sitter grammars: which
+ * nodes become symbols, of what kind, with what signature and line range.
  *
  * <p>If the tree-sitter native library is not available on the test platform, the parser reports
  * {@code supports(...) == false}; these tests then skip via {@link Assumptions} rather than fail,
@@ -45,8 +33,8 @@ class TreeSitterOutlineParserTest {
         return symbols.stream().filter(s -> s.name().equals(name));
     }
 
-    private static boolean isAscii(String s) {
-        return s.chars().allMatch(c -> c < 128);
+    private static List<String> names(List<GitSymbol> symbols) {
+        return symbols.stream().map(GitSymbol::name).toList();
     }
 
     @Test
@@ -75,15 +63,11 @@ class TreeSitterOutlineParserTest {
         GitSymbol cls = find(symbols, "GitFunction").findFirst().orElseThrow();
         assertEquals("class", cls.kind());
         assertEquals("public class GitFunction", cls.signature());
-        // class declaration line, not the @Slf4j line
-        assertTrue(cls.signature().startsWith("public class"));
 
         GitSymbol m = find(symbols, "getFileTree").findFirst().orElseThrow();
         assertEquals("method", m.kind());
+        // Neither the Cyrillic annotation arguments nor the annotations themselves.
         assertEquals("public List<GitFileNode> getFileTree(String path)", m.signature());
-        assertTrue(isAscii(m.signature()), "signature must not contain annotation text");
-        assertFalse(m.signature().contains("()"), "param must be present");
-        assertFalse(m.signature().contains("ToolParam"));
     }
 
     @Test
@@ -104,7 +88,6 @@ class TreeSitterOutlineParserTest {
         assertEquals(
                 "public List<GitCommit> getCommitLog(Integer maxCount, String filePath)",
                 m.signature());
-        assertTrue(isAscii(m.signature()));
     }
 
     @Test
@@ -168,28 +151,34 @@ class TreeSitterOutlineParserTest {
         assertEquals(5, m.startLine());
     }
 
+    /** {@code def} прямо в теле класса — метод; вложенная в функцию — её код, не структура. */
     @Test
-    void pythonClassAndFunction() {
-        Assumptions.assumeTrue(parser.supports("python"));
+    void pythonDefInAClassIsAMethodAndNestedDefsAreNotListed() {
         String src =
                 """
                 class Animal:
-                    def speak(self):
+                    @property
+                    def speak(self) -> str:
+                        def inner():
+                            pass
                         return "hi"
 
-                def helper():
-                    return 1
+                def helper(a, b=1):
+                    return a
                 """;
         List<GitSymbol> symbols = parser.parse("python", src);
-        assertNotNull(find(symbols, "Animal").findFirst().orElse(null));
-        assertNotNull(find(symbols, "speak").findFirst().orElse(null));
-        assertNotNull(find(symbols, "helper").findFirst().orElse(null));
+
+        assertEquals(
+                List.of(
+                        new GitSymbol("class", "Animal", "class Animal", 1, 6),
+                        new GitSymbol("method", "speak", "def speak(self) -> str", 3, 6),
+                        new GitSymbol("function", "helper", "def helper(a, b=1)", 8, 9)),
+                symbols);
     }
 
     /** Компоненты React — стрелочные функции в модульных const, с разметкой JSX внутри. */
     @Test
     void jsxComponentsHeldInConstsAreFunctions() {
-        Assumptions.assumeTrue(parser.supports("javascript"));
         String src =
                 """
                 import { useState } from 'react';
@@ -211,7 +200,7 @@ class TreeSitterOutlineParserTest {
                 """;
         List<GitSymbol> symbols = parser.parse("javascript", src);
 
-        assertEquals(List.of("Row", "List", "App"), symbols.stream().map(GitSymbol::name).toList());
+        assertEquals(List.of("Row", "List", "App"), names(symbols));
         GitSymbol list = symbols.get(1);
         assertEquals("function", list.kind());
         assertEquals(5, list.startLine());
@@ -224,7 +213,6 @@ class TreeSitterOutlineParserTest {
     /** Модульный объект функций (api-клиент) и поле класса со стрелочной функцией — методы. */
     @Test
     void functionsInModuleObjectsAndClassFieldsAreMethods() {
-        Assumptions.assumeTrue(parser.supports("javascript"));
         String src =
                 """
                 const api = {
@@ -246,9 +234,7 @@ class TreeSitterOutlineParserTest {
                 """;
         List<GitSymbol> symbols = parser.parse("javascript", src);
 
-        assertEquals(
-                List.of("load", "save", "Store", "refresh", "outer"),
-                symbols.stream().map(GitSymbol::name).toList());
+        assertEquals(List.of("load", "save", "Store", "refresh", "outer"), names(symbols));
         assertEquals("method", symbols.get(0).kind());
         assertEquals("load: (id) =>", symbols.get(0).signature());
         assertEquals("method", symbols.get(3).kind());
@@ -256,7 +242,6 @@ class TreeSitterOutlineParserTest {
 
     @Test
     void typescriptArrowFunctionKeepsItsTypes() {
-        Assumptions.assumeTrue(parser.supports("typescript"));
         String src =
                 """
                 export const sum = (a: number, b: number): number => {
@@ -272,7 +257,6 @@ class TreeSitterOutlineParserTest {
     /** Декоратор — не часть сигнатуры: у TS он дочерний узел класса и метода. */
     @Test
     void typescriptDecoratorsStayOutOfTheSignature() {
-        Assumptions.assumeTrue(parser.supports("typescript"));
         String src =
                 """
                 @Injectable({ providedIn: 'root' })
@@ -287,5 +271,88 @@ class TreeSitterOutlineParserTest {
         GitSymbol load = find(symbols, "load").findFirst().orElseThrow();
         assertEquals("load(id: string): void", load.signature());
         assertEquals(4, load.startLine());
+    }
+
+    /**
+     * Тело функции — её код: вложенная {@code function}, методы объекта-аргумента и анонимного
+     * класса структурой файла не являются. Объект, переданный вызову, — тоже аргумент, а не модуль.
+     */
+    @Test
+    void nothingInsideAFunctionBodyIsListed() {
+        String js =
+                """
+                export function Comp() {
+                  function handle() {}
+                  return useMemo(() => ({ render() {} }), []);
+                }
+                register({ install() {} });
+                export default { mounted() {} };
+                """;
+        assertEquals(List.of("Comp", "mounted"), names(parser.parse("javascript", js)));
+
+        String java =
+                """
+                class A {
+                    void run() {
+                        new Thread(new Runnable() { public void run() {} }).start();
+                        class Local {}
+                    }
+                }
+                """;
+        assertEquals(List.of("A", "run"), names(parser.parse("java", java)));
+    }
+
+    @Test
+    void typescriptAbstractClassesEnumsAndTypeAliasesAreListed() {
+        String src =
+                """
+                export abstract class Base {
+                  abstract run(): void;
+                }
+                export enum Color { Red, Green }
+                export type Id = string;
+                """;
+        assertEquals(
+                List.of(
+                        new GitSymbol("class", "Base", "abstract class Base", 1, 3),
+                        new GitSymbol("method", "run", "abstract run(): void", 2, 2),
+                        new GitSymbol("enum", "Color", "enum Color", 4, 4),
+                        new GitSymbol("type", "Id", "type Id = string", 5, 5)),
+                parser.parse("typescript", src));
+    }
+
+    @Test
+    void javaSignaturesKeepTypeParametersAndThrows() {
+        String src =
+                """
+                public @interface Marker {}
+                record Range(int from, int to) {
+                    Range {
+                    }
+                    static <T extends Comparable<T>> T max(T a, T b) throws IOException {
+                        return a;
+                    }
+                }
+                """;
+        List<GitSymbol> symbols = parser.parse("java", src);
+
+        assertEquals(
+                List.of(
+                        "annotation public @interface Marker",
+                        "record record Range",
+                        "constructor Range",
+                        "method static <T extends Comparable<T>> T max(T a, T b) throws IOException"),
+                symbols.stream().map(s -> s.kind() + " " + s.signature()).toList());
+    }
+
+    /**
+     * Выражение из тысяч слагаемых вложено на тысячи уровней: обход рекурсией падал бы с
+     * переполнением стека и терял весь файл, а не только это выражение.
+     */
+    @Test
+    void aDeeplyNestedExpressionDoesNotCostTheRestOfTheFile() {
+        String src = "const x = 1" + " + a".repeat(20_000) + ";\nfunction after() {}\n";
+
+        assertEquals(List.of("after"), names(parser.parse("javascript", src)));
     }
 }

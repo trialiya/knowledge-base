@@ -3,7 +3,6 @@ package io.github.trialiya.kb.service.file.outline;
 import io.github.trialiya.kb.model.git.dto.GitSymbol;
 import io.github.trialiya.kb.model.git.dto.OutlineResult;
 import java.util.List;
-import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -24,8 +23,8 @@ public class OutlineService {
      * this set ({@code OUTLINE_LANGUAGES} in {@code filesPanel/outline/outlineRows.js}) to decide
      * whether to show itself — keep the two in step.
      */
-    private static final Set<String> SUPPORTED_LANGUAGES =
-            Set.of(
+    private static final List<String> SUPPORTED_LANGUAGES =
+            List.of(
                     "java",
                     "javascript",
                     "typescript",
@@ -55,27 +54,29 @@ public class OutlineService {
         return language != null && SUPPORTED_LANGUAGES.contains(language);
     }
 
+    /** The supported set, in a fixed order — for the message that rejects any other language. */
+    public List<String> supportedLanguages() {
+        return SUPPORTED_LANGUAGES;
+    }
+
     /**
      * Extracts symbols for a <b>supported</b> language. Never throws; callers must gate on {@link
-     * #isLanguageSupported} first. For a supported language whose tree-sitter engine is
-     * unavailable, falls back to regex (parser {@code "regex"}).
+     * #isLanguageSupported} first. Falls back to regex (parser {@code "regex"}) when tree-sitter
+     * could not read the file — its native layer is unavailable or the parse failed — but not when
+     * it read the file and found nothing: the regex would then only add what tree-sitter leaves out
+     * on purpose, such as the callbacks inside a function.
      *
      * @param language canonical language id, expected to be supported
      * @param source full file content
      */
     public OutlineResult outline(String language, String source) {
-        if (markdown.supports(language)) {
-            return new OutlineResult(markdown.name(), markdown.parse(language, source));
-        }
-        if (treeSitter.supports(language)) {
-            List<GitSymbol> symbols = treeSitter.parse(language, source);
-            // If tree-sitter yielded nothing (e.g. parse hiccup), try regex before giving up.
-            if (!symbols.isEmpty()) {
-                return new OutlineResult(treeSitter.name(), symbols);
+        for (CodeOutlineParser parser : List.of(markdown, treeSitter, regex)) {
+            if (parser.supports(language)) {
+                List<GitSymbol> symbols = parser.parse(language, source);
+                if (symbols != null) {
+                    return new OutlineResult(parser.name(), symbols);
+                }
             }
-        }
-        if (regex.supports(language)) {
-            return new OutlineResult(regex.name(), regex.parse(language, source));
         }
         return new OutlineResult("none", List.of());
     }
