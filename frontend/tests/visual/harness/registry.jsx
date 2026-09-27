@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatHeader from '@/components/chatPanel/center/ChatHeader';
 import MessageList from '@/components/chatPanel/messages/MessageList';
+import { transformPage } from '@/components/chatPanel/run/messagesPage';
 import FindBar from '@/components/common/search/FindBar';
 import ChatUsage from '@/components/chatPanel/center/ChatUsage';
 import ComposerToolbar from '@/components/chatPanel/composer/ComposerToolbar';
@@ -53,6 +54,7 @@ import * as chatCodeBlocks from '../fixtures/chatCodeBlocks';
 import * as chatCommandMessage from '../fixtures/chatCommandMessage';
 import * as chatFailedAnswer from '../fixtures/chatFailedAnswer';
 import * as chatUnansweredQueued from '../fixtures/chatUnansweredQueued';
+import * as chatInterruptedRun from '../fixtures/chatInterruptedRun';
 import * as chatFind from '../fixtures/chatFind';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
@@ -413,6 +415,18 @@ const LIGHT = [
     dark: false,
     render: (p) => <MessageList conversationId="chat-1" messages={p} onRetry={noop} />,
   },
+  // Прогоны, оборванные после работы инструментов, как их показывает перезагрузка: фикстура —
+  // сырые ряды истории, и через transformPage проходит и перевод служебной метки в подпись. Заодно
+  // единственный кадр плашки итога прогона под ответом — в ленте её больше не снимает никто.
+  // Без тёмного двойника: пузыри, ошибку и плашки вызовов в тёмной теме держат chatFailedAnswer и
+  // toolCallSegments; сама плашка итога набрана как время под ответом — приглушённым текстом.
+  {
+    id: 'chatInterruptedRun.js#stoppedAndFailedAfterTools',
+    frame: 'center',
+    dark: false,
+    render: (p) => <MessageList conversationId="chat-1" messages={transformPage(p).bubbles} onRetry={noop} />,
+  },
+
 
   // Ряд категорий и сетка фраз над полем ввода. Библиотеку блок грузит сам
   // (GET /api/phrases), поэтому ответ отдаём через `api`. Рамка `feed`: блок
@@ -933,6 +947,7 @@ const MODULES = {
   'chatHeader.js': chatHeader,
   'chatFailedAnswer.js': chatFailedAnswer,
   'chatUnansweredQueued.js': chatUnansweredQueued,
+  'chatInterruptedRun.js': chatInterruptedRun,
   'chatFind.js': chatFind,
   'chatCodeBlocks.js': chatCodeBlocks,
   'chatCommandMessage.js': chatCommandMessage,

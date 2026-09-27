@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import i18n from '@/i18n/index';
+import { errorLabel, interruptedNote, stoppedLabel } from './runMarkers';
 import { openChatEventStream } from '@/api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
 import { DRAFT_CHAT_ID } from '@/constants/storage';
@@ -195,9 +196,10 @@ export default function useChatEventStream({
 
     const ctx = {
       isLocal: isLocalClientId,
-      stoppedLabel: i18n.t('chat:window.stopped'),
-      errorLabel: i18n.t('chat:window.genericError'),
-      interruptedNote: `\n\n_**${i18n.t('chat:message.interrupted')}**_`,
+      // Те же подписи ставит на место меток бэкенда загрузка истории (runMarkers.interruptedAnswer).
+      stoppedLabel: stoppedLabel(),
+      errorLabel: errorLabel(),
+      interruptedNote: interruptedNote(),
       compactingLabel: `_${i18n.t('chat:compact.running')}_`,
       // Итог сжатия подписи здесь не получает: его рисует плашка (CompactNotice) — ровно та
       // же, что приезжает из истории после перезагрузки, и переводит она себя сама.

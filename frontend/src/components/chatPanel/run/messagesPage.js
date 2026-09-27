@@ -6,6 +6,7 @@
 import { nextMessageId } from '../messages/messageId';
 import { SENDER } from '@/constants/messageSender';
 import { isEventRow, toolCallOf } from './runMessageOps';
+import { interruptedAnswer } from './runMarkers';
 
 // Extracts runId from a system message that carries tool call breadcrumbs.
 const extractRunId = (m) => m.runId || null;
@@ -143,12 +144,15 @@ export const transformPage = (rawMsgs) => {
         continue;
       }
     }
+    // Оборванный ответ хранит служебную метку — показываем ту же подпись, что и живой поток.
+    const interrupted = type === 'user' ? null : interruptedAnswer(m.content);
     bubbles.push({
       mid: nextMessageId(),
       // id сообщения в БД — якорь для поиска по чату (find-бар, Ctrl+F): позволяет
       // сопоставить хит бэкенда с пузырём и понять, догружена ли страница с совпадением.
       dbId: m.id ?? null,
-      text: m.content,
+      text: interrupted ? interrupted.text : m.content,
+      ...(interrupted?.error ? { error: true } : {}),
       sender: type === 'user' ? SENDER.USER : SENDER.AI,
       timestamp: m.timestamp || null,
       // Приложенное к вопросу (вложения) — чипы под текстом пузыря.
