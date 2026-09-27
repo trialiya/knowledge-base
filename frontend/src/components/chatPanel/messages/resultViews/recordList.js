@@ -3,9 +3,7 @@
 // полей — по развороту.
 //
 // Разбор — по форме, а не по имени инструмента (см. registry.js). Признак
-// формы: массив плоских объектов с одинаковым набором ключей. Совпадение
-// ключей — сильная проверка и дешёвая: Jackson печатает все поля record'а, так
-// что у настоящей выдачи сигнатуры сходятся, а у случайного массива нет.
+// формы: массив плоских объектов с общим набором ключей (см. `sameShape`).
 
 import { contentTakesArray, isPlainObject } from './contentResult';
 
@@ -54,13 +52,17 @@ const isEmpty = (value) =>
   (isPlainObject(value) && Object.keys(value).length === 0);
 
 /**
- * Набор ключей записи — по нему проверяется однотипность списка.
- *
- * Ключи склеивает JSON, а не разделитель-символ: любой печатный разделитель
- * бывает и внутри имени поля, и тогда `{"a b": …}` не отличить от
- * `{"a": …, "b": …}`.
+ * Записи одного DTO: у всех одни и те же ключи, кроме необязательных — Jackson
+ * не печатает `null` у полей с `@JsonInclude(NON_NULL)` (`oldPath` есть только
+ * у переименования, `body` — только у коммита с телом). Отсутствующий ключ
+ * равен `null`, поэтому разниться наборам разрешено, но общие для всех ключи
+ * должны быть большинством: у случайного массива объектов их почти нет.
  */
-const keySignature = (obj) => JSON.stringify(Object.keys(obj).sort());
+const sameShape = (objects) => {
+  const union = new Set(objects.flatMap(Object.keys));
+  const common = [...union].filter((key) => objects.every((obj) => Object.hasOwn(obj, key)));
+  return common.length * 2 > union.size;
+};
 
 const toRecord = (obj, key) => {
   const title = firstField(obj, TITLE_FIELDS);
@@ -93,8 +95,7 @@ export const detectRecordList = ({ parsed, isJson }) => {
   if (parsed.length === 0 || parsed.length > MAX_RECORDS) return null;
   if (!parsed.every(isPlainObject)) return null;
 
-  const signature = keySignature(parsed[0]);
-  if (!parsed.every((record) => keySignature(record) === signature)) return null;
+  if (!sameShape(parsed)) return null;
   // Уступаем ровно то, что `content` действительно возьмёт: спрашиваем у него,
   // а не описываем его правила второй раз. Разойдись эти два описания — на
   // спорной форме отказались бы оба вида сразу, и выдача провалилась бы в сырой

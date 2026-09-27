@@ -156,10 +156,18 @@ describe('detectRecordList — что остаётся другим видам',
     expect(detect(JSON.stringify([commit(), { id: 9, title: 'Док' }]))).toBeNull();
   });
 
+  it('пустое поле, не напечатанное у части записей, не ломает форму', () => {
+    // GitCommit не печатает null-овые body/files: у коммита без тела ключа нет.
+    const noFiles = commit();
+    delete noFiles.files;
+    const records = detect(JSON.stringify([noFiles, { ...noFiles, shortHash: 'ccb7fe3', body: 'Подробности' }]));
+    expect(records).toHaveLength(2);
+    expect(records[1].fields.map((f) => f.key)).toContain('body');
+  });
+
   it('пробел внутри имени поля не делает наборы ключей одинаковыми', () => {
-    // Склейка ключей через разделитель-символ схлопнула бы `{"a b"}` и
-    // `{"a","b"}` в одну сигнатуру — у MCP-инструментов поля называются как
-    // угодно, и разнородный список показался бы однотипным.
+    // `{"a b"}` и `{"a","b"}` — разные ключи: у MCP-инструментов поля
+    // называются как угодно, и разнородный список показался бы однотипным.
     expect(
       detect(
         JSON.stringify([

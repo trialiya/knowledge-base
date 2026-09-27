@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import java.time.OffsetDateTime;
@@ -15,10 +16,10 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code body} в истории заполняется только по запросу: тела идут на тысячи символов каждое, и
  * два десятка коммитов лога с телами — это десятки тысяч токенов контекста за ответ на «какие
- * вообще были коммиты». Модели пустые поля не отдаются: {@code NullPruningToolResultConverter}
- * выкидывает поле, только если оно {@code null} у всех коммитов выдачи, — список коммитов в
- * «Обзоре» чата разбирается по совпадению набора ключей ({@code recordList.js}). В плашке UI
- * ({@link #getFormattedResponse}) и в её мете тела нет ни при каких условиях: там строка на коммит.
+ * вообще были коммиты». Пустые {@code body} и {@code files} в JSON не печатаются, так что у
+ * коммитов одной выдачи набор ключей может разниться; «Обзор» чата это допускает ({@code
+ * recordList.js}). В плашке UI ({@link #getFormattedResponse}) и в её мете тела нет ни при каких
+ * условиях: там строка на коммит.
  *
  * @param hash полный SHA коммита
  * @param shortHash сокращённый SHA (минимум 7 символов, длиннее при неоднозначности)
@@ -37,8 +38,8 @@ public record GitCommit(
         String email,
         OffsetDateTime date,
         String message,
-        @Nullable String body,
-        @Nullable List<GitDiffEntry> files)
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String body,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) List<GitDiffEntry> files)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override

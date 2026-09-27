@@ -17,6 +17,18 @@ feature that just works after the upgrade belongs there, not here.
 stops working as before, and what to do about it. Name the config keys, files
 and commands involved — the reader is holding a deployment, not a diff.
 
+## Unreleased
+
+### Git API omits empty commit and diff fields
+
+`GitCommit` and `GitDiffEntry` no longer print their empty optional fields:
+`body`, `files`, `oldPath`, `patchHeader` and `patch` are left out of the JSON
+instead of coming as `null`. This applies to the REST responses under
+`/api/git/` (`/commits`, `/commit`, `/outgoing`, `/commits/search` and
+`/status`) as well as to what the chat model reads. A client that tells
+"field is `null`" from "field is missing" must treat a missing key as `null`;
+one that reads the fields with a null-safe accessor needs nothing.
+
 ## 1.1.0-RC2
 
 ### Section paths under a repeated heading change
