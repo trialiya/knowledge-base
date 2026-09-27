@@ -25,11 +25,21 @@ public final class RegexOutlineParser implements CodeOutlineParser {
             Pattern.compile(
                     "^\\s*(?:public|private|protected|abstract|final|sealed|static|\\s)*"
                             + "(class|interface|enum|record)\\s+(\\w+)");
+
+    /**
+     * Matched against a line with its whitespace collapsed ({@link #collapse}): with runs of
+     * whitespace left in, the modifiers, the return type and the gap before the name could all
+     * claim the same spaces, and a long blank run backtracks for minutes. Each part here is
+     * separated by exactly one space it cannot share.
+     */
     private static final Pattern JAVA_METHOD =
             Pattern.compile(
-                    "^\\s*(?:public|private|protected|static|final|abstract|synchronized|native"
-                            + "|default|\\s)*"
-                            + "[\\w<>\\[\\],.?\\s]+\\s+(\\w+)\\s*\\([^;{]*\\)\\s*(?:throws [\\w,.\\s]+)?\\{");
+                    "^(?:(?:public|private|protected|static|final|abstract|synchronized|native"
+                            + "|default) )*+"
+                            + "(?:<[^>]*> )?[\\w<>\\[\\].?]+(?: ?, ?[\\w<>\\[\\].?]+)*"
+                            + " (\\w+) ?\\([^;{]*\\) ?(?:throws [\\w,. ]+)?\\{");
+
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     // ── JS / TS ─────────────────────────────────────────────────────────────────
     private static final Pattern JS_CLASS =
@@ -87,7 +97,10 @@ public final class RegexOutlineParser implements CodeOutlineParser {
                 out.add(new GitSymbol(t.group(1), t.group(2), trimSig(line), i + 1, i + 1));
                 continue;
             }
-            Matcher m = JAVA_METHOD.matcher(line);
+            if (line.indexOf('(') < 0) {
+                continue;
+            }
+            Matcher m = JAVA_METHOD.matcher(collapse(line));
             if (m.find() && !isControlKeyword(m.group(1))) {
                 out.add(new GitSymbol("method", m.group(1), trimSig(line), i + 1, i + 1));
             }
@@ -159,6 +172,10 @@ public final class RegexOutlineParser implements CodeOutlineParser {
             case "if", "for", "while", "switch", "catch", "synchronized", "return", "new" -> true;
             default -> false;
         };
+    }
+
+    private static String collapse(String line) {
+        return WHITESPACE.matcher(line.strip()).replaceAll(" ");
     }
 
     private static String trimSig(String line) {

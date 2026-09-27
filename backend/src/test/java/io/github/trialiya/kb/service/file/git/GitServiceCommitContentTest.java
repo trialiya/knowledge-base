@@ -93,6 +93,7 @@ class GitServiceCommitContentTest {
                 .satisfies(
                         o -> {
                             assertThat(o.parser()).isEqualTo("markdown");
+                            assertThat(o.lineCount()).isEqualTo(3);
                             assertThat(o.symbols())
                                     .extracting(GitSymbol::signature)
                                     .containsExactly("Guide", "Guide > Install");

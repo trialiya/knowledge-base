@@ -843,7 +843,7 @@ public class GitService {
      *
      * @param filePath path relative to repo root
      * @throws IllegalArgumentException if the file is binary or its language is not supported for
-     *     outlining (supported: java, javascript, typescript, python, sql, markdown)
+     *     outlining ({@link OutlineService#supportedLanguages})
      */
     public GitFileOutline getFileOutline(@NonNull String filePath) {
         FileBytes fb = readTrackedFile(filePath);

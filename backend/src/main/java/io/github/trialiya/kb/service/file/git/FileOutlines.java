@@ -32,12 +32,13 @@ final class FileOutlines {
             throw new IllegalArgumentException(
                     "Unsupported language for outline: "
                             + (language == null ? "unknown" : language)
-                            + " (supported: java, javascript, typescript, python, sql,"
-                            + " markdown)");
+                            + " (supported: "
+                            + String.join(", ", outlineService.supportedLanguages())
+                            + ")");
         }
 
         String source = RepoFiles.decodeToLf(bytes);
-        int total = source.split("\n", -1).length;
+        int total = 1 + (int) source.chars().filter(c -> c == '\n').count();
         OutlineResult result = outlineService.outline(language, source);
         return new GitFileOutline(
                 path, tracked, language, total, result.parser(), result.symbols());

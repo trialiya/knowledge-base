@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.file.outline;
 
 import io.github.trialiya.kb.model.git.dto.GitSymbol;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import org.treesitter.TSLanguage;
 import org.treesitter.TSNode;
 import org.treesitter.TSParser;
 import org.treesitter.TSTree;
+import org.treesitter.TSTreeCursor;
 import org.treesitter.TreeSitterJava;
 import org.treesitter.TreeSitterJavascript;
 import org.treesitter.TreeSitterPython;
@@ -21,11 +23,17 @@ import org.treesitter.TreeSitterTypescript;
 /**
  * Outline parser backed by tree-sitter ({@code io.github.bonede:tree-sitter-ng}).
  *
+ * <p><b>What is listed.</b> Declarations, not code: the walk does not enter the body of a symbol it
+ * has reported as a function, method or constructor, so a nested helper, a local class, the methods
+ * of an anonymous class or a callback's object literal never surface as structure of the file.
+ * Python's {@code def} directly in a class body is a {@code method}, like the regex fallback
+ * reports it.
+ *
  * <p><b>Signature building</b> uses tree-sitter field accessors ({@code getChildByFieldName}) and
- * the {@link #text} helper which decodes bytes as UTF-8. This guarantees correct handling of
- * multibyte content (Cyrillic, CJK, …) — the old byte-by-byte approach cast every byte to {@code
- * (char)} which garbled non-ASCII. Parameter annotations ({@code @ToolParam}, {@code @Nullable}, …)
- * are stripped from the signature; the AI only needs types and names.
+ * the {@link #text} helper, which decodes the node's byte span as UTF-8 — tree-sitter offsets are
+ * bytes, so multibyte content (Cyrillic, CJK, …) must be decoded, not cast. Parameter annotations
+ * ({@code @ToolParam}, {@code @Nullable}, …) are stripped from the signature; the AI only needs
+ * types and names.
  *
  * <p><b>Native isolation.</b> If loading fails (missing native lib), {@link #available()} answers
  * false and {@link #supports} returns false for every language, so the caller falls back to {@link
@@ -36,6 +44,9 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
 
     private static final Set<String> LANGUAGES =
             Set.of("java", "javascript", "typescript", "python");
+
+    /** Kinds whose node is a body of code, not a container of declarations: never walked into. */
+    private static final Set<String> CODE_KINDS = Set.of("function", "method", "constructor");
 
     private final Map<String, TSLanguage> languages = new ConcurrentHashMap<>();
 
@@ -109,21 +120,31 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>{@code null} when the grammar or the native parse failed — an empty list means the file
+     * was read and declares nothing, which is an answer, not a reason to try the regex fallback.
+     */
     // TSLanguage is a process-lifetime grammar handle cached by languageFor; closing it would
     // invalidate the cache for every later parse.
     @SuppressWarnings("PMD.CloseResource")
     @Override
+    @Nullable
     public List<GitSymbol> parse(String language, String source) {
-        if (!supports(language) || source == null || source.isEmpty()) return List.of();
+        if (!supports(language)) return null;
+        if (source.isEmpty()) return List.of();
         TSLanguage lang = languageFor(language);
-        if (lang == null) return List.of();
-        // Both handles wrap native tree-sitter memory that the JVM does not reclaim on its own.
+        if (lang == null) return null;
+        // All three handles wrap native tree-sitter memory that the JVM does not reclaim on its
+        // own.
         try (TSParser parser = new TSParser()) {
             parser.setLanguage(lang);
-            try (TSTree tree = parser.parseString(null, source)) {
-                byte[] bytes = source.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            try (TSTree tree = parser.parseString(null, source);
+                    TSTreeCursor cursor = new TSTreeCursor(tree.getRootNode())) {
+                byte[] bytes = source.getBytes(StandardCharsets.UTF_8);
                 List<GitSymbol> out = new ArrayList<>();
-                walk(tree.getRootNode(), bytes, language, out);
+                walk(cursor, bytes, language, out);
                 return out;
             }
         } catch (Throwable t) {
@@ -132,114 +153,126 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
                     language,
                     source.length(),
                     t.toString());
-            return List.of();
+            return null;
         }
     }
 
     // ── Tree walk ────────────────────────────────────────────────────────────
 
-    private void walk(TSNode node, byte[] src, String language, List<GitSymbol> out) {
-        if (node == null || node.isNull()) return;
-        String kind = symbolKind(language, node.getType());
-        if (kind == null && isScript(language)) kind = functionValueKind(node);
-        if (kind != null) {
-            String name = nameOf(node, src);
-            if (name != null) {
-                TSNode nameNode = node.getChildByFieldName("name");
-                int nameRow =
-                        (nameNode != null && !nameNode.isNull())
-                                ? nameNode.getStartPoint().getRow()
-                                : node.getStartPoint().getRow();
-                int startLine = nameRow + 1;
-                int endLine = node.getEndPoint().getRow() + 1;
-                String signature = buildSignature(node, src, language, kind, name);
-                out.add(new GitSymbol(kind, name, signature, startLine, endLine));
-            }
-        }
-        int n = node.getChildCount();
-        for (int i = 0; i < n; i++) walk(node.getChild(i), src, language, out);
-    }
-
-    // ── Signature building ───────────────────────────────────────────────────
-
     /**
-     * Assembles a clean, single-line signature from tree-sitter nodes. All text extraction goes
-     * through {@link #text} which decodes UTF-8 properly — no byte-cast corruption. Parameter
-     * annotations are removed by {@link #cleanParams}.
-     *
-     * <p>Robust to grammar variations: {@code modifiers}, return {@code type} and the parameter
-     * list may be exposed either as named fields or as plain typed child nodes depending on the
-     * grammar build, so we look them up by field name first and fall back to child node type.
+     * Pre-order walk with a cursor rather than recursion: a left-deep expression ({@code a + b + …}
+     * over thousands of terms, common in generated code) nests as deep as it is long and would
+     * overflow the stack.
      */
-    private static String buildSignature(
-            TSNode node, byte[] src, String language, String kind, String name) {
-
-        if (language.equals("java")) {
-            if (kind.equals("method") || kind.equals("constructor")) {
-                String mods = cleanModifiers(fieldOrTypeText(node, "modifiers", "modifiers", src));
-                // Constructors have no return type; methods do (field "type").
-                String ret = kind.equals("constructor") ? "" : returnTypeText(node, src);
-                TSNode paramsNode = childByFieldOrType(node, "parameters", "formal_parameters");
-                String params = cleanParams(paramsNode, src);
-
-                StringBuilder sb = new StringBuilder();
-                if (!mods.isEmpty()) sb.append(mods).append(' ');
-                if (!ret.isEmpty()) sb.append(ret).append(' ');
-                sb.append(name).append('(');
-                if (params != null) sb.append(params);
-                sb.append(')');
-                return cap(sb.toString());
+    private static void walk(
+            TSTreeCursor cursor, byte[] src, String language, List<GitSymbol> out) {
+        boolean enter = visit(cursor.currentNode(), src, language, out);
+        while (true) {
+            if (enter && cursor.gotoFirstChild()) {
+                enter = visit(cursor.currentNode(), src, language, out);
+                continue;
             }
-            // class / interface / enum / record
-            String mods = cleanModifiers(fieldOrTypeText(node, "modifiers", "modifiers", src));
-            StringBuilder sb = new StringBuilder();
-            if (!mods.isEmpty()) sb.append(mods).append(' ');
-            sb.append(kind).append(' ').append(name);
-            return cap(sb.toString());
+            while (!cursor.gotoNextSibling()) {
+                if (!cursor.gotoParent()) return;
+            }
+            enter = visit(cursor.currentNode(), src, language, out);
         }
-
-        // JS/TS/Python: everything up to the body — the head may span lines (a component's
-        // destructured props, a TS return type), and its first line alone would end mid-list.
-        String head = headBeforeBody(node, src);
-        return cap(head != null ? head : firstNonAnnotationLine(node, src));
     }
 
-    // ── Functions held in values (JS/TS) ─────────────────────────────────────
-
-    private static boolean isScript(String language) {
-        return language.equals("javascript") || language.equals("typescript");
+    /** Records the node if it is a symbol; answers whether its children are worth walking. */
+    private static boolean visit(TSNode node, byte[] src, String language, List<GitSymbol> out) {
+        String type = node.getType();
+        // A data literal holds no declarations, and a generated one can hold most of the file.
+        if (type.equals("array") || type.equals("string") || type.equals("template_string")) {
+            return false;
+        }
+        String kind = symbolKind(language, node, type);
+        if (kind == null) return true;
+        TSNode nameNode = nameNode(node);
+        if (nameNode == null) return true;
+        String name = text(nameNode, src);
+        int startLine = nameNode.getStartPoint().getRow() + 1;
+        int endLine = node.getEndPoint().getRow() + 1;
+        String signature = buildSignature(node, src, language, kind, name);
+        out.add(new GitSymbol(kind, name, signature, startLine, endLine));
+        return !CODE_KINDS.contains(kind);
     }
 
-    /**
-     * Kind of a JS/TS node that names a function without declaring one: {@code const Foo = () =>
-     * …}, a class field holding an arrow function, an entry of a module-level object of functions
-     * ({@code const api = { load: () => … }}). React components and most modern modules are written
-     * this way, so without it a file of them outlines as nothing.
-     *
-     * <p>Only module-level {@code const}s count: the same form inside a function body is a local
-     * callback, and listing every {@code onClick} of a component would bury its structure.
-     */
+    // ── Symbol kinds ─────────────────────────────────────────────────────────
+
+    /** Maps a grammar node to a symbol kind, or null to skip. */
     @Nullable
-    private static String functionValueKind(TSNode node) {
-        if (!isFunctionValue(node.getChildByFieldName("value"))) return null;
-        return switch (node.getType()) {
-            case "variable_declarator" -> isModuleLevel(node) ? "function" : null;
-            case "field_definition", "public_field_definition" -> "method";
-            case "pair" -> {
-                TSNode object = node.getParent();
-                TSNode holder = object == null || object.isNull() ? null : object.getParent();
-                yield holder != null
-                                && !holder.isNull()
-                                && holder.getType().equals("variable_declarator")
-                                && isModuleLevel(holder)
-                        ? "method"
-                        : null;
-            }
+    private static String symbolKind(String language, TSNode node, String type) {
+        return switch (language) {
+            case "java" -> javaKind(type);
+            case "javascript", "typescript" -> scriptKind(node, type);
+            case "python" -> pythonKind(node, type);
             default -> null;
         };
     }
 
-    private static boolean isFunctionValue(@Nullable TSNode value) {
+    @Nullable
+    private static String javaKind(String type) {
+        return switch (type) {
+            case "class_declaration" -> "class";
+            case "interface_declaration" -> "interface";
+            case "annotation_type_declaration" -> "annotation";
+            case "enum_declaration" -> "enum";
+            case "record_declaration" -> "record";
+            case "method_declaration" -> "method";
+            case "constructor_declaration", "compact_constructor_declaration" -> "constructor";
+            default -> null;
+        };
+    }
+
+    /**
+     * Besides declarations, a JS/TS function is often only named by what holds it: {@code const Foo
+     * = () => …} (React components and most modern modules), a class field holding an arrow
+     * function, an entry of a module-level object of functions ({@code const api = { load: () => …
+     * }}). Only module-level holders count: an object literal passed to a call is an argument, not
+     * the file's structure.
+     */
+    @Nullable
+    private static String scriptKind(TSNode node, String type) {
+        return switch (type) {
+            case "class_declaration", "abstract_class_declaration", "class" -> "class";
+            case "function_declaration", "generator_function_declaration" -> "function";
+            case "method_definition" ->
+                    !isType(node.getParent(), "object") || isModuleObject(node.getParent())
+                            ? "method"
+                            : null;
+            case "abstract_method_signature" -> "method";
+            case "interface_declaration" -> "interface";
+            case "enum_declaration" -> "enum";
+            case "type_alias_declaration" -> "type";
+            case "variable_declarator" ->
+                    holdsFunction(node) && isModuleLevel(node) ? "function" : null;
+            case "field_definition", "public_field_definition" ->
+                    holdsFunction(node) ? "method" : null;
+            case "pair" ->
+                    holdsFunction(node) && isModuleObject(node.getParent()) ? "method" : null;
+            default -> null;
+        };
+    }
+
+    @Nullable
+    private static String pythonKind(TSNode node, String type) {
+        return switch (type) {
+            case "class_definition" -> "class";
+            case "function_definition" -> isInClassBody(node) ? "method" : "function";
+            default -> null;
+        };
+    }
+
+    /** A Python {@code def} straight in a class body, decorated or not. */
+    private static boolean isInClassBody(TSNode def) {
+        TSNode parent = def.getParent();
+        if (isType(parent, "decorated_definition")) parent = parent.getParent();
+        return isType(parent, "block") && isType(parent.getParent(), "class_definition");
+    }
+
+    private static boolean holdsFunction(TSNode node) {
+        TSNode value = node.getChildByFieldName("value");
         if (value == null || value.isNull()) return false;
         return switch (value.getType()) {
             case "arrow_function",
@@ -257,9 +290,79 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
         TSNode declaration = declarator.getParent();
         if (declaration == null || declaration.isNull()) return false;
         TSNode owner = declaration.getParent();
-        if (owner == null || owner.isNull()) return false;
-        if (owner.getType().equals("export_statement")) owner = owner.getParent();
-        return owner != null && !owner.isNull() && owner.getType().equals("program");
+        if (isType(owner, "export_statement")) owner = owner.getParent();
+        return isType(owner, "program");
+    }
+
+    /**
+     * An object literal the module itself holds: the value of a module-level {@code const} or the
+     * module's {@code export default}.
+     */
+    private static boolean isModuleObject(TSNode object) {
+        if (!isType(object, "object")) return false;
+        TSNode holder = object.getParent();
+        if (isType(holder, "variable_declarator")) return isModuleLevel(holder);
+        return isType(holder, "export_statement") && isType(holder.getParent(), "program");
+    }
+
+    private static boolean isType(@Nullable TSNode node, String type) {
+        return node != null && !node.isNull() && node.getType().equals(type);
+    }
+
+    // ── Signature building ───────────────────────────────────────────────────
+
+    /**
+     * Assembles a clean, single-line signature from tree-sitter nodes. All text extraction goes
+     * through {@link #text} which decodes UTF-8 properly — no byte-cast corruption. Parameter
+     * annotations are removed by {@link #cleanParams}.
+     *
+     * <p>Robust to grammar variations: {@code modifiers}, return {@code type} and the parameter
+     * list may be exposed either as named fields or as plain typed child nodes depending on the
+     * grammar build, so we look them up by field name first and fall back to child node type.
+     */
+    private static String buildSignature(
+            TSNode node, byte[] src, String language, String kind, String name) {
+
+        if (language.equals("java")) {
+            String mods = cleanModifiers(fieldOrTypeText(node, "modifiers", "modifiers", src));
+            if (kind.equals("method") || kind.equals("constructor")) {
+                return cap(javaCallableSignature(node, src, kind, name, mods));
+            }
+            // class / interface / annotation / enum / record
+            StringBuilder sb = new StringBuilder();
+            if (!mods.isEmpty()) sb.append(mods).append(' ');
+            sb.append(kind.equals("annotation") ? "@interface" : kind).append(' ').append(name);
+            return cap(sb.toString());
+        }
+
+        // JS/TS/Python: everything up to the body — the head may span lines (a component's
+        // destructured props, a TS return type), and its first line alone would end mid-list.
+        String head = headBeforeBody(node, src);
+        return cap(head != null ? head : firstNonAnnotationLine(node, src));
+    }
+
+    /** {@code mods <T> Ret name(params) throws X}; a record's compact constructor has no list. */
+    private static String javaCallableSignature(
+            TSNode node, byte[] src, String kind, String name, String mods) {
+        String typeParams = fieldOrTypeText(node, "type_parameters", "type_parameters", src);
+        // Constructors have no return type; methods do (field "type").
+        String ret = kind.equals("constructor") ? "" : fieldText(node, "type", src);
+        TSNode paramsNode = childByFieldOrType(node, "parameters", "formal_parameters");
+        String throwsClause = fieldOrTypeText(node, "throws", "throws", src);
+
+        StringBuilder sb = new StringBuilder();
+        if (!mods.isEmpty()) sb.append(mods).append(' ');
+        if (!typeParams.isEmpty()) sb.append(typeParams).append(' ');
+        if (!ret.isEmpty()) sb.append(ret).append(' ');
+        sb.append(name);
+        if (paramsNode != null || !node.getType().equals("compact_constructor_declaration")) {
+            String params = cleanParams(paramsNode, src);
+            sb.append('(');
+            if (params != null) sb.append(params);
+            sb.append(')');
+        }
+        if (!throwsClause.isEmpty()) sb.append(' ').append(throwsClause);
+        return sb.toString();
     }
 
     /**
@@ -270,25 +373,19 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
      */
     @Nullable
     private static String headBeforeBody(TSNode node, byte[] src) {
-        TSNode value = node.getChildByFieldName("value");
-        boolean held = isFunctionValue(value);
-        TSNode body = (held ? value : node).getChildByFieldName("body");
+        boolean held = holdsFunction(node);
+        TSNode body = (held ? node.getChildByFieldName("value") : node).getChildByFieldName("body");
         if (body == null || body.isNull()) return null;
         TSNode start = node;
         if (held && node.getType().equals("variable_declarator")) {
             start = node.getParent();
             TSNode exported = start.getParent();
-            if (exported != null
-                    && !exported.isNull()
-                    && exported.getType().equals("export_statement")) {
-                start = exported;
-            }
+            if (isType(exported, "export_statement")) start = exported;
         }
         int from = start.getStartByte();
         int to = Math.min(body.getStartByte(), src.length);
         if (from < 0 || from >= to) return null;
-        String head =
-                new String(src, from, to - from, java.nio.charset.StandardCharsets.UTF_8).strip();
+        String head = new String(src, from, to - from, StandardCharsets.UTF_8).strip();
         if (head.endsWith("{") || head.endsWith(":")) head = head.substring(0, head.length() - 1);
         return head.strip();
     }
@@ -335,19 +432,6 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
     }
 
     /**
-     * Returns the method's return type. The Java grammar exposes it as the {@code type} field, but
-     * we guard against it not being a field by taking the first child node whose type looks like a
-     * type and sits before the {@code name} node.
-     */
-    private static String returnTypeText(TSNode node, byte[] src) {
-        TSNode t = node.getChildByFieldName("type");
-        if (t != null && !t.isNull()) {
-            return text(t, src).replaceAll("\\s+", " ").strip();
-        }
-        return "";
-    }
-
-    /**
      * Builds a parameter list from a parameters node with annotations stripped. Each {@code
      * formal_parameter} child contributes "{type} {name}"; annotation nodes are skipped entirely so
      * multi-byte annotation values never leak into the signature.
@@ -383,54 +467,18 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
 
     // ── Node helpers ─────────────────────────────────────────────────────────
 
-    /** Maps a grammar node type to a symbol kind, or null to skip. */
+    /**
+     * The node naming the symbol: the {@code name} field, or the first identifier child — a JS
+     * class field names itself by {@code property}, an object entry by {@code key}.
+     */
     @Nullable
-    private static String symbolKind(String language, String type) {
-        return switch (language) {
-            case "java" ->
-                    switch (type) {
-                        case "class_declaration" -> "class";
-                        case "interface_declaration" -> "interface";
-                        case "enum_declaration" -> "enum";
-                        case "record_declaration" -> "record";
-                        case "method_declaration" -> "method";
-                        case "constructor_declaration" -> "constructor";
-                        default -> null;
-                    };
-            case "javascript", "typescript" ->
-                    switch (type) {
-                        case "class_declaration", "class" -> "class";
-                        case "function_declaration", "generator_function_declaration" -> "function";
-                        case "method_definition" -> "method";
-                        case "interface_declaration" -> "interface";
-                        default -> null;
-                    };
-            case "python" ->
-                    switch (type) {
-                        case "class_definition" -> "class";
-                        case "function_definition" -> "function";
-                        default -> null;
-                    };
-            case "sql" ->
-                    switch (type) {
-                        case "create_table", "create_table_statement" -> "table";
-                        case "create_view", "create_view_statement" -> "view";
-                        case "create_function", "create_function_statement" -> "function";
-                        default -> null;
-                    };
-            default -> null;
-        };
-    }
-
-    /** Returns the symbol name via the {@code name} field, or the first identifier child. */
-    @Nullable
-    private static String nameOf(TSNode node, byte[] src) {
-        TSNode nameNode = node.getChildByFieldName("name");
-        if (nameNode != null && !nameNode.isNull()) return text(nameNode, src);
+    private static TSNode nameNode(TSNode node) {
+        TSNode byField = node.getChildByFieldName("name");
+        if (byField != null && !byField.isNull()) return byField;
         int n = node.getChildCount();
         for (int i = 0; i < n; i++) {
             TSNode c = node.getChild(i);
-            if (c != null && !c.isNull() && c.getType().contains("identifier")) return text(c, src);
+            if (c != null && !c.isNull() && c.getType().contains("identifier")) return c;
         }
         return null;
     }
@@ -466,21 +514,28 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
         return text(child, src).replaceAll("\\s+", " ").strip();
     }
 
-    /** First non-empty, non-annotation line of a node's text, with trailing '{' stripped. */
+    /**
+     * First non-empty, non-annotation line of a node's text, without a trailing {@code {} or
+     * {@code ;} — the signature of a bodiless declaration ({@code type T = …}, an abstract method).
+     */
     private static String firstNonAnnotationLine(TSNode node, byte[] src) {
         for (String line : text(node, src).split("\n", -1)) {
             String s = line.strip();
             if (!s.isEmpty() && !s.startsWith("@")) {
-                return s.endsWith("{") ? s.substring(0, s.length() - 1).strip() : s;
+                return s.endsWith("{") || s.endsWith(";")
+                        ? s.substring(0, s.length() - 1).strip()
+                        : s;
             }
         }
         return text(node, src).strip();
     }
 
-    /** Collapses whitespace and caps at 200 chars. */
+    /** Collapses whitespace and caps at 200 chars, never splitting a surrogate pair. */
     private static String cap(String s) {
         String flat = s.replaceAll("\\s+", " ").strip();
-        return flat.length() > 200 ? flat.substring(0, 200) + "…" : flat;
+        if (flat.length() <= 200) return flat;
+        int cut = Character.isHighSurrogate(flat.charAt(199)) ? 199 : 200;
+        return flat.substring(0, cut) + "…";
     }
 
     /** Decodes a node's byte span as UTF-8. Never misinterprets multibyte sequences. */
@@ -488,6 +543,6 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
         int start = node.getStartByte();
         int end = Math.min(node.getEndByte(), src.length);
         if (start < 0 || start >= end) return "";
-        return new String(src, start, end - start, java.nio.charset.StandardCharsets.UTF_8);
+        return new String(src, start, end - start, StandardCharsets.UTF_8);
     }
 }
