@@ -35,7 +35,8 @@
 /* Время, модель и токены сидят рядом и набраны одинаково — расходятся только приглушённостью. */
 .message-footer__time,
 .message-footer__model,
-.message-footer__tokens {
+.message-footer__tokens,
+.message-footer__unanswered {
   font-size: 0.68rem;
   white-space: nowrap;
   user-select: none;
@@ -52,6 +53,11 @@
   color: var(--kb-text-placeholder);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Пометка у вопроса, оставшегося без ответа, — справка к кнопке рядом, приглушена как модель. */
+.message-footer__unanswered {
+  color: var(--kb-text-placeholder);
 }
 
 /* Токены, потраченные на ответ. Приглушены как модель, но не обрезаются: число и так короткое,

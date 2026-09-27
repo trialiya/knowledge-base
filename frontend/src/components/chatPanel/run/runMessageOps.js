@@ -137,6 +137,37 @@ export const setRunUsage = (msgs, runId, usage, live) => {
 export const isEventRow = (message) => !!message.gitEvent || !!message.fileRevert || !!message.scriptEvent;
 
 /**
+ * Вопрос, на который чат так и не ответил: последний ход ленты — сообщение пользователя, уже
+ * лежащее в истории (не «ожидает отправки»). Так остаётся сообщение из очереди, которое бэкенд
+ * доставил за остановленным или упавшим прогоном, не запуская ответ. Правило то же, что у
+ * ChatHistoryService.unansweredUserMessage, — повтор на нём бэк примет. Идёт ли прогон, здесь не
+ * проверяется: во время прогона последний ход — тоже вопрос, и решает вызывающий.
+ *
+ * @returns mid такого вопроса или null
+ */
+export const unansweredQuestionMid = (messages) => {
+  for (let i = (messages?.length ?? 0) - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (isEventRow(m)) continue;
+    return m.sender === SENDER.USER && !m.queued ? m.mid : null;
+  }
+  return null;
+};
+
+/**
+ * Индекс последнего вопроса пользователя, уже лежащего в истории, или -1. Плашки действий — не
+ * вопросы; «ожидает отправки» — тоже нет: повтор прогона сначала доставит очередь сам (см.
+ * ChatRunService.start), так что вопросом истории такое сообщение станет только с доставкой.
+ */
+export const lastQuestionIndexIn = (messages) => {
+  for (let i = (messages?.length ?? 0) - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.sender === SENDER.USER && !m.queued && !isEventRow(m)) return i;
+  }
+  return -1;
+};
+
+/**
  * Тот ли это прогон, что чат считает идущим. Прогон в чате открывают ровно двое — RUN_STARTED и
  * COMPACT_STARTED, — а остальные события прогона в него только пишут, и лишь пока он тот же.
  * Событие, доехавшее после терминального (последний чанк отменённого прогона, запись истории из

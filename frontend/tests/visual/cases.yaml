@@ -3274,6 +3274,27 @@
   origin:
     - 'Сессия 2026-09-16, общие классы кнопок'
 
+- id: chat-unanswered-queued-question
+  component: MessageList
+  path: frontend/src/components/chatPanel/messages/MessageList.jsx
+  title: Вопрос из очереди за упавшим прогоном — кнопка ответа под ним
+  fixtures:
+    - ./fixtures/chatUnansweredQueued.js#afterPartialAnswer
+    - ./fixtures/chatUnansweredQueued.js#beforeFirstToken
+  scenario: |
+    Сообщение отправили во время ответа, модель упала, и бэкенд доставил его в
+    историю обычным вопросом, не запуская ответ. Последний ряд ленты — вопрос
+    пользователя, прогона нет. Два кадра: модель успела начать ответ (у ошибки
+    своей кнопки нет) и не успела (у ошибки режим повтора есть, но повтор
+    ответил бы на последний вопрос).
+  expected:
+    - Под последним вопросом — «Нет ответа» и кнопка «Получить ответ» (.btn--xs .btn--ghost)
+    - Пузырь с ошибкой по-прежнему розовый с красной полосой
+    - В обоих кадрах кнопка ответа одна — под вопросом, у ошибки её нет
+  status: verified
+  origin:
+    - 'Сессия 2026-09-27, очередь сообщений и ошибка модели'
+
 - id: chat-phrases-categories
   component: Phrases
   path: frontend/src/components/chatPanel/composer/Phrases.jsx

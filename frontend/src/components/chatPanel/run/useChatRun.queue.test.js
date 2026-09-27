@@ -115,6 +115,48 @@ describe('useChatRun — отправка во время прогона', () =>
     expect(restoreDraft).toHaveBeenCalled();
   });
 
+  /**
+   * Вопрос из очереди, доставленный за упавшим прогоном: кнопка под ним — тот же повтор без
+   * текста (CONTINUE), второго USER-сообщения не появляется.
+   */
+  test('ответ на вопрос без ответа идёт повтором прогона, без нового сообщения', async () => {
+    chats = [
+      {
+        id: CHAT,
+        runId: null,
+        messages: [
+          { mid: 'm1', sender: 'user', text: 'вопрос' },
+          { mid: 'm2', sender: 'ai', text: 'обрыв', error: true },
+          { mid: 'm3', sender: 'user', text: 'и добавь тесты' },
+        ],
+      },
+    ];
+    const { result } = setup();
+
+    await act(() => result.current.retryMessage('m3'));
+
+    expect(chatApi.startRun).toHaveBeenCalledWith(CHAT, null, expect.objectContaining({ retry: true }));
+    expect(messages()).toHaveLength(3);
+  });
+
+  test('на вопрос, за которым уже есть ответ, повтор не запускается', async () => {
+    chats = [
+      {
+        id: CHAT,
+        runId: null,
+        messages: [
+          { mid: 'm1', sender: 'user', text: 'вопрос' },
+          { mid: 'm2', sender: 'ai', text: 'ответ' },
+        ],
+      },
+    ];
+    const { result } = setup();
+
+    await act(() => result.current.retryMessage('m1'));
+
+    expect(chatApi.startRun).not.toHaveBeenCalled();
+  });
+
   /** Команду чату в очередь не поставишь: у сжатия нет терминальной обработки, которая её опустошит. */
   test('/compact во время ответа отклоняется и не съедает набранное', async () => {
     chats = [{ id: CHAT, runId: 'r1', messages: [] }];

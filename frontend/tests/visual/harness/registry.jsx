@@ -52,6 +52,7 @@ import * as aiConfig from '../fixtures/aiConfig';
 import * as chatCodeBlocks from '../fixtures/chatCodeBlocks';
 import * as chatCommandMessage from '../fixtures/chatCommandMessage';
 import * as chatFailedAnswer from '../fixtures/chatFailedAnswer';
+import * as chatUnansweredQueued from '../fixtures/chatUnansweredQueued';
 import * as chatFind from '../fixtures/chatFind';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
@@ -391,6 +392,20 @@ const LIGHT = [
   // сравнения: у него той же кнопки нет.
   {
     id: 'chatFailedAnswer.js#failedAnswer',
+    frame: 'center',
+    render: (p) => <MessageList conversationId="chat-1" messages={p} onRetry={noop} />,
+  },
+
+  // Вопрос из очереди, доставленный за упавшим прогоном: без ответа, и кнопка ответа под ним —
+  // единственная кнопка ленты на пузыре пользователя. Два кадра: ответ успел начаться (у ошибки
+  // повтора нет) и не успел (у ошибки повтор был бы, но он ответил бы на последний вопрос).
+  {
+    id: 'chatUnansweredQueued.js#afterPartialAnswer',
+    frame: 'center',
+    render: (p) => <MessageList conversationId="chat-1" messages={p} onRetry={noop} />,
+  },
+  {
+    id: 'chatUnansweredQueued.js#beforeFirstToken',
     frame: 'center',
     render: (p) => <MessageList conversationId="chat-1" messages={p} onRetry={noop} />,
   },
@@ -901,6 +916,7 @@ const MODULES = {
   'aiConfig.js': aiConfig,
   'chatHeader.js': chatHeader,
   'chatFailedAnswer.js': chatFailedAnswer,
+  'chatUnansweredQueued.js': chatUnansweredQueued,
   'chatFind.js': chatFind,
   'chatCodeBlocks.js': chatCodeBlocks,
   'chatCommandMessage.js': chatCommandMessage,
