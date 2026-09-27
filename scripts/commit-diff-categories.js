@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Counts the changed lines of a commit by category:
+ * Counts lines by category — the changed lines of a commit, a PR or the last
+ * N commits, or all lines of a file:
  *   - служебные/сборочные файлы   — total only, no breakdown
  *   - документация                — total only, no breakdown
  *   - основные (исходные) файлы   — broken down into:
@@ -9,16 +10,12 @@
  *     "эффективный" part leaves out lines of brackets only (}); ) ]; …) and
  *     "try {", which carry no logic of their own.
  *     A source file is any extension with an entry in SYNTAX below.
- *   - не удалось определить       — a changed line in a source file whose
- *     category can't be told from the diff hunk alone (e.g. plain text that
- *     may be a javadoc paragraph or may be code, with the block-comment
- *     state unresolved within the visible hunk context)
  *
- * Classification works hunk-by-hunk: state (inside a block comment or not)
- * only carries within one hunk, and starts "unknown" unless the hunk opens
- * at line 1 of that side (nothing could precede it there). A line whose own
- * text can't resolve that unknown state is reported as undetermined rather
- * than guessed.
+ * A changed line is never classified from its diff hunk alone: the hunk can
+ * start inside a block comment or a multi-line string with nothing in view
+ * to tell. Both sides of every changed source file are read whole (one
+ * `git cat-file --batch` for the whole diff), classified top to bottom, and
+ * each "-"/"+" line takes the category of its line number on its side.
  *
  * Binary files (images, etc.) carry no diffable lines and are skipped
  * entirely — not printed, not counted anywhere.
@@ -30,20 +27,23 @@
  *   node scripts/commit-diff-categories.js --loc [--rev <rev>] <path>...
  *
  * <commit> defaults to HEAD. --file restricts the report to one path in the
- * commit (for spot-checking the classifier before trusting the full report).
+ * commit (repo-relative, as git prints it).
  * --table prints one row per commit for the last N commits (default 10,
  * newest first): file count, the usual +added/-removed, and per-category
- * added-minus-removed deltas.
+ * added-minus-removed deltas. A merge commit gets a row without numbers: what
+ * it brings in is the merged branch's commits, counted in their own rows.
  * --pr prints the same table for every commit of <base>..<head> (defaults:
  * origin/main, HEAD) plus a "PR итого" row taken from the net diff between the
  * merge base and <head> — not the sum of the rows, since a line added in one
  * commit and removed in the next is no change to the PR.
- * --loc counts a whole file (working tree, or <rev>:<path> with --rev). With
- * the full text there is no unknown state, so every line resolves. It is the
- * measure CLAUDE.md's file-size rule points to.
+ * --loc counts whole files (working tree, or as of <rev> with --rev; paths
+ * relative to the current directory either way). It is the measure CLAUDE.md's
+ * file-size rule points to.
  */
 
 const { execFileSync } = require("child_process");
+const fs = require("fs");
+const nodePath = require("path");
 
 const DOC_EXTENSIONS = new Set([".md", ".mdx", ".adoc", ".rst"]);
 const DOC_BASENAMES = new Set(["readme", "changelog", "license", "notice"]);
@@ -81,40 +81,82 @@ const BUILD_EXTENSIONS = new Set([
   ".ini",
 ]);
 
-// Comment and string syntax of each source language. `line` — tokens that
-// comment out the rest of the line; `blocks` — [open, close] pairs; `quotes`
-// — string delimiters, inside which comment tokens mean nothing (so
-// "/chat/**" is code, not the start of a block comment).
+// Comment and string syntax of each source language, with its import forms.
+//   line      — tokens that comment out the rest of the line
+//   blocks    — [open, close] comment pairs
+//   quotes    — one-line string delimiters; comment tokens inside mean nothing,
+//               so "/chat/**" is code, not the start of a block comment
+//   mlStrings — [open, close] string pairs that may span lines
+//   importOpen/importClose — an import whose list wraps onto the next lines
+//               (`import {` … `} from "x";`): every line up to the close is import
 const C_BLOCK = [["/*", "*/"]];
+const JS = {
+  line: ["//"],
+  blocks: C_BLOCK,
+  quotes: ['"', "'"],
+  mlStrings: [["`", "`"]],
+  regexLiterals: true,
+  // Not import.meta or a dynamic import(…), which are expressions.
+  importRe:
+    /^(import(?=[\s{*"'])|export\s+(\*|\{[^}]*\})\s*from\s+['"][^'"]+['"];?$|(const|let|var)\s+[^=]+=\s*require\(\s*['"][^'"]+['"]\s*\)\s*;?$)/,
+  importOpen: /^import\b[^'"]*\{[^}]*$/,
+  importClose: /\bfrom\s*['"]/,
+};
+const SCSS = { line: ["//"], blocks: C_BLOCK, quotes: ['"', "'"], importRe: /^@(import|use|forward)\b/ };
+const SH = {
+  line: ["#"],
+  hashAtWordStart: true, // $#, ${#arr} and a#b are code
+  blocks: [],
+  quotes: ['"', "'"],
+  importRe: /^(source|\.)\s+\S/,
+};
+const BAT = { lineStartCi: ["rem ", "@rem ", "::"], line: [], blocks: [], quotes: ['"'] };
+const HTML = { line: [], blocks: [["<!--", "-->"]], quotes: [] }; // apostrophes in text aren't quotes
 const SYNTAX = {
-  ".java": { line: ["//"], blocks: C_BLOCK, quotes: ['"', "'"] },
-  ".js": { line: ["//"], blocks: C_BLOCK, quotes: ['"', "'", "`"] },
-  ".css": { line: [], blocks: C_BLOCK, quotes: ['"', "'"] }, // "//" is not a CSS comment: url(http://…)
-  ".scss": { line: ["//"], blocks: C_BLOCK, quotes: ['"', "'"] },
+  ".java": {
+    line: ["//"],
+    blocks: C_BLOCK,
+    quotes: ['"', "'"],
+    mlStrings: [['"""', '"""']],
+    importRe: /^(package|import)\s+\S.*;$/,
+  },
+  ".js": JS,
+  ".jsx": JS,
+  ".ts": JS,
+  ".tsx": JS,
+  ".mjs": JS,
+  ".cjs": JS,
+  // "//" is not a CSS comment: url(http://…)
+  ".css": { line: [], blocks: C_BLOCK, quotes: ['"', "'"], importRe: /^@import\b/ },
+  ".scss": SCSS,
+  ".less": SCSS,
   ".sql": { line: ["--"], blocks: C_BLOCK, quotes: ["'", '"'] },
-  // "#" opens a comment only at a word start: $#, ${#arr} and a#b are code.
-  ".sh": { line: ["#"], hashAtWordStart: true, blocks: [], quotes: ['"', "'"] },
-  ".ps1": { line: ["#"], hashAtWordStart: true, blocks: [["<#", "#>"]], quotes: ['"', "'"] },
-  ".bat": { lineStartCi: ["rem ", "@rem ", "::"], line: [], blocks: [], quotes: ['"'] },
-  // A docstring is a string statement, so it opens only where nothing precedes
-  // it on the line; x = """…""" is code.
+  ".sh": SH,
+  ".bash": SH,
+  ".ps1": {
+    line: ["#"],
+    hashAtWordStart: true,
+    blocks: [["<#", "#>"]],
+    quotes: ['"', "'"],
+    importRe: /^(Import-Module\b|\.\s+\S)/i,
+  },
+  ".bat": BAT,
+  ".cmd": BAT,
+  // A docstring is a string statement, so it is a comment only where nothing
+  // precedes it on the line; x = """…""" is a multi-line string, i.e. code.
   ".py": {
     line: ["#"],
     blocks: [['"""', '"""'], ["'''", "'''"]],
     blockAtLineStart: true,
     quotes: ['"', "'"],
+    mlStrings: [['"""', '"""'], ["'''", "'''"]],
+    importRe: /^(import\s+\S|from\s+\S+\s+import\b)/,
+    importOpen: /^from\s+\S+\s+import\s*\([^)]*$/,
+    importClose: /\)/,
   },
-  ".html": { line: [], blocks: [["<!--", "-->"]], quotes: [] }, // apostrophes in text aren't quotes
+  ".html": HTML,
+  ".htm": HTML,
 };
-SYNTAX[".jsx"] = SYNTAX[".js"];
-SYNTAX[".ts"] = SYNTAX[".js"];
-SYNTAX[".tsx"] = SYNTAX[".js"];
-SYNTAX[".mjs"] = SYNTAX[".js"];
-SYNTAX[".cjs"] = SYNTAX[".js"];
-SYNTAX[".less"] = SYNTAX[".scss"];
-SYNTAX[".bash"] = SYNTAX[".sh"];
-SYNTAX[".cmd"] = SYNTAX[".bat"];
-SYNTAX[".htm"] = SYNTAX[".html"];
 
 function extOf(path) {
   const base = path.split("/").pop();
@@ -122,6 +164,7 @@ function extOf(path) {
   return dot <= 0 ? "" : base.slice(dot).toLowerCase();
 }
 
+// `path` is repo-relative with "/" separators — the prefixes depend on it.
 function classifyFile(path) {
   const lower = path.toLowerCase();
   const base = lower.split("/").pop();
@@ -144,40 +187,9 @@ function classifyFile(path) {
   return "build"; // anything unrecognized (assets, fixtures, etc.) — general/service bucket
 }
 
-// Tested against a line's code part — comments already cut out.
-function importRegexFor(ext) {
-  if (ext === ".java") {
-    return /^(package|import)\s+\S.*;$/;
-  }
-  if (SYNTAX[ext] === SYNTAX[".js"]) {
-    return /^(import\b.*|export\s+(\*|\{[^}]*\})\s*from\s+['"][^'"]+['"];?|(const|let|var)\s+.+=\s*require\(.*\)\s*;?)$/;
-  }
-  if (ext === ".css") {
-    return /^@import\b/;
-  }
-  if (SYNTAX[ext] === SYNTAX[".scss"]) {
-    return /^@(import|use|forward)\b/;
-  }
-  if (SYNTAX[ext] === SYNTAX[".sh"]) {
-    return /^(source|\.)\s+\S/;
-  }
-  if (ext === ".ps1") {
-    return /^(Import-Module\b|\.\s+\S)/i;
-  }
-  if (ext === ".py") {
-    return /^(import\s+\S|from\s+\S+\s+import\b)/;
-  }
-  return /$^/; // never matches
-}
-
-function languageFor(path) {
-  const ext = extOf(path);
-  return { syntax: SYNTAX[ext], importRe: importRegexFor(ext) };
-}
-
 function emptyCounts() {
   // "brace" + "effective" together make up the reported "код".
-  return { import: 0, comment: 0, empty: 0, brace: 0, effective: 0, undetermined: 0 };
+  return { import: 0, comment: 0, empty: 0, brace: 0, effective: 0 };
 }
 
 // Lines that only close (or open) a construct: }); ) }; ], — plus "try {".
@@ -187,31 +199,76 @@ function isBraceOnly(code) {
   return /^[()[\]{};,]+$/.test(compact) || compact === "try{";
 }
 
-// Line state: "normal", "unknown" (hunk context too short to tell), or the
-// close token of the block comment the line starts inside, e.g. "*/".
+// Index just past the `close` that ends a string whose body starts at `from`,
+// honoring backslash escapes; -1 if the line ends first.
+function findStringEnd(line, from, close) {
+  for (let j = from; j < line.length; j++) {
+    if (line[j] === "\\") j++;
+    else if (line.startsWith(close, j)) return j + close.length;
+  }
+  return -1;
+}
+
+// A "/" starts a regex literal only where an expression may begin; after a
+// value (identifier, number, ")" or "]") it is division.
+function regexMayStart(codeSoFar) {
+  const prev = codeSoFar.trimEnd();
+  return (
+    prev === "" ||
+    /[(,=:[!&|?{};+\-*%~^]$/.test(prev) ||
+    /\b(return|typeof|case|in|of|void|yield|await)$/.test(prev)
+  );
+}
+
+// Index just past a regex literal starting at `from`, or -1 when the line has
+// no closing "/" (then the "/" was not a regex after all).
+function findRegexEnd(line, from) {
+  let inClass = false;
+  for (let j = from + 1; j < line.length; j++) {
+    const c = line[j];
+    if (c === "\\") j++;
+    else if (c === "[") inClass = true;
+    else if (c === "]") inClass = false;
+    else if (c === "/" && !inClass) {
+      let k = j + 1;
+      while (k < line.length && /[a-z]/i.test(line[k])) k++;
+      return k;
+    }
+  }
+  return -1;
+}
+
+// Line state carried between lines: "normal", "c" + close token while inside
+// a block comment (e.g. "c*/"), "s" + close token inside a multi-line string.
 //
-// Splits one trimmed line into its code part (strings kept verbatim) and
-// reports whether any comment was on it. `bare` is the code part with string
-// contents dropped — for telling whether a stray "*/" is real syntax.
+// Splits one trimmed line into its code part (string and regex literals kept
+// verbatim, comments cut out) and reports whether any comment was on it.
 function scanLine(line, state, syntax) {
   if (state === "normal" && syntax.lineStartCi) {
     const lower = line.toLowerCase();
     if (syntax.lineStartCi.some((t) => lower.startsWith(t) || lower === t.trim())) {
-      return { code: "", bare: "", comment: true, state };
+      return { code: "", comment: true, state };
     }
   }
   let code = "";
-  let bare = "";
   let comment = false;
-  let block = state === "normal" ? null : state;
+  let open = state === "normal" ? null : state;
   let i = 0;
   scan: while (i < line.length) {
-    if (block) {
-      comment = true;
-      const idx = line.indexOf(block, i);
-      if (idx === -1) break;
-      i = idx + block.length;
-      block = null;
+    if (open) {
+      const close = open.slice(1);
+      let end;
+      if (open[0] === "c") {
+        comment = true;
+        const idx = line.indexOf(close, i);
+        end = idx === -1 ? -1 : idx + close.length;
+      } else {
+        end = findStringEnd(line, i, close);
+        code += line.slice(i, end === -1 ? line.length : end);
+      }
+      if (end === -1) break;
+      i = end;
+      open = null;
       continue;
     }
     for (const t of syntax.line) {
@@ -220,113 +277,207 @@ function scanLine(line, state, syntax) {
         break scan;
       }
     }
-    for (const [open, close] of syntax.blocks) {
-      if (line.startsWith(open, i) && (!syntax.blockAtLineStart || code.trim() === "")) {
+    for (const [tok, close] of syntax.blocks) {
+      if (line.startsWith(tok, i) && (!syntax.blockAtLineStart || code.trim() === "")) {
         comment = true;
-        block = close;
-        i += open.length;
+        open = "c" + close;
+        i += tok.length;
+        continue scan;
+      }
+    }
+    for (const [tok, close] of syntax.mlStrings || []) {
+      if (line.startsWith(tok, i)) {
+        code += tok;
+        open = "s" + close;
+        i += tok.length;
         continue scan;
       }
     }
     const ch = line[i];
+    let end = -1;
     if (syntax.quotes.includes(ch)) {
-      let j = i + 1;
-      while (j < line.length && line[j] !== ch) j += line[j] === "\\" ? 2 : 1;
-      code += line.slice(i, j + 1);
-      bare += ch + ch;
-      i = j + 1;
+      end = findStringEnd(line, i + 1, ch);
+      if (end === -1) end = line.length; // unterminated: the rest of the line is the string
+    } else if (ch === "/" && syntax.regexLiterals && regexMayStart(code)) {
+      end = findRegexEnd(line, i);
+    }
+    if (end !== -1) {
+      code += line.slice(i, end);
+      i = end;
       continue;
     }
     code += ch;
-    bare += ch;
     i++;
   }
-  return { code: code.trim(), bare, comment, state: block || "normal" };
+  return { code: code.trim(), comment, state: open || "normal" };
 }
 
-function categorize(scan, importRe) {
+function categorize(scan, syntax) {
   if (scan.code === "") return "comment";
   // JSX comment {/* … */}: the braces are only the comment's wrapper.
   if (scan.comment && scan.code.replace(/\s+/g, "") === "{}") return "comment";
-  if (importRe.test(scan.code)) return "import";
+  if (syntax.importRe && syntax.importRe.test(scan.code)) return "import";
   if (isBraceOnly(scan.code)) return "brace";
   return "effective";
 }
 
-function classifyKnown(trimmed, state, lang) {
-  const scan = scanLine(trimmed, state, lang.syntax);
-  return { category: categorize(scan, lang.importRe), nextState: scan.state };
+// Category of every line of a source file's text, top to bottom.
+function classifyText(text, syntax) {
+  const lines = text.split("\n");
+  if (lines[lines.length - 1] === "") lines.pop(); // trailing newline
+  let state = "normal";
+  let inImportList = false;
+  return lines.map((raw) => {
+    const trimmed = raw.trim();
+    if (trimmed === "") return "empty";
+    const scan = scanLine(trimmed, state, syntax);
+    state = scan.state;
+    if (inImportList) {
+      if (syntax.importClose.test(scan.code)) inImportList = false;
+      return scan.code === "" ? "comment" : "import";
+    }
+    const category = categorize(scan, syntax);
+    if (category === "import" && syntax.importOpen && syntax.importOpen.test(scan.code)) {
+      inImportList = true;
+    }
+    return category;
+  });
 }
 
-// One hunk-scoped state machine, applied separately to the old-file side and
-// the new-file side of a hunk (they can resolve independently). In "unknown"
-// state the line is read both ways — as code and as the inside of each block
-// comment kind — and only a reading the line itself supports is taken.
-function classifySourceLine(trimmed, state, lang) {
-  if (trimmed === "") {
-    return { category: "empty", nextState: state };
-  }
-  if (state !== "unknown") {
-    return classifyKnown(trimmed, state, lang);
-  }
+// Returns a Buffer. A failing command throws; `quiet` keeps git's own stderr
+// off the terminal when the caller reports the failure itself.
+function git(args, { input, quiet } = {}) {
+  return execFileSync("git", ["-c", "core.quotePath=false", ...args], {
+    input,
+    maxBuffer: 1024 * 1024 * 512,
+    stdio: ["pipe", "pipe", quiet ? "pipe" : "inherit"],
+  });
+}
 
-  const asCode = classifyKnown(trimmed, "normal", lang);
-  // An import or a whole-line "//" comment is taken as outside a block comment.
-  const lineComment = lang.syntax.line.some((t) => trimmed.startsWith(t));
-  if (asCode.category === "import" || (asCode.category === "comment" && lineComment)) {
-    return asCode;
+// Contents of many blobs in one `git cat-file --batch` call.
+function readBlobs(ids) {
+  const texts = new Map();
+  if (ids.length === 0) return texts;
+  const out = git(["cat-file", "--batch"], { input: ids.join("\n") + "\n" });
+  let pos = 0;
+  while (pos < out.length) {
+    const eol = out.indexOf(0x0a, pos);
+    const [id, type, size] = out.subarray(pos, eol).toString("utf8").split(" ");
+    if (type === "missing") throw new Error(`git cat-file: объект ${id} не найден`);
+    const start = eol + 1;
+    texts.set(id, out.subarray(start, start + Number(size)).toString("utf8"));
+    pos = start + Number(size) + 1; // content is followed by "\n"
   }
-  const asComment = lang.syntax.blocks.map(([, close]) => ({
-    close,
-    ...classifyKnown(trimmed, close, lang),
-  }));
-  const readings = [asCode, ...asComment];
-  if (readings.every((r) => r.category === asCode.category)) {
-    const sameState = readings.every((r) => r.nextState === asCode.nextState);
-    return { category: asCode.category, nextState: sameState ? asCode.nextState : "unknown" };
-  }
-
-  const codeScan = scanLine(trimmed, "normal", lang.syntax);
-  // A close token as bare syntax can't be code — the line ends a block comment.
-  const closed = asComment.find((r) => codeScan.bare.includes(r.close));
-  if (closed) return closed;
-  // Javadoc-style continuation line, e.g. " * some paragraph text".
-  const cBlock = asComment.find((r) => r.close === "*/");
-  if (cBlock && trimmed.startsWith("*")) return cBlock;
-  return { category: "undetermined", nextState: "unknown" };
+  return texts;
 }
 
 function parseHunkHeader(line) {
-  const m = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
-  if (!m) return null;
-  return { oldStart: Number(m[1]), newStart: Number(m[3]) };
+  const m = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+  return { oldStart: Number(m[1]), newStart: Number(m[2]) };
 }
 
-function processSourceFile(path, hunks) {
-  const lang = languageFor(path);
+function splitHunks(bodyLines) {
+  const hunks = [];
+  let current = null;
+  for (const line of bodyLines) {
+    if (line.startsWith("@@ ")) {
+      current = [line];
+      hunks.push(current);
+    } else if (current && (line[0] === " " || line[0] === "+" || line[0] === "-")) {
+      current.push(line);
+    } // ignore "\ No newline at end of file" and anything else
+  }
+  return hunks;
+}
+
+// Git C-quotes a path holding a tab, quote, backslash or control character
+// even with core.quotePath=false: "b/t\tx.js", with octal escapes for bytes.
+function unquotePath(s) {
+  if (!s.startsWith('"')) return s;
+  const named = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
+  const body = Buffer.from(s.slice(1, -1), "utf8");
+  const bytes = [];
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] !== 0x5c) {
+      bytes.push(body[i]);
+      continue;
+    }
+    const next = String.fromCharCode(body[i + 1]);
+    if (/[0-7]/.test(next)) {
+      bytes.push(parseInt(body.subarray(i + 1, i + 4).toString("ascii"), 8));
+      i += 3;
+    } else {
+      bytes.push(named[next] ?? body[i + 1]); // \" and \\ stand for themselves
+      i += 1;
+    }
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
+function pathFromDiffBlock(block) {
+  const pathOf = (prefix) => {
+    const line = block.find((l) => l.startsWith(prefix));
+    // Git ends the name with a tab when it contains a space.
+    return line && unquotePath(line.slice(4).replace(/\t$/, ""));
+  };
+  const plus = pathOf("+++ ");
+  const pick = plus && plus !== "/dev/null" ? plus : pathOf("--- ");
+  if (!pick || pick === "/dev/null") return null;
+  return pick.replace(/^[ab]\//, "");
+}
+
+// diffArgs: ["show", "--format=", <commit>] or ["diff", <from>, <to>].
+function parseDiff(diffArgs) {
+  const [cmd, ...rest] = diffArgs;
+  const raw = git([cmd, "--no-color", "-p", "-M", "--full-index", ...rest]).toString("utf8");
+
+  const blocks = [];
+  let current = null;
+  for (const line of raw.split("\n")) {
+    if (line.startsWith("diff --git ")) {
+      current = [line];
+      blocks.push(current);
+    } else if (current) {
+      current.push(line);
+    }
+  }
+
+  const blobId = (id) => (id && !/^0+$/.test(id) ? id : null);
+  return blocks
+    .map((block) => {
+      const path = pathFromDiffBlock(block);
+      if (!path) return null; // mode-only change or a pure rename: no lines
+      const isBinary = block.some((l) => l.startsWith("Binary files ") || l.startsWith("GIT binary patch"));
+      const index = block.map((l) => /^index ([0-9a-f]+)\.\.([0-9a-f]+)/.exec(l)).find(Boolean);
+      return {
+        path,
+        isBinary,
+        oldBlob: blobId(index && index[1]),
+        newBlob: blobId(index && index[2]),
+        hunks: isBinary ? [] : splitHunks(block),
+      };
+    })
+    .filter(Boolean);
+}
+
+function processSourceFile(file, blobs) {
+  const syntax = SYNTAX[extOf(file.path)];
+  const categoriesOf = (id) => (id ? classifyText(blobs.get(id), syntax) : []);
+  const oldCats = categoriesOf(file.oldBlob);
+  const newCats = categoriesOf(file.newBlob);
   const added = emptyCounts();
   const removed = emptyCounts();
 
-  for (const hunk of hunks) {
-    const header = parseHunkHeader(hunk[0]);
-    let oldState = header.oldStart === 1 ? "normal" : "unknown";
-    let newState = header.newStart === 1 ? "normal" : "unknown";
-
+  for (const hunk of file.hunks) {
+    let { oldStart: oldLine, newStart: newLine } = parseHunkHeader(hunk[0]);
     for (const raw of hunk.slice(1)) {
-      const marker = raw[0];
-      const text = raw.slice(1);
-      const trimmed = text.trim();
-      if (marker === " ") {
-        oldState = classifySourceLine(trimmed, oldState, lang).nextState;
-        newState = classifySourceLine(trimmed, newState, lang).nextState;
-      } else if (marker === "-") {
-        const r = classifySourceLine(trimmed, oldState, lang);
-        oldState = r.nextState;
-        removed[r.category]++;
-      } else if (marker === "+") {
-        const r = classifySourceLine(trimmed, newState, lang);
-        newState = r.nextState;
-        added[r.category]++;
+      if (raw[0] === " ") {
+        oldLine++;
+        newLine++;
+      } else if (raw[0] === "-") {
+        removed[oldCats[oldLine++ - 1]]++;
+      } else {
+        added[newCats[newLine++ - 1]]++;
       }
     }
   }
@@ -345,75 +496,17 @@ function countPlainLines(hunks) {
   return { added, removed };
 }
 
-function splitHunks(bodyLines) {
-  const hunks = [];
-  let current = null;
-  for (const line of bodyLines) {
-    if (line.startsWith("@@ ")) {
-      current = [line];
-      hunks.push(current);
-    } else if (current && (line[0] === " " || line[0] === "+" || line[0] === "-")) {
-      current.push(line);
-    } // ignore "\ No newline at end of file" and anything else
-  }
-  return hunks;
-}
-
-function pathFromDiffBlock(block) {
-  const plusLine = block.find((l) => l.startsWith("+++ "));
-  const minusLine = block.find((l) => l.startsWith("--- "));
-  const fromPlusPlus = plusLine && plusLine.slice(4).trim();
-  const fromMinusMinus = minusLine && minusLine.slice(4).trim();
-  const pick = fromPlusPlus && fromPlusPlus !== "/dev/null" ? fromPlusPlus : fromMinusMinus;
-  if (!pick || pick === "/dev/null") return null;
-  return pick.replace(/^[ab]\//, "");
-}
-
-function git(args) {
-  return execFileSync("git", ["-c", "core.quotePath=false", ...args], {
-    maxBuffer: 1024 * 1024 * 256,
-  }).toString("utf8");
-}
-
-// diffArgs: ["show", "--format=", <commit>] or ["diff", <from>, <to>].
-function parseDiff(diffArgs) {
-  const [cmd, ...rest] = diffArgs;
-  const raw = git([cmd, "--no-color", "-p", "-M", ...rest]);
-
-  const lines = raw.split("\n");
-  const blocks = [];
-  let current = null;
-  for (const line of lines) {
-    if (line.startsWith("diff --git ")) {
-      current = [line];
-      blocks.push(current);
-    } else if (current) {
-      current.push(line);
-    }
-  }
-
-  return blocks
-    .map((block) => {
-      const path = pathFromDiffBlock(block);
-      if (!path) return null;
-      const isBinary = block.some(
-        (l) => l.startsWith("Binary files ") || l.startsWith("GIT binary patch"),
-      );
-      const hunks = isBinary ? [] : splitHunks(block);
-      return { path, isBinary, hunks };
-    })
-    .filter(Boolean);
+function sumCounts(c) {
+  return Object.values(c).reduce((a, b) => a + b, 0);
 }
 
 function formatCounts(c) {
-  const total = sumCounts(c);
   return (
     `    import/package: ${c.import}\n` +
     `    комментарии:    ${c.comment}\n` +
     `    пустые строки:  ${c.empty}\n` +
     `    код:            ${c.brace + c.effective} (эффективный: ${c.effective})\n` +
-    `    не определено:  ${c.undetermined}\n` +
-    `    итого:          ${total}`
+    `    итого:          ${sumCounts(c)}`
   );
 }
 
@@ -426,6 +519,15 @@ function commitDiff(commit) {
 function analyzeDiff(diffArgs, onlyFile) {
   let files = parseDiff(diffArgs).filter((f) => !f.isBinary);
   if (onlyFile) files = files.filter((f) => f.path === onlyFile);
+  for (const f of files) f.category = classifyFile(f.path);
+
+  const blobIds = new Set();
+  for (const f of files) {
+    if (f.category !== "source") continue;
+    if (f.oldBlob) blobIds.add(f.oldBlob);
+    if (f.newBlob) blobIds.add(f.newBlob);
+  }
+  const blobs = readBlobs([...blobIds]);
 
   const totals = {
     doc: { added: 0, removed: 0, files: 0 },
@@ -435,25 +537,19 @@ function analyzeDiff(diffArgs, onlyFile) {
   const perFile = [];
 
   for (const file of files) {
-    const category = classifyFile(file.path);
-    if (category === "doc") {
-      const counts = countPlainLines(file.hunks);
-      totals.doc.added += counts.added;
-      totals.doc.removed += counts.removed;
-      totals.doc.files++;
-      perFile.push({ path: file.path, category, ...counts });
-    } else if (category === "build") {
-      const counts = countPlainLines(file.hunks);
-      totals.build.added += counts.added;
-      totals.build.removed += counts.removed;
-      totals.build.files++;
-      perFile.push({ path: file.path, category, ...counts });
-    } else {
-      const { added, removed } = processSourceFile(file.path, file.hunks);
+    const { path, category } = file;
+    if (category === "source") {
+      const { added, removed } = processSourceFile(file, blobs);
       for (const k of Object.keys(added)) totals.source.added[k] += added[k];
       for (const k of Object.keys(removed)) totals.source.removed[k] += removed[k];
       totals.source.files++;
-      perFile.push({ path: file.path, category, added, removed });
+      perFile.push({ path, category, added, removed });
+    } else {
+      const counts = countPlainLines(file.hunks);
+      totals[category].added += counts.added;
+      totals[category].removed += counts.removed;
+      totals[category].files++;
+      perFile.push({ path, category, ...counts });
     }
   }
 
@@ -463,8 +559,7 @@ function analyzeDiff(diffArgs, onlyFile) {
 function printCommitReport(commit, onlyFile) {
   const { totals, perFile, fileCount } = analyzeDiff(commitDiff(commit), onlyFile);
   if (onlyFile && fileCount === 0) {
-    console.error(`Файл не найден в коммите ${commit}: ${onlyFile}`);
-    process.exit(1);
+    fail(`Файл не найден в коммите ${commit}: ${onlyFile}`);
   }
 
   console.log(`Коммит: ${commit}\n`);
@@ -502,12 +597,13 @@ function fmtDelta(n) {
 }
 
 function listCommits(logArgs) {
-  return git(["log", "--format=%h %s", ...logArgs])
+  return git(["log", "--format=%h%x09%p%x09%s", ...logArgs])
+    .toString("utf8")
     .split("\n")
     .filter(Boolean)
     .map((line) => {
-      const sp = line.indexOf(" ");
-      return { hash: line.slice(0, sp), subject: line.slice(sp + 1) };
+      const [hash, parents, subject] = line.split("\t");
+      return { hash, subject, isMerge: parents.split(" ").length > 1 };
     });
 }
 
@@ -526,30 +622,24 @@ const TABLE_HEADER = [
   "Пустые",
   "Код",
   "Эффективный код",
-  "Не определено",
 ];
-
-function sumCounts(c) {
-  return Object.values(c).reduce((a, b) => a + b, 0);
-}
 
 function tableRow(label, { totals, fileCount }) {
   const { build, doc, source } = totals;
   const added = build.added + doc.added + sumCounts(source.added);
   const removed = build.removed + doc.removed + sumCounts(source.removed);
-  const delta = (k) => fmtDelta(source.added[k] - source.removed[k]);
+  const delta = (k) => source.added[k] - source.removed[k];
   return [
     label,
     String(fileCount),
     `+${added} -${removed}`,
     fmtDelta(build.added - build.removed),
     fmtDelta(doc.added - doc.removed),
-    delta("import"),
-    delta("comment"),
-    delta("empty"),
-    fmtDelta(source.added.brace + source.added.effective - source.removed.brace - source.removed.effective),
-    delta("effective"),
-    delta("undetermined"),
+    fmtDelta(delta("import")),
+    fmtDelta(delta("comment")),
+    fmtDelta(delta("empty")),
+    fmtDelta(delta("brace") + delta("effective")),
+    fmtDelta(delta("effective")),
   ];
 }
 
@@ -568,9 +658,11 @@ function printTable(header, body) {
 }
 
 function commitRows(commits) {
-  return commits.map(({ hash, subject }) =>
-    tableRow(`${hash} ${truncate(subject, 40)}`, analyzeDiff(commitDiff(hash))),
-  );
+  return commits.map(({ hash, subject, isMerge }) => {
+    const label = `${hash} ${truncate(subject, 40)}`;
+    if (isMerge) return [label, "слияние", ...TABLE_HEADER.slice(2).map(() => "—")];
+    return tableRow(label, analyzeDiff(commitDiff(hash)));
+  });
 }
 
 function printCommitTable(n) {
@@ -578,7 +670,7 @@ function printCommitTable(n) {
 }
 
 function printPrTable(base, head) {
-  const mergeBase = git(["merge-base", base, head]).trim();
+  const mergeBase = git(["merge-base", base, head]).toString("utf8").trim();
   const commits = listCommits([`${mergeBase}..${head}`]);
   if (commits.length === 0) {
     console.log(`Нет коммитов в ${base}..${head}`);
@@ -589,48 +681,56 @@ function printPrTable(base, head) {
   printTable(TABLE_HEADER, [...commitRows(commits), null, total]);
 }
 
-function readFileAt(path, rev) {
-  if (rev) return git(["show", `${rev}:${path}`]);
-  return require("fs").readFileSync(path, "utf8");
+function fail(message) {
+  console.error(message);
+  process.exit(1);
 }
 
-// Whole-file counterpart of processSourceFile: the file starts at line 1, so
-// the state is known from the first line on and nothing is undetermined.
-function countFileLines(path, rev) {
-  const text = readFileAt(path, rev);
-  const lines = text.split("\n");
-  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop(); // trailing newline
-  const category = classifyFile(path);
-  if (category !== "source") return { path, category, total: lines.length };
-
-  const lang = languageFor(path);
-  const counts = emptyCounts();
-  let state = "normal";
-  for (const line of lines) {
-    const r = classifySourceLine(line.trim(), state, lang);
-    state = r.nextState;
-    counts[r.category]++;
+// `arg` is relative to the current directory, as typed in a shell; the
+// repo-relative form is what classifyFile and `git show rev:path` need.
+function readFileArg(arg, rev) {
+  const root = git(["rev-parse", "--show-toplevel"]).toString("utf8").trim();
+  const absolute = nodePath.resolve(arg);
+  const path = nodePath.relative(root, absolute).split(nodePath.sep).join("/");
+  try {
+    const text = rev
+      ? git(["show", `${rev}:${path}`], { quiet: true }).toString("utf8")
+      : fs.readFileSync(absolute, "utf8");
+    return { path, text };
+  } catch {
+    return fail(rev ? `Файла ${path} нет в ${rev}` : `Файл не найден: ${arg}`);
   }
-  return { path, category, total: lines.length, counts };
 }
 
-function printFileLoc(paths, rev) {
+function countFile(arg, rev) {
+  const { path, text } = readFileArg(arg, rev);
+  const category = classifyFile(path);
+  const lines = text.split("\n");
+  const total = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
+  if (category !== "source") return { path, category, total };
+
+  const counts = emptyCounts();
+  for (const c of classifyText(text, SYNTAX[extOf(path)])) counts[c]++;
+  return { path, category, total, counts };
+}
+
+function printFileLoc(args, rev) {
   const header = ["Файл", "Всего", "Эффективный код", "Код", "Import", "Комментарии", "Пустые"];
   const columns = (c) => [c.effective, c.brace + c.effective, c.import, c.comment, c.empty];
   const body = [];
   const sum = { total: 0, ...emptyCounts() };
-  for (const path of paths) {
-    const r = countFileLines(path, rev);
+  for (const arg of args) {
+    const r = countFile(arg, rev);
     if (!r.counts) {
       const kind = r.category === "doc" ? "документация" : "служебный";
-      body.push([`${path} (${kind})`, String(r.total), ...columns(emptyCounts()).map(() => "—")]);
+      body.push([`${r.path} (${kind})`, String(r.total), ...columns(emptyCounts()).map(() => "—")]);
       continue;
     }
-    body.push([path, r.total, ...columns(r.counts)].map(String));
+    body.push([r.path, r.total, ...columns(r.counts)].map(String));
     sum.total += r.total;
     for (const k of Object.keys(r.counts)) sum[k] += r.counts[k];
   }
-  if (paths.length > 1) {
+  if (args.length > 1) {
     body.push(null);
     body.push(["Итого (основные файлы)", sum.total, ...columns(sum)].map(String));
   }
@@ -639,7 +739,7 @@ function printFileLoc(paths, rev) {
 
 function defaultBase() {
   try {
-    git(["rev-parse", "--verify", "--quiet", "origin/main"]);
+    git(["rev-parse", "--verify", "--quiet", "origin/main"], { quiet: true });
     return "origin/main";
   } catch {
     return "main";
@@ -664,8 +764,7 @@ function main() {
       else paths.push(args[i]);
     }
     if (paths.length === 0) {
-      console.error("Укажите хотя бы один файл: --loc [--rev <rev>] <path>...");
-      process.exit(1);
+      fail("Укажите хотя бы один файл: --loc [--rev <rev>] <path>...");
     }
     printFileLoc(paths, rev);
     return;
@@ -683,4 +782,8 @@ function main() {
   printCommitReport(commit, onlyFile);
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = { classifyText, classifyFile, SYNTAX };
