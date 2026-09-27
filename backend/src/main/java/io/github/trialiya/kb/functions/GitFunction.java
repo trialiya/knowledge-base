@@ -13,7 +13,7 @@ import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.tool.ToolResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
-import io.github.trialiya.kb.tools.CompactToolResultConverter;
+import io.github.trialiya.kb.tools.NullPruningToolResultConverter;
 import io.github.trialiya.kb.tools.ProjectContext;
 import java.util.Arrays;
 import java.util.List;
@@ -115,7 +115,7 @@ public class GitFunction {
     @Tool(
             description =
                     "Browse repository one level at a time (path, name, type, size). Call again with deeper path to drill down.",
-            resultConverter = CompactToolResultConverter.class)
+            resultConverter = NullPruningToolResultConverter.class)
     public ToolResult<List<GitFileNode>> getFileTree(
             ToolContext context,
             @ToolParam(
@@ -151,7 +151,7 @@ public class GitFunction {
     @Tool(
             description =
                     "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). Use getCommitDiff to see file changes.",
-            resultConverter = CompactToolResultConverter.class)
+            resultConverter = NullPruningToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
             @ToolParam(
@@ -205,7 +205,7 @@ public class GitFunction {
     @Tool(
             description =
                     "Changed files and diffs for one or more commits. A single hash also returns that commit's full message in \"body\". Files include status (A/M/D/R), path, additions, deletions, and optional unified diff.",
-            resultConverter = CompactToolResultConverter.class)
+            resultConverter = NullPruningToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitDiff(
             ToolContext context,
             @ToolParam(
@@ -257,7 +257,7 @@ public class GitFunction {
     @Tool(
             description =
                     "Fuzzy-search tracked files by name (case-insensitive subsequence; e.g., \"mgi\" → MessageInput). Results ranked by match quality.",
-            resultConverter = CompactToolResultConverter.class)
+            resultConverter = NullPruningToolResultConverter.class)
     public ToolResult<List<GitFileNode>> searchFiles(
             ToolContext context,
             @ToolParam(
@@ -306,7 +306,7 @@ public class GitFunction {
     @Tool(
             description =
                     "Structural outline of source code (classes, methods, functions) or of a markdown file (headings) with line ranges, without full text.",
-            resultConverter = CompactToolResultConverter.class)
+            resultConverter = NullPruningToolResultConverter.class)
     public ToolResult<GitFileOutline> getFileOutline(
             ToolContext context,
             @ToolParam(description = "Source file path relative to repo root.") String filePath,
@@ -355,7 +355,7 @@ public class GitFunction {
                             + "PATH is the path from the response and ID is the response's project "
                             + "field; append #Lfrom-Lto for a line range. tracked=false marks a "
                             + "file git does not track, served through the project's allow-globs.",
-            resultConverter = CompactToolResultConverter.class)
+            resultConverter = NullPruningToolResultConverter.class)
     public ToolResult<GitFileContent> getFileContent(
             ToolContext context,
             @ToolParam(description = "File path relative to repo root.") String filePath,
@@ -432,7 +432,7 @@ public class GitFunction {
             name = "getUncommittedChanges",
             description =
                     "Uncommitted changes in working tree (staged and unstaged) — what the next commit will carry. Status: A/M/D/R. Optional: include unified diff, narrow to given paths, and includeUntracked to also list the untracked files the project's allow-globs admit, under status U (not in git, will not be committed with the rest).",
-            resultConverter = CompactToolResultConverter.class)
+            resultConverter = NullPruningToolResultConverter.class)
     public ToolResult<List<GitDiffEntry>> getUncommittedChanges(
             ToolContext context,
             @ToolParam(
@@ -491,7 +491,7 @@ public class GitFunction {
     @Tool(
             description =
                     "Search file content for matching lines (case-insensitive). Returns path, line number, and text.",
-            resultConverter = CompactToolResultConverter.class)
+            resultConverter = NullPruningToolResultConverter.class)
     public ToolResult<List<GitGrepMatch>> grepContent(
             ToolContext context,
             @ToolParam(description = "Search pattern: literal string or regex (if regex=true).")

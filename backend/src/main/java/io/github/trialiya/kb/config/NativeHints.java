@@ -141,10 +141,12 @@ public class NativeHints implements RuntimeHintsRegistrar {
                             MemberCategory.INVOKE_PUBLIC_METHODS);
             registerToolSignatures(hints, holder);
         }
-        hints.reflection()
-                .registerType(
+        for (Class<?> converter :
+                List.of(
                         io.github.trialiya.kb.tools.CompactToolResultConverter.class,
-                        MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+                        io.github.trialiya.kb.tools.NullPruningToolResultConverter.class)) {
+            hints.reflection().registerType(converter, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+        }
     }
 
     void registerScriptApis(RuntimeHints hints) {
