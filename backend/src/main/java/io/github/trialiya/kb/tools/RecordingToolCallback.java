@@ -20,6 +20,7 @@ import io.micrometer.common.util.StringUtils;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -45,6 +46,11 @@ public class RecordingToolCallback implements ToolCallback {
 
     static final ThreadLocal<Object> CURRENT_RESULT = new ThreadLocal<>();
 
+    /**
+     * Сквозной номер вызова, который исполняется на этом потоке, — см. {@link #currentCallIndex}.
+     */
+    private static final ThreadLocal<Integer> CURRENT_CALL_INDEX = new ThreadLocal<>();
+
     private final ToolCallback delegate;
 
     public RecordingToolCallback(ToolCallback delegate) {
@@ -59,6 +65,18 @@ public class RecordingToolCallback implements ToolCallback {
      */
     public ToolCallback delegate() {
         return delegate;
+    }
+
+    /**
+     * Сквозной номер ({@link ToolInvocation#callIndex}) вызова, внутри которого сейчас исполняется
+     * код инструмента; пусто вне записываемого вызова (нет коллектора — фоновые задачи, тесты).
+     * Инструменту он нужен, чтобы в отказе сослаться на свой же вызов: по этому номеру вызов можно
+     * повторить с теми же аргументами, не пересылая их (см. {@code
+     * DocumentFunction#retryDocumentWrite}).
+     */
+    public static OptionalInt currentCallIndex() {
+        final Integer index = CURRENT_CALL_INDEX.get();
+        return index == null ? OptionalInt.empty() : OptionalInt.of(index);
     }
 
     @Override
@@ -103,6 +121,9 @@ public class RecordingToolCallback implements ToolCallback {
         }
         try {
             CURRENT_RESULT.remove();
+            if (collector != null) {
+                CURRENT_CALL_INDEX.set(callIdx);
+            }
             String result = delegate.call(toolInput, toolContext);
             if (collector != null) {
                 Object raw = CURRENT_RESULT.get();
@@ -138,6 +159,7 @@ public class RecordingToolCallback implements ToolCallback {
             throw e;
         } finally {
             CURRENT_RESULT.remove();
+            CURRENT_CALL_INDEX.remove();
         }
     }
 

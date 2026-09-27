@@ -759,6 +759,23 @@ public class ChatHistoryService {
                         conversationId);
     }
 
+    /**
+     * Ответы инструментов, которые сейчас лежат в промпте чата, — {@code tool_data} TOOL-рядов
+     * живого окна, от старых к новым. Отвечает на вопрос guard'ов записи «видит ли модель этот
+     * результат» ({@code EarlierToolResults}): сжатый ряд модель видит только пересказом, поэтому
+     * окно то же, что у {@link #liveRows}.
+     */
+    public List<ToolData.Response> liveToolResponses(String conversationId) {
+        return liveRows(conversationId).stream()
+                .filter(row -> row.getType() == MessageType.TOOL)
+                .map(ChatMessageEntity::getToolData)
+                .filter(Objects::nonNull)
+                .map(ToolData::responses)
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .toList();
+    }
+
     /** То же, но до указанной позиции — сырая половина {@link #promptRowsBefore}. */
     public List<ChatMessageEntity> liveRowsBefore(String conversationId, long position) {
         return liveRows(conversationId).stream()

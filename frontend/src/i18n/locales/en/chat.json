@@ -386,6 +386,7 @@
     "insertDocumentSection": "Insert section",
     "deleteDocumentSection": "Delete section",
     "renameDocumentSections": "Rename sections",
+    "retryDocumentWrite": "Repeat document write",
     "copyAttachmentToDocument": "Copy attachment",
     "getDocumentAttachments": "Document attachments",
     "getChatAttachments": "Chat attachments",

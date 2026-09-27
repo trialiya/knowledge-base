@@ -44,6 +44,7 @@ class SearchAgentToolGuardTest {
                     "insertDocumentSection",
                     "deleteDocumentSection",
                     "renameDocumentSections",
+                    "retryDocumentWrite",
                     "copyAttachmentToDocument",
                     "searchCodebase");
 
@@ -53,7 +54,7 @@ class SearchAgentToolGuardTest {
         return Stream.of(
                         ToolCallbacks.from(
                                 new GitFunction(null),
-                                new DocumentFunction(null, null),
+                                new DocumentFunction(null, null, null),
                                 ScriptFunction.readOnly(null, null)))
                 .map(cb -> cb.getToolDefinition().name())
                 .filter(ALLOWED::contains)

@@ -4,8 +4,10 @@ import static io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocation
 
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ToolContext;
@@ -23,6 +25,15 @@ public final class ToolInvocationCollector {
 
     private final List<ToolInvocation> invocations = new CopyOnWriteArrayList<>();
     private final AtomicInteger callIndex = new AtomicInteger(0);
+
+    /**
+     * Метка этого прогона в {@link #callRef}. Сквозной номер вызова начинается с нуля в каждом
+     * прогоне, а отказы с номерами остаются в истории чата: без метки номер из прошлого хода указал
+     * бы на совсем другой вызов этого.
+     */
+    private final String runTag =
+            Integer.toString(
+                    ThreadLocalRandom.current().nextInt(36 * 36 * 36, 36 * 36 * 36 * 36), 36);
 
     /**
      * Хук на каждую запись — надёжная граница «инструмент пошёл» для владельца прогона (сброс
@@ -47,6 +58,30 @@ public final class ToolInvocationCollector {
         return context.getContext().get(KEY) instanceof ToolInvocationCollector collector
                 ? collector
                 : null;
+    }
+
+    /**
+     * Ссылка на вызов этого прогона, которую можно показать модели: {@code <метка>-<номер>}.
+     * Обратно её читает {@link #callIndexOf}.
+     */
+    public String callRef(int index) {
+        return runTag + "-" + index;
+    }
+
+    /**
+     * Номер вызова по ссылке из {@link #callRef}; пусто — ссылка чужого прогона или не ссылка
+     * вовсе.
+     */
+    public OptionalInt callIndexOf(@Nullable String ref) {
+        final String prefix = runTag + "-";
+        if (ref == null || !ref.strip().startsWith(prefix)) {
+            return OptionalInt.empty();
+        }
+        try {
+            return OptionalInt.of(Integer.parseInt(ref.strip().substring(prefix.length())));
+        } catch (NumberFormatException e) {
+            return OptionalInt.empty();
+        }
     }
 
     public int nextCallIndex() {

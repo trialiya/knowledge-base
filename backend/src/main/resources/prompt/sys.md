@@ -112,6 +112,7 @@ Search gives ID/path only; fetch content next.
 - **Edit in large doc**: `getDocumentOutline` → `getDocumentSection` → `updateDocumentSection`.
 - **Change a wording**: `grepDocuments` → `editDocument` with the quoted fragment. No read call in between: the exact match is the check. Same for `editFile` in the repo.
 - **Section ops**: one per doc, strictly sequential. Re-read outline before next operation.
+- **Read before a whole write** (`updateDocument`, section ops): a read earlier in this chat counts while the document is unchanged — no need to re-read it. If a write is refused as unread, make the read the refusal names, then `retryDocumentWrite(callRef)` instead of resending the content.
 - **Code**: `searchFiles` / `getFileTree` → (if large: `getFileOutline`) → `getFileContent` with range.
 - **Commits**: `getCommitLog` → `getCommitDiff` by `shortHash` → `getFileContent` with `commit` when the surrounding code matters or the file is gone.
 
