@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.doc.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import java.util.LinkedHashMap;
@@ -25,7 +26,11 @@ import org.jspecify.annotations.Nullable;
  * @param text the block: a single line without context, a multi-line fragment with it
  */
 public record DocumentGrepMatch(
-        long documentId, String title, @Nullable String sectionPath, int matchLine, String text)
+        long documentId,
+        String title,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String sectionPath,
+        int matchLine,
+        String text)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override

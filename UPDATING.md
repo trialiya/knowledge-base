@@ -19,6 +19,16 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### Document, search and attachment API omit empty optional fields
+
+The same rule now covers documents and attachments: `DocumentNode` leaves out
+an empty `summary` and `summarySourceVersion`, `SearchResult` an empty
+`summary` and `parentList`, `DocumentGrepMatch` an empty `sectionPath`, and
+`Attachment` an empty `documentId`, `conversationId`, `summary` and
+`sourceUrl`. This changes the REST responses under `/api/documents/` and
+`/api/attachments/` as well as what the chat model reads. As with the git
+entry below: treat a missing key as `null`.
+
 ### Git API omits empty commit and diff fields
 
 `GitCommit` and `GitDiffEntry` no longer print their empty optional fields:
