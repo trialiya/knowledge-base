@@ -426,10 +426,27 @@ function pathFromDiffBlock(block) {
   return pick.replace(/^[ab]\//, "");
 }
 
+// Changed lines are looked up by line number in the raw blobs, so the patch
+// must be git's plain one whatever the user's config says: no textconv or
+// external diff (they rewrite the text), no blank context lines printed as ""
+// (splitHunks would drop them and the numbering would drift), a/ b/ prefixes
+// (pathFromDiffBlock strips them), and paths from the repo root.
+const PLAIN_DIFF = [
+  "--no-color",
+  "--no-textconv",
+  "--no-ext-diff",
+  "--no-relative",
+  "--src-prefix=a/",
+  "--dst-prefix=b/",
+  "--full-index",
+  "-M",
+  "-p",
+];
+
 // diffArgs: ["show", "--format=", <commit>] or ["diff", <from>, <to>].
 function parseDiff(diffArgs) {
   const [cmd, ...rest] = diffArgs;
-  const raw = git([cmd, "--no-color", "-p", "-M", "--full-index", ...rest]).toString("utf8");
+  const raw = git(["-c", "diff.suppressBlankEmpty=false", cmd, ...PLAIN_DIFF, ...rest]).toString("utf8");
 
   const blocks = [];
   let current = null;
@@ -511,7 +528,7 @@ function formatCounts(c) {
 }
 
 function commitDiff(commit) {
-  return ["show", "--format=", commit];
+  return ["show", "--no-show-signature", "--format=", commit];
 }
 
 // Classifies every non-binary file of a diff, aggregating per-category
@@ -597,7 +614,7 @@ function fmtDelta(n) {
 }
 
 function listCommits(logArgs) {
-  return git(["log", "--format=%h%x09%p%x09%s", ...logArgs])
+  return git(["log", "--no-show-signature", "--format=%h%x09%p%x09%s", ...logArgs])
     .toString("utf8")
     .split("\n")
     .filter(Boolean)
