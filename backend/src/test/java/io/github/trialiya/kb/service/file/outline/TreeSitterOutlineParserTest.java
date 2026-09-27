@@ -268,4 +268,24 @@ class TreeSitterOutlineParserTest {
         assertEquals("function", sum.kind());
         assertEquals("export const sum = (a: number, b: number): number =>", sum.signature());
     }
+
+    /** Декоратор — не часть сигнатуры: у TS он дочерний узел класса и метода. */
+    @Test
+    void typescriptDecoratorsStayOutOfTheSignature() {
+        Assumptions.assumeTrue(parser.supports("typescript"));
+        String src =
+                """
+                @Injectable({ providedIn: 'root' })
+                export class Store {
+                  @Input()
+                  load(id: string): void {}
+                }
+                """;
+        List<GitSymbol> symbols = parser.parse("typescript", src);
+
+        assertEquals("class Store", find(symbols, "Store").findFirst().orElseThrow().signature());
+        GitSymbol load = find(symbols, "load").findFirst().orElseThrow();
+        assertEquals("load(id: string): void", load.signature());
+        assertEquals(4, load.startLine());
+    }
 }
