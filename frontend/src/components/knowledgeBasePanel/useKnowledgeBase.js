@@ -29,6 +29,7 @@ const rootItems = (paged) => (Array.isArray(paged?.items) ? paged.items : []);
  *   search     — поисковый запрос
  *   mode       — режим поиска
  *   onOpenDoc(id)            — KB сообщает навигации: выбран документ
+ *   onDocDeleted(id)         — KB сообщает навигации: открытый документ удалён
  *   onSearch(query, mode)    — KB сообщает навигации: запущен поиск
  *
  * Вкладок детали здесь больше нет: центр занят редактором, а описание/состав/
@@ -42,6 +43,7 @@ export default function useKnowledgeBase({
   search: navSearch = '',
   mode: navMode = SEARCH_MODE.HYBRID,
   onOpenDoc,
+  onDocDeleted,
   onSearch,
   mutatedDocs = null,
 } = {}) {
@@ -571,7 +573,13 @@ export default function useKnowledgeBase({
           selectedNode &&
           (selectedNode.id === target.id ||
             (findPath(tree, selectedNode.id) ?? []).some((ancestor) => ancestor.id === target.id));
-        if (selectionRemoved) setSelectedNode(null);
+        if (selectionRemoved) {
+          // Правки удалённого документа сохранять некуда, а адрес и память
+          // раздела ведут на него, пока навигации об этом не сказали.
+          clearEditorDirty();
+          setSelectedNode(null);
+          if (onDocDeleted) onDocDeleted(selectedNode.id);
+        }
         await refreshScope(node?.parentId ?? null);
       }
     } catch {

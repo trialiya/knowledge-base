@@ -52,6 +52,7 @@ function App() {
     cancelLeave,
     switchView,
     openDoc,
+    forgetDoc,
     openSearch,
     refineSearch,
     setSearch,
@@ -273,6 +274,7 @@ function App() {
             refreshSignal={refreshTick}
             onRefreshingChange={setKbRefreshing}
             onOpenDoc={openDoc}
+            onDocDeleted={forgetDoc}
             onSearch={setSearch}
             mutatedDocs={docMutations}
             panels={panels}

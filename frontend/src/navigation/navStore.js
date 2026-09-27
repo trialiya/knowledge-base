@@ -413,6 +413,18 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
       replace((prev) => (prev.docFind === next ? prev : { ...prev, docFind: next, docSection: '' }));
     },
 
+    /**
+     * Документ удалён: ни адрес, ни возврат в раздел не должны вести на него —
+     * иначе перезагрузка или клик по вкладке показали бы «Документ не найден».
+     * Запись на месте, а не переход: пользователь никуда не уходил.
+     */
+    forgetDoc(docId) {
+      const id = docId == null ? null : String(docId);
+      if (id === null) return;
+      if (memory.docId === id) memory.docId = null;
+      replace((prev) => (prev.docId === id ? { ...prev, docId: null, docFind: '', docSection: '' } : prev));
+    },
+
     // ── Отложенный переход ─────────────────────────────────────────────────
 
     /** Ответ «уйти»: отложенный переход проигрывается от текущего состояния. */

@@ -315,3 +315,28 @@ describe('«Назад»/«Вперёд» с несохранёнными пра
     expect(go).not.toHaveBeenCalled();
   });
 });
+
+describe('удалённый документ', () => {
+  it('адрес сбрасывается на месте, и вкладка базы знаний на него больше не ведёт', () => {
+    go('/knowledge/doc/5');
+    const s = mount();
+    const before = window.history.length;
+    s.forgetDoc(5);
+    expect(url()).toBe('/knowledge');
+    expect(window.history.length).toBe(before);
+
+    s.switchView('chat');
+    s.switchView('knowledge');
+    expect(s.nav().docId).toBeNull();
+  });
+
+  it('чужой документ не трогает ни адрес, ни память', () => {
+    go('/knowledge/doc/5');
+    const s = mount();
+    s.forgetDoc(7);
+    expect(url()).toBe('/knowledge/doc/5');
+    s.switchView('chat');
+    s.switchView('knowledge');
+    expect(s.nav().docId).toBe('5');
+  });
+});
