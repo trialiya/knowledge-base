@@ -13,6 +13,88 @@ An entry ends with the number of the pull request it came from — the
 reasoning behind a change lives there, not here. Sections released before
 this rule was adopted carry no such numbers.
 
+## [1.1.0-RC2] — 2026-09-27
+
+The second candidate for 1.1.0: what a review of the first one turned up, and
+two things that landed alongside it — the structure of a file in the Files
+panel, and document edits that no longer ask the model to read the same
+document twice. Three changes ask something of a running deployment — they are
+listed under "Upgrading" below and spelled out in [`UPDATING.md`](UPDATING.md).
+
+### Added
+
+- A "Structure" tab in Files: the classes, methods and functions of a Java,
+  JavaScript/TypeScript, Python or SQL file, each with its line number, and a
+  click scrolls the file to it. A Markdown file gets the same tab as "Sections"
+  — its headings — and the jump works in the rendered view too. (#438, #439)
+- The `getFileOutline` tool reads Markdown files as a tree of headings instead
+  of refusing them as an unsupported language. (#435)
+- Files opened at a revision says what the commit itself is: a "Commit" tab
+  with its author, date, full message and a summary of the change, and the
+  "Changes" mode lists the files that commit changed, each opening on its diff.
+  (#430)
+- A document write the model had to refuse because the document was not read
+  first can be repeated after the read with `retryDocumentWrite(callRef)` — the
+  text is not sent again. (#434)
+
+### Changed
+
+- A document read in an earlier turn counts as read for a write, as long as the
+  result is still in the uncompacted history and the document has not changed
+  since. The system prompt now tells every model — not only the ones marked
+  `weak` — to prefer a targeted edit to rewriting a document whole. (#434,
+  #442)
+- Under the second of two identical headings, a subsection is addressed as
+  `A[2] > X`, not `A > X[2]` — the old path named the wrong parent. (#436)
+- MCP tools keep the name their server gives them: they are no longer renamed
+  `alt_N_<name>` when the server changes a description. When two connections
+  offer the same name, the one listed first keeps it, and an MCP tool named
+  like a built-in one is not offered at all — before, it failed every chat
+  request. (#431)
+- A saved-script schedule that names an unknown project fails the start instead
+  of failing on every firing, and running a saved script against an unknown
+  project is an error instead of silently using the default repository. (#431)
+- A script attachment is read-only unless `kb.script.attachment-edit` is on;
+  the tool description told the model it was read-only always. (#432)
+- In the chat's "Changed documents" block, a document the answer created and
+  then edited reads as created, and "View changes" shows everything the answer
+  did to a document rather than its last edit only. (#440)
+- File structure in JavaScript and JSX includes components and functions stored
+  in constants (`const List = (...) => …`), and a signature shows the whole
+  declaration instead of its first line. Nested functions, local classes and
+  callbacks inside a function body are no longer listed; TypeScript enums,
+  types and abstract members and Java annotation types are. (#441, #443)
+
+### Fixed
+
+- A restarted MCP server is picked up after one probe interval, not two: the
+  first probe used to hit the old server's session and report it down. (#429)
+- Markdown sections are found in a document with Windows line endings, after
+  a line that opens with inline code in triple backticks, and around a code
+  block that starts on a list item. All three used to hide every heading below
+  them. (#436)
+- File structure no longer fails a whole file on a deeply nested expression,
+  and the fallback parser no longer hangs for tens of seconds or answers 500 on
+  a very long line. (#443)
+- A revision snapshot in Files shows one commit after a fetch, not two. (#431)
+- `/compact-1` no longer spends a paid request on a chat that holds nothing but
+  summaries and event rows. (#431)
+- Returning to a chat already loaded in the tab picks up its current title, and
+  a chat deleted while its title was being written no longer gets one. (#431)
+
+### Upgrading
+
+Assembled from [`UPDATING.md`](UPDATING.md), which says what to do about each.
+
+- A `kb.script.schedules[].project` naming no configured project now stops the
+  application from starting. Fix the id or remove the entry before upgrading.
+  (#431)
+- A tool of an MCP server that was reachable only as `alt_N_<name>`, or as the
+  second of two same-named tools, is gone; rename it on the server or reorder
+  the connections. (#431)
+- A section path saved under a repeated heading — in an old chat or a
+  `?section=` link — no longer finds its section; nothing to do. (#436)
+
 ## [1.1.0-RC1] — 2026-09-25
 
 The first candidate for 1.1.0: a dark theme, scripts that live in the
@@ -379,6 +461,7 @@ a deployment that was already running from `main` before this release.
   meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
+[1.1.0-RC2]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC2
 [1.1.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC1
 [1.0.0]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0
 [1.0.0-RC3]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0-RC3
