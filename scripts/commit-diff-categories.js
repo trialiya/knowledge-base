@@ -36,7 +36,8 @@
  * commit and removed in the next is no change to the PR.
  * --loc counts a whole file (working tree, or <rev>:<path> with --rev). With
  * the full text there is no unknown state, so every line resolves; "эффективные"
- * lines are code + import — what the file-size rule in CLAUDE.md measures.
+ * lines are the code category alone — imports excluded, unlike the grep in
+ * CLAUDE.md's file-size rule, which counts them.
  */
 
 const { execFileSync } = require("child_process");
@@ -496,26 +497,24 @@ function countFileLines(path, rev) {
 }
 
 function printFileLoc(paths, rev) {
-  const header = ["Файл", "Всего", "Эффективные", "Код", "Import", "Комментарии", "Пустые"];
+  const header = ["Файл", "Всего", "Эффективные", "Import", "Комментарии", "Пустые"];
   const body = [];
-  const sum = { total: 0, effective: 0, code: 0, import: 0, comment: 0, empty: 0 };
+  const sum = { total: 0, code: 0, import: 0, comment: 0, empty: 0 };
   for (const path of paths) {
     const r = countFileLines(path, rev);
     if (!r.counts) {
       const kind = r.category === "doc" ? "документация" : "служебный";
-      body.push([`${path} (${kind})`, String(r.total), "—", "—", "—", "—", "—"]);
+      body.push([`${path} (${kind})`, String(r.total), "—", "—", "—", "—"]);
       continue;
     }
     const c = r.counts;
-    const effective = c.code + c.import;
-    body.push([path, r.total, effective, c.code, c.import, c.comment, c.empty].map(String));
+    body.push([path, r.total, c.code, c.import, c.comment, c.empty].map(String));
     sum.total += r.total;
-    sum.effective += effective;
     for (const k of ["code", "import", "comment", "empty"]) sum[k] += c[k];
   }
   if (paths.length > 1) {
     body.push(null);
-    body.push(["Итого (основные файлы)", sum.total, sum.effective, sum.code, sum.import, sum.comment, sum.empty].map(String));
+    body.push(["Итого (основные файлы)", sum.total, sum.code, sum.import, sum.comment, sum.empty].map(String));
   }
   printTable(header, body);
 }
