@@ -95,6 +95,85 @@ class MarkdownSectionsTest {
         }
 
         @Test
+        void subsectionsOfARepeatedHeadingCarryItsSuffix() {
+            String md = "# A\n## X\n# A\n## X\n## X\n### Y\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly(
+                            "A", "A > X", "A[2]", "A[2] > X", "A[2] > X[2]", "A[2] > X[2] > Y");
+            assertThat(contentOf(md, "A[2] > X[2]")).isEqualTo("## X\n### Y\n");
+        }
+
+        @Test
+        void backtickRunWithBacktickInInfoStringIsInlineCodeNotAFence() {
+            String md = "# A\n```js``` is inline\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly("A", "B");
+        }
+
+        @Test
+        void tildeFenceInfoStringMayContainBackticks() {
+            String md = "# A\n~~~ `x`\n# hidden\n~~~\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly("A", "B");
+        }
+
+        @Test
+        void fenceOpenedOnListItemLineHidesItsContent() {
+            // The shell comment is code, and the indented closing fence must close the block
+            // rather than open a new one that would swallow "# B".
+            String md = "# A\n- ```sh\n  # comment\n  ```\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly("A", "B");
+        }
+
+        @Test
+        void fenceInNestedOrderedItemClosesAtItsContentIndent() {
+            String md = "# A\n  10. ```py\n      # comment\n      ```\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly("A", "B");
+        }
+
+        @Test
+        void listItemFenceLineDoesNotCloseAnOpenBlock() {
+            String md = "```md\n- ```\n# hidden\n```\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly(MarkdownSections.PREAMBLE_PATH, "B");
+        }
+
+        @Test
+        void topLevelFenceStillIgnoresClosingIndentedFourSpaces() {
+            String md = "```\n    ```\n# hidden\n```\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly(MarkdownSections.PREAMBLE_PATH, "B");
+        }
+
+        @Test
+        void recognisesHeadingsAndFencesInCrlfText() {
+            String md = "intro\r\n# A #\r\n```\r\n# hidden\r\n```\r\n## A1\r\ntext\r\n# B\r\n";
+
+            List<Section> sections = MarkdownSections.parse(md);
+
+            assertThat(sections)
+                    .extracting(Section::path)
+                    .containsExactly(MarkdownSections.PREAMBLE_PATH, "A", "A > A1", "B");
+            assertThat(contentOf(md, "A > A1")).isEqualTo("## A1\r\ntext\r\n");
+        }
+
+        @Test
         void textBeforeFirstHeadingBecomesPreamble() {
             String md = "intro line\n\n# A\ntext\n";
 
@@ -295,6 +374,15 @@ class MarkdownSectionsTest {
             String result = MarkdownSections.renameHeading(md, section(md, "Старое"), "Новое");
 
             assertThat(result).isEqualTo("## Новое\nтело\n");
+        }
+
+        @Test
+        void keepsCrlfLineEndingOfTheRenamedHeading() {
+            String md = "# A\r\n## Старое\r\nтело\r\n";
+
+            String result = MarkdownSections.renameHeading(md, section(md, "A > Старое"), "Новое");
+
+            assertThat(result).isEqualTo("# A\r\n## Новое\r\nтело\r\n");
         }
     }
 }

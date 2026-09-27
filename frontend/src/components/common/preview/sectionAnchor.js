@@ -1,7 +1,8 @@
 // ─── Раздел из адреса → заголовок в превью ───────────────────────────────────
 // Поиск по документам адресует найденное путём раздела в форме бэкенда
 // (MarkdownSections: заголовки-предки через « > », повтор пути — суффикс «[n]»,
-// текст до первого заголовка — «_preamble»). Превью ставит заголовкам только
+// который остаётся и в путях подразделов — «A[2] > X», текст до первого
+// заголовка — «_preamble»). Превью ставит заголовкам только
 // слаги (rehype-slug), которые к такому пути не сводятся, поэтому путь
 // считается здесь заново, по отрендеренным h1–h6, тем же правилом.
 
@@ -28,7 +29,7 @@ export function normalizeTitle(title) {
 /**
  * Заголовки области с их путями — в порядке документа, как MarkdownSections
  * .parse считает их по сырому markdown: стек предков по уровню, повтор полного
- * пути получает «[n]».
+ * пути получает «[n]», и подраздел строится от пути родителя уже с суффиксом.
  */
 function headingPaths(root) {
   const stack = [];
@@ -37,11 +38,13 @@ function headingPaths(root) {
   for (const el of root.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
     const level = Number(el.tagName[1]);
     while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
-    stack.push({ level, title: normalizeTitle(el.textContent) });
-    const path = stack.map((h) => h.title).join(PATH_SEPARATOR);
+    const title = normalizeTitle(el.textContent);
+    const path = stack.length ? `${stack[stack.length - 1].path}${PATH_SEPARATOR}${title}` : title;
     const occurrence = (counts.get(path) || 0) + 1;
     counts.set(path, occurrence);
-    result.push({ el, path: occurrence === 1 ? path : `${path}[${occurrence}]` });
+    const finalPath = occurrence === 1 ? path : `${path}[${occurrence}]`;
+    stack.push({ level, path: finalPath });
+    result.push({ el, path: finalPath });
   }
   return result;
 }

@@ -14,13 +14,17 @@ import java.util.regex.Pattern;
  * <p>Model: a section is an ATX heading ({@code #}…{@code ######}) plus everything up to the next
  * heading of the same or higher level — i.e. the whole subtree including subsections. Text before
  * the first heading forms a special {@value #PREAMBLE_PATH} section. Headings inside fenced code
- * blocks (``` / ~~~) are ignored. Setext headings ({@code ===} / {@code ---} underlines) are NOT
- * supported.
+ * blocks (``` / ~~~) are ignored, including a block opened on a list-item line ({@code - ```sh}).
+ * Setext headings ({@code ===} / {@code ---} underlines) are NOT supported. Lines may end in {@code
+ * \n} or {@code \r\n}: a text synced from a Windows checkout keeps its CRLF, and offsets always
+ * point into the text as given.
  *
  * <p>Sections are addressed by a human-readable path of ancestor titles joined with {@value
  * #PATH_SEPARATOR} (e.g. {@code "Установка > Docker"}). Duplicate paths get an occurrence suffix:
- * the second {@code "FAQ > Вопрос"} becomes {@code "FAQ > Вопрос[2]"}. Paths are computed over the
- * whole document in one pass, so they are stable as long as the text does not change.
+ * the second {@code "FAQ > Вопрос"} becomes {@code "FAQ > Вопрос[2]"}, and the suffix stays in the
+ * paths of its subsections — {@code "FAQ[2] > Вопрос"} lives under the second {@code "FAQ"}. Paths
+ * are computed over the whole document in one pass, so they are stable as long as the text does not
+ * change. {@code common/preview/sectionAnchor.js} on the frontend recomputes them by the same rule.
  */
 public final class MarkdownSections {
 
@@ -33,8 +37,14 @@ public final class MarkdownSections {
     private static final Pattern HEADING =
             Pattern.compile("^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?[ \\t]*$");
 
-    /** Opening/closing code fence: 0–3 leading spaces, 3+ backticks or tildes. */
-    private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
+    /**
+     * Code fence line: indent (group 1), list-item markers the fence may follow on the same line
+     * (group 2, e.g. {@code "- "} or {@code "1. "}), 3+ backticks or tildes (group 3), the rest
+     * (group 4). How much indent is allowed depends on whether the line opens or closes a block —
+     * see {@link #scanHeadings}.
+     */
+    private static final Pattern FENCE =
+            Pattern.compile("^( *)((?:(?:[-*+]|\\d{1,9}[.)])[ \\t]+)*)(`{3,}|~{3,})(.*)$");
 
     private MarkdownSections() {}
 
@@ -72,7 +82,9 @@ public final class MarkdownSections {
             sections.add(new Section(PREAMBLE_PATH, 0, "", 0, firstHeadingOffset, 0));
         }
 
-        List<RawHeading> stack = new ArrayList<>();
+        // Ancestors with their final paths, suffix included: a child of the second "A" is
+        // "A[2] > X", addressed under the parent it really belongs to.
+        List<Ancestor> stack = new ArrayList<>();
         Map<String, Integer> pathCounts = new HashMap<>();
         for (int i = 0; i < headings.size(); i++) {
             RawHeading h = headings.get(i);
@@ -80,16 +92,13 @@ public final class MarkdownSections {
             while (!stack.isEmpty() && stack.get(stack.size() - 1).level() >= h.level()) {
                 stack.remove(stack.size() - 1);
             }
-            stack.add(h);
-            StringBuilder path = new StringBuilder();
-            for (RawHeading ancestor : stack) {
-                if (path.length() > 0) {
-                    path.append(PATH_SEPARATOR);
-                }
-                path.append(ancestor.title());
-            }
-            int occurrence = pathCounts.merge(path.toString(), 1, Integer::sum);
-            String finalPath = occurrence == 1 ? path.toString() : path + "[" + occurrence + "]";
+            String path =
+                    stack.isEmpty()
+                            ? h.title()
+                            : stack.get(stack.size() - 1).path() + PATH_SEPARATOR + h.title();
+            int occurrence = pathCounts.merge(path, 1, Integer::sum);
+            String finalPath = occurrence == 1 ? path : path + "[" + occurrence + "]";
+            stack.add(new Ancestor(h.level(), finalPath));
 
             int end = length;
             int subsections = 0;
@@ -157,6 +166,8 @@ public final class MarkdownSections {
         int lineEnd = markdown.indexOf('\n', section.startOffset());
         if (lineEnd == -1) {
             lineEnd = markdown.length();
+        } else if (lineEnd > section.startOffset() && markdown.charAt(lineEnd - 1) == '\r') {
+            lineEnd--;
         }
         return markdown.substring(0, section.startOffset())
                 + "#".repeat(section.level())
@@ -167,12 +178,17 @@ public final class MarkdownSections {
 
     private record RawHeading(int offset, int level, String title) {}
 
+    private record Ancestor(int level, String path) {}
+
     /** Collects ATX headings with their offsets, skipping fenced code blocks. */
     private static List<RawHeading> scanHeadings(String markdown) {
         List<RawHeading> headings = new ArrayList<>();
         boolean inFence = false;
         char fenceChar = 0;
         int fenceLength = 0;
+        // Column the open block's content starts at: 0 at top level, past the marker in a list
+        // item ("- ```" → 2), where the closing fence sits indented to match that content.
+        int fenceColumn = 0;
 
         int pos = 0;
         int length = markdown.length();
@@ -180,17 +196,28 @@ public final class MarkdownSections {
             int newline = markdown.indexOf('\n', pos);
             int lineEnd = newline == -1 ? length : newline;
             String line = markdown.substring(pos, lineEnd);
+            if (line.endsWith("\r")) {
+                line = line.substring(0, line.length() - 1);
+            }
 
             Matcher fence = FENCE.matcher(line);
             if (fence.matches()) {
-                String marker = fence.group(1);
+                int indent = fence.group(1).length();
+                String listMarkers = fence.group(2);
+                String marker = fence.group(3);
+                String rest = fence.group(4);
                 if (!inFence) {
-                    inFence = true;
-                    fenceChar = marker.charAt(0);
-                    fenceLength = marker.length();
-                } else if (marker.charAt(0) == fenceChar
+                    if (indent <= 3 && opensFence(marker, rest)) {
+                        inFence = true;
+                        fenceChar = marker.charAt(0);
+                        fenceLength = marker.length();
+                        fenceColumn = indent + listMarkers.length();
+                    }
+                } else if (listMarkers.isEmpty()
+                        && indent <= fenceColumn + 3
+                        && marker.charAt(0) == fenceChar
                         && marker.length() >= fenceLength
-                        && fence.group(2).isBlank()) {
+                        && rest.isBlank()) {
                     inFence = false;
                 }
             } else if (!inFence) {
@@ -204,6 +231,15 @@ public final class MarkdownSections {
             pos = lineEnd + 1;
         }
         return headings;
+    }
+
+    /**
+     * Whether a fence-looking line really opens a code block: after a backtick marker the info
+     * string may not contain a backtick (CommonMark), so {@code ```js``` text} is inline code and
+     * must not hide every heading below it.
+     */
+    private static boolean opensFence(String marker, String infoString) {
+        return marker.charAt(0) == '~' || infoString.indexOf('`') < 0;
     }
 
     /** Strips optional trailing closing hashes: {@code "Title ###"} → {@code "Title"}. */

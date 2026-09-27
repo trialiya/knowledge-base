@@ -45,6 +45,15 @@ describe('findSection', () => {
     expect(root.querySelectorAll('h2')[3]).toBe(second);
   });
 
+  test('подраздел повторного заголовка адресуется от родителя с суффиксом', () => {
+    const r = preview('<h1>A</h1><h2>X</h2><h1>A</h1><h2>X</h2><h2>X</h2>');
+    const [x1, x2, x3] = r.querySelectorAll('h2');
+    expect(findSection(r, 'A > X').from).toBe(x1);
+    expect(findSection(r, 'A[2] > X').from).toBe(x2);
+    expect(findSection(r, 'A[2] > X[2]').from).toBe(x3);
+    expect(findSection(r, 'A > X[2]')).toBeNull();
+  });
+
   // «[2]» в конце может быть и частью заголовка: бэкенд ставит суффикс без
   // пробела, и такой заголовок, встреченный однажды, суффикса не получает.
   test('заголовок, сам кончающийся на [n], не принимается за повтор', () => {
