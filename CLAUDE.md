@@ -128,6 +128,8 @@ new test is in `.claude/rules/backend-data.md`.
   holding 2+ exported components — and a backend Java file nearing **~500**
   are due for a split. Existing offenders are handled by "migrate on touch"
   below: split a file the task already has open, don't hunt the rest down.
+  Before splitting a file, check its effective code with
+  `node scripts/commit-diff-categories.js --loc <file>`.
 - **Migrate on touch.** The codebase is mid-migration onto shared components.
   When you edit a file that still carries a legacy pattern — its own modal
   chrome, its own button classes, a panel-local copy of a shared concern —
