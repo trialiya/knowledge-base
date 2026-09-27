@@ -17,6 +17,8 @@ import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.DocumentOutline;
 import io.github.trialiya.kb.model.doc.dto.DocumentSection;
 import io.github.trialiya.kb.model.doc.dto.DocumentShort;
+import io.github.trialiya.kb.model.doc.dto.DocumentSkeletonNode;
+import io.github.trialiya.kb.model.doc.dto.DocumentView;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.SectionRename;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
@@ -233,7 +235,7 @@ public class DocumentFunction {
             description =
                     "List all knowledge base nodes (id, title, type, parentId) without content.",
             resultConverter = CompactToolResultConverter.class)
-    public List<DocumentNode> getTreeSkeleton() {
+    public List<DocumentSkeletonNode> getTreeSkeleton() {
         log.info("getTreeSkeleton called");
         return documentService.getTreeSkeleton();
     }
@@ -273,17 +275,17 @@ public class DocumentFunction {
      * of its direct children (shallow, without their descriptions).
      *
      * @param documentId document or folder id (from {@link #getTreeSkeleton} results)
-     * @return document node with description, updatedAt, and direct children list
+     * @return document node with description, updatedAt, and direct children as skeleton nodes
      */
     @Tool(
             description =
                     "Read full document/folder content by id, including direct children (shallow).",
             resultConverter = CompactToolResultConverter.class)
-    public DocumentNode getDocument(
+    public DocumentView getDocument(
             @ToolParam(description = "Document or folder id.") Long documentId) {
         final long id = requireId(documentId, "documentId");
         log.info("getDocument called: documentId={}", id);
-        return requireDocument(id);
+        return DocumentView.of(requireDocument(id));
     }
 
     // ── Markdown sections ─────────────────────────────────────────────────────

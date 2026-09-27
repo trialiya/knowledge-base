@@ -2,6 +2,7 @@ package io.github.trialiya.kb.model.doc.dto;
 
 import static java.util.stream.Collectors.joining;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.tools.Compact;
@@ -43,9 +44,9 @@ public record DocumentNode(
         @Nullable List<DocumentNode> children,
         boolean hasChildren,
         boolean system,
-        @Nullable String summary,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String summary,
         boolean summaryStale,
-        @Nullable Integer summarySourceVersion)
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer summarySourceVersion)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override

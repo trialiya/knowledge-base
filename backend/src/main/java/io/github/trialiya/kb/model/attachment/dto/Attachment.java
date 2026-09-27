@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.attachment.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
@@ -24,13 +25,13 @@ import org.jspecify.annotations.Nullable;
 public record Attachment(
         Long id,
         AttachmentOwnerType ownerType,
-        @Nullable Long documentId,
-        @Nullable String conversationId,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Long documentId,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String conversationId,
         String fileName,
         String contentType,
         long fileSize,
-        @Nullable String summary,
-        @Nullable String sourceUrl,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String summary,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String sourceUrl,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt)
         implements ToolCallResponseItem {

@@ -130,8 +130,8 @@
 
 ### `getDocument`
 Получение документа по ID с полным содержимым и дочерними узлами.
-- **Параметры:** `documentId` (String)
-- **Возвращает:** `DocumentDto`
+- **Параметры:** `documentId` (Long)
+- **Возвращает:** `DocumentView` — поля `DocumentNode`, но дочерние узлы в `children` — `DocumentSkeletonNode`, без пустых содержимого, дат и вложенных `children`
 
 ### `getDocumentOutline`
 Оглавление документа без его текста: заголовки, уровни, размеры секций.
@@ -147,7 +147,7 @@
 ### `getTreeSkeleton`
 Получение всей структуры базы знаний (id, title, type, parentId).
 - **Параметры:** нет
-- **Возвращает:** плоский список всех узлов
+- **Возвращает:** плоский список всех узлов — `DocumentSkeletonNode` (`id`, `title`, `type`, `parentId`, `version`, `descriptionVersion`, `hasChildren`, `system`): без содержимого, дат и полей сводки, которые в скелете всё равно пусты
 
 ---
 

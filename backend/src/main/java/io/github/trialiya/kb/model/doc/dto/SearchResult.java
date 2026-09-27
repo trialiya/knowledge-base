@@ -2,6 +2,7 @@ package io.github.trialiya.kb.model.doc.dto;
 
 import static java.util.stream.Collectors.joining;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.tools.Compact;
@@ -15,8 +16,8 @@ public record SearchResult(
         String title,
         String snippet,
         LocalDateTime updatedAt,
-        @Nullable String summary,
-        @Nullable List<Parent> parentList)
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String summary,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) List<Parent> parentList)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     public record Parent(long id, String title) {}
