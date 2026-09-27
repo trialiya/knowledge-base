@@ -14,6 +14,7 @@
     "answeredBy": "Answered by {{model}}",
     "tokens": "{{context}} in context",
     "tokensContext": "Context after this answer: {{context}} tokens",
+    "contextAfterMessage": "Context after this message: {{context}} tokens",
     "tokensMiss": "Input (Cache miss): {{input}}",
     "tokensOutput": "Output: {{output}}"
   },

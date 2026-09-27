@@ -8,6 +8,7 @@ import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
+import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
@@ -512,10 +513,18 @@ public class ChatHistoryService {
      * (см. {@link ChatMessageMeta}). Не измеренный прогон не помечается вовсе — {@code null} в мете
      * значит «не измерено», и уверенный ноль был бы неправдой.
      *
+     * <p>Контекст после обращения ({@code contextTokens}) — наоборот, каждому ряду свой: одно
+     * обращение к модели оставляет один ASSISTANT-ряд, и замеры обращений сопоставляются с рядами
+     * по порядку. Обращений может быть больше, чем рядов, только в хвосте: последнее обращение
+     * упало, не написав ничего. Рядов больше, чем обращений, — значит в хвосте лежит чужое (ряды
+     * прогона, оборванного падением процесса), и порядок уже ничего не значит: контекст тогда не
+     * проставляется никому, неизвестность честнее чужого числа.
+     *
      * <p>Ряды прогона — это хвост после последнего вопроса (см. {@link #tailAfterLastUser}). Ряды
      * оборванных прогонов, оставшиеся в том же хвосте, уже помечены своей моделью и второй раз не
      * переписываются: у ответа стоит та модель, что его написала, а не та, на которой сдались.
      *
+     * @param calls замеры обращений прогона к модели по порядку (см. {@code RunScope#calls})
      * @param toolCalls снимок вызовов прогона в хронологическом порядке; пустой — инструментов
      *     прогон не звал
      * @return плашки, которые эта запись проставила, в хронологическом порядке — их же прогон шлёт
@@ -527,6 +536,7 @@ public class ChatHistoryService {
             String runId,
             String model,
             RunTokenUsage usage,
+            List<TokenUsage> calls,
             List<ToolInvocation> toolCalls) {
         final List<ChatMessageEntity> answers =
                 tailAfterLastUser(
@@ -551,7 +561,9 @@ public class ChatHistoryService {
                 ToolCallService.runInvocations(
                         answers.stream().filter(row -> row.getMeta() == null).toList(), toolCalls);
         final List<ChatMessageEntity> updated = new ArrayList<>(answers.size());
-        for (ChatMessageEntity answer : answers) {
+        final boolean callsMatchRows = calls.size() >= answers.size();
+        for (int i = 0; i < answers.size(); i++) {
+            final ChatMessageEntity answer = answers.get(i);
             // Мету пишем поверх существующей, а плашки достаются только рядам без неё — их и
             // отбирает фильтр в runInvocations выше. Ослабишь его — собирай мету поверх
             // существующей и здесь, иначе она потеряется.
@@ -563,7 +575,12 @@ public class ChatHistoryService {
                             : ChatMessageMeta.builder()
                                     .invocations(metas == null ? List.of() : metas)
                                     .build();
-            updated.add(answer.withMeta(base.withRun(runId, model)));
+            final ChatMessageMeta marked = base.withRun(runId, model);
+            updated.add(
+                    answer.withMeta(
+                            callsMatchRows
+                                    ? marked.withContextTokens(calls.get(i).contextTokens())
+                                    : marked));
         }
         if (!usage.isEmpty()) {
             final int last = updated.size() - 1;

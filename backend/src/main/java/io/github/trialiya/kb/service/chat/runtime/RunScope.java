@@ -5,7 +5,9 @@ import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jspecify.annotations.Nullable;
@@ -44,6 +46,13 @@ public final class RunScope {
     private final AtomicBoolean persisted = new AtomicBoolean();
     private final AtomicReference<RunTokenUsage.Tally> tally =
             new AtomicReference<>(RunTokenUsage.Tally.EMPTY);
+
+    /**
+     * Замеры обращений к модели по порядку — по одному на обращение, неизмеренные тоже: по индексу
+     * они сопоставляются с рядами ответа, которые обращения оставили (см. {@code
+     * ChatHistoryService.markRunResult}). Пишет advisor, читают запись истории и итог прогона.
+     */
+    private final List<TokenUsage> calls = new CopyOnWriteArrayList<>();
 
     /** Нумерация вызовов инструментов прогона — состояние под собственным замком. */
     private final Numbering numbering = new Numbering();
@@ -145,6 +154,30 @@ public final class RunScope {
      */
     public RunTokenUsage addCall(TokenUsage call) {
         return tally.updateAndGet(current -> current.with(call)).view();
+    }
+
+    /**
+     * Закрывает обращение к модели в перечне обращений (см. {@link #calls()}): вызывается ровно
+     * один раз на обращение, в том числе с пустым замером — пропуск сдвинул бы сопоставление с
+     * рядами. Отдельно от {@link #addCall}: тот зовут и повторно, с опоздавшим замером, а второй
+     * элемент перечня значил бы второе обращение.
+     */
+    public void endCall(TokenUsage call) {
+        calls.add(call);
+    }
+
+    /** Замеры закрытых обращений к модели по порядку. */
+    public List<TokenUsage> calls() {
+        return List.copyOf(calls);
+    }
+
+    /**
+     * Контекст после последнего закрытого обращения; {@code null} — обращений нет или вход
+     * последнего не измерен.
+     */
+    public @Nullable Long lastCallContextTokens() {
+        final List<TokenUsage> snapshot = calls();
+        return snapshot.isEmpty() ? null : snapshot.getLast().contextTokens();
     }
 
     /**

@@ -61,6 +61,7 @@ public final class ChatMessageMetaToJsonConverter {
             @Nullable GitEventMeta gitEvent,
             @Nullable Boolean interjection,
             @Nullable RunTokenUsage usage,
+            @Nullable Long contextTokens,
             @Nullable List<ProjectSpan> visitedProjects,
             @Nullable FileRevertMeta fileRevert,
             @Nullable ScriptEventMeta scriptEvent,
@@ -139,6 +140,7 @@ public final class ChatMessageMetaToJsonConverter {
                         .gitEvent(json.gitEvent())
                         .interjection(Boolean.TRUE.equals(json.interjection()))
                         .usage(json.usage())
+                        .contextTokens(json.contextTokens())
                         .visitedProjects(
                                 json.visitedProjects() == null ? List.of() : json.visitedProjects())
                         .fileRevert(json.fileRevert())
@@ -210,6 +212,7 @@ public final class ChatMessageMetaToJsonConverter {
                                 // каждый ряд каждого чата (см. javadoc проекции).
                                 source.interjection() ? Boolean.TRUE : null,
                                 source.usage(),
+                                source.contextTokens(),
                                 // Пустой список — не выписывается по той же причине, что и false
                                 // выше: спаны несут только строки-сводки, а колонка есть у каждого
                                 // ряда каждого чата.

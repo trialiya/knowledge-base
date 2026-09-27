@@ -88,6 +88,7 @@ class ChatMessageMetaRoundTripTest {
                 .usage(
                         new RunTokenUsage(
                                 12_400, 11_400, 700, 320, 31_000, 24_000, 1_100, 31_320, 3))
+                .contextTokens(12_400L)
                 .visitedProjects(
                         List.of(
                                 new ProjectSpan("kb", 1, 34),

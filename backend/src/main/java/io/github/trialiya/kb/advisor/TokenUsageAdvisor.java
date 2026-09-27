@@ -8,6 +8,7 @@ import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.runtime.RunScope;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -73,6 +74,7 @@ public class TokenUsageAdvisor implements StreamAdvisor {
         final String conversationId =
                 String.valueOf(request.context().getOrDefault(ChatMemory.CONVERSATION_ID, "?"));
         final AtomicReference<TokenUsage> iteration = new AtomicReference<>(TokenUsage.EMPTY);
+        final AtomicBoolean ended = new AtomicBoolean();
 
         return chain.nextStream(request)
                 .doOnNext(response -> onResponse(conversationId, scope, iteration, response))
@@ -86,14 +88,23 @@ public class TokenUsageAdvisor implements StreamAdvisor {
                 // снизу и до этих колбэков не доходит, но потраченное к этому моменту потрачено.
                 // Повторный сброс безвреден: из ссылки второй раз достаётся EMPTY, и Tally его
                 // игнорирует.
-                .doOnComplete(() -> flush(scope, iteration))
-                .doOnError(error -> flush(scope, iteration))
-                .doFinally(signal -> flush(scope, iteration));
+                .doOnComplete(() -> flush(scope, iteration, ended))
+                .doOnError(error -> flush(scope, iteration, ended))
+                .doFinally(signal -> flush(scope, iteration, ended));
     }
 
-    /** Отдаёт накопленный замер итерации в итог прогона; повторный вызов — no-op. */
-    private static void flush(RunScope scope, AtomicReference<TokenUsage> iteration) {
-        scope.addCall(iteration.getAndSet(TokenUsage.EMPTY));
+    /**
+     * Отдаёт накопленный замер итерации в итог прогона; повторный вызов — no-op. Первый вызов
+     * заодно закрывает обращение в перечне обращений прогона — ряд ответа этой итерации пишется уже
+     * после него (advisor памяти снаружи и получает сигнал позже), и замер к записи готов.
+     */
+    private static void flush(
+            RunScope scope, AtomicReference<TokenUsage> iteration, AtomicBoolean ended) {
+        final TokenUsage measured = iteration.getAndSet(TokenUsage.EMPTY);
+        scope.addCall(measured);
+        if (ended.compareAndSet(false, true)) {
+            scope.endCall(measured);
+        }
     }
 
     /**

@@ -3295,6 +3295,25 @@
   origin:
     - 'Сессия 2026-09-27, очередь сообщений и ошибка модели'
 
+- id: chat-interrupted-run-after-tools
+  component: MessageList
+  path: frontend/src/components/chatPanel/run/messagesPage.js
+  title: Прогон, оборванный после работы инструментов, — после перезагрузки
+  fixtures:
+    - ./fixtures/chatInterruptedRun.js#stoppedAndFailedAfterTools
+  scenario: |
+    Два хода: первый остановили, второй упал — оба успели вызвать инструменты и
+    не написали текста. Бэкенд оставил метку отдельным рядом ([stopped] /
+    [error]) и положил на неё итог прогона. Фикстура — сырые ряды истории,
+    стенд прогоняет их через transformPage.
+  expected:
+    - Пузырь из одних плашек вызовов, под ним — пузырь с подписью обрыва, а не с сырой меткой
+    - «[остановлено]» — обычный пузырь ответа; «Произошла ошибка…» — розовый, с красной полосой, без «Повторить»
+    - Под пузырём с меткой — модель и плашка «N в контексте»
+  status: verified
+  origin:
+    - 'Сессия 2026-09-27, контекст после каждого обращения и ряд-метка'
+
 - id: chat-phrases-categories
   component: Phrases
   path: frontend/src/components/chatPanel/composer/Phrases.jsx

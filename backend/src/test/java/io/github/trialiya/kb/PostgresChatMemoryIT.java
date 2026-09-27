@@ -272,6 +272,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                 "run-42",
                 "gpt-5",
                 RunTokenUsage.EMPTY,
+                List.of(),
                 List.of(
                         invocation("getDocument", 0),
                         invocation("getCurrentDateTime", 1),
@@ -419,7 +420,12 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                         .toList());
 
         memory.markRunResult(
-                conv, "run-7", "gpt-5", RunTokenUsage.EMPTY, List.of(invocation("searchDocs", 0)));
+                conv,
+                "run-7",
+                "gpt-5",
+                RunTokenUsage.EMPTY,
+                List.of(),
+                List.of(invocation("searchDocs", 0)));
 
         List<ChatMessageEntity> rows = memory.displayMessages(conv);
         ChatMessageEntity old =

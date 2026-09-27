@@ -6,6 +6,7 @@
 import { nextMessageId } from '../messages/messageId';
 import { SENDER } from '@/constants/messageSender';
 import { isEventRow, toolCallOf } from './runMessageOps';
+import { interruptedAnswer } from './runMarkers';
 
 // Extracts runId from a system message that carries tool call breadcrumbs.
 const extractRunId = (m) => m.runId || null;
@@ -137,16 +138,21 @@ export const transformPage = (rawMsgs) => {
       ) {
         prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(toolCallOf)];
         if (m.runId && !prev.toolCallsRunId) prev.toolCallsRunId = m.runId;
+        // Пузырь теперь кончается этим обращением — и контекст после него уже его.
+        if (m.contextTokens != null) prev.contextTokens = m.contextTokens;
         carryUsageToPrev();
         continue;
       }
     }
+    // Оборванный ответ хранит служебную метку — показываем ту же подпись, что и живой поток.
+    const interrupted = type === 'user' ? null : interruptedAnswer(m.content);
     bubbles.push({
       mid: nextMessageId(),
       // id сообщения в БД — якорь для поиска по чату (find-бар, Ctrl+F): позволяет
       // сопоставить хит бэкенда с пузырём и понять, догружена ли страница с совпадением.
       dbId: m.id ?? null,
-      text: m.content,
+      text: interrupted ? interrupted.text : m.content,
+      ...(interrupted?.error ? { error: true } : {}),
       sender: type === 'user' ? SENDER.USER : SENDER.AI,
       timestamp: m.timestamp || null,
       // Приложенное к вопросу (вложения) — чипы под текстом пузыря.
@@ -164,6 +170,9 @@ export const transformPage = (rawMsgs) => {
       // своей команды (CompactService.spentRound). Плашку он не рисует (её рисует только
       // пузырь ответа), но в итог чата обязан попасть, поэтому здесь не отбрасывается.
       ...(m.usage ? { usage: m.usage } : {}),
+      // Контекст после обращения к модели, написавшего сегмент (markRunResult) — подсказка на
+      // пузыре, у которого нет плашки итога.
+      ...(m.contextTokens != null && type !== 'user' ? { contextTokens: m.contextTokens } : {}),
       // Вызовы инструментов этого сегмента (раздельное сохранение): плашки под пузырём.
       ...(metas.length && type !== 'user'
         ? { toolCalls: metas.map(toolCallOf), ...(m.runId ? { toolCallsRunId: m.runId } : {}) }

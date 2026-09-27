@@ -64,6 +64,9 @@ public class ToolCallEventPublisher {
             return;
         }
         if (toolData.toolCalls() != null) {
+            // Ряд с вызовами пишется после того, как его обращение к модели закрыто (см.
+            // TokenUsageAdvisor#flush), — последний замер прогона и есть его.
+            final Long contextTokens = scope.lastCallContextTokens();
             for (ToolData.Call call : toolData.toolCalls()) {
                 // Номер занимают все вызовы: он должен совпадать со счётчиком коллектора.
                 // Запоминаются тоже все — по этой записи ремонт хвоста находит результат
@@ -82,16 +85,18 @@ public class ToolCallEventPublisher {
                 publish(
                         conversationId,
                         scope.runId(),
-                        new ToolInvocationMeta(
-                                call.name(),
-                                arguments,
-                                ToolInvocationStatus.STARTED,
-                                null,
-                                null,
-                                true,
-                                callIndex,
-                                null,
-                                call.id()));
+                        new ToolCallMessage(
+                                new ToolInvocationMeta(
+                                        call.name(),
+                                        arguments,
+                                        ToolInvocationStatus.STARTED,
+                                        null,
+                                        null,
+                                        true,
+                                        callIndex,
+                                        null,
+                                        call.id()),
+                                contextTokens));
             }
         }
         if (toolData.responses() != null) {
@@ -119,31 +124,34 @@ public class ToolCallEventPublisher {
                 publish(
                         conversationId,
                         scope.runId(),
-                        new ToolInvocationMeta(
-                                response.name(),
-                                started.arguments(),
-                                failure != null
-                                        ? ToolInvocationStatus.ERROR
-                                        : ToolInvocationStatus.OK,
-                                failure != null ? failure.error() : null,
-                                null,
-                                true,
-                                started.callIndex(),
-                                // У провала гиста нет: результат — та же ошибка, и плашка написала
-                                // бы её дважды. Итоговая мета его тоже не несёт, так что склейка
-                                // на фронте показанного не меняет.
-                                failure != null
-                                        ? null
-                                        : Compact.truncate(
-                                                response.responseData(),
-                                                ToolCallService.RESULT_GIST_MAX),
-                                response.id()));
+                        new ToolCallMessage(
+                                new ToolInvocationMeta(
+                                        response.name(),
+                                        started.arguments(),
+                                        failure != null
+                                                ? ToolInvocationStatus.ERROR
+                                                : ToolInvocationStatus.OK,
+                                        failure != null ? failure.error() : null,
+                                        null,
+                                        true,
+                                        started.callIndex(),
+                                        // У провала гиста нет: результат — та же ошибка, и плашка
+                                        // написала
+                                        // бы её дважды. Итоговая мета его тоже не несёт, так что
+                                        // склейка
+                                        // на фронте показанного не меняет.
+                                        failure != null
+                                                ? null
+                                                : Compact.truncate(
+                                                        response.responseData(),
+                                                        ToolCallService.RESULT_GIST_MAX),
+                                        response.id()),
+                                null));
             }
         }
     }
 
-    private void publish(String conversationId, String runId, ToolInvocationMeta meta) {
-        events.publish(
-                conversationId, ChatEventType.TOOL_CALL, runId, null, new ToolCallMessage(meta));
+    private void publish(String conversationId, String runId, ToolCallMessage message) {
+        events.publish(conversationId, ChatEventType.TOOL_CALL, runId, null, message);
     }
 }

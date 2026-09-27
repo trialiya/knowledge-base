@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.runtime.RunScope;
@@ -224,6 +225,33 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain).take(1).blockLast();
 
         assertThat(scope.usage()).isEqualTo(usage(110, 100, 0, 10, 100, 1));
+    }
+
+    /**
+     * Перечень обращений — по записи на обращение, как бы ни кончилось: по индексу его сопоставляют
+     * с рядами ответа, и лишняя или пропущенная запись сдвинула бы контекст на соседний ряд.
+     * Неизмеренное обращение тоже занимает место.
+     */
+    @Test
+    void eachCallEndsExactlyOnceWhateverEndedIt() {
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
+        when(chain.nextStream(any()))
+                .thenReturn(Flux.just(chunk(1000, 50)))
+                .thenReturn(Flux.just(chunkWithoutMetadata()))
+                .thenReturn(
+                        Flux.just(chunk(1200, 30))
+                                .concatWith(Flux.error(new IllegalStateException("boom"))))
+                .thenReturn(Flux.just(chunk(1300, 10)).concatWith(Flux.never()));
+
+        advisor.adviseStream(request(), chain).blockLast();
+        advisor.adviseStream(request(), chain).blockLast();
+        advisor.adviseStream(request(), chain).onErrorComplete().blockLast();
+        advisor.adviseStream(request(), chain).take(1).blockLast();
+
+        assertThat(scope.calls())
+                .extracting(TokenUsage::contextTokens)
+                .containsExactly(1050L, null, 1230L, 1310L);
+        assertThat(scope.lastCallContextTokens()).isEqualTo(1310L);
     }
 
     /** Ожидаемый итог прогона; кэш во всех сценариях здесь нулевой. */

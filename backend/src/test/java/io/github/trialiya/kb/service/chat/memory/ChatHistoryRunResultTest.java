@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
@@ -105,7 +106,7 @@ class ChatHistoryRunResultTest {
     }
 
     private void mark(RunTokenUsage usage) {
-        history.markRunResult(CONV, RUN, MODEL, usage, List.of());
+        history.markRunResult(CONV, RUN, MODEL, usage, List.of(), List.of());
     }
 
     private List<ChatMessageEntity> saved() {
@@ -159,6 +160,7 @@ class ChatHistoryRunResultTest {
                         RUN,
                         MODEL,
                         RunTokenUsage.EMPTY,
+                        List.of(),
                         List.of(invocation("searchDocuments")));
 
         assertThat(written).extracting(ToolInvocationMeta::name).containsExactly("searchDocuments");
@@ -184,6 +186,7 @@ class ChatHistoryRunResultTest {
                                 RUN,
                                 MODEL,
                                 RunTokenUsage.EMPTY,
+                                List.of(),
                                 List.of(invocation("getUserName"))))
                 .isEmpty();
         assertThat(saved().getFirst().getMeta().invocations()).isEmpty();
@@ -268,6 +271,73 @@ class ChatHistoryRunResultTest {
         mark(USAGE);
 
         assertThat(saved()).extracting(row -> row.getMeta().usage()).containsExactly(null, USAGE);
+    }
+
+    /**
+     * Контекст после обращения — у каждого ряда свой, по порядку обращений: ответ, который только
+     * позвал инструменты, — такое же обращение к модели со своим замером. Итог прогона при этом
+     * остаётся на последнем ряду.
+     */
+    @Test
+    void putsEachCallsContextOnTheRowItWrote() {
+        history(
+                row(1, MessageType.USER, null),
+                segment(2, "call-0", "searchDocuments"),
+                row(3, MessageType.ASSISTANT, null));
+
+        history.markRunResult(
+                CONV, RUN, MODEL, USAGE, List.of(call(1000, 40), call(1300, 90)), List.of());
+
+        assertThat(saved())
+                .extracting(r -> r.getMeta().contextTokens())
+                .containsExactly(1040L, 1390L);
+        assertThat(saved()).extracting(r -> r.getMeta().usage()).containsExactly(null, USAGE);
+    }
+
+    /**
+     * Последнее обращение упало, ничего не написав: замер лишний, но только в хвосте, — ряды выше
+     * своё получают. Неизмеренный вход — не «ноль в контексте», а отсутствие числа.
+     */
+    @Test
+    void aTrailingCallWithoutARowAndAnUnmeasuredCallLeaveTheRestInPlace() {
+        history(
+                row(1, MessageType.USER, null),
+                segment(2, "call-0", "searchDocuments"),
+                segment(3, "call-1", "searchDocuments"));
+
+        history.markRunResult(
+                CONV,
+                RUN,
+                MODEL,
+                USAGE,
+                List.of(call(1000, 40), TokenUsage.EMPTY, TokenUsage.EMPTY),
+                List.of());
+
+        assertThat(saved())
+                .extracting(r -> r.getMeta().contextTokens())
+                .containsExactly(1040L, null);
+    }
+
+    /**
+     * Рядов больше, чем обращений: в хвосте лежит чужое (прогон, оборванный падением процесса), и
+     * по порядку уже не сопоставить — лучше без числа, чем с числом соседа.
+     */
+    @Test
+    void moreRowsThanCallsLeavesEveryRowWithoutContext() {
+        history(
+                row(1, MessageType.USER, null),
+                row(2, MessageType.ASSISTANT, null),
+                row(3, MessageType.ASSISTANT, null));
+
+        history.markRunResult(CONV, RUN, MODEL, USAGE, List.of(call(1000, 40)), List.of());
+
+        assertThat(saved())
+                .extracting(r -> r.getMeta().contextTokens())
+                .containsExactly(null, null);
+    }
+
+    private static TokenUsage call(long prompt, long completion) {
+        return new TokenUsage(prompt, completion, prompt + completion, 0, 0);
     }
 
     /**

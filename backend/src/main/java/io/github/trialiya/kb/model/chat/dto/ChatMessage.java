@@ -57,4 +57,9 @@ public record ChatMessage(
          * (см. {@code ChatHistoryService.markRunResult}). Тем же полем чат отвечает на вопрос
          * «сколько занято контекста»: у самого свежего ответа оно и есть текущее заполнение.
          */
-        @Nullable RunTokenUsage usage) {}
+        @Nullable RunTokenUsage usage,
+        /**
+         * Контекст после обращения к модели, написавшего этот ряд; есть у каждого измеренного ряда
+         * ответа, а не только у последнего, как {@link #usage}.
+         */
+        @Nullable Long contextTokens) {}

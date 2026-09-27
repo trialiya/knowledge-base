@@ -220,6 +220,9 @@ export function applyChatEvent(chat, ev, ctx) {
         text: (msgs[idx].text || '').trimEnd(),
         sealed: true,
         toolCalls: mergeToolCall(msgs[idx].toolCalls || [], payload?.toolCall),
+        // Контекст после обращения, запросившего вызов (только у STARTED). Сегмент, к которому
+        // липнут вызовы нескольких обращений подряд, держит последний — как и после перезагрузки.
+        ...(payload?.contextTokens != null ? { contextTokens: payload.contextTokens } : {}),
       };
       return { ...chat, messages: msgs };
     }

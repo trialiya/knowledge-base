@@ -86,6 +86,28 @@ describe('applyChatEvent', () => {
     expect(last(chat).retryMode).toBeUndefined();
   });
 
+  test('TOOL_CALL STARTED puts the context after its model call on the segment, the latest one wins', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'смотрю' } }, ctx);
+    const started = (name, contextTokens) => ({
+      type: 'TOOL_CALL',
+      runId: 'r1',
+      payload: { toolCall: { name, status: 'STARTED' }, contextTokens },
+    });
+    chat = applyChatEvent(chat, started('listFiles', 1040), ctx);
+    expect(last(chat).contextTokens).toBe(1040);
+
+    // Следующее обращение без текста: его вызовы липнут к тому же сегменту, и контекст — его.
+    chat = applyChatEvent(chat, started('getDocument', 1390), ctx);
+    // OK события контекста не несут и его не стирают.
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'getDocument', status: 'OK' } } },
+      ctx,
+    );
+    expect(last(chat).contextTokens).toBe(1390);
+  });
+
   test('RUN_ERROR in a later segment offers no retry, even if that segment is empty', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'думаю' } }, ctx);

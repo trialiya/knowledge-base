@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
+import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
@@ -115,6 +116,41 @@ class ToolCallEventPublisherTest {
         assertThat(metas.get(1).callIndex()).isEqualTo(0);
         assertThat(metas.get(1).arguments()).containsEntry("q", "a");
         assertThat(metas.get(1).resultGist()).contains("found 3 docs");
+    }
+
+    /**
+     * STARTED несёт контекст после обращения, которое этот вызов запросило, — ряд пишется уже после
+     * того, как обращение закрыто, так что это последний замер прогона. OK его не несёт: ответ
+     * инструмента пишет не модель.
+     */
+    @Test
+    void startedCarriesTheContextOfTheCallThatAskedForIt() {
+        generating(RUN);
+        runs.find(RUN).orElseThrow().endCall(new TokenUsage(1000, 40, 1040, 0, 0));
+
+        history.append(
+                CONV,
+                List.of(
+                        ToolCallTestSupport.assistantWithCalls(
+                                ToolCallTestSupport.call(
+                                        "id-0", "searchDocuments", "{\"q\": \"a\"}")),
+                        new ToolResponseMessage(
+                                List.<ToolResponseMessage.ToolResponse>of(
+                                        new ToolResponseMessage.ToolResponse(
+                                                "id-0", "searchDocuments", "\"found\"")),
+                                Map.of()) {}));
+
+        final ArgumentCaptor<Object> payloads = ArgumentCaptor.forClass(Object.class);
+        verify(events, org.mockito.Mockito.atLeastOnce())
+                .publish(
+                        eq(CONV),
+                        eq(ChatEventType.TOOL_CALL),
+                        eq(RUN),
+                        eq(null),
+                        payloads.capture());
+        assertThat(payloads.getAllValues())
+                .extracting(p -> ((ToolCallMessage) p).contextTokens())
+                .containsExactly(1040L, null);
     }
 
     @Test
