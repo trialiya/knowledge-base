@@ -31,6 +31,9 @@ const DirectoryListing = ({ nodes, onNavigate }) => {
 };
 
 /**
+ * `jump` — `{ line }` раздела, к которому прокрутить открытый файл (вкладка
+ * «Разделы»); его обрабатывает FileView.
+ *
  * `find` (и `findRegex`) — что подсветить в открытом файле, из адреса; менять
  * его обратно в адрес — дело `onFindChange`. Пусто — файл открыли не из поиска:
  * бара нет, пока его не позовут Ctrl+F. Всё остальное — в useAddressFind.
@@ -49,6 +52,7 @@ const FileContent = ({
   find = '',
   findRegex = false,
   onFindChange = null,
+  jump = null,
 }) => {
   const { t } = useTranslation('files');
   const bodyRef = useRef(null);
@@ -108,6 +112,7 @@ const FileContent = ({
             diff={diff}
             showDiff={showDiff}
             onToggleDiff={onToggleDiff}
+            jump={jump}
           />
         )}
         {!loading && gone && (

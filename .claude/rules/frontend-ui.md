@@ -61,8 +61,10 @@ never in big-bang rewrites.
   base; path metadata plus the last commit that touched the file in files. Then
   come the per-section tabs: chat → usage (`ChatUsage` — the chat's tokens),
   repo (`buildRepoTab` in `center/chatSidebar.jsx`) and attachments; knowledge base → summary, folder
-  contents, attachments (built by `detailSidebar.jsx`); files → commit, only
-  while a revision snapshot is shown (`commit/CommitInfo.jsx`). Tab keys shared
+  contents, attachments (built by `detailSidebar.jsx`); files → sections, only
+  for a markdown file (`sections/FileSections.jsx`), and commit, only while a
+  revision snapshot is shown (`commit/CommitInfo.jsx`) — built by
+  `filesSidebar.jsx`. Tab keys shared
   across sections live in `constants/rightTabs.js` (`RIGHT_TAB`) so
   `?right=info` means the same thing everywhere; the knowledge-base-only keys
   are `DOC_TAB` in `constants/docTabs.js`, the chat-only ones `CHAT_TAB` in

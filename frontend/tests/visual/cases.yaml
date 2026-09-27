@@ -1148,6 +1148,28 @@
     Флаг отмены по Escape гасится при старте нового переименования: Escape
     уносит поле из DOM, и blur, который обычно его гасит, может не прийти.
 
+- id: files-markdown-sections-tab
+  component: FileSections
+  path: frontend/src/components/filesPanel/sections/FileSections.jsx
+  title: Вкладка «Разделы» у markdown-файла и прокрутка центра к разделу
+  status: verified
+  origin:
+    - Сессия 2026-09-27, вкладка «Разделы» в файловом браузере
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /files/README.md?right=sections
+  expected:
+    - Справа раскрыта вкладка «Разделы» — заголовки README, h2 на ступеньку правее h1, h3 ещё правее; справа от имени приглушённый номер строки
+    - Клик по разделу в исходнике (вид по умолчанию) ставит строку его заголовка первой в центре, строка раздела подсвечена как выбранная
+    - После переключения в Markdown-рендеринг (👁) клик по разделу ставит первым его заголовок
+    - У не-markdown файла вкладки на рельсе нет; в консоли нет ошибок
+  notes: |
+    Снято целиком на живом бэкенде (профиль playwright-smoke), фикстуры не
+    нужны: README.md этого репозитория и есть данные. Прокрутка ищет в
+    FileView элемент с data-line — у строки кода и у заголовка разметки один
+    и тот же номер строки исходника.
+
 - id: files-crumbs-remeasured-on-new-path
   component: HeadCrumbs
   path: frontend/src/components/common/layout/HeadCrumbs.jsx

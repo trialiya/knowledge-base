@@ -1,0 +1,21 @@
+/* Номер строки заголовка — справочный, приглушён и не сжимается: обрезается
+   имя раздела, а не число. */
+.file-sections__line {
+  flex: none;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--kb-text-faint);
+}
+
+/* Преамбула — не заголовок, а «начало файла»: курсивом, чтобы не читалась
+   как раздел с таким именем. */
+.file-sections__row--preamble .ws-item__label {
+  font-style: italic;
+  color: var(--kb-text-muted);
+}
+
+/* Правая панель даёт телу поля карточки, а строки списка подсвечиваются на
+   всю ширину, как в левой панели, — поля по горизонтали забираем обратно. */
+.file-sections {
+  margin: 0 -0.75rem;
+}

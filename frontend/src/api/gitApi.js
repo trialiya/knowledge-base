@@ -103,6 +103,19 @@ const gitApi = {
   },
 
   /**
+   * Структура файла — GitFileOutline { path, language, lineCount, parser,
+   * symbols: [{ kind, name, signature, startLine, endLine }] }. У markdown
+   * символы — заголовки (`kind` h1…h6, `preamble` — текст до первого),
+   * `signature` — путь раздела. Файл без поддержки структуры — 400.
+   */
+  getFileOutline: (path, { rev, project, signal } = {}) => {
+    const params = new URLSearchParams({ path });
+    if (rev) params.set('rev', rev);
+    const [qs, init] = opts(params, project, signal);
+    return request(`/api/git/files/outline${qs}`, init);
+  },
+
+  /**
    * Открыть путь в файловом браузере одним запросом: чем путь является, его
    * содержимое (файл) или листинг (каталог) и — при ancestors=true — листинги
    * всех каталогов-предков, чтобы дерево слева раскрылось до него без запроса

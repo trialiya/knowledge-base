@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
+import io.github.trialiya.kb.model.git.dto.GitSymbol;
 import io.github.trialiya.kb.support.TestProjects;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,6 +79,37 @@ class GitServiceCommitContentTest {
                 .isEqualTo("class App {\n    void one() {}\n}\n");
         assertThatThrownBy(() -> service.getFileContent("src/App.java"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** Обзор на коммите — тоже о коммите: заголовок, дописанный на диске, в него не попадает. */
+    @Test
+    void anOutlineAtACommitDescribesTheCommittedFile() {
+        write("docs/guide.md", "# Guide\n## Install\n");
+        commitAll("docs");
+        String committed = head();
+        write("docs/guide.md", "# Guide\n## Install\n## Uncommitted\n");
+
+        assertThat(service.getFileOutlineAt(committed, "docs/guide.md"))
+                .satisfies(
+                        o -> {
+                            assertThat(o.parser()).isEqualTo("markdown");
+                            assertThat(o.symbols())
+                                    .extracting(GitSymbol::signature)
+                                    .containsExactly("Guide", "Guide > Install");
+                        });
+        assertThat(service.getFileOutline("docs/guide.md").symbols())
+                .extracting(GitSymbol::signature)
+                .containsExactly("Guide", "Guide > Install", "Guide > Uncommitted");
+    }
+
+    @Test
+    void anOutlineAtACommitRefusesAnUnsupportedLanguage() {
+        write("notes.txt", "plain\n");
+        commitAll("notes");
+
+        assertThatThrownBy(() -> service.getFileOutlineAt(head(), "notes.txt"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported language");
     }
 
     /** Коммит называют как угодно — отвечает всегда полный хеш, иначе завтра ответ неповторим. */

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -14,7 +14,9 @@ const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
       <table className="file-code__table">
         <tbody>
           {lines.map((line, i) => (
-            <tr key={i}>
+            // Номер строки как адрес — для прокрутки к разделу (FileView), и
+            // только там, где нумерация честная.
+            <tr key={i} data-line={showLineNumbers ? fromLine + i : undefined}>
               {showLineNumbers && <td className="file-code__gutter">{fromLine + i}</td>}
               <td className="file-code__line">
                 <code>{line.length ? line : ' '}</code>
@@ -26,6 +28,17 @@ const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
     </div>
   );
 };
+
+/**
+ * Заголовок разметки с номером своей строки в исходнике (`data-line`) — по нему
+ * вкладка «Разделы» прокручивает к разделу: номер строки бэкенд отдаёт, а
+ * DOM-заголовок по нему иначе не найти.
+ */
+const withLine = (Tag) =>
+  function HeadingWithLine({ node, ...props }) {
+    return <Tag data-line={node?.position?.start.line} {...props} />;
+  };
+const HEADINGS_WITH_LINES = Object.fromEntries(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].map((tag) => [tag, withLine(tag)]));
 
 /**
  * Картинка из репозитория: её грузит сам браузер по адресу сырых байт
@@ -87,9 +100,11 @@ const FileView = ({
   diff = null,
   showDiff = false,
   onToggleDiff,
+  jump = null,
 }) => {
   const { t } = useTranslation('files');
   const filePath = path ?? file?.path ?? '';
+  const rootRef = useRef(null);
   const kind = previewKind(filePath);
 
   const [view, setView] = useState(null);
@@ -106,9 +121,21 @@ const FileView = ({
   // кроме заглушки «бинарный файл». Сам рисунок при этом остаётся — SVG в
   // UTF-16 браузер рисует, читать его текстом отказались мы.
   const togglable = (kind === 'vector' || kind === 'markdown') && !file.binary && !showDiff;
+  // Усечённый большой файл — голова и хвост без середины: номера строк после
+  // разрыва в разметке не совпадают с исходником, и прокрутка по ним увела бы
+  // не туда. У такого файла заголовки номеров не несут, и к разделу не едем.
+  const excerpt = file.truncated && file.fromLine == null;
+
+  // Прокрутка к разделу: и в разметке, и в исходнике строка помечена
+  // `data-line`. Эффект следует объекту `jump`, а не строке — повторный клик по
+  // тому же разделу возвращает к нему.
+  useEffect(() => {
+    if (!jump) return;
+    rootRef.current?.querySelector(`[data-line="${jump.line}"]`)?.scrollIntoView({ block: 'start' });
+  }, [jump]);
 
   return (
-    <div className="file-view">
+    <div className="file-view" ref={rootRef}>
       <div className="file-view__meta">
         {file.language && <span className="file-view__badge">{file.language}</span>}
         {!file.binary && <span>{t('file.lines', { count: file.lineCount })}</span>}
@@ -144,18 +171,16 @@ const FileView = ({
         <div className="file-content__empty">{t('file.binary')}</div>
       ) : kind === 'markdown' && preview ? (
         <div className="file-view__md">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{file.content ?? ''}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={excerpt ? undefined : HEADINGS_WITH_LINES}>
+            {file.content ?? ''}
+          </ReactMarkdown>
         </div>
       ) : (
         // truncated + fromLine == null — это head+tail-вырезка большого файла
         // (см. GitService.headTailExcerpt): хвост идёт не сразу за головой,
         // сквозная нумерация от 1 была бы неверной для его строк. Диапазонный
         // же запрос (fromLine задан) нумеруется корректно от fromLine.
-        <CodeView
-          text={file.content ?? ''}
-          fromLine={file.fromLine ?? 1}
-          showLineNumbers={!(file.truncated && file.fromLine == null)}
-        />
+        <CodeView text={file.content ?? ''} fromLine={file.fromLine ?? 1} showLineNumbers={!excerpt} />
       )}
     </div>
   );
