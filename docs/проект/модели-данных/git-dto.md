@@ -47,7 +47,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | `content` | String | Текстовое содержимое (null для бинарных) |
 | `binary` | boolean | Флаг бинарности |
 | `sizeBytes` | long | Размер в байтах |
-| `language` | String | Язык по расширению (java, javascript, typescript, python, sql...) |
+| `language` | String | Язык по расширению (java, javascript, typescript, python, sql, markdown...) |
 | `lineCount` | int | Общее количество строк в файле |
 | `truncated` | boolean | true если content — не весь файл |
 | `fromLine` | Integer | Первая возвращённая строка (1-based), null если весь файл |

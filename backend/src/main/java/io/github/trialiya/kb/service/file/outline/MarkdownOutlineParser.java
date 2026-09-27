@@ -24,7 +24,7 @@ public class MarkdownOutlineParser implements CodeOutlineParser {
 
     @Override
     public String name() {
-        return "markdown";
+        return LANGUAGE;
     }
 
     @Override

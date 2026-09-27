@@ -18,7 +18,7 @@
 | `kb.read(path, from, to)` | string | lines from `from` to `to` inclusive, 1-based; `0`=start/end |
 | `kb.grep(pattern)` | `[{path, line, text}]` | case-insensitive **substring** |
 | `kb.grep(pattern, opts)` | `[{path, line, text}]` | `opts = {glob, regex, context, max}` |
-| `kb.outline(path)` | `[{kind, name, signature, startLine, endLine}]` | Java, JS/TS, Python, SQL |
+| `kb.outline(path)` | `[{kind, name, signature, startLine, endLine}]` | Java, JS/TS, Python, SQL, Markdown (headings) |
 | `kb.stat(path)` | `{path, size, binary, language}` | metadata only, no content |
 | `kb.readBytes(path)` | number[] | raw bytes 0..255, **binary files too** |
 | `kb.readBytes(path, offset, length)` | number[] | one window; `offset` 0-based, `length` `0`=to end |
