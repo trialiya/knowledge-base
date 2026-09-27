@@ -224,11 +224,21 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
         // Роль идёт в хэш, но не в вес: она у сообщения не полезная нагрузка, а «чей это ряд», и
         // прибавка постоянной длины к каждой строке только мешала бы сравнивать веса глазами.
         prefix.add(message.getMessageType().getValue());
+        // Рассуждение, которое уедет модели как reasoning_content (см. ReasoningAdvisor), — такая
+        // же
+        // часть префикса, как текст: разное рассуждение у одного и того же ответа рвёт кэш, и лог,
+        // его не считающий, показал бы совпавшие хэши ровно в месте обрыва.
+        final long reasoningChars =
+                message.getMetadata().get(ReasoningAdvisor.REASONING_CONTENT)
+                                instanceof String reasoning
+                        ? prefix.add(reasoning)
+                        : 0;
         final long textChars = prefix.add(text);
         final Protocol protocol = protocol(prefix, message);
-        final long chars = textChars + protocol.chars();
+        final long chars = reasoningChars + textChars + protocol.chars();
         // Веса выровнены в колонку: два запроса кладут рядом и читают глазами.
         out.append(String.format("  %3d %-9s %8d chars", number, message.getMessageType(), chars))
+                .append(reasoningChars > 0 ? " reasoning=" + reasoningChars + " chars" : "")
                 .append(protocol.rendered())
                 .append(", prefix ")
                 .append(prefix)

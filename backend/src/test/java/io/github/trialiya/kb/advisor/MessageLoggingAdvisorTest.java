@@ -186,6 +186,36 @@ class MessageLoggingAdvisorTest {
                 .contains("grep(c1, " + result.length() + " chars)");
     }
 
+    /**
+     * Рассуждение, возвращаемое модели, входит в префикс: у одного и того же ответа с разным
+     * рассуждением хэш обязан разойтись — иначе лог молчал бы ровно в месте обрыва кэша.
+     */
+    @Test
+    void replayedReasoningIsPartOfThePrefix() {
+        askWithReasoning("Смотрю лог.");
+        askWithReasoning("Смотрю другой лог.");
+
+        final String first = lines(0).get(4);
+        assertThat(first).contains("ASSISTANT").contains("reasoning=11 chars");
+        assertThat(hashOf(first)).isNotEqualTo(hashOf(lines(1).get(4)));
+    }
+
+    private void askWithReasoning(String reasoning) {
+        ChatClient.builder(model())
+                .defaultAdvisors(new MessageLoggingAdvisor())
+                .build()
+                .prompt()
+                .messages(
+                        new UserMessage("q"),
+                        AssistantMessage.builder()
+                                .content("ответ")
+                                .properties(Map.of(ReasoningAdvisor.REASONING_CONTENT, reasoning))
+                                .build())
+                .user("ещё")
+                .call()
+                .chatResponse();
+    }
+
     /** Длинный текст в лог не уезжает — только начало и длина. */
     @Test
     void aLongMessageIsPreviewedNotDumped() {
