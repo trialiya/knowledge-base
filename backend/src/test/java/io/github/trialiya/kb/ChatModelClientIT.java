@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
+import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
@@ -84,7 +85,12 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
                                         new ChatTimeoutProperties(Duration.ofMinutes(1))),
                                 new RunRegistry()),
                         ActiveProjectNotices.silent());
-        ChatMemory chatMemory = new ChatHistoryMemory(history);
+        ChatMemory chatMemory =
+                new ChatHistoryMemory(
+                        history,
+                        mock(ChatEventService.class),
+                        new RunRegistry(),
+                        mock(ChatModelProperties.class));
 
         // ── модель-заглушка ────────────────────────────────────────────────
         ChatModel chatModel = mock(ChatModel.class);

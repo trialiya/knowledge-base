@@ -9,6 +9,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -24,7 +25,10 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.support.ToolCallbacks;
+import org.springframework.ai.tool.annotation.Tool;
 import reactor.core.publisher.Flux;
 
 /**
@@ -112,10 +116,70 @@ class MessageLoggingAdvisorTest {
 
         final List<String> first = lines(0);
         final List<String> second = lines(1);
-        // Заголовок, tools, SYSTEM и общее сообщение: начало у запросов одно.
-        assertThat(first.subList(0, 4)).isEqualTo(second.subList(0, 4));
+        // Заголовок, tools, params, SYSTEM и общее сообщение: начало у запросов одно.
+        assertThat(first.subList(0, 5)).isEqualTo(second.subList(0, 5));
         // Последнее сообщение разное — и дальше префикс уже не сойдётся.
-        assertThat(hashOf(first.get(4))).isNotEqualTo(hashOf(second.get(4)));
+        assertThat(hashOf(first.get(5))).isNotEqualTo(hashOf(second.get(5)));
+    }
+
+    /**
+     * Настройки запроса в текст промпта не входят, но кэш провайдера сорвать могут: у двух запросов
+     * с одним текстом и разной моделью {@code params} расходится, а префикс — нет.
+     */
+    @Test
+    void paramsAreHashedApartFromThePrefix() {
+        askWith(OpenAiChatOptions.builder().model("deepseek-v4-flash"));
+        askWith(OpenAiChatOptions.builder().model("deepseek-v4-pro"));
+
+        final String first = paramsLine(0);
+        final String second = paramsLine(1);
+        assertThat(first).contains("model=deepseek-v4-flash");
+        assertThat(paramsHashOf(first)).isNotEqualTo(paramsHashOf(second));
+        assertThat(lines(0).get(3)).isEqualTo(lines(1).get(3)); // SYSTEM: текст тот же
+    }
+
+    /**
+     * Настройки доставки в хэш не идут: прогон всегда просит счётчик токенов в стриме, раунд сжатия
+     * — никогда, а кэш провайдера они делят.
+     */
+    @Test
+    void streamOptionsDoNotTouchTheParamsHash() {
+        askWith(OpenAiChatOptions.builder().model("m").streamUsage(true));
+        askWith(OpenAiChatOptions.builder().model("m"));
+
+        assertThat(paramsHashOf(paramsLine(0))).isEqualTo(paramsHashOf(paramsLine(1)));
+    }
+
+    /**
+     * Равные форматы ответа — один хэш: у {@code ResponseFormat} нет своего {@code toString}, и
+     * рендер по умолчанию подставил бы адрес объекта, разный у каждого запроса.
+     */
+    @Test
+    void anEqualResponseFormatGivesTheSameParamsHash() {
+        askWith(OpenAiChatOptions.builder().model("m").responseFormat(jsonSchema()));
+        askWith(OpenAiChatOptions.builder().model("m").responseFormat(jsonSchema()));
+
+        assertThat(paramsLine(0)).contains("responseFormat={type=JSON_SCHEMA");
+        assertThat(paramsHashOf(paramsLine(0))).isEqualTo(paramsHashOf(paramsLine(1)));
+    }
+
+    private static OpenAiChatModel.ResponseFormat jsonSchema() {
+        final OpenAiChatModel.ResponseFormat format = new OpenAiChatModel.ResponseFormat();
+        format.setType(OpenAiChatModel.ResponseFormat.Type.JSON_SCHEMA);
+        format.setJsonSchema("{\"type\":\"object\"}");
+        return format;
+    }
+
+    /** Хэш отдельной схемы — только на TRACE: на DEBUG строка tools одна на весь набор. */
+    @Test
+    void eachToolGetsItsOwnHashOnTraceOnly() {
+        askWithTool();
+        assertThat(messages().getFirst()).doesNotContain("echoTool ");
+
+        logger.setLevel(Level.TRACE);
+        askWithTool();
+        assertThat(lines(1))
+                .anySatisfy(line -> assertThat(line).contains("echoTool").contains("hash "));
     }
 
     /**
@@ -147,13 +211,44 @@ class MessageLoggingAdvisorTest {
                 .chatResponse();
 
         final List<String> lines = lines(0);
-        assertThat(lines.get(2))
+        assertThat(lines.get(3))
                 .contains("ASSISTANT")
                 .contains("grep(c1, " + arguments.length() + " chars)")
                 .contains(String.valueOf("смотрю".length() + arguments.length()) + " chars");
-        assertThat(lines.get(3))
+        assertThat(lines.get(4))
                 .contains("TOOL")
                 .contains("grep(c1, " + result.length() + " chars)");
+    }
+
+    /**
+     * Рассуждение, возвращаемое модели, входит в префикс: у одного и того же ответа с разным
+     * рассуждением хэш обязан разойтись — иначе лог молчал бы ровно в месте обрыва кэша.
+     */
+    @Test
+    void replayedReasoningIsPartOfThePrefix() {
+        askWithReasoning("Смотрю лог.");
+        askWithReasoning("Смотрю другой лог.");
+
+        final String first = lines(0).get(4);
+        assertThat(first).contains("ASSISTANT").contains("reasoning=11 chars");
+        assertThat(hashOf(first)).isNotEqualTo(hashOf(lines(1).get(4)));
+    }
+
+    private void askWithReasoning(String reasoning) {
+        ChatClient.builder(model())
+                .defaultAdvisors(new MessageLoggingAdvisor())
+                .build()
+                .prompt()
+                .messages(
+                        new UserMessage("q"),
+                        AssistantMessage.builder()
+                                .content("ответ")
+                                .properties(
+                                        Map.of(AssistantChatMessage.REASONING_CONTENT, reasoning))
+                                .build())
+                .user("ещё")
+                .call()
+                .chatResponse();
     }
 
     /** Длинный текст в лог не уезжает — только начало и длина. */
@@ -161,7 +256,7 @@ class MessageLoggingAdvisorTest {
     void aLongMessageIsPreviewedNotDumped() {
         ask("x".repeat(10_000));
 
-        final String line = lines(0).get(4);
+        final String line = lines(0).get(5);
         assertThat(line)
                 .contains("10000 chars")
                 .contains("x".repeat(MessageLoggingAdvisor.PREVIEW));
@@ -178,6 +273,56 @@ class MessageLoggingAdvisorTest {
                 .user(question)
                 .call()
                 .chatResponse();
+    }
+
+    private void askWith(OpenAiChatOptions.Builder options) {
+        ChatClient.builder(model())
+                .defaultSystem("SYSTEM")
+                .defaultAdvisors(new MessageLoggingAdvisor())
+                .build()
+                .prompt()
+                .options(options)
+                .user("question")
+                .call()
+                .chatResponse();
+    }
+
+    private void askWithTool() {
+        ChatClient.builder(model())
+                .defaultAdvisors(
+                        a ->
+                                a.advisors(new MessageLoggingAdvisor())
+                                        .param(
+                                                ChatClientAttributes
+                                                        .TOOL_CALLING_ADVISOR_AUTO_REGISTER
+                                                        .getKey(),
+                                                false))
+                .build()
+                .prompt()
+                .toolCallbacks(ToolCallbacks.from(new EchoTool()))
+                .user("question")
+                .call()
+                .chatResponse();
+    }
+
+    /** Инструмент ради схемы: вызываться он не будет. */
+    static class EchoTool {
+        @Tool(name = "echoTool", description = "Echoes the text back")
+        public String echo(String text) {
+            return text;
+        }
+    }
+
+    private String paramsLine(int event) {
+        return lines(event).stream()
+                .filter(l -> l.startsWith("  params"))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static String paramsHashOf(String line) {
+        final int at = line.indexOf("hash ") + "hash ".length();
+        return line.substring(at, at + 8);
     }
 
     /** Строки одной записи лога: {@code tools}, сообщения, итог. */

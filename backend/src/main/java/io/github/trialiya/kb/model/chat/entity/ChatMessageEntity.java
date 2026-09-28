@@ -35,6 +35,14 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
     /** Протокольные tool-данные (tool_calls / responses) — см. {@link ToolData}. */
     @Nullable private final ToolData toolData;
 
+    /**
+     * Рассуждение модели, написавшее этот ASSISTANT-ряд ({@code reasoning_content}), — то, что
+     * провайдер с режимом рассуждений ждёт обратно в истории (см. {@code
+     * AssistantChatMessage#REASONING_CONTENT}). {@code null} — модель не рассуждала или ряд записан
+     * не её ответом.
+     */
+    @Nullable private final String reasoning;
+
     @PersistenceCreator
     public ChatMessageEntity(
             long id,
@@ -46,7 +54,8 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
             boolean summary,
             @NonNull LocalDateTime createdAt,
             @Nullable ChatMessageMeta meta,
-            @Nullable ToolData toolData) {
+            @Nullable ToolData toolData,
+            @Nullable String reasoning) {
         this.id = id;
         this.conversationId = conversationId;
         this.content = content;
@@ -57,6 +66,32 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
         this.createdAt = createdAt;
         this.meta = meta;
         this.toolData = toolData;
+        this.reasoning = reasoning;
+    }
+
+    public ChatMessageEntity(
+            long id,
+            @NonNull String conversationId,
+            @NonNull String content,
+            @NonNull MessageType type,
+            long position,
+            boolean summarized,
+            boolean summary,
+            @NonNull LocalDateTime createdAt,
+            @Nullable ChatMessageMeta meta,
+            @Nullable ToolData toolData) {
+        this(
+                id,
+                conversationId,
+                content,
+                type,
+                position,
+                summarized,
+                summary,
+                createdAt,
+                meta,
+                toolData,
+                null);
     }
 
     public ChatMessageEntity(
@@ -94,7 +129,8 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
                 summary,
                 createdAt,
                 newMeta,
-                toolData);
+                toolData,
+                reasoning);
     }
 
     /**
@@ -118,7 +154,8 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
                 summary,
                 createdAt,
                 meta,
-                toolData);
+                toolData,
+                reasoning);
     }
 
     @Override
@@ -190,6 +227,11 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
     }
 
     @Nullable
+    public String getReasoning() {
+        return reasoning;
+    }
+
+    @Nullable
     public List<ToolInvocationMeta> getInvocations() {
         return meta != null ? meta.invocations() : null;
     }
@@ -220,11 +262,19 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
     }
 
     public IMessage getMessage() {
+        return getMessage(false);
+    }
+
+    /**
+     * @param replayReasoning вернуть ли модели рассуждение ответа ({@link #reasoning}) — решает
+     *     модель, которой уйдёт запрос (см. {@code ChatModelProperties#replayReasoning}), а не ряд
+     */
+    public IMessage getMessage(boolean replayReasoning) {
         return switch (type) {
             case TOOL -> new ToolChatMessage(this);
             case USER -> new UserChatMessage(this);
             case SYSTEM -> new SystemChatMessage(this);
-            case ASSISTANT -> new AssistantChatMessage(this);
+            case ASSISTANT -> new AssistantChatMessage(this, replayReasoning);
         };
     }
 }

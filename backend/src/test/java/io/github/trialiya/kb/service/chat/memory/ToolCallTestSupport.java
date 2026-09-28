@@ -44,7 +44,8 @@ final class ToolCallTestSupport {
                                                 e.isSummary(),
                                                 e.getCreatedAt(),
                                                 e.getMeta(),
-                                                e.getToolData()));
+                                                e.getToolData(),
+                                                e.getReasoning()));
                             }
                             return saved;
                         });

@@ -50,7 +50,7 @@ class AutoCompactServiceTest {
     private static final long QUESTION = 20L;
 
     private static final CompactService.CompactOptions OPTIONS =
-            new CompactService.CompactOptions(null, false, "kb", "MODE");
+            new CompactService.CompactOptions(null, false, "kb", "MODE", false);
 
     /** Окно на 0.8 от него — 8000 токенов; ряды теста весят заметно меньше. */
     private static final int MODEL_WINDOW = 10_000;

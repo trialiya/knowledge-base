@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
@@ -492,7 +493,8 @@ class SummarizeServiceTest {
                 new SummaryWriter(repository, transactionManager()),
                 pendingSummaries,
                 properties,
-                mock(ContextItemService.class));
+                mock(ContextItemService.class),
+                mock(ChatModelProperties.class));
     }
 
     /** Транзакции здесь ничего не защищают — тест смотрит только на вызовы репозитория. */

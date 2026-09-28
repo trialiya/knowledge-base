@@ -27,7 +27,7 @@ import org.springframework.beans.factory.ObjectProvider;
 class ChatModelRegistryTest {
 
     private static final ModelOption DEFAULT_MODEL =
-            new ModelOption("default-model", "Default", true, true, null, null, null);
+            new ModelOption("default-model", "Default", true, true, null, null, null, false);
 
     @Test
     void onlyModelsWithTheirOwnEndpointGetAConnectionOfTheirOwn() {
@@ -35,7 +35,7 @@ class ChatModelRegistryTest {
         ChatModelRegistry registry =
                 build(
                         defaultConnection,
-                        new ModelOption("shared", "Shared", true, true, null, null, null),
+                        new ModelOption("shared", "Shared", true, true, null, null, null, false),
                         new ModelOption(
                                 "remote",
                                 "Remote",
@@ -43,8 +43,10 @@ class ChatModelRegistryTest {
                                 true,
                                 null,
                                 "https://llm.example/v1",
-                                "sk-r"),
-                        new ModelOption("own-key", "Own key", false, true, null, null, "sk-k"));
+                                "sk-r",
+                                false),
+                        new ModelOption(
+                                "own-key", "Own key", false, true, null, null, "sk-k", false));
 
         assertThat(registry.ownEndpointModelIds()).containsExactlyInAnyOrder("remote", "own-key");
         // Никакого переопределения на прогон — дефолтное соединение.
@@ -66,7 +68,7 @@ class ChatModelRegistryTest {
         ChatModelRegistry registry =
                 build(
                         defaultConnection,
-                        new ModelOption("shared", "Shared", true, true, null, null, null));
+                        new ModelOption("shared", "Shared", true, true, null, null, null, false));
 
         assertThat(registry.ownEndpointModelIds()).isEmpty();
         assertThat(registry.forModel("shared")).isSameAs(defaultConnection);
@@ -88,7 +90,8 @@ class ChatModelRegistryTest {
                                 true,
                                 null,
                                 "https://llm.example/v1",
-                                "sk-d"));
+                                "sk-d",
+                                false));
 
         assertThat(registry.forModel(null)).isNotSameAs(defaultConnection);
         assertThat(registry.forModel(null)).isSameAs(registry.forModel("default-model"));
@@ -123,7 +126,8 @@ class ChatModelRegistryTest {
                                                 true,
                                                 null,
                                                 "https://llm.example/v1",
-                                                "sk-r"))),
+                                                "sk-r",
+                                                false))),
                         common,
                         chat,
                         mock(ToolCallingManager.class),

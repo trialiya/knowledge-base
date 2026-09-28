@@ -9,6 +9,7 @@ import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.entity.ScriptEventMeta;
 import io.github.trialiya.kb.model.chat.entity.TokenUsage;
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
@@ -230,7 +231,8 @@ public class ChatHistoryService {
                                                 false,
                                                 LocalDateTime.now(),
                                                 null,
-                                                p.toolData()))
+                                                p.toolData(),
+                                                reasoningOf(p.message())))
                         .toList();
         final List<ChatMessageEntity> saved = new ArrayList<>();
         chatMessageRepository.saveAll(newRows).forEach(saved::add);
@@ -657,6 +659,21 @@ public class ChatHistoryService {
         return chatMessageRepository.maxPosition(conversationId);
     }
 
+    /**
+     * Рассуждение, с которым модель написала ответ, — чтобы вернуть его ей в следующих запросах
+     * (см. {@code ChatModelProperties#replayReasoning}). Собирать его здесь не нужно: {@code
+     * OpenAiChatModel} кладёт в каждый чанк стрима нарастающий итог обращения, и собранный
+     * advisor-ом памяти ответ несёт его целиком.
+     */
+    private static @Nullable String reasoningOf(Message message) {
+        return message instanceof AssistantMessage
+                        && message.getMetadata().get(AssistantChatMessage.REASONING_CONTENT)
+                                instanceof String reasoning
+                        && !reasoning.isEmpty()
+                ? reasoning
+                : null;
+    }
+
     /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */
     private static @Nullable ToolData toolDataOf(Message message) {
         if (message instanceof AssistantMessage assistantMessage
@@ -715,15 +732,35 @@ public class ChatHistoryService {
          * сохранённой строкой, — а разойтись он может только у вопроса (см. {@code promptRow}).
          */
         public Message toMessage() {
+            return toMessage(false);
+        }
+
+        /**
+         * @param replayReasoning вернуть ли модели рассуждения ответов — решает модель запроса (см.
+         *     {@code ChatModelProperties#replayReasoning})
+         */
+        public Message toMessage(boolean replayReasoning) {
             return text.equals(entity.getContent())
-                    ? entity.getMessage()
+                    ? entity.getMessage(replayReasoning)
                     : new UserChatMessage(entity, text);
         }
     }
 
-    /** Окно истории для модели — то, что подставит в промпт advisor памяти. */
+    /** Окно истории без рассуждений ответов — см. {@link #promptMessages(String, boolean)}. */
     public List<Message> promptMessages(String conversationId) {
-        return promptRows(conversationId).stream().map(PromptRow::toMessage).toList();
+        return promptMessages(conversationId, false);
+    }
+
+    /**
+     * Окно истории для модели — то, что подставит в промпт advisor памяти.
+     *
+     * @param replayReasoning вернуть ли модели рассуждения её прошлых ответов (см. {@code
+     *     ChatModelProperties#replayReasoning})
+     */
+    public List<Message> promptMessages(String conversationId, boolean replayReasoning) {
+        return promptRows(conversationId).stream()
+                .map(row -> row.toMessage(replayReasoning))
+                .toList();
     }
 
     /**

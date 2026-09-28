@@ -267,7 +267,7 @@ class CompactPromptCacheTest {
                         LocalDateTime.now(),
                         (call, usage) -> null),
                 null,
-                new CompactService.CompactOptions(null, false, PROJECT, MODE));
+                new CompactService.CompactOptions(null, false, PROJECT, MODE, false));
     }
 
     // -------------------------------------------------------------------------

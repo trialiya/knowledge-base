@@ -16,8 +16,10 @@ class ChatModelPropertiesTest {
 
     private static ChatModelProperties props() {
         return new ChatModelProperties(
-                new ModelOption("default-model", "Default", true, true, null, null, null),
-                List.of(new ModelOption("gpt-4o-mini", "Mini", false, true, null, null, null)));
+                new ModelOption("default-model", "Default", true, true, null, null, null, false),
+                List.of(
+                        new ModelOption(
+                                "gpt-4o-mini", "Mini", false, true, null, null, null, false)));
     }
 
     @Test
@@ -41,6 +43,32 @@ class ChatModelPropertiesTest {
     }
 
     /**
+     * Рассуждения в истории — свойство модели: включённые у одной, они не должны уехать эндпоинту,
+     * который поля не знает. Неизвестная модель — без них: лишнее поле отвергает запрос целиком.
+     */
+    @Test
+    void replayReasoningIsResolvedPerModelAndOffForAnUnknownOne() {
+        final ChatModelProperties models =
+                new ChatModelProperties(
+                        new ModelOption(
+                                "default-model", "Default", true, true, null, null, null, false),
+                        List.of(
+                                new ModelOption(
+                                        "deepseek",
+                                        "DeepSeek",
+                                        false,
+                                        true,
+                                        null,
+                                        null,
+                                        null,
+                                        true)));
+
+        assertThat(models.replayReasoning(null)).isFalse();
+        assertThat(models.replayReasoning("deepseek")).isTrue();
+        assertThat(models.replayReasoning("unknown")).isFalse();
+    }
+
+    /**
      * Счётчик токенов — свойство эндпоинта, а не деплоя: выключенный на одном шлюзе он обязан
      * остаться включённым у остальных моделей.
      */
@@ -48,10 +76,18 @@ class ChatModelPropertiesTest {
     void streamUsageIsResolvedPerModel() {
         final ChatModelProperties props =
                 new ChatModelProperties(
-                        new ModelOption("default-model", "Default", true, true, null, null, null),
+                        new ModelOption(
+                                "default-model", "Default", true, true, null, null, null, false),
                         List.of(
                                 new ModelOption(
-                                        "picky-gateway", "Picky", false, false, null, null, null)));
+                                        "picky-gateway",
+                                        "Picky",
+                                        false,
+                                        false,
+                                        null,
+                                        null,
+                                        null,
+                                        false)));
 
         assertThat(props.streamUsage("picky-gateway")).isFalse();
         assertThat(props.streamUsage("default-model")).isTrue();
@@ -72,11 +108,13 @@ class ChatModelPropertiesTest {
         final ChatModelProperties props =
                 new ChatModelProperties(
                         new ModelOption(
-                                "default-model", "Default", true, true, 200_000, null, null),
+                                "default-model", "Default", true, true, 200_000, null, null, false),
                         List.of(
-                                new ModelOption("small", "Small", false, true, 8_000, null, null),
                                 new ModelOption(
-                                        "unnamed", "Unnamed", false, true, null, null, null)));
+                                        "small", "Small", false, true, 8_000, null, null, false),
+                                new ModelOption(
+                                        "unnamed", "Unnamed", false, true, null, null, null,
+                                        false)));
 
         assertThat(props.contextTokens("small")).isEqualTo(8_000);
         assertThat(props.contextTokens("default-model")).isEqualTo(200_000);
@@ -90,7 +128,7 @@ class ChatModelPropertiesTest {
     void nullModelsListDefaultsToEmptyAndAllowsOnlyDefault() {
         ChatModelProperties only =
                 new ChatModelProperties(
-                        new ModelOption("solo", "Solo", true, true, null, null, null), null);
+                        new ModelOption("solo", "Solo", true, true, null, null, null, false), null);
         assertThat(only.models()).isEmpty();
         assertThat(only.isAllowed("solo")).isTrue();
         assertThat(only.isAllowed("anything-else")).isFalse();
@@ -110,13 +148,15 @@ class ChatModelPropertiesTest {
 
     @Test
     void aModelWithoutAnEndpointOfItsOwnSharesTheDefaultConnection() {
-        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, null, null);
+        ModelOption shared =
+                new ModelOption("shared", "Shared", true, true, null, null, null, false);
         assertThat(shared.hasOwnEndpoint()).isFalse();
     }
 
     @Test
     void blankBaseUrlAndApiKeyAreTheSameAsAbsent() {
-        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, "  ", "  ");
+        ModelOption shared =
+                new ModelOption("shared", "Shared", true, true, null, "  ", "  ", false);
         assertThat(shared.baseUrl()).isNull();
         assertThat(shared.apiKey()).isNull();
         assertThat(shared.hasOwnEndpoint()).isFalse();
@@ -132,7 +172,8 @@ class ChatModelPropertiesTest {
                         true,
                         null,
                         "https://llm.example/v1",
-                        "sk-remote");
+                        "sk-remote",
+                        false);
         assertThat(own.hasOwnEndpoint()).isTrue();
         assertThat(own.baseUrl()).isEqualTo("https://llm.example/v1");
     }
@@ -141,7 +182,8 @@ class ChatModelPropertiesTest {
     void ownTokenWithoutAHostIsAllowedAndStillNeedsItsOwnConnection() {
         // Same host, separate account or quota — nothing to guess, so nothing to reject.
         ModelOption ownKey =
-                new ModelOption("billed-apart", "Billed apart", false, true, null, null, "sk-two");
+                new ModelOption(
+                        "billed-apart", "Billed apart", false, true, null, null, "sk-two", false);
         assertThat(ownKey.hasOwnEndpoint()).isTrue();
     }
 
@@ -158,7 +200,8 @@ class ChatModelPropertiesTest {
                                         true,
                                         null,
                                         "https://llm.example/v1",
-                                        null))
+                                        null,
+                                        false))
                 .withMessageContaining("api-key");
     }
 
@@ -177,7 +220,8 @@ class ChatModelPropertiesTest {
                                                 true,
                                                 null,
                                                 "https://llm.example/v1",
-                                                "sk-solo"),
+                                                "sk-solo",
+                                                false),
                                         List.of()))
                 .withMessageContaining("kb.chat.models");
     }
@@ -193,7 +237,8 @@ class ChatModelPropertiesTest {
                         true,
                         null,
                         "https://llm.example/v1",
-                        "sk-remote");
+                        "sk-remote",
+                        false);
         assertThat(own.toString()).doesNotContain("sk-remote").contains("remote", "***");
     }
 

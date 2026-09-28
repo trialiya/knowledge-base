@@ -3,6 +3,7 @@ package io.github.trialiya.kb.config.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -51,6 +52,13 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      * @param apiKey the token for this model. Inherited from {@code spring.ai.openai.api-key} when
      *     absent. May be set on its own — same host, separate token (separate quota or account) —
      *     but never omitted alongside a {@code baseUrl}.
+     * @param replayReasoning whether this model gets its own past reasoning ({@code
+     *     reasoning_content}) back on the assistant messages of the history. A thinking model with
+     *     tools (DeepSeek) expects it — without it the provider renders a finished turn differently
+     *     from the one in progress, and the prompt cache breaks right after the previous question
+     *     on every turn that follows a turn with tool calls. Off by default: an endpoint that does
+     *     not know the field rejects the whole request (spring-ai#6968), and the reasoning stays
+     *     stored either way, so switching it on later needs no migration of history.
      */
     public record ModelOption(
             String id,
@@ -59,7 +67,8 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
             @DefaultValue("true") boolean streamUsage,
             @Nullable Integer contextTokens,
             @JsonIgnore @Nullable String baseUrl,
-            @JsonIgnore @Nullable String apiKey) {
+            @JsonIgnore @Nullable String apiKey,
+            @DefaultValue("false") boolean replayReasoning) {
 
         public ModelOption {
             baseUrl = ConfigValues.trimToNull(baseUrl);
@@ -81,7 +90,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
         @Override
         public String toString() {
             return ("ModelOption[id=%s, label=%s, weak=%s, streamUsage=%s, contextTokens=%s,"
-                            + " baseUrl=%s, apiKey=%s]")
+                            + " baseUrl=%s, apiKey=%s, replayReasoning=%s]")
                     .formatted(
                             id,
                             label,
@@ -89,7 +98,8 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
                             streamUsage,
                             contextTokens,
                             baseUrl,
-                            apiKey == null ? null : "***");
+                            apiKey == null ? null : "***",
+                            replayReasoning);
         }
 
         /**
@@ -119,14 +129,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      * one unable to use the tool at all — the cheaper mistake is the safe default.
      */
     public boolean isWeak(@Nullable String id) {
-        if (id == null || id.equals(defaultModel.id())) {
-            return defaultModel.weak();
-        }
-        return models.stream()
-                .filter(m -> id.equals(m.id()))
-                .findFirst()
-                .map(ModelOption::weak)
-                .orElse(true);
+        return option(id).map(ModelOption::weak).orElse(true);
     }
 
     /**
@@ -135,14 +138,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      * не делать ничего, а не выбирать его за конфигурацию.
      */
     public @Nullable Integer contextTokens(@Nullable String id) {
-        if (id == null || id.equals(defaultModel.id())) {
-            return defaultModel.contextTokens();
-        }
-        return models.stream()
-                .filter(m -> id.equals(m.id()))
-                .findFirst()
-                .map(ModelOption::contextTokens)
-                .orElse(null);
+        return option(id).map(ModelOption::contextTokens).orElse(null);
     }
 
     /**
@@ -152,13 +148,27 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      * цифры навсегда.
      */
     public boolean streamUsage(@Nullable String id) {
+        return option(id).map(ModelOption::streamUsage).orElse(true);
+    }
+
+    /**
+     * Возвращать ли этой модели её рассуждения в истории. Разбор {@code id} — тот же, что у {@link
+     * #isWeak}; неизвестная модель — нет: лишнее поле эндпоинт, который его не знает, отвергает
+     * вместе с запросом, а недостающее стоит только промаха кэша.
+     */
+    public boolean replayReasoning(@Nullable String id) {
+        return option(id).map(ModelOption::replayReasoning).orElse(false);
+    }
+
+    /**
+     * Модель по id — общий разбор для вопросов «что у этой модели»: {@code null} и id модели по
+     * умолчанию — она сама, иначе — одна из {@link #models}; неизвестный id — пусто, и что это
+     * значит, решает каждый вопрос сам (у каждого своя безопасная сторона).
+     */
+    private Optional<ModelOption> option(@Nullable String id) {
         if (id == null || id.equals(defaultModel.id())) {
-            return defaultModel.streamUsage();
+            return Optional.of(defaultModel);
         }
-        return models.stream()
-                .filter(m -> id.equals(m.id()))
-                .findFirst()
-                .map(ModelOption::streamUsage)
-                .orElse(true);
+        return models.stream().filter(m -> id.equals(m.id())).findFirst();
     }
 }
