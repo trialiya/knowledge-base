@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service;
 
+import static io.github.trialiya.kb.tools.Compact.oneLine;
 import static io.github.trialiya.kb.utils.ChatUtils.DEFAULT_CONVERSATION_ID;
 import static io.github.trialiya.kb.utils.ChatUtils.context;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
@@ -159,7 +160,7 @@ public class SearchAgentService {
         messages.add(new UserMessage(fullTask));
 
         Prompt prompt = new Prompt(messages, toolOptions);
-        log.info("[{}] search sub-agent start: task='{}'", conversationId, truncate(task, 160));
+        log.info("[{}] search sub-agent start: task='{}'", conversationId, oneLine(task, 160));
 
         ChatResponse response;
         try {
@@ -254,7 +255,8 @@ public class SearchAgentService {
                 spent.outputTokens(),
                 spent.promptTokens() + spent.outputTokens(),
                 spent.modelCalls(),
-                truncate(report, 1000));
+                oneLine(report, 200));
+        log.debug("[{}] search sub-agent report:\n{}", conversationId, report);
         return new SearchAgentResult(
                 project, report, complete, hops, durationMs, config.modelId(), spent);
     }
@@ -380,12 +382,5 @@ public class SearchAgentService {
             cur = cur.getCause();
         }
         return cur.getMessage() != null ? cur.getMessage() : cur.getClass().getSimpleName();
-    }
-
-    private static String truncate(String s, int max) {
-        if (s == null) {
-            return "";
-        }
-        return s.length() <= max ? s : s.substring(0, max) + "…";
     }
 }

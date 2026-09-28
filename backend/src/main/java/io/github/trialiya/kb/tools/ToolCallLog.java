@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.tools;
 
-import static io.github.trialiya.kb.tools.Compact.truncate;
+import static io.github.trialiya.kb.tools.Compact.oneLine;
 
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.util.Map;
@@ -52,10 +52,10 @@ final class ToolCallLog {
                     "[{}] tool {}({}) ok in {} ms -> {} chars: {}",
                     conversationId(context),
                     tool,
-                    brief(args.toString(), ARGS_MAX),
+                    oneLine(args.toString(), ARGS_MAX),
                     millis,
                     length(result),
-                    brief(result, RESULT_MAX));
+                    oneLine(result, RESULT_MAX));
         }
     }
 
@@ -79,16 +79,10 @@ final class ToolCallLog {
                     "[{}] tool {}({}) failed in {} ms: {}",
                     conversationId(context),
                     tool,
-                    brief(args.toString(), ARGS_MAX),
+                    oneLine(args.toString(), ARGS_MAX),
                     millis,
-                    brief(error.toString(), RESULT_MAX));
+                    oneLine(error.toString(), RESULT_MAX));
         }
-    }
-
-    /** Усечённый текст в одну строку: переводы строк ответа разорвали бы запись журнала. */
-    static @Nullable String brief(@Nullable String text, int max) {
-        final String cut = truncate(text, max);
-        return cut == null ? null : cut.replaceAll("\\s*\\R\\s*", " ⏎ ");
     }
 
     private static int length(@Nullable String text) {

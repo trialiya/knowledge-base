@@ -199,7 +199,7 @@ public class RecordingToolCallback implements ToolCallback {
                                     Map.Entry::getKey,
                                     entity -> truncateObject(entity.getValue(), 100)));
         } catch (NullPointerException | JsonProcessingException e) {
-            log.error("Error parsing tool input {}", toolInput, e);
+            log.error("Error parsing tool input {}", truncate(toolInput, 500), e);
             return Map.of();
         }
     }
@@ -224,7 +224,8 @@ public class RecordingToolCallback implements ToolCallback {
             return arguments;
         } catch (JsonProcessingException e) {
             log.warn(
-                    "Malformed tool call arguments, replacing with an empty object: {}", arguments);
+                    "Malformed tool call arguments, replacing with an empty object: {}",
+                    truncate(arguments, 500));
             return "{}";
         }
     }
