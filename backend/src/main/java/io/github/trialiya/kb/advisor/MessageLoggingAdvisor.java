@@ -246,10 +246,8 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
         // прибавка постоянной длины к каждой строке только мешала бы сравнивать веса глазами.
         prefix.add(message.getMessageType().getValue());
         // Рассуждение, которое уедет модели как reasoning_content (см. AssistantChatMessage), —
-        // такая
-        // же
-        // часть префикса, как текст: разное рассуждение у одного и того же ответа рвёт кэш, и лог,
-        // его не считающий, показал бы совпавшие хэши ровно в месте обрыва.
+        // такая же часть префикса, как текст: разное рассуждение у одного и того же ответа рвёт
+        // кэш, и лог, его не считающий, показал бы совпавшие хэши ровно в месте обрыва.
         final long reasoningChars =
                 message.getMetadata().get(AssistantChatMessage.REASONING_CONTENT)
                                 instanceof String reasoning

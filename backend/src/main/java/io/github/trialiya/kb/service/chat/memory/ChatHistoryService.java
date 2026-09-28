@@ -659,7 +659,6 @@ public class ChatHistoryService {
         return chatMessageRepository.maxPosition(conversationId);
     }
 
-    /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */
     /**
      * Рассуждение, с которым модель написала ответ, — чтобы вернуть его ей в следующих запросах
      * (см. {@code ChatModelProperties#replayReasoning}). Собирать его здесь не нужно: {@code
@@ -675,6 +674,7 @@ public class ChatHistoryService {
                 : null;
     }
 
+    /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */
     private static @Nullable ToolData toolDataOf(Message message) {
         if (message instanceof AssistantMessage assistantMessage
                 && assistantMessage.hasToolCalls()) {
