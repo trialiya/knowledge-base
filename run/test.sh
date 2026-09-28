@@ -19,6 +19,9 @@
 #               live in config/pmd/ruleset.xml and config/spotbugs/exclude.xml.
 #               Not part of `build`: neither tool is incremental, so it is run
 #               here and by pre-pr rather than on every compile
+#   mutation    PIT mutation testing of the backend unit tests (*Test, no Docker) over the
+#               chat and git packages (targets in backend/build.gradle). Slow, so not part
+#               of pre-pr; the report lands in backend/build/reports/pitest/
 #   build       full build (frontend bundled into the backend JAR)
 #   jar         just the runnable backend JAR (bootJar, frontend bundled, no tests)
 #   clean       gradle clean — when something is stuck in the toolchain/spotless cache
@@ -221,6 +224,7 @@ run_format() { gradle_run spotlessCheck; }
 # this suite and the pre-pr gate are what run it locally.
 run_lint()   { gradle_run :backend:pmdMain :backend:spotbugsMain; }
 run_format_apply() { gradle_run spotlessApply; }
+run_mutation() { gradle_run :backend:pitest; }
 run_build()  { gradle_run build; }
 run_clean()  { gradle_run clean; }
 # bootJar bundles the frontend without running vitest — the tests live on
@@ -291,6 +295,7 @@ run_suite() {
     format) run_format ;;
     lint)   run_lint ;;
     formatApply) run_format_apply ;;
+    mutation) run_mutation ;;
     build)  run_build ;;
     jar)    run_jar ;;
     clean)  run_clean ;;
@@ -300,7 +305,7 @@ run_suite() {
     pre-pr | ci) run_format; run_lint; run_back; run_build ;;
     *)
       echo "ERROR: unknown suite '$1'." >&2
-      echo "       Known: unit it back front format formatApply lint build jar clean smoke harness harness-image pre-pr ci" >&2
+      echo "       Known: unit it back front format formatApply lint mutation build jar clean smoke harness harness-image pre-pr ci" >&2
       exit 2
       ;;
   esac
