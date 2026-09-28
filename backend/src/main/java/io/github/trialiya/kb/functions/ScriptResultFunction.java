@@ -73,7 +73,7 @@ public class ScriptResultFunction {
                 fileName == null || fileName.isBlank()
                         ? "script-result-" + id + (value.isTextual() ? ".txt" : ".json")
                         : fileName.strip();
-        log.info(
+        log.debug(
                 "[{}] saveScriptResult called: resultId={}, fileName={}, {} chars",
                 chat,
                 id,

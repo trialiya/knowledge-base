@@ -92,8 +92,16 @@ public class RecordingToolCallback implements ToolCallback {
     // Called when there is no ToolContext — no collector available, just delegate.
     @Override
     public String call(String toolInput) {
+        final String name = delegate.getToolDefinition().name();
+        final long started = System.nanoTime();
         try {
-            return delegate.call(toolInput);
+            final String result = delegate.call(toolInput);
+            ToolCallLog.ok(
+                    null, name, toolInput, parseToolInput(toolInput), result, since(started));
+            return result;
+        } catch (RuntimeException e) {
+            ToolCallLog.failed(null, name, toolInput, parseToolInput(toolInput), e, since(started));
+            throw e;
         } finally {
             CURRENT_RESULT.remove();
         }
@@ -105,6 +113,7 @@ public class RecordingToolCallback implements ToolCallback {
         final ToolInvocationCollector collector = collectorFrom(toolContext);
         final Map<Object, Object> toolInputMap = parseToolInput(toolInput);
         final int callIdx = collector != null ? collector.nextCallIndex() : -1;
+        final long started = System.nanoTime();
         if (collector != null) {
             collector.record(
                     new ToolInvocation(
@@ -125,6 +134,7 @@ public class RecordingToolCallback implements ToolCallback {
                 CURRENT_CALL_INDEX.set(callIdx);
             }
             String result = delegate.call(toolInput, toolContext);
+            ToolCallLog.ok(toolContext, name, toolInput, toolInputMap, result, since(started));
             if (collector != null) {
                 Object raw = CURRENT_RESULT.get();
                 collector.record(
@@ -142,6 +152,7 @@ public class RecordingToolCallback implements ToolCallback {
             }
             return result;
         } catch (Exception e) {
+            ToolCallLog.failed(toolContext, name, toolInput, toolInputMap, e, since(started));
             if (collector != null) {
                 collector.record(
                         new ToolInvocation(
@@ -161,6 +172,10 @@ public class RecordingToolCallback implements ToolCallback {
             CURRENT_RESULT.remove();
             CURRENT_CALL_INDEX.remove();
         }
+    }
+
+    private static long since(long startedNanos) {
+        return (System.nanoTime() - startedNanos) / 1_000_000;
     }
 
     private static @Nullable ToolInvocationCollector collectorFrom(

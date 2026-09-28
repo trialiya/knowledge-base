@@ -332,6 +332,9 @@ public class ChatConfig {
                                         subAgentConfig
                                                 .allowedTools()
                                                 .contains(cb.getToolDefinition().name()))
+                        // No collector in the sub-agent's context, so nothing is recorded — the
+                        // wrapper is here for the tool-call log line alone.
+                        .map(RecordingToolCallback::new)
                         .toArray(ToolCallback[]::new);
         // The handbook is long, and it is also the only place the sub-agent is told scripts exist —
         // so it goes in exactly when the tool does. The sub-agent's own model (kb.search.subagent

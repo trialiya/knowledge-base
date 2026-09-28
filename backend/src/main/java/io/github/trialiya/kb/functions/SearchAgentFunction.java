@@ -83,7 +83,7 @@ public class SearchAgentFunction {
         requireText(task, "task");
         final String effectiveScope = orDefault(scope, "all");
         final String conversationId = conversationId(toolContext);
-        log.info(
+        log.debug(
                 "[{}] searchCodebase called: scope={} pathGlob={} project={} contextChars={}",
                 conversationId,
                 effectiveScope,

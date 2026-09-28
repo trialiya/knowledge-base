@@ -112,7 +112,7 @@ public class ScriptFunction {
         // around that choice — the reason createFile/editFile were not given one at all.
         final boolean readOnly =
                 forceReadOnly || !gitRegistry.sameProject(projectId, ProjectContext.from(context));
-        log.info(
+        log.debug(
                 "runScript called: {} chars, timeoutSeconds={}, project='{}', readOnly={}",
                 script.length(),
                 timeout,
@@ -134,7 +134,7 @@ public class ScriptFunction {
                                         ? ResultScope.readOnly(chat)
                                         : ResultScope.keeping(chat)),
                         RunCancellation.from(context));
-        log.info("runScript finished: {}", result.getFormattedResponse());
+        log.debug("runScript finished: {}", result.getFormattedResponse());
         return result;
     }
 }

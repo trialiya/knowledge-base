@@ -69,7 +69,7 @@ public class GitEditFunction {
         // "" is a deliberate empty file; absent means the model forgot the body, and writing the
         // file empty would look like success while losing everything it meant to put there.
         requireContent(content, "content");
-        log.info("createFile called: filePath='{}', {} chars", filePath, content.length());
+        log.debug("createFile called: filePath='{}', {} chars", filePath, content.length());
         return editable(context).createFile(filePath, content);
     }
 
@@ -112,7 +112,7 @@ public class GitEditFunction {
         // same thing: defaulting it to "" would turn a forgotten argument into a silent deletion.
         requireContent(newString, "newString");
         final boolean all = orDefault(replaceAll, false);
-        log.info(
+        log.debug(
                 "editFile called: filePath='{}', old {} chars, new {} chars, replaceAll={}",
                 filePath,
                 oldString.length(),

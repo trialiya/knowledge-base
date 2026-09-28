@@ -566,5 +566,7 @@ logging:
 #      github:
 #        trialiya:
 #          kb:
+#            tools:
+#              ToolCallLog: DEBUG # tool calls with full arguments and result instead of one truncated INFO line
 #            advisor:
 #              MessageLoggingAdvisor: DEBUG # per request: message sizes, previews and a rolling prefix hash (find where two requests stop sharing the cached prefix)
