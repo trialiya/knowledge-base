@@ -26,7 +26,7 @@ public class ChatInfoFunction {
                 Optional.ofNullable(context.getContext().get(ChatMemory.CONVERSATION_ID))
                         .map(Object::toString)
                         .orElse("default");
-        log.info("ChatId: {}", chatId);
+        log.debug("ChatId: {}", chatId);
         return chatId;
     }
 
@@ -37,7 +37,7 @@ public class ChatInfoFunction {
 
     @Tool(description = "Returns current date and time in the user's time zone.")
     String getCurrentDateTime() {
-        log.info("getCurrentDateTime called");
+        log.debug("getCurrentDateTime called");
         return LocalDateTime.now().atZone(LocaleContextHolder.getTimeZone().toZoneId()).toString();
     }
 

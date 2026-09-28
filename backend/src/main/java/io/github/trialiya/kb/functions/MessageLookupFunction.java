@@ -37,7 +37,7 @@ public class MessageLookupFunction {
             @ToolParam(description = "Message positions to retrieve.") List<Long> positions) {
         requireNonEmpty(positions, "positions");
         final String chatId = conversationId(context);
-        log.info("[{}] Fetching original messages positions: {}", chatId, positions);
+        log.debug("[{}] Fetching original messages positions: {}", chatId, positions);
 
         final List<String> lines =
                 chatMessageRepository

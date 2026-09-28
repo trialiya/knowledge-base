@@ -20,6 +20,7 @@ import io.github.trialiya.kb.model.search.SemanticSearchResult;
 import io.github.trialiya.kb.repository.DocumentHistoryRepository;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import io.github.trialiya.kb.service.embedding.SemanticSearchService;
+import io.github.trialiya.kb.tools.Compact;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -753,7 +754,7 @@ public class DocumentService {
         log.info(
                 "grepDocuments: pattern='{}' regex={} ctx={} documentId={} — {} block(s) over {}"
                         + " candidate document(s)",
-                pattern,
+                Compact.oneLine(pattern, 100),
                 regex,
                 ctx,
                 documentId,

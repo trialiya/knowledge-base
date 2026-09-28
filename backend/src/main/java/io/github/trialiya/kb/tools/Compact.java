@@ -14,6 +14,16 @@ public final class Compact {
                 : text.substring(0, max) + "…(+" + (text.length() - max) + ")";
     }
 
+    /**
+     * {@link #truncate} в одну строку — для журнала, где перевод строки из ответа модели или файла
+     * разорвал бы запись на несколько.
+     */
+    @Nullable
+    public static String oneLine(@Nullable String s, int max) {
+        final String cut = truncate(s, max);
+        return cut == null ? null : cut.replaceAll("\\s*\\R\\s*", " ⏎ ");
+    }
+
     @Nullable
     public static String truncateObject(@Nullable Object object, int max) {
         if (object == null) return null;

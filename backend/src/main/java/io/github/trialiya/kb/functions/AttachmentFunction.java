@@ -45,7 +45,7 @@ public class AttachmentFunction {
     public List<Attachment> getDocumentAttachments(
             @ToolParam(description = "Document ID.") Long documentId) {
         final long id = requireId(documentId, "documentId");
-        log.info("getDocumentAttachments called: documentId={}", id);
+        log.debug("getDocumentAttachments called: documentId={}", id);
         return attachmentService.findByDocument(id);
     }
 
@@ -55,7 +55,7 @@ public class AttachmentFunction {
             resultConverter = CompactToolResultConverter.class)
     public List<Attachment> getChatAttachments(ToolContext context) {
         final String conversationId = conversationId(context);
-        log.info("getChatAttachments called: conversationId={}", conversationId);
+        log.debug("getChatAttachments called: conversationId={}", conversationId);
         return attachmentService.findByConversation(conversationId);
     }
 
@@ -68,7 +68,7 @@ public class AttachmentFunction {
     public String getAttachmentContent(
             ToolContext context, @ToolParam(description = "Attachment ID.") Long attachmentId) {
         final long id = requireId(attachmentId, "attachmentId");
-        log.info("[{}] getAttachmentContent called: attachmentId={}", conversationId(context), id);
+        log.debug("[{}] getAttachmentContent called: attachmentId={}", conversationId(context), id);
         String content = attachmentService.getContent(id);
         if (content == null) return "(empty content)";
         return getTruncatedContent(content);
@@ -105,7 +105,7 @@ public class AttachmentFunction {
         // contentType is left as-is when absent: AttachmentService already falls back to
         // text/plain, and duplicating that default here would give it two places to drift.
         String conversationId = conversationId(context);
-        log.info("[{}] createAttachment called: fileName={}", conversationId, fileName);
+        log.debug("[{}] createAttachment called: fileName={}", conversationId, fileName);
         return attachmentService
                 .createFromText(conversationId, fileName, contentType, content)
                 .id();
@@ -118,7 +118,7 @@ public class AttachmentFunction {
             ToolContext context, @ToolParam(description = "File name.") String fileName) {
         requireText(fileName, "fileName");
         final String conversationId = conversationId(context);
-        log.info(
+        log.debug(
                 "[{}] getAttachmentContentByFileName called: fileName='{}'",
                 conversationId,
                 fileName);
@@ -145,7 +145,7 @@ public class AttachmentFunction {
         // the search the model asked for. getChatAttachments is the tool for listing.
         requireText(query, "query");
         final String conversationId = conversationId(context);
-        log.info("searchAttachments called: query='{}'", query);
+        log.debug("searchAttachments called: query='{}'", query);
         return attachmentService.search(conversationId, query);
     }
 

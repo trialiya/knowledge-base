@@ -131,10 +131,10 @@ public class GitFunction {
                                             + " one answered.",
                             required = false)
                     @Nullable String project) {
-        log.info("getFileTree called: path='{}', project='{}'", path, project);
+        log.debug("getFileTree called: path='{}', project='{}'", path, project);
         GitService git = git(context, project);
         List<GitFileNode> fileTree = git.getFileTree(path);
-        log.info("getFileTree called: fileTree={}", fileTree);
+        log.debug("getFileTree called: fileTree={}", fileTree);
         return answer(git, fileTree);
     }
 
@@ -179,7 +179,7 @@ public class GitFunction {
                     @Nullable String project) {
         final int limit = positiveOrDefault(maxCount, 20);
         final boolean withBody = orDefault(includeMessageBody, false);
-        log.info(
+        log.debug(
                 "getCommitLog called: maxCount={}, filePath='{}', includeMessageBody={},"
                         + " project='{}'",
                 limit,
@@ -188,7 +188,7 @@ public class GitFunction {
                 project);
         GitService git = git(context, project);
         List<GitCommit> commitLog = git.getCommitLog(limit, filePath, withBody);
-        log.info("getCommitLog called: commitLog={}", commitLog);
+        log.debug("getCommitLog called: commitLog={}", commitLog);
         return answer(git, commitLog);
     }
 
@@ -232,7 +232,7 @@ public class GitFunction {
                     @Nullable String project) {
         requireText(commitHashes, "commitHashes");
         final boolean patch = orDefault(includePatch, false);
-        log.info(
+        log.debug(
                 "getCommitDiff called: hashes='{}', includePatch={}, filePath='{}', project='{}'",
                 commitHashes,
                 patch,
@@ -240,7 +240,7 @@ public class GitFunction {
                 project);
         GitService git = git(context, project);
         List<GitCommit> commitDiff = git.getCommitDiff(commitHashes, patch, filePath);
-        log.info("getCommitDiff called: commitDiff={}", commitDiff);
+        log.debug("getCommitDiff called: commitDiff={}", commitDiff);
         return answer(git, commitDiff);
     }
 
@@ -278,14 +278,14 @@ public class GitFunction {
                     @Nullable String project) {
         requireText(pattern, "pattern");
         final int limit = positiveOrDefault(maxResults, 20);
-        log.info(
+        log.debug(
                 "searchFiles called: pattern='{}', maxResults={}, project='{}'",
                 pattern,
                 limit,
                 project);
         GitService git = git(context, project);
         List<GitFileNode> gitFileNodes = git.searchFiles(pattern, limit);
-        log.info("searchFiles called: gitFileNodes={}", gitFileNodes);
+        log.debug("searchFiles called: gitFileNodes={}", gitFileNodes);
         return answer(git, gitFileNodes);
     }
 
@@ -319,10 +319,10 @@ public class GitFunction {
                             required = false)
                     @Nullable String project) {
         requireText(filePath, "filePath");
-        log.info("getFileOutline called: filePath='{}', project='{}'", filePath, project);
+        log.debug("getFileOutline called: filePath='{}', project='{}'", filePath, project);
         GitService git = git(context, project);
         GitFileOutline outline = git.getFileOutline(filePath);
-        log.info("getFileOutline called: outline={}", outline);
+        log.debug("getFileOutline called: outline={}", outline);
         return answer(git, outline);
     }
 
@@ -389,7 +389,7 @@ public class GitFunction {
                             required = false)
                     @Nullable String project) {
         requireText(filePath, "filePath");
-        log.info(
+        log.debug(
                 "getFileContent called: filePath='{}', fromLine={}, toLine={}, commit='{}',"
                         + " project='{}'",
                 filePath,
@@ -402,7 +402,7 @@ public class GitFunction {
                 commit == null || commit.isBlank()
                         ? git.getFileContent(filePath, fromLine, toLine)
                         : git.getFileContentAt(commit, filePath, fromLine, toLine);
-        log.info("getFileContent called: fileContent='{}'", fileContent);
+        log.debug("getFileContent called: fileContent='{}'", fileContent);
         return answer(git, fileContent);
     }
 
@@ -462,7 +462,7 @@ public class GitFunction {
         final boolean patch = orDefault(includePatch, false);
         final boolean untracked = orDefault(includeUntracked, false);
         final List<String> filters = pathList(paths);
-        log.info(
+        log.debug(
                 "getUncommittedChanges called: includePatch='{}', includeUntracked='{}', paths={},"
                         + " project='{}'",
                 patch,
@@ -471,7 +471,7 @@ public class GitFunction {
                 project);
         GitService git = git(context, project);
         List<GitDiffEntry> gitDiffEntries = git.getUncommittedChanges(patch, untracked, filters);
-        log.info("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
+        log.debug("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
         return answer(git, gitDiffEntries);
     }
 
@@ -537,7 +537,7 @@ public class GitFunction {
         final int ctx = orDefault(contextLines, 1);
         final int limit = positiveOrDefault(maxResults, 50);
         final boolean untracked = orDefault(includeUntracked, false);
-        log.info(
+        log.debug(
                 "grepContent called: pattern='{}', pathGlob='{}', regex={}, contextLines={},"
                         + " maxResults={}, includeUntracked={}, project='{}'",
                 pattern,
@@ -550,7 +550,7 @@ public class GitFunction {
         GitService git = git(context, project);
         List<GitGrepMatch> matches =
                 git.grepContent(pattern, pathGlob, useRegex, ctx, limit, untracked);
-        log.info("grepContent called: {} matches found", matches.size());
+        log.debug("grepContent called: {} matches found", matches.size());
         return answer(git, matches);
     }
 }

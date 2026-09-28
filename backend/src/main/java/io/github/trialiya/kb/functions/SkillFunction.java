@@ -38,7 +38,7 @@ public class SkillFunction {
             ToolContext context,
             @ToolParam(description = "Skill name from the catalogue.") String name) {
         final String skill = requireText(name, "name");
-        log.info("Reading skill '{}'", skill);
+        log.debug("Reading skill '{}'", skill);
         return skillService.read(skill, ProjectContext.from(context));
     }
 }

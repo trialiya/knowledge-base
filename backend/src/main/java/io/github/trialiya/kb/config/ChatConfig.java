@@ -292,10 +292,11 @@ public class ChatConfig {
 
     /**
      * The search sub-agent. Its tool set is the read-only subset of the git/document tools allowed
-     * by {@code kb.search.subagent.allowed-tools}. Tools are NOT wrapped in {@link
-     * RecordingToolCallback} — the sub-agent's internal steps are not part of the user-facing
-     * invocation log. {@code searchCodebase} is excluded by construction (the allow-list contains
-     * only git/document tools), which is the recursion guard.
+     * by {@code kb.search.subagent.allowed-tools}. The tools are wrapped in {@link
+     * RecordingToolCallback} for the server's tool-call log only: the sub-agent's context carries
+     * no collector, so its internal steps stay out of the user-facing invocation log. {@code
+     * searchCodebase} is excluded by construction (the allow-list contains only git/document
+     * tools), which is the recursion guard.
      *
      * <p>Only wired when {@code kb.search.subagent.enabled=true}; when disabled the bean is absent
      * entirely (so nothing reads {@code allowed-tools}) and {@code chatClient} simply omits the
@@ -332,6 +333,9 @@ public class ChatConfig {
                                         subAgentConfig
                                                 .allowedTools()
                                                 .contains(cb.getToolDefinition().name()))
+                        // No collector in the sub-agent's context, so nothing is recorded — the
+                        // wrapper is here for the tool-call log line alone.
+                        .map(RecordingToolCallback::new)
                         .toArray(ToolCallback[]::new);
         // The handbook is long, and it is also the only place the sub-agent is told scripts exist —
         // so it goes in exactly when the tool does. The sub-agent's own model (kb.search.subagent

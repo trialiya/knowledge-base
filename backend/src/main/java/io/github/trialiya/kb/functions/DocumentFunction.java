@@ -149,7 +149,7 @@ public class DocumentFunction {
         // rejects an empty string — the "safe" default would fail deeper down with a worse message.
         requireText(query, "query");
         final String effectiveMode = orDefault(mode, "hybrid").toLowerCase(Locale.ROOT);
-        log.info(
+        log.debug(
                 "Document search: query='{}' mode={} threshold={} limit={}",
                 query,
                 effectiveMode,
@@ -212,7 +212,7 @@ public class DocumentFunction {
         // defaults through orDefault rather than positiveOrDefault. The service clamps the range.
         final int ctx = orDefault(contextLines, 1);
         final int limit = positiveOrDefault(maxResults, 50);
-        log.info(
+        log.debug(
                 "grepDocuments called: pattern='{}' regex={} contextLines={} maxResults={} documentId={}",
                 pattern,
                 useRegex,
@@ -236,7 +236,7 @@ public class DocumentFunction {
                     "List all knowledge base nodes (id, title, type, parentId) without content.",
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentSkeletonNode> getTreeSkeleton() {
-        log.info("getTreeSkeleton called");
+        log.debug("getTreeSkeleton called");
         return documentService.getTreeSkeleton();
     }
 
@@ -264,7 +264,7 @@ public class DocumentFunction {
             @ToolParam(description = "Document/folder title (full or partial).") String name) {
         // "" matches every title; the model that wants the whole list has getTreeSkeleton for it.
         requireText(name, "name");
-        log.info("findDocumentsByName called: name='{}'", name);
+        log.debug("findDocumentsByName called: name='{}'", name);
         return documentService.findByName(name);
     }
 
@@ -284,7 +284,7 @@ public class DocumentFunction {
     public DocumentView getDocument(
             @ToolParam(description = "Document or folder id.") Long documentId) {
         final long id = requireId(documentId, "documentId");
-        log.info("getDocument called: documentId={}", id);
+        log.debug("getDocument called: documentId={}", id);
         return DocumentView.of(requireDocument(id));
     }
 
@@ -304,7 +304,7 @@ public class DocumentFunction {
     public DocumentOutline getDocumentOutline(
             @ToolParam(description = "Document id.") Long documentId) {
         final long id = requireId(documentId, "documentId");
-        log.info("getDocumentOutline called: documentId={}", id);
+        log.debug("getDocumentOutline called: documentId={}", id);
         DocumentNode node = requireDocument(id);
         List<MarkdownSections.Section> sections = MarkdownSections.parse(descriptionOf(node));
         return new DocumentOutline(
@@ -342,7 +342,7 @@ public class DocumentFunction {
                     String sectionPath) {
         final long id = requireId(documentId, "documentId");
         requireText(sectionPath, "sectionPath");
-        log.info("getDocumentSection called: documentId={} sectionPath='{}'", id, sectionPath);
+        log.debug("getDocumentSection called: documentId={} sectionPath='{}'", id, sectionPath);
         DocumentNode node = requireDocument(id);
         String description = descriptionOf(node);
         MarkdownSections.Section section = findSectionOrThrow(description, sectionPath);
@@ -400,7 +400,7 @@ public class DocumentFunction {
         requireContent(newContent, "newContent");
         final int version = requireInt(expectedDescriptionVersion, "expectedDescriptionVersion");
 
-        log.info(
+        log.debug(
                 "updateDocumentSection called: id={} sectionPath='{}' expectedDescVer={}",
                 id,
                 sectionPath,
@@ -465,7 +465,7 @@ public class DocumentFunction {
         requireText(newContent, "newContent");
         final int version = requireInt(expectedDescriptionVersion, "expectedDescriptionVersion");
 
-        log.info(
+        log.debug(
                 "insertDocumentSection called: id={} anchor='{}' position={} expectedDescVer={}",
                 id,
                 anchorSectionPath,
@@ -523,7 +523,7 @@ public class DocumentFunction {
         requireText(sectionPath, "sectionPath");
         final int version = requireInt(expectedDescriptionVersion, "expectedDescriptionVersion");
 
-        log.info(
+        log.debug(
                 "deleteDocumentSection called: id={} sectionPath='{}' expectedDescVer={}",
                 id,
                 sectionPath,
@@ -567,7 +567,7 @@ public class DocumentFunction {
         final long id = requireId(documentId, "documentId");
         final int version = requireInt(expectedDescriptionVersion, "expectedDescriptionVersion");
 
-        log.info(
+        log.debug(
                 "renameDocumentSections called: id={} renames={} expectedDescVer={}",
                 id,
                 renames == null ? null : renames.size(),
@@ -687,7 +687,7 @@ public class DocumentFunction {
                     @Nullable String description) {
         requireText(title, "title");
 
-        log.info("createDocument called: title='{}' type={} parentId={}", title, type, parentId);
+        log.debug("createDocument called: title='{}' type={} parentId={}", title, type, parentId);
 
         CreateDocumentRequest req = new CreateDocumentRequest();
         req.setTitle(title);
@@ -732,7 +732,7 @@ public class DocumentFunction {
                     @Nullable String description) {
         final long id = requireId(documentId, "documentId");
 
-        log.info("updateDocument called: id={} title='{}'", id, title);
+        log.debug("updateDocument called: id={} title='{}'", id, title);
 
         // Both fields optional by design ("null to keep current") — but a call that fills in
         // neither changes nothing at all, which is a dropped instruction rather than a no-op.
@@ -803,7 +803,7 @@ public class DocumentFunction {
         requireContent(newString, "newString");
         final boolean all = orDefault(replaceAll, false);
 
-        log.info(
+        log.debug(
                 "editDocument called: id={} old {} chars, new {} chars, replaceAll={}",
                 id,
                 oldString.length(),
@@ -858,7 +858,7 @@ public class DocumentFunction {
         final String ref = requireText(callRef, "callRef");
         final DocumentReadGuard.RefusedWrite refused = DocumentReadGuard.refusedWrite(context, ref);
 
-        log.info("retryDocumentWrite called: callRef={} tool={}", ref, refused.tool());
+        log.debug("retryDocumentWrite called: callRef={} tool={}", ref, refused.tool());
 
         final long id = requireId(refused.argument("documentId", Object.class), "documentId");
         return switch (refused.tool()) {
@@ -916,7 +916,7 @@ public class DocumentFunction {
     //                            + "Системные документы удалить нельзя.")
     //    public String deleteDocument(
     //            @ToolParam(description = "ID документа или папки для удаления") String id) {
-    //        log.info("deleteDocument called: id={}", id);
+    //        log.debug("deleteDocument called: id={}", id);
     //        documentService.delete(id);
     //        return "Документ id=" + id + " успешно удалён.";
     //    }
@@ -944,7 +944,7 @@ public class DocumentFunction {
         final long targetId = requireId(targetDocumentId, "targetDocumentId");
 
         final String conversationId = conversationId(context);
-        log.info(
+        log.debug(
                 "[{}] copyAttachmentToDocument called: attachmentId={} targetDocumentId={}",
                 conversationId,
                 sourceId,

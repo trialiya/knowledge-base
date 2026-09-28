@@ -96,7 +96,7 @@ public class SavedScriptFunction {
                                 editPolicy.enabled(projectId),
                                 ToolInvocationCollector.from(context))
                         .withResults(ResultScope.keeping(conversationId(context)));
-        log.info(
+        log.debug(
                 "runSavedScript called: '{}' ({}), args={}, project='{}', readOnly={}",
                 scriptName,
                 request.source().sourceName(),
@@ -104,7 +104,7 @@ public class SavedScriptFunction {
                 projectId,
                 request.forceReadOnly());
         ScriptResult result = scriptRunner.run(request, RunCancellation.from(context));
-        log.info("runSavedScript finished: {}", result.getFormattedResponse());
+        log.debug("runSavedScript finished: {}", result.getFormattedResponse());
         return result;
     }
 }
