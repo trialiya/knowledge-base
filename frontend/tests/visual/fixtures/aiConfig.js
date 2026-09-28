@@ -16,7 +16,7 @@
  */
 export const defaultAiConfig = {
   chat: {
-    defaultModel: { id: 'gpt-4o-mini', label: 'GPT-4o mini', weak: true, ownEndpoint: false },
+    defaultModel: { id: 'gpt-4o-mini', label: 'GPT-4o mini', weak: true, ownEndpoint: false, replayReasoning: true },
     models: [],
     options: {
       maxTokens: 30000,
@@ -155,18 +155,19 @@ export const mcpEnabledButToolCallbacksOff = {
  * Список моделей, в котором weak размечен по-разному: пилюля «weak» стоит у
  * одной строки и отсутствует у другой. Третья строка — модель со своим
  * подключением (kb.chat.models[].base-url + api-key): наружу отдаётся только
- * флаг ownEndpoint, ни адреса, ни токена в снимке нет. На defaultAiConfig
+ * флаг ownEndpoint, ни адреса, ни токена в снимке нет; у неё же выключен
+ * replay-reasoning — пилюля стоит только у исключения. На defaultAiConfig
  * секции «Доступные модели» нет вовсе — kb.chat.models пуст.
  */
 export const strongAndWeakModels = {
   ...defaultAiConfig,
   chat: {
     ...defaultAiConfig.chat,
-    defaultModel: { id: 'strong-model', label: 'Strong', weak: false, ownEndpoint: false },
+    defaultModel: { id: 'strong-model', label: 'Strong', weak: false, ownEndpoint: false, replayReasoning: true },
     models: [
-      { id: 'strong-model', label: 'Strong', weak: false, ownEndpoint: false },
-      { id: 'weak-model', label: 'Weak', weak: true, ownEndpoint: false },
-      { id: 'remote-model', label: 'Remote', weak: false, ownEndpoint: true },
+      { id: 'strong-model', label: 'Strong', weak: false, ownEndpoint: false, replayReasoning: true },
+      { id: 'weak-model', label: 'Weak', weak: true, ownEndpoint: false, replayReasoning: true },
+      { id: 'remote-model', label: 'Remote', weak: false, ownEndpoint: true, replayReasoning: false },
     ],
   },
 };
