@@ -37,6 +37,13 @@ import org.springframework.web.server.ResponseStatusException;
  * обещания файла, которого больше нет. Плата за это — поход в БД на каждое построение промпта, то
  * есть на каждую итерацию tool-цикла, поэтому запрос идёт без колонки {@code content}, а на целое
  * окно сообщений он ровно один — см. {@link #renderAll}.
+ *
+ * <p><b>Описание вложения ({@code summary}) — исключение: оно замораживается при отправке
+ * вопроса</b> ({@link #resolve} кладёт его в {@code payload} элемента под {@link #SUMMARY}). Его
+ * заказывают отдельно и когда угодно, в том числе посреди прогона, и живое описание меняло бы текст
+ * вопроса, который сам не менялся: кэш промпта рвался бы на нём, и всё после него оплачивалось бы
+ * заново. Имя и удаление остаются живыми: модели нужно знать, под каким именем файл лежит сейчас и
+ * есть ли он вообще. Элемент без ключа (записанный до заморозки) читает описание живым.
  */
 @Slf4j
 @AllArgsConstructor
@@ -45,6 +52,12 @@ public class ContextItemService {
 
     /** Ограничение на число элементов в одном сообщении — защита от бесконечного промпта. */
     private static final int MAX_ITEMS = 20;
+
+    /**
+     * Ключ {@code payload} вложения: его описание на момент отправки вопроса; пустая строка —
+     * описания тогда не было.
+     */
+    static final String SUMMARY = "summary";
 
     private final AttachmentService attachmentService;
 
@@ -86,7 +99,11 @@ public class ContextItemService {
                                         yield new ContextItem(
                                                 ContextItemKind.ATTACHMENT,
                                                 request.ref(),
-                                                found.fileName());
+                                                found.fileName(),
+                                                Map.of(
+                                                        SUMMARY,
+                                                        Objects.requireNonNullElse(
+                                                                found.summary(), "")));
                                     }
                                 })
                 .toList();
@@ -178,11 +195,18 @@ public class ContextItemService {
                                 + attachment.contentType()
                                 + " size="
                                 + attachment.fileSize()
-                                + (attachment.summary() == null
-                                        ? ""
-                                        : " summary=\"" + attachment.summary() + "\""));
+                                + summaryAttribute(item, attachment));
             }
         };
+    }
+
+    /** Описание в описи — замороженное при отправке, а у элемента без него — живое. */
+    private static String summaryAttribute(ContextItem item, AttachmentSummary attachment) {
+        final String summary =
+                item.payload().get(SUMMARY) instanceof String frozen
+                        ? frozen
+                        : attachment.summary();
+        return summary == null || summary.isEmpty() ? "" : " summary=\"" + summary + "\"";
     }
 
     /** Один запрос на всю опись: метаданные вложений чата по всем упомянутым id. */

@@ -105,11 +105,15 @@ class ContextItemsTest {
 
     /** Вложение чата видно только своему чату — этим и занимается запрос за метаданными. */
     private void haveAttachment(String conversationId, String fileName) {
+        haveAttachment(conversationId, fileName, null);
+    }
+
+    private void haveAttachment(String conversationId, String fileName, String summary) {
         when(attachmentService.findSummaries(eq(conversationId), any()))
                 .thenReturn(
                         List.of(
                                 new AttachmentSummary(
-                                        ATTACHMENT_ID, fileName, "text/markdown", 1234, null)));
+                                        ATTACHMENT_ID, fileName, "text/markdown", 1234, summary)));
     }
 
     private static ContextItemRequest attachmentRequest() {
@@ -129,7 +133,9 @@ class ContextItemsTest {
                         new ContextItem(
                                 ContextItemKind.ATTACHMENT,
                                 String.valueOf(ATTACHMENT_ID),
-                                "report.md"));
+                                "report.md",
+                                // Описания у вложения нет — и это тоже фиксируется при отправке.
+                                Map.of("summary", "")));
     }
 
     /** Иначе id чужого вложения был бы способом прочитать его содержимое через свой чат. */
@@ -255,6 +261,73 @@ class ContextItemsTest {
         assertThat(memoryService.promptMessages(conversationId))
                 .singleElement()
                 .satisfies(message -> assertThat(message.getText()).isEqualTo(QUESTION));
+    }
+
+    /**
+     * Описание вложения замораживается при отправке вопроса: заказанное позже (или заново) не
+     * меняет текст уже заданного вопроса — иначе кэш промпта рвался бы на нём. Имя остаётся живым.
+     */
+    @Test
+    void summaryIsFrozenWhenTheQuestionIsSent() {
+        String conversationId = UUID.randomUUID().toString();
+        haveAttachment(conversationId, "report.md", "Отчёт за квартал");
+        memoryService.saveUserMessage(
+                conversationId,
+                QUESTION,
+                contextItemService.resolve(conversationId, List.of(attachmentRequest())),
+                null,
+                null);
+        final String otherChat = UUID.randomUUID().toString();
+        haveAttachment(otherChat, "log.txt");
+        memoryService.saveUserMessage(
+                otherChat,
+                QUESTION,
+                contextItemService.resolve(otherChat, List.of(attachmentRequest())),
+                null,
+                null);
+
+        haveAttachment(conversationId, "report-v2.md", "Переписанное описание");
+        haveAttachment(otherChat, "log.txt", "Описание, заказанное после вопроса");
+
+        assertThat(memoryService.promptMessages(conversationId))
+                .singleElement()
+                .satisfies(
+                        message ->
+                                assertThat(message.getText())
+                                        .contains("report-v2.md")
+                                        .contains("summary=\"Отчёт за квартал\"")
+                                        .doesNotContain("Переписанное описание"));
+        assertThat(memoryService.promptMessages(otherChat))
+                .singleElement()
+                .satisfies(
+                        message ->
+                                assertThat(message.getText())
+                                        .contains("log.txt")
+                                        .doesNotContain("summary="));
+    }
+
+    /** Элемент, записанный до заморозки, описания в себе не несёт — оно читается живым. */
+    @Test
+    void anItemWithoutAFrozenSummaryReadsItLive() {
+        String conversationId = UUID.randomUUID().toString();
+        memoryService.saveUserMessage(
+                conversationId,
+                QUESTION,
+                List.of(
+                        new ContextItem(
+                                ContextItemKind.ATTACHMENT,
+                                String.valueOf(ATTACHMENT_ID),
+                                "report.md")),
+                null,
+                null);
+        haveAttachment(conversationId, "report.md", "Живое описание");
+
+        assertThat(memoryService.promptMessages(conversationId))
+                .singleElement()
+                .satisfies(
+                        message ->
+                                assertThat(message.getText())
+                                        .contains("summary=\"Живое описание\""));
     }
 
     /**
