@@ -224,8 +224,6 @@ pitest {
             'io.github.trialiya.kb.service.chat.*',
             'io.github.trialiya.kb.service.file.git.*',
             'io.github.trialiya.kb.functions.Git*',
-            'io.github.trialiya.kb.controller.Git*',
-            'io.github.trialiya.kb.controller.Chat*',
     ]
     excludedClasses = ['*IT']
     excludedTestClasses = ['*IT']
