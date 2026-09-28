@@ -53,12 +53,15 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      *     absent. May be set on its own — same host, separate token (separate quota or account) —
      *     but never omitted alongside a {@code baseUrl}.
      * @param replayReasoning whether this model gets its own past reasoning ({@code
-     *     reasoning_content}) back on the assistant messages of the history. A thinking model with
+     *     reasoning_content}) back on the assistant messages of the history — only where an answer
+     *     came with one, so a model that does not reason sends nothing extra. A thinking model with
      *     tools (DeepSeek) expects it — without it the provider renders a finished turn differently
      *     from the one in progress, and the prompt cache breaks right after the previous question
-     *     on every turn that follows a turn with tool calls. Off by default: an endpoint that does
-     *     not know the field rejects the whole request (spring-ai#6968), and the reasoning stays
-     *     stored either way, so switching it on later needs no migration of history.
+     *     on every turn that follows a turn with tool calls. On by default. Turn it off with care
+     *     and only for an endpoint that rejects the field outright (spring-ai#6968): it changes
+     *     every past turn that carried reasoning, so the chats' cached prefixes are invalidated at
+     *     once, and from then on every turn after one with tool calls is paid again in full. The
+     *     reasoning stays stored either way — turning it back on needs no migration of history.
      */
     public record ModelOption(
             String id,
@@ -68,7 +71,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
             @Nullable Integer contextTokens,
             @JsonIgnore @Nullable String baseUrl,
             @JsonIgnore @Nullable String apiKey,
-            @DefaultValue("false") boolean replayReasoning) {
+            @DefaultValue("true") boolean replayReasoning) {
 
         public ModelOption {
             baseUrl = ConfigValues.trimToNull(baseUrl);
@@ -153,11 +156,11 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
 
     /**
      * Возвращать ли этой модели её рассуждения в истории. Разбор {@code id} — тот же, что у {@link
-     * #isWeak}; неизвестная модель — нет: лишнее поле эндпоинт, который его не знает, отвергает
-     * вместе с запросом, а недостающее стоит только промаха кэша.
+     * #isWeak}; неизвестная модель получает умолчание — да: рассуждение уходит, только если ответ с
+     * ним пришёл, а выключают флаг поимённо, у эндпоинта, который поля не знает.
      */
     public boolean replayReasoning(@Nullable String id) {
-        return option(id).map(ModelOption::replayReasoning).orElse(false);
+        return option(id).map(ModelOption::replayReasoning).orElse(true);
     }
 
     /**

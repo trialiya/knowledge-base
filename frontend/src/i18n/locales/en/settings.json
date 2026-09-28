@@ -42,13 +42,16 @@
       "label": "Main model (Chat)",
       "model": "Model",
       "weak": "Weak model (weak)",
-      "weakNote": "The weak flag is set per model (kb.chat.default-model.weak, kb.chat.models[].weak) and affects only how much of the runScript handbook goes into the system prompt: a weak model also gets the tutorial half with worked examples, a strong one gets the kb and limits reference alone. Defaults to true."
+      "weakNote": "The weak flag is set per model (kb.chat.default-model.weak, kb.chat.models[].weak) and affects only how much of the runScript handbook goes into the system prompt: a weak model also gets the tutorial half with worked examples, a strong one gets the kb and limits reference alone. Defaults to true.",
+      "replayReasoning": "Reasoning in history (replay-reasoning)",
+      "replayReasoningNote": "The model gets its own reasoning (reasoning_content) back on the answers in the history — only where an answer came with one. A thinking model with tools (DeepSeek) expects it: without it the prompt cache breaks on every turn after tool calls, and the previous turn is paid again. Set per model (kb.chat.default-model.replay-reasoning, kb.chat.models[].replay-reasoning), defaults to true. Turn it off with care and only for an endpoint that rejects the field: doing so invalidates the cache of every chat that already has reasoning in it."
     },
     "available": {
       "label": "Available models",
       "defaultBadge": "default",
       "weakBadge": "weak",
-      "ownEndpointBadge": "own connection"
+      "ownEndpointBadge": "own connection",
+      "noReasoningBadge": "no reasoning in history"
     },
     "searchCodebase": {
       "label": "Search agent (searchCodebase)",

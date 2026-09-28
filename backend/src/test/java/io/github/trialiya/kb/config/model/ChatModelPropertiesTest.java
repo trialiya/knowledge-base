@@ -5,7 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 /**
  * Юнит-тест правила допуска модели — это контракт, на который опираются {@code ChatController}
@@ -43,11 +46,11 @@ class ChatModelPropertiesTest {
     }
 
     /**
-     * Рассуждения в истории — свойство модели: включённые у одной, они не должны уехать эндпоинту,
-     * который поля не знает. Неизвестная модель — без них: лишнее поле отвергает запрос целиком.
+     * Рассуждения в истории — свойство модели: выключенные у одной, они не должны уехать её
+     * эндпоинту, который поля не знает. Неизвестная модель получает умолчание — да.
      */
     @Test
-    void replayReasoningIsResolvedPerModelAndOffForAnUnknownOne() {
+    void replayReasoningIsResolvedPerModelAndOnForAnUnknownOne() {
         final ChatModelProperties models =
                 new ChatModelProperties(
                         new ModelOption(
@@ -65,7 +68,29 @@ class ChatModelPropertiesTest {
 
         assertThat(models.replayReasoning(null)).isFalse();
         assertThat(models.replayReasoning("deepseek")).isTrue();
-        assertThat(models.replayReasoning("unknown")).isFalse();
+        assertThat(models.replayReasoning("unknown")).isTrue();
+    }
+
+    /**
+     * Умолчание — из самой привязки конфигурации: модель, у которой {@code replay-reasoning} не
+     * написан, рассуждения получает. Выключенный же флаг обязан дойти до записи как есть.
+     */
+    @Test
+    void replayReasoningIsOnUnlessTheConfigTurnsItOff() {
+        final ChatModelProperties bound =
+                new Binder(
+                                new MapConfigurationPropertySource(
+                                        Map.of(
+                                                "kb.chat.default-model.id", "deepseek",
+                                                "kb.chat.default-model.label", "DeepSeek",
+                                                "kb.chat.models[0].id", "groq",
+                                                "kb.chat.models[0].label", "Groq",
+                                                "kb.chat.models[0].replay-reasoning", "false")))
+                        .bind("kb.chat", ChatModelProperties.class)
+                        .get();
+
+        assertThat(bound.replayReasoning("deepseek")).isTrue();
+        assertThat(bound.replayReasoning("groq")).isFalse();
     }
 
     /**

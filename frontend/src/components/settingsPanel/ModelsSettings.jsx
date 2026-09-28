@@ -63,6 +63,10 @@ const ModelsSections = ({ config }) => {
             руководства по runScript в системном промпте (ScriptGuideService). */}
         <ConfigBoolRow label={t('models.chat.weak')} value={chat.defaultModel?.weak} />
         <p className="config-note">{t('models.chat.weakNote')}</p>
+        {/* replay-reasoning — тоже свойство модели: вернуть ли ей её рассуждения в истории.
+            Выключение рвёт кэш промпта у чатов, где рассуждения уже есть, — об этом пояснение. */}
+        <ConfigBoolRow label={t('models.chat.replayReasoning')} value={chat.defaultModel?.replayReasoning} />
+        <p className="config-note">{t('models.chat.replayReasoningNote')}</p>
       </SettingsSection>
 
       {chat.models?.length > 0 && (
@@ -75,6 +79,10 @@ const ModelsSections = ({ config }) => {
               {/* Модель отвечает не с общего эндпоинта: у неё свои base-url/api-key
                   (kb.chat.models[].base-url). Сам адрес и токен наружу не отдаются. */}
               {m.ownEndpoint && <span className="config-badge">{t('models.available.ownEndpointBadge')}</span>}
+              {/* По умолчанию рассуждения возвращаются — отмечаем исключение. */}
+              {m.replayReasoning === false && (
+                <span className="config-badge">{t('models.available.noReasoningBadge')}</span>
+              )}
               {m.id === defaultId && <span className="config-badge">{t('models.available.defaultBadge')}</span>}
             </div>
           ))}

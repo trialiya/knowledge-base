@@ -19,6 +19,18 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### `replay-reasoning` is on by default
+
+`kb.chat.default-model.replay-reasoning` and `kb.chat.models[].replay-reasoning`
+now default to `true`: a stored model reasoning goes back to the model as
+`reasoning_content` on its answers in the history. This is what keeps the
+prompt cache across turns with tool calls. An endpoint that does not
+know the field rejects every request carrying it (Groq, for one) — set
+`replay-reasoning: false` on that model. Turn it off only there: switching it off
+changes what every chat with stored reasoning sends, so their cached prompt
+prefixes stop matching at once and each turn after one with tool calls is paid
+in full again.
+
 ### Document, search and attachment API omit empty optional fields
 
 The same rule now covers documents and attachments: `DocumentNode` leaves out

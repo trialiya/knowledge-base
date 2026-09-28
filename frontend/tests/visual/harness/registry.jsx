@@ -780,9 +780,12 @@ const LIGHT = [
   },
 
   // ── Настройки ──
+  // Без тёмного двойника: строки, пояснения и пилюли «Моделей» — общие ConfigBoolRow,
+  // .config-note и .config-badge, их тёмную тему держат @tools и @scripts.
   {
     id: 'aiConfig.js#defaultAiConfig',
     frame: 'center',
+    dark: false,
     viewport: [1440, 1560],
     api: (p) => ({ '/api/settings/ai-config': p }),
     render: () => <ModelsSettings />,
@@ -823,9 +826,11 @@ const LIGHT = [
     api: (p) => ({ '/api/settings/ai-config': p, '/api/settings/tools': toolCatalog.builtinTools }),
     render: () => <ToolsSettings />,
   },
+  // Без тёмного двойника — по той же причине, что и у aiConfig.js#defaultAiConfig.
   {
     id: 'aiConfig.js#strongAndWeakModels',
     frame: 'center',
+    dark: false,
     viewport: [1440, 1760],
     api: (p) => ({ '/api/settings/ai-config': p }),
     render: () => <ModelsSettings />,
