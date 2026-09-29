@@ -45,7 +45,9 @@
     "matches_one": "{{count}} строка",
     "matches_few": "{{count}} строки",
     "matches_many": "{{count}} строк",
-    "untracked": "вне git"
+    "untracked": "вне git",
+    "byName": "по имени",
+    "nameMatch": "совпало имя"
   },
   "docs": {
     "preamble": "до первого заголовка"

@@ -19,6 +19,9 @@ function splitPath(path) {
  * могла прийти из отчёта сборки, а не из исходника, — без подписи такая
  * карточка неотличима от находки в коде.
  *
+ * Файл, найденный ещё и по имени (`nameMatch`), подписан так же; найденный
+ * только по имени — без строк, с пометкой «по имени» вместо счётчика.
+ *
  * Подсветка ищется по самому запросу и только когда он — обычная строка: под
  * регулярным выражением совпал не он, а то, что оно описывает, и красить по
  * тексту шаблона значило бы врать. Бэкенд позиции не отдаёт (git grep их не
@@ -34,14 +37,17 @@ const FileResults = ({ result, query, regex, rev, project, onOpenFile }) => {
       <ResultGroup
         key={file.path}
         icon={<IconFileText size={14} />}
-        title={name}
+        title={regex ? name : highlightSubstring(name, query)}
         href={filesUrl(file.path, project, { rev, find: query, findRegex: regex })}
         onOpen={() => onOpenFile(file.path, project, { rev, find: query, findRegex: regex })}
-        meta={t('files.matches', { count: file.lines.length })}
+        meta={file.lines.length > 0 ? t('files.matches', { count: file.lines.length }) : t('files.byName')}
         subtitle={
-          (dir || file.tracked === false) && (
+          (dir || file.tracked === false || file.nameMatch) && (
             <>
               {dir && <span className="search-group__path">{dir}</span>}
+              {file.nameMatch && file.lines.length > 0 && (
+                <span className="git-untracked-badge">{t('files.nameMatch')}</span>
+              )}
               {file.tracked === false && <span className="git-untracked-badge">{t('files.untracked')}</span>}
             </>
           )
