@@ -1,12 +1,27 @@
 name: Backend tests
 
-# Тесты бэкенда на пуш в main, который трогает бэкенд или сборочные файлы, и
-# по требованию (workflow_dispatch) на ветке PR — на PR сами не запускаются.
+# Тесты бэкенда на пуш в main, который трогает бэкенд или сборочные файлы, и на
+# PR — только по требованию: пока на PR нет лейбла run-ci, прогон пропускается.
+# Затронутые файлы (paths) определяют, появится ли вообще проверка.
 #
 # Тесты с Testcontainers поднимают PostgreSQL (pgvector) в Docker; на
 # ubuntu-latest Docker доступен из коробки, отдельный сервис не нужен.
 on:
-  workflow_dispatch: {} # по требованию: Actions → Run workflow, выбрать ветку PR
+  pull_request:
+    branches: [main]
+    types: [labeled, synchronize, reopened]
+    paths:
+      - 'backend/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle.lockfile'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'config/pmd/**'
+      - 'config/spotbugs/**'
+      - '.github/workflows/backend-pr.yml'
+  workflow_dispatch: {} # ручной запуск: Actions → Run workflow, выбрать ветку
   push:
     branches: [main]
     paths:
@@ -32,6 +47,12 @@ concurrency:
 jobs:
   test:
     name: Backend tests
+    # PR: только с лейблом run-ci (на прогон влияет и новый пуш, пока лейбл стоит).
+    # Другой лейбл прогон не запускает. push и ручной запуск — без условий.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'run-ci') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'run-ci'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -1,10 +1,21 @@
 name: Frontend PR
 
-# Тесты и spotlessCheck фронта — только по требованию (workflow_dispatch на
-# ветке PR), на PR сами не запускаются. Через gradle (:frontend:check), по аналогии с
+# Тесты и spotlessCheck фронта на PR, который трогает фронтовые файлы, — только
+# по требованию: пока на PR нет лейбла run-ci, прогон пропускается. Через gradle (:frontend:check), по аналогии с
 # backend-pr.yml, чтобы PR гейтились теми же проверками, что и `./gradlew build`.
 on:
-  workflow_dispatch: {} # по требованию: Actions → Run workflow, выбрать ветку PR
+  pull_request:
+    branches: [main]
+    types: [labeled, synchronize, reopened]
+    paths:
+      - 'frontend/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'gradlew'
+      - '.github/workflows/frontend-pr.yml'
+  workflow_dispatch: {} # ручной запуск: Actions → Run workflow, выбрать ветку
 
 permissions:
   contents: read
@@ -23,6 +34,12 @@ env:
 jobs:
   test:
     name: Frontend tests & spotlessCheck
+    # PR: только с лейблом run-ci (на прогон влияет и новый пуш, пока лейбл стоит).
+    # Другой лейбл прогон не запускает. push и ручной запуск — без условий.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'run-ci') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'run-ci'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
