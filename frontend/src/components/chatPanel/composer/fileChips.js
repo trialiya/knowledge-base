@@ -215,8 +215,13 @@ export async function expandTokensForSend(text, project) {
         // Ссылкой, а не голым хешем: модель видит ту же форму, какой ей велено
         // ссылаться на коммиты, а в ленте хеш становится кликабельным
         // (UserMessageText). Токен без проекта — старая форма — живёт в проекте чата.
-        const link = `[\`${commitParsed.hash}\`](${commitLinkTarget(commitParsed.hash, commitParsed.project || project)})`;
-        return i18n.t('chat:fileChips.commitRef', { link, subject: commitParsed.subject }) + foreign(commitParsed.project);
+        const link = `[\`${commitParsed.hash}\`](${commitLinkTarget(
+          commitParsed.hash,
+          commitParsed.project || project,
+        )})`;
+        return (
+          i18n.t('chat:fileChips.commitRef', { link, subject: commitParsed.subject }) + foreign(commitParsed.project)
+        );
       }
 
       const docRefParsed = parseDocRefToken(m[0]);

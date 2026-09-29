@@ -22,8 +22,7 @@ const CommitLink = ({ commitLink, children, ...rest }) => {
   const { hash } = commitLink;
   const project = commitLink.project ?? null;
   const { defaultProjectId } = useProjectConfig();
-  const { visible, pos, linkRef, tooltipRef, calcPos, onMouseEnter, onMouseLeave, keepOpen, hide } =
-    useLinkTooltip();
+  const { visible, pos, linkRef, tooltipRef, calcPos, onMouseEnter, onMouseLeave, keepOpen, hide } = useLinkTooltip();
 
   // Как у файловой ссылки: в адрес — что назвала ссылка, в запрос и ключ кэша —
   // разрешённый id, чтобы два написания одного проекта не делили кэш надвое.

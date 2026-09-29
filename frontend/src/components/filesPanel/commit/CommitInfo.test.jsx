@@ -95,4 +95,17 @@ describe('CommitInfo', () => {
     expect(writeText).toHaveBeenCalledWith(window.location.origin + commitUrl('abcdef1234567890', 'kb'));
     expect(await screen.findByText('commit.linkCopied')).toBeInTheDocument();
   });
+
+  /** Родитель — шаг назад по истории: ссылка на предыдущий коммит в том же проекте. */
+  test('links each parent, and a root commit has no parent row', () => {
+    const parent = '1111111111111111111111111111111111111111';
+    const { unmount } = show({ commit: { ...COMMIT, parents: [parent] } });
+
+    expect(screen.getByText('commit.parents {"count":1}')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '1111111' })).toHaveAttribute('href', commitUrl(parent, 'kb'));
+    unmount();
+
+    show({ commit: { ...COMMIT, parents: [] } });
+    expect(screen.queryByText(/commit\.parents/)).not.toBeInTheDocument();
+  });
 });

@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.chat.entity;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -26,15 +27,29 @@ import org.jspecify.annotations.Nullable;
  * @param branch the branch the working tree sat on after the command; null on a refusal, which
  *     carries git's message and no state — and needs none, since a refused command left the branch
  *     where the row above already says it was
+ * @param commit full hash of the commit the command created — a successful {@code commit} only. The
+ *     row links to it, and the model is told which commit that was; rows written before this field
+ *     existed read it as null
  */
 public record GitEventMeta(
         String command,
         @Nullable String project,
         boolean ok,
         String output,
-        @Nullable String branch) {
+        @Nullable String branch,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String commit) {
 
     public GitEventMeta {
         output = output == null ? "" : output;
+    }
+
+    /** A command that created no commit — every one but a successful {@code commit}. */
+    public GitEventMeta(
+            String command,
+            @Nullable String project,
+            boolean ok,
+            String output,
+            @Nullable String branch) {
+        this(command, project, ok, output, branch, null);
     }
 }

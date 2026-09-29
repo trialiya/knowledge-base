@@ -25,8 +25,7 @@ const FileLink = ({ fileLink, children, ...rest }) => {
   const { path, rev, fromLine, toLine } = fileLink;
   const [fullscreen, setFullscreen] = useState(null); // { node, loading, error } | null
   const [previewOpen, setPreviewOpen] = useState(false);
-  const { visible, pos, linkRef, tooltipRef, calcPos, onMouseEnter, onMouseLeave, keepOpen, hide } =
-    useLinkTooltip();
+  const { visible, pos, linkRef, tooltipRef, calcPos, onMouseEnter, onMouseLeave, keepOpen, hide } = useLinkTooltip();
 
   // Два написания одного и того же проекта не должны разъезжаться. В АДРЕС идёт
   // то, что назвала ссылка (дефолтный проект в схеме не пишется), а в ЗАПРОСЫ и

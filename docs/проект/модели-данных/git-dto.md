@@ -19,8 +19,9 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | `message` | String | Subject — первый абзац сообщения, переносы строк склеены пробелами |
 | `body` | String | Остальное сообщение (всё после первой пустой строки). `null`, если тела нет или его не запрашивали — см. `includeMessageBody` у [`getCommitLog`](../ai-инструменты.md) и `body=true` у `GET /api/git/commits` |
 | `files` | List\<GitDiffEntry\> | Затронутые файлы (null если не запрошены) |
+| `parents` | List\<String\> | Полные SHA родителей — только в ответе `GET /api/git/commit` (вкладка «Коммит» ведёт по ним назад по истории); в истории и в ответах инструментов null: модели они ничего не дают |
 
-Пустые `body` и `files` в JSON не печатаются (`@JsonInclude(NON_NULL)`): ключа нет вовсе — ни в ответе инструмента, ни в REST.
+Пустые `body`, `files` и `parents` в JSON не печатаются (`@JsonInclude(NON_NULL)`): ключа нет вовсе — ни в ответе инструмента, ни в REST.
 
 `getResultMeta()`: `shortHash`, `author`, `email`, `date`, `message`, `changesFilesCount` — тела в плашке нет ни при каких условиях, там строка на коммит.
 

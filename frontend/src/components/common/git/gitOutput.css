@@ -55,6 +55,17 @@
   white-space: nowrap;
 }
 
+.git-output__commit {
+  flex: none;
+  color: var(--kb-text-muted);
+  font-family: var(--kb-font-mono);
+  text-decoration: none;
+}
+.git-output__commit:hover {
+  color: var(--kb-accent);
+  text-decoration: underline;
+}
+
 .git-output__body {
   max-height: 18rem;
   margin: 0;

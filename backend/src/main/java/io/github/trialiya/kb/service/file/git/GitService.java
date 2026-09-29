@@ -518,7 +518,7 @@ public class GitService {
         boolean includeBody = hashes.size() == 1;
         List<GitCommit> result = new ArrayList<>();
         for (String hash : hashes) {
-            result.add(diffForSingleCommit(hash, includePatch, spec, includeBody, null));
+            result.add(diffForSingleCommit(hash, includePatch, spec, includeBody, null, false));
         }
         return result;
     }
@@ -545,19 +545,21 @@ public class GitService {
                 (filePath == null || filePath.isBlank())
                         ? null
                         : RepoPaths.toForwardSlashes(filePath.strip());
-        return diffForSingleCommit(rev.strip(), includePatch, null, true, only);
+        return diffForSingleCommit(rev.strip(), includePatch, null, true, only, true);
     }
 
     /**
      * @param filePath narrows the diff itself — the tool's reading of a path, renames included
      * @param only keeps the entry reported under this path, found among the whole commit's entries
+     * @param includeParents name the parents — for the browser's Commit tab, not for the model
      */
     private GitCommit diffForSingleCommit(
             String hash,
             boolean includePatch,
             @Nullable String filePath,
             boolean includeBody,
-            @Nullable String only) {
+            @Nullable String only,
+            boolean includeParents) {
         try (RevWalk revWalk = new RevWalk(repository);
                 ObjectReader reader = repository.newObjectReader()) {
             RevCommit commit = revWalk.parseCommit(resolveCommitId(hash));
@@ -585,7 +587,7 @@ public class GitService {
                     entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
                 }
             }
-            return toGitCommit(commit, entries, reader, includeBody);
+            return toGitCommit(commit, entries, reader, includeBody, includeParents);
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + hash, e);
         } catch (AmbiguousObjectException e) {
@@ -1660,6 +1662,16 @@ public class GitService {
             ObjectReader reader,
             boolean includeBody)
             throws IOException {
+        return toGitCommit(commit, files, reader, includeBody, false);
+    }
+
+    private static GitCommit toGitCommit(
+            RevCommit commit,
+            @Nullable List<GitDiffEntry> files,
+            ObjectReader reader,
+            boolean includeBody,
+            boolean includeParents)
+            throws IOException {
         PersonIdent author = commit.getAuthorIdent();
         OffsetDateTime date =
                 author.getWhenAsInstant().atZone(author.getZoneId()).toOffsetDateTime();
@@ -1671,7 +1683,10 @@ public class GitService {
                 date,
                 commit.getShortMessage(),
                 includeBody ? messageBody(commit) : null,
-                files);
+                files,
+                includeParents
+                        ? Arrays.stream(commit.getParents()).map(RevCommit::getName).toList()
+                        : null);
     }
 
     /**

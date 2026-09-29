@@ -155,6 +155,8 @@
     "revision": "Revision",
     "author": "Author",
     "date": "Date",
+    "parents_one": "Parent",
+    "parents_other": "Parents",
     "message": "Subject",
     "body": "Description",
     "files": "Files",

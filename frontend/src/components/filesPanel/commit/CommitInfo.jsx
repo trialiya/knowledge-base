@@ -3,6 +3,8 @@ import InfoList from '@/components/common/ui/InfoList';
 import { formatDateTime } from '@/utils/formatting';
 import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
 import { commitUrl } from '@/navigation/urlScheme';
+import CommitHashLink from '@/components/common/git/CommitHashLink';
+import shortRev from '@/components/common/git/shortRev';
 import './commitInfo.css';
 
 /**
@@ -29,6 +31,7 @@ const CommitInfo = ({ rev, project, commit, loading, error, changesShown, onShow
   if (error || !commit) return <p className="info-list__hint">{t('commit.loadError')}</p>;
 
   const files = commit.files ?? [];
+  const parents = commit.parents ?? [];
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
 
@@ -39,6 +42,23 @@ const CommitInfo = ({ rev, project, commit, loading, error, changesShown, onShow
     { label: t('commit.revision'), value: commit.hash.startsWith(rev) ? null : rev, mono: true },
     { label: t('commit.author'), value: commit.email ? `${commit.author} <${commit.email}>` : commit.author },
     { label: t('commit.date'), value: formatDateTime(commit.date, i18n.language) },
+    // Родители — шаг назад по истории: снимок предыдущего коммита в том же виде.
+    // У первого коммита их нет, у слияния — два, и первый из них тот, с которым
+    // сравнивается список изменённых файлов.
+    parents.length > 0 && {
+      label: t('commit.parents', { count: parents.length }),
+      value: (
+        <span className="commit-info__parents">
+          {parents.map((parent) => (
+            <CommitHashLink key={parent} rev={parent} project={project}>
+              {shortRev(parent)}
+            </CommitHashLink>
+          ))}
+        </span>
+      ),
+      copy: parents.join(' '),
+      mono: true,
+    },
     { label: t('commit.message'), value: commit.message, block: true },
     { label: t('commit.body'), value: commit.body, block: true, pre: true },
     {

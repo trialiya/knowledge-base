@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconX } from '@/icons/index';
 import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
+import CommitHashLink from './CommitHashLink';
+import shortRev from './shortRev';
 import './gitOutput.css';
 
 /**
@@ -32,6 +34,13 @@ const GitOutputCard = ({ event, compact = false }) => {
         </span>
         <span className="git-output__command">git {event.command}</span>
         {event.branch && <span className="git-output__branch">{event.branch}</span>}
+        {/* Коммит, который команда создала, — ссылкой: «что я закоммитил» открывается
+            отсюда, а не поиском хеша в выводе. Карточка стоит в ленте чата, не в окне. */}
+        {event.commit && (
+          <CommitHashLink className="git-output__commit" rev={event.commit} project={event.project}>
+            {shortRev(event.commit)}
+          </CommitHashLink>
+        )}
         {output && (
           <button
             type="button"

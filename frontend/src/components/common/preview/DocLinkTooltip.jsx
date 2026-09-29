@@ -94,8 +94,7 @@ const DocLink = ({ docId, href, tree, onNavigate, children, ...rest }) => {
   // Снимок узла для fullscreen-превью: useDocPreview сбрасывает node, когда
   // тултип прячется (enabled=false), а модалка живёт дольше тултипа.
   const [fullscreenNode, setFullscreenNode] = useState(null);
-  const { visible, pos, linkRef, tooltipRef, calcPos, onMouseEnter, onMouseLeave, keepOpen, hide } =
-    useLinkTooltip();
+  const { visible, pos, linkRef, tooltipRef, calcPos, onMouseEnter, onMouseLeave, keepOpen, hide } = useLinkTooltip();
 
   // Адрес для «настоящего» перехода браузера (средняя кнопка / Ctrl+Cmd-клик):
   // всегда каноническая схема, независимо от того, в какой форме ссылка лежит в

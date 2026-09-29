@@ -141,7 +141,10 @@ class GitCommandsTest {
 
         assertThat(result.output()).startsWith("Committed ");
         assertThat(service.branchStatus().dirty()).isFalse();
-        assertThat(service.getCommitLog(1, null, false).getFirst().message()).isEqualTo("second");
+        GitCommit head = service.getCommitLog(1, null, false).getFirst();
+        assertThat(head.message()).isEqualTo("second");
+        // Хеш — полный и того самого коммита: по нему ряд чата ссылается на коммит.
+        assertThat(result.commit()).isEqualTo(head.hash());
     }
 
     @Test
