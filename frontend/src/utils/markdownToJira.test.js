@@ -62,6 +62,21 @@ describe('markdownToJira', () => {
     );
   });
 
+  it('ссылка на файл в коммите называет ревизию рядом с путём', () => {
+    expect(markdownToJira('[B.java](/files?path=a/B.java&rev=0123456789abcdef0123456789abcdef01234567#L3)')).toBe(
+      'B.java (a/B.java @ 0123456)',
+    );
+  });
+
+  it('ссылка на коммит становится коротким хешем моноширинным, а не мёртвой гиперссылкой', () => {
+    expect(markdownToJira('[`0123456`](/files?rev=0123456789abcdef0123456789abcdef01234567&project=kb)')).toBe(
+      '{{0123456}}',
+    );
+    expect(markdownToJira('см. [коммит](/files?project=kb&changes=1&rev=abc1234&right=commit)')).toBe(
+      'см. {{abc1234}}',
+    );
+  });
+
   it('внутренние ссылки на документы базы знаний заменяются на обычный текст', () => {
     expect(markdownToJira('[Модели данных](/?doc=42)')).toBe('Модели данных');
   });

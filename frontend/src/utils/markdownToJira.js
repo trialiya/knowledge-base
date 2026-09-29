@@ -1,3 +1,5 @@
+import shortRev from '@/components/common/git/shortRev';
+
 // Best-effort Markdown to Jira wiki markup converter (line-based, no AST
 // parser) - mirrors the classic wiki syntax: h1./h2., *bold*, _italic_,
 // -strike-, monospace via double braces, {code:lang}, links via pipe,
@@ -30,9 +32,13 @@ function normalizeLang(lang) {
 // Internal KB links (see docLinkParsing.js parseFileLink/parseDocId for the
 // canonical, DOM-based parser used elsewhere): these point at in-app routes,
 // not real hyperlinks, so a Jira `[text|url]` link would be dead once pasted
-// into an issue. File links become "name (full/path)"; doc links become
-// plain text (just the link label).
+// into an issue. File links become "name (full/path)" ("name (full/path @ rev)"
+// for a file as of a commit); commit links become the short hash in monospace,
+// which is how a commit is cited in an issue anyway; doc links become plain
+// text (just the link label).
 const FILE_LINK_RE = /^\/files\?path=([^&#\s]+)/;
+const LINK_REV_RE = /[?&]rev=([^&#\s]+)/;
+const COMMIT_LINK_RE = /^\/files\/?\?/;
 const DOC_LINK_RE = /(?:^|[?&])doc=\d+(?:&|$|#)/;
 
 function isRelativeInternalUrl(url) {
@@ -101,7 +107,14 @@ function convertInline(text) {
     if (fileMatch) {
       const filePath = decodeURIComponent(fileMatch[1]);
       const fileName = filePath.split('/').pop();
-      return stash(`${fileName} (${filePath})`);
+      const rev = url.match(LINK_REV_RE);
+      return stash(
+        rev ? `${fileName} (${filePath} @ ${shortRev(decodeURIComponent(rev[1]))})` : `${fileName} (${filePath})`,
+      );
+    }
+    const commitRev = COMMIT_LINK_RE.test(url) && !/[?&]path=/.test(url) ? url.match(LINK_REV_RE) : null;
+    if (commitRev) {
+      return stash(`{{${escapeJiraBraces(shortRev(decodeURIComponent(commitRev[1])))}}}`);
     }
     if (isRelativeInternalUrl(url) && DOC_LINK_RE.test(url)) {
       return stash(label);

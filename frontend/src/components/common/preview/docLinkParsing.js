@@ -37,15 +37,18 @@ export function parseDocId(href) {
 }
 
 /**
- * Returns { project, path, fromLine, toLine } ONLY for internal file-browser links, i.e.:
+ * Returns { project, path, rev, fromLine, toLine } ONLY for internal file-browser links, i.e.:
  *   /files?path=backend/.../GitService.java             (the form stored inside markdown)
  *   /files/backend/.../GitService.java                  (canonical path form)
  *   /files?path=backend/.../GitService.java#L42         (single line)
  *   /files?path=backend/.../GitService.java#L42-L58     (line range)
  *   /files?path=…&project=kb                            (either form, naming a project)
+ *   /files?path=…&rev=<hash>                            (the file as of that commit)
  *
  * `project` is null when the link names none — the form every link written before
- * projects existed has, and it means the default project.
+ * projects existed has, and it means the default project. `rev` is null for the
+ * working tree: a link carries it when the model quoted the file as of a commit,
+ * and the preview must show that version, not today's.
  *
  * Returns null for anything else (cross-origin, wrong pathname, missing path) — those
  * fall through to parseDocId / the plain external-link branch.
@@ -56,12 +59,7 @@ export function parseFileLink(href) {
     const url = new URL(href, window.location.origin);
     if (url.origin !== window.location.origin) return null;
 
-    let path;
-    if (url.pathname === '/files') {
-      path = url.searchParams.get('path');
-    } else if (url.pathname.startsWith('/files/')) {
-      path = decodeFilePath(url.pathname.slice('/files/'.length));
-    }
+    const path = filesLinkPath(url);
     if (!path) return null;
 
     // Проект — в обеих формах в query. Его нет у ссылок, написанных до того, как
@@ -76,8 +74,41 @@ export function parseFileLink(href) {
       toLine = m[2] ? Number(m[2]) : fromLine;
     }
 
-    return { project, path, fromLine, toLine };
+    const rev = url.searchParams.get('rev') || null;
+
+    return { project, path, rev, fromLine, toLine };
   } catch {
     return null;
   }
+}
+
+/**
+ * Returns { project, hash } ONLY for internal commit links — a file-browser link with
+ * a revision and no path:
+ *   /files?rev=<hash>&project=kb                        (the form stored inside markdown)
+ *   /files?project=kb&changes=1&rev=<hash>&right=commit (canonical, see urlScheme.commitUrl)
+ *
+ * `hash` is whatever the link names — normally a full hash from a tool answer, but a
+ * branch or a tag opens the same way, since the Files panel reads any revision.
+ * A link that also names a path is a file link (see parseFileLink), not a commit one.
+ */
+export function parseCommitLink(href) {
+  if (!href) return null;
+  try {
+    const url = new URL(href, window.location.origin);
+    if (url.origin !== window.location.origin) return null;
+    if (!/^\/files\/?$/.test(url.pathname) || filesLinkPath(url)) return null;
+    const hash = url.searchParams.get('rev');
+    if (!hash) return null;
+    return { project: url.searchParams.get('project') || null, hash };
+  } catch {
+    return null;
+  }
+}
+
+/** Path of a same-origin `/files` link in either form, or '' when it names none. */
+function filesLinkPath(url) {
+  if (url.pathname === '/files') return url.searchParams.get('path') || '';
+  if (url.pathname.startsWith('/files/')) return decodeFilePath(url.pathname.slice('/files/'.length));
+  return '';
 }

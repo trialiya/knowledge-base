@@ -111,6 +111,8 @@
     "folder": "Folder",
     "document": "Document",
     "file": "File",
+    "commit": "Commit",
+    "commitNotFound": "Commit not found",
     "aiSummary": "AI Summary",
     "stale": "stale",
     "noDescription": "No description",

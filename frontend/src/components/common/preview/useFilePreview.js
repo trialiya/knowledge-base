@@ -23,22 +23,25 @@ const PREVIEW_LINES = 20;
 
 /**
  * Cache key. `usePreviewCache` compares keys with `!==` and uses them as Map
- * keys, so the pair has to collapse into one primitive; the separator is a
- * character no project id or path may contain.
+ * keys, so project, revision and path have to collapse into one primitive; the
+ * separator is a character none of them may contain. The revision is part of the
+ * address: a link to a file as of a commit must not be answered with today's file.
  */
-const previewKey = (project, path) => (path == null ? null : `${project || ''}\u0000${path}`);
+const previewKey = (project, path, rev) => (path == null ? null : `${project || ''}\u0000${rev || ''}\u0000${path}`);
 
 function fetchPreview(key) {
-  const sep = key.indexOf('\u0000');
-  const project = key.slice(0, sep);
-  const path = key.slice(sep + 1);
-  return gitApi.getFileContent(path, { from: 1, to: PREVIEW_LINES, project });
+  const [project, rev, path] = key.split('\u0000');
+  return gitApi.getFileContent(path, { from: 1, to: PREVIEW_LINES, rev: rev || undefined, project });
 }
 
-/** Drops a cached preview so the next hover re-fetches it. */
+/**
+ * Drops a cached working-tree preview so the next hover re-fetches it. Previews of
+ * a file as of a commit are not touched: an edit in the working tree cannot change
+ * them.
+ */
 export function invalidateFilePreviewCache(project, path) {
   if (path == null) return;
-  store.invalidate(previewKey(project, path));
+  store.invalidate(previewKey(project, path, ''));
 }
 
 /** Drops every cached file preview — e.g. after a known external repo refresh. */
@@ -55,9 +58,10 @@ export function invalidateAllFilePreviewCache() {
  * @param {string|null} path    – repo-relative file path to preview (null = disabled)
  * @param {string|null} project – project the path belongs to (null = the default one)
  * @param {boolean}     enabled – only fetch when true (hover active / modal open)
+ * @param {string|null} [rev]   – read the file as of this revision (null = the working tree)
  */
-export default function useFilePreview(path, project, enabled) {
-  const { value, loading, error } = usePreviewCache(store, previewKey(project, path), enabled, fetchPreview, {
+export default function useFilePreview(path, project, enabled, rev = null) {
+  const { value, loading, error } = usePreviewCache(store, previewKey(project, path, rev), enabled, fetchPreview, {
     ttlMs: STALE_MS,
   });
 

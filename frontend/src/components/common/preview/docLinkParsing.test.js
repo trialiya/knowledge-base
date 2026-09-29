@@ -1,4 +1,4 @@
-import { parseDocId, parseFileLink } from './docLinkParsing';
+import { parseCommitLink, parseDocId, parseFileLink } from './docLinkParsing';
 
 /**
  * Разбор внутренних ссылок. Обе формы обязаны пониматься:
@@ -67,12 +67,14 @@ describe('parseFileLink: проект', () => {
     expect(parseFileLink('/files?path=a/B.java&project=kb')).toEqual({
       project: 'kb',
       path: 'a/B.java',
+      rev: null,
       fromLine: null,
       toLine: null,
     });
     expect(parseFileLink('/files/a/B.java?project=kb#L10-L20')).toEqual({
       project: 'kb',
       path: 'a/B.java',
+      rev: null,
       fromLine: 10,
       toLine: 20,
     });
@@ -81,5 +83,50 @@ describe('parseFileLink: проект', () => {
   it('ссылка без проекта означает дефолтный — так написаны все старые', () => {
     expect(parseFileLink('/files?path=a/B.java')?.project).toBeNull();
     expect(parseFileLink('/files/a/B.java')?.project).toBeNull();
+  });
+});
+
+/**
+ * Ревизия у ссылки на файл — это версия, которую процитировала модель: без неё
+ * превью показало бы сегодняшний файл вместо того, о котором говорит ответ.
+ */
+describe('parseFileLink: ревизия', () => {
+  it('читает ревизию в обеих формах ссылки', () => {
+    expect(parseFileLink('/files?path=a/B.java&rev=abc1234&project=kb#L3')).toMatchObject({
+      path: 'a/B.java',
+      rev: 'abc1234',
+      fromLine: 3,
+    });
+    expect(parseFileLink('/files/a/B.java?rev=abc1234')?.rev).toBe('abc1234');
+  });
+
+  it('ссылка без ревизии — рабочее дерево', () => {
+    expect(parseFileLink('/files?path=a/B.java')?.rev).toBeNull();
+  });
+});
+
+describe('parseCommitLink', () => {
+  const hash = '0123456789abcdef0123456789abcdef01234567';
+
+  it('разбирает форму, которую пишет модель, и каноническую', () => {
+    expect(parseCommitLink(`/files?rev=${hash}&project=kb`)).toEqual({ project: 'kb', hash });
+    expect(parseCommitLink(`/files?project=kb&changes=1&rev=${hash}&right=commit`)).toEqual({ project: 'kb', hash });
+    expect(parseCommitLink(`/files/?rev=${hash}`)).toEqual({ project: null, hash });
+    expect(parseCommitLink(`${window.location.origin}/files?rev=abc1234`)).toEqual({ project: null, hash: 'abc1234' });
+  });
+
+  it('ссылка с путём — это файл в коммите, а не коммит', () => {
+    expect(parseCommitLink(`/files?path=a.md&rev=${hash}`)).toBeNull();
+    expect(parseCommitLink(`/files/a.md?rev=${hash}`)).toBeNull();
+    expect(parseFileLink(`/files?path=a.md&rev=${hash}`)).toMatchObject({ path: 'a.md', rev: hash });
+  });
+
+  it('не трогает ссылки без ревизии, внешние и чужие пути', () => {
+    expect(parseCommitLink('/files')).toBeNull();
+    expect(parseCommitLink('/files?project=kb')).toBeNull();
+    expect(parseCommitLink(`https://example.com/files?rev=${hash}`)).toBeNull();
+    expect(parseCommitLink(`/filesystem?rev=${hash}`)).toBeNull();
+    expect(parseCommitLink('/?doc=70')).toBeNull();
+    expect(parseCommitLink('')).toBeNull();
   });
 });

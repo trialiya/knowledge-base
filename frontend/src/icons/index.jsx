@@ -660,6 +660,24 @@ export const IconBranch = ({ size = 14 }) => (
   </svg>
 );
 
+/** Коммит: точка на линии истории — ссылка на один коммит. */
+export const IconCommit = ({ size = 14 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="3.2" />
+    <path d="M3 12h5.8" />
+    <path d="M15.2 12H21" />
+  </svg>
+);
+
 /** Приглашение командной строки: шеврон и строка ввода — вход в набор команд git. */
 export const IconTerminal = ({ size = 14 }) => (
   <svg

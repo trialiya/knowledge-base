@@ -87,7 +87,10 @@ class ProjectPromptServiceTest {
     void theActiveProjectIsNamedWithItsIdAndLinkForm() throws IOException {
         String text = service("kb").context("kb", List.of(span("kb", 1, 9)));
 
-        assertThat(text).contains("project id `kb`").contains("/files?path=PATH&project=kb");
+        assertThat(text)
+                .contains("project id `kb`")
+                .contains("/files?path=PATH&project=kb")
+                .contains("/files?rev=HASH&project=kb");
     }
 
     @Test

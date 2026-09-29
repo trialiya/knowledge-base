@@ -54,6 +54,8 @@ The sub-agent starts from a blank conversation: it sees this one call and nothin
 - Old file was deleted (D status)? → Diff is authoritative for its content
 - Need historical context? → Check related commits in `getCommitLog`
 
+**Citing a commit:** link it—`[shortHash](/files?rev=HASH&project=ID)`, `HASH` the full `hash` from the tool—so the user opens its files and diff in one click. A bare hash in text is a dead end. Quoting a file read with `commit`: `[filename](/files?path=PATH&rev=HASH&project=ID)`, or the link shows today's file instead.
+
 ## Establishing how it works now
 
 Every task—an answer, an analysis, an edit—starts from the current behavior, established by reading, not recalled and not inferred from one fragment.

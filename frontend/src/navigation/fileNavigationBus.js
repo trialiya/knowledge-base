@@ -1,3 +1,5 @@
+import { FILE_TAB } from '@/constants/fileTabs';
+
 /**
  * Module-level bridge letting deeply-nested components (DocLinkTooltip, mounted
  * both inside chat messages and inside KB markdown — several prop layers away
@@ -34,7 +36,17 @@ export function registerFileNavigator(fn) {
  * @param options `{ changes: true }` — открыть левый блок в режиме «Изменения»:
  *   так уходят ссылки из вкладки «Репозиторий», которые ведут именно к
  *   незакоммиченному, а не к файлу в дереве. Не передан — режим не трогаем.
+ *   `{ rev }` — открыть файл в снимке этой ревизии (ссылка на файл в коммите).
  */
 export function navigateToFile(path, project, options) {
   navigator?.(path, project, options);
+}
+
+/**
+ * Открыть коммит так, как его показывает панель «Файлы»: снимок ревизии, слева —
+ * изменённые им файлы, справа — вкладка «Коммит». Тот же адрес строит
+ * urlScheme.commitUrl — для Ctrl+клика по ссылке.
+ */
+export function navigateToCommit(hash, project) {
+  navigator?.('', project, { rev: hash, changes: true, right: FILE_TAB.COMMIT });
 }

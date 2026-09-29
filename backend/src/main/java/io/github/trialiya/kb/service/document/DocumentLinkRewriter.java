@@ -6,6 +6,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -52,6 +53,26 @@ public final class DocumentLinkRewriter {
      */
     private static final Pattern PROJECT_QUERY = Pattern.compile("&project=[a-z0-9][a-z0-9._-]*$");
 
+    /**
+     * The revision a link to a file as of a commit carries, in front of the project: {@code
+     * /files?path=PATH&rev=HASH&project=ID}. Only a hex hash counts, for the same reason {@link
+     * #PROJECT_QUERY} insists on an id — the path in front of it is unencoded, and only a tail that
+     * could be a hash at all is the parameter the model was told to write.
+     */
+    private static final Pattern REV_QUERY = Pattern.compile("&rev=([0-9a-fA-F]{4,64})$");
+
+    /**
+     * Whole Markdown link to a commit: a {@code /files} link with a query and no path — {@code
+     * [0123456](/files?rev=HASH&project=ID)} as the model writes it, or the address the app itself
+     * shows for a commit, pasted in. Group 1 is the link text, group 2 the query; whether it names
+     * a revision and no path is decided in {@link #flattenCommitLinks}.
+     */
+    private static final Pattern COMMIT_LINK =
+            Pattern.compile("\\[([^\\]]+)]\\(/files/?\\?([^)#\\s]*)\\)");
+
+    /** How many hash characters an export shows — git's own short form. */
+    private static final int SHORT_HASH = 7;
+
     /** Any Markdown link target — the reverse direction has to inspect every one of them. */
     private static final Pattern ANY_LINK_TARGET = Pattern.compile("]\\(([^)\\s]*)\\)");
 
@@ -83,24 +104,79 @@ public final class DocumentLinkRewriter {
     }
 
     /**
-     * Flattens {@code [text](/files?path=PATH[&project=ID][#Lx-Ly])} to plain {@code text (PATH)}.
-     * An export has no running app to serve {@code /files}, so the link is reduced to the file's
-     * name and its repo-relative path.
+     * Flattens {@code [text](/files?path=PATH[&rev=HASH][&project=ID][#Lx-Ly])} to plain {@code
+     * text (PATH)}, or {@code text (PATH @ HASH7)} for a file as of a commit. An export has no
+     * running app to serve {@code /files}, so the link is reduced to the file's name and its
+     * repo-relative path — plus the commit, without which a quote of an old version would read as
+     * today's file.
      */
     public static String flattenFileLinks(String text) {
         Matcher m = FILE_LINK.matcher(text);
         StringBuilder out = new StringBuilder();
         while (m.find()) {
+            String pathWithRev = withoutProject(m.group(2));
+            Matcher rev = REV_QUERY.matcher(pathWithRev);
+            boolean hasRev = rev.find();
             // The model writes paths unencoded, so a literal '+' is part of the file name — shield
             // it from URLDecoder's application/x-www-form-urlencoded '+'→space rule, while still
             // decoding any %xx escapes.
             String path =
                     URLDecoder.decode(
-                            withoutProject(m.group(2)).replace("+", "%2B"), StandardCharsets.UTF_8);
-            m.appendReplacement(out, Matcher.quoteReplacement(m.group(1) + " (" + path + ")"));
+                            (hasRev ? pathWithRev.substring(0, rev.start()) : pathWithRev)
+                                    .replace("+", "%2B"),
+                            StandardCharsets.UTF_8);
+            String where = hasRev ? path + " @ " + shortHash(rev.group(1)) : path;
+            m.appendReplacement(out, Matcher.quoteReplacement(m.group(1) + " (" + where + ")"));
         }
         m.appendTail(out);
         return out.toString();
+    }
+
+    /**
+     * Flattens a commit link ({@code [text](/files?rev=HASH[&project=ID])}) to plain text: the link
+     * text alone when it already is the hash (the usual {@code [0123456](...)}), otherwise {@code
+     * text (HASH7)} — "this commit" with the hash dropped would cite nothing. A {@code /files} link
+     * without a hex revision, or with a path, is not a commit link and is left alone.
+     */
+    public static String flattenCommitLinks(String text) {
+        Matcher m = COMMIT_LINK.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String rev = commitOf(m.group(2));
+            String label = m.group(1);
+            String replacement;
+            if (rev == null) {
+                replacement = m.group(0);
+            } else {
+                String bare = label.replace("`", "").strip();
+                boolean labelIsHash =
+                        bare.length() >= 4
+                                && rev.toLowerCase(Locale.ROOT)
+                                        .startsWith(bare.toLowerCase(Locale.ROOT));
+                replacement = labelIsHash ? label : label + " (" + shortHash(rev) + ")";
+            }
+            m.appendReplacement(out, Matcher.quoteReplacement(replacement));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    /** The hex revision a {@code /files} query names, or {@code null} if it names a path too. */
+    private static @Nullable String commitOf(String query) {
+        String rev = null;
+        for (String param : query.split("&")) {
+            if (param.startsWith("path=")) {
+                return null;
+            }
+            if (param.startsWith("rev=")) {
+                rev = param.substring("rev=".length());
+            }
+        }
+        return rev != null && rev.matches("[0-9a-fA-F]{4,64}") ? rev : null;
+    }
+
+    private static String shortHash(String hash) {
+        return hash.length() > SHORT_HASH ? hash.substring(0, SHORT_HASH) : hash;
     }
 
     /** The path alone — the project the model appended is not part of the file's name. */
