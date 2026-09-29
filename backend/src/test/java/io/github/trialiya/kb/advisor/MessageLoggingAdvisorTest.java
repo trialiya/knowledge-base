@@ -27,7 +27,6 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.annotation.Tool;
 import reactor.core.publisher.Flux;
 
@@ -299,7 +298,7 @@ class MessageLoggingAdvisorTest {
                                                 false))
                 .build()
                 .prompt()
-                .toolCallbacks(ToolCallbacks.from(new EchoTool()))
+                .tools(new EchoTool())
                 .user("question")
                 .call()
                 .chatResponse();
