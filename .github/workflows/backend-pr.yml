@@ -1,7 +1,7 @@
 name: Backend tests
 
 # Тесты бэкенда на пуш в main, который трогает бэкенд или сборочные файлы, и на
-# PR — только по требованию: пока на PR нет лейбла run-ci, прогон пропускается.
+# PR — только после подтверждения: job ждёт approve в окружении ci-approval.
 # Затронутые файлы (paths) определяют, появится ли вообще проверка.
 #
 # Тесты с Testcontainers поднимают PostgreSQL (pgvector) в Docker; на
@@ -9,7 +9,6 @@ name: Backend tests
 on:
   pull_request:
     branches: [main]
-    types: [labeled, synchronize, reopened]
     paths:
       - 'backend/**'
       - 'build.gradle'
@@ -47,51 +46,7 @@ concurrency:
 jobs:
   test:
     name: Backend tests
-    # PR: только с лейблом run-ci (на прогон влияет и новый пуш, пока лейбл стоит).
-    # Другой лейбл прогон не запускает. push и ручной запуск — без условий.
-    if: >-
-      github.event_name != 'pull_request' ||
-      (contains(github.event.pull_request.labels.*.name, 'run-ci') &&
-      (github.event.action != 'labeled' || github.event.label.name == 'run-ci'))
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      # Держим в синхроне с backend/build.gradle → toolchain { languageVersion = 25 }
-      - name: Setup JDK
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6.3.0
-
-      # Только :backend:test — без bootJar/copyFrontend, поэтому фронт не собирается.
-      - name: Run backend tests
-        run: ./gradlew :backend:test :backend:spotlessCheck --no-daemon --stacktrace
-
-      # Статический анализ main-исходников: правила и исключения — в
-      # config/pmd/ruleset.xml и config/spotbugs/exclude.xml.
-      - name: Run static analysis
-        run: ./gradlew :backend:pmdMain :backend:spotbugsMain --no-daemon --stacktrace
-
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: backend-test-reports
-          path: backend/build/reports/tests/test
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Upload static analysis reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: backend-static-analysis-reports
-          path: |
-            backend/build/reports/pmd
-            backend/build/reports/spotbugs
-          retention-days: 7
-          if-no-files-found: ignore
+    # На PR job ждёт подтверждения (Review deployments) — обязательный ревьюер
+    # настраивается в Settings → Environments → ci-approval. push и ручной
+    # запуск идут без окружения, то есть без подтверждения.
+    environment: ${{ github.event_name == 'pull_request' && 'ci-approval' || null }}

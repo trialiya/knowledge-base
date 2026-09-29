@@ -1,12 +1,11 @@
 name: Frontend PR
 
 # Тесты и spotlessCheck фронта на PR, который трогает фронтовые файлы, — только
-# по требованию: пока на PR нет лейбла run-ci, прогон пропускается. Через gradle (:frontend:check), по аналогии с
+# по подтверждению: job ждёт approve в окружении ci-approval. Через gradle (:frontend:check), по аналогии с
 # backend-pr.yml, чтобы PR гейтились теми же проверками, что и `./gradlew build`.
 on:
   pull_request:
     branches: [main]
-    types: [labeled, synchronize, reopened]
     paths:
       - 'frontend/**'
       - 'build.gradle'
@@ -34,37 +33,7 @@ env:
 jobs:
   test:
     name: Frontend tests & spotlessCheck
-    # PR: только с лейблом run-ci (на прогон влияет и новый пуш, пока лейбл стоит).
-    # Другой лейбл прогон не запускает. push и ручной запуск — без условий.
-    if: >-
-      github.event_name != 'pull_request' ||
-      (contains(github.event.pull_request.labels.*.name, 'run-ci') &&
-      (github.event.action != 'labeled' || github.event.label.name == 'run-ci'))
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup JDK
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6.3.0
-
-      - name: Cache node toolchain & modules
-        uses: actions/cache@v6
-        with:
-          path: |
-            ${{ env.FRONTEND_DIR }}/node_modules
-            ${{ env.FRONTEND_DIR }}/.gradle/nodejs
-            ${{ env.FRONTEND_DIR }}/.gradle/yarn
-          key: ${{ runner.os }}-frontend-node-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/yarn.lock', env.FRONTEND_DIR)) }}
-          restore-keys: |
-            ${{ runner.os }}-frontend-node-${{ env.NODE_VERSION }}-
-
-      # :frontend:check прогоняет yarnTest, yarnLint и spotlessCheck (prettier) —
-      # см. frontend/build.gradle (tasks.matching { it.name == 'check' }).
-      - name: Run frontend tests, eslint & spotlessCheck
-        run: ./gradlew "${FRONTEND_MODULE}:check" --no-daemon --stacktrace
+    # На PR job ждёт подтверждения (Review deployments) — обязательный ревьюер
+    # настраивается в Settings → Environments → ci-approval. push и ручной
+    # запуск идут без окружения, то есть без подтверждения.
+    environment: ${{ github.event_name == 'pull_request' && 'ci-approval' || null }}
