@@ -703,7 +703,9 @@ const LIGHT = [
 
   // ── Поиск ──
   { id: 'searchResults.js#scopePanel', frame: 'leftBody', render: (p) => <SearchSidebar {...p} /> },
-  { id: 'searchResults.js#resultCards', frame: 'center', render: (p) => <ResultCards {...p} /> },
+  // Без тёмного двойника: те же карточки, что в resultCards@expanded, чья тёмная
+  // тема показывает и свёрнутые строки, и все остальные; отличается только кнопка «ещё N».
+  { id: 'searchResults.js#resultCards', frame: 'center', dark: false, render: (p) => <ResultCards {...p} /> },
   // «Ещё N» раскрыто: строки сверх пятой видно только так, а свернувшая их
   // карточка — то, как выдача выглядит по умолчанию.
   {
