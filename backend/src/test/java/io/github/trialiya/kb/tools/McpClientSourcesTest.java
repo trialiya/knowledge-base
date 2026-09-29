@@ -59,7 +59,8 @@ class McpClientSourcesTest {
     @Test
     void aClientNameWithoutThePrefixIsUsedAsIs() {
         McpAsyncClient client = mock(McpAsyncClient.class);
-        when(client.getClientInfo()).thenReturn(McpSchema.Implementation.builder("custom-name", "1").build());
+        when(client.getClientInfo())
+                .thenReturn(McpSchema.Implementation.builder("custom-name", "1").build());
         when(client.getClientCapabilities())
                 .thenReturn(McpSchema.ClientCapabilities.builder().build());
         when(client.listTools()).thenReturn(Mono.just(listToolsResult("issue")));
