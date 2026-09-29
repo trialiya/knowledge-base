@@ -328,7 +328,7 @@
     "docLoadFailed": "[Документ #{{id}}: не удалось загрузить]",
     "binaryFile": "[бинарный файл]",
     "readFailed": "[не удалось прочитать файл]",
-    "commitRef": "коммит `{{hash}}` — {{subject}}",
+    "commitRef": "коммит {{link}} — {{subject}}",
     "inProject": "(проект `{{project}}`)"
   },
   "list": {

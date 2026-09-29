@@ -50,8 +50,14 @@ const toFile = (obj, key) => {
   };
 };
 
-/** Коммит со списком файлов → группа, либо null если форма не та. */
-const toCommit = (obj, key) => {
+/**
+ * Коммит со списком файлов → группа, либо null если форма не та.
+ *
+ * `project` — репозиторий, который ответил (обёртка ответа); у результатов,
+ * сохранённых до обёртки, он лежит полем в самой записи. Нужен ссылке на
+ * коммит: короткий хеш в соседнем репозитории — другой коммит или никакой.
+ */
+const toCommit = (obj, key, project = null) => {
   if (!isPlainObject(obj) || !Array.isArray(obj.files) || obj.files.length === 0) return null;
 
   const hash = str(obj.shortHash) ?? str(obj.hash)?.slice(0, 7);
@@ -64,6 +70,10 @@ const toCommit = (obj, key) => {
     key,
     commit: {
       hash,
+      // Ссылка — по полному хешу, когда он есть: короткий однажды перестаёт
+      // быть однозначным.
+      rev: str(obj.hash) ?? hash,
+      project: project ?? str(obj.project),
       author: str(obj.author),
       date: str(obj.date),
       message: str(obj.message),
@@ -76,8 +86,8 @@ const toCommit = (obj, key) => {
 };
 
 /** Массив ответа → группы: либо все элементы коммиты, либо все — файлы. */
-const groupsOfArray = (parsed) => {
-  const commits = parsed.map((entry, i) => toCommit(entry, `commit-${i}`));
+const groupsOfArray = (parsed, project) => {
+  const commits = parsed.map((entry, i) => toCommit(entry, `commit-${i}`, project));
   // Все до одного: разнородный список показывается целиком в JSON, иначе часть
   // выдачи молча пропала бы с экрана.
   if (commits.every(Boolean)) return commits;
@@ -93,15 +103,15 @@ const groupsOfArray = (parsed) => {
  * файл) форму не ломают: вид вырождается в список путей со счётчиками — ровно
  * то, что в них и есть.
  */
-export const detectDiffResult = ({ parsed, isJson }) => {
+export const detectDiffResult = ({ parsed, isJson, project = null }) => {
   if (!isJson) return null;
 
   let groups;
   if (Array.isArray(parsed)) {
     if (parsed.length === 0) return null;
-    groups = groupsOfArray(parsed);
+    groups = groupsOfArray(parsed, project);
   } else {
-    const commit = toCommit(parsed, 'commit-0');
+    const commit = toCommit(parsed, 'commit-0', project);
     const file = commit ? null : toFile(parsed, 'file-0');
     groups = commit ? [commit] : file ? [{ key: 'files', commit: null, files: [file] }] : null;
   }

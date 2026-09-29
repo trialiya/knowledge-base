@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { IconChevronDown } from '@/icons/index';
 import { formatFieldValue } from './fieldValue';
 import ResultSummary, { useExpandAll } from './resultSummary';
+import CommitHashLink from '@/components/common/git/CommitHashLink';
 
 // Режим «Обзор» для формы «список однотипных записей»: строка на запись,
 // полный набор полей — по развороту.
@@ -53,7 +54,17 @@ const Record = ({ record, open, onToggle }) => {
               <dt className="tool-records__field-key">
                 <FieldLabel name={key} />
               </dt>
-              <dd className="tool-records__field-value">{formatFieldValue(key, value, i18n.language)}</dd>
+              <dd className="tool-records__field-value">
+                {/* Хеш коммита ведёт к самому коммиту. Здесь, а не в строке:
+                    строка — кнопка разворота, ссылка в ней не кликается. */}
+                {key === 'hash' && record.commit ? (
+                  <CommitHashLink rev={record.commit.rev} project={record.commit.project} newTab>
+                    {value}
+                  </CommitHashLink>
+                ) : (
+                  formatFieldValue(key, value, i18n.language)
+                )}
+              </dd>
             </div>
           ))}
         </dl>

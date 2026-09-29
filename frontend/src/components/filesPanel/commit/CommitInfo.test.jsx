@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CommitInfo from './CommitInfo';
+import { commitUrl } from '@/navigation/urlScheme';
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -28,6 +29,7 @@ const show = (props = {}) =>
   render(
     <CommitInfo
       rev="abcdef1"
+      project="kb"
       commit={COMMIT}
       loading={false}
       error={null}
@@ -80,5 +82,17 @@ describe('CommitInfo', () => {
     show({ commit: null, error: new Error('boom') });
 
     expect(screen.getByText('commit.loadError')).toBeInTheDocument();
+  });
+
+  /** Ссылка — на коммит по полному хешу, даже если снимок открыт по ветке. */
+  test('copies a link to the commit itself', async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    show({ rev: 'main' });
+
+    await userEvent.click(screen.getByText('commit.copyLink'));
+
+    expect(writeText).toHaveBeenCalledWith(window.location.origin + commitUrl('abcdef1234567890', 'kb'));
+    expect(await screen.findByText('commit.linkCopied')).toBeInTheDocument();
   });
 });

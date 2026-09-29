@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { DiffLines, DiffStats, PatchHeader } from '../diffRender';
 import { IconChevronDown } from '@/icons/index';
 import ResultSummary, { useExpandAll } from './resultSummary';
+import CommitHashLink from '@/components/common/git/CommitHashLink';
 
 // Режим «Обзор» для формы «unified diff»: коммит → файлы → раскрашенный патч,
 // вместо 40 КБ JSON, в которых переносы строк экранированы как \n.
@@ -56,18 +57,24 @@ const initialOpen = (groups) => {
 /**
  * Шапка коммита: строка «хеш · тема · автор · дата», под ней — тело сообщения.
  *
- * С телом строка становится кнопкой и сворачивает его; без тела шеврона нет
- * вовсе — он обещал бы содержимое, которого у этого коммита не будет (списку
- * коммитов тела не приходят).
+ * Хеш — ссылка на сам коммит (в новой вкладке: это модалка, см. CommitHashLink),
+ * поэтому стоит вне кнопки-переключателя: ссылка внутри кнопки не кликается.
+ * С телом остальная строка становится кнопкой и сворачивает его; без тела
+ * шеврона нет вовсе — он обещал бы содержимое, которого у этого коммита не
+ * будет (списку коммитов тела не приходят).
  */
 const CommitHead = ({ commit, open, onToggle }) => {
   const { t, i18n } = useTranslation('chat');
   const date = commit.date ? new Date(commit.date) : null;
   const shown = date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString(i18n.language) : null;
 
+  const hash = (
+    <CommitHashLink className="tool-diff__hash" rev={commit.rev} project={commit.project} newTab>
+      {commit.hash}
+    </CommitHashLink>
+  );
   const head = (
     <>
-      <span className="tool-diff__hash">{commit.hash}</span>
       {commit.message && (
         <span className="tool-diff__message" title={commit.message}>
           {commit.message}
@@ -78,22 +85,32 @@ const CommitHead = ({ commit, open, onToggle }) => {
     </>
   );
 
-  if (!commit.body) return <div className="tool-diff__commit">{head}</div>;
+  if (!commit.body) {
+    return (
+      <div className="tool-diff__commit">
+        {hash}
+        {head}
+      </div>
+    );
+  }
 
   return (
     <>
-      <button
-        type="button"
-        className="tool-diff__commit tool-diff__commit--toggle"
-        onClick={onToggle}
-        aria-expanded={open}
-        title={t('toolCall.detail.diff.commitBody')}
-      >
-        <span className={`tool-diff__chevron${open ? ' tool-diff__chevron--open' : ''}`} aria-hidden="true">
-          <IconChevronDown />
-        </span>
-        {head}
-      </button>
+      <div className="tool-diff__commit">
+        {hash}
+        <button
+          type="button"
+          className="tool-diff__commit-toggle"
+          onClick={onToggle}
+          aria-expanded={open}
+          title={t('toolCall.detail.diff.commitBody')}
+        >
+          <span className={`tool-diff__chevron${open ? ' tool-diff__chevron--open' : ''}`} aria-hidden="true">
+            <IconChevronDown />
+          </span>
+          {head}
+        </button>
+      </div>
       {/* Тема в строке шапки обрезается по ширине, поэтому тело — отдельным
           блоком: в нём и стоит объяснение правки, ради которого коммит открыли. */}
       {open && <div className="tool-diff__body">{commit.body}</div>}

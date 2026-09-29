@@ -163,6 +163,8 @@
     "filesSummary_many": "{{count}} файлов · +{{additions}} −{{deletions}}",
     "filesSummary_other": "{{count}} файла · +{{additions}} −{{deletions}}",
     "showChanges": "Показать изменённые файлы",
+    "copyLink": "Копировать ссылку",
+    "linkCopied": "Ссылка скопирована",
     "loadError": "Не удалось загрузить коммит"
   },
   "outline": {

@@ -64,13 +64,25 @@ const sameShape = (objects) => {
   return common.length * 2 > union.size;
 };
 
-const toRecord = (obj, key) => {
+/**
+ * Запись-коммит (`GitCommit`: полный `hash` рядом с `shortHash`) → то, куда ведёт
+ * её хеш; у остальных записей — null. Проект — репозиторий, который ответил:
+ * обёрткой ответа, а у сохранённых до неё результатов — полем самой записи.
+ */
+const commitOf = (obj, project) => {
+  if (typeof obj.shortHash !== 'string' || typeof obj.hash !== 'string') return null;
+  if (!/^[0-9a-f]{7,64}$/i.test(obj.hash)) return null;
+  return { rev: obj.hash, project: project ?? (typeof obj.project === 'string' ? obj.project : null) };
+};
+
+const toRecord = (obj, key, project) => {
   const title = firstField(obj, TITLE_FIELDS);
   const subtitle = firstField(obj, SUBTITLE_FIELDS);
   const shown = new Set([title?.field, subtitle?.field]);
 
   return {
     key,
+    commit: commitOf(obj, project),
     title: title?.value ?? null,
     subtitle: subtitle?.value ?? null,
     meta: META_SLOTS.map((slot) => slot.find((field) => !shown.has(field) && !isEmpty(obj[field])))
@@ -90,7 +102,7 @@ const toRecord = (obj, key) => {
  * Список текстов сюда не попадает — его показывает `content`; границу задаёт
  * `contentTakesArray`, то есть сам разбор соседнего вида.
  */
-export const detectRecordList = ({ parsed, isJson }) => {
+export const detectRecordList = ({ parsed, isJson, project = null }) => {
   if (!isJson || !Array.isArray(parsed)) return null;
   if (parsed.length === 0 || parsed.length > MAX_RECORDS) return null;
   if (!parsed.every(isPlainObject)) return null;
@@ -102,7 +114,7 @@ export const detectRecordList = ({ parsed, isJson }) => {
   // JSON, то есть ровно в ту дыру, которую весь режим и закрывает.
   if (contentTakesArray(parsed)) return null;
 
-  const records = parsed.map((record, i) => toRecord(record, `record-${i}`));
+  const records = parsed.map((record, i) => toRecord(record, `record-${i}`, project));
   // Запись, у которой нечего показать в строке, — форма не та: получился бы
   // столбец пустых кнопок.
   return records.every((record) => record.title) ? records : null;

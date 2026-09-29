@@ -63,6 +63,7 @@ export default function buildFileTabs({
       content: (
         <CommitInfo
           rev={rev}
+          project={project}
           commit={snapshotCommit.commit}
           loading={snapshotCommit.loading}
           error={snapshotCommit.error}

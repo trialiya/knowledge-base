@@ -112,3 +112,14 @@ function filesLinkPath(url) {
   if (url.pathname.startsWith('/files/')) return decodeFilePath(url.pathname.slice('/files/'.length));
   return '';
 }
+
+/**
+ * The stored form of a commit link — what goes into markdown, not what a browser opens
+ * (that is urlScheme.commitUrl): `/files?rev=<hash>[&project=<id>]`, the same form the
+ * model is told to write, so a link from a composer chip and one from an answer read alike.
+ */
+export function commitLinkTarget(hash, project) {
+  const p = new URLSearchParams({ rev: hash });
+  if (project) p.set('project', project);
+  return `/files?${p.toString()}`;
+}

@@ -56,6 +56,18 @@ describe('detectDiffResult — что попадает в «Обзор»', () =>
     expect(withoutBody.commit.body).toBeNull();
   });
 
+  it('ссылка на коммит — по полному хешу и в репозитории, который ответил', () => {
+    const [wrapped] = detect(JSON.stringify({ project: 'other', result: [commit([entry()])] }));
+    expect(wrapped.commit).toMatchObject({ rev: '38e5ba2c6941bf43815588d2dbbdb1d5be9590ce', project: 'other' });
+
+    // Сохранённый до обёртки ответ нёс проект полем в самой записи.
+    const [legacy] = detect(JSON.stringify([{ ...commit([entry()]), project: 'kb' }]));
+    expect(legacy.commit.project).toBe('kb');
+
+    const [bare] = detect(JSON.stringify([commit([entry()])]));
+    expect(bare.commit.project).toBeNull();
+  });
+
   it('getCommitDiff: коммит с файлами → группа с шапкой', () => {
     const groups = detect(JSON.stringify([commit([entry()])]));
     expect(groups).toHaveLength(1);

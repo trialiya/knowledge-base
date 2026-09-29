@@ -161,6 +161,8 @@
     "filesSummary_one": "{{count}} file · +{{additions}} −{{deletions}}",
     "filesSummary_other": "{{count}} files · +{{additions}} −{{deletions}}",
     "showChanges": "Show changed files",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
     "loadError": "Failed to load the commit"
   },
   "outline": {

@@ -328,7 +328,7 @@
     "docLoadFailed": "[Document #{{id}}: failed to load]",
     "binaryFile": "[binary file]",
     "readFailed": "[failed to read file]",
-    "commitRef": "commit `{{hash}}` — {{subject}}",
+    "commitRef": "commit {{link}} — {{subject}}",
     "inProject": "(project `{{project}}`)"
   },
   "list": {

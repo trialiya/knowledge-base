@@ -91,6 +91,10 @@
     "admin": "Admin panel",
     "settings": "Chat settings"
   },
+  "commitLink": {
+    "open": "Open the commit",
+    "openNewTab": "Open the commit in a new tab"
+  },
   "gitOutput": {
     "copy": "Copy output",
     "expand": "Show output",

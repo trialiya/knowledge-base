@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DiffResultView from './DiffResultView';
 import { detectDiffResult } from './diffResult';
+import { commitUrl } from '@/navigation/urlScheme';
 
 // Тело сообщения коммита — единственная часть вида, которую сворачивают
 // шапкой, а не строкой файла: без тела шапка не кнопка вовсе.
@@ -13,23 +14,17 @@ vi.mock('react-i18next', async (importOriginal) => ({
 
 const BODY = 'Первый абзац.\n\nВторой абзац.';
 
-const groups = (over = {}) =>
-  detectDiffResult({
-    isJson: true,
-    parsed: [
-      {
-        hash: '38e5ba2c6941bf43815588d2dbbdb1d5be9590ce',
-        shortHash: '38e5ba2',
-        author: 'Ivan Petrov',
-        date: '2026-06-17T23:58:42+03:00',
-        message: 'Черновик переживает переключение чата',
-        files: [
-          { status: 'M', path: 'a.jsx', oldPath: null, additions: 1, deletions: 1, patch: '@@ -1 +1 @@\n-a\n+b' },
-        ],
-        ...over,
-      },
-    ],
-  });
+const rawCommit = (over = {}) => ({
+  hash: '38e5ba2c6941bf43815588d2dbbdb1d5be9590ce',
+  shortHash: '38e5ba2',
+  author: 'Ivan Petrov',
+  date: '2026-06-17T23:58:42+03:00',
+  message: 'Черновик переживает переключение чата',
+  files: [{ status: 'M', path: 'a.jsx', oldPath: null, additions: 1, deletions: 1, patch: '@@ -1 +1 @@\n-a\n+b' }],
+  ...over,
+});
+
+const groups = (over = {}) => detectDiffResult({ isJson: true, parsed: [rawCommit(over)] });
 
 const body = () => screen.queryByText(BODY, { normalizer: (text) => text });
 
@@ -39,8 +34,8 @@ describe('DiffResultView — тело сообщения коммита', () => 
 
     expect(body()).toBeInTheDocument();
 
-    // По хешу, а не по aria-expanded: строка файла тоже раскрыта и тоже кнопка.
-    const head = screen.getByRole('button', { name: /38e5ba2/ });
+    // По теме, а не по aria-expanded: строка файла тоже раскрыта и тоже кнопка.
+    const head = screen.getByRole('button', { name: /Черновик переживает/ });
     await userEvent.click(head);
 
     expect(body()).toBeNull();
@@ -53,5 +48,15 @@ describe('DiffResultView — тело сообщения коммита', () => 
     expect(body()).toBeNull();
     // Кнопки вида — только строки файлов; шапка среди них не появляется.
     expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+});
+
+describe('DiffResultView — хеш коммита', () => {
+  test('ссылка на сам коммит в его репозитории, в новой вкладке — это модалка', () => {
+    render(<DiffResultView data={detectDiffResult({ isJson: true, project: 'other', parsed: [rawCommit()] })} />);
+
+    const link = screen.getByRole('link', { name: '38e5ba2' });
+    expect(link).toHaveAttribute('href', commitUrl('38e5ba2c6941bf43815588d2dbbdb1d5be9590ce', 'other'));
+    expect(link).toHaveAttribute('target', '_blank');
   });
 });
