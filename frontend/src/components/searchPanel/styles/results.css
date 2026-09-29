@@ -294,13 +294,14 @@ a.search-group__section:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* Строка кода не переносится, а прокручивается: перенос ломает выравнивание по
-   номеру строки, а обрезка прячет как раз то, что нашлось. */
+/* Длинная строка переносится, а не прокручивается: полоса прокрутки в каждой
+   строке выдачи прячет как раз то, что нашлось. pre-wrap сохраняет отступы, а
+   номер строки стоит слева и остаётся у её начала. */
 .search-line__code {
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.76rem;
   color: var(--kb-text);

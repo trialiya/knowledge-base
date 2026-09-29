@@ -39,7 +39,9 @@
   "files": {
     "matches_one": "{{count}} line",
     "matches_other": "{{count}} lines",
-    "untracked": "untracked"
+    "untracked": "untracked",
+    "byName": "by name",
+    "nameMatch": "name matches"
   },
   "docs": {
     "preamble": "before the first heading"
