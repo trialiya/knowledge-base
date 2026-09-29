@@ -117,7 +117,7 @@ class GitCommandChatTest {
                         ResponseStatusException.class,
                         e ->
                                 assertThat(e.getStatusCode())
-                                        .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+                                        .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
 
         verify(chatGitLog).record(CHAT, "push", "kb", false, "remote rejected", null);
     }

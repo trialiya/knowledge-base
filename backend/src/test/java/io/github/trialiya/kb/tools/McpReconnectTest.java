@@ -74,7 +74,9 @@ class McpReconnectTest {
                                         .connectTimeout(Duration.ofSeconds(2))
                                         .build())
                         .clientInfo(
-                                new McpSchema.Implementation(CLIENT_NAME + " - " + CONNECTION, "1"))
+                                McpSchema.Implementation.builder(
+                                                CLIENT_NAME + " - " + CONNECTION, "1")
+                                        .build())
                         .requestTimeout(Duration.ofSeconds(5))
                         .initializationTimeout(Duration.ofSeconds(5))
                         .build();
@@ -188,10 +190,9 @@ class McpReconnectTest {
                         .tools(
                                 SyncToolSpecification.builder()
                                         .tool(
-                                                McpSchema.Tool.builder()
-                                                        .name(TOOL)
+                                                McpSchema.Tool.builder(
+                                                                TOOL, Map.of("type", "object"))
                                                         .description("Looks an issue up")
-                                                        .inputSchema(Map.of("type", "object"))
                                                         .build())
                                         .callHandler(
                                                 (exchange, request) ->
