@@ -112,7 +112,7 @@ describe('DocLinkTooltip: файл в коммите', () => {
     expect(await screen.findByText(`a/B.java @ 0123456`)).toBeInTheDocument();
 
     await user.click(screen.getByText('docLink.open'));
-    expect(navigateToFile).toHaveBeenCalledWith('a/B.java', 'kb', { rev: hash });
+    expect(navigateToFile).toHaveBeenCalledWith('a/B.java', 'kb', { rev: hash, changes: false });
   });
 
   it('ссылка без ревизии открывает рабочее дерево, даже если «Файлы» стоят в снимке', async () => {
@@ -122,6 +122,6 @@ describe('DocLinkTooltip: файл в коммите', () => {
     await hover(user, screen.getByRole('link', { name: 'B.java' }));
     await user.click(await screen.findByText('docLink.open'));
 
-    expect(navigateToFile).toHaveBeenCalledWith('a/B.java', null, { rev: '' });
+    expect(navigateToFile).toHaveBeenCalledWith('a/B.java', null, { rev: '', changes: false });
   });
 });

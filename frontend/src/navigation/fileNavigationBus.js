@@ -1,16 +1,17 @@
 import { FILE_TAB } from '@/constants/fileTabs';
 
 /**
- * Module-level bridge letting deeply-nested components (DocLinkTooltip, mounted
- * both inside chat messages and inside KB markdown — several prop layers away
- * from App) trigger "open this path in the Files tab" navigation, without
+ * Module-level bridge letting deeply-nested components (the file and commit
+ * links of rendered markdown — FileLink, CommitLink — and CommitHashLink, mounted
+ * inside chat messages, KB markdown and panels, several prop layers away from
+ * App) trigger "open this path / commit in the Files tab" navigation, without
  * threading an onNavigateToFile prop through every intermediate component
  * (Message/ChatWindow, MarkdownEditor/DetailModals/...).
  *
  * App.js is still the sole owner of navigation state (see useAppNavigation) —
  * it just registers its `openFilePath` here on mount. Same pattern as
  * useDocPreview's module cache: a plain module-scoped singleton, not React
- * context, since the producer (App) and consumers (DocLinkTooltip instances)
+ * context, since the producer (App) and consumers (the link instances)
  * don't share a convenient common ancestor to pass a prop through.
  */
 let navigator = null;

@@ -88,9 +88,11 @@ export function parseFileLink(href) {
  *   /files?rev=<hash>&project=kb                        (the form stored inside markdown)
  *   /files?project=kb&changes=1&rev=<hash>&right=commit (canonical, see urlScheme.commitUrl)
  *
- * `hash` is whatever the link names — normally a full hash from a tool answer, but a
- * branch or a tag opens the same way, since the Files panel reads any revision.
- * A link that also names a path is a file link (see parseFileLink), not a commit one.
+ * The stored form names a commit by its hash (full, from a tool answer), and only a hex
+ * hash is what the document export flattens (DocumentLinkRewriter). The parser itself
+ * takes any revision: a hand-written link naming a branch still opens, since the Files
+ * panel reads any revision. A link that also names a path is a file link (see
+ * parseFileLink), not a commit one.
  */
 export function parseCommitLink(href) {
   if (!href) return null;

@@ -72,8 +72,10 @@ describe('markdownToJira', () => {
     expect(markdownToJira('[`0123456`](/files?rev=0123456789abcdef0123456789abcdef01234567&project=kb)')).toBe(
       '{{0123456}}',
     );
+    expect(markdownToJira('[abc1234](/files?rev=abc1234)')).toBe('{{abc1234}}');
+    // Подпись словами хеш не заменяет: без него ссылка не называла бы ничего.
     expect(markdownToJira('см. [коммит](/files?project=kb&changes=1&rev=abc1234&right=commit)')).toBe(
-      'см. {{abc1234}}',
+      'см. коммит ({{abc1234}})',
     );
   });
 

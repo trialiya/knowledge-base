@@ -28,6 +28,10 @@ class DocumentLinkRewriterTest {
                 .isEqualTo("B.java (a/B.java @ 0123456)");
         assertThat(DocumentLinkRewriter.flattenFileLinks("[B](/files?path=a/B.java&rev=abc1234)"))
                 .isEqualTo("B (a/B.java @ abc1234)");
+        assertThat(
+                        DocumentLinkRewriter.flattenFileLinks(
+                                "[B](/files?path=a/B.java&project=kb&rev=abc1234)"))
+                .isEqualTo("B (a/B.java @ abc1234)");
     }
 
     @Test

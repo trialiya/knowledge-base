@@ -67,7 +67,8 @@ const sameShape = (objects) => {
 /**
  * Запись-коммит (`GitCommit`: полный `hash` рядом с `shortHash`) → то, куда ведёт
  * её хеш; у остальных записей — null. Проект — репозиторий, который ответил:
- * обёрткой ответа, а у сохранённых до неё результатов — полем самой записи.
+ * обёрткой ответа, а в ответе без обёртки (старая форма, см. registry.js) — полем
+ * самой записи.
  */
 const commitOf = (obj, project) => {
   if (typeof obj.shortHash !== 'string' || typeof obj.hash !== 'string') return null;

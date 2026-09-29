@@ -19,6 +19,13 @@ describe('expandTokensForSend: чип коммита', () => {
     expect(linkIn(text)).toEqual({ hash: 'abc1234', project: 'other' });
   });
 
+  it('чип с полным хешем ссылается по полному, а подписан коротким', async () => {
+    const hash = '0123456789abcdef0123456789abcdef01234567';
+    const text = await expandTokensForSend(`⟦commit@kb:${hash}:Fix⟧`, 'kb');
+
+    expect(text).toContain(`[\`0123456\`](/files?rev=${hash}&project=kb)`);
+  });
+
   it('токен без проекта — старая форма — ссылается в проект чата', async () => {
     const text = await expandTokensForSend('⟦commit:abc1234:Fix⟧', 'kb');
 

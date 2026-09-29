@@ -3,7 +3,7 @@
 //   ⟦file@PROJECT:PATH⟧            — весь файл (раскрывается в fenced-блок при отправке)
 //   ⟦file@PROJECT:PATH#FROM-TO⟧    — диапазон строк (1-based включительно)
 //   ⟦ref@PROJECT:PATH⟧             — только ссылка (раскрывается в `PATH`)
-//   ⟦commit@PROJECT:HASH:SUBJECT⟧  — коммит (раскрывается в хэш + тему, без запроса)
+//   ⟦commit@PROJECT:HASH:SUBJECT⟧  — коммит (раскрывается в ссылку на коммит + тему, без запроса)
 //
 // Проект в токене — потому что путь `backend/pom.xml` есть в каждом репозитории, а
 // хэш коммита — ровно в одном: без имени проекта чип означал бы «тот репозиторий,
@@ -24,6 +24,7 @@ import documentsApi from '@/api/documentsApi';
 // Строки уходят в текст отправляемого сообщения и следуют языку интерфейса.
 import i18n from '@/i18n/index';
 import { commitLinkTarget } from '@/components/common/preview/docLinkParsing';
+import shortRev from '@/components/common/git/shortRev';
 export { baseName } from '@/components/common/ui/utils';
 
 const OPEN = '⟦'; // ⟦
@@ -215,7 +216,7 @@ export async function expandTokensForSend(text, project) {
         // Ссылкой, а не голым хешем: модель видит ту же форму, какой ей велено
         // ссылаться на коммиты, а в ленте хеш становится кликабельным
         // (UserMessageText). Токен без проекта — старая форма — живёт в проекте чата.
-        const link = `[\`${commitParsed.hash}\`](${commitLinkTarget(
+        const link = `[\`${shortRev(commitParsed.hash)}\`](${commitLinkTarget(
           commitParsed.hash,
           commitParsed.project || project,
         )})`;

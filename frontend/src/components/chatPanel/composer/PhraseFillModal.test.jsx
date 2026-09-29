@@ -100,7 +100,7 @@ describe('PhraseFillModal', () => {
     expect(onSubmit).toHaveBeenCalledWith('Прочитай ⟦docref:7:Гайд по кэшу⟧');
   });
 
-  it('inserts a commit chip token carrying the short hash and subject', async () => {
+  it('inserts a commit chip token carrying the full hash and subject', async () => {
     gitApi.searchCommits.mockResolvedValue([
       { hash: 'a1b2c3d4e5', shortHash: 'a1b2c3d', author: 'Тест', message: 'почини кэш' },
     ]);
@@ -111,7 +111,7 @@ describe('PhraseFillModal', () => {
     await userEvent.click(await screen.findByText('a1b2c3d · Тест'));
     await submit();
 
-    expect(onSubmit).toHaveBeenCalledWith('Разбери ⟦commit:a1b2c3d:почини кэш⟧');
+    expect(onSubmit).toHaveBeenCalledWith('Разбери ⟦commit:a1b2c3d4e5:почини кэш⟧');
   });
 
   // Регрессия: .modal-shell и колонка полей обрезают по overflow, поэтому

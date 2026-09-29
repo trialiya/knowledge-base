@@ -114,17 +114,17 @@ public final class DocumentLinkRewriter {
         Matcher m = FILE_LINK.matcher(text);
         StringBuilder out = new StringBuilder();
         while (m.find()) {
+            // Both parameters come off the end, in whichever order the link wrote them: the
+            // prompt asks for rev before project, but a hand-written link need not follow it.
             String pathWithRev = withoutProject(m.group(2));
             Matcher rev = REV_QUERY.matcher(pathWithRev);
             boolean hasRev = rev.find();
+            String rawPath =
+                    hasRev ? withoutProject(pathWithRev.substring(0, rev.start())) : pathWithRev;
             // The model writes paths unencoded, so a literal '+' is part of the file name — shield
             // it from URLDecoder's application/x-www-form-urlencoded '+'→space rule, while still
             // decoding any %xx escapes.
-            String path =
-                    URLDecoder.decode(
-                            (hasRev ? pathWithRev.substring(0, rev.start()) : pathWithRev)
-                                    .replace("+", "%2B"),
-                            StandardCharsets.UTF_8);
+            String path = URLDecoder.decode(rawPath.replace("+", "%2B"), StandardCharsets.UTF_8);
             String where = hasRev ? path + " @ " + shortHash(rev.group(1)) : path;
             m.appendReplacement(out, Matcher.quoteReplacement(m.group(1) + " (" + where + ")"));
         }

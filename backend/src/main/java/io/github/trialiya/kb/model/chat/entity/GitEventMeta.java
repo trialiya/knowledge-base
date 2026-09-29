@@ -27,9 +27,8 @@ import org.jspecify.annotations.Nullable;
  * @param branch the branch the working tree sat on after the command; null on a refusal, which
  *     carries git's message and no state — and needs none, since a refused command left the branch
  *     where the row above already says it was
- * @param commit full hash of the commit the command created — a successful {@code commit} only. The
- *     row links to it, and the model is told which commit that was; rows written before this field
- *     existed read it as null
+ * @param commit full hash of the commit the command created — a successful {@code commit} only,
+ *     null for every other row. The row links to it, and the model is told which commit that was
  */
 public record GitEventMeta(
         String command,

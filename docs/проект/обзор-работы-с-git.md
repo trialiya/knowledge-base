@@ -319,7 +319,7 @@ pull не тупик. Каждый ответ (`GitCommandResult`) везёт с
 |---|---|
 | `filesPanel/git/` | Строка ветки (`GitBranchBar`), меню команд (`GitMenu`, `GitBranchList`), состояние ветки и права (`useGitBranch`), сценарий команд — что спросить до и где показать отказ после (`useGitActions`) |
 | `filesPanel/changes/` | Режим «Изменения»: список без патчей (`useUncommittedChanges`), патч одного файла по клику (`useChangeDiff`), раскладка плоско/деревом |
-| `common/git/` | Общее для нескольких поверхностей: окно коммита с выбором файлов (`CommitDialog`, `useCommitSelection`) и окно push со списком того, что уедет (`PushDialog`, `useOutgoingCommits`) — у панели «Файлы» и чата; карточка вывода git (`GitOutputCard`) — там же и в ленте чата; выбор снимка ревизии (`RevisionPicker`, `useRevisions`) — у панели «Файлы» и единого поиска |
+| `common/git/` | Общее для нескольких поверхностей: окно коммита с выбором файлов (`CommitDialog`, `useCommitSelection`) и окно push со списком того, что уедет (`PushDialog`, `useOutgoingCommits`) — у панели «Файлы» и чата; карточка вывода git (`GitOutputCard`) — там же и в ленте чата; выбор снимка ревизии (`RevisionPicker`, `useRevisions`) — у панели «Файлы» и единого поиска; хеш, открывающий коммит (`CommitHashLink`), и короткая запись ревизии (`shortRev`) — везде, где хеш стоит в интерфейсе |
 | `chatPanel/git/` | Вкладка «Репозиторий» (`ChatRepoPanel`, `useChatGit`) — те же хуки плюс два правила §8 |
 
 Два правила, которые стоит знать, прежде чем трогать эту часть. `runGitCommand` поднимает сигнал

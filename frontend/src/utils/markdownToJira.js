@@ -29,15 +29,18 @@ function normalizeLang(lang) {
   return CODE_LANG_ALIASES[key] || key;
 }
 
-// Internal KB links (see docLinkParsing.js parseFileLink/parseDocId for the
-// canonical, DOM-based parser used elsewhere): these point at in-app routes,
+// Internal KB links (see docLinkParsing.js parseFileLink/parseCommitLink/parseDocId
+// for the canonical, DOM-based parser used elsewhere): these point at in-app routes,
 // not real hyperlinks, so a Jira `[text|url]` link would be dead once pasted
 // into an issue. File links become "name (full/path)" ("name (full/path @ rev)"
-// for a file as of a commit); commit links become the short hash in monospace,
-// which is how a commit is cited in an issue anyway; doc links become plain
-// text (just the link label).
+// for a file as of a commit); a commit link becomes the short hash in monospace
+// when its label is the hash, and "label ({{hash}})" otherwise — the same rule as
+// the document export (DocumentLinkRewriter.flattenCommitLinks); doc links become
+// plain text (just the link label).
 const FILE_LINK_RE = /^\/files\?path=([^&#\s]+)/;
-const LINK_REV_RE = /[?&]rev=([^&#\s]+)/;
+// Only a hex hash counts, as in the document export: a link naming a branch is not
+// a stored commit link, and it stays an ordinary (dead) link either way.
+const LINK_REV_RE = /[?&]rev=([0-9a-fA-F]{4,64})(?=[&#]|$)/;
 const COMMIT_LINK_RE = /^\/files\/?\?/;
 const DOC_LINK_RE = /(?:^|[?&])doc=\d+(?:&|$|#)/;
 
@@ -114,7 +117,16 @@ function convertInline(text) {
     }
     const commitRev = COMMIT_LINK_RE.test(url) && !/[?&]path=/.test(url) ? url.match(LINK_REV_RE) : null;
     if (commitRev) {
-      return stash(`{{${escapeJiraBraces(shortRev(decodeURIComponent(commitRev[1])))}}}`);
+      const rev = decodeURIComponent(commitRev[1]);
+      const hash = stash(`{{${escapeJiraBraces(shortRev(rev))}}}`);
+      // The label arrives with inline code already stashed (`\`0123456\`` is a token by
+      // now), so "is the label the hash" is asked of the tokens' own text.
+      const bare = label
+        .replace(TOKEN_RE, (_, i) => tokens[Number(i)])
+        .replace(/[{}\\`]/g, '')
+        .trim()
+        .toLowerCase();
+      return bare.length >= 4 && rev.toLowerCase().startsWith(bare) ? hash : `${label} (${hash})`;
     }
     if (isRelativeInternalUrl(url) && DOC_LINK_RE.test(url)) {
       return stash(label);
