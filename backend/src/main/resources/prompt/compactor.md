@@ -76,7 +76,9 @@ only section a reader can use on its own.
 
 ### `## User requests`
 One bullet per USER message above — **every** one of them, in order, none merged, none
-dropped. This section does not compress by count: forty user messages mean forty bullets.
+dropped. This section does not compress by count: forty user messages mean forty bullets. A
+user message that is only a `<git-command>` block (or another action record) is not a request:
+it belongs in `## Artifacts`, not here.
 - Keep the user's own wording and terms; do not polish them into something neater.
 - Collapse pasted code to `[code: 30 lines, SQL migration]`, logs to
   `[log: NullPointerException in ChatHistoryService]`, an attachment to its name and id.
@@ -127,7 +129,9 @@ later moves to `## Work done`; a `## Problems` entry stays even after the proble
 solved, with its resolution appended.
 
 ## Before answering
-1. Count the USER messages above and check `## User requests` has the same number of bullets.
+1. Count the USER messages above and check `## User requests` has the same number of bullets —
+   plus every bullet carried over from an earlier summary, which is never one of the counted
+   messages.
 2. Re-check every identifier you wrote against the message it came from — a path or an id
    invented here becomes a fact nobody can correct afterwards.
 3. Add nothing the conversation does not contain, however logical it looks.

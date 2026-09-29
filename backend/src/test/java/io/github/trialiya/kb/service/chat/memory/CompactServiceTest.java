@@ -43,6 +43,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -75,6 +76,8 @@ import org.springframework.web.server.ResponseStatusException;
  * инструментов до гистов, а сжатие обязано отдать те же строки, которыми чат живёт, — с
  * протокольными {@code tool_calls} и полными ответами инструментов внутри.
  */
+// Раунд сжатия логирует запрос через MessageLoggingAdvisor — см. замок у MessageLoggingAdvisorTest.
+@ResourceLock("message-logging-advisor-log")
 class CompactServiceTest {
 
     private static final String CONV = "conv-1";
@@ -409,7 +412,7 @@ class CompactServiceTest {
                 .isEqualTo("SummarizeService.java:42 — the whole hit");
         assertThat(sent.getLast().getText())
                 .contains("COMPACTOR HANDBOOK")
-                .contains("Of them USER messages: 1");
+                .contains("Of them USER messages with a request: 1");
     }
 
     /**
