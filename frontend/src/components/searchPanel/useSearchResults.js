@@ -2,6 +2,10 @@ import { useEffect, useEffectEvent, useState } from 'react';
 import gitApi from '@/api/gitApi';
 import documentsApi from '@/api/documentsApi';
 import chatApi from '@/api/chatApi';
+import mergeFileHits from './mergeFileHits';
+
+/** Сколько файлов просить по имени: больше бэкенд всё равно не отдаст (потолок 50). */
+const NAME_LIMIT = 50;
 
 /** Сколько чатов запрашивать: больше двадцати в одном экране всё равно не читают. */
 const CHAT_LIMIT = 20;
@@ -70,9 +74,19 @@ export default function useSearchResults({ query, mode, path, project, rev, rege
   // Отсюда же и ключ: иначе снятая галочка перезапрашивала бы тот же ответ.
   const inTree = rev ? false : untracked;
 
-  const files = useAnswer(JSON.stringify([query, path, project, rev, regex, inTree]), enabled, (signal) =>
-    gitApi.grep(query, { path, project, rev, regex, untracked: inTree, signal }),
-  );
+  // Имена ищутся только по рабочему дереву: в снимке ревизии списка файлов
+  // бэкенд не отдаёт. Регулярка и маска пути — фильтры содержимого; имя, по
+  // которому они не проверены, выдачу под ними только засорило бы.
+  const byName = !rev && !regex && !path;
+  const files = useAnswer(JSON.stringify([query, path, project, rev, regex, inTree]), enabled, (signal) => {
+    const grep = gitApi.grep(query, { path, project, rev, regex, untracked: inTree, signal });
+    if (!byName) return grep;
+    // Отказ поиска по имени не должен прятать найденное в содержимом.
+    const names = Promise.resolve()
+      .then(() => gitApi.searchFiles(query, { limit: NAME_LIMIT, project, signal }))
+      .catch(() => []);
+    return Promise.all([grep, names]).then(([g, n]) => mergeFileHits(g, n, query));
+  });
   const docs = useAnswer(JSON.stringify([query, mode]), enabled, (signal) =>
     documentsApi.searchGrouped(query, mode, signal),
   );
