@@ -13,6 +13,89 @@ An entry ends with the number of the pull request it came from — the
 reasoning behind a change lives there, not here. Sections released before
 this rule was adopted carry no such numbers.
 
+## [1.1.0-RC3] — 2026-09-28
+
+The third candidate for 1.1.0. It keeps the prompt cache intact where the
+second candidate lost it: the model's reasoning is now stored and sent back,
+and a question's text no longer changes after it is sent. It also shrinks what
+the tools hand the model, and fixes edits in the knowledge base and first
+messages in a new chat that could get lost. Three changes ask something of a
+running deployment — they are listed under "Upgrading" below and spelled out
+in [`UPDATING.md`](UPDATING.md).
+
+### Added
+
+- The model's reasoning is stored with its answer and sent back to it in the
+  history (`reasoning_content`). A provider such as DeepSeek expects it on
+  every past turn when tools are in play and drops the prompt cache without it
+  — each question after a turn with tool calls was paid almost in full. On by
+  default; `replay-reasoning: false` turns it off for one model, and "Settings
+  → Models" shows which models have it off. (#455, #456)
+- A question sent while an answer was running, and left unanswered because that
+  answer was stopped or failed, is marked "no answer" and offers "Get answer"
+  — also after a reload. Before, there was no button to press, or the
+  one there answered a different question. (#451)
+- Hovering an intermediate segment of an answer with tool calls shows how much
+  context that call to the model took; each call is measured on its own. (#452)
+
+### Changed
+
+- The description of an attachment is fixed at the moment the question is sent.
+  Describing the attachment later no longer rewrites a question that was
+  already asked, which used to break the prompt cache from that point on.
+  (#457)
+- The model reads less boilerplate: `getTreeSkeleton` returns a lean node (id,
+  title, type, parent, versions, whether it has children) instead of a full
+  document node with empty fields — about half the size — and the children in
+  `getDocument` use the same shape. Empty optional fields are left out of git,
+  document, search and attachment responses, both for the model and in the
+  REST API. (#453, #454)
+- Tool calls take one line each in the `INFO` log — name, shortened arguments,
+  duration and the start of the result — instead of whole files, diffs and
+  commit logs. Full arguments and results are logged at `DEBUG` on
+  `io.github.trialiya.kb.tools.ToolCallLog`. (#460)
+
+### Fixed
+
+- Restoring a version from the history no longer leaves the old text in the
+  editor as an unsaved draft, whose "Save" silently undid the restore. With
+  unsaved edits open, "Restore" asks first, like any other way of leaving
+  them. (#445, #446)
+- The browser's Back and Forward no longer drop unsaved edits of a document
+  without asking. (#446)
+- Deleting the open document clears its address, so a reload no longer shows
+  "Document not found"; a newly created document opens; a click on an expanded
+  folder selects it without collapsing it. (#446)
+- The first message of a new chat opened directly at `/chat/new` is no longer
+  lost when it is sent before the chat list arrives. That used to make the chat
+  vanish from the list and the page re-request its messages without end. A new
+  chat no longer fires title and usage requests before the server has created
+  it. (#449)
+- A run that used tools but wrote no text before it was stopped or failed keeps
+  its "stopped"/"error" mark and its run summary after a reload, and the mark
+  is translated instead of showing a raw `[stopped]`. (#452)
+- The options of the project picker in Files use the same font as its button.
+  (#447)
+
+### Upgrading
+
+Assembled from [`UPDATING.md`](UPDATING.md), which says what to do about each.
+
+- `replay-reasoning` is on by default. An endpoint that rejects the
+  `reasoning_content` field (Groq, for one) fails every request carrying it —
+  set `replay-reasoning: false` on that model, and only there: switching it off
+  invalidates the cached prompt of every chat with stored reasoning. (#456)
+- Git, document, search and attachment responses leave out empty optional
+  fields instead of sending `null`. A client that tells a missing key from a
+  `null` one must treat them alike. (#453, #454)
+- The database gains a `chat_message.reasoning` column; the migration applies
+  on its own at startup. (#455)
+
+### Build
+
+- Gradle 9.7.1 → 9.8.0, NullAway 0.14.1 → 0.14.2; in the frontend Vite 8.3.1,
+  Vitest 5.0.2 and react-i18next 17.0.15. (#458, #459)
+
 ## [1.1.0-RC2] — 2026-09-27
 
 The second candidate for 1.1.0: what a review of the first one turned up, and
@@ -461,6 +544,7 @@ a deployment that was already running from `main` before this release.
   meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
+[1.1.0-RC3]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC3
 [1.1.0-RC2]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC2
 [1.1.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC1
 [1.0.0]: https://github.com/trialiya/knowledge-base/releases/tag/v1.0.0
