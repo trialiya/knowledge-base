@@ -20,23 +20,33 @@ export const query = 'grep';
  * Вторым идёт файл вне git (`tracked: false`) — такой находится только с
  * галочкой «искать и в неотслеживаемых» и подписан меткой у каталога. Рядом с
  * обычной карточкой видно и саму метку, и то, что без неё карточки одинаковы.
+ *
+ * У первого файла имя тоже совпало (`nameMatch`) — метка «совпало имя»; седьмая
+ * его строка длиннее карточки и переносится. Третий файл найден только по имени.
  */
 export const fileEntry = {
   data: {
-    total: 9,
+    total: 10,
     truncated: false,
     files: [
       {
         path: 'backend/src/main/java/io/github/trialiya/kb/service/file/git/GitGrepRunner.java',
         tracked: true,
+        nameMatch: true,
         lines: [
           { line: 41, text: '    List<GitGrepMatch> grepContent(String pattern, @Nullable String pathGlob) {' },
           { line: 58, text: '        List<String> args = GitGrep.args(pattern, pathspec, regex, ctx, roots, null);' },
           { line: 72, text: '        if (exit > 1) throw new IllegalStateException("git grep exited " + exit);' },
           { line: 90, text: '        // git grep печатает <файл>:<строка>:<текст>, разбираем построчно' },
-          { line: 104, text: '        return timedOut("git grep did not finish within " + timeout.toSeconds() + "s");' },
+          {
+            line: 104,
+            text: '        return timedOut("git grep did not finish within " + timeout.toSeconds() + "s");',
+          },
           { line: 131, text: '    /** Второй проход: неотслеживаемое, куда git grep сам не заходит. */' },
-          { line: 152, text: '        log.debug("git grep: {} matches in {} files", matches.size(), files);' },
+          {
+            line: 152,
+            text: '        log.debug("git grep: {} matches in {} files, roots {}, pathspec {}, commit {}, timeout {}s", matches.size(), files, roots, pathspec, commit, timeout.toSeconds());',
+          },
         ],
       },
       {
@@ -44,6 +54,8 @@ export const fileEntry = {
         tracked: false,
         lines: [{ line: 118, text: '  <div class="failures">git grep did not finish within 20s</div>' }],
       },
+      // Найден только по имени: без строк, вместо счётчика — «по имени».
+      { path: 'docs/grep-notes.md', tracked: true, lines: [], nameMatch: true },
     ],
   },
   error: null,
