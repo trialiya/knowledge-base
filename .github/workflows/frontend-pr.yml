@@ -1,26 +1,17 @@
 name: Frontend PR
 
-# Тесты и spotlessCheck фронта на каждый PR, который трогает фронтовые файлы
-# или сборочные файлы — через gradle (:frontend:check), по аналогии с
+# Тесты и spotlessCheck фронта — только по требованию (workflow_dispatch на
+# ветке PR), на PR сами не запускаются. Через gradle (:frontend:check), по аналогии с
 # backend-pr.yml, чтобы PR гейтились теми же проверками, что и `./gradlew build`.
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'frontend/**'
-      - 'build.gradle'
-      - 'settings.gradle'
-      - 'gradle.properties'
-      - 'gradle/**'
-      - 'gradlew'
-      - '.github/workflows/frontend-pr.yml'
+  workflow_dispatch: {} # по требованию: Actions → Run workflow, выбрать ветку PR
 
 permissions:
   contents: read
 
-# Новый пуш в ту же PR-ветку отменяет предыдущий прогон.
+# Новый запуск на той же ветке отменяет предыдущий прогон.
 concurrency:
-  group: frontend-pr-${{ github.event.pull_request.number }}
+  group: frontend-pr-${{ github.ref }}
   cancel-in-progress: true
 
 env:

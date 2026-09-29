@@ -11,7 +11,7 @@ CI/CD построен на GitHub Actions. Три workflow + Dependabot для 
 | `.github/dependabot.yml` | Конфиг | Автообновление Gradle, npm, Docker, GitHub Actions |
 | `.github/workflows/dependabot-locks.yml` | Workflow | Перегенерация Gradle lock-файлов после PR от Dependabot |
 | `.github/workflows/frontend-main-daily.yml` | Workflow | Ежедневная сборка фронта с тестами (только при изменениях) |
-| `.github/workflows/frontend-pr.yml` | Workflow | Тесты фронта на каждый PR, затрагивающий `frontend/**` |
+| `.github/workflows/frontend-pr.yml` | Workflow | Тесты фронта по требованию (`workflow_dispatch`) на ветке PR |
 
 ---
 
@@ -85,9 +85,9 @@ CI/CD построен на GitHub Actions. Три workflow + Dependabot для 
 
 ## 4. Frontend PR (`frontend-pr.yml`)
 
-**Триггер:** Pull Request в `main`, затрагивающий пути `frontend/**` или сам workflow-файл.
+**Триггер:** только ручной запуск (`workflow_dispatch`): Actions → Frontend PR → Run workflow, выбрать ветку PR. На сам PR workflow не запускается; результат появляется в проверках PR, если запуск был на его последнем коммите. Бэкенд-тесты (`backend-pr.yml`) работают так же, плюс запускаются на пуш в `main`.
 
-**Concurrency:** `frontend-pr-{номер_PR}` — новый пуш в ту же ветку отменяет предыдущий прогон (`cancel-in-progress: true`).
+**Concurrency:** `frontend-pr-{ref}` — новый запуск на той же ветке отменяет предыдущий прогон (`cancel-in-progress: true`).
 
 ### Job: test
 
@@ -112,7 +112,7 @@ Dependabot (weekly)
   └─ PR: Actions deps
         │
         ▼
-   PR в main (frontend/**) ──► frontend-pr.yml (yarn test)
+   ручной запуск на ветке PR ──► frontend-pr.yml (yarn test)
         │
         ▼
    merge в main

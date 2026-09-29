@@ -1,24 +1,12 @@
 name: Backend tests
 
-# Тесты бэкенда на каждый PR в main и на пуш в main, который трогает бэкенд
-# или сборочные файлы — по аналогии с frontend-pr.yml.
+# Тесты бэкенда на пуш в main, который трогает бэкенд или сборочные файлы, и
+# по требованию (workflow_dispatch) на ветке PR — на PR сами не запускаются.
 #
 # Тесты с Testcontainers поднимают PostgreSQL (pgvector) в Docker; на
 # ubuntu-latest Docker доступен из коробки, отдельный сервис не нужен.
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'backend/**'
-      - 'build.gradle'
-      - 'settings.gradle'
-      - 'gradle.properties'
-      - 'gradle.lockfile'
-      - 'gradle/**'
-      - 'gradlew'
-      - 'config/pmd/**'
-      - 'config/spotbugs/**'
-      - '.github/workflows/backend-pr.yml'
+  workflow_dispatch: {} # по требованию: Actions → Run workflow, выбрать ветку PR
   push:
     branches: [main]
     paths:
