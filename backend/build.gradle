@@ -6,6 +6,7 @@ plugins {
     id 'net.ltgt.errorprone'
     id 'pmd'
     id 'com.github.spotbugs' version '6.5.11'
+    id 'info.solidsoft.pitest' version '1.19.0'
     id 'com.gorylenko.gradle-git-properties' version '4.0.1'
     // apply false: плагин включается по флагу ниже, иначе он меняет обычный bootJar.
     id 'org.graalvm.buildtools.native' version '1.1.14' apply false
@@ -211,6 +212,30 @@ tasks.named('check') {
                 !(dep instanceof TaskCollection)
                         || !dep.any { it instanceof com.github.spotbugs.snom.SpotBugsTask }
             })
+}
+
+// Мутационные тесты — `./run/test.sh mutation`. Как и PMD/SpotBugs, вне `check`: прогон долгий.
+// Только *Test (без Docker); *IT исключены, поэтому и pitest не задевает Testcontainers.
+// Цель — чат и git: то, что по чтению кода надёжнее всего ломается тихо.
+pitest {
+    pitestVersion = '1.30.0'
+    junit5PluginVersion = '1.2.3'
+    targetClasses = [
+            'io.github.trialiya.kb.service.chat.*',
+            'io.github.trialiya.kb.service.file.git.*',
+            'io.github.trialiya.kb.functions.Git*',
+    ]
+    excludedClasses = ['*IT']
+    excludedTestClasses = ['*IT']
+    // Spring-контексты внутри тестов и так занимают все ядра; параллелизм PIT добавляет
+    // только конкуренцию за память и порты.
+    threads = 2
+    outputFormats = ['HTML', 'XML']
+    timestampedReports = false
+    timeoutConstInMillis = 20000
+    failWhenNoMutations = false
+    mutators = ['DEFAULTS']
+    jvmArgs = ['-Dorg.springframework.boot.logging.LoggingSystem=none']
 }
 
 tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
