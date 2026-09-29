@@ -59,7 +59,7 @@ class McpClientSourcesTest {
     @Test
     void aClientNameWithoutThePrefixIsUsedAsIs() {
         McpAsyncClient client = mock(McpAsyncClient.class);
-        when(client.getClientInfo()).thenReturn(new McpSchema.Implementation("custom-name", "1"));
+        when(client.getClientInfo()).thenReturn(McpSchema.Implementation.builder("custom-name", "1").build());
         when(client.getClientCapabilities())
                 .thenReturn(McpSchema.ClientCapabilities.builder().build());
         when(client.listTools()).thenReturn(Mono.just(listToolsResult("issue")));
@@ -118,7 +118,7 @@ class McpClientSourcesTest {
 
     /** Named the way {@code McpClientAutoConfiguration} names a client of that connection. */
     private static McpSchema.Implementation implementation(String connection) {
-        return new McpSchema.Implementation(CLIENT_NAME + " - " + connection, "1");
+        return McpSchema.Implementation.builder(CLIENT_NAME + " - " + connection, "1").build();
     }
 
     private static McpSchema.ListToolsResult listToolsResult(String toolName) {
@@ -128,10 +128,8 @@ class McpClientSourcesTest {
     private static McpSchema.ListToolsResult listToolsResult(String toolName, String description) {
         return new McpSchema.ListToolsResult(
                 List.of(
-                        McpSchema.Tool.builder()
-                                .name(toolName)
+                        McpSchema.Tool.builder(toolName, Map.of("type", "object"))
                                 .description(description)
-                                .inputSchema(Map.of("type", "object"))
                                 .build()),
                 null,
                 Map.of());

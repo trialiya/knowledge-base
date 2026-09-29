@@ -285,7 +285,7 @@ public class GitCommandController {
             if (chat != null) {
                 chatGitLog.record(chat, verb, project, false, String.valueOf(e.getMessage()), null);
             }
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage(), e);
         } catch (IllegalStateException e) {
             // The command could not be run at all: no git binary, an unreadable HEAD, a reader
             // that never drained. Ours to fix rather than the user's, but it still travels with
