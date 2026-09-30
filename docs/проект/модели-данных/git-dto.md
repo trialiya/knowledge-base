@@ -78,6 +78,18 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | `parser` | String | `"tree-sitter"`, `"regex"` (фолбэк) или `"markdown"` |
 | `symbols` | List\<GitSymbol\> | Символы в порядке появления |
 
+### GitFileBlame
+Авторство строк файла для колонки blame (`GET /api/git/files/blame`). Только REST — модели не отдаётся, `ToolCallResponseItem` не реализует.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `path` | String | Относительный путь |
+| `commit` | String | Полный хеш ревизии снимка; `null` — рабочее дерево |
+| `lineCount` | int | Всего строк в файле |
+| `hunks` | List\<Hunk\> | Диапазоны строк одного коммита, по порядку строк |
+
+`Hunk`: `fromLine`, `lineCount`, `hash`, `shortHash`, `author`, `email`, `date`, `summary`. У строк, которых ещё нет ни в одном коммите, все поля о коммите `null`.
+
 ### OutlineResult
 DTO-обёртка для `getFileOutline`. Реализует `ToolCallResponseItem` и `ToolCallResultMetaProvider`.
 

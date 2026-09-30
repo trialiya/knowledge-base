@@ -47,7 +47,7 @@ git-команды — переключение ветки, stash, коммит,
                    GitService — один экземпляр на проект, открытый JGit Repository
                      ├─ RepoPaths · VisibleFiles · Pathspec   какие пути существуют и как пишутся
                      ├─ RepoFiles · FileViews · CommitFiles · RepoBrowse · Diffs   чтение
-                     ├─ GitGrepRunner (+ GitGrep)              единственный subprocess на чтении
+                     ├─ GitGrepRunner (+ GitGrep) · GitBlameRunner (+ GitBlame)   subprocess git на чтении, через GitReadProcess
                      ├─ GitWriter                              правки модели — в индекс, без коммита
                      ├─ GitBranches                            ветка, upstream, ahead/behind
                      └─ GitCommands                            fetch · pull · push · switch · stash · commit · discard · merge --abort
@@ -129,6 +129,7 @@ Unicode — bidi-переопределения и разделители чип
 | Патч одного файла — до 500 строк | `Diffs.MAX_DIFF_LINES` |
 | Блоб из истории, который поднимается в память целиком, — до 32 МБ | `CommitFiles.MAX_BLOB_SIZE` |
 | `git grep` — 20 секунд и 20 000 строк вывода | `GitGrepRunner.GREP_TIMEOUT`, `MAX_OUTPUT_LINES` |
+| `git blame` — 20 секунд и 400 000 строк вывода (при переполнении — отказ, не усечение) | `GitBlameRunner.BLAME_TIMEOUT`, `MAX_OUTPUT_LINES` |
 | Сообщение коммита — 4000 символов, файлов в одном коммите — 1000 | `GitCommands.MAX_MESSAGE_CHARS`, `MAX_COMMIT_PATHS` |
 
 Служебный мусор ОС и IDE (`.DS_Store`, `Thumbs.db` и подобное) вырезается из выдачи всегда —
@@ -138,7 +139,7 @@ Unicode — bidi-переопределения и разделители чип
 
 У чтения два источника, и это два разных пути в коде, а не флаг. **Рабочее дерево** — то, что на
 диске: с незакоммиченными правками, с untracked-зоной, с размером файла и признаком «отслеживается».
-**Дерево коммита** (`CommitFiles`, параметр `rev` у `browse`, `files/content`, `grep`, `tree`) —
+**Дерево коммита** (`CommitFiles`, параметр `rev` у `browse`, `files/content`, `files/blame`, `grep`, `tree`) —
 `git show <rev>:<path>` точечными чтениями, без обхода дерева целиком: файл там существует в одних
 коммитах и отсутствует в других, размера на диске у него нет, а по одному пути в разных коммитах
 лежат разные объекты. `rev` — что угодно, что git понимает как коммит: хеш полный или короткий,
@@ -174,14 +175,19 @@ Unicode — bidi-переопределения и разделители чип
 
 Всё, что можно, делается **в процессе через JGit** — без argv, без разбора текстового вывода, с
 ответами в типах (`MergeResult` несёт пути конфликтов, а не строку, которую надо парсить). Наружу
-выходят три вещи, и у каждой своя причина:
+выходят четыре вещи, и у каждой своя причина:
 
 | Операция | Как выполняется | Почему |
 |---|---|---|
-| `git grep` (`grepContent`, `GET /api/git/grep`) | subprocess `git grep` (`GitGrepRunner`, командная строка — `GitGrep`) | У JGit нет grep. Единственный subprocess на чтении: дедлайн и разбор кодов выхода git живут здесь и больше нигде |
+| `git grep` (`grepContent`, `GET /api/git/grep`) | subprocess `git grep` (`GitGrepRunner`, командная строка — `GitGrep`) | У JGit нет grep |
+| `git blame` (`getBlame`, `GET /api/git/files/blame`) | subprocess `git blame --porcelain` (`GitBlameRunner`, командная строка — `GitBlame`) | Blame у JGit есть, но он не умеет пропускать коммиты из `.git-blame-ignore-revs`; колонка, приписывающая каждую строку переформатированию, бесполезна. Список игнорируемых коммитов уезжает по `--ignore-rev` на каждый: файл читается из того дерева, которое смотрят (для снимка — из коммита), и кривая строка в нём не валит запрос, как сделал бы `--ignore-revs-file` |
 | `fetch`, `pull`, `push` | subprocess `git` | Нужны учётные данные хоста — ssh-agent, credential helper, `insteadOf`; системный git их уже знает, а учить им JGit значило бы воспроизводить окружение вместо того, чтобы им пользоваться |
 | `merge --abort` | subprocess `git` | JGit этого не умеет |
 | `switch`, `stash`, `commit`, `discard`, статус, история, диффы, чтение | JGit | Ничего, кроме этого репозитория, им не нужно |
+
+Запуск read-only subprocess (дедлайн через watchdog, drain stderr, потолок строк вывода) — один
+на grep и blame: `GitReadProcess`. Что значат код выхода и строки, решает вызывающий: у grep exit 1
+— «не нашлось», у blame — отказ.
 
 Shell нет ни в одном случае: `ProcessBuilder` получает массив аргументов, глагол всегда наш, а
 пользовательский ввод доходит до команды проверенным именем ветки, repo-relative путём или
@@ -205,9 +211,9 @@ Shell нет ни в одном случае: `ProcessBuilder` получает 
 — команда отказала: для subprocess это собственный вывод git без пересказа («Permission denied
 (publickey)», «couldn't find remote ref» — это и есть подсказка, что чинить), для JGit-команд —
 такая же короткая фраза от приложения («No such branch», «Nothing to commit»);
-`IllegalStateException` — команду не удалось запустить вовсе; `GitReadTimeoutException` — поиск не
-уложился в дедлайн (`503` на странице поиска; модели уходит само сообщение о таймауте, и сузить
-поиск — её решение); `GitBusyException` —
+`IllegalStateException` — команду не удалось запустить вовсе; `GitReadTimeoutException` — поиск или blame не
+уложился в дедлайн (`503` на странице поиска и у колонки blame; модели уходит само сообщение о
+таймауте, и сузить поиск — её решение); `GitBusyException` —
 репозиторий занят другой командой (§7).
 
 ### 6. Правки модели: рабочее дерево, но не история
@@ -344,10 +350,10 @@ stash и только потом отказывает, и панель, обно
 | Слой | Файлы |
 |---|---|
 | Проекты | `config/model/ProjectProperties.java`, `config/model/GitProperties.java` (запасная однопроектная форма `kb.git.project-path`, когда `kb.projects` пуст), `model/project/Project.java`, `service/file/project/ProjectCatalog.java`, `tools/ProjectContext.java` |
-| Репозиторий | `service/file/git/` — `GitRegistry`, `GitService`, `GitWriter`, `GitBranches`, `GitCommands`, `GitGrepRunner`/`GitGrep`, `RepoPaths`, `VisibleFiles`, `Pathspec`, `RepoFiles`, `FileViews`, `CommitFiles`, `RepoBrowse`, `Diffs`, `PreviewMedia` |
+| Репозиторий | `service/file/git/` — `GitRegistry`, `GitService`, `GitWriter`, `GitBranches`, `GitCommands`, `GitGrepRunner`/`GitGrep`, `GitBlameRunner`/`GitBlame`, `GitReadProcess`, `RepoPaths`, `VisibleFiles`, `Pathspec`, `RepoFiles`, `FileViews`, `CommitFiles`, `RepoBrowse`, `Diffs`, `PreviewMedia` |
 | Инструменты | `functions/GitFunction.java`, `functions/GitEditFunction.java`, `service/chat/script/ScriptEditPolicy.java` |
 | Эндпоинты | `controller/GitController.java`, `controller/GitCommandController.java`, `controller/ChatFileRevertController.java` |
 | Чат | `service/chat/git/` — `ChatGitLog`, `ChatFileRevert`, `FileRevertPlan`; `model/chat/entity/GitEventMeta.java` |
 | DTO | `model/git/dto/` — см. [Git DTO](модели-данных/git-dto.md) |
 | Деплой | `docker/start.sh` (`safe.directory`), `docker/Dockerfile` (git в runtime-образе) |
-| Тесты | `backend/src/test/.../service/file/git/` (по классу на срез: команды, ветки, grep, `allow-globs`, символьные ссылки, снимки коммитов, правки, откат), `service/chat/git/`, `GitControllerTest`, `GitCommandChatTest`, `GitFunctionTest`, `GitEditFunctionTest`; на фронте — тесты рядом с каждым файлом из §9 |
+| Тесты | `backend/src/test/.../service/file/git/` (по классу на срез: команды, ветки, grep, blame, `allow-globs`, символьные ссылки, снимки коммитов, правки, откат), `service/chat/git/`, `GitControllerTest`, `GitCommandChatTest`, `GitFunctionTest`, `GitEditFunctionTest`; на фронте — тесты рядом с каждым файлом из §9 |

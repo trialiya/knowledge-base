@@ -31,7 +31,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * every path that names a repository — addresses, chips, tool arguments and results, the chat's
  * stored project and the switch marker in its history — carries the project id. The deployment has
  * to back them: one mount per project, and {@code git safe.directory} covering each mounted path
- * ({@code git grep} runs as a subprocess), see {@code docs/проект/конфигурация.md}.
+ * ({@code git grep} and {@code git blame} run as subprocesses), see {@code docs/проект/конфигурация.md}.
  *
  * <p>Entries switched off with {@code enabled: false} do not count and are not validated, which is
  * how a project is prepared before its mount exists: the block sits in the configuration, reachable

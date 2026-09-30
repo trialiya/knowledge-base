@@ -10,11 +10,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import io.github.trialiya.kb.model.git.dto.GitFileBytes;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitSymbol;
+import io.github.trialiya.kb.service.file.git.GitReadTimeoutException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
+import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -88,6 +91,43 @@ class GitControllerTest {
 
         mockMvc.perform(get("/api/git/files/outline").param("path", "notes.txt"))
                 .andExpect(status().isBadRequest());
+    }
+
+    /** Blame с ревизией читает снимок; ханки уезжают как есть, с полным хешем и коротким. */
+    @Test
+    void blameIsReadFromTheRevisionWhenOneIsNamed() throws Exception {
+        String hash = "a".repeat(40);
+        when(git.getBlameAt("v1", "README.md"))
+                .thenReturn(new GitFileBlame(
+                        "README.md",
+                        hash,
+                        2,
+                        List.of(new GitFileBlame.Hunk(
+                                1,
+                                2,
+                                hash,
+                                "aaaaaaa",
+                                "Alice",
+                                "alice@example.com",
+                                OffsetDateTime.parse("2024-01-02T03:04:05+03:00"),
+                                "first"))));
+
+        mockMvc.perform(get("/api/git/files/blame").param("path", "README.md").param("rev", "v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.commit").value(hash))
+                .andExpect(jsonPath("$.hunks[0].shortHash").value("aaaaaaa"))
+                .andExpect(jsonPath("$.hunks[0].lineCount").value(2));
+    }
+
+    /** Файл без истории — ошибка запроса; blame, не уложившийся в дедлайн, — 503, как у grep. */
+    @Test
+    void blameOfAnUntrackedFileIsABadRequestAndATimeoutIsUnavailable() throws Exception {
+        when(git.getBlame("new.txt")).thenThrow(new IllegalArgumentException("File is not tracked: new.txt"));
+        when(git.getBlame("slow.txt")).thenThrow(new GitReadTimeoutException("git blame did not finish"));
+
+        mockMvc.perform(get("/api/git/files/blame").param("path", "new.txt")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/git/files/blame").param("path", "slow.txt"))
+                .andExpect(status().isServiceUnavailable());
     }
 
     /** Коммит без ревизии не назван вовсе: «рабочее дерево» у этого запроса не ответ. */
