@@ -1,12 +1,14 @@
 package io.github.trialiya.kb.service.file.git;
 
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.jspecify.annotations.Nullable;
 
@@ -75,9 +77,14 @@ final class GitBlameRunner {
         if (!resolved.tracked()) {
             throw new IllegalArgumentException("File is not tracked: " + normalized);
         }
+        // A tracked file whose repository has no commit yet (a staged file on an unborn branch)
+        // is git's `fatal: no such ref: HEAD` — the caller's situation, not a failure here.
+        if (resolve("HEAD") == null) {
+            throw new IllegalArgumentException("Repository has no commits yet: " + normalized);
+        }
         byte[] head = RepoFiles.readWindow(normalized, resolved.absolute(), 0, RepoFiles.BINARY_SNIFF_BYTES);
         requireText(normalized, head);
-        List<String> ignored = GitBlame.ignoredRevs(workingTreeIgnoreFile());
+        List<String> ignored = resolvable(GitBlame.ignoredRevs(workingTreeIgnoreFile()));
         return run(normalized, ignored, null);
     }
 
@@ -94,8 +101,34 @@ final class GitBlameRunner {
         String commit = CommitFiles.commitOf(repository, rev.strip()).name();
         CommitFiles.Blob blob = CommitFiles.read(repository, commit, normalized);
         requireText(normalized, blob.bytes());
-        List<String> ignored = GitBlame.ignoredRevs(snapshotIgnoreFile(commit));
+        List<String> ignored = resolvable(GitBlame.ignoredRevs(snapshotIgnoreFile(commit)));
         return run(normalized, ignored, commit);
+    }
+
+    /**
+     * Only the revisions this repository can name: git refuses the whole run on an {@code
+     * --ignore-rev} it cannot find, and a shallow or partial clone — or a history rewritten since
+     * the file was written — does not hold every hash the file lists. A commit not in the clone
+     * cannot be blamed for a line anyway, so leaving it out changes nothing in the answer.
+     */
+    private List<String> resolvable(List<String> revs) {
+        return revs.stream().filter(rev -> resolve(rev) != null).toList();
+    }
+
+    /**
+     * The object {@code rev} names, or {@code null} when the repository does not hold it. {@code
+     * resolve} alone is not that check: a full 40-hex hash it hands back as is, never having
+     * looked for the object.
+     */
+    private @Nullable ObjectId resolve(String rev) {
+        try {
+            ObjectId id = repository.resolve(rev);
+            return id != null && repository.getObjectDatabase().has(id) ? id : null;
+        } catch (IOException | RuntimeException e) {
+            // An ambiguous abbreviation or an unreadable object is as good as absent here.
+            log.debug("Cannot resolve {} in {}", rev, paths.root(), e);
+            return null;
+        }
     }
 
     private GitFileBlame run(String normalized, List<String> ignored, @Nullable String commit) {

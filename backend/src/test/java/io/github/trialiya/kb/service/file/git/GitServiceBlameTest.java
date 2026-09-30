@@ -87,6 +87,49 @@ class GitServiceBlameTest {
         assertThat(before.hunks()).extracting(GitFileBlame.Hunk::summary).containsExactly("reformat");
     }
 
+    /**
+     * После переименования строки из старого коммита несут путь, под которым файл лежал тогда:
+     * ссылка на файл в снимке того коммита по нынешнему имени открыла бы «не найдено».
+     */
+    @Test
+    void hunksCarryThePathTheFileHadInTheirCommit() {
+        writeFile("old.txt", "a\nb\nc\n");
+        commitAll("first");
+        runGit("mv", "old.txt", "new.txt");
+        writeFile("new.txt", "a\nX\nc\n");
+        commitAll("renamed and changed");
+
+        GitFileBlame blame = service.getBlame("new.txt");
+
+        assertThat(blame.hunks())
+                .extracting(GitFileBlame.Hunk::summary, GitFileBlame.Hunk::path)
+                .containsExactly(
+                        tuple("first", "old.txt"), tuple("renamed and changed", "new.txt"), tuple("first", "old.txt"));
+    }
+
+    /** Неглубокий клон не знает коммита из игнор-файла — git на такой {@code --ignore-rev} отказывает целиком. */
+    @Test
+    void anIgnoredRevisionTheRepositoryDoesNotHoldIsLeftOut() {
+        writeFile("f.txt", "one\n");
+        commitAll("first");
+        writeFile(GitBlameRunner.IGNORE_REVS_FILE, "0123456789abcdef0123456789abcdef01234567\n");
+
+        assertThat(service.getBlame("f.txt").hunks())
+                .extracting(GitFileBlame.Hunk::summary)
+                .containsExactly("first");
+    }
+
+    /** Файл в индексе репозитория без единого коммита: истории нет — это ошибка запроса. */
+    @Test
+    void aStagedFileOnAnUnbornBranchIsTheCallersMistake() {
+        writeFile("f.txt", "one\n");
+        runGit("add", "-A");
+
+        assertThatThrownBy(() -> service.getBlame("f.txt"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no commits");
+    }
+
     /** Строки, которых ещё нет в истории, приходят ханком без коммита. */
     @Test
     void uncommittedLinesHaveNoCommit() {

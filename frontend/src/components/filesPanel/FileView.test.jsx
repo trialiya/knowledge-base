@@ -170,6 +170,8 @@ describe('FileView', () => {
         author: 'Alice',
         date: '2024-01-02T03:04:05Z',
         summary: 'first',
+        // Файл в том коммите лежал под старым именем: ссылка ведёт по нему.
+        path: 'old.js',
       },
       { fromLine: 3, lineCount: 1, hash: null },
     ];
@@ -205,12 +207,12 @@ describe('FileView', () => {
       expect(screen.getByText('file.blameUncommitted')).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /Alice/ })).toHaveAttribute(
         'href',
-        `/files/a.js?project=kb&rev=${hash}&right=commit`,
+        `/files/old.js?project=kb&rev=${hash}&right=commit`,
       );
 
       await user.click(screen.getByRole('link', { name: /Alice/ }));
 
-      expect(navigateToFile).toHaveBeenCalledWith('a.js', 'kb', { rev: hash, right: 'commit' });
+      expect(navigateToFile).toHaveBeenCalledWith('old.js', 'kb', { rev: hash, right: 'commit' });
     });
 
     // Номера строк усечённого файла не настоящие, у неотслеживаемого истории нет,

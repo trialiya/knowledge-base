@@ -88,7 +88,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | `lineCount` | int | Всего строк в файле |
 | `hunks` | List\<Hunk\> | Диапазоны строк одного коммита, по порядку строк |
 
-`Hunk`: `fromLine`, `lineCount`, `hash`, `shortHash`, `author`, `email`, `date`, `summary`. У строк, которых ещё нет ни в одном коммите, все поля о коммите `null`.
+`Hunk`: `fromLine`, `lineCount`, `hash`, `shortHash`, `author`, `email`, `date`, `summary`, `path` (путь файла в том коммите — после переименования не совпадает с текущим). У строк, которых ещё нет ни в одном коммите, все поля о коммите `null`.
 
 ### OutlineResult
 DTO-обёртка для `getFileOutline`. Реализует `ToolCallResponseItem` и `ToolCallResultMetaProvider`.

@@ -91,7 +91,8 @@ final class GitBlame {
      * author-mail}, {@code author-time}, {@code author-tz}, {@code summary}, …), one {@code key
      * value} per line; every line of the file follows its own header, prefixed by a tab. The count
      * is present on the first header of a hunk only, and the headers of the hunk's remaining lines
-     * are skipped over here: a hunk is one record, not one per line.
+     * are skipped over here: a hunk is one record, not one per line. {@code filename} — the path as
+     * of that commit — comes with the commit's fields, once per commit.
      *
      * @throws IllegalStateException if the output does not have that shape — git changed it, or the
      *     run was cut short
@@ -130,7 +131,7 @@ final class GitBlame {
     /** A hunk as its header names it, before the commit's fields are known. */
     private static GitFileBlame.Hunk bare(String sha, int fromLine, int count) {
         return new GitFileBlame.Hunk(
-                fromLine, count, UNCOMMITTED.equals(sha) ? null : sha, null, null, null, null, null);
+                fromLine, count, UNCOMMITTED.equals(sha) ? null : sha, null, null, null, null, null, null);
     }
 
     /** One commit's fields, gathered off the {@code key value} lines that follow its first header. */
@@ -138,6 +139,7 @@ final class GitBlame {
         private @Nullable String author;
         private @Nullable String email;
         private @Nullable String summary;
+        private @Nullable String path;
         private long time;
         private @Nullable String tz;
 
@@ -151,8 +153,9 @@ final class GitBlame {
                 case "author-time" -> time = Long.parseLong(value);
                 case "author-tz" -> tz = value;
                 case "summary" -> summary = value;
+                case "filename" -> path = value;
                 default -> {
-                    // committer-*, previous, filename, boundary: nothing the column shows.
+                    // committer-*, previous, boundary: nothing the column shows.
                 }
             }
         }
@@ -170,7 +173,8 @@ final class GitBlame {
                     author,
                     email,
                     date(),
-                    summary);
+                    summary,
+                    path);
         }
 
         /** The author's moment in the author's own offset; an offset git printed oddly falls back to UTC. */

@@ -35,6 +35,8 @@ public record GitFileBlame(String path, @Nullable String commit, int lineCount, 
      * @param email почта автора
      * @param date дата авторства
      * @param summary первая строка сообщения коммита
+     * @param path путь файла в этом коммите — после переименования он отличается от текущего, и
+     *     ссылка на файл в снимке того коммита ведёт по нему
      */
     public record Hunk(
             int fromLine,
@@ -44,5 +46,6 @@ public record GitFileBlame(String path, @Nullable String commit, int lineCount, 
             @Nullable String author,
             @Nullable String email,
             @Nullable OffsetDateTime date,
-            @Nullable String summary) {}
+            @Nullable String summary,
+            @Nullable String path) {}
 }

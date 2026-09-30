@@ -31,10 +31,12 @@ export function formatDateTime(value, locale) {
 }
 
 /**
- * Момент относительно «сейчас» в локали интерфейса: «5 минут назад», «вчера»,
- * дальше суток — короткая дата. Плюрализацию и слова даёт нативный
- * Intl.RelativeTimeFormat, поэтому ключей перевода не нужно. null для пустого,
- * битого или будущего значения.
+ * Момент относительно «сейчас» в локали интерфейса: «5 минут назад», «2 часа
+ * назад», дальше суток — короткая дата, в другом году — с годом (иначе два
+ * коммита с разницей в годы читались бы одинаково). Плюрализацию и слова даёт
+ * нативный Intl.RelativeTimeFormat, поэтому ключей перевода не нужно. null для
+ * пустого или битого значения; момент из будущего (часы разошлись) — датой, а
+ * не пустотой.
  *
  * Одна подпись для времени сообщения в чате и для колонки blame: «когда» в
  * интерфейсе должно читаться одинаково.
@@ -43,13 +45,14 @@ export function formatRelativeTime(value, locale) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  const diffMs = Date.now() - date.getTime();
-  if (diffMs < 0) return null;
-  const diffMin = Math.floor(diffMs / 60000);
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
-  if (diffMin < 1) return rtf.format(0, 'minute');
-  if (diffMin < 60) return rtf.format(-diffMin, 'minute');
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return rtf.format(-diffH, 'hour');
-  return date.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+  const now = new Date();
+  const diffMin = Math.floor((now.getTime() - date.getTime()) / 60000);
+  if (diffMin >= 0 && diffMin < 60 * 24) {
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    if (diffMin < 1) return rtf.format(0, 'minute');
+    if (diffMin < 60) return rtf.format(-diffMin, 'minute');
+    return rtf.format(-Math.floor(diffMin / 60), 'hour');
+  }
+  const sameYear = date.getFullYear() === now.getFullYear();
+  return date.toLocaleDateString(locale, { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
 }

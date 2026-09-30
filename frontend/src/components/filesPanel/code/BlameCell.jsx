@@ -9,7 +9,9 @@ import { formatDateTime, formatRelativeTime } from '@/utils/formatting';
  * Ячейка колонки blame: кто и когда последним менял строки ханка. Клик
  * открывает этот же файл в снимке того коммита с вкладкой «Коммит» справа —
  * одним переходом (см. navStore.openFilePath); Ctrl/Cmd+клик — браузеру, по
- * тому же адресу. Ханк без коммита — незакоммиченная правка: вести некуда.
+ * тому же адресу. Путь — тот, под которым файл лежал в том коммите
+ * (`hunk.path`): после переименования нынешнее имя там не найдётся. Ханк без
+ * коммита — незакоммиченная правка: вести некуда.
  *
  * `data-find-skip`: Ctrl+F в файле ищет по тексту, а не по авторам и хешам.
  */
@@ -23,11 +25,12 @@ const BlameCell = ({ hunk, span, path, project }) => {
       </td>
     );
   }
-  const href = filesUrl(path, project, { rev: hunk.hash, right: FILE_TAB.COMMIT });
+  const target = hunk.path || path;
+  const href = filesUrl(target, project, { rev: hunk.hash, right: FILE_TAB.COMMIT });
   const onClick = (e) => {
     if (isBrowserClick(e)) return;
     e.preventDefault();
-    navigateToFile(path, project, { rev: hunk.hash, right: FILE_TAB.COMMIT });
+    navigateToFile(target, project, { rev: hunk.hash, right: FILE_TAB.COMMIT });
   };
   const when = formatDateTime(hunk.date, i18n.language);
   const title = [hunk.summary, `${hunk.author}${when ? ` · ${when}` : ''}`].filter(Boolean).join('\n');

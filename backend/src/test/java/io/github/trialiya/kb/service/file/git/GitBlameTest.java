@@ -71,7 +71,7 @@ class GitBlameTest {
                 "committer-time 1700000000",
                 "committer-tz +0300",
                 "summary first",
-                "filename f.txt",
+                "filename old.txt",
                 "\tline one",
                 A + " 2 2",
                 "\tline two",
@@ -101,6 +101,9 @@ class GitBlameTest {
                         tuple(1, 2, "aaaaaaa", "Alice", "alice@example.com", "first"),
                         tuple(3, 1, "bbbbbbb", "Bob", "bob@example.com", "second"),
                         tuple(4, 1, "aaaaaaa", "Alice", "alice@example.com", "first"));
+        // Путь — из полей коммита: второй ханк первого коммита приходит одним заголовком, без
+        // filename, и путь берёт с первого появления.
+        assertThat(hunks).extracting(GitFileBlame.Hunk::path).containsExactly("old.txt", "f.txt", "old.txt");
         assertThat(hunks.get(0).date()).isEqualTo(OffsetDateTime.parse("2023-11-15T01:13:20+03:00"));
         assertThat(hunks.get(1).date()).isEqualTo(OffsetDateTime.parse("2023-11-14T23:13:20Z"));
     }
@@ -124,6 +127,7 @@ class GitBlameTest {
             assertThat(h.shortHash()).isNull();
             assertThat(h.author()).isNull();
             assertThat(h.date()).isNull();
+            assertThat(h.path()).isNull();
         });
     }
 
