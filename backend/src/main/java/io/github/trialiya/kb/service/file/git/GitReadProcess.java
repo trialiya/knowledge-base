@@ -178,13 +178,14 @@ final class GitReadProcess {
     /**
      * One line of git's output, ended by {@code \n} alone — a trailing {@code \r} (a CRLF file)
      * is dropped, a bare {@code \r} inside the line is kept. {@link BufferedReader#readLine} ends
-     * a line at a bare {@code \r} too, and both commands print file content verbatim: a source
-     * line holding one would come back as two, the second without the prefix that marks it as
-     * content, to be read as something else by the parser.
+     * a line at a bare {@code \r} too, and git prints file content verbatim: a source line
+     * holding one would come back as two, the second without the prefix that marks it as content,
+     * to be read as something else by the parser. Shared with {@link GitCommands}, whose output
+     * is shown rather than parsed, so that a line git printed is a line there too.
      *
      * @return the line without its terminator, or {@code null} at end of stream
      */
-    private static @Nullable String readLine(BufferedReader reader) throws IOException {
+    static @Nullable String readLine(BufferedReader reader) throws IOException {
         StringBuilder line = new StringBuilder();
         int c;
         while ((c = reader.read()) >= 0) {
