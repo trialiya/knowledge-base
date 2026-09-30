@@ -17,6 +17,7 @@ import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -74,6 +75,9 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     @Autowired
     private ToolCallIndexRepository toolCallIndexRepo;
 
+    @Autowired
+    private ToolCallFullResultRepository toolCallFullResultRepo;
+
     private ChatHistoryService memory() {
         return new ChatHistoryService(
                 messageRepo,
@@ -85,7 +89,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     }
 
     private ToolCallService toolCalls() {
-        return new ToolCallService(messageRepo, toolCallIndexRepo);
+        return new ToolCallService(messageRepo, toolCallIndexRepo, toolCallFullResultRepo);
     }
 
     private ChatSearchService search() {

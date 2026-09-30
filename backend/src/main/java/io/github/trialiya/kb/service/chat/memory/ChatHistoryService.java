@@ -205,16 +205,17 @@ public class ChatHistoryService {
     }
 
     /**
-     * @param scope идущий прогон, записавший эти сообщения: у него коллектор помнит результат
-     *     вызова целиком там, где модели ушёл урезанный вид ({@code ModelView}), — он ложится в
-     *     {@code ToolData.Response#fullData}. {@code null} — прогона нет, ответы пишутся как есть
+     * @param scope идущий прогон, записавший эти сообщения: его коллектор помнит результат вызова
+     *     целиком там, где модели ушёл урезанный вид ({@code ModelView}), — он уходит в свою
+     *     таблицу ({@link ToolCallService#keepFullResults}). {@code null} — прогона нет, помнить
+     *     нечего
      */
     @Transactional
     public void append(String conversationId, List<Message> messages, @Nullable RunScope scope) {
         final AtomicLong position = new AtomicLong(lastPosition(conversationId));
         final List<ChatMessageEntity> newRows = messages.stream()
                 .filter(message -> !(message instanceof IMessage))
-                .map(message -> new Pending(message, toolDataOf(message, scope)))
+                .map(message -> new Pending(message, toolDataOf(message)))
                 .filter(p -> Strings.isNotBlank(p.message().getText()) || p.hasToolData())
                 .map(p -> new ChatMessageEntity(
                         0,
@@ -232,6 +233,7 @@ public class ChatHistoryService {
         final List<ChatMessageEntity> saved = new ArrayList<>();
         chatMessageRepository.saveAll(newRows).forEach(saved::add);
         toolCalls.index(conversationId, saved);
+        toolCalls.keepFullResults(saved, scope);
         toolCallEvents.publish(conversationId, saved);
     }
 
@@ -427,8 +429,7 @@ public class ChatHistoryService {
                     final List<ToolData.Call> calls = Objects.requireNonNull(
                             Objects.requireNonNull(last.getToolData()).toolCalls());
                     final List<ToolData.Response> responses = calls.stream()
-                            .map(c -> new ToolData.Response(c.id(), c.name(), responseText(scope, c.id()))
-                                    .withFullData(fullText(scope, c.id())))
+                            .map(c -> new ToolData.Response(c.id(), c.name(), responseText(scope, c.id())))
                             .toList();
                     log.info(
                             "Repairing dangling tool_calls tail for {} ({} synthetic responses)",
@@ -450,6 +451,7 @@ public class ChatHistoryService {
                     // «ответа ещё нет», то есть модалка деталей показывает работающим
                     // инструмент, который уже никогда не ответит.
                     toolCalls.index(conversationId, List.of(repaired));
+                    toolCalls.keepFullResults(List.of(repaired), scope);
                 });
     }
 
@@ -469,19 +471,6 @@ public class ChatHistoryService {
         return outcome.resultText() != null
                 ? outcome.resultText()
                 : Objects.requireNonNullElse(outcome.error(), NO_RESULT);
-    }
-
-    /**
-     * Результат вызова целиком, если модели ушёл его урезанный вид (см. {@code ModelView}); {@code
-     * null} — модель получила его как есть, либо прогон этот вызов не помнит.
-     */
-    private static @Nullable String fullText(@Nullable RunScope scope, String callId) {
-        if (scope == null) {
-            return null;
-        }
-        final RunScope.StartedCall started = scope.startedCall(callId);
-        final ToolInvocation outcome = started == null ? null : scope.completedCall(started.callIndex());
-        return outcome == null ? null : outcome.fullResultText();
     }
 
     /**
@@ -652,30 +641,15 @@ public class ChatHistoryService {
     }
 
     /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */
-    private static @Nullable ToolData toolDataOf(Message message, @Nullable RunScope scope) {
+    private static @Nullable ToolData toolDataOf(Message message) {
         if (message instanceof AssistantMessage assistantMessage && assistantMessage.hasToolCalls()) {
             return sanitizeToolCallArguments(ToolData.from(assistantMessage));
         }
         if (message instanceof ToolResponseMessage toolResponseMessage
                 && !toolResponseMessage.getResponses().isEmpty()) {
-            return withFullData(ToolData.from(toolResponseMessage), scope);
+            return ToolData.from(toolResponseMessage);
         }
         return null;
-    }
-
-    /**
-     * Дописывает к ответам результат целиком там, где модели ушёл урезанный вид: сообщение Spring
-     * AI несёт только текст для модели, целиком результат помнит коллектор прогона.
-     */
-    private static ToolData withFullData(ToolData toolData, @Nullable RunScope scope) {
-        if (scope == null || toolData.responses() == null) {
-            return toolData;
-        }
-        return new ToolData(
-                null,
-                toolData.responses().stream()
-                        .map(response -> response.withFullData(fullText(scope, response.id())))
-                        .toList());
     }
 
     /**

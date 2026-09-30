@@ -12,6 +12,7 @@ import io.github.trialiya.kb.config.PgVectorJdbcConfig;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -73,6 +74,9 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
     @Autowired
     private ToolCallIndexRepository toolCallIndexRepo;
 
+    @Autowired
+    private ToolCallFullResultRepository toolCallFullResultRepo;
+
     @Test
     void selectedModelReachesModelLayerAndReplyIsPersisted() {
         String conversationId = UUID.randomUUID().toString();
@@ -81,7 +85,7 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
         ChatHistoryService history = new ChatHistoryService(
                 messageRepo,
                 new ContextItemService(mock(AttachmentService.class)),
-                new ToolCallService(messageRepo, toolCallIndexRepo),
+                new ToolCallService(messageRepo, toolCallIndexRepo, toolCallFullResultRepo),
                 new ToolCallEventPublisher(
                         new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))), new RunRegistry()),
                 ActiveProjectNotices.silent());

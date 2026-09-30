@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.FileRevertMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
@@ -37,7 +38,7 @@ class ChatHistoryFileRevertTest {
     private final ChatHistoryService service = new ChatHistoryService(
             chatMessageRepository,
             contextItemService,
-            new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
+            new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class), mock(ToolCallFullResultRepository.class)),
             new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
             ActiveProjectNotices.silent());
 

@@ -24,6 +24,7 @@ import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.AttachmentRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
@@ -88,6 +89,9 @@ class ContextItemsTest {
     private ToolCallIndexRepository toolCallIndexRepo;
 
     @Autowired
+    private ToolCallFullResultRepository toolCallFullResultRepo;
+
+    @Autowired
     private AttachmentRepository attachmentRepo;
 
     private AttachmentService attachmentService;
@@ -101,7 +105,7 @@ class ContextItemsTest {
         memoryService = new ChatHistoryService(
                 messageRepo,
                 contextItemService,
-                new ToolCallService(messageRepo, toolCallIndexRepo),
+                new ToolCallService(messageRepo, toolCallIndexRepo, toolCallFullResultRepo),
                 new ToolCallEventPublisher(
                         new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))), new RunRegistry()),
                 ActiveProjectNotices.silent());

@@ -188,6 +188,10 @@ class SampleDataFixtureTest {
         // первой же паузе.
         assertThat(jdbc.queryForObject("select count(*) from chat_pending_summary", Integer.class))
                 .isEqualTo(0);
+        // Полный результат есть только у вызова, чей ответ модели урезан (скрипты), а в
+        // захваченных чатах скриптов нет.
+        assertThat(jdbc.queryForObject("select count(*) from tool_call_full_result", Integer.class))
+                .isEqualTo(0);
     }
 
     @Test

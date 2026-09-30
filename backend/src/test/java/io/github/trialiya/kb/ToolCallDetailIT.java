@@ -10,11 +10,13 @@ import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
+import io.github.trialiya.kb.model.tool.ToolCallFullResultEntity;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -32,6 +34,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -64,8 +67,11 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     @Autowired
     private ToolCallIndexRepository toolCallIndexRepo;
 
+    @Autowired
+    private ToolCallFullResultRepository toolCallFullResultRepo;
+
     private ToolCallService toolCalls() {
-        return new ToolCallService(messageRepo, toolCallIndexRepo);
+        return new ToolCallService(messageRepo, toolCallIndexRepo, toolCallFullResultRepo);
     }
 
     private ChatHistoryService history() {
@@ -366,6 +372,49 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                 (ToolResponseMessage) history.promptMessages(conv).getLast();
         assertThat(replayed.getResponses())
                 .containsExactly(new ToolResponseMessage.ToolResponse("call_s", "runScript", shown));
+        // Целое — только в своей таблице: в протокольных tool_data его нет вовсе.
+        ChatMessageEntity toolRow = messageRepo
+                .findById(Objects.requireNonNull(toolCallIndexRepo
+                        .findByConversationIdAndCallId(conv, "call_s")
+                        .orElseThrow()
+                        .getResponseMessageId()))
+                .orElseThrow();
+        assertThat(toolRow.getToolData().responses())
+                .containsExactly(new ToolData.Response("call_s", "runScript", shown));
+        assertThat(toolCallFullResultRepo.findByMessageIdAndCallId(toolRow.getId(), "call_s"))
+                .get()
+                .extracting(ToolCallFullResultEntity::getResultText)
+                .isEqualTo(whole);
+
+        // И живёт ровно столько, сколько TOOL-ряд: удаление ряда уносит его каскадом.
+        history.delete(conv);
+        assertThat(toolCallFullResultRepo.findByMessageIdAndCallId(toolRow.getId(), "call_s"))
+                .isEmpty();
+    }
+
+    /** Без идущего прогона полному тексту взяться неоткуда: деталь отдаёт то, что видела модель. */
+    @Test
+    void responseWithoutRunKeepsNoSecondVersion() {
+        String conv = UUID.randomUUID().toString();
+        ChatHistoryService history = history();
+
+        history.append(
+                conv,
+                List.of(AssistantMessage.builder()
+                        .content("")
+                        .toolCalls(List.of(new AssistantMessage.ToolCall("call_n", "function", "runScript", "{}")))
+                        .build()));
+        history.append(
+                conv,
+                List.of(ToolResponseMessage.builder()
+                        .responses(List.of(new ToolResponseMessage.ToolResponse("call_n", "runScript", "{}")))
+                        .build()));
+
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_n");
+
+        assertThat(detail).isPresent();
+        assertThat(detail.get().resultText()).isEqualTo("{}");
+        assertThat(detail.get().fullResultText()).isNull();
     }
 
     /**

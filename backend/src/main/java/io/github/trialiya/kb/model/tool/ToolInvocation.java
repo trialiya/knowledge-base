@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
  *     project}
  * @param fullResultText JSON результата целиком, когда {@code resultText} — то, чем ответили модели,
  *     — его урезанный вид ({@link ModelView}); {@code null}, если модель получила результат
- *     целиком. В памяти прогона; в истории то же лежит в {@code ToolData.Response#fullData}
+ *     целиком. В памяти прогона; сохраняется в {@code tool_call_full_result}, не в {@code tool_data}
  */
 public record ToolInvocation(
         String name,
