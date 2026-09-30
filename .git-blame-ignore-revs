@@ -1,0 +1,9 @@
+# Коммиты, которые `git blame` пропускает: массовые переформатирования без
+# смены поведения. GitHub подхватывает файл сам; локально:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Сюда попадает SHA коммита, уже лежащего в main. Поэтому такие PR сливаем
+# merge commit'ом: squash и rebase дают в main другой SHA.
+
+# Переход Spotless на palantirJavaFormat (#476)
+f8e9f8b69d43a01cb9d1028d0fbcfd32ca47e830
