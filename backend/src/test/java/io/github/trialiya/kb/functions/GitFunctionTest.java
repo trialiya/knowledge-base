@@ -175,7 +175,7 @@ class GitFunctionTest {
                                 function.getFileTree(context, null, "billing"),
                                 function.searchFiles(context, "pom", null, "billing"),
                                 function.getFileOutline(context, "Foo.java", "billing"),
-                                function.getCommitLog(context, null, null, null, "billing"),
+                                function.getCommitLog(context, null, null, null, null, "billing"),
                                 function.getCommitDiff(context, "abc1234", null, null, "billing"),
                                 function.getUncommittedChanges(
                                         context, null, null, null, "billing")))
@@ -194,7 +194,7 @@ class GitFunctionTest {
         ToolContext context = new ToolContext(Map.of());
 
         ToolResult<List<GitCommit>> log =
-                function.getCommitLog(context, null, null, null, "billing");
+                function.getCommitLog(context, null, null, null, null, "billing");
 
         assertThat(log.project()).isEqualTo("billing");
         assertThat(log.result())
@@ -216,10 +216,10 @@ class GitFunctionTest {
     void theMessageBodyIsOffUnlessTheCallAsksForIt() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        function.getCommitLog(context, null, null, null, null);
+        function.getCommitLog(context, null, null, null, null, null);
         verify(billing).getCommitLog(20, null, false);
 
-        function.getCommitLog(context, 5, null, true, null);
+        function.getCommitLog(context, 5, null, null, true, null);
         verify(billing).getCommitLog(5, null, true);
     }
 
@@ -297,5 +297,20 @@ class GitFunctionTest {
         function.getFileTree(context, null, null);
 
         verify(gitRegistry).forProject("billing");
+    }
+
+    /**
+     * С запросом история ищется по сообщениям, без него — просто листается: пустой запрос — это «не
+     * задан», а не «совпадает со всем».
+     */
+    @Test
+    void aQueryTurnsTheLogIntoASearchThroughMessages() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+
+        function.getCommitLog(context, 5, "src", "  retry  ", null, null);
+        verify(billing).searchCommitLog("retry", 5, "src", false);
+
+        function.getCommitLog(context, 5, "src", " ", true, null);
+        verify(billing).getCommitLog(5, "src", true);
     }
 }

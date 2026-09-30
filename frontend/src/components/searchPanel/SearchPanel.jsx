@@ -56,10 +56,11 @@ const SearchPanel = ({ query, scope, mode, filters, onRefine, onOpenFile, onOpen
   const counts = useMemo(
     () => ({
       files: countOf(results.files.entry, 'files'),
+      commits: countOf(results.commits.entry, 'commits'),
       docs: countOf(results.docs.entry, 'documents'),
       chats: countOf(results.chats.entry, 'chats'),
     }),
-    [results.files.entry, results.docs.entry, results.chats.entry],
+    [results.files.entry, results.commits.entry, results.docs.entry, results.chats.entry],
   );
 
   // Ищет ли ещё каждая категория. Фильтры слева — и репозиторий среди них —
@@ -67,8 +68,13 @@ const SearchPanel = ({ query, scope, mode, filters, onRefine, onOpenFile, onOpen
   // сколько-то он идёт, и всё это время выдача принадлежит прежнему фильтру.
   // Про это и говорят волчки — у категории, где стоит счётчик, и в шапке выдачи.
   const pending = useMemo(
-    () => ({ files: results.files.loading, docs: results.docs.loading, chats: results.chats.loading }),
-    [results.files.loading, results.docs.loading, results.chats.loading],
+    () => ({
+      files: results.files.loading,
+      commits: results.commits.loading,
+      docs: results.docs.loading,
+      chats: results.chats.loading,
+    }),
+    [results.files.loading, results.commits.loading, results.docs.loading, results.chats.loading],
   );
 
   return (

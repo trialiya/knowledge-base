@@ -3,6 +3,7 @@ import gitApi from '@/api/gitApi';
 import documentsApi from '@/api/documentsApi';
 import chatApi from '@/api/chatApi';
 import mergeFileHits from './mergeFileHits';
+import commitHits from './commitHits';
 
 /** Сколько файлов просить по имени: больше бэкенд всё равно не отдаст (потолок 50). */
 const NAME_LIMIT = 50;
@@ -48,22 +49,23 @@ function useAnswer(key, enabled, load) {
 }
 
 /**
- * Результаты единого поиска: три категории, каждая со своим запросом.
+ * Результаты единого поиска: четыре категории, каждая со своим запросом.
  *
- * Категорию пользователь выбирает одну, но счётчики раздел показывает у всех
- * трёх — иначе непонятно, стоит ли туда переключаться, — поэтому спрашиваются
- * все три сразу. Запросы независимы: отказ по файлам (битая регулярка, тайм-аут
- * git) не должен прятать найденные документы и чаты.
+ * Категорию пользователь выбирает одну, но счётчики раздел показывает у всех —
+ * иначе непонятно, стоит ли туда переключаться, — поэтому спрашиваются все
+ * сразу. Запросы независимы: отказ по файлам (битая регулярка, тайм-аут git) не
+ * должен прятать найденные документы и чаты.
  *
  * Ключ у каждой категории свой, из того, что на неё влияет. Общий ключ на все
- * три перезапрашивал бы документы и чаты на смену маски пути, а поиск по
+ * перезапрашивал бы документы и чаты на смену маски пути, а поиск по
  * документам в режимах semantic и hybrid — это ещё и эмбеддинг запроса.
  *
  * @param query    строка запроса; пустая — не ищем вовсе
  * @param mode     режим поиска по документам (hybrid | semantic | keyword)
  * @param path     glob-фильтр пути (только файлы)
- * @param project  репозиторий, в котором искать; пусто — дефолтный (только файлы)
- * @param rev      ревизия: искать в снимке, а не в рабочем дереве (только файлы)
+ * @param project  репозиторий, в котором искать; пусто — дефолтный (файлы и коммиты)
+ * @param rev      ревизия: искать в снимке, а не в рабочем дереве; у коммитов —
+ *                 историю от неё, а не от HEAD (файлы и коммиты)
  * @param regex    трактовать запрос как регулярное выражение (только файлы)
  * @param untracked заходить и в неотслеживаемые файлы (только файлы)
  */
@@ -87,10 +89,15 @@ export default function useSearchResults({ query, mode, path, project, rev, rege
       .catch(() => []);
     return Promise.all([grep, names]).then(([g, n]) => mergeFileHits(g, n, query));
   });
+  // Маска пути, регулярка и неотслеживаемые — фильтры содержимого файлов; на
+  // историю из них влияют только репозиторий и ревизия.
+  const commits = useAnswer(JSON.stringify([query, project, rev]), enabled, (signal) =>
+    gitApi.grepCommits(query, { rev, project, signal }).then((found) => commitHits(found, query)),
+  );
   const docs = useAnswer(JSON.stringify([query, mode]), enabled, (signal) =>
     documentsApi.searchGrouped(query, mode, signal),
   );
   const chats = useAnswer(query, enabled, (signal) => chatApi.searchChatsGrouped(query, CHAT_LIMIT, signal));
 
-  return { files, docs, chats };
+  return { files, commits, docs, chats };
 }

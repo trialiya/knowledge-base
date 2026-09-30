@@ -145,12 +145,14 @@ public class GitFunction {
      *
      * @param maxCount maximum number of commits to return (default 20, max 100)
      * @param filePath optional — show only commits that touched this file
+     * @param query optional — only commits whose message (subject or description) contains it, or
+     *     whose hash starts with it
      * @param includeMessageBody include each commit's message below the subject (default false)
      * @return list of commits with hash, author, date, and message
      */
     @Tool(
             description =
-                    "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
+                    "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 2000 commits only (of filePath's history when set), so an empty result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
@@ -163,6 +165,14 @@ public class GitFunction {
                                     "Optional: file path (relative to repo root) to filter commits that touched it.",
                             required = false)
                     @Nullable String filePath,
+            @ToolParam(
+                            description =
+                                    "Optional: text to find in commit messages — subject and"
+                                            + " description — or a hash prefix. The"
+                                            + " description is searched even without"
+                                            + " includeMessageBody.",
+                            required = false)
+                    @Nullable String query,
             @ToolParam(
                             description =
                                     "Add each commit's full message body in \"body\". Turn on"
@@ -180,14 +190,18 @@ public class GitFunction {
         final int limit = positiveOrDefault(maxCount, 20);
         final boolean withBody = orDefault(includeMessageBody, false);
         log.debug(
-                "getCommitLog called: maxCount={}, filePath='{}', includeMessageBody={},"
-                        + " project='{}'",
+                "getCommitLog called: maxCount={}, filePath='{}', query='{}',"
+                        + " includeMessageBody={}, project='{}'",
                 limit,
                 filePath,
+                query,
                 withBody,
                 project);
         GitService git = git(context, project);
-        List<GitCommit> commitLog = git.getCommitLog(limit, filePath, withBody);
+        List<GitCommit> commitLog =
+                query == null || query.isBlank()
+                        ? git.getCommitLog(limit, filePath, withBody)
+                        : git.searchCommitLog(query.strip(), limit, filePath, withBody);
         log.debug("getCommitLog called: commitLog={}", commitLog);
         return answer(git, commitLog);
     }

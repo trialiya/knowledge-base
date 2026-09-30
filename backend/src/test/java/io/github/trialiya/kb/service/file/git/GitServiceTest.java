@@ -900,6 +900,96 @@ class GitServiceTest {
         assertThat(service.searchCommits("Subject", 10)).hasSize(1);
     }
 
+    /** The search page asks for the description too: a hit there counts and the body comes back. */
+    @Test
+    void grepCommitsMatchesTheDescriptionAndReturnsIt() {
+        writeFile("a.txt", "a\n");
+        commitAll(
+                "Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
+        writeFile("b.txt", "b\n");
+        commitAll("Unrelated change");
+
+        assertThat(service.grepCommits("zzz", 10, null).commits())
+                .singleElement()
+                .satisfies(
+                        c -> {
+                            assertThat(c.message()).isEqualTo("Subject line");
+                            assertThat(c.body()).isEqualTo("mentions ZZZ");
+                        });
+        // A subject hit is still a hit, and it carries its body along.
+        assertThat(service.grepCommits("unrelated", 10, null).commits())
+                .extracting(GitCommit::message)
+                .containsExactly("Unrelated change");
+    }
+
+    @Test
+    void grepCommitsFromARevisionSkipsCommitsMadeAfterIt() {
+        writeFile("a.txt", "a\n");
+        commitAll("fix one");
+        String first = service.getCommitLog(1, null, false).get(0).hash();
+        writeFile("b.txt", "b\n");
+        commitAll("fix two");
+
+        assertThat(service.grepCommits("fix", 10, first).commits())
+                .extracting(GitCommit::message)
+                .containsExactly("fix one");
+    }
+
+    /**
+     * Truncated means history was left unwalked: a full page with more commits behind it is, a walk
+     * that reached the root is not — even when it found exactly as many as asked for.
+     */
+    @Test
+    void grepCommitsSaysWhetherHistoryWasWalkedToItsEnd() {
+        writeFile("a.txt", "a\n");
+        commitAll("fix one");
+        writeFile("b.txt", "b\n");
+        commitAll("fix two");
+
+        assertThat(service.grepCommits("fix", 1, null).truncated()).isTrue();
+        assertThat(service.grepCommits("fix", 2, null).truncated()).isFalse();
+        assertThat(service.grepCommits("nothing-like-this", 2, null).truncated()).isFalse();
+    }
+
+    /**
+     * The model's search: the description is searched either way, but only comes back when asked
+     * for — choosing a commit needs its subject, and bodies run to thousands of characters.
+     */
+    @Test
+    void searchCommitLogSearchesTheDescriptionButReturnsItOnlyWhenAsked() {
+        writeFile("a.txt", "a\n");
+        commitAll(
+                "Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
+
+        assertThat(service.searchCommitLog("zzz", 10, null, false))
+                .singleElement()
+                .satisfies(c -> assertThat(c.body()).isNull());
+        assertThat(service.searchCommitLog("zzz", 10, null, true))
+                .singleElement()
+                .satisfies(c -> assertThat(c.body()).isEqualTo("mentions ZZZ"));
+    }
+
+    @Test
+    void searchCommitLogWithAPathKeepsOnlyCommitsThatTouchedIt() {
+        writeFile("src/a.txt", "a\n");
+        commitAll("fix in src");
+        writeFile("docs/b.txt", "b\n");
+        commitAll("fix in docs");
+
+        assertThat(service.searchCommitLog("fix", 10, "src", false))
+                .extracting(GitCommit::message)
+                .containsExactly("fix in src");
+    }
+
+    @Test
+    void grepCommitsFromAnUnknownRevisionIsRefused() {
+        writeFile("a.txt", "a\n");
+        commitAll("Only commit");
+
+        assertThatThrownBy(() -> service.grepCommits("only", 10, "nosuchtag"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     /**
      * Имя не совпало — совпасть может путь: так берут файл с частым именем, назвав его каталог.
      * Слэш в запросе при этом не обязателен, буквы подряд читаются через границы сегментов.

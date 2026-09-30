@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.git.dto.GitFileBytes;
@@ -120,9 +121,6 @@ public class GitService {
      * ObjectReader#abbreviate(org.eclipse.jgit.lib.AnyObjectId, int)}).
      */
     private static final int ABBREV_LEN = 7;
-
-    /** How far back {@link #searchCommits} walks before giving up on finding more matches. */
-    private static final int COMMIT_SEARCH_SCAN = 2000;
 
     /**
      * Status letter for an admitted untracked file in {@link #getUncommittedChanges} — git's own
@@ -432,51 +430,46 @@ public class GitService {
 
     /**
      * Commits matching {@code query} — a prefix of the hash or a substring of the subject line —
-     * newest first.
-     *
-     * <p>Git indexes neither, so this is a linear walk from HEAD, bounded by {@link
-     * #COMMIT_SEARCH_SCAN} commits: on a long history an unmatched query would otherwise read the
-     * whole repository to answer a keystroke. Matching deliberately ignores the message body — the
-     * picker shows the subject, and a hit the user cannot see in the row reads as a wrong result.
+     * newest first, walking from HEAD. The phrase placeholder picker's lookup; see {@link
+     * CommitSearch} for how far back it looks.
      *
      * @param query hash prefix or subject substring, already stripped and non-blank
      * @param maxCount max commits to return, capped at 100
      */
-    // The ObjectReader below belongs to the RevWalk and is closed with it; closing it here would
-    // pull the reader out from under the walk still being iterated.
-    @SuppressWarnings("PMD.CloseResource")
     public List<GitCommit> searchCommits(@NonNull String query, int maxCount) {
-        if (query.isBlank()) return List.of();
-        String q = query.strip().toLowerCase(Locale.ROOT);
-        int limit = Math.min(Math.max(maxCount, 1), 100);
-
-        // Обход строим сами, а не через git.log(): LogCommand отдаёт свой RevWalk как
-        // Iterable, и закрыть его уже нечем — а выходим мы отсюда почти всегда по
-        // break, на каждое нажатие клавиши в поиске.
-        try (RevWalk walk = new RevWalk(repository)) {
-            ObjectId head = repository.resolve(Constants.HEAD);
-            // Repository has no commits yet — an empty history, not an error.
-            if (head == null) return List.of();
-            walk.markStart(walk.parseCommit(head));
-
-            ObjectReader reader = walk.getObjectReader();
-            List<GitCommit> matches = new ArrayList<>();
-            int scanned = 0;
-            for (RevCommit commit : walk) {
-                if (++scanned > COMMIT_SEARCH_SCAN) break;
-                if (!matchesCommit(commit, q)) continue;
-                matches.add(toGitCommit(commit, null, reader, false));
-                if (matches.size() >= limit) break;
-            }
-            return matches;
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to search commit log", e);
-        }
+        return CommitSearch.search(repository, query, maxCount, CommitSearch.Scope.SUBJECT)
+                .commits();
     }
 
-    private static boolean matchesCommit(RevCommit commit, String lowerQuery) {
-        return commit.getName().toLowerCase(Locale.ROOT).startsWith(lowerQuery)
-                || commit.getShortMessage().toLowerCase(Locale.ROOT).contains(lowerQuery);
+    /**
+     * Commits whose subject or description contains {@code query}, or whose hash starts with it,
+     * newest first, walking from HEAD — the model's search through history ({@code getCommitLog}
+     * with a query).
+     *
+     * @param filePath optional — only commits that touched this file or directory
+     * @param includeBody fill {@link GitCommit#body()}; the description is searched either way
+     */
+    public List<GitCommit> searchCommitLog(
+            @NonNull String query, int maxCount, @Nullable String filePath, boolean includeBody) {
+        return CommitSearch.search(
+                        repository,
+                        query,
+                        maxCount,
+                        new CommitSearch.Scope(true, includeBody, null, filePath))
+                .commits();
+    }
+
+    /**
+     * Commits whose subject or description contains {@code query}, or whose hash starts with it,
+     * newest first, each with its description in {@link GitCommit#body()} — the search page shows
+     * where in the description the query was found.
+     *
+     * @param rev optional — walk from this revision instead of HEAD
+     */
+    public GitCommitSearchResult grepCommits(
+            @NonNull String query, int maxCount, @Nullable String rev) {
+        return CommitSearch.search(
+                repository, query, maxCount, new CommitSearch.Scope(true, true, rev, null));
     }
 
     // ── Diff for commit(s) ──────────────────────────────────────────────────
@@ -1656,7 +1649,7 @@ public class GitService {
         return visible.paths();
     }
 
-    private static GitCommit toGitCommit(
+    static GitCommit toGitCommit(
             RevCommit commit,
             @Nullable List<GitDiffEntry> files,
             ObjectReader reader,

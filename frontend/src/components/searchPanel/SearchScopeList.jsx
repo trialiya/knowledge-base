@@ -1,12 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import { IconFileText, IconDoc, IconMessage } from '@/icons/index';
+import { IconFileText, IconCommit, IconDoc, IconMessage } from '@/icons/index';
 import { SEARCH_SCOPES } from '@/constants/searchScope';
 import useListNavigation from '@/components/common/search/useListNavigation';
 
-const ICONS = { files: IconFileText, docs: IconDoc, chats: IconMessage };
+const ICONS = { files: IconFileText, commits: IconCommit, docs: IconDoc, chats: IconMessage };
 
 /**
- * Категории поиска в левой панели: файлы · документы · чаты.
+ * Категории поиска в левой панели: файлы · коммиты · документы · чаты.
  *
  * Выбрана всегда ровно одна — это переключатель, а не набор галочек, — поэтому
  * место чекбокса занимает число найденного. Оно и есть ответ на вопрос «стоит

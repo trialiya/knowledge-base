@@ -3,7 +3,9 @@
  *
  * Формы ответов — как у эндпоинтов (`GET /api/git/grep`,
  * `/api/documents/search/grouped`, `/api/chats/search/grouped`, см.
- * api-reference.md), но синтетические: пути, id и тексты придуманы.
+ * api-reference.md), но синтетические: пути, id и тексты придуманы. Коммиты —
+ * уже в форме категории (`searchPanel/commitHits.js` поверх
+ * `GET /api/git/commits/search?body=true`).
  *
  * Даты и время в фикстурах без зоны: `toLocaleDateString`/`toLocaleTimeString`
  * читают их в зоне машины, поэтому подпись сообщения воспроизводима ровно в том
@@ -56,6 +58,47 @@ export const fileEntry = {
       },
       // Найден только по имени: без строк, вместо счётчика — «по имени».
       { path: 'docs/grep-notes.md', tracked: true, lines: [], nameMatch: true },
+    ],
+  },
+  error: null,
+};
+
+/**
+ * Два коммита. У первого запрос и в заголовке, и в двух строках описания; вторая
+ * из них длиннее карточки и переносится. Второй найден только по началу хеша:
+ * строк нет, хеш подсвечен, рядом метка «совпал хеш».
+ */
+export const commitEntry = {
+  data: {
+    total: 4,
+    truncated: false,
+    commits: [
+      {
+        hash: '3f9c2a7b1d04e6f8a9b0c1d2e3f405162738495a',
+        shortHash: '3f9c2a7',
+        author: 'Анна Смирнова',
+        date: '2026-07-18T12:30:00',
+        message: 'Файлы: второй проход grep по неотслеживаемым',
+        subjectMatch: true,
+        hashMatch: false,
+        lines: [
+          { line: 1, text: 'git grep сам не заходит в неотслеживаемые файлы из allow-globs проекта.' },
+          {
+            line: 4,
+            text: 'Второй проход идёт отдельным процессом с --no-index по тем же корням и укладывается в общий тайм-аут, чтобы grep по большому отчёту сборки не держал ответ дольше первого.',
+          },
+        ],
+      },
+      {
+        hash: 'grep0c1d2e3f405162738495a3f9c2a7b1d04e6f8',
+        shortHash: 'grep0c1',
+        author: 'build-bot',
+        date: '2026-07-02T09:15:00',
+        message: 'Обновить зависимости фронтенда',
+        subjectMatch: false,
+        hashMatch: true,
+        lines: [],
+      },
     ],
   },
   error: null,
@@ -135,8 +178,8 @@ export const chatEntry = {
   error: null,
 };
 
-/** Три формы результата разом: кейс про анатомию карточек, а не про одну категорию. */
-export const resultCards = { query, files: fileEntry, docs: docEntry, chats: chatEntry };
+/** Все формы результата разом: кейс про анатомию карточек, а не про одну категорию. */
+export const resultCards = { query, files: fileEntry, commits: commitEntry, docs: docEntry, chats: chatEntry };
 
 /**
  * Четыре ответа центра, в которых результатов нет вовсе: запроса не ввели,
@@ -155,12 +198,12 @@ export const emptyAndRefusal = {
 };
 
 /**
- * Левая панель: категории со счётчиками и наборы фильтров всех трёх категорий
+ * Левая панель: категории со счётчиками и наборы фильтров всех категорий
  * сразу. В приложении виден набор ровно одной — кейс как раз про то, чем они
  * различаются, поэтому стенд ставит их друг под другом.
  */
 export const scopePanel = {
-  counts: { files: 35, docs: 4, chats: 1 },
+  counts: { files: 35, commits: 12, docs: 4, chats: 1 },
   filters: {
     path: 'backend/**/*.java',
     project: 'kb',

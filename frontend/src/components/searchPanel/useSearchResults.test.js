@@ -10,29 +10,37 @@ vi.mock('@/api/chatApi');
 
 const FILES = { total: 2, truncated: false, files: [{ path: 'a.java', lines: [{ line: 1, text: 'x' }] }] };
 const DOCS = { total: 1, documents: [{ id: 7, title: 'Doc', fragments: [] }] };
+const COMMITS = {
+  truncated: false,
+  commits: [{ hash: 'abc1234', shortHash: 'abc1234', message: 'Find the needle', body: null }],
+};
 const CHATS = { total: 1, truncated: false, chats: [{ conversationId: 'c1', messages: [] }] };
 
 const args = { query: 'needle', mode: 'hybrid', path: '', project: '', rev: '', regex: false, untracked: false };
 
-/** Все три категории ответили на текущие фильтры. */
-const settled = (r) => !r.current.files.loading && !r.current.docs.loading && !r.current.chats.loading;
+/** Все категории ответили на текущие фильтры. */
+const settled = (r) =>
+  !r.current.files.loading && !r.current.commits.loading && !r.current.docs.loading && !r.current.chats.loading;
 
 beforeEach(() => {
   gitApi.grep.mockResolvedValue(FILES);
+  gitApi.grepCommits.mockResolvedValue(COMMITS);
   documentsApi.searchGrouped.mockResolvedValue(DOCS);
   chatApi.searchChatsGrouped.mockResolvedValue(CHATS);
 });
 
 afterEach(() => vi.resetAllMocks());
 
-test('спрашивает все три категории разом — счётчики нужны и у невыбранных', async () => {
+test('спрашивает все категории разом — счётчики нужны и у невыбранных', async () => {
   const { result } = renderHook(() => useSearchResults(args));
 
   await waitFor(() => expect(settled(result)).toBe(true));
   expect(gitApi.grep).toHaveBeenCalledTimes(1);
+  expect(gitApi.grepCommits).toHaveBeenCalledWith('needle', expect.anything());
   expect(documentsApi.searchGrouped).toHaveBeenCalledTimes(1);
   expect(chatApi.searchChatsGrouped).toHaveBeenCalledTimes(1);
   expect(result.current.files.entry.data).toBe(FILES);
+  expect(result.current.commits.entry.data.commits[0]).toMatchObject({ hash: 'abc1234', subjectMatch: true });
   expect(result.current.docs.entry.data).toBe(DOCS);
   expect(result.current.chats.entry.data).toBe(CHATS);
 });
@@ -67,7 +75,9 @@ test('фильтр файлов перезапрашивает только фа
   expect(gitApi.grep).toHaveBeenCalledTimes(2);
   expect(gitApi.grep).toHaveBeenLastCalledWith('needle', expect.objectContaining({ untracked: true }));
   // Документы и чаты про маску пути, ревизию и неотслеживаемые ничего не знают,
-  // а поиск по документам в hybrid — это ещё и эмбеддинг запроса.
+  // а поиск по документам в hybrid — это ещё и эмбеддинг запроса. История
+  // коммитов — про неотслеживаемые тоже.
+  expect(gitApi.grepCommits).toHaveBeenCalledTimes(1);
   expect(documentsApi.searchGrouped).toHaveBeenCalledTimes(1);
   expect(chatApi.searchChatsGrouped).toHaveBeenCalledTimes(1);
 });
@@ -141,4 +151,16 @@ test('с ревизией неотслеживаемые не запрашива
 
   await waitFor(() => expect(settled(result)).toBe(true));
   expect(gitApi.grep).toHaveBeenCalledTimes(1);
+});
+
+test('ревизия перезапрашивает и коммиты — история идёт от неё', async () => {
+  const { result, rerender } = renderHook((props) => useSearchResults(props), { initialProps: args });
+  await waitFor(() => expect(settled(result)).toBe(true));
+
+  rerender({ ...args, rev: 'v1.4.0' });
+
+  await waitFor(() => expect(settled(result)).toBe(true));
+  expect(gitApi.grepCommits).toHaveBeenCalledTimes(2);
+  expect(gitApi.grepCommits).toHaveBeenLastCalledWith('needle', expect.objectContaining({ rev: 'v1.4.0' }));
+  expect(documentsApi.searchGrouped).toHaveBeenCalledTimes(1);
 });

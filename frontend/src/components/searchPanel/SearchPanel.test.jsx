@@ -17,12 +17,12 @@ vi.mock('@/components/common/config/useProjectConfig', () => ({
 // useSearchResults, и его собственных тестов. Сам ответ хука задаёт тест —
 // панели он нужен ради счётчиков и признака «ещё идёт».
 const idle = { entry: null, loading: false };
-let results = { files: idle, docs: idle, chats: idle };
+let results = { files: idle, commits: idle, docs: idle, chats: idle };
 
 vi.mock('./useSearchResults', () => ({ default: () => results }));
 
 beforeEach(() => {
-  results = { files: idle, docs: idle, chats: idle };
+  results = { files: idle, commits: idle, docs: idle, chats: idle };
 });
 
 const renderPanel = (filters, onRefine) =>
@@ -63,6 +63,7 @@ it('пока категория ищет, вместо счётчика крут
       },
       loading: true,
     },
+    commits: idle,
     docs: {
       entry: { data: { total: 1, documents: [{ id: 1, title: 'Док', parentList: [], fragments: [] }] }, error: null },
       loading: false,
@@ -71,7 +72,7 @@ it('пока категория ищет, вместо счётчика крут
   };
   renderPanel({});
 
-  const [files, docs] = screen.getAllByRole('option');
+  const [files, , docs] = screen.getAllByRole('option');
   expect(files.querySelector('.search-spinner')).toBeInTheDocument();
   expect(files).not.toHaveTextContent('2');
   expect(docs).toHaveTextContent('1');

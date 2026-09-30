@@ -43,10 +43,40 @@ const FilterField = ({ id, label, hint, value, onCommit }) => {
 };
 
 /**
+ * Репозиторий и ревизия — общие у файлов и коммитов: файлы ищутся в снимке
+ * ревизии, история — от неё. Тот же контрол ревизии, что и в «Файлах»: её
+ * выбирают из веток и тегов, а печатают только хеш — его в списке нет и быть не
+ * может.
+ */
+const RepoFields = ({ project, projectOptions, onProjectChange, rev, onRefine }) => {
+  const { t } = useTranslation('search');
+  return (
+    <>
+      {projectOptions.length > 1 && (
+        <div className="search-filters__field">
+          <span className="search-filters__label">{t('filters.project')}</span>
+          <ListboxSelect
+            value={project}
+            options={projectOptions}
+            onChange={onProjectChange}
+            ariaLabel={t('filters.project')}
+          />
+        </div>
+      )}
+      <div className="search-filters__field">
+        <span className="search-filters__label">{t('filters.rev')}</span>
+        <RevisionPicker project={project} rev={rev} onChange={(next) => onRefine({ searchRev: next })} />
+      </div>
+    </>
+  );
+};
+
+/**
  * Уточнения выбранной категории — и только её: у файлов свои (маска пути,
- * ревизия, регулярка, неотслеживаемые), у документов свой режим поиска, у чатов
- * уточнять нечего. Общего набора фильтров тут быть не может: категории ищут
- * разными эндпоинтами с разными параметрами.
+ * ревизия, регулярка, неотслеживаемые), у коммитов — репозиторий и ревизия, у
+ * документов свой режим поиска, у чатов уточнять нечего. Общего набора
+ * фильтров тут быть не может: категории ищут разными эндпоинтами с разными
+ * параметрами.
  */
 const SearchFilters = ({
   scope,
@@ -61,27 +91,29 @@ const SearchFilters = ({
   onRefine,
 }) => {
   const { t } = useTranslation('search');
+  const repo = (
+    <RepoFields
+      project={project}
+      projectOptions={projectOptions}
+      onProjectChange={onProjectChange}
+      rev={rev}
+      onRefine={onRefine}
+    />
+  );
+
+  if (scope === SEARCH_SCOPE.COMMITS) {
+    return (
+      <div className="search-filters">
+        {repo}
+        <p className="search-filters__hint">{t('filters.commitsHint')}</p>
+      </div>
+    );
+  }
 
   if (scope === SEARCH_SCOPE.FILES) {
     return (
       <div className="search-filters">
-        {projectOptions.length > 1 && (
-          <div className="search-filters__field">
-            <span className="search-filters__label">{t('filters.project')}</span>
-            <ListboxSelect
-              value={project}
-              options={projectOptions}
-              onChange={onProjectChange}
-              ariaLabel={t('filters.project')}
-            />
-          </div>
-        )}
-        {/* Тот же контрол, что и в «Файлах»: ревизию выбирают из веток и тегов, а
-            печатают только хеш — его в списке нет и быть не может. */}
-        <div className="search-filters__field">
-          <span className="search-filters__label">{t('filters.rev')}</span>
-          <RevisionPicker project={project} rev={rev} onChange={(next) => onRefine({ searchRev: next })} />
-        </div>
+        {repo}
         <FilterField
           id="search-filter-path"
           label={t('filters.path')}
