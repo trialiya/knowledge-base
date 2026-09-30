@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -15,7 +16,7 @@ import org.jspecify.annotations.Nullable;
  * <p>An element is an array item or a line of a string. Inside an object the arrays and strings it
  * holds are cut the same way, down to {@link #OBJECT_DEPTH} levels of nesting; deeper, and inside
  * array items, nothing is touched. The value keeps its shape and stays valid JSON. Lines of a cut
- * string are joined back with {@code \n}.
+ * string are joined back with {@code \n}, whatever ended them ({@code \r\n} too).
  */
 final class ResultLimit {
 
@@ -23,6 +24,8 @@ final class ResultLimit {
     private static final int OBJECT_DEPTH = 2;
 
     private static final String ROOT = "$";
+
+    private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*");
 
     private ResultLimit() {}
 
@@ -36,6 +39,14 @@ final class ResultLimit {
     static Trimmed apply(@Nullable Object value, int limit) {
         Map<String, Integer> cut = new LinkedHashMap<>();
         return new Trimmed(trim(value, limit, ROOT, 0, cut), cut);
+    }
+
+    /** {@code $.rows} for a plain key, {@code $["a.b"]} for one a dotted path would misread. */
+    private static String child(String path, Object key) {
+        String name = String.valueOf(key);
+        return IDENTIFIER.matcher(name).matches()
+                ? path + "." + name
+                : path + "[\"" + name.replace("\\", "\\\\").replace("\"", "\\\"") + "\"]";
     }
 
     private static @Nullable Object trim(
@@ -58,7 +69,7 @@ final class ResultLimit {
         }
         if (value instanceof Map<?, ?> map && depth < OBJECT_DEPTH) {
             Map<Object, @Nullable Object> out = new LinkedHashMap<>();
-            map.forEach((key, item) -> out.put(key, trim(item, limit, path + "." + key, depth + 1, cut)));
+            map.forEach((key, item) -> out.put(key, trim(item, limit, child(path, key), depth + 1, cut)));
             return out;
         }
         return value;

@@ -106,12 +106,14 @@ export const attachmentsCall = {
     {
       id: 41,
       fileName: 'release-notes.md',
-      content: '# 1.4.0\n\n- Поиск по вложениям\n- Оглавление документа для модели\n- Правка файлов рабочего дерева\n\n# 1.3.2\n\n- Исправлен экспорт при пустой папке',
+      content:
+        '# 1.4.0\n\n- Поиск по вложениям\n- Оглавление документа для модели\n- Правка файлов рабочего дерева\n\n# 1.3.2\n\n- Исправлен экспорт при пустой папке',
     },
     {
       id: 42,
       fileName: 'limits.txt',
-      content: 'files    = 200\nbytes    = 5 MiB\ncalls    = 400\ntimeout  = 30s\n\nПревышение любого из лимитов останавливает прогон\nи возвращает модели ScriptError с видом BUDGET.',
+      content:
+        'files    = 200\nbytes    = 5 MiB\ncalls    = 400\ntimeout  = 30s\n\nПревышение любого из лимитов останавливает прогон\nи возвращает модели ScriptError с видом BUDGET.',
     },
   ]),
   resultMeta: null,
@@ -361,7 +363,13 @@ export const documentOutlineCall = {
         subsections: 0,
       },
       { path: '2. Семантический поиск > Миграции', level: 3, title: 'Миграции', chars: 120, subsections: 0 },
-      { path: '9. Tree-sitter для file outline', level: 2, title: '9. Tree-sitter для file outline', chars: 520, subsections: 0 },
+      {
+        path: '9. Tree-sitter для file outline',
+        level: 2,
+        title: '9. Tree-sitter для file outline',
+        chars: 520,
+        subsections: 0,
+      },
     ],
   }),
   resultMeta: null,
@@ -628,6 +636,43 @@ export const fileContentForeignCall = fromProject(fileContentCall, 'billing');
 
 /** Совпадения grep: проект дописан в шапку «Обзора» — к числу совпадений и файлов. */
 export const grepForeignCall = fromProject(grepCall, 'billing');
+
+/**
+ * Прогон, чей ответ модели урезан: ей ушли пять путей из двенадцати и первые три элемента
+ * значения (`resultLimit: 3`), а окно деталей держит обе версии. Снимается в версии «Что
+ * видела модель» — там переключатель, счётчик «5 из 12» и пометка над значением.
+ */
+const TRIMMED_PATHS = Array.from({ length: 12 }, (_, i) => `frontend/src/components/panel${i + 1}/Panel.jsx`);
+const TRIMMED_ROWS = TRIMMED_PATHS.map((path, i) => ({ path, rules: 12 - i }));
+const trimmedResult = {
+  project: 'default',
+  resultId: 'r4',
+  value: TRIMMED_ROWS,
+  log: ['обход панелей: 12 файлов'],
+  stats: { filesRead: 12, bytesRead: 98304, calls: 14, filesEdited: 0, elapsedMs: 188 },
+  error: null,
+  filesRead: TRIMMED_PATHS,
+  edits: [],
+};
+export const scriptRunTrimmedCall = {
+  ...scriptRunCall,
+  argumentsRaw: JSON.stringify({
+    script: "return kb.files('frontend/src/components/*/Panel.jsx').map((path) => ({ path, rules: 0 }));",
+    resultLimit: 3,
+  }),
+  resultText: JSON.stringify({
+    ...trimmedResult,
+    value: TRIMMED_ROWS.slice(0, 3),
+    truncated: {
+      limit: 3,
+      cut: { $: 12 },
+      note: "Cut by resultLimit; the whole value is kept as r4 — read it with kb.result('r4') in a later script.",
+    },
+    filesRead: TRIMMED_PATHS.slice(0, 5),
+    filesReadMore: 7,
+  }),
+  fullResultText: JSON.stringify(trimmedResult),
+};
 
 /**
  * Прогон скрипта. Обёртки здесь нет: у runScript проект — свой аргумент, и

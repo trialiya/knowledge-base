@@ -52,7 +52,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * Сборка {@link ToolCallDetail} из {@code chat_message} по {@code callId} (точечный lookup через
  * {@code tool_call_index} + {@code findAllById}, без скана истории чата — см. {@link
  * ToolCallService#findToolCallDetail}): полные аргументы — из {@code tool_data.toolCalls}
- * ASSISTANT-сегмента, полный результат — из {@code tool_data.responses} TOOL-сообщения,
+ * ASSISTANT-сегмента, результат, каким его видела модель, — из {@code tool_data.responses} TOOL-сообщения, целиком (где
+ * модели ушёл урезанный вид) — из {@code tool_call_full_result},
  * статус/ошибка/resultMeta — из {@code meta.invocations} по тому же {@code callId}. Отдельно
  * проверяются несколько вызовов в одном сегменте, SKIP_TOOLS-вызовы (есть в toolCalls, но не в
  * invocations), ERROR без TOOL-ответа и неизвестные id.

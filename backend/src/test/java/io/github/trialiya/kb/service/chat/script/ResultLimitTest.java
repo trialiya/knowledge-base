@@ -61,6 +61,13 @@ class ResultLimitTest {
     }
 
     @Test
+    void aKeyADottedPathWouldMisreadIsQuoted() {
+        ResultLimit.Trimmed trimmed = ResultLimit.apply(Map.of("a.b", List.of(1, 2, 3)), 1);
+
+        assertThat(trimmed.cut()).isEqualTo(Map.of("$[\"a.b\"]", 3));
+    }
+
+    @Test
     void aValueWithinTheLimitIsNotCut() {
         assertThat(ResultLimit.apply(List.of(1, 2), 5).cut()).isEmpty();
         assertThat(ResultLimit.apply(null, 5).cut()).isEmpty();

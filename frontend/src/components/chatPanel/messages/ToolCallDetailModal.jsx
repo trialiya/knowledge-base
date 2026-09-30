@@ -51,7 +51,7 @@ const SegmentSwitch = ({ values, value: current, onChange, label, keyPrefix }) =
           key={value}
           type="button"
           aria-pressed={current === value}
-          className={`tool-call-detail__mode${current === value ? ' tool-call-detail__mode--active' : ''}`}
+          className="btn btn--ghost btn--xs"
           title={t(`${keyPrefix}.${value}Hint`, { defaultValue: '' }) || undefined}
           onClick={() => onChange(value)}
         >

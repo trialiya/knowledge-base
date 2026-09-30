@@ -218,8 +218,7 @@ const toolCallCase = ([name, viewport]) => ({
  */
 const LiveToolCalls = ({ calls, next }) => {
   const [items, setItems] = useState(calls);
-  const deliver = () =>
-    setTimeout(() => setItems((prev) => (prev.length > calls.length ? prev : [...prev, next])), 0);
+  const deliver = () => setTimeout(() => setItems((prev) => (prev.length > calls.length ? prev : [...prev, next])), 0);
   return (
     <div onClickCapture={deliver}>
       <ToolCallNotifications toolCalls={items} conversationId="1" />
@@ -429,7 +428,6 @@ const LIGHT = [
     render: (p) => <MessageList conversationId="chat-1" messages={transformPage(p).bubbles} onRetry={noop} />,
   },
 
-
   // Ряд категорий и сетка фраз над полем ввода. Библиотеку блок грузит сам
   // (GET /api/phrases), поэтому ответ отдаём через `api`. Рамка `feed`: блок
   // живёт в колонке ленты и меряется её шириной.
@@ -576,6 +574,23 @@ const LIGHT = [
     ['grepForeignCall', [1440, 1000]],
     ['scriptRunForeignCall', [1440, 1350]],
   ].map(toolCallCase),
+  // Единственный вызов с двумя версиями ответа: переключатель «Полный ответ | Что видела
+  // модель» и пометки урезанной версии (счётчик «5 из 12», resultLimit над значением)
+  // есть только здесь. Снимок — в версии для модели, секция файлов раскрыта.
+  {
+    ...toolCallCase(['scriptRunTrimmedCall', [1440, 1100]]),
+    id: 'toolCallDetail.js#scriptRunTrimmedCall@model',
+    steps: [
+      // Шапка результата: подпись, версии, режимы — версии вторым ребёнком.
+      {
+        click:
+          'section.tool-call-detail__section:nth-of-type(2) .tool-call-detail__section-head > .tool-call-detail__modes:nth-child(2) button:nth-child(2)',
+      },
+      // Секция файлов — последняя в виде скрипта (правок у прогона нет).
+      { click: '.tool-script > section.tool-script__panel:last-of-type > .tool-script__panel-head' },
+      { unhover: true },
+    ],
+  },
 
   // Плашки вызовов под ответом. Рамка `feed`: ширина ленты решает, что в плашке
   // поместится, а модалка деталей уходит порталом поверх неё — как в чате.

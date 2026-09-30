@@ -36,6 +36,8 @@ final class ScriptResultKeeper {
      *
      * @param value the copy the result carries — parsed JSON, or the raw text when truncation broke
      *     it; what the model gets unless {@code shown} is set, and what the call's detail view shows
+     *     as the whole result. Bounded by {@code max-result-chars} either way: only {@code
+     *     kb.result(id)} has the value past it
      * @param resultId the id it is kept under; null when it was not kept
      * @param shown the model's copy when the call's {@code resultLimit} cut the value; null when
      *     nothing was cut
