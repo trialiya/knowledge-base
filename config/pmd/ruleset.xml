@@ -10,7 +10,7 @@
 
         Two whole categories are absent on purpose:
           * category/java/codestyle.xml — formatting and naming are Spotless' job
-            (Google Java Format, AOSP); the rest of the category is taste.
+            (Palantir Java Format); the rest of the category is taste.
           * category/java/documentation.xml — comment length and placement are not linted here.
         The metric rules of category/java/design.xml (complexity, method/import/field counts) are
         excluded below for the same reason: CLAUDE.md sets file-size expectations in code lines,

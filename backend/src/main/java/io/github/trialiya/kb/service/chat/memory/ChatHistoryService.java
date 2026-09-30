@@ -118,18 +118,16 @@ public class ChatHistoryService {
         final long position = lastPosition(conversationId) + 1;
         final ProjectSwitch marked = position > 1 ? projectSwitch : null;
         final String stamped = position > 1 ? (marked == null ? null : marked.to()) : project;
-        return chatMessageRepository.save(
-                new ChatMessageEntity(
-                        0,
-                        conversationId,
-                        text,
-                        MessageType.USER,
-                        position,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofUserMessage(
-                                contextItems, stamped, marked == null ? null : marked.from())));
+        return chatMessageRepository.save(new ChatMessageEntity(
+                0,
+                conversationId,
+                text,
+                MessageType.USER,
+                position,
+                false,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofUserMessage(contextItems, stamped, marked == null ? null : marked.from())));
     }
 
     /**
@@ -142,17 +140,16 @@ public class ChatHistoryService {
      */
     @Transactional
     public ChatMessageEntity saveCommandMessage(String conversationId, String text) {
-        return chatMessageRepository.save(
-                new ChatMessageEntity(
-                        0,
-                        conversationId,
-                        text,
-                        MessageType.USER,
-                        lastPosition(conversationId) + 1,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofCommand()));
+        return chatMessageRepository.save(new ChatMessageEntity(
+                0,
+                conversationId,
+                text,
+                MessageType.USER,
+                lastPosition(conversationId) + 1,
+                false,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofCommand()));
     }
 
     /**
@@ -169,24 +166,17 @@ public class ChatHistoryService {
      * тихую ошибку со ссылками на файлы, ради которой он и печатается.
      */
     @Transactional
-    public ChatMessageEntity markProjectSwitch(
-            ChatMessageEntity question, ProjectSwitch projectSwitch) {
+    public ChatMessageEntity markProjectSwitch(ChatMessageEntity question, ProjectSwitch projectSwitch) {
         final ChatMessageMeta meta = question.getMeta();
         if (question.getPosition() <= 1) {
             return chatMessageRepository.save(
                     question.withMeta(base(meta).withProjectSwitch(projectSwitch.to(), null)));
         }
         final String from =
-                meta != null && meta.projectSwitchFrom() != null
-                        ? meta.projectSwitchFrom()
-                        : projectSwitch.from();
+                meta != null && meta.projectSwitchFrom() != null ? meta.projectSwitchFrom() : projectSwitch.from();
         final boolean switched = !from.equals(projectSwitch.to());
-        return chatMessageRepository.save(
-                question.withMeta(
-                        base(meta)
-                                .withProjectSwitch(
-                                        switched ? projectSwitch.to() : null,
-                                        switched ? from : null)));
+        return chatMessageRepository.save(question.withMeta(
+                base(meta).withProjectSwitch(switched ? projectSwitch.to() : null, switched ? from : null)));
     }
 
     /** Мета, поверх которой переписывается пометка проекта: у вопроса её могло не быть вовсе. */
@@ -212,28 +202,23 @@ public class ChatHistoryService {
     @Transactional
     public void append(String conversationId, List<Message> messages) {
         final AtomicLong position = new AtomicLong(lastPosition(conversationId));
-        final List<ChatMessageEntity> newRows =
-                messages.stream()
-                        .filter(message -> !(message instanceof IMessage))
-                        .map(message -> new Pending(message, toolDataOf(message)))
-                        .filter(p -> Strings.isNotBlank(p.message().getText()) || p.hasToolData())
-                        .map(
-                                p ->
-                                        new ChatMessageEntity(
-                                                0,
-                                                conversationId,
-                                                p.message().getText() == null
-                                                        ? ""
-                                                        : p.message().getText(),
-                                                p.message().getMessageType(),
-                                                position.incrementAndGet(),
-                                                false,
-                                                false,
-                                                LocalDateTime.now(),
-                                                null,
-                                                p.toolData(),
-                                                reasoningOf(p.message())))
-                        .toList();
+        final List<ChatMessageEntity> newRows = messages.stream()
+                .filter(message -> !(message instanceof IMessage))
+                .map(message -> new Pending(message, toolDataOf(message)))
+                .filter(p -> Strings.isNotBlank(p.message().getText()) || p.hasToolData())
+                .map(p -> new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        p.message().getText() == null ? "" : p.message().getText(),
+                        p.message().getMessageType(),
+                        position.incrementAndGet(),
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        null,
+                        p.toolData(),
+                        reasoningOf(p.message())))
+                .toList();
         final List<ChatMessageEntity> saved = new ArrayList<>();
         chatMessageRepository.saveAll(newRows).forEach(saved::add);
         toolCalls.index(conversationId, saved);
@@ -261,17 +246,16 @@ public class ChatHistoryService {
     @Transactional
     public ChatMessageEntity appendGitEvent(String conversationId, GitEventMeta event) {
         repairDanglingToolCalls(conversationId);
-        return chatMessageRepository.save(
-                new ChatMessageEntity(
-                        0,
-                        conversationId,
-                        "",
-                        MessageType.USER,
-                        lastPosition(conversationId) + 1,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofGitEvent(event)));
+        return chatMessageRepository.save(new ChatMessageEntity(
+                0,
+                conversationId,
+                "",
+                MessageType.USER,
+                lastPosition(conversationId) + 1,
+                false,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofGitEvent(event)));
     }
 
     /**
@@ -285,17 +269,16 @@ public class ChatHistoryService {
     @Transactional
     public ChatMessageEntity appendScriptEvent(String conversationId, ScriptEventMeta event) {
         repairDanglingToolCalls(conversationId);
-        return chatMessageRepository.save(
-                new ChatMessageEntity(
-                        0,
-                        conversationId,
-                        "",
-                        MessageType.USER,
-                        lastPosition(conversationId) + 1,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofScriptEvent(event)));
+        return chatMessageRepository.save(new ChatMessageEntity(
+                0,
+                conversationId,
+                "",
+                MessageType.USER,
+                lastPosition(conversationId) + 1,
+                false,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofScriptEvent(event)));
     }
 
     /**
@@ -311,17 +294,16 @@ public class ChatHistoryService {
     @Transactional
     public ChatMessageEntity appendFileRevert(String conversationId, FileRevertMeta revert) {
         repairDanglingToolCalls(conversationId);
-        return chatMessageRepository.save(
-                new ChatMessageEntity(
-                        0,
-                        conversationId,
-                        "",
-                        MessageType.USER,
-                        lastPosition(conversationId) + 1,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofFileRevert(revert)));
+        return chatMessageRepository.save(new ChatMessageEntity(
+                0,
+                conversationId,
+                "",
+                MessageType.USER,
+                lastPosition(conversationId) + 1,
+                false,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofFileRevert(revert)));
     }
 
     /**
@@ -336,9 +318,8 @@ public class ChatHistoryService {
      */
     public @Nullable String lastStampedProject(String conversationId) {
         final List<ChatMessageEntity> rows =
-                chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                conversationId);
+                chatMessageRepository.findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                        conversationId);
         for (ChatMessageEntity row : rows.reversed()) {
             if (row.getMeta() != null && row.getMeta().project() != null) {
                 return row.getMeta().project();
@@ -357,9 +338,8 @@ public class ChatHistoryService {
      */
     public List<ChatMessageEntity> lastAnswerRows(String conversationId) {
         return tailAfterLastUser(
-                chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                conversationId));
+                chatMessageRepository.findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                        conversationId));
     }
 
     /**
@@ -379,25 +359,20 @@ public class ChatHistoryService {
      */
     @Transactional
     public ChatMessageEntity saveDeliveredPending(
-            String conversationId,
-            String text,
-            List<ContextItem> contextItems,
-            boolean interjection) {
-        final ChatMessageMeta meta =
-                interjection
-                        ? ChatMessageMeta.ofInterjection(contextItems)
-                        : ChatMessageMeta.ofUserMessage(contextItems, null, null);
-        return chatMessageRepository.save(
-                new ChatMessageEntity(
-                        0,
-                        conversationId,
-                        text,
-                        MessageType.USER,
-                        lastPosition(conversationId) + 1,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        meta));
+            String conversationId, String text, List<ContextItem> contextItems, boolean interjection) {
+        final ChatMessageMeta meta = interjection
+                ? ChatMessageMeta.ofInterjection(contextItems)
+                : ChatMessageMeta.ofUserMessage(contextItems, null, null);
+        return chatMessageRepository.save(new ChatMessageEntity(
+                0,
+                conversationId,
+                text,
+                MessageType.USER,
+                lastPosition(conversationId) + 1,
+                false,
+                false,
+                LocalDateTime.now(),
+                meta));
     }
 
     /**
@@ -435,48 +410,36 @@ public class ChatHistoryService {
         chatMessageRepository
                 .findFirstByConversationIdOrderByPositionDesc(conversationId)
                 .filter(last -> last.getType() == MessageType.ASSISTANT)
-                .filter(
-                        last ->
-                                last.getToolData() != null
-                                        && last.getToolData().toolCalls() != null
-                                        && !last.getToolData().toolCalls().isEmpty())
-                .ifPresent(
-                        last -> {
-                            final List<ToolData.Call> calls =
-                                    Objects.requireNonNull(
-                                            Objects.requireNonNull(last.getToolData()).toolCalls());
-                            final List<ToolData.Response> responses =
-                                    calls.stream()
-                                            .map(
-                                                    c ->
-                                                            new ToolData.Response(
-                                                                    c.id(),
-                                                                    c.name(),
-                                                                    responseText(scope, c.id())))
-                                            .toList();
-                            log.info(
-                                    "Repairing dangling tool_calls tail for {} ({} synthetic responses)",
-                                    conversationId,
-                                    responses.size());
-                            final ChatMessageEntity repaired =
-                                    chatMessageRepository.save(
-                                            new ChatMessageEntity(
-                                                    0L,
-                                                    conversationId,
-                                                    "",
-                                                    MessageType.TOOL,
-                                                    last.getPosition() + 1,
-                                                    false,
-                                                    false,
-                                                    LocalDateTime.now(),
-                                                    null,
-                                                    new ToolData(null, responses)));
-                            // Ремонтная строка идёт мимо append, но в индекс попасть обязана:
-                            // без её responseMessageId у оборванного вызова навсегда остаётся
-                            // «ответа ещё нет», то есть модалка деталей показывает работающим
-                            // инструмент, который уже никогда не ответит.
-                            toolCalls.index(conversationId, List.of(repaired));
-                        });
+                .filter(last -> last.getToolData() != null
+                        && last.getToolData().toolCalls() != null
+                        && !last.getToolData().toolCalls().isEmpty())
+                .ifPresent(last -> {
+                    final List<ToolData.Call> calls = Objects.requireNonNull(
+                            Objects.requireNonNull(last.getToolData()).toolCalls());
+                    final List<ToolData.Response> responses = calls.stream()
+                            .map(c -> new ToolData.Response(c.id(), c.name(), responseText(scope, c.id())))
+                            .toList();
+                    log.info(
+                            "Repairing dangling tool_calls tail for {} ({} synthetic responses)",
+                            conversationId,
+                            responses.size());
+                    final ChatMessageEntity repaired = chatMessageRepository.save(new ChatMessageEntity(
+                            0L,
+                            conversationId,
+                            "",
+                            MessageType.TOOL,
+                            last.getPosition() + 1,
+                            false,
+                            false,
+                            LocalDateTime.now(),
+                            null,
+                            new ToolData(null, responses)));
+                    // Ремонтная строка идёт мимо append, но в индекс попасть обязана:
+                    // без её responseMessageId у оборванного вызова навсегда остаётся
+                    // «ответа ещё нет», то есть модалка деталей показывает работающим
+                    // инструмент, который уже никогда не ответит.
+                    toolCalls.index(conversationId, List.of(repaired));
+                });
     }
 
     /**
@@ -488,8 +451,7 @@ public class ChatHistoryService {
             return NO_RESULT;
         }
         final RunScope.StartedCall started = scope.startedCall(callId);
-        final ToolInvocation outcome =
-                started == null ? null : scope.completedCall(started.callIndex());
+        final ToolInvocation outcome = started == null ? null : scope.completedCall(started.callIndex());
         if (outcome == null) {
             return NO_RESULT;
         }
@@ -540,28 +502,24 @@ public class ChatHistoryService {
             RunTokenUsage usage,
             List<TokenUsage> calls,
             List<ToolInvocation> toolCalls) {
-        final List<ChatMessageEntity> answers =
-                tailAfterLastUser(
-                                chatMessageRepository
-                                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                                conversationId))
-                        .stream()
-                        .filter(row -> row.getType() == MessageType.ASSISTANT)
-                        // meta == null в хвосте может быть только у рядов текущего прогона (хвост
-                        // на старте прогона пуст — см. unansweredUserMessage). Ряды с метой
-                        // трогаем только свои: withRun переписал бы чужому ряду и runId.
-                        .filter(
-                                row ->
-                                        row.getMeta() == null
-                                                || (row.getMeta().model() == null
-                                                        && runId.equals(row.getMeta().runId())))
-                        .toList();
+        final List<ChatMessageEntity> answers = tailAfterLastUser(
+                        chatMessageRepository
+                                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                        conversationId))
+                .stream()
+                .filter(row -> row.getType() == MessageType.ASSISTANT)
+                // meta == null в хвосте может быть только у рядов текущего прогона (хвост
+                // на старте прогона пуст — см. unansweredUserMessage). Ряды с метой
+                // трогаем только свои: withRun переписал бы чужому ряду и runId.
+                .filter(row -> row.getMeta() == null
+                        || (row.getMeta().model() == null
+                                && runId.equals(row.getMeta().runId())))
+                .toList();
         if (answers.isEmpty()) {
             return List.of();
         }
-        final Map<Long, List<ToolInvocationMeta>> invocations =
-                ToolCallService.runInvocations(
-                        answers.stream().filter(row -> row.getMeta() == null).toList(), toolCalls);
+        final Map<Long, List<ToolInvocationMeta>> invocations = ToolCallService.runInvocations(
+                answers.stream().filter(row -> row.getMeta() == null).toList(), toolCalls);
         final List<ChatMessageEntity> updated = new ArrayList<>(answers.size());
         final boolean callsMatchRows = calls.size() >= answers.size();
         for (int i = 0; i < answers.size(); i++) {
@@ -571,18 +529,14 @@ public class ChatHistoryService {
             // существующей и здесь, иначе она потеряется.
             final ChatMessageMeta existing = answer.getMeta();
             final List<ToolInvocationMeta> metas = invocations.get(answer.getId());
-            final ChatMessageMeta base =
-                    existing != null
-                            ? existing
-                            : ChatMessageMeta.builder()
-                                    .invocations(metas == null ? List.of() : metas)
-                                    .build();
+            final ChatMessageMeta base = existing != null
+                    ? existing
+                    : ChatMessageMeta.builder()
+                            .invocations(metas == null ? List.of() : metas)
+                            .build();
             final ChatMessageMeta marked = base.withRun(runId, model);
-            updated.add(
-                    answer.withMeta(
-                            callsMatchRows
-                                    ? marked.withContextTokens(calls.get(i).contextTokens())
-                                    : marked));
+            updated.add(answer.withMeta(
+                    callsMatchRows ? marked.withContextTokens(calls.get(i).contextTokens()) : marked));
         }
         if (!usage.isEmpty()) {
             final int last = updated.size() - 1;
@@ -667,8 +621,7 @@ public class ChatHistoryService {
      */
     private static @Nullable String reasoningOf(Message message) {
         return message instanceof AssistantMessage
-                        && message.getMetadata().get(AssistantChatMessage.REASONING_CONTENT)
-                                instanceof String reasoning
+                        && message.getMetadata().get(AssistantChatMessage.REASONING_CONTENT) instanceof String reasoning
                         && !reasoning.isEmpty()
                 ? reasoning
                 : null;
@@ -676,8 +629,7 @@ public class ChatHistoryService {
 
     /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */
     private static @Nullable ToolData toolDataOf(Message message) {
-        if (message instanceof AssistantMessage assistantMessage
-                && assistantMessage.hasToolCalls()) {
+        if (message instanceof AssistantMessage assistantMessage && assistantMessage.hasToolCalls()) {
             return sanitizeToolCallArguments(ToolData.from(assistantMessage));
         }
         if (message instanceof ToolResponseMessage toolResponseMessage
@@ -699,14 +651,11 @@ public class ChatHistoryService {
         }
         return new ToolData(
                 toolData.toolCalls().stream()
-                        .map(
-                                call ->
-                                        new ToolData.Call(
-                                                call.id(),
-                                                call.type(),
-                                                call.name(),
-                                                RecordingToolCallback.sanitizeArguments(
-                                                        call.arguments())))
+                        .map(call -> new ToolData.Call(
+                                call.id(),
+                                call.type(),
+                                call.name(),
+                                RecordingToolCallback.sanitizeArguments(call.arguments())))
                         .toList(),
                 null);
     }
@@ -775,9 +724,8 @@ public class ChatHistoryService {
     public List<PromptRow> promptRows(String conversationId) {
         return promptRowsFor(
                 conversationId,
-                chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                conversationId));
+                chatMessageRepository.findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                        conversationId));
     }
 
     /**
@@ -808,9 +756,8 @@ public class ChatHistoryService {
      * чате, где блок сел на отрезанную часть, он уехал бы вместе с ней.
      */
     public List<ChatMessageEntity> liveRows(String conversationId) {
-        return chatMessageRepository
-                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                        conversationId);
+        return chatMessageRepository.findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                conversationId);
     }
 
     /**
@@ -845,7 +792,9 @@ public class ChatHistoryService {
      * вложений обязаны быть теми же, какими их увидит следующая итерация из {@link #promptRows}.
      */
     public List<Message> promptMessagesFor(String conversationId, List<ChatMessageEntity> rows) {
-        return promptRowsFor(conversationId, rows).stream().map(PromptRow::toMessage).toList();
+        return promptRowsFor(conversationId, rows).stream()
+                .map(PromptRow::toMessage)
+                .toList();
     }
 
     /**
@@ -857,17 +806,12 @@ public class ChatHistoryService {
         final Map<Long, String> context = contextItemService.renderAll(conversationId, rows);
         // Блок активного проекта собирается один раз на окно и достаётся одному ряду — см.
         // ActiveProjectNotice.
-        final ActiveProjectNotice.@Nullable Placement project =
-                activeProject.place(conversationId, rows);
+        final ActiveProjectNotice.@Nullable Placement project = activeProject.place(conversationId, rows);
         return rows.stream()
-                .map(
-                        entity ->
-                                promptRow(
-                                        entity,
-                                        context.get(entity.getId()),
-                                        project != null && entity.getPosition() == project.anchor()
-                                                ? project.text()
-                                                : ""))
+                .map(entity -> promptRow(
+                        entity,
+                        context.get(entity.getId()),
+                        project != null && entity.getPosition() == project.anchor() ? project.text() : ""))
                 .toList();
     }
 
@@ -891,8 +835,7 @@ public class ChatHistoryService {
      *     говорит о том, что приложено к этому вопросу, а блок — о репозитории всего разговора
      *     ниже, и вклиниваться между вопросом и его вложениями ему незачем
      */
-    private static PromptRow promptRow(
-            ChatMessageEntity entity, @Nullable String inventory, String activeProject) {
+    private static PromptRow promptRow(ChatMessageEntity entity, @Nullable String inventory, String activeProject) {
         if (entity.getType() != MessageType.USER) {
             return new PromptRow(entity, entity.getContent());
         }
@@ -904,9 +847,8 @@ public class ChatHistoryService {
             // (см. ActiveProjectNotice).
             return new PromptRow(entity, eventNotice);
         }
-        final String notice =
-                PromptNotices.projectSwitchNotice(entity.getMeta())
-                        + PromptNotices.interjectionNotice(entity.getMeta());
+        final String notice = PromptNotices.projectSwitchNotice(entity.getMeta())
+                + PromptNotices.interjectionNotice(entity.getMeta());
         if (notice.isEmpty() && inventory == null && activeProject.isEmpty()) {
             return new PromptRow(entity, entity.getContent());
         }
@@ -943,8 +885,7 @@ public class ChatHistoryService {
      */
     public Optional<ChatMessageEntity> unansweredUserMessage(String conversationId) {
         for (ChatMessageEntity row :
-                chatMessageRepository.findTop20ByConversationIdOrderByPositionDesc(
-                        conversationId)) {
+                chatMessageRepository.findTop20ByConversationIdOrderByPositionDesc(conversationId)) {
             if (isEventRow(row)) {
                 continue;
             }
@@ -955,32 +896,25 @@ public class ChatHistoryService {
 
     /** Вся история чата для показа целиком, без строк-сводок. */
     public List<ChatMessageEntity> displayMessages(String conversationId) {
-        return chatMessageRepository
-                .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
-                        conversationId);
+        return chatMessageRepository.findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                conversationId);
     }
 
     public Page findLatestPage(String conversationId, int limit) {
         return toPage(chatMessageRepository.findLatest(conversationId, limit + 1), limit);
     }
 
-    public Page findPageBefore(
-            String conversationId, LocalDateTime beforeCreatedAt, long beforeId, int limit) {
-        return toPage(
-                chatMessageRepository.findBefore(
-                        conversationId, beforeCreatedAt, beforeId, limit + 1),
-                limit);
+    public Page findPageBefore(String conversationId, LocalDateTime beforeCreatedAt, long beforeId, int limit) {
+        return toPage(chatMessageRepository.findBefore(conversationId, beforeCreatedAt, beforeId, limit + 1), limit);
     }
 
     private Page toPage(List<ChatMessageEntity> rowsDesc, int limit) {
         boolean hasMore = rowsDesc.size() > limit;
-        List<ChatMessageEntity> chrono =
-                (hasMore ? rowsDesc.subList(0, limit) : rowsDesc).reversed();
-        MessageCursor cursor =
-                chrono.isEmpty()
-                        ? null
-                        : new MessageCursor(
-                                chrono.getFirst().getCreatedAt(), chrono.getFirst().getId());
+        List<ChatMessageEntity> chrono = (hasMore ? rowsDesc.subList(0, limit) : rowsDesc).reversed();
+        MessageCursor cursor = chrono.isEmpty()
+                ? null
+                : new MessageCursor(
+                        chrono.getFirst().getCreatedAt(), chrono.getFirst().getId());
         return new Page(chrono, hasMore, cursor);
     }
 

@@ -22,7 +22,8 @@ import org.jspecify.annotations.Nullable;
  * спанами последней сводки: она наследует спаны предыдущей, поэтому одной строки хватает на всю
  * сжатую историю и тянуться за исчезнувшими маркерами не приходится.
  */
-public record ProjectTrace(List<ProjectSpan> spans, @Nullable String lastProject) {
+public record ProjectTrace(
+        List<ProjectSpan> spans, @Nullable String lastProject) {
 
     /**
      * Собирает след по сводкам окна и живым рядам.

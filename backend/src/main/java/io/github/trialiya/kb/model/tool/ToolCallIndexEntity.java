@@ -20,10 +20,13 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("tool_call_index")
 public class ToolCallIndexEntity {
 
-    @Id private Long id;
+    @Id
+    private Long id;
 
     private String conversationId;
     private String callId;
     private long messageId;
-    @Nullable private Long responseMessageId;
+
+    @Nullable
+    private Long responseMessageId;
 }

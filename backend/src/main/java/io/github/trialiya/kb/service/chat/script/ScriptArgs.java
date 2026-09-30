@@ -79,8 +79,7 @@ public final class ScriptArgs {
             Object value = given.get(param.name());
             // Present-and-null is a value the caller chose — but never for a required argument,
             // where null is the absence the declaration exists to refuse.
-            boolean present =
-                    given.containsKey(param.name()) && !(value == null && param.required());
+            boolean present = given.containsKey(param.name()) && !(value == null && param.required());
             if (present && value != null) {
                 values.put(param.name(), coerce(script.name(), param, value));
             } else if (present) {
@@ -92,19 +91,17 @@ public final class ScriptArgs {
             }
         }
         List<String> notes = new ArrayList<>();
-        given.forEach(
-                (key, value) -> {
-                    if (!values.containsKey(key)) {
-                        values.put(key, value);
-                        notes.add(
-                                "[args] unknown parameter \""
-                                        + key
-                                        + "\" — passed through, but \""
-                                        + script.name()
-                                        + "\" declares "
-                                        + declared(script));
-                    }
-                });
+        given.forEach((key, value) -> {
+            if (!values.containsKey(key)) {
+                values.put(key, value);
+                notes.add("[args] unknown parameter \""
+                        + key
+                        + "\" — passed through, but \""
+                        + script.name()
+                        + "\" declares "
+                        + declared(script));
+            }
+        });
         return new Bound(values, json(script.name(), values), List.copyOf(notes));
     }
 
@@ -120,15 +117,13 @@ public final class ScriptArgs {
     private static Object coerce(String script, ScriptParam param, Object value) {
         return switch (param.type()) {
             case STRING ->
-                    value instanceof List<?> || value instanceof Map<?, ?>
-                            ? refuse(script, param, value, "a string")
-                            : String.valueOf(value);
+                value instanceof List<?> || value instanceof Map<?, ?>
+                        ? refuse(script, param, value, "a string")
+                        : String.valueOf(value);
             case NUMBER -> number(script, param, value);
             case BOOLEAN -> bool(script, param, value);
-            case ARRAY ->
-                    value instanceof List<?> ? value : refuse(script, param, value, "an array");
-            case OBJECT ->
-                    value instanceof Map<?, ?> ? value : refuse(script, param, value, "an object");
+            case ARRAY -> value instanceof List<?> ? value : refuse(script, param, value, "an array");
+            case OBJECT -> value instanceof Map<?, ?> ? value : refuse(script, param, value, "an object");
         };
     }
 
@@ -161,16 +156,15 @@ public final class ScriptArgs {
     }
 
     private static Object refuse(String script, ScriptParam param, Object value, String expected) {
-        throw new IllegalArgumentException(
-                "Script \""
-                        + script
-                        + "\": argument \""
-                        + param.name()
-                        + "\" must be "
-                        + expected
-                        + ", got "
-                        + quote(value)
-                        + ".");
+        throw new IllegalArgumentException("Script \""
+                + script
+                + "\": argument \""
+                + param.name()
+                + "\" must be "
+                + expected
+                + ", got "
+                + quote(value)
+                + ".");
     }
 
     private static String missing(SavedScript script, ScriptParam param) {
@@ -197,14 +191,13 @@ public final class ScriptArgs {
                     e);
         }
         if (json.length() > MAX_ARGS_CHARS) {
-            throw new IllegalArgumentException(
-                    "Script \""
-                            + script
-                            + "\": the arguments are too large ("
-                            + json.length()
-                            + " chars, the limit is "
-                            + MAX_ARGS_CHARS
-                            + ") — pass a path or a query and let the script read the data itself");
+            throw new IllegalArgumentException("Script \""
+                    + script
+                    + "\": the arguments are too large ("
+                    + json.length()
+                    + " chars, the limit is "
+                    + MAX_ARGS_CHARS
+                    + ") — pass a path or a query and let the script read the data itself");
         }
         return json;
     }

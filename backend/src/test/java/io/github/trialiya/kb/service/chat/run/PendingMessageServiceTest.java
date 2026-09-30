@@ -36,18 +36,15 @@ class PendingMessageServiceTest {
     private static final String CONV = "conv-1";
     private static final String RUN = "run-1";
 
-    private final ChatPendingMessageRepository repository =
-            mock(ChatPendingMessageRepository.class);
+    private final ChatPendingMessageRepository repository = mock(ChatPendingMessageRepository.class);
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
     private final ChatEventService events = mock(ChatEventService.class);
 
-    private final PendingMessageService service =
-            new PendingMessageService(repository, chatHistory, events);
+    private final PendingMessageService service = new PendingMessageService(repository, chatHistory, events);
 
     @Test
     void enqueuePersistsTheRowAndTellsEveryTab() {
-        when(repository.save(any(ChatPendingMessageEntity.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.save(any(ChatPendingMessageEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         service.enqueue(
                 CONV,
@@ -58,8 +55,7 @@ class PendingMessageServiceTest {
                 RUN,
                 "client-1");
 
-        final ArgumentCaptor<ChatPendingMessageEntity> row =
-                ArgumentCaptor.forClass(ChatPendingMessageEntity.class);
+        final ArgumentCaptor<ChatPendingMessageEntity> row = ArgumentCaptor.forClass(ChatPendingMessageEntity.class);
         verify(repository).save(row.capture());
         assertThat(row.getValue().getContent()).isEqualTo("и добавь тесты");
         assertThat(row.getValue().getModel()).isEqualTo("gpt-5");
@@ -79,9 +75,7 @@ class PendingMessageServiceTest {
         when(repository.claim(1)).thenReturn(1);
         when(repository.claim(2)).thenReturn(1);
         when(chatHistory.saveDeliveredPending(eq(CONV), anyString(), anyList(), anyBoolean()))
-                .thenAnswer(
-                        invocation ->
-                                deliveredRow(invocation.getArgument(1), invocation.getArgument(3)));
+                .thenAnswer(invocation -> deliveredRow(invocation.getArgument(1), invocation.getArgument(3)));
         when(chatHistory.promptMessagesFor(eq(CONV), anyList())).thenReturn(List.of());
 
         service.flushMidTurn(CONV, RUN);
@@ -93,17 +87,9 @@ class PendingMessageServiceTest {
 
         final ArgumentCaptor<Object> payloads = ArgumentCaptor.forClass(Object.class);
         verify(events, org.mockito.Mockito.times(2))
-                .publish(
-                        eq(CONV),
-                        eq(ChatEventType.USER_MESSAGE),
-                        eq(RUN),
-                        any(),
-                        payloads.capture());
-        assertThat(payloads.getAllValues())
-                .allSatisfy(
-                        p ->
-                                assertThat(((UserMessagePayload) p).interjection())
-                                        .isEqualTo(Boolean.TRUE));
+                .publish(eq(CONV), eq(ChatEventType.USER_MESSAGE), eq(RUN), any(), payloads.capture());
+        assertThat(payloads.getAllValues()).allSatisfy(p -> assertThat(((UserMessagePayload) p).interjection())
+                .isEqualTo(Boolean.TRUE));
     }
 
     /** Строка, которую успела забрать другая точка доставки, второй ряд истории не получает. */
@@ -115,10 +101,8 @@ class PendingMessageServiceTest {
         final List<?> injected = service.flushMidTurn(CONV, RUN);
 
         assertThat(injected).isEmpty();
-        verify(chatHistory, never())
-                .saveDeliveredPending(anyString(), anyString(), anyList(), anyBoolean());
-        verify(events, never())
-                .publish(eq(CONV), eq(ChatEventType.USER_MESSAGE), any(), any(), any());
+        verify(chatHistory, never()).saveDeliveredPending(anyString(), anyString(), anyList(), anyBoolean());
+        verify(events, never()).publish(eq(CONV), eq(ChatEventType.USER_MESSAGE), any(), any(), any());
     }
 
     @Test
@@ -126,21 +110,13 @@ class PendingMessageServiceTest {
         givenQueued(pending(1, "первое"));
         when(repository.claim(1)).thenReturn(1);
         when(chatHistory.saveDeliveredPending(eq(CONV), anyString(), anyList(), anyBoolean()))
-                .thenAnswer(
-                        invocation ->
-                                deliveredRow(invocation.getArgument(1), invocation.getArgument(3)));
+                .thenAnswer(invocation -> deliveredRow(invocation.getArgument(1), invocation.getArgument(3)));
 
         assertThat(service.flushPlain(CONV).any()).isTrue();
 
         verify(chatHistory).saveDeliveredPending(eq(CONV), eq("первое"), anyList(), eq(false));
         final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
-        verify(events)
-                .publish(
-                        eq(CONV),
-                        eq(ChatEventType.USER_MESSAGE),
-                        eq(null),
-                        any(),
-                        payload.capture());
+        verify(events).publish(eq(CONV), eq(ChatEventType.USER_MESSAGE), eq(null), any(), payload.capture());
         assertThat(((UserMessagePayload) payload.getValue()).interjection()).isNull();
     }
 
@@ -149,8 +125,7 @@ class PendingMessageServiceTest {
         givenQueued();
 
         assertThat(service.flushPlain(CONV).any()).isFalse();
-        assertThat(service.flushPlain(CONV).options())
-                .isEqualTo(PendingMessageService.PendingOptions.NONE);
+        assertThat(service.flushPlain(CONV).options()).isEqualTo(PendingMessageService.PendingOptions.NONE);
         assertThat(service.flushMidTurn(CONV, RUN)).isEmpty();
     }
 
@@ -160,16 +135,7 @@ class PendingMessageServiceTest {
 
     private static ChatPendingMessageEntity pending(long id, String text) {
         return new ChatPendingMessageEntity(
-                id,
-                CONV,
-                "admin",
-                text,
-                "client-" + id,
-                null,
-                null,
-                null,
-                null,
-                LocalDateTime.now());
+                id, CONV, "admin", text, "client-" + id, null, null, null, null, LocalDateTime.now());
     }
 
     private static ChatMessageEntity deliveredRow(String text, boolean interjection) {

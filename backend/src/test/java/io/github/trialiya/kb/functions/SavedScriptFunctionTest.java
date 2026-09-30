@@ -46,7 +46,8 @@ class SavedScriptFunctionTest {
 
     private static final String MANIFEST = ".kb/scripts.yaml";
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     /**
      * Вложения этому тесту нужны одной веткой: их собственный разбор — в
@@ -54,8 +55,7 @@ class SavedScriptFunctionTest {
      */
     private final AttachmentService attachments = org.mockito.Mockito.mock(AttachmentService.class);
 
-    private final ToolContext context =
-            new ToolContext(Map.of(ProjectContext.KEY, TestProjects.ID));
+    private final ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, TestProjects.ID));
 
     @BeforeEach
     void setUp() {
@@ -69,12 +69,8 @@ class SavedScriptFunctionTest {
         write(repoDir.resolve("tools/boom.js"), "const a = 1;\nthrow new Error('boom');\n");
         write(repoDir.resolve("tools/broken.js"), "var a = 1;\nvar b = ;\nreturn a;\n");
         write(repoDir.resolve("tools/frozen.js"), "args.area = 'changed';\nreturn args.area;\n");
-        write(
-                repoDir.resolve("tools/echo.js"),
-                "return { keys: Object.keys(args), area: args.area };\n");
-        write(
-                repoDir.resolve(MANIFEST),
-                """
+        write(repoDir.resolve("tools/echo.js"), "return { keys: Object.keys(args), area: args.area };\n");
+        write(repoDir.resolve(MANIFEST), """
                 scripts:
                   - name: report
                     file: tools/report.js
@@ -93,8 +89,7 @@ class SavedScriptFunctionTest {
 
     @Test
     void runsTheNamedScriptWithItsArguments() {
-        ScriptResult result =
-                function(false).runSavedScript(context, "report", Map.of("area", "docs"), null);
+        ScriptResult result = function(false).runSavedScript(context, "report", Map.of("area", "docs"), null);
 
         assertThat(result.error()).isNull();
         assertThat(result.value()).isEqualTo(Map.of("area", "docs", "limit", 5));
@@ -104,8 +99,7 @@ class SavedScriptFunctionTest {
     /** The result is about a text the model never saw, so it has to say which one it was. */
     @Test
     void reportsWhichScriptRan() {
-        ScriptResult result =
-                function(false).runSavedScript(context, "report", Map.of("area", "docs"), null);
+        ScriptResult result = function(false).runSavedScript(context, "report", Map.of("area", "docs"), null);
 
         ScriptRunSource source = result.source();
         assertThat(source).isNotNull();
@@ -146,8 +140,7 @@ class SavedScriptFunctionTest {
 
     @Test
     void argumentsCannotBeChangedByTheScript() {
-        ScriptResult result =
-                function(false).runSavedScript(context, "frozen", Map.of("area", "docs"), null);
+        ScriptResult result = function(false).runSavedScript(context, "frozen", Map.of("area", "docs"), null);
 
         // Frozen, not refused: a write to a frozen object is silently ignored outside strict mode,
         // which is what a script body is.
@@ -162,13 +155,8 @@ class SavedScriptFunctionTest {
      */
     @Test
     void argumentsArriveAsPassed() {
-        ScriptResult result =
-                function(false)
-                        .runSavedScript(
-                                context,
-                                "echo",
-                                Map.of("area", "документы/раздел", "__proto__", "harmless"),
-                                null);
+        ScriptResult result = function(false)
+                .runSavedScript(context, "echo", Map.of("area", "документы/раздел", "__proto__", "harmless"), null);
 
         assertThat(result.error()).isNull();
         assertThat(result.value())
@@ -199,18 +187,13 @@ class SavedScriptFunctionTest {
      */
     @Test
     void refusesAWritingScriptWhereWritesAreUnavailable() {
-        assertThatThrownBy(
-                        () ->
-                                function(false)
-                                        .runSavedScript(
-                                                context, "bump", Map.of("area", "docs"), null))
+        assertThatThrownBy(() -> function(false).runSavedScript(context, "bump", Map.of("area", "docs"), null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("edits files");
 
-        assertThat(
-                        function(true)
-                                .runSavedScript(context, "bump", Map.of("area", "docs"), null)
-                                .error())
+        assertThat(function(true)
+                        .runSavedScript(context, "bump", Map.of("area", "docs"), null)
+                        .error())
                 .isNull();
     }
 
@@ -225,9 +208,7 @@ class SavedScriptFunctionTest {
     void anAttachmentRunsAndRunsReadOnly() {
         stubAttachment(12, "probe.js", "return [typeof kb.create, args.area];");
 
-        ScriptResult result =
-                function(true)
-                        .runSavedScript(context, "attachment:12", Map.of("area", "docs"), null);
+        ScriptResult result = function(true).runSavedScript(context, "attachment:12", Map.of("area", "docs"), null);
 
         assertThat(result.error()).isNull();
         assertThat(result.value()).isEqualTo(List.of("undefined", "docs"));
@@ -260,8 +241,7 @@ class SavedScriptFunctionTest {
     void anAttachmentThatIsNotAScriptIsRefusedBeforeTheSandbox() {
         stubAttachment(13, "notes.md", "# not a script");
 
-        assertThatThrownBy(
-                        () -> function(false).runSavedScript(context, "attachment:13", null, null))
+        assertThatThrownBy(() -> function(false).runSavedScript(context, "attachment:13", null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("notes.md");
     }
@@ -274,31 +254,30 @@ class SavedScriptFunctionTest {
     void anAttachmentWritesOnlyWhereTheDeploymentAllowedIt() {
         stubAttachment(15, "probe.js", "return typeof kb.create;");
 
-        assertThat(function(true).runSavedScript(context, "attachment:15", null, null).value())
+        assertThat(function(true)
+                        .runSavedScript(context, "attachment:15", null, null)
+                        .value())
                 .isEqualTo("undefined");
-        assertThat(
-                        function(true, true)
-                                .runSavedScript(context, "attachment:15", null, null)
-                                .value())
+        assertThat(function(true, true)
+                        .runSavedScript(context, "attachment:15", null, null)
+                        .value())
                 .isEqualTo("function");
     }
 
     private void stubAttachment(long id, String fileName, String content) {
         org.mockito.Mockito.when(attachments.getById(id))
-                .thenReturn(
-                        new io.github.trialiya.kb.model.attachment.dto.Attachment(
-                                id,
-                                io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType
-                                        .CHAT,
-                                null,
-                                "conv-1",
-                                fileName,
-                                "text/plain",
-                                content.length(),
-                                null,
-                                null,
-                                java.time.OffsetDateTime.now(),
-                                java.time.OffsetDateTime.now()));
+                .thenReturn(new io.github.trialiya.kb.model.attachment.dto.Attachment(
+                        id,
+                        io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType.CHAT,
+                        null,
+                        "conv-1",
+                        fileName,
+                        "text/plain",
+                        content.length(),
+                        null,
+                        null,
+                        java.time.OffsetDateTime.now(),
+                        java.time.OffsetDateTime.now()));
         org.mockito.Mockito.when(attachments.getContent(id)).thenReturn(content);
     }
 
@@ -309,43 +288,18 @@ class SavedScriptFunctionTest {
     }
 
     private SavedScriptFunction function(boolean editEnabled, boolean attachmentEdit) {
-        ProjectOption option =
-                new ProjectOption(
-                        TestProjects.ID,
-                        null,
-                        repoDir.toString(),
-                        editEnabled,
-                        false,
-                        null,
-                        null,
-                        MANIFEST,
-                        null,
-                        true);
-        ProjectCatalog projects =
-                new ProjectCatalog(new ProjectProperties(List.of(option)), new GitProperties(null));
+        ProjectOption option = new ProjectOption(
+                TestProjects.ID, null, repoDir.toString(), editEnabled, false, null, null, MANIFEST, null, true);
+        ProjectCatalog projects = new ProjectCatalog(new ProjectProperties(List.of(option)), new GitProperties(null));
         GitRegistry registry = TestProjects.registry(List.of(option));
-        ScriptProperties properties =
-                new ScriptProperties(
-                        true,
-                        true,
-                        true,
-                        attachmentEdit,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+        ScriptProperties properties = new ScriptProperties(
+                true, true, true, attachmentEdit, null, null, null, null, null, null, null, null, null);
         ScriptEditPolicy editPolicy = new ScriptEditPolicy(registry, properties);
         return new SavedScriptFunction(
                 new SavedScriptResolver(
                         new SavedScriptCatalog(projects, registry, properties),
                         new AttachmentScriptService(attachments, properties)),
-                new ScriptRunner(
-                        registry, null, properties, editPolicy, new InMemoryScriptResultStore()),
+                new ScriptRunner(registry, null, properties, editPolicy, new InMemoryScriptResultStore()),
                 editPolicy);
     }
 
@@ -368,17 +322,14 @@ class SavedScriptFunctionTest {
             var command = new ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();

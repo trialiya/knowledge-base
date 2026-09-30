@@ -43,9 +43,7 @@ class DocumentFunctionEditDocumentTest {
     @BeforeEach
     void setUp() {
         documentService = mock(DocumentService.class);
-        function =
-                new DocumentFunction(
-                        documentService, mock(AttachmentService.class), EarlierToolResults.NONE);
+        function = new DocumentFunction(documentService, mock(AttachmentService.class), EarlierToolResults.NONE);
         patched = new AtomicReference<>();
         storedAs(MD);
     }
@@ -55,23 +53,13 @@ class DocumentFunctionEditDocumentTest {
         Document document = mock(Document.class);
         when(document.toDocumentShort())
                 .thenReturn(
-                        new DocumentShort(
-                                DOC_ID,
-                                "Гайд",
-                                "document",
-                                null,
-                                2,
-                                4,
-                                LocalDateTime.now(),
-                                false,
-                                null));
+                        new DocumentShort(DOC_ID, "Гайд", "document", null, 2, 4, LocalDateTime.now(), false, null));
         when(documentService.patchDescription(anyLong(), any(UnaryOperator.class)))
-                .thenAnswer(
-                        inv -> {
-                            UnaryOperator<String> patch = inv.getArgument(1);
-                            patched.set(patch.apply(description));
-                            return document;
-                        });
+                .thenAnswer(inv -> {
+                    UnaryOperator<String> patch = inv.getArgument(1);
+                    patched.set(patch.apply(description));
+                    return document;
+                });
     }
 
     @Test
@@ -79,8 +67,7 @@ class DocumentFunctionEditDocumentTest {
         DocumentShort result = function.editDocument(DOC_ID, "# Гайд", "# Руководство", false);
 
         assertThat(result.id()).isEqualTo(DOC_ID);
-        assertThat(patched.get())
-                .isEqualTo("# Руководство\nстарый текст\n## FAQ\nстарый текст в FAQ\n");
+        assertThat(patched.get()).isEqualTo("# Руководство\nстарый текст\n## FAQ\nстарый текст в FAQ\n");
     }
 
     @Test
@@ -92,8 +79,7 @@ class DocumentFunctionEditDocumentTest {
 
     @Test
     void ambiguousFragmentIsRefusedUntilReplaceAll() {
-        assertThatThrownBy(
-                        () -> function.editDocument(DOC_ID, "старый текст", "новый текст", false))
+        assertThatThrownBy(() -> function.editDocument(DOC_ID, "старый текст", "новый текст", false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("occurs 2 times")
                 .hasMessageContaining("document id=" + DOC_ID);
@@ -111,24 +97,16 @@ class DocumentFunctionEditDocumentTest {
         String crlf = MD.replace("\n", "\r\n");
         AtomicReference<String> patchedCrlf = new AtomicReference<>();
         when(documentService.patchDescription(anyLong(), any(UnaryOperator.class)))
-                .thenAnswer(
-                        inv -> {
-                            UnaryOperator<String> patch = inv.getArgument(1);
-                            patchedCrlf.set(patch.apply(crlf));
-                            return null;
-                        });
+                .thenAnswer(inv -> {
+                    UnaryOperator<String> patch = inv.getArgument(1);
+                    patchedCrlf.set(patch.apply(crlf));
+                    return null;
+                });
 
-        assertThatThrownBy(
-                        () ->
-                                function.editDocument(
-                                        DOC_ID,
-                                        "# Гайд\nстарый текст",
-                                        "# Гайд\nновый текст",
-                                        false))
+        assertThatThrownBy(() -> function.editDocument(DOC_ID, "# Гайд\nстарый текст", "# Гайд\nновый текст", false))
                 // The stub returns null once the patch has run — the splice is what this pins.
                 .isInstanceOf(NullPointerException.class);
-        assertThat(patchedCrlf.get())
-                .isEqualTo("# Гайд\r\nновый текст\r\n## FAQ\r\nстарый текст в FAQ\r\n");
+        assertThat(patchedCrlf.get()).isEqualTo("# Гайд\r\nновый текст\r\n## FAQ\r\nстарый текст в FAQ\r\n");
     }
 
     @Test
@@ -141,8 +119,7 @@ class DocumentFunctionEditDocumentTest {
 
     @Test
     void absentArgumentsAreNamed() {
-        assertThatThrownBy(() -> function.editDocument(null, "a", "b", false))
-                .hasMessageContaining("documentId");
+        assertThatThrownBy(() -> function.editDocument(null, "a", "b", false)).hasMessageContaining("documentId");
         assertThatThrownBy(() -> function.editDocument(DOC_ID, null, "b", false))
                 .hasMessageContaining("oldString");
         // Absent newString is not the same instruction as an empty one: "" deletes the fragment,

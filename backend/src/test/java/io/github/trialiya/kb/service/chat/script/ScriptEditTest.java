@@ -45,11 +45,10 @@ class ScriptEditTest {
     private static final String LOGO_PNG = "static/logo.png";
 
     /** A PNG header followed by NUL bytes — sniffs binary exactly as git's own heuristic does. */
-    private static final byte[] PNG = {
-        (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13
-    };
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13};
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private ScriptRunner runner;
 
@@ -69,9 +68,7 @@ class ScriptEditTest {
 
     @Test
     void appliesAnEditAndReportsItWithADiff() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.read('src/App.java');
                         kb.edit('src/App.java', 'void run() {}', 'void run() { start(); }');
                         return 'ok';
@@ -102,9 +99,7 @@ class ScriptEditTest {
 
     @Test
     void aSecondEditOfTheSameFileSeesTheFirst() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.read('src/App.java');
                         kb.edit('src/App.java', 'class App', 'class Application');
                         kb.edit('src/App.java', 'class Application', 'final class Application');
@@ -121,54 +116,43 @@ class ScriptEditTest {
 
     @Test
     void writesNothingWhenTheScriptThrowsAfterEditing() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.read('src/App.java');
                         kb.edit('src/App.java', 'class App', 'class Broken');
                         throw new Error('boom');
                         """);
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.RUNTIME);
+        assertThat(result.error()).isNotNull().extracting(ScriptError::kind).isEqualTo(ScriptError.Kind.RUNTIME);
         assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
         assertThat(result.edits()).isEmpty();
     }
 
     @Test
     void writesNothingWhenTheScriptTimesOut() {
-        runner =
-                newRunner(
+        runner = newRunner(
+                true,
+                new ScriptProperties(
                         true,
-                        new ScriptProperties(
-                                true,
-                                true,
-                                true,
-                                false,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                Duration.ofSeconds(1),
-                                Duration.ofSeconds(2),
-                                Duration.ofMillis(20),
-                                null));
+                        true,
+                        true,
+                        false,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        Duration.ofSeconds(1),
+                        Duration.ofSeconds(2),
+                        Duration.ofMillis(20),
+                        null));
 
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.read('src/App.java');
                         kb.edit('src/App.java', 'class App', 'class Spun');
                         while (true) {}
                         """);
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.TIMEOUT);
+        assertThat(result.error()).isNotNull().extracting(ScriptError::kind).isEqualTo(ScriptError.Kind.TIMEOUT);
         assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
     }
 
@@ -177,14 +161,11 @@ class ScriptEditTest {
         RunCancellation cancellation = new RunCancellation(() -> true);
 
         try {
-            runner.run(
-                    """
+            runner.run("""
                     kb.read('src/App.java');
                     kb.edit('src/App.java', 'class App', 'class Stopped');
                     while (true) {}
-                    """,
-                    null,
-                    cancellation);
+                    """, null, cancellation);
         } catch (ScriptCancelledException expected) {
             // The point of the test is what is on disk, not the exception.
         }
@@ -196,19 +177,14 @@ class ScriptEditTest {
     void writesNothingWhenAWriteBudgetIsExceeded() {
         runner = newRunner(true, withEditLimits(1));
 
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.read('src/App.java');
                         kb.edit('src/App.java', 'class App', 'class Edited');
                         kb.create('src/Second.java', 'class Second {}');
                         return 'ok';
                         """);
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(result.error()).isNotNull().extracting(ScriptError::kind).isEqualTo(ScriptError.Kind.BUDGET);
         assertThat(result.error().message()).contains("maxEditedFiles");
         assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
         assertThat(repoDir.resolve("src/Second.java")).doesNotExist();
@@ -223,8 +199,7 @@ class ScriptEditTest {
      */
     @Test
     void editsAFileTheScriptNeverRead() {
-        ScriptResult result =
-                run("kb.edit('src/App.java', 'class App', 'class Quoted'); return 'ok';");
+        ScriptResult result = run("kb.edit('src/App.java', 'class App', 'class Quoted'); return 'ok';");
 
         assertThat(result.error()).isNull();
         assertThat(fileText(APP_JAVA)).startsWith("class Quoted");
@@ -232,8 +207,7 @@ class ScriptEditTest {
 
     @Test
     void refusesAnOldStringThatIsNotInTheFile() {
-        ScriptResult result =
-                run("kb.edit('src/App.java', 'class Imagined', 'class Blind'); return 'ok';");
+        ScriptResult result = run("kb.edit('src/App.java', 'class Imagined', 'class Blind'); return 'ok';");
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().message()).contains("oldString not found");
@@ -248,25 +222,19 @@ class ScriptEditTest {
     @Test
     void acceptsAFileReadByAnotherToolEarlierInTheSameResponse() {
         ToolInvocationCollector collector = new ToolInvocationCollector();
-        collector.record(
-                new ToolInvocation(
-                        "getFileContent",
-                        Map.of("filePath", LOGO_PNG),
-                        ToolInvocationCollector.ToolInvocationStatus.OK,
-                        null,
-                        null,
-                        null,
-                        null,
-                        "{\"project\":\""
-                                + TestProjects.ID
-                                + "\",\"result\":{\"path\":\""
-                                + LOGO_PNG
-                                + "\"}}",
-                        collector.nextCallIndex(),
-                        TestProjects.ID));
+        collector.record(new ToolInvocation(
+                "getFileContent",
+                Map.of("filePath", LOGO_PNG),
+                ToolInvocationCollector.ToolInvocationStatus.OK,
+                null,
+                null,
+                null,
+                null,
+                "{\"project\":\"" + TestProjects.ID + "\",\"result\":{\"path\":\"" + LOGO_PNG + "\"}}",
+                collector.nextCallIndex(),
+                TestProjects.ID));
 
-        ScriptResult result =
-                run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
+        ScriptResult result = run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
 
         assertThat(result.error()).isNull();
         assertThat(fileBytes("static/logo.png")).containsExactly(1, 2, 3);
@@ -280,23 +248,19 @@ class ScriptEditTest {
     @Test
     void acceptsAFileReadByAnEarlierRunScriptCallInTheSameResponse() {
         ToolInvocationCollector collector = new ToolInvocationCollector();
-        collector.record(
-                new ToolInvocation(
-                        "runScript",
-                        Map.of("script", "kb.readBytes('static/logo.png'); return 'ok';"),
-                        ToolInvocationCollector.ToolInvocationStatus.OK,
-                        null,
-                        null,
-                        null,
-                        null,
-                        "{\"project\":\""
-                                + TestProjects.ID
-                                + "\",\"value\":\"ok\",\"filesRead\":[\"static/logo.png\"]}",
-                        collector.nextCallIndex(),
-                        TestProjects.ID));
+        collector.record(new ToolInvocation(
+                "runScript",
+                Map.of("script", "kb.readBytes('static/logo.png'); return 'ok';"),
+                ToolInvocationCollector.ToolInvocationStatus.OK,
+                null,
+                null,
+                null,
+                null,
+                "{\"project\":\"" + TestProjects.ID + "\",\"value\":\"ok\",\"filesRead\":[\"static/logo.png\"]}",
+                collector.nextCallIndex(),
+                TestProjects.ID));
 
-        ScriptResult result =
-                run("kb.writeBytes('static/logo.png', [4, 5]); return 'ok';", collector);
+        ScriptResult result = run("kb.writeBytes('static/logo.png', [4, 5]); return 'ok';", collector);
 
         assertThat(result.error()).isNull();
         assertThat(fileBytes("static/logo.png")).containsExactly(4, 5);
@@ -310,21 +274,19 @@ class ScriptEditTest {
     @Test
     void aReadOfTheSamePathFromAnotherProjectDoesNotCount() {
         ToolInvocationCollector collector = new ToolInvocationCollector();
-        collector.record(
-                new ToolInvocation(
-                        "getFileContent",
-                        Map.of("filePath", LOGO_PNG, "project", "billing"),
-                        ToolInvocationCollector.ToolInvocationStatus.OK,
-                        null,
-                        null,
-                        null,
-                        null,
-                        "{\"project\":\"billing\",\"result\":{\"path\":\"" + LOGO_PNG + "\"}}",
-                        collector.nextCallIndex(),
-                        "billing"));
+        collector.record(new ToolInvocation(
+                "getFileContent",
+                Map.of("filePath", LOGO_PNG, "project", "billing"),
+                ToolInvocationCollector.ToolInvocationStatus.OK,
+                null,
+                null,
+                null,
+                null,
+                "{\"project\":\"billing\",\"result\":{\"path\":\"" + LOGO_PNG + "\"}}",
+                collector.nextCallIndex(),
+                "billing"));
 
-        ScriptResult result =
-                run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
+        ScriptResult result = run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().message()).contains("has not looked at it");
@@ -335,21 +297,19 @@ class ScriptEditTest {
     @Test
     void ignoresAToolCallStillInFlight() {
         ToolInvocationCollector collector = new ToolInvocationCollector();
-        collector.record(
-                new ToolInvocation(
-                        "getFileContent",
-                        Map.of("filePath", LOGO_PNG),
-                        ToolInvocationCollector.ToolInvocationStatus.STARTED,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        collector.nextCallIndex(),
-                        null));
+        collector.record(new ToolInvocation(
+                "getFileContent",
+                Map.of("filePath", LOGO_PNG),
+                ToolInvocationCollector.ToolInvocationStatus.STARTED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                collector.nextCallIndex(),
+                null));
 
-        ScriptResult result =
-                run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
+        ScriptResult result = run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().message()).contains("has not looked at it");
@@ -359,9 +319,7 @@ class ScriptEditTest {
     /** A read of one file says nothing about another: the rule is keyed on the path. */
     @Test
     void aReadOfOneFileDoesNotUnlockOverwritingAnother() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.read('src/App.java');
                         kb.writeBytes('static/logo.png', [1, 2, 3]);
                         return 'ok';
@@ -379,9 +337,7 @@ class ScriptEditTest {
      */
     @Test
     void editsWhatAGrepFound() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         var hits = kb.grep('class App', { glob: '**/*.java' });
                         kb.edit(hits[0].path, 'class App', 'class Grepped');
                         return hits.length;
@@ -399,9 +355,7 @@ class ScriptEditTest {
     void allowsEditingAFileTheSameScriptJustCreated() {
         // A file that exists only as this run's pending text: the edit matches against what the
         // script wrote a moment ago, and the whole pair still lands as one creation.
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.create('src/Fresh.java', 'class Fresh {}\\n');
                         kb.edit('src/Fresh.java', 'class Fresh', 'final class Fresh');
                         return 'ok';
@@ -420,9 +374,7 @@ class ScriptEditTest {
         write(repoDir.resolve("src/Twice.java"), "int a = 1;\nint a = 1;\n");
         commitAll();
 
-        ScriptResult ambiguous =
-                run(
-                        """
+        ScriptResult ambiguous = run("""
                         kb.read('src/Twice.java');
                         kb.edit('src/Twice.java', 'int a = 1;', 'int a = 2;');
                         return 'ok';
@@ -431,9 +383,7 @@ class ScriptEditTest {
         assertThat(ambiguous.error().message()).contains("occurs 2 times");
         assertThat(fileText("src/Twice.java")).isEqualTo("int a = 1;\nint a = 1;\n");
 
-        ScriptResult all =
-                run(
-                        """
+        ScriptResult all = run("""
                         kb.read('src/Twice.java');
                         kb.edit('src/Twice.java', 'int a = 1;', 'int a = 2;', true);
                         return 'ok';
@@ -459,9 +409,7 @@ class ScriptEditTest {
      */
     @Test
     void refusesAnUnwritablePathBeforeAnythingIsStaged() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.create('src/First.java', 'class First {}\\n');
                         kb.create('.git/hooks/pre-commit', 'rm -rf /');
                         return 'ok';
@@ -478,9 +426,7 @@ class ScriptEditTest {
 
     @Test
     void refusesAJunkFileNameBeforeAnythingIsStaged() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.create('src/First.java', 'class First {}\\n');
                         kb.create('src/.DS_Store', 'junk');
                         return 'ok';
@@ -517,9 +463,7 @@ class ScriptEditTest {
      */
     @Test
     void twoSpellingsOfOnePathAreOneStagedWrite() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.read('src/App.java');
                         kb.edit('src/App.java', 'class App', 'class AppOne');
                         kb.edit('./src/App.java', 'void run', 'void start');
@@ -543,9 +487,7 @@ class ScriptEditTest {
      */
     @Test
     void replacesTheBytesOfABinaryFile() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         var bytes = kb.readBytes('static/logo.png');
                         bytes[bytes.length - 1] = 42;
                         return kb.writeBytes('static/logo.png', bytes);
@@ -557,14 +499,7 @@ class ScriptEditTest {
                 .endsWith(new byte[] {42})
                 .startsWith(new byte[] {(byte) 0x89, 'P', 'N', 'G'});
         assertThat(result.value())
-                .isEqualTo(
-                        Map.of(
-                                "path",
-                                "static/logo.png",
-                                "operation",
-                                "write",
-                                "bytes",
-                                PNG.length));
+                .isEqualTo(Map.of("path", "static/logo.png", "operation", "write", "bytes", PNG.length));
         assertThat(result.edits())
                 .singleElement()
                 .extracting(GitEditResult::path, GitEditResult::operation)
@@ -576,9 +511,7 @@ class ScriptEditTest {
 
     @Test
     void createsABinaryFileFromBase64() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         var copy = kb.readBase64('static/logo.png');
                         return kb.createBytes('static/copy.png', copy);
                         """);
@@ -594,9 +527,7 @@ class ScriptEditTest {
     /** The whole point of buffering, on the byte path too: a run that fails writes nothing. */
     @Test
     void writesNoBytesWhenTheScriptThrowsAfterWriting() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.readBytes('static/logo.png');
                         kb.writeBytes('static/logo.png', [1, 2, 3]);
                         kb.createBytes('static/new.bin', [4, 5]);
@@ -625,9 +556,7 @@ class ScriptEditTest {
      */
     @Test
     void writesBytesAgainToAFileThisRunCreated() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.createBytes('static/icon.ico', [0, 1]);
                         kb.writeBytes('static/icon.ico', [0, 1, 2, 3]);
                         return 'ok';
@@ -651,9 +580,7 @@ class ScriptEditTest {
      */
     @Test
     void refusesToOverwriteATextFileWithBytes() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.read('src/App.java');
                         kb.writeBytes('src/App.java', 'Ly8gd2lwZWQK');
                         return 'ok';
@@ -673,9 +600,7 @@ class ScriptEditTest {
      */
     @Test
     void refusesToOverwriteWithBytesATextFileThisRunOnlyEdited() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.read('src/App.java');
                         kb.edit('src/App.java', 'class App', 'class Edited');
                         kb.writeBytes('src/App.java', 'Ly8gd2lwZWQK');
@@ -694,9 +619,7 @@ class ScriptEditTest {
      */
     @Test
     void anEmptyByteWindowDoesNotCountAsHavingSeenTheFile() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.readBytes('static/logo.png', 999999, 1);
                         kb.writeBytes('static/logo.png', [7]);
                         return 'ok';
@@ -714,8 +637,7 @@ class ScriptEditTest {
      */
     @Test
     void aHashDoesNotCountAsHavingSeenTheFile() {
-        ScriptResult result =
-                run("kb.hash('static/logo.png'); kb.writeBytes('static/logo.png', [1]); return 1;");
+        ScriptResult result = run("kb.hash('static/logo.png'); kb.writeBytes('static/logo.png', [1]); return 1;");
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().message()).contains("has not looked at it");
@@ -724,9 +646,7 @@ class ScriptEditTest {
 
     @Test
     void refusesToEditAsTextWhatThisRunWroteAsBytes() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.readBytes('static/logo.png');
                         kb.writeBytes('static/logo.png', [1, 2, 3]);
                         kb.edit('static/logo.png', 'PNG', 'JPG');
@@ -740,9 +660,7 @@ class ScriptEditTest {
 
     @Test
     void refusesToEditABinaryFileAsTextAndNamesTheByteWrite() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.readBytes('static/logo.png');
                         kb.edit('static/logo.png', 'PNG', 'JPG');
                         return 'ok';
@@ -756,8 +674,7 @@ class ScriptEditTest {
 
     @Test
     void refusesContentThatIsNeitherBase64NorBytes() {
-        ScriptResult result =
-                run("kb.readBytes('static/logo.png'); kb.writeBytes('static/logo.png', [1, 999]);");
+        ScriptResult result = run("kb.readBytes('static/logo.png'); kb.writeBytes('static/logo.png', [1, 999]);");
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().message()).contains("not a byte value");
@@ -768,9 +685,7 @@ class ScriptEditTest {
     void countsByteWritesAgainstTheSameWriteBudgets() {
         runner = newRunner(true, withEditLimits(1));
 
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.readBytes('static/logo.png');
                         kb.writeBytes('static/logo.png', [1, 2, 3]);
                         kb.createBytes('static/second.bin', [4]);
@@ -789,9 +704,7 @@ class ScriptEditTest {
     void editsAnAdmittedUntrackedFileWhereTheProjectAllowsIt() {
         runner = untrackedRunner(true);
 
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.read('notes/todo.md');
                         kb.edit('notes/todo.md', 'milk', 'bread');
                         return 'ok';
@@ -809,9 +722,7 @@ class ScriptEditTest {
     void refusesToEditAnAdmittedUntrackedFileBeforeAnyOfTheRunsWritesReachDisk() {
         runner = untrackedRunner(false);
 
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         kb.create('src/New.java', 'class New {}\\n');
                         kb.read('notes/todo.md');
                         kb.edit('notes/todo.md', 'milk', 'bread');
@@ -829,8 +740,7 @@ class ScriptEditTest {
     void refusesRawBytesOnAnAdmittedUntrackedFileAsAPermissionRatherThanAShape() {
         runner = untrackedRunner(false);
 
-        ScriptResult result =
-                run("kb.read('notes/todo.md'); kb.writeBytes('notes/todo.md', [1, 2, 3]);");
+        ScriptResult result = run("kb.read('notes/todo.md'); kb.writeBytes('notes/todo.md', [1, 2, 3]);");
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().message()).contains("untracked-edit-enabled");
@@ -857,8 +767,7 @@ class ScriptEditTest {
     void withholdsWritesFromAForcedReadOnlyRunEvenWhereThePolicyAllowsThem() {
         // The search sub-agent's copy of the tool: read-only by construction, whatever the main
         // chat is allowed to do.
-        ScriptResult result =
-                runner.run("return typeof kb.edit;", null, RunCancellation.none(), true);
+        ScriptResult result = runner.run("return typeof kb.edit;", null, RunCancellation.none(), true);
 
         assertThat(result.value()).isEqualTo("undefined");
     }
@@ -965,17 +874,14 @@ class ScriptEditTest {
             var command = new ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();

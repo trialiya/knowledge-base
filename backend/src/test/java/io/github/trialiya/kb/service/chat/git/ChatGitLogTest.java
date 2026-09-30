@@ -47,8 +47,7 @@ class ChatGitLogTest {
 
     @Test
     void aFailedRecordDoesNotFailTheCommandThatAlreadyRan() {
-        when(chatHistory.appendGitEvent(anyString(), any()))
-                .thenThrow(new IllegalStateException("db down"));
+        when(chatHistory.appendGitEvent(anyString(), any())).thenThrow(new IllegalStateException("db down"));
 
         log.record(CONV, "pull", "kb", true, "Fast-forward", "main", null);
 
@@ -64,18 +63,16 @@ class ChatGitLogTest {
     @Test
     void aRecordedCommandIsAnnouncedToTheTabs() {
         when(chatHistory.appendGitEvent(anyString(), any()))
-                .thenReturn(
-                        new ChatMessageEntity(
-                                42L,
-                                CONV,
-                                "",
-                                MessageType.USER,
-                                3,
-                                false,
-                                false,
-                                LocalDateTime.now(),
-                                ChatMessageMeta.ofGitEvent(
-                                        new GitEventMeta("pull", "kb", true, "", "main"))));
+                .thenReturn(new ChatMessageEntity(
+                        42L,
+                        CONV,
+                        "",
+                        MessageType.USER,
+                        3,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofGitEvent(new GitEventMeta("pull", "kb", true, "", "main"))));
 
         log.record(CONV, "pull", "kb", true, "Fast-forward", "main", null);
 

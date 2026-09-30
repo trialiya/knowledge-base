@@ -83,8 +83,11 @@ class PrePersistedUserMessageTest {
     private static final String QUESTION = "Привет, модель";
     private static final String REPLY = "Ответ";
 
-    @Autowired private ChatMessageRepository messageRepo;
-    @Autowired private ToolCallIndexRepository toolCallIndexRepo;
+    @Autowired
+    private ChatMessageRepository messageRepo;
+
+    @Autowired
+    private ToolCallIndexRepository toolCallIndexRepo;
 
     private ChatHistoryService memoryService() {
         return new ChatHistoryService(
@@ -92,16 +95,14 @@ class PrePersistedUserMessageTest {
                 new ContextItemService(mock(AttachmentService.class)),
                 new ToolCallService(messageRepo, toolCallIndexRepo),
                 new ToolCallEventPublisher(
-                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                        new RunRegistry()),
+                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))), new RunRegistry()),
                 ActiveProjectNotices.silent());
     }
 
     private static ChatModel stubModel() {
         ChatModel chatModel = mock(ChatModel.class);
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
-        ChatResponse response =
-                new ChatResponse(List.of(new Generation(new AssistantMessage(REPLY))));
+        ChatResponse response = new ChatResponse(List.of(new Generation(new AssistantMessage(REPLY))));
         when(chatModel.call(any(Prompt.class))).thenReturn(response);
         when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.just(response));
         return chatModel;
@@ -112,25 +113,18 @@ class PrePersistedUserMessageTest {
      * внутри него. Проверять предсохранение на голом advisor памяти недостаточно — в проде {@code
      * before()} вызывается на каждой итерации tool-цикла.
      */
-    private ChatClient chatClient(
-            ChatModel model, ChatHistoryService memory, boolean withToolLoop) {
-        ChatMemory chatMemory =
-                new ChatHistoryMemory(
-                        memory,
-                        mock(ChatEventService.class),
-                        new RunRegistry(),
-                        mock(ChatModelProperties.class));
+    private ChatClient chatClient(ChatModel model, ChatHistoryService memory, boolean withToolLoop) {
+        ChatMemory chatMemory = new ChatHistoryMemory(
+                memory, mock(ChatEventService.class), new RunRegistry(), mock(ChatModelProperties.class));
         List<Advisor> advisors = new java.util.ArrayList<>();
         if (withToolLoop) {
-            advisors.add(
-                    ToolCallingAdvisor.builder()
-                            .toolCallingManager(ToolCallingManager.builder().build())
-                            .disableInternalConversationHistory()
-                            .build());
-            advisors.add(
-                    MessageChatMemoryAdvisor.builder(chatMemory)
-                            .order(ToolCallingAdvisor.DEFAULT_ORDER + 100)
-                            .build());
+            advisors.add(ToolCallingAdvisor.builder()
+                    .toolCallingManager(ToolCallingManager.builder().build())
+                    .disableInternalConversationHistory()
+                    .build());
+            advisors.add(MessageChatMemoryAdvisor.builder(chatMemory)
+                    .order(ToolCallingAdvisor.DEFAULT_ORDER + 100)
+                    .build());
         } else {
             advisors.add(MessageChatMemoryAdvisor.builder(chatMemory).build());
         }
@@ -139,31 +133,28 @@ class PrePersistedUserMessageTest {
 
     /** Записывает USER-строку напрямую — так это будет делать {@code ChatRunService.start}. */
     private long prePersistUser(String conversationId, String text) {
-        long nextPosition =
-                messageRepo
-                                .findFirstByConversationIdOrderByPositionDesc(conversationId)
-                                .map(ChatMessageEntity::getPosition)
-                                .orElse(0L)
-                        + 1;
+        long nextPosition = messageRepo
+                        .findFirstByConversationIdOrderByPositionDesc(conversationId)
+                        .map(ChatMessageEntity::getPosition)
+                        .orElse(0L)
+                + 1;
         return messageRepo
-                .save(
-                        new ChatMessageEntity(
-                                0,
-                                conversationId,
-                                text,
-                                MessageType.USER,
-                                nextPosition,
-                                false,
-                                false,
-                                LocalDateTime.now(),
-                                null))
+                .save(new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        text,
+                        MessageType.USER,
+                        nextPosition,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        null))
                 .getId();
     }
 
     private List<ChatMessageEntity> userRows(String conversationId) {
         return messageRepo
-                .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
-                        conversationId)
+                .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(conversationId)
                 .stream()
                 .filter(m -> m.getType() == MessageType.USER)
                 .toList();
@@ -177,13 +168,12 @@ class PrePersistedUserMessageTest {
 
         long userMessageId = prePersistUser(conversationId, QUESTION);
 
-        String reply =
-                chatClient(model, memory, false)
-                        .prompt()
-                        .system("Системный промпт")
-                        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                        .call()
-                        .content();
+        String reply = chatClient(model, memory, false)
+                .prompt()
+                .system("Системный промпт")
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .call()
+                .content();
 
         assertThat(reply).isEqualTo(REPLY);
 
@@ -196,9 +186,8 @@ class PrePersistedUserMessageTest {
                 .hasSize(1);
 
         // Дубля нет: USER-строка ровно одна, та же самая.
-        assertThat(userRows(conversationId))
-                .singleElement()
-                .satisfies(m -> assertThat(m.getId()).isEqualTo(userMessageId));
+        assertThat(userRows(conversationId)).singleElement().satisfies(m -> assertThat(m.getId())
+                .isEqualTo(userMessageId));
 
         assertThat(memory.promptMessages(conversationId)).anyMatch(m -> REPLY.equals(m.getText()));
     }
@@ -212,15 +201,14 @@ class PrePersistedUserMessageTest {
 
         long userMessageId = prePersistUser(conversationId, QUESTION);
 
-        List<ChatResponse> received =
-                chatClient(model, memory, true)
-                        .prompt()
-                        .system("Системный промпт")
-                        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                        .stream()
-                        .chatResponse()
-                        .collectList()
-                        .block(Duration.ofSeconds(10));
+        List<ChatResponse> received = chatClient(model, memory, true)
+                .prompt()
+                .system("Системный промпт")
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .stream()
+                .chatResponse()
+                .collectList()
+                .block(Duration.ofSeconds(10));
 
         assertThat(received).isNotNull().isNotEmpty();
 
@@ -230,9 +218,8 @@ class PrePersistedUserMessageTest {
                 .filteredOn(m -> QUESTION.equals(m.getText()))
                 .hasSize(1);
 
-        assertThat(userRows(conversationId))
-                .singleElement()
-                .satisfies(m -> assertThat(m.getId()).isEqualTo(userMessageId));
+        assertThat(userRows(conversationId)).singleElement().satisfies(m -> assertThat(m.getId())
+                .isEqualTo(userMessageId));
     }
 
     @Test
@@ -300,14 +287,10 @@ class PrePersistedUserMessageTest {
         prePersistUser(conversationId, QUESTION);
         memory.append(
                 conversationId,
-                List.of(
-                        AssistantMessage.builder()
-                                .content("смотрю файлы")
-                                .toolCalls(
-                                        List.of(
-                                                new AssistantMessage.ToolCall(
-                                                        "call-1", "function", "listFiles", "{}")))
-                                .build()));
+                List.of(AssistantMessage.builder()
+                        .content("смотрю файлы")
+                        .toolCalls(List.of(new AssistantMessage.ToolCall("call-1", "function", "listFiles", "{}")))
+                        .build()));
 
         memory.repairDanglingToolCalls(conversationId);
 
@@ -317,7 +300,8 @@ class PrePersistedUserMessageTest {
     /** Пустой чат повторять нечего — ряда с вопросом просто нет. */
     @Test
     void emptyConversationHasNothingToRetry() {
-        assertThat(memoryService().unansweredUserMessage(UUID.randomUUID().toString())).isEmpty();
+        assertThat(memoryService().unansweredUserMessage(UUID.randomUUID().toString()))
+                .isEmpty();
     }
 
     /**

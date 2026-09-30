@@ -28,42 +28,26 @@ class FileRevertPlanTest {
     /** Правка отменяется своими же аргументами наоборот — ради этого откат ничего и не хранит. */
     @Test
     void anEditBecomesTheSameReplacementTheOtherWayRound() {
-        final FileRevertPlan plan =
-                FileRevertPlan.of(
-                        List.of(
-                                answer(
-                                        List.of(
-                                                call(
-                                                        "call-1",
-                                                        "editFile",
-                                                        "{\"filePath\":\"src/App.java\",\"oldString\":\"было\",\"newString\":\"стало\"}")),
-                                        List.of(edit("call-1", "src/App.java")))));
+        final FileRevertPlan plan = FileRevertPlan.of(List.of(answer(
+                List.of(call(
+                        "call-1",
+                        "editFile",
+                        "{\"filePath\":\"src/App.java\",\"oldString\":\"было\",\"newString\":\"стало\"}")),
+                List.of(edit("call-1", "src/App.java")))));
 
         assertThat(plan.deletions()).isEmpty();
         assertThat(plan.edits())
-                .containsExactly(
-                        Map.entry("src/App.java", List.of(new TextEdit("стало", "было", false))));
+                .containsExactly(Map.entry("src/App.java", List.of(new TextEdit("стало", "было", false))));
     }
 
     /** План на часть файлов: остальные — и правки, и удаления — в него не попадают. */
     @Test
     void aPlanNarrowsToTheNamedFiles() {
-        final FileRevertPlan plan =
-                FileRevertPlan.of(
-                        List.of(
-                                answer(
-                                        List.of(
-                                                call(
-                                                        "call-1",
-                                                        "editFile",
-                                                        "{\"filePath\":\"a.txt\",\"oldString\":\"1\",\"newString\":\"2\"}"),
-                                                call(
-                                                        "call-2",
-                                                        "createFile",
-                                                        "{\"filePath\":\"new.txt\",\"content\":\"x\"}")),
-                                        List.of(
-                                                edit("call-1", "a.txt"),
-                                                create("call-2", "new.txt")))));
+        final FileRevertPlan plan = FileRevertPlan.of(List.of(answer(
+                List.of(
+                        call("call-1", "editFile", "{\"filePath\":\"a.txt\",\"oldString\":\"1\",\"newString\":\"2\"}"),
+                        call("call-2", "createFile", "{\"filePath\":\"new.txt\",\"content\":\"x\"}")),
+                List.of(edit("call-1", "a.txt"), create("call-2", "new.txt")))));
 
         assertThat(plan.only(Set.of("a.txt")).paths()).containsExactly("a.txt");
         assertThat(plan.only(Set.of("a.txt")).deletions()).isEmpty();
@@ -74,26 +58,20 @@ class FileRevertPlanTest {
     /** Несколько правок одного файла отменяются с конца — иначе вторая не найдёт своего текста. */
     @Test
     void severalEditsOfOneFileAreUndoneFromTheLastOne() {
-        final FileRevertPlan plan =
-                FileRevertPlan.of(
-                        List.of(
-                                answer(
-                                        List.of(
-                                                call(
-                                                        "call-1",
-                                                        "editFile",
-                                                        "{\"filePath\":\"a.txt\",\"oldString\":\"один\",\"newString\":\"два\"}"),
-                                                call(
-                                                        "call-2",
-                                                        "editFile",
-                                                        "{\"filePath\":\"a.txt\",\"oldString\":\"два\",\"newString\":\"три\",\"replaceAll\":true}")),
-                                        List.of(
-                                                edit("call-1", "a.txt"),
-                                                edit("call-2", "a.txt")))));
+        final FileRevertPlan plan = FileRevertPlan.of(List.of(answer(
+                List.of(
+                        call(
+                                "call-1",
+                                "editFile",
+                                "{\"filePath\":\"a.txt\",\"oldString\":\"один\",\"newString\":\"два\"}"),
+                        call(
+                                "call-2",
+                                "editFile",
+                                "{\"filePath\":\"a.txt\",\"oldString\":\"два\",\"newString\":\"три\",\"replaceAll\":true}")),
+                List.of(edit("call-1", "a.txt"), edit("call-2", "a.txt")))));
 
         assertThat(plan.edits().get("a.txt"))
-                .containsExactly(
-                        new TextEdit("три", "два", true), new TextEdit("два", "один", false));
+                .containsExactly(new TextEdit("три", "два", true), new TextEdit("два", "один", false));
     }
 
     /**
@@ -101,22 +79,14 @@ class FileRevertPlanTest {
      */
     @Test
     void aCreatedFileIsDeletedRatherThanEdited() {
-        final FileRevertPlan plan =
-                FileRevertPlan.of(
-                        List.of(
-                                answer(
-                                        List.of(
-                                                call(
-                                                        "call-1",
-                                                        "createFile",
-                                                        "{\"filePath\":\"new.txt\",\"content\":\"x\"}"),
-                                                call(
-                                                        "call-2",
-                                                        "editFile",
-                                                        "{\"filePath\":\"new.txt\",\"oldString\":\"x\",\"newString\":\"y\"}")),
-                                        List.of(
-                                                create("call-1", "new.txt"),
-                                                edit("call-2", "new.txt")))));
+        final FileRevertPlan plan = FileRevertPlan.of(List.of(answer(
+                List.of(
+                        call("call-1", "createFile", "{\"filePath\":\"new.txt\",\"content\":\"x\"}"),
+                        call(
+                                "call-2",
+                                "editFile",
+                                "{\"filePath\":\"new.txt\",\"oldString\":\"x\",\"newString\":\"y\"}")),
+                List.of(create("call-1", "new.txt"), edit("call-2", "new.txt")))));
 
         // Сверять удаление надо с тем, что ответ оставил на диске: создал «x», тут же поправил
         // на «y» — значит, ожидаем «y», иначе такой файл не откатить никогда.
@@ -131,17 +101,8 @@ class FileRevertPlanTest {
      */
     @Test
     void rowsWithoutInvocationsAreSkipped() {
-        final ChatMessageEntity toolRow =
-                new ChatMessageEntity(
-                        2,
-                        "conv-1",
-                        "результат",
-                        MessageType.TOOL,
-                        2,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        null);
+        final ChatMessageEntity toolRow = new ChatMessageEntity(
+                2, "conv-1", "результат", MessageType.TOOL, 2, false, false, LocalDateTime.now(), null);
 
         assertThat(FileRevertPlan.of(List.of(toolRow)).isEmpty()).isTrue();
     }
@@ -149,29 +110,24 @@ class FileRevertPlanTest {
     /** Упавший вызов файла не тронул — откатывать по нему нечего. */
     @Test
     void aFailedCallIsNotPartOfThePlan() {
-        final ToolInvocationMeta failed =
-                new ToolInvocationMeta(
-                        "editFile",
-                        Map.of(),
-                        ToolInvocationStatus.ERROR,
-                        "oldString not found",
-                        Map.of("path", "a.txt"),
-                        true,
-                        0,
-                        null,
-                        "call-1");
+        final ToolInvocationMeta failed = new ToolInvocationMeta(
+                "editFile",
+                Map.of(),
+                ToolInvocationStatus.ERROR,
+                "oldString not found",
+                Map.of("path", "a.txt"),
+                true,
+                0,
+                null,
+                "call-1");
 
-        assertThat(
-                        FileRevertPlan.of(
-                                        List.of(
-                                                answer(
-                                                        List.of(
-                                                                call(
-                                                                        "call-1",
-                                                                        "editFile",
-                                                                        "{\"filePath\":\"a.txt\",\"oldString\":\"нет\",\"newString\":\"да\"}")),
-                                                        List.of(failed))))
-                                .isEmpty())
+        assertThat(FileRevertPlan.of(List.of(answer(
+                                List.of(call(
+                                        "call-1",
+                                        "editFile",
+                                        "{\"filePath\":\"a.txt\",\"oldString\":\"нет\",\"newString\":\"да\"}")),
+                                List.of(failed))))
+                        .isEmpty())
                 .isTrue();
     }
 
@@ -183,25 +139,19 @@ class FileRevertPlanTest {
     @ParameterizedTest
     @ValueSource(strings = {"runScript", "runSavedScript"})
     void aScriptThatChangedFilesMakesTheWholeAnswerNonRevertable(String tool) {
-        final ToolInvocationMeta script =
-                new ToolInvocationMeta(
-                        tool,
-                        Map.of(),
-                        ToolInvocationStatus.OK,
-                        null,
-                        Map.of("edits", List.of(Map.of("path", "a.txt", "operation", "edit"))),
-                        true,
-                        0,
-                        null,
-                        "call-1");
+        final ToolInvocationMeta script = new ToolInvocationMeta(
+                tool,
+                Map.of(),
+                ToolInvocationStatus.OK,
+                null,
+                Map.of("edits", List.of(Map.of("path", "a.txt", "operation", "edit"))),
+                true,
+                0,
+                null,
+                "call-1");
 
         assertThatThrownBy(
-                        () ->
-                                FileRevertPlan.of(
-                                        List.of(
-                                                answer(
-                                                        List.of(),
-                                                        List.of(script, edit("call-2", "b.txt"))))))
+                        () -> FileRevertPlan.of(List.of(answer(List.of(), List.of(script, edit("call-2", "b.txt"))))))
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining(tool);
     }
@@ -209,17 +159,8 @@ class FileRevertPlanTest {
     /** Ответ, записанный версией без {@code callId}: аргументов не найти, и откат честно молчит. */
     @Test
     void anAnswerWithoutCallIdsIsRefused() {
-        final ToolInvocationMeta legacy =
-                new ToolInvocationMeta(
-                        "editFile",
-                        Map.of(),
-                        ToolInvocationStatus.OK,
-                        null,
-                        Map.of("path", "a.txt"),
-                        true,
-                        0,
-                        null,
-                        null);
+        final ToolInvocationMeta legacy = new ToolInvocationMeta(
+                "editFile", Map.of(), ToolInvocationStatus.OK, null, Map.of("path", "a.txt"), true, 0, null, null);
 
         assertThatThrownBy(() -> FileRevertPlan.of(List.of(answer(List.of(), List.of(legacy)))))
                 .isInstanceOf(FileRevertRefusedException.class)
@@ -229,23 +170,22 @@ class FileRevertPlanTest {
     /** Ответ, который файлов не менял, — пустой план, а не отказ: отказывать будет вызывающий. */
     @Test
     void anAnswerThatChangedNoFilesGivesAnEmptyPlan() {
-        final ToolInvocationMeta read =
-                new ToolInvocationMeta(
-                        "getFileContent",
-                        Map.of(),
-                        ToolInvocationStatus.OK,
-                        null,
-                        Map.of("path", "a.txt"),
-                        true,
-                        0,
-                        null,
-                        "call-1");
+        final ToolInvocationMeta read = new ToolInvocationMeta(
+                "getFileContent",
+                Map.of(),
+                ToolInvocationStatus.OK,
+                null,
+                Map.of("path", "a.txt"),
+                true,
+                0,
+                null,
+                "call-1");
 
-        assertThat(FileRevertPlan.of(List.of(answer(List.of(), List.of(read)))).isEmpty()).isTrue();
+        assertThat(FileRevertPlan.of(List.of(answer(List.of(), List.of(read)))).isEmpty())
+                .isTrue();
     }
 
-    private static ChatMessageEntity answer(
-            List<ToolData.Call> calls, List<ToolInvocationMeta> invocations) {
+    private static ChatMessageEntity answer(List<ToolData.Call> calls, List<ToolInvocationMeta> invocations) {
         return new ChatMessageEntity(
                 1,
                 "conv-1",
@@ -255,7 +195,10 @@ class FileRevertPlanTest {
                 false,
                 false,
                 LocalDateTime.now(),
-                ChatMessageMeta.builder().runId("run-1").invocations(invocations).build(),
+                ChatMessageMeta.builder()
+                        .runId("run-1")
+                        .invocations(invocations)
+                        .build(),
                 new ToolData(calls, null));
     }
 
@@ -273,14 +216,6 @@ class FileRevertPlanTest {
 
     private static ToolInvocationMeta invocation(String name, String callId, String path) {
         return new ToolInvocationMeta(
-                name,
-                Map.of(),
-                ToolInvocationStatus.OK,
-                null,
-                Map.of("path", path),
-                true,
-                0,
-                null,
-                callId);
+                name, Map.of(), ToolInvocationStatus.OK, null, Map.of("path", path), true, 0, null, callId);
     }
 }

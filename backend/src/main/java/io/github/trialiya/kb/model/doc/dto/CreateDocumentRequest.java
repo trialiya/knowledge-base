@@ -10,7 +10,13 @@ import org.jspecify.annotations.Nullable;
 @SuppressWarnings("NullAway.Init")
 public class CreateDocumentRequest {
     private String title;
-    @Nullable private DocumentType type;
-    @Nullable private Long parentId;
-    @Nullable private String description;
+
+    @Nullable
+    private DocumentType type;
+
+    @Nullable
+    private Long parentId;
+
+    @Nullable
+    private String description;
 }

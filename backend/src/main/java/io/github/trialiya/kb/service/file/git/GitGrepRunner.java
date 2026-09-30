@@ -116,25 +116,15 @@ final class GitGrepRunner {
         int limit = Math.min(Math.max(maxResults, 1), 200);
 
         if (!regex && (pattern.contains(".*") || pattern.contains("|"))) {
-            log.warn(
-                    "grepContent: pattern '{}' looks like regex but regex=false — using literal match",
-                    pattern);
+            log.warn("grepContent: pattern '{}' looks like regex but regex=false — using literal match", pattern);
         }
 
-        String glob =
-                pathGlob == null || pathGlob.isBlank()
-                        ? null
-                        : RepoPaths.toForwardSlashes(pathGlob.strip());
+        String glob = pathGlob == null || pathGlob.isBlank() ? null : RepoPaths.toForwardSlashes(pathGlob.strip());
         long deadline = System.nanoTime() + timeout.toNanos();
-        List<GitGrepMatch> tracked =
-                GitGrep.parse(
-                        exec(
-                                GitGrep.args(pattern, glob, regex, ctx, null, null),
-                                ctx,
-                                outputLines(ctx, limit),
-                                deadline),
-                        ctx,
-                        limit);
+        List<GitGrepMatch> tracked = GitGrep.parse(
+                exec(GitGrep.args(pattern, glob, regex, ctx, null, null), ctx, outputLines(ctx, limit), deadline),
+                ctx,
+                limit);
         // No roots left to search is not "search everywhere": without a pathspec the untracked run
         // would sweep the whole working tree.
         if (!includeUntracked || visible.allowGlobRoots().isEmpty()) {
@@ -148,16 +138,14 @@ final class GitGrepRunner {
         // keeps the walk the size of the named area.
         // Unbounded in blocks, since the filters below decide what counts, and bounded in lines
         // by the output ceiling alone, since the roots are a named area and not the repository.
-        List<GitGrepMatch> extra =
-                GitGrep.parse(
-                        exec(
-                                GitGrep.args(
-                                        pattern, null, regex, ctx, visible.allowGlobRoots(), null),
-                                ctx,
-                                MAX_OUTPUT_LINES,
-                                deadline),
+        List<GitGrepMatch> extra = GitGrep.parse(
+                exec(
+                        GitGrep.args(pattern, null, regex, ctx, visible.allowGlobRoots(), null),
                         ctx,
-                        Integer.MAX_VALUE);
+                        MAX_OUTPUT_LINES,
+                        deadline),
+                ctx,
+                Integer.MAX_VALUE);
         Set<String> trackedPaths = Set.copyOf(visible.trackedPaths());
         @Nullable Pathspec pathspec = Pathspec.of(glob);
         List<GitGrepMatch> merged = new ArrayList<>(tracked);
@@ -199,16 +187,12 @@ final class GitGrepRunner {
         int ctx = Math.min(Math.max(contextLines, 0), 10);
         int limit = Math.min(Math.max(maxResults, 1), 200);
         String commit = CommitFiles.commitOf(repository, rev.strip()).name();
-        String glob =
-                pathGlob == null || pathGlob.isBlank()
-                        ? null
-                        : RepoPaths.toForwardSlashes(pathGlob.strip());
-        List<String> lines =
-                exec(
-                        GitGrep.args(pattern, glob, regex, ctx, null, commit),
-                        ctx,
-                        outputLines(ctx, limit),
-                        System.nanoTime() + timeout.toNanos());
+        String glob = pathGlob == null || pathGlob.isBlank() ? null : RepoPaths.toForwardSlashes(pathGlob.strip());
+        List<String> lines = exec(
+                GitGrep.args(pattern, glob, regex, ctx, null, commit),
+                ctx,
+                outputLines(ctx, limit),
+                System.nanoTime() + timeout.toNanos());
         return GitGrep.parse(GitGrep.withoutCommitPrefix(lines, commit), ctx, limit);
     }
 
@@ -273,58 +257,48 @@ final class GitGrepRunner {
             // stderr is kept apart from stdout, not merged into it: the parser reads the path off
             // a heading line of its own, and a warning git prints on the way — an unreadable
             // directory during the --untracked walk — would be taken for one.
-            ProcessBuilder pb = new ProcessBuilder(withConfig).directory(paths.root().toFile());
+            ProcessBuilder pb =
+                    new ProcessBuilder(withConfig).directory(paths.root().toFile());
             Process process = pb.start();
             // Nobody reads stderr until git is done, and a full pipe would stop it mid-search, so
             // it is drained as it comes; what git has to say about a refusal fits in the cap many
             // times over.
             List<String> complaints = new CopyOnWriteArrayList<>();
-            Thread stderrDrain =
-                    Thread.ofVirtual()
-                            .start(
-                                    () -> {
-                                        try (var err =
-                                                new BufferedReader(
-                                                        new InputStreamReader(
-                                                                process.getErrorStream(),
-                                                                StandardCharsets.UTF_8))) {
-                                            String line;
-                                            while ((line = err.readLine()) != null) {
-                                                // Read on past the cap and keep only what fits:
-                                                // stopping would leave the pipe to fill and git
-                                                // blocked on it, which is what draining prevents.
-                                                if (complaints.size() < MAX_STDERR_LINES) {
-                                                    complaints.add(line);
-                                                }
-                                            }
-                                        } catch (IOException e) {
-                                            // The stream dies with the process this side killed —
-                                            // whatever git was saying is moot by then.
-                                            log.debug("Reading git stderr ended early", e);
-                                        }
-                                    });
+            Thread stderrDrain = Thread.ofVirtual().start(() -> {
+                try (var err =
+                        new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = err.readLine()) != null) {
+                        // Read on past the cap and keep only what fits:
+                        // stopping would leave the pipe to fill and git
+                        // blocked on it, which is what draining prevents.
+                        if (complaints.size() < MAX_STDERR_LINES) {
+                            complaints.add(line);
+                        }
+                    }
+                } catch (IOException e) {
+                    // The stream dies with the process this side killed —
+                    // whatever git was saying is moot by then.
+                    log.debug("Reading git stderr ended early", e);
+                }
+            });
             // The read below blocks until git closes its output, so the deadline is kept by a
             // watchdog that kills the process; the read then ends and waitFor sees the signal.
             AtomicBoolean timedOut = new AtomicBoolean();
-            Thread watchdog =
-                    Thread.ofVirtual()
-                            .start(
-                                    () -> {
-                                        try {
-                                            if (!process.waitFor(budget, TimeUnit.NANOSECONDS)) {
-                                                timedOut.set(true);
-                                                process.destroyForcibly();
-                                            }
-                                        } catch (InterruptedException e) {
-                                            Thread.currentThread().interrupt();
-                                        }
-                                    });
+            Thread watchdog = Thread.ofVirtual().start(() -> {
+                try {
+                    if (!process.waitFor(budget, TimeUnit.NANOSECONDS)) {
+                        timedOut.set(true);
+                        process.destroyForcibly();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
             List<String> lines = new ArrayList<>();
             boolean cut = false;
             try (var reader =
-                    new BufferedReader(
-                            new InputStreamReader(
-                                    process.getInputStream(), StandardCharsets.UTF_8))) {
+                    new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     lines.add(line);
@@ -356,10 +330,7 @@ final class GitGrepRunner {
                 }
                 int lastSeparator = lastBlockBoundary(lines);
                 if (lastSeparator < 0) {
-                    log.warn(
-                            "Git command filled {} lines with one unfinished block: {}",
-                            maxLines,
-                            command);
+                    log.warn("Git command filled {} lines with one unfinished block: {}", maxLines, command);
                     return List.of();
                 }
                 return lines.subList(0, lastSeparator);
@@ -402,10 +373,7 @@ final class GitGrepRunner {
 
     private GitGrepTimeoutException timedOut(List<String> command) {
         return new GitGrepTimeoutException(
-                "git grep did not finish within "
-                        + timeout.toSeconds()
-                        + "s: "
-                        + String.join(" ", command));
+                "git grep did not finish within " + timeout.toSeconds() + "s: " + String.join(" ", command));
     }
 
     /**

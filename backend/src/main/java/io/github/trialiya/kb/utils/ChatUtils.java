@@ -115,8 +115,7 @@ public final class ChatUtils {
      */
     @NonNull
     public static String getUser() {
-        final Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
+        final Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null
                 && authentication.isAuthenticated()
                 && !"anonymousUser".equals(authentication.getPrincipal())) {

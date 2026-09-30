@@ -47,9 +47,7 @@ final class GitGrep {
             int ctx,
             @Nullable List<String> roots,
             @Nullable String commit) {
-        List<String> args =
-                new ArrayList<>(
-                        List.of("git", "grep", "-n", "-i", "--heading", "--break", "--no-color"));
+        List<String> args = new ArrayList<>(List.of("git", "grep", "-n", "-i", "--heading", "--break", "--no-color"));
         if (roots != null) {
             args.add("--untracked");
             args.add("--no-exclude-standard");
@@ -171,7 +169,11 @@ final class GitGrep {
             path = linePath;
             // ":N:text" for a match line, "-N-text" for a context line — the git grep format.
             char sep = data.isMatch() ? ':' : '-';
-            buf.append(sep).append(data.lineNum()).append(sep).append(data.text()).append('\n');
+            buf.append(sep)
+                    .append(data.lineNum())
+                    .append(sep)
+                    .append(data.text())
+                    .append('\n');
             if (data.isMatch() && firstMatchLine < 0) {
                 firstMatchLine = data.lineNum();
             }

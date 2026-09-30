@@ -17,7 +17,9 @@ import org.springframework.data.relational.core.mapping.Table;
 @SuppressWarnings("NullAway.Init")
 public class DocumentEmbeddingEntity {
 
-    @Id @Nullable private Long id;
+    @Id
+    @Nullable
+    private Long id;
 
     /** FK → documents.id (UNIQUE – one embedding per document). */
     private Long documentId;

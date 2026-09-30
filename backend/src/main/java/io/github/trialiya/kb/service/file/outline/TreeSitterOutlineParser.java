@@ -42,8 +42,7 @@ import org.treesitter.TreeSitterTypescript;
 @Slf4j
 public final class TreeSitterOutlineParser implements CodeOutlineParser {
 
-    private static final Set<String> LANGUAGES =
-            Set.of("java", "javascript", "typescript", "python");
+    private static final Set<String> LANGUAGES = Set.of("java", "javascript", "typescript", "python");
 
     /** Kinds whose node is a body of code, not a container of declarations: never walked into. */
     private static final Set<String> CODE_KINDS = Set.of("function", "method", "constructor");
@@ -51,7 +50,8 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
     private final Map<String, TSLanguage> languages = new ConcurrentHashMap<>();
 
     /** Null until the native layer has been probed; see {@link #available()}. */
-    @Nullable private volatile Boolean available;
+    @Nullable
+    private volatile Boolean available;
 
     private final ReentrantLock probeLock = new ReentrantLock();
 
@@ -94,9 +94,7 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
             new TreeSitterJava();
             return true;
         } catch (Throwable t) {
-            log.warn(
-                    "tree-sitter native layer unavailable, falling back to regex outline: {}",
-                    t.toString());
+            log.warn("tree-sitter native layer unavailable, falling back to regex outline: {}", t.toString());
             return false;
         }
     }
@@ -104,16 +102,13 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
     @Nullable
     private TSLanguage languageFor(String language) {
         try {
-            return languages.computeIfAbsent(
-                    language,
-                    l ->
-                            switch (l) {
-                                case "java" -> new TreeSitterJava();
-                                case "javascript" -> new TreeSitterJavascript();
-                                case "typescript" -> new TreeSitterTypescript();
-                                case "python" -> new TreeSitterPython();
-                                default -> throw new IllegalArgumentException(l);
-                            });
+            return languages.computeIfAbsent(language, l -> switch (l) {
+                case "java" -> new TreeSitterJava();
+                case "javascript" -> new TreeSitterJavascript();
+                case "typescript" -> new TreeSitterTypescript();
+                case "python" -> new TreeSitterPython();
+                default -> throw new IllegalArgumentException(l);
+            });
         } catch (Throwable t) {
             log.warn("Failed to load tree-sitter grammar for {}: {}", language, t.toString());
             return null;
@@ -148,11 +143,7 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
                 return out;
             }
         } catch (Throwable t) {
-            log.warn(
-                    "tree-sitter parse failed for {} ({} bytes): {}",
-                    language,
-                    source.length(),
-                    t.toString());
+            log.warn("tree-sitter parse failed for {} ({} bytes): {}", language, source.length(), t.toString());
             return null;
         }
     }
@@ -164,8 +155,7 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
      * over thousands of terms, common in generated code) nests as deep as it is long and would
      * overflow the stack.
      */
-    private static void walk(
-            TSTreeCursor cursor, byte[] src, String language, List<GitSymbol> out) {
+    private static void walk(TSTreeCursor cursor, byte[] src, String language, List<GitSymbol> out) {
         boolean enter = visit(cursor.currentNode(), src, language, out);
         while (true) {
             if (enter && cursor.gotoFirstChild()) {
@@ -238,19 +228,14 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
             case "class_declaration", "abstract_class_declaration", "class" -> "class";
             case "function_declaration", "generator_function_declaration" -> "function";
             case "method_definition" ->
-                    !isType(node.getParent(), "object") || isModuleObject(node.getParent())
-                            ? "method"
-                            : null;
+                !isType(node.getParent(), "object") || isModuleObject(node.getParent()) ? "method" : null;
             case "abstract_method_signature" -> "method";
             case "interface_declaration" -> "interface";
             case "enum_declaration" -> "enum";
             case "type_alias_declaration" -> "type";
-            case "variable_declarator" ->
-                    holdsFunction(node) && isModuleLevel(node) ? "function" : null;
-            case "field_definition", "public_field_definition" ->
-                    holdsFunction(node) ? "method" : null;
-            case "pair" ->
-                    holdsFunction(node) && isModuleObject(node.getParent()) ? "method" : null;
+            case "variable_declarator" -> holdsFunction(node) && isModuleLevel(node) ? "function" : null;
+            case "field_definition", "public_field_definition" -> holdsFunction(node) ? "method" : null;
+            case "pair" -> holdsFunction(node) && isModuleObject(node.getParent()) ? "method" : null;
             default -> null;
         };
     }
@@ -279,8 +264,7 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
                     "function_expression",
                     "function",
                     "generator_function",
-                    "generator_function_expression" ->
-                    true;
+                    "generator_function_expression" -> true;
             default -> false;
         };
     }
@@ -320,8 +304,7 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
      * list may be exposed either as named fields or as plain typed child nodes depending on the
      * grammar build, so we look them up by field name first and fall back to child node type.
      */
-    private static String buildSignature(
-            TSNode node, byte[] src, String language, String kind, String name) {
+    private static String buildSignature(TSNode node, byte[] src, String language, String kind, String name) {
 
         if (language.equals("java")) {
             String mods = cleanModifiers(fieldOrTypeText(node, "modifiers", "modifiers", src));
@@ -331,7 +314,9 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
             // class / interface / annotation / enum / record
             StringBuilder sb = new StringBuilder();
             if (!mods.isEmpty()) sb.append(mods).append(' ');
-            sb.append(kind.equals("annotation") ? "@interface" : kind).append(' ').append(name);
+            sb.append(kind.equals("annotation") ? "@interface" : kind)
+                    .append(' ')
+                    .append(name);
             return cap(sb.toString());
         }
 
@@ -342,8 +327,7 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
     }
 
     /** {@code mods <T> Ret name(params) throws X}; a record's compact constructor has no list. */
-    private static String javaCallableSignature(
-            TSNode node, byte[] src, String kind, String name, String mods) {
+    private static String javaCallableSignature(TSNode node, byte[] src, String kind, String name, String mods) {
         String typeParams = fieldOrTypeText(node, "type_parameters", "type_parameters", src);
         // Constructors have no return type; methods do (field "type").
         String ret = kind.equals("constructor") ? "" : fieldText(node, "type", src);
@@ -401,8 +385,7 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
         // Remove annotation expressions first (with or without arguments), so a keyword-looking
         // word inside an annotation string (e.g. description = "use public API") is not kept.
         String noAnnotations =
-                mods.replaceAll("@\\w+(?:\\.\\w+)*\\s*\\([^)]*\\)", " ")
-                        .replaceAll("@\\w+(?:\\.\\w+)*", " ");
+                mods.replaceAll("@\\w+(?:\\.\\w+)*\\s*\\([^)]*\\)", " ").replaceAll("@\\w+(?:\\.\\w+)*", " ");
         StringBuilder sb = new StringBuilder();
         for (String tokenWord : noAnnotations.split("\\s+")) {
             switch (tokenWord) {
@@ -453,12 +436,11 @@ public final class TreeSitterOutlineParser implements CodeOutlineParser {
                 parts.add((pType + " " + pName).strip());
             } else {
                 // Fallback for varargs/receiver/spread params: strip annotations from raw text.
-                String raw =
-                        text(child, src)
-                                .replaceAll("@\\w+\\s*\\([^)]*\\)\\s*", "")
-                                .replaceAll("@\\w+\\s*", "")
-                                .replaceAll("\\s+", " ")
-                                .strip();
+                String raw = text(child, src)
+                        .replaceAll("@\\w+\\s*\\([^)]*\\)\\s*", "")
+                        .replaceAll("@\\w+\\s*", "")
+                        .replaceAll("\\s+", " ")
+                        .strip();
                 if (!raw.isEmpty()) parts.add(raw);
             }
         }

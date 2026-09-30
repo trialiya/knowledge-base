@@ -28,7 +28,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class ScriptCancellationTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private ScriptRunner runner;
 
@@ -38,30 +39,28 @@ class ScriptCancellationTest {
         runGit("config", "user.email", "test@example.com");
         runGit("config", "user.name", "Test");
         GitRegistry gitRegistry = TestProjects.registry(repoDir, false);
-        ScriptProperties properties =
-                new ScriptProperties(
-                        true,
-                        false,
-                        true,
-                        false,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        // A minute of budget: whatever stops the script below, it is not the
-                        // timeout.
-                        Duration.ofMinutes(1),
-                        Duration.ofMinutes(1),
-                        Duration.ofMillis(20),
-                        null);
-        runner =
-                new ScriptRunner(
-                        gitRegistry,
-                        null,
-                        properties,
-                        new ScriptEditPolicy(gitRegistry, properties),
-                        new InMemoryScriptResultStore());
+        ScriptProperties properties = new ScriptProperties(
+                true,
+                false,
+                true,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                // A minute of budget: whatever stops the script below, it is not the
+                // timeout.
+                Duration.ofMinutes(1),
+                Duration.ofMinutes(1),
+                Duration.ofMillis(20),
+                null);
+        runner = new ScriptRunner(
+                gitRegistry,
+                null,
+                properties,
+                new ScriptEditPolicy(gitRegistry, properties),
+                new InMemoryScriptResultStore());
     }
 
     @Test
@@ -71,18 +70,15 @@ class ScriptCancellationTest {
         AtomicBoolean finished = new AtomicBoolean();
         List<Throwable> thrown = new ArrayList<>();
 
-        Thread script =
-                Thread.ofVirtual()
-                        .start(
-                                () -> {
-                                    try {
-                                        runner.run("while (true) {}", null, cancellation);
-                                    } catch (Throwable e) {
-                                        thrown.add(e);
-                                    } finally {
-                                        finished.set(true);
-                                    }
-                                });
+        Thread script = Thread.ofVirtual().start(() -> {
+            try {
+                runner.run("while (true) {}", null, cancellation);
+            } catch (Throwable e) {
+                thrown.add(e);
+            } finally {
+                finished.set(true);
+            }
+        });
 
         Thread.sleep(200);
         assertThat(finished).isFalse();
@@ -109,17 +105,14 @@ class ScriptCancellationTest {
             var command = new ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -98,8 +98,7 @@ public class ChatConfig {
      */
     @Bean(destroyMethod = "shutdown")
     public ExecutorService chatRunExecutor() {
-        return new DelegatingSecurityContextExecutorService(
-                Executors.newVirtualThreadPerTaskExecutor());
+        return new DelegatingSecurityContextExecutorService(Executors.newVirtualThreadPerTaskExecutor());
     }
 
     @Bean
@@ -192,10 +191,9 @@ public class ChatConfig {
             return null;
         }
         if (!savedScriptCatalog.anyManifests() && !attachmentScriptService.available()) {
-            log.info(
-                    "Saved-script tool is NOT exposed to the model: no project configured"
-                            + " kb.projects[].scripts-manifest and kb.script.attachment-run is off"
-                            + " — there is nothing saved to run");
+            log.info("Saved-script tool is NOT exposed to the model: no project configured"
+                    + " kb.projects[].scripts-manifest and kb.script.attachment-run is off"
+                    + " — there is nothing saved to run");
             return null;
         }
         log.info(
@@ -273,8 +271,7 @@ public class ChatConfig {
      * not a change of policy.
      */
     @Bean
-    public ToolExecutionExceptionProcessor toolExecutionExceptionProcessor(
-            ToolCallingProperties properties) {
+    public ToolExecutionExceptionProcessor toolExecutionExceptionProcessor(ToolCallingProperties properties) {
         return DefaultToolExecutionExceptionProcessor.builder()
                 .alwaysThrow(properties.isThrowExceptionOnError())
                 .rethrowExceptions(List.of(ScriptCancelledException.class))
@@ -286,8 +283,7 @@ public class ChatConfig {
             DocumentService documentService,
             AttachmentService attachmentService,
             ChatHistoryService chatHistoryService) {
-        return new DocumentFunction(
-                documentService, attachmentService, chatHistoryService::liveToolResponses);
+        return new DocumentFunction(documentService, attachmentService, chatHistoryService::liveToolResponses);
     }
 
     /**
@@ -326,28 +322,22 @@ public class ChatConfig {
         if (scriptsAvailable) {
             functions.add(ScriptFunction.readOnly(scriptRunner, gitRegistry));
         }
-        ToolCallback[] readOnly =
-                Stream.of(ToolCallbacks.from(functions.toArray()))
-                        .filter(
-                                cb ->
-                                        subAgentConfig
-                                                .allowedTools()
-                                                .contains(cb.getToolDefinition().name()))
-                        // No collector in the sub-agent's context, so nothing is recorded — the
-                        // wrapper is here for the tool-call log line alone.
-                        .map(RecordingToolCallback::new)
-                        .toArray(ToolCallback[]::new);
+        ToolCallback[] readOnly = Stream.of(ToolCallbacks.from(functions.toArray()))
+                .filter(cb -> subAgentConfig
+                        .allowedTools()
+                        .contains(cb.getToolDefinition().name()))
+                // No collector in the sub-agent's context, so nothing is recorded — the
+                // wrapper is here for the tool-call log line alone.
+                .map(RecordingToolCallback::new)
+                .toArray(ToolCallback[]::new);
         // The handbook is long, and it is also the only place the sub-agent is told scripts exist —
         // so it goes in exactly when the tool does. The sub-agent's own model (kb.search.subagent
         // .model-id) can differ from the main chat's, so its weak/strong flag is looked up
         // separately rather than inherited from whichever model the current chat turn resolved to.
-        String scriptInstructions =
-                scriptsAvailable
-                        ? subAgentScriptInstructions(
-                                scriptGuideService,
-                                skillService,
-                                chatModelProperties.isWeak(subAgentConfig.modelId()))
-                        : "";
+        String scriptInstructions = scriptsAvailable
+                ? subAgentScriptInstructions(
+                        scriptGuideService, skillService, chatModelProperties.isWeak(subAgentConfig.modelId()))
+                : "";
         // The sub-agent's model may be one of the kb.chat.models entries with an endpoint of its
         // own, so the connection is looked up by id like the main chat's, not taken as the default.
         return new SearchAgentService(
@@ -370,8 +360,7 @@ public class ChatConfig {
      * the decision is one boolean, and a test that re-derived it would only be testing its own
      * copy.
      */
-    static boolean subAgentScriptsAvailable(
-            ScriptProperties scriptProperties, SubAgentConfig subAgentConfig) {
+    static boolean subAgentScriptsAvailable(ScriptProperties scriptProperties, SubAgentConfig subAgentConfig) {
         return scriptProperties.enabled() && subAgentConfig.allowedTools().contains("runScript");
     }
 
@@ -425,9 +414,8 @@ public class ChatConfig {
         // registry — so it is honoured here or nowhere, and a deployment that set it meant "no
         // MCP tools".
         if (!toolCallbacksEnabled(mcpCommonProperties)) {
-            log.warn(
-                    "kb.mcp.enabled is on, but spring.ai.mcp.client.toolcallback.enabled is off:"
-                            + " no MCP tools are offered to the model");
+            log.warn("kb.mcp.enabled is on, but spring.ai.mcp.client.toolcallback.enabled is off:"
+                    + " no MCP tools are offered to the model");
             return null;
         }
         // The scheduler reads this key through a placeholder of its own and would answer a
@@ -435,8 +423,7 @@ public class ChatConfig {
         // kb.mcp.retry-interval-ms, so that is what it is told about.
         if (mcpProperties.retryIntervalMs() <= 0) {
             throw new IllegalStateException(
-                    "kb.mcp.retry-interval-ms must be positive, got "
-                            + mcpProperties.retryIntervalMs());
+                    "kb.mcp.retry-interval-ms must be positive, got " + mcpProperties.retryIntervalMs());
         }
         return new McpToolRegistry(
                 mcpSyncClients,
@@ -452,8 +439,7 @@ public class ChatConfig {
      * tools. Visible for testing, and defaulting to {@code true} on a missing properties bean: the
      * flag is an opt-out, and a deployment that never configured MCP has no bean to read it from.
      */
-    static boolean toolCallbacksEnabled(
-            ObjectProvider<McpClientCommonProperties> mcpCommonProperties) {
+    static boolean toolCallbacksEnabled(ObjectProvider<McpClientCommonProperties> mcpCommonProperties) {
         McpClientCommonProperties properties = mcpCommonProperties.getIfAvailable();
         if (properties == null || properties.getToolcallback() == null) {
             return true;
@@ -480,15 +466,12 @@ public class ChatConfig {
             ObjectProvider<ScriptResultFunction> scriptResultFunction,
             ObjectProvider<SkillFunction> skillFunction,
             ObjectProvider<McpToolRegistry> mcpToolRegistry) {
-        List<Object> functions =
-                new ArrayList<>(
-                        List.of(
-                                new ChatInfoFunction(),
-                                new MessageLookupFunction(
-                                        chatMessageRepository, contextItemService),
-                                documentFunction,
-                                gitFunction,
-                                new AttachmentFunction(attachmentService)));
+        List<Object> functions = new ArrayList<>(List.of(
+                new ChatInfoFunction(),
+                new MessageLookupFunction(chatMessageRepository, contextItemService),
+                documentFunction,
+                gitFunction,
+                new AttachmentFunction(attachmentService)));
         // Present only when kb.search.subagent.enabled=true (see searchAgentService bean).
         searchAgentService.ifAvailable(svc -> functions.add(new SearchAgentFunction(svc)));
         // Present only when some project accepts writes (see gitEditFunction bean) — with none,
@@ -503,19 +486,16 @@ public class ChatConfig {
         // Present only when there are skills to read (see skillFunction bean).
         skillFunction.ifAvailable(functions::add);
 
-        List<ToolCallback> builtin =
-                Stream.of(ToolCallbacks.from(functions.toArray()))
-                        .<ToolCallback>map(RecordingToolCallback::new)
-                        .toList();
+        List<ToolCallback> builtin = Stream.of(ToolCallbacks.from(functions.toArray()))
+                .<ToolCallback>map(RecordingToolCallback::new)
+                .toList();
         // MCP-derived tools (see spring.ai.mcp.client.* connections) come from the registry, whose
         // bean exists only when kb.mcp.enabled=true — external MCP servers run arbitrary local
         // commands or call arbitrary URLs, so this stays an explicit opt-in even once servers are
         // configured. A supplier rather than a list: nothing is read off a server while the
         // context is coming up, and what the servers offer changes while it runs.
         McpToolRegistry registry = mcpToolRegistry.getIfAvailable();
-        return registry == null
-                ? new ChatToolset(builtin, List.of())
-                : new ChatToolset(builtin, registry::callbacks);
+        return registry == null ? new ChatToolset(builtin, List.of()) : new ChatToolset(builtin, registry::callbacks);
     }
 
     /**
@@ -555,16 +535,15 @@ public class ChatConfig {
             ObjectProvider<ObservationRegistry> observationRegistry,
             ObjectProvider<MeterRegistry> meterRegistry,
             ObjectProvider<OpenAiHttpClientBuilderCustomizer> httpClientCustomizers) {
-        ChatModelRegistry registry =
-                ChatModelRegistry.build(
-                        openAiChatModel,
-                        chatModelProperties,
-                        commonProperties,
-                        chatProperties,
-                        toolCallingManager,
-                        observationRegistry,
-                        meterRegistry,
-                        httpClientCustomizers);
+        ChatModelRegistry registry = ChatModelRegistry.build(
+                openAiChatModel,
+                chatModelProperties,
+                commonProperties,
+                chatProperties,
+                toolCallingManager,
+                observationRegistry,
+                meterRegistry,
+                httpClientCustomizers);
         if (!registry.ownEndpointModelIds().isEmpty()) {
             log.info("Models with an endpoint of their own: {}", registry.ownEndpointModelIds());
         }
@@ -602,8 +581,7 @@ public class ChatConfig {
                             pendingMessageService,
                             runRegistry));
         }
-        return new ChatClientRegistry(
-                chatModelProperties.defaultModel().id(), chatClient, byModelId);
+        return new ChatClientRegistry(chatModelProperties.defaultModel().id(), chatClient, byModelId);
     }
 
     @Bean
@@ -670,21 +648,19 @@ public class ChatConfig {
         //       loop (see the advisor's own getOrder). Off by default — enable via
         //       logging.level.io.github.trialiya.kb.advisor.MessageLoggingAdvisor=DEBUG.
         List<Advisor> advisors = new ArrayList<>();
-        advisors.add(
-                ToolCallingAdvisor.builder()
-                        .toolCallingManager(toolCallingManager)
-                        .disableInternalConversationHistory()
-                        .build());
-        advisors.add(
-                MessageChatMemoryAdvisor.builder(chatMemory)
-                        .order(ToolCallingAdvisor.DEFAULT_ORDER + 100)
-                        // The scheduler is spelled out because the builder's default is
-                        // BaseAdvisor.DEFAULT_SCHEDULER — a static field of an interface, which a
-                        // native image reads as null, so the advisor refuses to build and takes
-                        // the whole context with it (spring-projects/spring-ai#4714). This is the
-                        // very instance that default hands over on the JVM.
-                        .scheduler(Schedulers.boundedElastic())
-                        .build());
+        advisors.add(ToolCallingAdvisor.builder()
+                .toolCallingManager(toolCallingManager)
+                .disableInternalConversationHistory()
+                .build());
+        advisors.add(MessageChatMemoryAdvisor.builder(chatMemory)
+                .order(ToolCallingAdvisor.DEFAULT_ORDER + 100)
+                // The scheduler is spelled out because the builder's default is
+                // BaseAdvisor.DEFAULT_SCHEDULER — a static field of an interface, which a
+                // native image reads as null, so the advisor refuses to build and takes
+                // the whole context with it (spring-projects/spring-ai#4714). This is the
+                // very instance that default hands over on the JVM.
+                .scheduler(Schedulers.boundedElastic())
+                .build());
         advisors.add(new InterjectionAdvisor(pendingMessageService));
         advisors.add(new TokenUsageAdvisor(chatEventService, runRegistry));
         advisors.add(new MessageLoggingAdvisor());

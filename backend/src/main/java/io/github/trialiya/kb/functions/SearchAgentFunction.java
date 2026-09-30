@@ -36,50 +36,44 @@ public class SearchAgentFunction {
 
     private final SearchAgentService searchAgent;
 
-    @Tool(
-            description =
-                    """
+    @Tool(description = """
                     Multi-step search across code and knowledge base: grep → read → analyze → report. \
                     Pass a detailed task (what + why, suspected keywords, class/method names, scope). \
                     The sub-agent iteratively searches, outlines structure, and reads files, \
                     returning a compact report with path:line citations. Use for broad/ambiguous queries \
                     ("where and how is authorization implemented?") when a single grepContent is insufficient. \
                     For simple exact matches, use grepContent directly instead.
-                    """,
-            resultConverter = CompactToolResultConverter.class)
+                    """, resultConverter = CompactToolResultConverter.class)
     public SearchAgentResult searchCodebase(
             ToolContext toolContext,
             @ToolParam(
-                            description =
-                                    "Detailed search task in natural language: what to find and why. "
-                                            + "Be specific with keywords, class/method names, or scope for best results.")
+                            description = "Detailed search task in natural language: what to find and why. "
+                                    + "Be specific with keywords, class/method names, or scope for best results.")
                     String task,
             @ToolParam(
-                            description =
-                                    "Optional: what the conversation already established (findings,"
-                                            + " paths and names ruled out) and any extra requirement"
-                                            + " on the report. The sub-agent sees nothing but this"
-                                            + " call — state facts, not \"the above\".",
+                            description = "Optional: what the conversation already established (findings,"
+                                    + " paths and names ruled out) and any extra requirement"
+                                    + " on the report. The sub-agent sees nothing but this"
+                                    + " call — state facts, not \"the above\".",
                             required = false)
-                    @Nullable String context,
+                    @Nullable
+                    String context,
+            @ToolParam(description = "Search scope: \"code\" | \"docs\" | \"all\" (default all).", required = false)
+                    @Nullable
+                    String scope,
             @ToolParam(
-                            description =
-                                    "Search scope: \"code\" | \"docs\" | \"all\" (default all).",
+                            description = "Glob pattern to restrict code search (e.g., \"backend/**/*.java\"). "
+                                    + "Null for no restriction.",
                             required = false)
-                    @Nullable String scope,
+                    @Nullable
+                    String pathGlob,
             @ToolParam(
-                            description =
-                                    "Glob pattern to restrict code search (e.g., \"backend/**/*.java\"). "
-                                            + "Null for no restriction.",
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " \"project\" field says which one answered.",
                             required = false)
-                    @Nullable String pathGlob,
-            @ToolParam(
-                            description =
-                                    "Optional: another project (repository id) to read instead of"
-                                            + " the chat's active one; the response's"
-                                            + " \"project\" field says which one answered.",
-                            required = false)
-                    @Nullable String project) {
+                    @Nullable
+                    String project) {
         requireText(task, "task");
         final String effectiveScope = orDefault(scope, "all");
         final String conversationId = conversationId(toolContext);

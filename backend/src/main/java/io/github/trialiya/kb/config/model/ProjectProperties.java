@@ -164,7 +164,8 @@ public record ProjectProperties(List<ProjectOption> projects) {
      *     to {@code false}
      */
     public record GitCommandsOption(
-            @DefaultValue("false") boolean enabled, @DefaultValue("false") boolean pushEnabled) {
+            @DefaultValue("false") boolean enabled,
+            @DefaultValue("false") boolean pushEnabled) {
 
         /** What a project that configured no {@code git-commands} section grants: nothing. */
         public static final GitCommandsOption OFF = new GitCommandsOption(false, false);

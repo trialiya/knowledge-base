@@ -42,14 +42,10 @@ public class ToolCallService {
      * Инструменты, отметки о вызове которых не сохраняем: служебные либо те, что полезно звать
      * заново.
      */
-    private static final Set<String> SKIP_TOOLS =
-            Set.of(
-                    // Не инструмент: имя из истории старых чатов, которое модель повторяет по
-                    // образцу. Ответ-ошибку она прочтёт, а плашке с ней в ленте делать нечего.
-                    "recordChatInsights",
-                    "getUserName",
-                    "getCurrentDateTime",
-                    "getOriginalMessages");
+    private static final Set<String> SKIP_TOOLS = Set.of(
+            // Не инструмент: имя из истории старых чатов, которое модель повторяет по
+            // образцу. Ответ-ошибку она прочтёт, а плашке с ней в ленте делать нечего.
+            "recordChatInsights", "getUserName", "getCurrentDateTime", "getOriginalMessages");
 
     /** Гист результата в live-событии — как у строкового результата в RecordingToolCallback. */
     static final int RESULT_GIST_MAX = 50;
@@ -94,8 +90,7 @@ public class ToolCallService {
                 continue;
             }
             for (ToolData.Response response : toolData.responses()) {
-                toolCallIndexRepository.setResponseMessageId(
-                        conversationId, response.id(), row.getId());
+                toolCallIndexRepository.setResponseMessageId(conversationId, response.id(), row.getId());
             }
         }
     }
@@ -122,19 +117,13 @@ public class ToolCallService {
         }
         final long messageId = indexed.get().getMessageId();
         final Long responseMessageId = indexed.get().getResponseMessageId();
-        final List<Long> ids =
-                responseMessageId == null
-                        ? List.of(messageId)
-                        : List.of(messageId, responseMessageId);
+        final List<Long> ids = responseMessageId == null ? List.of(messageId) : List.of(messageId, responseMessageId);
         final Map<Long, ChatMessageEntity> byId = new HashMap<>();
-        chatMessageRepository
-                .findAllById(ids)
-                .forEach(
-                        e -> {
-                            if (conversationId.equals(e.getConversationId())) {
-                                byId.put(e.getId(), e);
-                            }
-                        });
+        chatMessageRepository.findAllById(ids).forEach(e -> {
+            if (conversationId.equals(e.getConversationId())) {
+                byId.put(e.getId(), e);
+            }
+        });
         final ChatMessageEntity segment = byId.get(messageId);
         if (segment == null || segment.getType() != MessageType.ASSISTANT) {
             return Optional.empty();
@@ -146,52 +135,46 @@ public class ToolCallService {
                                 .findFirst()
                                 .orElse(null)
                         : null;
-        final ToolInvocationMeta invocation =
-                segment.getMeta() != null
-                        ? segment.getMeta().invocations().stream()
-                                .filter(inv -> callId.equals(inv.callId()))
-                                .findFirst()
-                                .orElse(null)
-                        : null;
+        final ToolInvocationMeta invocation = segment.getMeta() != null
+                ? segment.getMeta().invocations().stream()
+                        .filter(inv -> callId.equals(inv.callId()))
+                        .findFirst()
+                        .orElse(null)
+                : null;
         if (call == null && invocation == null) {
             return Optional.empty();
         }
-        final ChatMessageEntity responseRow =
-                responseMessageId != null ? byId.get(responseMessageId) : null;
-        final String resultText =
-                responseRow != null
-                                && responseRow.getToolData() != null
-                                && responseRow.getToolData().responses() != null
-                        ? responseRow.getToolData().responses().stream()
-                                .filter(r -> callId.equals(r.id()))
-                                .map(ToolData.Response::responseData)
-                                .findFirst()
-                                .orElse(null)
-                        : null;
-        return Optional.of(
-                new ToolCallDetail(
-                        // call==null && invocation==null already returned above, so if
-                        // invocation is null here, call is not.
-                        invocation != null
-                                ? invocation.name()
-                                : Objects.requireNonNull(call).name(),
-                        call != null ? call.arguments() : null,
-                        // Мета вызова появляется только в конце прогона (markRunResult), а
-                        // аргументы лежат в сегменте с самого его персиста — модалка деталей
-                        // открывается и на ещё работающем вызове. Пока ответа нет, статус —
-                        // STARTED, иначе идущий вызов показался бы успешно завершённым; ответ без
-                        // меты — оборванный прогон: вызов отработал, но чем кончился, знала только
-                        // несохранённая мета, отсюда UNKNOWN (тот же ответ у синтезированных
-                        // плашек, см. {@link #invocationsFor}).
-                        invocation != null
-                                ? invocation.status()
-                                : resultText != null
-                                        ? ToolInvocationStatus.UNKNOWN
-                                        : ToolInvocationStatus.STARTED,
-                        invocation != null ? invocation.error() : null,
-                        resultText,
-                        invocation != null ? invocation.resultMeta() : null,
-                        segment.getCreatedAt()));
+        final ChatMessageEntity responseRow = responseMessageId != null ? byId.get(responseMessageId) : null;
+        final String resultText = responseRow != null
+                        && responseRow.getToolData() != null
+                        && responseRow.getToolData().responses() != null
+                ? responseRow.getToolData().responses().stream()
+                        .filter(r -> callId.equals(r.id()))
+                        .map(ToolData.Response::responseData)
+                        .findFirst()
+                        .orElse(null)
+                : null;
+        return Optional.of(new ToolCallDetail(
+                // call==null && invocation==null already returned above, so if
+                // invocation is null here, call is not.
+                invocation != null
+                        ? invocation.name()
+                        : Objects.requireNonNull(call).name(),
+                call != null ? call.arguments() : null,
+                // Мета вызова появляется только в конце прогона (markRunResult), а
+                // аргументы лежат в сегменте с самого его персиста — модалка деталей
+                // открывается и на ещё работающем вызове. Пока ответа нет, статус —
+                // STARTED, иначе идущий вызов показался бы успешно завершённым; ответ без
+                // меты — оборванный прогон: вызов отработал, но чем кончился, знала только
+                // несохранённая мета, отсюда UNKNOWN (тот же ответ у синтезированных
+                // плашек, см. {@link #invocationsFor}).
+                invocation != null
+                        ? invocation.status()
+                        : resultText != null ? ToolInvocationStatus.UNKNOWN : ToolInvocationStatus.STARTED,
+                invocation != null ? invocation.error() : null,
+                resultText,
+                invocation != null ? invocation.resultMeta() : null,
+                segment.getCreatedAt()));
     }
 
     /**
@@ -223,8 +206,7 @@ public class ToolCallService {
      * @return плашки построчно, в порядке {@code page}; {@code null} на своём месте значит «отдать
      *     что записано» — синтезировать для этой строки нечего
      */
-    public List<@Nullable List<ToolInvocationMeta>> invocationsForPage(
-            List<ChatMessageEntity> page) {
+    public List<@Nullable List<ToolInvocationMeta>> invocationsForPage(List<ChatMessageEntity> page) {
         final List<@Nullable TopUp> topUps = new ArrayList<>(page.size());
         final Set<String> callIds = new LinkedHashSet<>();
         @Nullable String conversationId = null;
@@ -238,18 +220,14 @@ public class ToolCallService {
         }
         // Ни одному сегменту страницы добор не нужен (обычный случай: мета записана) — тогда
         // и спрашивать индекс не о чем.
-        final Set<String> indexed =
-                conversationId == null
-                        ? Set.of()
-                        : new HashSet<>(
-                                toolCallIndexRepository.findIndexedCallIds(
-                                        conversationId, callIds));
+        final Set<String> indexed = conversationId == null
+                ? Set.of()
+                : new HashSet<>(toolCallIndexRepository.findIndexedCallIds(conversationId, callIds));
         final Map<String, String> responses = conversationId == null ? Map.of() : responsesIn(page);
         final List<@Nullable List<ToolInvocationMeta>> byRow = new ArrayList<>(page.size());
         for (int i = 0; i < page.size(); i++) {
             final TopUp topUp = topUps.get(i);
-            byRow.add(
-                    topUp == null ? page.get(i).getInvocations() : topUp.merge(indexed, responses));
+            byRow.add(topUp == null ? page.get(i).getInvocations() : topUp.merge(indexed, responses));
         }
         return byRow;
     }
@@ -265,11 +243,9 @@ public class ToolCallService {
         if (topUp == null) {
             return entity.getInvocations();
         }
-        final Set<String> indexed =
-                new HashSet<>(
-                        toolCallIndexRepository.findIndexedCallIds(
-                                entity.getConversationId(),
-                                topUp.calls().stream().map(ToolData.Call::id).toList()));
+        final Set<String> indexed = new HashSet<>(toolCallIndexRepository.findIndexedCallIds(
+                entity.getConversationId(),
+                topUp.calls().stream().map(ToolData.Call::id).toList()));
         return topUp.merge(indexed, responsesIn(context));
     }
 
@@ -288,15 +264,13 @@ public class ToolCallService {
                 || entity.getToolData().toolCalls() == null) {
             return null;
         }
-        final List<ToolData.Call> calls =
-                entity.getToolData().toolCalls().stream()
-                        .filter(call -> hasDetails(call.name()))
-                        .toList();
+        final List<ToolData.Call> calls = entity.getToolData().toolCalls().stream()
+                .filter(call -> hasDetails(call.name()))
+                .toList();
         if (calls.isEmpty()) {
             return null;
         }
-        final Map<String, ToolInvocationMeta> storedByCallId =
-                toTopUp(entity.getInvocations(), calls);
+        final Map<String, ToolInvocationMeta> storedByCallId = toTopUp(entity.getInvocations(), calls);
         return storedByCallId == null ? null : new TopUp(calls, storedByCallId);
     }
 
@@ -321,18 +295,14 @@ public class ToolCallService {
      * @param calls в порядке {@code tool_data} — он же и порядок плашек прогона, так что добранная
      *     встаёт ровно туда, где вызов был сделан
      */
-    private record TopUp(
-            List<ToolData.Call> calls, Map<String, ToolInvocationMeta> storedByCallId) {
+    private record TopUp(List<ToolData.Call> calls, Map<String, ToolInvocationMeta> storedByCallId) {
 
         List<ToolInvocationMeta> merge(Set<String> indexed, Map<String, String> responseById) {
             return calls.stream()
-                    .map(
-                            call -> {
-                                final ToolInvocationMeta saved = storedByCallId.get(call.id());
-                                return saved != null
-                                        ? saved
-                                        : synthesize(call, indexed, responseById);
-                            })
+                    .map(call -> {
+                        final ToolInvocationMeta saved = storedByCallId.get(call.id());
+                        return saved != null ? saved : synthesize(call, indexed, responseById);
+                    })
                     .toList();
         }
     }

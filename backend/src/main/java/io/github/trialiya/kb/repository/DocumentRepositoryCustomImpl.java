@@ -36,8 +36,7 @@ public class DocumentRepositoryCustomImpl implements DocumentRepositoryCustom {
         // its ancestors. The explicit column list on `chain(...)` is required by
         // H2 for recursive CTEs and is valid standard SQL, so the query runs on
         // both PostgreSQL and H2.
-        String sql =
-                """
+        String sql = """
                 WITH RECURSIVE chain(seed_id, ancestor_id, depth) AS (
                     SELECT d.id AS seed_id, d.parent_id AS ancestor_id, 1 AS depth
                     FROM documents d
@@ -52,8 +51,7 @@ public class DocumentRepositoryCustomImpl implements DocumentRepositoryCustom {
                 FROM chain c
                 JOIN documents a ON a.id = c.ancestor_id
                 ORDER BY c.seed_id, c.depth DESC
-                """
-                        .formatted(placeholders);
+                """.formatted(placeholders);
 
         Map<Long, List<SearchResult.Parent>> result = new HashMap<>();
         jdbcTemplate.query(
@@ -61,9 +59,7 @@ public class DocumentRepositoryCustomImpl implements DocumentRepositoryCustom {
                 rs -> {
                     long seedId = rs.getLong("seed_id");
                     result.computeIfAbsent(seedId, k -> new ArrayList<>())
-                            .add(
-                                    new SearchResult.Parent(
-                                            rs.getLong("ancestor_id"), rs.getString("title")));
+                            .add(new SearchResult.Parent(rs.getLong("ancestor_id"), rs.getString("title")));
                 },
                 ids.toArray());
         return result;

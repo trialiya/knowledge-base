@@ -22,12 +22,11 @@ class TopicPromptTest {
 
     @Test
     void checkpointsAreTheFirstTheThirdAndEveryTenthAnswer() {
-        assertThat(
-                        java.util.stream.IntStream.rangeClosed(0, 31)
-                                .map(TopicPrompt::lastCheckpoint)
-                                .distinct()
-                                .boxed()
-                                .toList())
+        assertThat(java.util.stream.IntStream.rangeClosed(0, 31)
+                        .map(TopicPrompt::lastCheckpoint)
+                        .distinct()
+                        .boxed()
+                        .toList())
                 .containsExactly(0, 1, 3, 10, 20, 30);
     }
 
@@ -45,10 +44,7 @@ class TopicPromptTest {
     @Test
     void theExcerptEndsWithTheLastAnswerAndSkipsServiceRows() {
         user("How do I configure pgvector?");
-        row(
-                MessageType.USER,
-                "",
-                ChatMessageMeta.ofGitEvent(new GitEventMeta("pull", "kb", true, "ok", "main")));
+        row(MessageType.USER, "", ChatMessageMeta.ofGitEvent(new GitEventMeta("pull", "kb", true, "ok", "main")));
         assistant("");
         assistant("Install the extension first.");
         command("/сжать");
@@ -109,9 +105,7 @@ class TopicPromptTest {
 
     @Test
     void codeBlocksCollapseToTheirLanguage() {
-        assertThat(
-                        TopicPrompt.collapseCode(
-                                """
+        assertThat(TopicPrompt.collapseCode("""
                 Look:
                 ```java
                 class A {}
@@ -124,8 +118,7 @@ class TopicPromptTest {
                 ````
                 then
                 ~~~sql
-                select 1"""
-                                        .stripIndent()))
+                select 1""".stripIndent()))
                 .isEqualTo("Look:\n[code: java]\nand\n[code]\nthen\n[code: sql]");
     }
 
@@ -134,15 +127,13 @@ class TopicPromptTest {
         row(
                 MessageType.USER,
                 "What is wrong here?",
-                ChatMessageMeta.ofContextItems(
-                        List.of(
-                                new ContextItem(ContextItemKind.ATTACHMENT, "1", "report.pdf"),
-                                new ContextItem(ContextItemKind.ATTACHMENT, "2", "trace.log"))));
+                ChatMessageMeta.ofContextItems(List.of(
+                        new ContextItem(ContextItemKind.ATTACHMENT, "1", "report.pdf"),
+                        new ContextItem(ContextItemKind.ATTACHMENT, "2", "trace.log"))));
         row(
                 MessageType.USER,
                 "",
-                ChatMessageMeta.ofContextItems(
-                        List.of(new ContextItem(ContextItemKind.ATTACHMENT, "3", "photo.png"))));
+                ChatMessageMeta.ofContextItems(List.of(new ContextItem(ContextItemKind.ATTACHMENT, "3", "photo.png"))));
         assistant("Looks fine.");
 
         assertThat(TopicPrompt.excerpt(rows))
@@ -155,13 +146,11 @@ class TopicPromptTest {
 
     @Test
     void theRequestNamesTheCurrentTitleWhenThereIsOne() {
-        final List<Line> lines =
-                List.of(new Line(MessageType.USER, "q"), new Line(MessageType.ASSISTANT, "a"));
+        final List<Line> lines = List.of(new Line(MessageType.USER, "q"), new Line(MessageType.ASSISTANT, "a"));
 
         assertThat(TopicPrompt.request(null, lines))
                 .isEqualTo("Conversation, oldest first:\n\nUser: q\n\nAssistant: a");
-        assertThat(TopicPrompt.request("Old title", lines))
-                .startsWith("Current title: Old title\n\nConversation");
+        assertThat(TopicPrompt.request("Old title", lines)).startsWith("Current title: Old title\n\nConversation");
     }
 
     @Test
@@ -173,14 +162,12 @@ class TopicPromptTest {
         assertThat(TopicPrompt.clean("Async в C#.")).isEqualTo("Async в C#");
         assertThat(TopicPrompt.clean("# __init__ в Python")).isEqualTo("__init__ в Python");
         assertThat(TopicPrompt.clean("*.gradle зависимости")).isEqualTo("*.gradle зависимости");
-        assertThat(TopicPrompt.clean("**Title:**\nНастройка pgvector"))
-                .isEqualTo("Настройка pgvector");
+        assertThat(TopicPrompt.clean("**Title:**\nНастройка pgvector")).isEqualTo("Настройка pgvector");
         assertThat(TopicPrompt.clean("Sure, here is the title:\n\nНастройка pgvector"))
                 .isEqualTo("Настройка pgvector");
         assertThat(TopicPrompt.clean("   \n")).isNull();
         assertThat(TopicPrompt.clean(null)).isNull();
-        assertThat(TopicPrompt.clean("word ".repeat(40)))
-                .hasSizeLessThanOrEqualTo(TopicPrompt.MAX_TOPIC_CHARS);
+        assertThat(TopicPrompt.clean("word ".repeat(40))).hasSizeLessThanOrEqualTo(TopicPrompt.MAX_TOPIC_CHARS);
     }
 
     private void user(String text) {
@@ -199,8 +186,7 @@ class TopicPromptTest {
         row(
                 MessageType.ASSISTANT,
                 "",
-                ChatMessageMeta.ofCompact(
-                        new CompactMeta(4, 100, 1, CompactMeta.Kind.COMPACT, null)));
+                ChatMessageMeta.ofCompact(new CompactMeta(4, 100, 1, CompactMeta.Kind.COMPACT, null)));
     }
 
     /**
@@ -208,16 +194,7 @@ class TopicPromptTest {
      * протокола инструментов — их отсеивает сама выборка.
      */
     private void row(MessageType type, String content, @Nullable ChatMessageMeta meta) {
-        rows.add(
-                new ChatMessageEntity(
-                        rows.size() + 1L,
-                        "conv",
-                        content,
-                        type,
-                        rows.size(),
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        meta));
+        rows.add(new ChatMessageEntity(
+                rows.size() + 1L, "conv", content, type, rows.size(), false, false, LocalDateTime.now(), meta));
     }
 }

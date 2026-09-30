@@ -17,8 +17,7 @@ public record ChatTopicProperties(
         boolean enabled,
         @Nullable String model,
         @Nullable String reasoningEffort,
-        @Nullable String thinking)
-        implements BackgroundModelProperties {
+        @Nullable String thinking) implements BackgroundModelProperties {
 
     public ChatTopicProperties {
         model = ConfigValues.trimToNull(model);

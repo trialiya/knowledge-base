@@ -27,21 +27,15 @@ public class AttachmentController {
 
     // ── Upload ────────────────────────────────────────────────────────────────
 
-    @PostMapping(
-            value = "/documents/{documentId}/attachments",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/documents/{documentId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public Attachment uploadForDocument(
-            @PathVariable Long documentId, @RequestParam("file") MultipartFile file) {
+    public Attachment uploadForDocument(@PathVariable Long documentId, @RequestParam("file") MultipartFile file) {
         return service.uploadForDocument(documentId, file);
     }
 
-    @PostMapping(
-            value = "/chats/{conversationId}/attachments",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/chats/{conversationId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public Attachment uploadForChat(
-            @PathVariable String conversationId, @RequestParam("file") MultipartFile file) {
+    public Attachment uploadForChat(@PathVariable String conversationId, @RequestParam("file") MultipartFile file) {
         return service.uploadForChat(conversationId, file);
     }
 

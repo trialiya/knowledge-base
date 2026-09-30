@@ -100,14 +100,9 @@ public class GitController {
         GitService git = git(project);
         @Nullable String revision = revision(rev);
         try {
-            List<GitGrepMatch> matches =
-                    read(
-                            () ->
-                                    revision == null
-                                            ? git.grepContent(
-                                                    query, pathGlob, regex, 0, cap, untracked)
-                                            : git.grepContentAt(
-                                                    revision, query, pathGlob, regex, 0, cap));
+            List<GitGrepMatch> matches = read(() -> revision == null
+                    ? git.grepContent(query, pathGlob, regex, 0, cap, untracked)
+                    : git.grepContentAt(revision, query, pathGlob, regex, 0, cap));
             return GitGrepResult.group(matches, cap);
         } catch (GitGrepTimeoutException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
@@ -125,11 +120,7 @@ public class GitController {
         requireSafePath(path);
         GitService git = git(project);
         String at = revision(rev);
-        return read(
-                () ->
-                        at == null
-                                ? git.getFileContent(path, from, to)
-                                : git.getFileContentAt(at, path, from, to));
+        return read(() -> at == null ? git.getFileContent(path, from, to) : git.getFileContentAt(at, path, from, to));
     }
 
     /**
@@ -170,11 +161,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return read(
-                () ->
-                        at == null
-                                ? git.getCommitLog(limit, path, body)
-                                : git.getCommitLog(limit, path, body, at));
+        return read(() -> at == null ? git.getCommitLog(limit, path, body) : git.getCommitLog(limit, path, body, at));
     }
 
     /**
@@ -275,11 +262,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return read(
-                () ->
-                        at == null
-                                ? git.browsePath(path, ancestors)
-                                : git.browsePathAt(at, path, ancestors));
+        return read(() -> at == null ? git.browsePath(path, ancestors) : git.browsePathAt(at, path, ancestors));
     }
 
     /**
@@ -302,13 +285,11 @@ public class GitController {
         requireSafePath(path);
         String mediaType = PreviewMedia.mediaType(path);
         if (mediaType == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Not a previewable file: " + path);
+            throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Not a previewable file: " + path);
         }
         GitService git = git(project);
         String at = revision(rev);
-        GitFileBytes file =
-                read(() -> at == null ? git.getRawFile(path) : git.getRawFileAt(at, path));
+        GitFileBytes file = read(() -> at == null ? git.getRawFile(path) : git.getRawFileAt(at, path));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(mediaType))
                 .header(
@@ -365,8 +346,7 @@ public class GitController {
      * repository's history has no useful "all of it" answer.
      */
     @GetMapping("/refs")
-    public GitRefs refs(
-            @RequestParam(name = "project", required = false) @Nullable String project) {
+    public GitRefs refs(@RequestParam(name = "project", required = false) @Nullable String project) {
         return git(project).refs();
     }
 
@@ -379,8 +359,7 @@ public class GitController {
      * off the refs on disk, so they are as fresh as the last fetch — nothing here reaches a remote.
      */
     @GetMapping("/branches")
-    public GitBranchStatus branches(
-            @RequestParam(name = "project", required = false) @Nullable String project) {
+    public GitBranchStatus branches(@RequestParam(name = "project", required = false) @Nullable String project) {
         return git(project).branchStatus();
     }
 
@@ -393,8 +372,7 @@ public class GitController {
      * because the list is cached by the client while this is not.
      */
     @GetMapping("/capabilities")
-    public GitCapabilities capabilities(
-            @RequestParam(name = "project", required = false) @Nullable String project) {
+    public GitCapabilities capabilities(@RequestParam(name = "project", required = false) @Nullable String project) {
         try {
             return gitRegistry.capabilities(project);
         } catch (IllegalArgumentException e) {

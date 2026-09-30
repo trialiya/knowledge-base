@@ -51,14 +51,9 @@ public record DocumentNode(
 
     @Override
     public String getFormattedResponse() {
-        String kids =
-                (children == null || children.isEmpty())
-                        ? null
-                        : "["
-                                + children.stream()
-                                        .map(c -> (c.id() + ":" + c.title()))
-                                        .collect(joining(", "))
-                                + "]";
+        String kids = (children == null || children.isEmpty())
+                ? null
+                : "[" + children.stream().map(c -> (c.id() + ":" + c.title())).collect(joining(", ")) + "]";
         return Compact.tag("doc:" + id)
                 .add("title", title)
                 .add("type", type)

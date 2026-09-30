@@ -34,15 +34,13 @@ import org.testcontainers.utility.DockerImageName;
 @ResourceLock("postgres-container")
 public abstract class AbstractPostgresIntegrationTest {
 
-    protected static final PostgreSQLContainer POSTGRES =
-            new PostgreSQLContainer(
-                            DockerImageName.parse("pgvector/pgvector:pg17")
-                                    .asCompatibleSubstituteFor("postgres"))
-                    .withDatabaseName("knowledgebase")
-                    .withUsername("knowledgebase")
-                    .withPassword("knowledgebase")
-                    // ставит расширения vector + pg_trgm ДО запуска Flyway
-                    .withInitScript("db/testcontainers-init.sql");
+    protected static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(
+                    DockerImageName.parse("pgvector/pgvector:pg17").asCompatibleSubstituteFor("postgres"))
+            .withDatabaseName("knowledgebase")
+            .withUsername("knowledgebase")
+            .withPassword("knowledgebase")
+            // ставит расширения vector + pg_trgm ДО запуска Flyway
+            .withInitScript("db/testcontainers-init.sql");
 
     static {
         POSTGRES.start();

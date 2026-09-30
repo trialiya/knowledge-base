@@ -130,8 +130,7 @@ public record RunTokenUsage(
      */
     public record Tally(TokenUsage first, TokenUsage last, TokenUsage sum, int calls) {
 
-        public static final Tally EMPTY =
-                new Tally(TokenUsage.EMPTY, TokenUsage.EMPTY, TokenUsage.EMPTY, 0);
+        public static final Tally EMPTY = new Tally(TokenUsage.EMPTY, TokenUsage.EMPTY, TokenUsage.EMPTY, 0);
 
         /**
          * Учитывает замер обращения.

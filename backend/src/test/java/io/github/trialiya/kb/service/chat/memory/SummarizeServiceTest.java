@@ -60,8 +60,7 @@ class SummarizeServiceTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(
-                    30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, null, null, null);
+            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, null, null, null);
 
     private ChatMessageRepository repository;
     private ChatTopicRepository chatTopicRepository;
@@ -133,9 +132,7 @@ class SummarizeServiceTest {
     @Test
     void theRoundsTokensAreParkedWithIt() {
         givenLive(turns(44));
-        answerWith(
-                "summary of the earlier conversation",
-                new DefaultUsage(48_000, 900, 48_900, null, 40_000L, 0L));
+        answerWith("summary of the earlier conversation", new DefaultUsage(48_000, 900, 48_900, null, 40_000L, 0L));
 
         service().doSummarize(CONV);
 
@@ -222,9 +219,7 @@ class SummarizeServiceTest {
 
         service().doSummarize(CONV);
 
-        assertThat(promptText())
-                .contains("applied summary of the beginning")
-                .contains("parked summary 1-5");
+        assertThat(promptText()).contains("applied summary of the beginning").contains("parked summary 1-5");
     }
 
     /**
@@ -235,23 +230,16 @@ class SummarizeServiceTest {
     void theParkedSummaryPassesItsProjectSpansOn() {
         givenLive(turns(44));
         givenParked(
-                parkedSummary(
-                        0L,
-                        5L,
-                        ChatMessageMeta.ofProject(
-                                "billing", List.of(new ProjectSpan("billing", 0, 5)))));
+                parkedSummary(0L, 5L, ChatMessageMeta.ofProject("billing", List.of(new ProjectSpan("billing", 0, 5)))));
 
         service().doSummarize(CONV);
 
         // Ряды после припаркованной сводки своего проекта не называют, поэтому её спан не
         // копируется, а продолжается до конца нового куска: важно, что он начат с нуля и «billing».
-        assertThat(parked().trace().spans())
-                .first()
-                .satisfies(
-                        span -> {
-                            assertThat(span.project()).isEqualTo("billing");
-                            assertThat(span.from()).isZero();
-                        });
+        assertThat(parked().trace().spans()).first().satisfies(span -> {
+            assertThat(span.project()).isEqualTo("billing");
+            assertThat(span.from()).isZero();
+        });
     }
 
     /**
@@ -263,11 +251,7 @@ class SummarizeServiceTest {
     @Test
     void aParkedQueueIsNeverCollapsedIntoAMetaSummary() {
         givenLive(turns(44));
-        givenParked(
-                parkedSummary(0L, 1L),
-                parkedSummary(2L, 3L),
-                parkedSummary(4L, 5L),
-                parkedSummary(6L, 7L));
+        givenParked(parkedSummary(0L, 1L), parkedSummary(2L, 3L), parkedSummary(4L, 5L), parkedSummary(6L, 7L));
 
         service().doSummarize(CONV);
 
@@ -290,8 +274,7 @@ class SummarizeServiceTest {
         final OpenAiChatOptions options = capturedOptions();
         assertThat(options.getModel()).isEqualTo("cheap-model");
         assertThat(options.getReasoningEffort()).isEqualTo("minimal");
-        assertThat(options.getExtraBody())
-                .isEqualTo(Map.of("thinking", Map.of("type", "disabled")));
+        assertThat(options.getExtraBody()).isEqualTo(Map.of("thinking", Map.of("type", "disabled")));
     }
 
     /**
@@ -330,21 +313,18 @@ class SummarizeServiceTest {
 
     private void answerWith(String content) {
         when(chatModel.call(any(Prompt.class)))
-                .thenReturn(
-                        new ChatResponse(List.of(new Generation(new AssistantMessage(content)))));
+                .thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(content)))));
     }
 
     private void answerWith(String content, Usage usage) {
         when(chatModel.call(any(Prompt.class)))
-                .thenReturn(
-                        new ChatResponse(
-                                List.of(new Generation(new AssistantMessage(content))),
-                                ChatResponseMetadata.builder().usage(usage).build()));
+                .thenReturn(new ChatResponse(
+                        List.of(new Generation(new AssistantMessage(content))),
+                        ChatResponseMetadata.builder().usage(usage).build()));
     }
 
     private SummaryWriter.SummaryRow parked() {
-        final ArgumentCaptor<SummaryWriter.SummaryRow> row =
-                ArgumentCaptor.forClass(SummaryWriter.SummaryRow.class);
+        final ArgumentCaptor<SummaryWriter.SummaryRow> row = ArgumentCaptor.forClass(SummaryWriter.SummaryRow.class);
         verify(pendingSummaries).park(eq(CONV), row.capture(), any());
         return row.getValue();
     }
@@ -369,8 +349,7 @@ class SummarizeServiceTest {
         return parkedSummary(start, end, null);
     }
 
-    private static ChatPendingSummaryEntity parkedSummary(
-            long start, long end, ChatMessageMeta meta) {
+    private static ChatPendingSummaryEntity parkedSummary(long start, long end, ChatMessageMeta meta) {
         return new ChatPendingSummaryEntity(
                 start + 1,
                 CONV,
@@ -387,17 +366,8 @@ class SummarizeServiceTest {
 
     /** Уже применённая сводка — обычный ряд истории с флагом {@code summary}. */
     private static PromptRow summaryRow(long position, String text) {
-        final ChatMessageEntity entity =
-                new ChatMessageEntity(
-                        position + 1,
-                        CONV,
-                        text,
-                        MessageType.ASSISTANT,
-                        position,
-                        false,
-                        true,
-                        LocalDateTime.now(),
-                        null);
+        final ChatMessageEntity entity = new ChatMessageEntity(
+                position + 1, CONV, text, MessageType.ASSISTANT, position, false, true, LocalDateTime.now(), null);
         return new PromptRow(entity, text);
     }
 
@@ -431,32 +401,22 @@ class SummarizeServiceTest {
 
     /** Вопрос, которым чат перешёл с {@code from} на {@code to}. */
     private static PromptRow switchRow(long position, String from, String to) {
-        final ChatMessageEntity entity =
-                new ChatMessageEntity(
-                        position + 1,
-                        CONV,
-                        "question",
-                        MessageType.USER,
-                        position,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofUserMessage(List.of(), to, from));
+        final ChatMessageEntity entity = new ChatMessageEntity(
+                position + 1,
+                CONV,
+                "question",
+                MessageType.USER,
+                position,
+                false,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofUserMessage(List.of(), to, from));
         return new PromptRow(entity, "question");
     }
 
     private static PromptRow row(long position, MessageType type, String content) {
-        final ChatMessageEntity entity =
-                new ChatMessageEntity(
-                        position + 1,
-                        CONV,
-                        content,
-                        type,
-                        position,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        null);
+        final ChatMessageEntity entity = new ChatMessageEntity(
+                position + 1, CONV, content, type, position, false, false, LocalDateTime.now(), null);
         return new PromptRow(entity, content);
     }
 
@@ -464,19 +424,7 @@ class SummarizeServiceTest {
     private static SummarizeProperties properties(
             @Nullable String model, @Nullable String reasoningEffort, @Nullable String thinking) {
         return new SummarizeProperties(
-                30_000,
-                50,
-                30,
-                5,
-                5,
-                Duration.ofMinutes(10),
-                0.5,
-                3,
-                0.8,
-                4,
-                model,
-                reasoningEffort,
-                thinking);
+                30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, model, reasoningEffort, thinking);
     }
 
     private SummarizeService service() {

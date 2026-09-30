@@ -99,9 +99,7 @@ public final class ScriptSession {
      * @param project the id this run reads and writes — see {@link #project}.
      */
     public ScriptSession(
-            ScriptProperties properties,
-            @Nullable ToolInvocationCollector priorInvocations,
-            String project) {
+            ScriptProperties properties, @Nullable ToolInvocationCollector priorInvocations, String project) {
         this.limits = properties.limits();
         this.priorInvocations = priorInvocations;
         this.project = project;
@@ -151,8 +149,7 @@ public final class ScriptSession {
             throw budgetExceeded(
                     "maxCalls",
                     limits.maxCalls(),
-                    "kb.* calls per run. Do less work per script, or split the task across two"
-                            + " runScript calls.");
+                    "kb.* calls per run. Do less work per script, or split the task across two" + " runScript calls.");
         }
     }
 
@@ -265,12 +262,10 @@ public final class ScriptSession {
     }
 
     /** A file staged as text — {@code kb.edit} / {@code kb.create}. */
-    public record TextWrite(String path, String text, boolean created, int sizeBytes)
-            implements PendingWrite {}
+    public record TextWrite(String path, String text, boolean created, int sizeBytes) implements PendingWrite {}
 
     /** A file staged as raw bytes — {@code kb.writeBytes} / {@code kb.createBytes}. */
-    public record BinaryWrite(String path, byte[] bytes, boolean created, int sizeBytes)
-            implements PendingWrite {}
+    public record BinaryWrite(String path, byte[] bytes, boolean created, int sizeBytes) implements PendingWrite {}
 
     /**
      * How this run has already written {@code path}, or empty if it has not — so a caller can both
@@ -320,8 +315,7 @@ public final class ScriptSession {
         // Both budgets are checked before anything is recorded, so a refused write leaves the run's
         // pending state exactly as it was — the counters a failed run reports describe what it
         // actually staged, not what it was stopped from staging.
-        long total =
-                pendingBytes - (previous == null ? 0 : previous.sizeBytes()) + write.sizeBytes();
+        long total = pendingBytes - (previous == null ? 0 : previous.sizeBytes()) + write.sizeBytes();
         long max = maxWriteBytes();
         if (total > max) {
             throw budgetExceeded(
@@ -331,8 +325,7 @@ public final class ScriptSession {
                             + " split the work across two runScript calls.");
         }
 
-        pending.put(
-                write.path(), previous != null && previous.created() ? asCreation(write) : write);
+        pending.put(write.path(), previous != null && previous.created() ? asCreation(write) : write);
         pendingBytes = total;
     }
 
@@ -373,12 +366,11 @@ public final class ScriptSession {
         if (priorInvocations != null && priorInvocations.hasSeenFile(path, project)) {
             return;
         }
-        throw new IllegalArgumentException(
-                "Refusing to overwrite "
-                        + path
-                        + ": the script has not looked at it. Read it first (kb.readBytes, or"
-                        + " kb.read for a text file — a range is enough), so the write is made"
-                        + " against a file whose current content is known.");
+        throw new IllegalArgumentException("Refusing to overwrite "
+                + path
+                + ": the script has not looked at it. Read it first (kb.readBytes, or"
+                + " kb.read for a text file — a range is enough), so the write is made"
+                + " against a file whose current content is known.");
     }
 
     /** Files written in this run, in the order they must be applied — first-write order. */
@@ -409,11 +401,7 @@ public final class ScriptSession {
 
     public ScriptStats stats() {
         return new ScriptStats(
-                filesRead.size(),
-                bytesRead,
-                calls,
-                pending.size(),
-                (System.nanoTime() - startNanos) / 1_000_000);
+                filesRead.size(), bytesRead, calls, pending.size(), (System.nanoTime() - startNanos) / 1_000_000);
     }
 
     /**
@@ -421,9 +409,7 @@ public final class ScriptSession {
      * value it was configured to, and what the model should do differently. The name is what the
      * model matches on — the guide it was given lists these — so it stays verbatim.
      */
-    private static ScriptLimitExceededException budgetExceeded(
-            String limit, Object max, String advice) {
-        return new ScriptLimitExceededException(
-                "Budget exceeded: " + limit + "=" + max + " " + advice);
+    private static ScriptLimitExceededException budgetExceeded(String limit, Object max, String advice) {
+        return new ScriptLimitExceededException("Budget exceeded: " + limit + "=" + max + " " + advice);
     }
 }

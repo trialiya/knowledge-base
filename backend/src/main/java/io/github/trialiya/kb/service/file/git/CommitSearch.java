@@ -49,7 +49,11 @@ final class CommitSearch {
      * @param path только коммиты, менявшие этот путь (файл или каталог); {@code null} — все. Предел
      *     обхода считает только такие коммиты: остальные отсеивает сам обход, до сравнения
      */
-    record Scope(boolean inBody, boolean withBody, @Nullable String rev, @Nullable String path) {
+    record Scope(
+            boolean inBody,
+            boolean withBody,
+            @Nullable String rev,
+            @Nullable String path) {
 
         /** Пикер плейсхолдера: только заголовок, от HEAD, без тел. */
         static final Scope SUBJECT = new Scope(false, false, null, null);
@@ -64,14 +68,12 @@ final class CommitSearch {
     // ObjectReader принадлежит RevWalk и закрывается вместе с ним; закрыть его здесь значило бы
     // выдернуть читатель из-под обхода, который ещё идёт.
     @SuppressWarnings("PMD.CloseResource")
-    static GitCommitSearchResult search(
-            Repository repository, String query, int maxCount, Scope scope) {
+    static GitCommitSearchResult search(Repository repository, String query, int maxCount, Scope scope) {
         if (query.isBlank()) return new GitCommitSearchResult(List.of(), false);
         String q = query.strip().toLowerCase(Locale.ROOT);
         int limit = Math.min(Math.max(maxCount, 1), MAX_RESULTS);
         String rev = scope.rev();
-        ObjectId start =
-                rev == null || rev.isBlank() ? null : CommitFiles.commitOf(repository, rev.strip());
+        ObjectId start = rev == null || rev.isBlank() ? null : CommitFiles.commitOf(repository, rev.strip());
         String path = scope.path();
 
         // Обход строим сами, а не через git.log(): LogCommand отдаёт свой RevWalk как
@@ -83,11 +85,9 @@ final class CommitSearch {
             walk.markStart(walk.parseCommit(start));
             if (path != null && !path.isBlank()) {
                 // То же, что делает LogCommand.addPath: коммит, не менявший путь, обход пропускает.
-                walk.setTreeFilter(
-                        AndTreeFilter.create(
-                                PathFilterGroup.createFromStrings(
-                                        RepoPaths.toForwardSlashes(path.strip())),
-                                TreeFilter.ANY_DIFF));
+                walk.setTreeFilter(AndTreeFilter.create(
+                        PathFilterGroup.createFromStrings(RepoPaths.toForwardSlashes(path.strip())),
+                        TreeFilter.ANY_DIFF));
             }
 
             ObjectReader reader = walk.getObjectReader();

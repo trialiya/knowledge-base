@@ -24,19 +24,14 @@ public class SkillFunction {
 
     private final SkillService skillService;
 
-    @Tool(
-            name = "readSkill",
-            description =
-                    """
+    @Tool(name = "readSkill", description = """
             Load a skill — an instruction file — by name. The available skills and when to \
             load each are listed in the "Skills" section of the system prompt and, for the \
             active repository's own skills, in the <active-project> block. Call it again \
             when a loaded skill's text is no longer visible in the context.
-            """,
-            resultConverter = CompactToolResultConverter.class)
+            """, resultConverter = CompactToolResultConverter.class)
     public SkillContent readSkill(
-            ToolContext context,
-            @ToolParam(description = "Skill name from the catalogue.") String name) {
+            ToolContext context, @ToolParam(description = "Skill name from the catalogue.") String name) {
         final String skill = requireText(name, "name");
         log.debug("Reading skill '{}'", skill);
         return skillService.read(skill, ProjectContext.from(context));

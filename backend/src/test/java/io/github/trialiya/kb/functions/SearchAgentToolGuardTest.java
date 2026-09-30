@@ -18,44 +18,41 @@ import org.springframework.ai.support.ToolCallbacks;
 class SearchAgentToolGuardTest {
 
     /** Mirror of {@code kb.search.subagent.allowed-tools} in application.yaml. */
-    private static final Set<String> ALLOWED =
-            Set.of(
-                    "runScript",
-                    "grepContent",
-                    "searchFiles",
-                    "getFileTree",
-                    "getFileOutline",
-                    "getFileContent",
-                    "searchDocuments",
-                    "grepDocuments",
-                    "findDocumentsByName",
-                    "getDocument",
-                    "getDocumentOutline",
-                    "getDocumentSection",
-                    "getTreeSkeleton");
+    private static final Set<String> ALLOWED = Set.of(
+            "runScript",
+            "grepContent",
+            "searchFiles",
+            "getFileTree",
+            "getFileOutline",
+            "getFileContent",
+            "searchDocuments",
+            "grepDocuments",
+            "findDocumentsByName",
+            "getDocument",
+            "getDocumentOutline",
+            "getDocumentSection",
+            "getTreeSkeleton");
 
     // Tools that mutate state or are otherwise off-limits for a read-only search agent.
-    private static final Set<String> FORBIDDEN =
-            Set.of(
-                    "createDocument",
-                    "updateDocument",
-                    "editDocument",
-                    "updateDocumentSection",
-                    "insertDocumentSection",
-                    "deleteDocumentSection",
-                    "renameDocumentSections",
-                    "retryDocumentWrite",
-                    "copyAttachmentToDocument",
-                    "searchCodebase");
+    private static final Set<String> FORBIDDEN = Set.of(
+            "createDocument",
+            "updateDocument",
+            "editDocument",
+            "updateDocumentSection",
+            "insertDocumentSection",
+            "deleteDocumentSection",
+            "renameDocumentSections",
+            "retryDocumentWrite",
+            "copyAttachmentToDocument",
+            "searchCodebase");
 
     private static Set<String> filteredToolNames() {
         // Services are never invoked by ToolCallbacks.from (it only reflects over @Tool methods),
         // so null dependencies are safe here.
-        return Stream.of(
-                        ToolCallbacks.from(
-                                new GitFunction(null),
-                                new DocumentFunction(null, null, null),
-                                ScriptFunction.readOnly(null, null)))
+        return Stream.of(ToolCallbacks.from(
+                        new GitFunction(null),
+                        new DocumentFunction(null, null, null),
+                        ScriptFunction.readOnly(null, null)))
                 .map(cb -> cb.getToolDefinition().name())
                 .filter(ALLOWED::contains)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
@@ -76,10 +73,9 @@ class SearchAgentToolGuardTest {
 
     @Test
     void searchCodebaseToolExistsButIsNotInTheAllowList() {
-        Set<String> mainAgentTools =
-                Arrays.stream(ToolCallbacks.from(new SearchAgentFunction(null)))
-                        .map(cb -> cb.getToolDefinition().name())
-                        .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        Set<String> mainAgentTools = Arrays.stream(ToolCallbacks.from(new SearchAgentFunction(null)))
+                .map(cb -> cb.getToolDefinition().name())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
         assertThat(mainAgentTools).contains("searchCodebase");
         assertThat(ALLOWED).doesNotContainAnyElementsOf(mainAgentTools);
     }

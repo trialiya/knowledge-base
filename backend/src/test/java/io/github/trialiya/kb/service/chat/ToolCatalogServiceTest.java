@@ -30,51 +30,39 @@ class ToolCatalogServiceTest {
 
     @Test
     void readsNameDescriptionAndArgumentsOfBuiltInTools() {
-        ToolInfo tool =
-                catalog(builtin()).stream()
-                        .filter(t -> t.name().equals("findDocumentsByName"))
-                        .findFirst()
-                        .orElseThrow();
+        ToolInfo tool = catalog(builtin()).stream()
+                .filter(t -> t.name().equals("findDocumentsByName"))
+                .findFirst()
+                .orElseThrow();
 
         assertThat(tool.origin()).isEqualTo("builtin");
         assertThat(tool.description()).contains("Find document/folder by title");
-        assertThat(tool.params())
-                .singleElement()
-                .satisfies(
-                        param -> {
-                            assertThat(param.name()).isEqualTo("name");
-                            assertThat(param.type()).isEqualTo("string");
-                            assertThat(param.required()).isTrue();
-                            assertThat(param.description()).contains("full or partial");
-                        });
+        assertThat(tool.params()).singleElement().satisfies(param -> {
+            assertThat(param.name()).isEqualTo("name");
+            assertThat(param.type()).isEqualTo("string");
+            assertThat(param.required()).isTrue();
+            assertThat(param.description()).contains("full or partial");
+        });
     }
 
     /** {@code required = false} on a {@code @ToolParam} is what the panel marks as optional. */
     @Test
     void optionalArgumentsAreNotRequired() {
-        ToolInfo tool =
-                catalog(builtin()).stream()
-                        .filter(t -> t.name().equals("searchDocuments"))
-                        .findFirst()
-                        .orElseThrow();
+        ToolInfo tool = catalog(builtin()).stream()
+                .filter(t -> t.name().equals("searchDocuments"))
+                .findFirst()
+                .orElseThrow();
 
-        assertThat(tool.params())
-                .extracting(ToolParamInfo::name)
-                .contains("query", "mode", "limit");
+        assertThat(tool.params()).extracting(ToolParamInfo::name).contains("query", "mode", "limit");
         assertThat(required(tool, "query")).isTrue();
         assertThat(required(tool, "mode")).isFalse();
     }
 
     @Test
     void sortsByNameAndTagsMcpToolsByOrigin() {
-        List<ToolInfo> tools =
-                new ToolCatalogService(
-                                new ChatToolset(
-                                        builtin(),
-                                        List.of(
-                                                mcpTool("zzzLast", "{}"),
-                                                mcpTool("aaaFirst", "{}"))))
-                        .tools();
+        List<ToolInfo> tools = new ToolCatalogService(
+                        new ChatToolset(builtin(), List.of(mcpTool("zzzLast", "{}"), mcpTool("aaaFirst", "{}"))))
+                .tools();
 
         assertThat(tools).extracting(ToolInfo::name).isSorted();
         assertThat(tools)
@@ -92,12 +80,10 @@ class ToolCatalogServiceTest {
     void marksAToolOfAnUnreachableConnectionAsUnavailable() {
         ToolCallback reachable = mcpTool("reachable", "{}");
         ToolCallback unreachable =
-                new RecordingToolCallback(
-                        new UnavailableToolCallback(mcpTool("unreachable", "{}"), "jira"));
+                new RecordingToolCallback(new UnavailableToolCallback(mcpTool("unreachable", "{}"), "jira"));
 
         List<ToolInfo> tools =
-                new ToolCatalogService(new ChatToolset(List.of(), List.of(reachable, unreachable)))
-                        .tools();
+                new ToolCatalogService(new ChatToolset(List.of(), List.of(reachable, unreachable))).tools();
 
         assertThat(tools)
                 .extracting(ToolInfo::name, ToolInfo::available)
@@ -107,9 +93,7 @@ class ToolCatalogServiceTest {
     /** Types the panel prints as-is: an item type for arrays, the definition name behind a $ref. */
     @Test
     void rendersArrayAndReferenceTypes() {
-        ToolInfo tool =
-                mcpCatalog(
-                        """
+        ToolInfo tool = mcpCatalog("""
                         {
                           "type": "object",
                           "properties": {
@@ -125,9 +109,7 @@ class ToolCatalogServiceTest {
 
     @Test
     void keepsEnumValues() {
-        ToolInfo tool =
-                mcpCatalog(
-                        """
+        ToolInfo tool = mcpCatalog("""
                         {
                           "type": "object",
                           "properties": {
@@ -163,19 +145,17 @@ class ToolCatalogServiceTest {
 
     /** The single tool of a catalogue holding one MCP tool with the given input schema. */
     private static ToolInfo mcpCatalog(String schema) {
-        return new ToolCatalogService(
-                        new ChatToolset(List.of(), List.of(mcpTool("external", schema))))
+        return new ToolCatalogService(new ChatToolset(List.of(), List.of(mcpTool("external", schema))))
                 .tools()
                 .getFirst();
     }
 
     private static ToolCallback mcpTool(String name, String schema) {
-        ToolDefinition definition =
-                ToolDefinition.builder()
-                        .name(name)
-                        .description("Tool " + name)
-                        .inputSchema(schema)
-                        .build();
+        ToolDefinition definition = ToolDefinition.builder()
+                .name(name)
+                .description("Tool " + name)
+                .inputSchema(schema)
+                .build();
         return new ToolCallback() {
             @Override
             public ToolDefinition getToolDefinition() {
@@ -193,8 +173,7 @@ class ToolCatalogServiceTest {
         return tool.params().stream()
                 .filter(p -> p.name().equals(name))
                 .findFirst()
-                .orElseThrow(
-                        () -> new AssertionError("no argument '" + name + "' in " + tool.name()));
+                .orElseThrow(() -> new AssertionError("no argument '" + name + "' in " + tool.name()));
     }
 
     private static String type(ToolInfo tool, String name) {

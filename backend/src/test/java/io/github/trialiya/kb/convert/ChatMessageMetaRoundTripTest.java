@@ -54,53 +54,41 @@ class ChatMessageMetaRoundTripTest {
         return ChatMessageMeta.builder()
                 .runId("run-1")
                 .toolCalls(true)
-                .invocations(
-                        List.of(
-                                new ToolInvocationMeta(
-                                        "searchDocuments",
-                                        Map.of("q", "запрос"),
-                                        ToolInvocationStatus.OK,
-                                        null,
-                                        Map.of("id", 7),
-                                        true,
-                                        3,
-                                        "гист",
-                                        "call-0")))
+                .invocations(List.of(new ToolInvocationMeta(
+                        "searchDocuments",
+                        Map.of("q", "запрос"),
+                        ToolInvocationStatus.OK,
+                        null,
+                        Map.of("id", 7),
+                        true,
+                        3,
+                        "гист",
+                        "call-0")))
                 .contextItems(
-                        List.of(
-                                new ContextItem(
-                                        ContextItemKind.ATTACHMENT,
-                                        "7",
-                                        "report.md",
-                                        Map.of("size", 12))))
+                        List.of(new ContextItem(ContextItemKind.ATTACHMENT, "7", "report.md", Map.of("size", 12))))
                 .project("billing")
                 .projectSwitchFrom("default")
                 .model("deepseek-chat")
-                .compact(
-                        new CompactMeta(
-                                21,
-                                4096,
-                                512,
-                                CompactMeta.Kind.SUMMARIZE,
-                                new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 61_900, 2)))
-                .gitEvent(
-                        new GitEventMeta(
-                                "commit",
-                                "billing",
-                                true,
-                                "Committed 0123456",
-                                "main",
-                                "0123456789abcdef0123456789abcdef01234567"))
+                .compact(new CompactMeta(
+                        21,
+                        4096,
+                        512,
+                        CompactMeta.Kind.SUMMARIZE,
+                        new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 61_900, 2)))
+                .gitEvent(new GitEventMeta(
+                        "commit",
+                        "billing",
+                        true,
+                        "Committed 0123456",
+                        "main",
+                        "0123456789abcdef0123456789abcdef01234567"))
                 .interjection(true)
-                .usage(
-                        new RunTokenUsage(
-                                12_400, 11_400, 700, 320, 31_000, 24_000, 1_100, 31_320, 3))
+                .usage(new RunTokenUsage(12_400, 11_400, 700, 320, 31_000, 24_000, 1_100, 31_320, 3))
                 .contextTokens(12_400L)
-                .visitedProjects(
-                        List.of(
-                                new ProjectSpan("kb", 1, 34),
-                                new ProjectSpan("billing", 35, 92),
-                                new ProjectSpan("kb", 93, 140)))
+                .visitedProjects(List.of(
+                        new ProjectSpan("kb", 1, 34),
+                        new ProjectSpan("billing", 35, 92),
+                        new ProjectSpan("kb", 93, 140)))
                 .fileRevert(new FileRevertMeta("billing", List.of("src/App.java", "src/New.java")))
                 .scriptEvent(scriptEvent())
                 .command(true)
@@ -121,8 +109,7 @@ class ChatMessageMetaRoundTripTest {
         final ChatMessageMeta meta = full();
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(meta);
-        final ChatMessageMeta read =
-                new ChatMessageMetaToJsonConverter.Reader(objectMapper).convert(json);
+        final ChatMessageMeta read = new ChatMessageMetaToJsonConverter.Reader(objectMapper).convert(json);
 
         assertThat(read).isEqualTo(meta);
     }
@@ -137,16 +124,12 @@ class ChatMessageMetaRoundTripTest {
         final ChatMessageMeta meta = full();
 
         assertSameExcept(meta, meta.withRun("run-2", "gpt-5"), "runId", "model");
-        assertSameExcept(
-                meta, meta.withUsage(new RunTokenUsage(1, 1, 0, 1, 1, 0, 0, 2, 1)), "usage");
-        assertSameExcept(
-                meta, meta.withProjectTrace("kb", List.of()), "project", "visitedProjects");
-        assertSameExcept(
-                meta, meta.withProjectSwitch("kb", "billing"), "project", "projectSwitchFrom");
+        assertSameExcept(meta, meta.withUsage(new RunTokenUsage(1, 1, 0, 1, 1, 0, 0, 2, 1)), "usage");
+        assertSameExcept(meta, meta.withProjectTrace("kb", List.of()), "project", "visitedProjects");
+        assertSameExcept(meta, meta.withProjectSwitch("kb", "billing"), "project", "projectSwitchFrom");
     }
 
-    private static void assertSameExcept(
-            ChatMessageMeta before, ChatMessageMeta after, String... changed) {
+    private static void assertSameExcept(ChatMessageMeta before, ChatMessageMeta after, String... changed) {
         final Set<String> skip = Set.of(changed);
         for (RecordComponent component : ChatMessageMeta.class.getRecordComponents()) {
             if (!skip.contains(component.getName())) {
@@ -166,9 +149,7 @@ class ChatMessageMetaRoundTripTest {
     }
 
     private static boolean isDefault(Object value) {
-        return value == null
-                || Boolean.FALSE.equals(value)
-                || (value instanceof List<?> list && list.isEmpty());
+        return value == null || Boolean.FALSE.equals(value) || (value instanceof List<?> list && list.isEmpty());
     }
 
     /**
@@ -192,10 +173,9 @@ class ChatMessageMetaRoundTripTest {
      */
     @Test
     void aRowThatSpellsOutItsNullsReadsTheSame() {
-        final String withNulls =
-                "{\"runId\":null,\"toolCalls\":false,\"invocations\":[],\"contextItems\":null,"
-                        + "\"project\":\"billing\",\"projectSwitchFrom\":null,\"model\":null,"
-                        + "\"compact\":null}";
+        final String withNulls = "{\"runId\":null,\"toolCalls\":false,\"invocations\":[],\"contextItems\":null,"
+                + "\"project\":\"billing\",\"projectSwitchFrom\":null,\"model\":null,"
+                + "\"compact\":null}";
 
         assertThat(new ChatMessageMetaToJsonConverter.Reader(objectMapper).convert(withNulls))
                 .isEqualTo(ChatMessageMeta.ofProject("billing", List.of()));
@@ -208,20 +188,14 @@ class ChatMessageMetaRoundTripTest {
      */
     @Test
     void aCompactionNoticeWithoutAKnownKindReadsAsTheUserCommand() {
-        final ChatMessageMetaToJsonConverter.Reader reader =
-                new ChatMessageMetaToJsonConverter.Reader(objectMapper);
+        final ChatMessageMetaToJsonConverter.Reader reader = new ChatMessageMetaToJsonConverter.Reader(objectMapper);
 
-        assertThat(
-                        reader.convert(
-                                        "{\"compact\":{\"messages\":10,\"summaryChars\":128,"
-                                                + "\"summaryId\":7}}")
-                                .compact())
+        assertThat(reader.convert("{\"compact\":{\"messages\":10,\"summaryChars\":128," + "\"summaryId\":7}}")
+                        .compact())
                 .isEqualTo(new CompactMeta(10, 128, 7, CompactMeta.Kind.COMPACT, null));
-        assertThat(
-                        reader.convert(
-                                        "{\"compact\":{\"messages\":10,\"summaryChars\":128,"
-                                                + "\"summaryId\":7,\"kind\":\"TELEPORT\"}}")
-                                .compact())
+        assertThat(reader.convert("{\"compact\":{\"messages\":10,\"summaryChars\":128,"
+                                + "\"summaryId\":7,\"kind\":\"TELEPORT\"}}")
+                        .compact())
                 .isEqualTo(new CompactMeta(10, 128, 7, CompactMeta.Kind.COMPACT, null));
     }
 }

@@ -42,8 +42,7 @@ final class ScriptResultKeeper {
      * @param json the value as the guest's {@code JSON.stringify} wrote it, whole; null when the
      *     script returned nothing
      */
-    Delivered deliver(
-            @Nullable String json, ScriptRequest request, String project, ScriptSession session) {
+    Delivered deliver(@Nullable String json, ScriptRequest request, String project, ScriptSession session) {
         if (json == null) {
             return new Delivered(null, null);
         }
@@ -52,25 +51,22 @@ final class ScriptResultKeeper {
         if (json.length() <= max) {
             return new Delivered(parse(json), resultId);
         }
-        session.log(
-                "Result truncated: maxResultChars="
-                        + max
-                        + ", but the returned value was "
-                        + json.length()
-                        + " characters. "
-                        + (resultId == null
-                                ? "Return a summary (counts, top-N) instead of raw content next"
-                                        + " time."
-                                : "The whole value is kept as "
-                                        + resultId
-                                        + ": read it in a later script with kb.result('"
-                                        + resultId
-                                        + "'), or save it to a file with saveScriptResult."));
+        session.log("Result truncated: maxResultChars="
+                + max
+                + ", but the returned value was "
+                + json.length()
+                + " characters. "
+                + (resultId == null
+                        ? "Return a summary (counts, top-N) instead of raw content next" + " time."
+                        : "The whole value is kept as "
+                                + resultId
+                                + ": read it in a later script with kb.result('"
+                                + resultId
+                                + "'), or save it to a file with saveScriptResult."));
         return new Delivered(parse(json.substring(0, max)), resultId);
     }
 
-    private @Nullable String keep(
-            String json, ScriptRequest request, String project, ScriptSession session) {
+    private @Nullable String keep(String json, ScriptRequest request, String project, ScriptSession session) {
         ResultScope scope = request.results();
         // A literal null is what a script that returned null (rather than nothing) produces —
         // there is nothing in it for a later script to read.
@@ -79,11 +75,7 @@ final class ScriptResultKeeper {
         }
         ScriptRunSource source = request.source().report();
         ScriptResultStore.Kept kept =
-                store.keep(
-                        scope.conversationId(),
-                        source == null ? null : source.name(),
-                        project,
-                        json);
+                store.keep(scope.conversationId(), source == null ? null : source.name(), project, json);
         if (kept.note() != null) {
             session.log(kept.note());
         }

@@ -61,10 +61,9 @@ public class AiTopicService implements DisposableBean {
             ChatMessageRepository chatMessages,
             ChatEventService events,
             ChatTopicProperties properties) {
-        this.chatClient =
-                BackgroundCallOptions.clientBuilder(openAiChatModel, properties)
-                        .defaultSystem(prompt)
-                        .build();
+        this.chatClient = BackgroundCallOptions.clientBuilder(openAiChatModel, properties)
+                .defaultSystem(prompt)
+                .build();
         this.chatTopics = chatTopics;
         this.chatMessages = chatMessages;
         this.events = events;
@@ -83,17 +82,16 @@ public class AiTopicService implements DisposableBean {
             return;
         }
         try {
-            executor.execute(
-                    () -> {
-                        try {
-                            name(conversationId);
-                        } catch (RuntimeException e) {
-                            // Без названия чат живёт и так: следующий ответ попробует снова.
-                            log.warn("[{}] Chat naming failed: {}", conversationId, e.getMessage());
-                        } finally {
-                            naming.remove(conversationId);
-                        }
-                    });
+            executor.execute(() -> {
+                try {
+                    name(conversationId);
+                } catch (RuntimeException e) {
+                    // Без названия чат живёт и так: следующий ответ попробует снова.
+                    log.warn("[{}] Chat naming failed: {}", conversationId, e.getMessage());
+                } finally {
+                    naming.remove(conversationId);
+                }
+            });
         } catch (RejectedExecutionException e) {
             naming.remove(conversationId);
             // Приложение останавливается — название подождёт следующего ответа.
@@ -115,22 +113,18 @@ public class AiTopicService implements DisposableBean {
             return;
         }
         // Выборка отдаёт хвост от свежего к старому — окно собирается по обычному порядку.
-        final List<TopicPrompt.Line> excerpt =
-                TopicPrompt.excerpt(
-                        chatMessages
-                                .findLastTurns(conversationId, TopicPrompt.ROWS_TO_READ)
-                                .reversed());
+        final List<TopicPrompt.Line> excerpt = TopicPrompt.excerpt(chatMessages
+                .findLastTurns(conversationId, TopicPrompt.ROWS_TO_READ)
+                .reversed());
         if (excerpt.isEmpty()) {
             return;
         }
         final @Nullable String current = chat.getAiTopic();
-        final String topic =
-                TopicPrompt.clean(
-                        chatClient
-                                .prompt()
-                                .user(TopicPrompt.request(current, excerpt))
-                                .call()
-                                .content());
+        final String topic = TopicPrompt.clean(chatClient
+                .prompt()
+                .user(TopicPrompt.request(current, excerpt))
+                .call()
+                .content());
         // Номер ответа пишется и тогда, когда названия не вышло или оно прежнее: следующий запрос
         // — на следующей точке, а не на каждом ответе, платя за тот же отказ. Сбой самого вызова
         // (исключение выше) номера не пишет — его пробует уже ближайший ответ.
@@ -151,7 +145,6 @@ public class AiTopicService implements DisposableBean {
             return;
         }
         final String display = Objects.requireNonNullElse(named.getDisplayTopic(), topic);
-        events.publish(
-                conversationId, CHAT_TOPIC, null, null, new ChatTopicPayload(display, topic));
+        events.publish(conversationId, CHAT_TOPIC, null, null, new ChatTopicPayload(display, topic));
     }
 }

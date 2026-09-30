@@ -55,15 +55,11 @@ public class ChatActionClaim {
      * @return токен заявки для {@link #release}
      */
     public String claimIdleAndOwned(String conversationId) {
-        final String owner =
-                chatTopicRepository
-                        .findById(conversationId)
-                        .orElseThrow(
-                                () ->
-                                        new ResponseStatusException(
-                                                HttpStatus.NOT_FOUND,
-                                                "Not found conversation id " + conversationId))
-                        .getUser();
+        final String owner = chatTopicRepository
+                .findById(conversationId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Not found conversation id " + conversationId))
+                .getUser();
         if (!owner.equals(ChatUtils.getUser())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
         }

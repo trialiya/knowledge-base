@@ -20,13 +20,15 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitRegistryTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     /**
      * Второй репозиторий — свой каталог; {@code git init} в нём зовут только те тесты, кому он
      * нужен рабочим, остальным он изображает не доехавший mount.
      */
-    @TempDir Path secondRepo;
+    @TempDir
+    Path secondRepo;
 
     @BeforeEach
     void initRepo() {
@@ -104,30 +106,27 @@ class GitRegistryTest {
 
     @Test
     void pushIsOfferedOnlyWhereItIsConfigured() {
-        assertThat(TestProjects.gitCommandsRegistry(repoDir, true).gitPushAllowed(null)).isTrue();
-        assertThat(TestProjects.gitCommandsRegistry(repoDir, false).gitPushAllowed(null)).isFalse();
+        assertThat(TestProjects.gitCommandsRegistry(repoDir, true).gitPushAllowed(null))
+                .isTrue();
+        assertThat(TestProjects.gitCommandsRegistry(repoDir, false).gitPushAllowed(null))
+                .isFalse();
     }
 
     /** То же, что с правками: не открывшийся репозиторий не даёт ни одной команды. */
     @Test
     void aProjectWhoseRepositoryIsMissingOffersNoCommands() {
-        GitRegistry registry =
-                TestProjects.registry(
-                        List.of(
-                                TestProjects.project("kb", repoDir),
-                                TestProjects.gitCommandsProject(
-                                        "billing", secondRepo, true))); // git init не звали
+        GitRegistry registry = TestProjects.registry(List.of(
+                TestProjects.project("kb", repoDir),
+                TestProjects.gitCommandsProject("billing", secondRepo, true))); // git init не звали
 
         assertThat(registry.gitCommandsAllowed("billing")).isFalse();
         assertThat(registry.gitPushAllowed("billing")).isFalse();
-        assertThat(registry.capabilities("billing"))
-                .satisfies(
-                        c -> {
-                            assertThat(c.project()).isEqualTo("billing");
-                            assertThat(c.available()).isFalse();
-                            assertThat(c.commands()).isFalse();
-                            assertThat(c.push()).isFalse();
-                        });
+        assertThat(registry.capabilities("billing")).satisfies(c -> {
+            assertThat(c.project()).isEqualTo("billing");
+            assertThat(c.available()).isFalse();
+            assertThat(c.commands()).isFalse();
+            assertThat(c.push()).isFalse();
+        });
     }
 
     /** Проект не назван — ответ приходит про дефолтный, и он назван в ответе. */
@@ -135,8 +134,7 @@ class GitRegistryTest {
     void capabilitiesNameTheProjectTheyAnswerAbout() {
         GitRegistry registry = TestProjects.gitCommandsRegistry(repoDir, false);
 
-        assertThat(registry.capabilities(null))
-                .isEqualTo(new GitCapabilities(TestProjects.ID, true, true, false));
+        assertThat(registry.capabilities(null)).isEqualTo(new GitCapabilities(TestProjects.ID, true, true, false));
     }
 
     // ── Несколько проектов ───────────────────────────────────────────────────
@@ -144,11 +142,8 @@ class GitRegistryTest {
     @Test
     void everyConfiguredProjectGetsARepositoryOfItsOwn() {
         runGit(secondRepo, "init", "-q");
-        GitRegistry registry =
-                TestProjects.registry(
-                        List.of(
-                                TestProjects.project("kb", repoDir),
-                                TestProjects.project("billing", secondRepo)));
+        GitRegistry registry = TestProjects.registry(
+                List.of(TestProjects.project("kb", repoDir), TestProjects.project("billing", secondRepo)));
 
         assertThat(registry.forProject("billing")).isNotSameAs(registry.forProject("kb"));
         assertThat(registry.defaultProject()).isSameAs(registry.forProject("kb"));
@@ -160,11 +155,8 @@ class GitRegistryTest {
     /** Не доехавший mount стоит своего проекта — не сервера: остальные репозитории работают. */
     @Test
     void aProjectWhoseRepositoryIsMissingIsRefusedByNameWhileTheRestServe() {
-        GitRegistry registry =
-                TestProjects.registry(
-                        List.of(
-                                TestProjects.project("kb", repoDir),
-                                TestProjects.project("billing", secondRepo))); // git init не звали
+        GitRegistry registry = TestProjects.registry(List.of(
+                TestProjects.project("kb", repoDir), TestProjects.project("billing", secondRepo))); // git init не звали
 
         assertThat(registry.defaultProject().project().path())
                 .isEqualTo(repoDir.toAbsolutePath().normalize());
@@ -182,11 +174,8 @@ class GitRegistryTest {
      */
     @Test
     void theSelectorIsToldWhichEntryIsPreselectedAndWhichIsUnavailable() {
-        GitRegistry registry =
-                TestProjects.registry(
-                        List.of(
-                                TestProjects.project("kb", repoDir),
-                                TestProjects.project("billing", secondRepo))); // git init не звали
+        GitRegistry registry = TestProjects.registry(List.of(
+                TestProjects.project("kb", repoDir), TestProjects.project("billing", secondRepo))); // git init не звали
 
         assertThat(registry.options().defaultProject()).isEqualTo("kb");
         assertThat(registry.options().projects())
@@ -205,12 +194,8 @@ class GitRegistryTest {
     /** Дефолтный — исключение: без него не работает ничего, и это честный отказ старта. */
     @Test
     void aMissingDefaultRepositoryStillFailsStartup() {
-        assertThatThrownBy(
-                        () ->
-                                TestProjects.registry(
-                                        List.of(
-                                                TestProjects.project("billing", secondRepo),
-                                                TestProjects.project("kb", repoDir))))
+        assertThatThrownBy(() -> TestProjects.registry(
+                        List.of(TestProjects.project("billing", secondRepo), TestProjects.project("kb", repoDir))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("billing");
     }
@@ -224,11 +209,10 @@ class GitRegistryTest {
             String[] command = new String[args.length + 1];
             command[0] = "git";
             System.arraycopy(args, 0, command, 1, args.length);
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(dir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
+            Process process = new ProcessBuilder(command)
+                    .directory(dir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
             if (process.waitFor() != 0) {
                 throw new IllegalStateException("git " + String.join(" ", args) + " failed");
             }

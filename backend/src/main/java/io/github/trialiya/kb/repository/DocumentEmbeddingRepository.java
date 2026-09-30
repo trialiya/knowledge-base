@@ -47,13 +47,11 @@ public class DocumentEmbeddingRepository {
      * <p>The query uses the {@code <=>} cosine-distance operator from pgvector; similarity = 1 −
      * distance.
      */
-    public List<SemanticSearchResult> findSimilar(
-            float[] queryEmbedding, double threshold, int limit) {
+    public List<SemanticSearchResult> findSimilar(float[] queryEmbedding, double threshold, int limit) {
         String vectorLiteral = toVectorLiteral(queryEmbedding);
 
         // language=SQL
-        String sql =
-                """
+        String sql = """
                 SELECT
                     d.id          AS document_id,
                     d.title,
@@ -76,15 +74,14 @@ public class DocumentEmbeddingRepository {
                     ps.setDouble(3, threshold);
                     ps.setInt(4, limit);
                 },
-                (rs, rowNum) ->
-                        new SemanticSearchResult(
-                                rs.getLong("document_id"),
-                                rs.getString("title"),
-                                rs.getString("description"),
-                                // documents.updated_at is NOT NULL
-                                rs.getTimestamp("updated_at").toLocalDateTime(),
-                                rs.getString("summary"),
-                                rs.getDouble("similarity")));
+                (rs, rowNum) -> new SemanticSearchResult(
+                        rs.getLong("document_id"),
+                        rs.getString("title"),
+                        rs.getString("description"),
+                        // documents.updated_at is NOT NULL
+                        rs.getTimestamp("updated_at").toLocalDateTime(),
+                        rs.getString("summary"),
+                        rs.getDouble("similarity")));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

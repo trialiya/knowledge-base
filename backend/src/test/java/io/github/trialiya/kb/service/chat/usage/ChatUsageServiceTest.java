@@ -94,9 +94,7 @@ class ChatUsageServiceTest {
     /** У плашки сжатия в базе лежит прочитанное раундом окно, а не системная часть чата. */
     @Test
     void neverReadsTheSystemPartOffACompactNotice() {
-        rows(
-                compact(run(60_000, 58_000, 0, 60_000, 1), null),
-                answer(run(9_000, 1_400, 0, 9_000, 1)));
+        rows(compact(run(60_000, 58_000, 0, 60_000, 1), null), answer(run(9_000, 1_400, 0, 9_000, 1)));
 
         assertThat(service.totals(CONV).baseContextTokens()).isEqualTo(1_400);
     }
@@ -115,11 +113,10 @@ class ChatUsageServiceTest {
     /** У суб-агента своя модель и свой тариф, поэтому его деньги стоят отдельным числом. */
     @Test
     void countsSubagentSpendingApartFromTheChatModel() {
-        rows(
-                answerWithSubagents(
-                        run(9_000, 1_000, 0, 12_000, 2),
-                        Map.of("usage", run(0, 0, 400, 20_000, 4)),
-                        Map.of("usage", run(0, 0, 100, 5_000, 1))));
+        rows(answerWithSubagents(
+                run(9_000, 1_000, 0, 12_000, 2),
+                Map.of("usage", run(0, 0, 400, 20_000, 4)),
+                Map.of("usage", run(0, 0, 100, 5_000, 1))));
 
         final ChatUsageTotals totals = service.totals(CONV);
 
@@ -133,10 +130,8 @@ class ChatUsageServiceTest {
     /** Из БД замер приезжает разобранной картой, а не записью, — читаться обязан так же. */
     @Test
     void readsASubagentMeasurementWrittenAsAPlainMap() {
-        rows(
-                answerWithSubagents(
-                        run(9_000, 1_000, 0, 12_000, 1),
-                        Map.of("usage", Map.of("promptTokens", 20_000, "modelCalls", 4))));
+        rows(answerWithSubagents(
+                run(9_000, 1_000, 0, 12_000, 1), Map.of("usage", Map.of("promptTokens", 20_000, "modelCalls", 4))));
 
         assertThat(service.totals(CONV).subagentSpent().promptTokens()).isEqualTo(20_000);
     }
@@ -144,9 +139,7 @@ class ChatUsageServiceTest {
     /** Чужая форма под тем же ключом стоит своего вызова, а не всего счёта. */
     @Test
     void survivesAnUnreadableMeasurementInAToolResult() {
-        rows(
-                answerWithSubagents(
-                        run(9_000, 1_000, 0, 12_000, 1), Map.of("usage", "не запись вовсе")));
+        rows(answerWithSubagents(run(9_000, 1_000, 0, 12_000, 1), Map.of("usage", "не запись вовсе")));
 
         final ChatUsageTotals totals = service.totals(CONV);
 
@@ -175,41 +168,34 @@ class ChatUsageServiceTest {
     }
 
     private static ChatUsageRow answer(RunTokenUsage usage) {
-        return new ChatUsageRow(
-                MessageType.ASSISTANT, usage == null ? null : ChatMessageMeta.ofUsage(usage));
+        return new ChatUsageRow(MessageType.ASSISTANT, usage == null ? null : ChatMessageMeta.ofUsage(usage));
     }
 
     private static ChatUsageRow question(RunTokenUsage usage) {
-        return new ChatUsageRow(
-                MessageType.USER, usage == null ? null : ChatMessageMeta.ofUsage(usage));
+        return new ChatUsageRow(MessageType.USER, usage == null ? null : ChatMessageMeta.ofUsage(usage));
     }
 
     private static ChatUsageRow compact(RunTokenUsage usage, RunTokenUsage carried) {
         return new ChatUsageRow(
                 MessageType.ASSISTANT,
-                ChatMessageMeta.ofCompact(
-                                new CompactMeta(12, 3_000, 7L, CompactMeta.Kind.COMPACT, carried))
+                ChatMessageMeta.ofCompact(new CompactMeta(12, 3_000, 7L, CompactMeta.Kind.COMPACT, carried))
                         .withUsage(usage));
     }
 
     @SafeVarargs
-    private static ChatUsageRow answerWithSubagents(
-            RunTokenUsage usage, Map<String, ?>... resultMetas) {
-        final List<ToolInvocationMeta> invocations =
-                Arrays.stream(resultMetas)
-                        .map(
-                                meta ->
-                                        new ToolInvocationMeta(
-                                                "searchCodebase",
-                                                Map.of(),
-                                                ToolInvocationCollector.ToolInvocationStatus.OK,
-                                                null,
-                                                meta,
-                                                null,
-                                                null,
-                                                null,
-                                                null))
-                        .toList();
+    private static ChatUsageRow answerWithSubagents(RunTokenUsage usage, Map<String, ?>... resultMetas) {
+        final List<ToolInvocationMeta> invocations = Arrays.stream(resultMetas)
+                .map(meta -> new ToolInvocationMeta(
+                        "searchCodebase",
+                        Map.of(),
+                        ToolInvocationCollector.ToolInvocationStatus.OK,
+                        null,
+                        meta,
+                        null,
+                        null,
+                        null,
+                        null))
+                .toList();
         return new ChatUsageRow(
                 MessageType.ASSISTANT, ChatMessageMeta.ofToolCalls(invocations).withUsage(usage));
     }

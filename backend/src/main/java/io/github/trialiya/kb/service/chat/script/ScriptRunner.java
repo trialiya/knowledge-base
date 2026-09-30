@@ -100,9 +100,7 @@ public class ScriptRunner {
      */
     private static final class Modules {
         static final Source LOADER =
-                Source.newBuilder(
-                                "js",
-                                """
+                Source.newBuilder("js", """
                                 (function (kb) {
                                   var cache = {};
                                   return function loadScript(path) {
@@ -117,9 +115,7 @@ public class ScriptRunner {
                                     return module.exports;
                                   };
                                 })
-                                """,
-                                "kb-modules.js")
-                        .buildLiteral();
+                                """, "kb-modules.js").buildLiteral();
 
         private Modules() {}
     }
@@ -132,10 +128,7 @@ public class ScriptRunner {
      * the very cost {@link #engine()} is late for.
      */
     private static final class Helpers {
-        static final Source JSON =
-                Source.newBuilder(
-                                "js",
-                                """
+        static final Source JSON = Source.newBuilder("js", """
                                 ({
                                   result: function (x) { return x === undefined ? null : JSON.stringify(x); },
                                   log: function (x) {
@@ -154,9 +147,7 @@ public class ScriptRunner {
                                     })(JSON.parse(json));
                                   }
                                 })
-                                """,
-                                "kb-helpers.js")
-                        .buildLiteral();
+                                """, "kb-helpers.js").buildLiteral();
 
         private Helpers() {}
     }
@@ -182,7 +173,8 @@ public class ScriptRunner {
      * <p>Closed with the application, and not before: a context outlives nothing here, but an
      * engine closed while a script is running would take that script down with it.
      */
-    @Nullable private volatile Engine engine;
+    @Nullable
+    private volatile Engine engine;
 
     private final ReentrantLock engineLock = new ReentrantLock();
 
@@ -209,14 +201,13 @@ public class ScriptRunner {
         try {
             Engine created = engine;
             if (created == null) {
-                created =
-                        Engine.newBuilder("js")
-                                // On a stock JDK there is no Graal compiler, so the engine warns
-                                // once that it is interpreting. Expected here: scripts are glue
-                                // code, and kb.script.limits keeps them small enough for
-                                // interpretation to be irrelevant.
-                                .option("engine.WarnInterpreterOnly", "false")
-                                .build();
+                created = Engine.newBuilder("js")
+                        // On a stock JDK there is no Graal compiler, so the engine warns
+                        // once that it is interpreting. Expected here: scripts are glue
+                        // code, and kb.script.limits keeps them small enough for
+                        // interpretation to be irrelevant.
+                        .option("engine.WarnInterpreterOnly", "false")
+                        .build();
                 engine = created;
             }
             return created;
@@ -249,8 +240,7 @@ public class ScriptRunner {
      *     #requireEnabled()}) — a surface that offers a script is expected to have refused already,
      *     so this one is a programming error, not a message for a user
      */
-    public ScriptResult run(
-            String script, @Nullable Integer timeoutSeconds, RunCancellation cancellation) {
+    public ScriptResult run(String script, @Nullable Integer timeoutSeconds, RunCancellation cancellation) {
         return run(script, timeoutSeconds, cancellation, false);
     }
 
@@ -260,10 +250,7 @@ public class ScriptRunner {
      * read-only by construction and must stay so in a deployment where the main chat may edit.
      */
     public ScriptResult run(
-            String script,
-            @Nullable Integer timeoutSeconds,
-            RunCancellation cancellation,
-            boolean forceReadOnly) {
+            String script, @Nullable Integer timeoutSeconds, RunCancellation cancellation, boolean forceReadOnly) {
         return run(script, timeoutSeconds, cancellation, forceReadOnly, null, null);
     }
 
@@ -322,10 +309,9 @@ public class ScriptRunner {
         request.args().notes().forEach(session::log);
         ScriptResultReader results = ScriptResultReader.of(resultStore, request.results());
         // Which object is bound IS the permission: with writes off, kb.edit does not exist.
-        KbScriptApi api =
-                editPolicy.enabled(request.projectId()) && !request.forceReadOnly()
-                        ? new KbEditScriptApi(gitService, documentService, session, results)
-                        : new KbScriptApi(gitService, documentService, session, results);
+        KbScriptApi api = editPolicy.enabled(request.projectId()) && !request.forceReadOnly()
+                ? new KbEditScriptApi(gitService, documentService, session, results)
+                : new KbScriptApi(gitService, documentService, session, results);
         Duration timeout = resolveTimeout(request.timeoutSeconds());
         long deadlineNanos = System.nanoTime() + timeout.toNanos();
 
@@ -335,8 +321,7 @@ public class ScriptRunner {
         // Deliberately not try-with-resources: closing a context whose execution was cancelled
         // throws the cancellation again, which would replace the result this method just built.
         Context context = newContext();
-        Thread watchdog =
-                startWatchdog(context, cancellation, deadlineNanos, finished, cancelReason);
+        Thread watchdog = startWatchdog(context, cancellation, deadlineNanos, finished, cancelReason);
         try {
             Value helpers = context.eval(Helpers.JSON);
             Value logFormatter = helpers.getMember("log");
@@ -351,7 +336,9 @@ public class ScriptRunner {
             // source, so a key named __proto__ stays an own property instead of silently becoming
             // the prototype — and nothing but a string crosses into the context.
             context.getBindings("js")
-                    .putMember("args", helpers.getMember("args").execute(request.args().json()));
+                    .putMember(
+                            "args",
+                            helpers.getMember("args").execute(request.args().json()));
 
             Value returned = context.eval(source(request.source()));
             String json = stringify(helpers.getMember("result"), returned);
@@ -365,18 +352,14 @@ public class ScriptRunner {
             List<GitEditResult> edits = applyPendingWrites(session, gitService);
             // Kept after the writes, not before: a run whose edits failed to apply ends in an
             // exception, and a kept value would be the result of a run that never completed.
-            ScriptResultKeeper.Delivered delivered =
-                    resultKeeper.deliver(json, request, project, session);
+            ScriptResultKeeper.Delivered delivered = resultKeeper.deliver(json, request, project, session);
             return success(project, request.source().report(), delivered, session, edits);
         } catch (PolyglotException e) {
             return failure(project, request.source(), e, session, cancelReason.get(), timeout);
         } catch (ScriptLimitExceededException e) {
             // A budget blown outside guest code (converting the return value, say).
             return failed(
-                    project,
-                    request.source(),
-                    session,
-                    ScriptError.of(Kind.BUDGET, String.valueOf(e.getMessage())));
+                    project, request.source(), session, ScriptError.of(Kind.BUDGET, String.valueOf(e.getMessage())));
         } catch (IllegalStateException e) {
             // The watchdog closed the context while this thread was between guest calls, so the
             // cancellation surfaces as "context is closed" rather than as a guest exception.
@@ -434,28 +417,25 @@ public class ScriptRunner {
             AtomicBoolean finished,
             AtomicReference<Kind> reason) {
         long pollMillis = Math.max(1, properties.cancelPoll().toMillis());
-        return Thread.ofVirtual()
-                .name("script-watchdog")
-                .start(
-                        () -> {
-                            while (!finished.get()) {
-                                if (cancellation.isStopRequested()) {
-                                    reason.set(Kind.CANCELLED);
-                                    closeQuietly(context);
-                                    return;
-                                }
-                                if (System.nanoTime() - deadlineNanos >= 0) {
-                                    reason.set(Kind.TIMEOUT);
-                                    closeQuietly(context);
-                                    return;
-                                }
-                                try {
-                                    Thread.sleep(pollMillis);
-                                } catch (InterruptedException e) {
-                                    return; // the run finished on its own
-                                }
-                            }
-                        });
+        return Thread.ofVirtual().name("script-watchdog").start(() -> {
+            while (!finished.get()) {
+                if (cancellation.isStopRequested()) {
+                    reason.set(Kind.CANCELLED);
+                    closeQuietly(context);
+                    return;
+                }
+                if (System.nanoTime() - deadlineNanos >= 0) {
+                    reason.set(Kind.TIMEOUT);
+                    closeQuietly(context);
+                    return;
+                }
+                try {
+                    Thread.sleep(pollMillis);
+                } catch (InterruptedException e) {
+                    return; // the run finished on its own
+                }
+            }
+        });
     }
 
     /** Ends the watchdog's watch. Safe to call twice — the second call is a no-op. */
@@ -493,8 +473,7 @@ public class ScriptRunner {
                 edits);
     }
 
-    private ScriptResult failed(
-            String project, ScriptSource source, ScriptSession session, ScriptError error) {
+    private ScriptResult failed(String project, ScriptSource source, ScriptSession session, ScriptError error) {
         return new ScriptResult(
                 project,
                 null,
@@ -528,16 +507,13 @@ public class ScriptRunner {
                 applied.add(
                         switch (write) {
                             case ScriptSession.TextWrite text ->
-                                    text.created()
-                                            ? gitService.createFile(text.path(), text.text())
-                                            : gitService.replaceTrackedFile(
-                                                    text.path(), text.text());
+                                text.created()
+                                        ? gitService.createFile(text.path(), text.text())
+                                        : gitService.replaceTrackedFile(text.path(), text.text());
                             case ScriptSession.BinaryWrite binary ->
-                                    binary.created()
-                                            ? gitService.createBinaryFile(
-                                                    binary.path(), binary.bytes())
-                                            : gitService.replaceTrackedBytes(
-                                                    binary.path(), binary.bytes());
+                                binary.created()
+                                        ? gitService.createBinaryFile(binary.path(), binary.bytes())
+                                        : gitService.replaceTrackedBytes(binary.path(), binary.bytes());
                         });
             } catch (RuntimeException e) {
                 throw new IllegalStateException(
@@ -570,29 +546,17 @@ public class ScriptRunner {
         if (e.isCancelled() || e.isInterrupted()) {
             return stopped(project, source, session, cancelReason, timeout);
         }
-        if (e.isHostException()
-                && e.asHostException() instanceof ScriptLimitExceededException limit) {
-            return failed(
-                    project,
-                    source,
-                    session,
-                    ScriptError.of(Kind.BUDGET, String.valueOf(limit.getMessage())));
+        if (e.isHostException() && e.asHostException() instanceof ScriptLimitExceededException limit) {
+            return failed(project, source, session, ScriptError.of(Kind.BUDGET, String.valueOf(limit.getMessage())));
         }
         if (e.isHostException()) {
             // A tool-level failure surfaced through the guest: an unknown path, an unsupported
             // language for outline, an invalid regex. The message is already model-readable.
             return failed(
-                    project,
-                    source,
-                    session,
-                    new ScriptError(Kind.RUNTIME, String.valueOf(e.getMessage()), line(e)));
+                    project, source, session, new ScriptError(Kind.RUNTIME, String.valueOf(e.getMessage()), line(e)));
         }
         Kind kind = e.isSyntaxError() ? Kind.SYNTAX : Kind.RUNTIME;
-        return failed(
-                project,
-                source,
-                session,
-                new ScriptError(kind, String.valueOf(e.getMessage()), line(e)));
+        return failed(project, source, session, new ScriptError(kind, String.valueOf(e.getMessage()), line(e)));
     }
 
     /**
@@ -600,11 +564,7 @@ public class ScriptRunner {
      * is not — nobody is left to read it, so it leaves as an exception.
      */
     private ScriptResult stopped(
-            String project,
-            ScriptSource source,
-            ScriptSession session,
-            @Nullable Kind reason,
-            Duration timeout) {
+            String project, ScriptSource source, ScriptSession session, @Nullable Kind reason, Duration timeout) {
         if (reason == Kind.CANCELLED) {
             throw new ScriptCancelledException("Script cancelled: the chat response was stopped");
         }
@@ -643,8 +603,6 @@ public class ScriptRunner {
             return properties.timeout();
         }
         Duration requested = Duration.ofSeconds(requestedSeconds);
-        return requested.compareTo(properties.maxTimeout()) > 0
-                ? properties.maxTimeout()
-                : requested;
+        return requested.compareTo(properties.maxTimeout()) > 0 ? properties.maxTimeout() : requested;
     }
 }

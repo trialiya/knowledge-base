@@ -29,16 +29,12 @@ class ChatConfigSubAgentScriptsAvailableTest {
     void allowListingRunScriptDoesNotConjureItWhenScriptsAreOff() {
         SubAgentConfig config = new SubAgentConfig(true, "model", 12000, 30, ALLOWED);
 
-        assertThat(
-                        ChatConfig.subAgentScriptsAvailable(
-                                new ScriptProperties(
-                                        false, false, true, false, null, null, null, null, null,
-                                        null, null, null, null),
-                                config))
+        assertThat(ChatConfig.subAgentScriptsAvailable(
+                        new ScriptProperties(
+                                false, false, true, false, null, null, null, null, null, null, null, null, null),
+                        config))
                 .isFalse();
-        assertThat(
-                        ChatConfig.subAgentScriptsAvailable(
-                                ScriptProperties.enabledWithDefaults(), config))
+        assertThat(ChatConfig.subAgentScriptsAvailable(ScriptProperties.enabledWithDefaults(), config))
                 .isTrue();
     }
 
@@ -53,8 +49,7 @@ class ChatConfigSubAgentScriptsAvailableTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(nullable(String.class))).thenReturn(true);
         ScriptProperties properties = ScriptProperties.enabledWithDefaults();
-        ScriptGuideService guides =
-                new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy);
+        ScriptGuideService guides = new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy);
         SkillService skills = new SkillService(properties, policy, mock(ProjectCatalog.class));
 
         String weak = ChatConfig.subAgentScriptInstructions(guides, skills, true);

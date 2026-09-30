@@ -15,14 +15,27 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table(name = "chat_script_result")
 public class ChatScriptResultEntity implements Persistable<Long> {
 
-    @Id private long id;
-    @NonNull private final String conversationId;
+    @Id
+    private long id;
+
+    @NonNull
+    private final String conversationId;
+
     private final int seq;
-    @Nullable private final String script;
-    @Nullable private final String project;
-    @NonNull private final String valueJson;
+
+    @Nullable
+    private final String script;
+
+    @Nullable
+    private final String project;
+
+    @NonNull
+    private final String valueJson;
+
     private final int chars;
-    @NonNull private final LocalDateTime createdAt;
+
+    @NonNull
+    private final LocalDateTime createdAt;
 
     public ChatScriptResultEntity(
             long id,

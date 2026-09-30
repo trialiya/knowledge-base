@@ -57,33 +57,23 @@ class ChatScriptRunTest {
     private final ChatScriptRun service = service(ScriptProperties.enabledWithDefaults());
 
     private ChatScriptRun service(ScriptProperties properties) {
-        return new ChatScriptRun(
-                properties,
-                claim,
-                runOptions,
-                resolver,
-                runner,
-                editPolicy,
-                chatHistory,
-                chatEvents);
+        return new ChatScriptRun(properties, claim, runOptions, resolver, runner, editPolicy, chatHistory, chatEvents);
     }
 
     @BeforeEach
     void setUp() {
         when(claim.claimIdleAndOwned(CONV)).thenReturn(CLAIM);
         when(runOptions.current(CONV))
-                .thenReturn(
-                        new ChatRunService.RunOptions(null, false, false, "", "kb", "kb", null));
+                .thenReturn(new ChatRunService.RunOptions(null, false, false, "", "kb", "kb", null));
         when(resolver.resolve(any(), any(), any(), any(), anyBoolean(), any()))
-                .thenReturn(
-                        new ScriptRequest(
-                                new ScriptSource("return 1;", "tools/report.js", null),
-                                ScriptArgs.none(),
-                                null,
-                                true,
-                                null,
-                                "kb",
-                                null));
+                .thenReturn(new ScriptRequest(
+                        new ScriptSource("return 1;", "tools/report.js", null),
+                        ScriptArgs.none(),
+                        null,
+                        true,
+                        null,
+                        "kb",
+                        null));
         when(chatHistory.appendScriptEvent(eq(CONV), any())).thenReturn(row());
     }
 
@@ -93,20 +83,13 @@ class ChatScriptRunTest {
 
         service.run(CONV, "report", Map.of("area", "docs"), null);
 
-        final ArgumentCaptor<ScriptEventMeta> event =
-                ArgumentCaptor.forClass(ScriptEventMeta.class);
+        final ArgumentCaptor<ScriptEventMeta> event = ArgumentCaptor.forClass(ScriptEventMeta.class);
         verify(chatHistory).appendScriptEvent(eq(CONV), event.capture());
         assertThat(event.getValue().script()).isEqualTo("report");
         assertThat(event.getValue().ok()).isTrue();
         assertThat(event.getValue().path()).isEqualTo("tools/report.js");
         assertThat(event.getValue().edited()).containsExactly("src/App.java");
-        verify(chatEvents)
-                .publish(
-                        eq(CONV),
-                        eq(ChatEventType.SCRIPT_RUN),
-                        any(),
-                        any(),
-                        any(ScriptRunPayload.class));
+        verify(chatEvents).publish(eq(CONV), eq(ChatEventType.SCRIPT_RUN), any(), any(), any(ScriptRunPayload.class));
         verify(claim).release(CONV, CLAIM);
     }
 
@@ -115,25 +98,23 @@ class ChatScriptRunTest {
     void theRunsValueIsKeptInTheChatAndItsIdRecorded() {
         final ScriptResult kept = result(null);
         when(runner.run(any(ScriptRequest.class), any()))
-                .thenReturn(
-                        new ScriptResult(
-                                kept.project(),
-                                "r2",
-                                kept.source(),
-                                kept.value(),
-                                kept.log(),
-                                kept.stats(),
-                                null,
-                                kept.filesRead(),
-                                kept.edits()));
+                .thenReturn(new ScriptResult(
+                        kept.project(),
+                        "r2",
+                        kept.source(),
+                        kept.value(),
+                        kept.log(),
+                        kept.stats(),
+                        null,
+                        kept.filesRead(),
+                        kept.edits()));
 
         service.run(CONV, "report", null, null);
 
         final ArgumentCaptor<ScriptRequest> request = ArgumentCaptor.forClass(ScriptRequest.class);
         verify(runner).run(request.capture(), any());
         assertThat(request.getValue().results()).isEqualTo(ResultScope.keeping(CONV));
-        final ArgumentCaptor<ScriptEventMeta> event =
-                ArgumentCaptor.forClass(ScriptEventMeta.class);
+        final ArgumentCaptor<ScriptEventMeta> event = ArgumentCaptor.forClass(ScriptEventMeta.class);
         verify(chatHistory).appendScriptEvent(eq(CONV), event.capture());
         assertThat(event.getValue().resultId()).isEqualTo("r2");
     }
@@ -160,8 +141,7 @@ class ChatScriptRunTest {
 
         service.run(CONV, "report", null, null);
 
-        final ArgumentCaptor<ScriptEventMeta> event =
-                ArgumentCaptor.forClass(ScriptEventMeta.class);
+        final ArgumentCaptor<ScriptEventMeta> event = ArgumentCaptor.forClass(ScriptEventMeta.class);
         verify(chatHistory).appendScriptEvent(eq(CONV), event.capture());
         assertThat(event.getValue().ok()).isFalse();
         assertThat(event.getValue().error()).isNotNull();
@@ -175,8 +155,7 @@ class ChatScriptRunTest {
     @Test
     void aLostRowDoesNotFailTheRunThatAlreadyHappened() {
         when(runner.run(any(ScriptRequest.class), any())).thenReturn(result(null));
-        when(chatHistory.appendScriptEvent(eq(CONV), any()))
-                .thenThrow(new IllegalStateException("БД недоступна"));
+        when(chatHistory.appendScriptEvent(eq(CONV), any())).thenThrow(new IllegalStateException("БД недоступна"));
 
         assertThat(service.run(CONV, "report", null, null)).isNotNull();
         verify(claim).release(CONV, CLAIM);
@@ -185,11 +164,9 @@ class ChatScriptRunTest {
     /** Занятый или чужой чат — отказ до всего: ни прогона, ни ряда. */
     @Test
     void aBusyChatIsRefusedBeforeAnythingRuns() {
-        when(claim.claimIdleAndOwned(CONV))
-                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"));
+        when(claim.claimIdleAndOwned(CONV)).thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"));
 
-        assertThatThrownBy(() -> service.run(CONV, "report", null, null))
-                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> service.run(CONV, "report", null, null)).isInstanceOf(ResponseStatusException.class);
 
         verifyNoInteractions(runner, chatHistory, chatEvents);
         verify(claim, never()).release(any(), any());
@@ -201,8 +178,7 @@ class ChatScriptRunTest {
         when(resolver.resolve(any(), any(), any(), any(), anyBoolean(), any()))
                 .thenThrow(new IllegalArgumentException("Unknown script \"repoort\""));
 
-        assertThatThrownBy(() -> service.run(CONV, "repoort", null, null))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.run(CONV, "repoort", null, null)).isInstanceOf(IllegalArgumentException.class);
 
         verify(claim).release(CONV, CLAIM);
         verifyNoInteractions(runner, chatHistory);
@@ -215,11 +191,8 @@ class ChatScriptRunTest {
      */
     @Test
     void scriptsSwitchedOffRefuseTheCommandBeforeTheChatIsEvenClaimed() {
-        ChatScriptRun disabled =
-                service(
-                        new ScriptProperties(
-                                false, true, true, false, null, null, null, null, null, null, null,
-                                null, null));
+        ChatScriptRun disabled = service(
+                new ScriptProperties(false, true, true, false, null, null, null, null, null, null, null, null, null));
 
         assertThatThrownBy(() -> disabled.run(CONV, "report", null, null))
                 .isInstanceOf(ResponseStatusException.class)
@@ -235,23 +208,16 @@ class ChatScriptRunTest {
                 "kb",
                 null,
                 new ScriptRunSource(
-                        ScriptRunSource.Kind.PROJECT,
-                        "report",
-                        "tools/report.js",
-                        "0f1c2d3e4a5b",
-                        Map.of()),
+                        ScriptRunSource.Kind.PROJECT, "report", "tools/report.js", "0f1c2d3e4a5b", Map.of()),
                 error == null ? "ok" : null,
                 List.of("строка журнала"),
                 new ScriptStats(3, 100, 5, error == null ? 1 : 0, 42),
                 error,
                 List.of("tools/report.js"),
-                error == null
-                        ? List.of(new GitEditResult("edit", "src/App.java", 1, 1, 10, "@@"))
-                        : List.of());
+                error == null ? List.of(new GitEditResult("edit", "src/App.java", 1, 1, 10, "@@")) : List.of());
     }
 
     private static ChatMessageEntity row() {
-        return new ChatMessageEntity(
-                42L, CONV, "", MessageType.USER, 7, false, false, LocalDateTime.now(), null, null);
+        return new ChatMessageEntity(42L, CONV, "", MessageType.USER, 7, false, false, LocalDateTime.now(), null, null);
     }
 }

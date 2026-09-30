@@ -20,9 +20,7 @@ class ChatModelPropertiesTest {
     private static ChatModelProperties props() {
         return new ChatModelProperties(
                 new ModelOption("default-model", "Default", true, true, null, null, null, false),
-                List.of(
-                        new ModelOption(
-                                "gpt-4o-mini", "Mini", false, true, null, null, null, false)));
+                List.of(new ModelOption("gpt-4o-mini", "Mini", false, true, null, null, null, false)));
     }
 
     @Test
@@ -51,20 +49,9 @@ class ChatModelPropertiesTest {
      */
     @Test
     void replayReasoningIsResolvedPerModelAndOnForAnUnknownOne() {
-        final ChatModelProperties models =
-                new ChatModelProperties(
-                        new ModelOption(
-                                "default-model", "Default", true, true, null, null, null, false),
-                        List.of(
-                                new ModelOption(
-                                        "deepseek",
-                                        "DeepSeek",
-                                        false,
-                                        true,
-                                        null,
-                                        null,
-                                        null,
-                                        true)));
+        final ChatModelProperties models = new ChatModelProperties(
+                new ModelOption("default-model", "Default", true, true, null, null, null, false),
+                List.of(new ModelOption("deepseek", "DeepSeek", false, true, null, null, null, true)));
 
         assertThat(models.replayReasoning(null)).isFalse();
         assertThat(models.replayReasoning("deepseek")).isTrue();
@@ -77,17 +64,14 @@ class ChatModelPropertiesTest {
      */
     @Test
     void replayReasoningIsOnUnlessTheConfigTurnsItOff() {
-        final ChatModelProperties bound =
-                new Binder(
-                                new MapConfigurationPropertySource(
-                                        Map.of(
-                                                "kb.chat.default-model.id", "deepseek",
-                                                "kb.chat.default-model.label", "DeepSeek",
-                                                "kb.chat.models[0].id", "groq",
-                                                "kb.chat.models[0].label", "Groq",
-                                                "kb.chat.models[0].replay-reasoning", "false")))
-                        .bind("kb.chat", ChatModelProperties.class)
-                        .get();
+        final ChatModelProperties bound = new Binder(new MapConfigurationPropertySource(Map.of(
+                        "kb.chat.default-model.id", "deepseek",
+                        "kb.chat.default-model.label", "DeepSeek",
+                        "kb.chat.models[0].id", "groq",
+                        "kb.chat.models[0].label", "Groq",
+                        "kb.chat.models[0].replay-reasoning", "false")))
+                .bind("kb.chat", ChatModelProperties.class)
+                .get();
 
         assertThat(bound.replayReasoning("deepseek")).isTrue();
         assertThat(bound.replayReasoning("groq")).isFalse();
@@ -99,20 +83,9 @@ class ChatModelPropertiesTest {
      */
     @Test
     void streamUsageIsResolvedPerModel() {
-        final ChatModelProperties props =
-                new ChatModelProperties(
-                        new ModelOption(
-                                "default-model", "Default", true, true, null, null, null, false),
-                        List.of(
-                                new ModelOption(
-                                        "picky-gateway",
-                                        "Picky",
-                                        false,
-                                        false,
-                                        null,
-                                        null,
-                                        null,
-                                        false)));
+        final ChatModelProperties props = new ChatModelProperties(
+                new ModelOption("default-model", "Default", true, true, null, null, null, false),
+                List.of(new ModelOption("picky-gateway", "Picky", false, false, null, null, null, false)));
 
         assertThat(props.streamUsage("picky-gateway")).isFalse();
         assertThat(props.streamUsage("default-model")).isTrue();
@@ -130,16 +103,11 @@ class ChatModelPropertiesTest {
      */
     @Test
     void contextTokensAreResolvedPerModelAndNeverGuessed() {
-        final ChatModelProperties props =
-                new ChatModelProperties(
-                        new ModelOption(
-                                "default-model", "Default", true, true, 200_000, null, null, false),
-                        List.of(
-                                new ModelOption(
-                                        "small", "Small", false, true, 8_000, null, null, false),
-                                new ModelOption(
-                                        "unnamed", "Unnamed", false, true, null, null, null,
-                                        false)));
+        final ChatModelProperties props = new ChatModelProperties(
+                new ModelOption("default-model", "Default", true, true, 200_000, null, null, false),
+                List.of(
+                        new ModelOption("small", "Small", false, true, 8_000, null, null, false),
+                        new ModelOption("unnamed", "Unnamed", false, true, null, null, null, false)));
 
         assertThat(props.contextTokens("small")).isEqualTo(8_000);
         assertThat(props.contextTokens("default-model")).isEqualTo(200_000);
@@ -152,8 +120,7 @@ class ChatModelPropertiesTest {
     @Test
     void nullModelsListDefaultsToEmptyAndAllowsOnlyDefault() {
         ChatModelProperties only =
-                new ChatModelProperties(
-                        new ModelOption("solo", "Solo", true, true, null, null, null, false), null);
+                new ChatModelProperties(new ModelOption("solo", "Solo", true, true, null, null, null, false), null);
         assertThat(only.models()).isEmpty();
         assertThat(only.isAllowed("solo")).isTrue();
         assertThat(only.isAllowed("anything-else")).isFalse();
@@ -173,15 +140,13 @@ class ChatModelPropertiesTest {
 
     @Test
     void aModelWithoutAnEndpointOfItsOwnSharesTheDefaultConnection() {
-        ModelOption shared =
-                new ModelOption("shared", "Shared", true, true, null, null, null, false);
+        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, null, null, false);
         assertThat(shared.hasOwnEndpoint()).isFalse();
     }
 
     @Test
     void blankBaseUrlAndApiKeyAreTheSameAsAbsent() {
-        ModelOption shared =
-                new ModelOption("shared", "Shared", true, true, null, "  ", "  ", false);
+        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, "  ", "  ", false);
         assertThat(shared.baseUrl()).isNull();
         assertThat(shared.apiKey()).isNull();
         assertThat(shared.hasOwnEndpoint()).isFalse();
@@ -190,15 +155,7 @@ class ChatModelPropertiesTest {
     @Test
     void ownHostWithItsOwnTokenGetsAnEndpointOfItsOwn() {
         ModelOption own =
-                new ModelOption(
-                        "remote",
-                        "Remote",
-                        false,
-                        true,
-                        null,
-                        "https://llm.example/v1",
-                        "sk-remote",
-                        false);
+                new ModelOption("remote", "Remote", false, true, null, "https://llm.example/v1", "sk-remote", false);
         assertThat(own.hasOwnEndpoint()).isTrue();
         assertThat(own.baseUrl()).isEqualTo("https://llm.example/v1");
     }
@@ -206,9 +163,7 @@ class ChatModelPropertiesTest {
     @Test
     void ownTokenWithoutAHostIsAllowedAndStillNeedsItsOwnConnection() {
         // Same host, separate account or quota — nothing to guess, so nothing to reject.
-        ModelOption ownKey =
-                new ModelOption(
-                        "billed-apart", "Billed apart", false, true, null, null, "sk-two", false);
+        ModelOption ownKey = new ModelOption("billed-apart", "Billed apart", false, true, null, null, "sk-two", false);
         assertThat(ownKey.hasOwnEndpoint()).isTrue();
     }
 
@@ -216,17 +171,8 @@ class ChatModelPropertiesTest {
     void ownHostWithoutATokenIsRejected() {
         // The one combination nobody means: a foreign host reached with the default host's token.
         assertThatIllegalArgumentException()
-                .isThrownBy(
-                        () ->
-                                new ModelOption(
-                                        "remote",
-                                        "Remote",
-                                        false,
-                                        true,
-                                        null,
-                                        "https://llm.example/v1",
-                                        null,
-                                        false))
+                .isThrownBy(() ->
+                        new ModelOption("remote", "Remote", false, true, null, "https://llm.example/v1", null, false))
                 .withMessageContaining("api-key");
     }
 
@@ -235,19 +181,9 @@ class ChatModelPropertiesTest {
         // spring.ai.openai.* is the default model's endpoint; a second one here would bind and
         // report ownEndpoint without ever being built, so the configuration must not accept it.
         assertThatIllegalArgumentException()
-                .isThrownBy(
-                        () ->
-                                new ChatModelProperties(
-                                        new ModelOption(
-                                                "solo",
-                                                "Solo",
-                                                true,
-                                                true,
-                                                null,
-                                                "https://llm.example/v1",
-                                                "sk-solo",
-                                                false),
-                                        List.of()))
+                .isThrownBy(() -> new ChatModelProperties(
+                        new ModelOption("solo", "Solo", true, true, null, "https://llm.example/v1", "sk-solo", false),
+                        List.of()))
                 .withMessageContaining("kb.chat.models");
     }
 
@@ -255,15 +191,7 @@ class ChatModelPropertiesTest {
     void theTokenIsNotPrinted() {
         // @JsonIgnore covers the API; toString is the other way a secret reaches a log line.
         ModelOption own =
-                new ModelOption(
-                        "remote",
-                        "Remote",
-                        false,
-                        true,
-                        null,
-                        "https://llm.example/v1",
-                        "sk-remote",
-                        false);
+                new ModelOption("remote", "Remote", false, true, null, "https://llm.example/v1", "sk-remote", false);
         assertThat(own.toString()).doesNotContain("sk-remote").contains("remote", "***");
     }
 

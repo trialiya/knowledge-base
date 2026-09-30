@@ -19,8 +19,7 @@ public class ChatClientRegistry {
     private final ChatClient defaultClient;
     private final Map<String, ChatClient> byModelId;
 
-    public ChatClientRegistry(
-            String defaultModelId, ChatClient defaultClient, Map<String, ChatClient> byModelId) {
+    public ChatClientRegistry(String defaultModelId, ChatClient defaultClient, Map<String, ChatClient> byModelId) {
         this.defaultModelId = defaultModelId;
         this.defaultClient = defaultClient;
         this.byModelId = Map.copyOf(byModelId);

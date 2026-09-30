@@ -52,8 +52,7 @@ public class InterjectionAdvisor implements StreamAdvisor {
     }
 
     @Override
-    public Flux<ChatClientResponse> adviseStream(
-            ChatClientRequest request, StreamAdvisorChain chain) {
+    public Flux<ChatClientResponse> adviseStream(ChatClientRequest request, StreamAdvisorChain chain) {
         // fromCallable + boundedElastic: flushMidTurn ходит в БД, а вызвать adviseStream могут и на
         // потоке, где блокироваться нельзя. Память решает то же самое publishOn-ом в BaseAdvisor.
         return Mono.fromCallable(() -> withPendingMessages(request))
@@ -68,10 +67,8 @@ public class InterjectionAdvisor implements StreamAdvisor {
             return request;
         }
         final Object runId = request.context().get(AdvisorParams.RUN_ID_PARAM);
-        final List<Message> injected =
-                pendingMessages.flushMidTurn(
-                        String.valueOf(conversationId),
-                        runId == null ? null : String.valueOf(runId));
+        final List<Message> injected = pendingMessages.flushMidTurn(
+                String.valueOf(conversationId), runId == null ? null : String.valueOf(runId));
         if (injected.isEmpty()) {
             return request;
         }

@@ -13,21 +13,20 @@ public final class LanguageDetector {
     private LanguageDetector() {}
 
     /** Extension (lowercase, without dot) → canonical language id. */
-    private static final Map<String, String> BY_EXTENSION =
-            Map.ofEntries(
-                    Map.entry("java", "java"),
-                    Map.entry("js", "javascript"),
-                    Map.entry("mjs", "javascript"),
-                    Map.entry("cjs", "javascript"),
-                    Map.entry("jsx", "javascript"),
-                    Map.entry("ts", "typescript"),
-                    Map.entry("tsx", "typescript"),
-                    Map.entry("py", "python"),
-                    Map.entry("pyi", "python"),
-                    Map.entry("pyw", "python"),
-                    Map.entry("sql", "sql"),
-                    Map.entry("md", "markdown"),
-                    Map.entry("markdown", "markdown"));
+    private static final Map<String, String> BY_EXTENSION = Map.ofEntries(
+            Map.entry("java", "java"),
+            Map.entry("js", "javascript"),
+            Map.entry("mjs", "javascript"),
+            Map.entry("cjs", "javascript"),
+            Map.entry("jsx", "javascript"),
+            Map.entry("ts", "typescript"),
+            Map.entry("tsx", "typescript"),
+            Map.entry("py", "python"),
+            Map.entry("pyi", "python"),
+            Map.entry("pyw", "python"),
+            Map.entry("sql", "sql"),
+            Map.entry("md", "markdown"),
+            Map.entry("markdown", "markdown"));
 
     /**
      * Returns the canonical language id for a path, or {@code null} if the extension is unknown.

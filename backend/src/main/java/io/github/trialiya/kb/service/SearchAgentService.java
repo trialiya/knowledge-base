@@ -60,15 +60,13 @@ import org.springframework.core.io.Resource;
 @Slf4j
 public class SearchAgentService {
 
-    private static final String SUMMARIZE_BUDGET =
-            """
+    private static final String SUMMARIZE_BUDGET = """
             Лимит шагов поиска исчерпан. Не запрашивай больше инструментов. \
             Сформулируй итоговый отчёт СТРОГО на основе уже полученных результатов инструментов выше \
             (формат: Итог; Места — список path:line; Связи). \
             В конце добавь строку: "(достигнут лимит шагов — результат может быть неполным)".""";
 
-    private static final String SUMMARIZE_DONE =
-            """
+    private static final String SUMMARIZE_DONE = """
             Сформулируй итоговый отчёт СТРОГО на основе полученных результатов инструментов выше \
             (формат: Итог; Места — список path:line; Связи). Не запрашивай больше инструментов.""";
 
@@ -98,8 +96,7 @@ public class SearchAgentService {
         this.config = config;
         this.gitRegistry = gitRegistry;
         String basePrompt = readResource(systemPrompt);
-        this.systemPrompt =
-                extraInstructions.isBlank() ? basePrompt : basePrompt + "\n\n" + extraInstructions;
+        this.systemPrompt = extraInstructions.isBlank() ? basePrompt : basePrompt + "\n\n" + extraInstructions;
         this.toolCallbacks = toolCallbacks.clone();
         log.info(
                 "SearchAgentService ready: model={}, maxIterations={}, tools={}",
@@ -135,25 +132,21 @@ public class SearchAgentService {
             @Nullable ToolContext parentContext,
             @Nullable String requestedProject) {
         final long startMs = System.currentTimeMillis();
-        final AtomicReference<RunTokenUsage.Tally> usage =
-                new AtomicReference<>(RunTokenUsage.Tally.EMPTY);
-        final String conversationId =
-                parentContext != null ? conversationId(parentContext) : DEFAULT_CONVERSATION_ID;
+        final AtomicReference<RunTokenUsage.Tally> usage = new AtomicReference<>(RunTokenUsage.Tally.EMPTY);
+        final String conversationId = parentContext != null ? conversationId(parentContext) : DEFAULT_CONVERSATION_ID;
         // Canonical, not the raw argument: it goes into the report's echo, which the write guard
         // (ToolInvocationCollector#hasSeenFile) compares against a canonical id. An unknown id
         // fails here, loudly, instead of silently searching the default repository.
-        final String projectId =
-                gitRegistry
-                        .forProject(ProjectContext.resolve(parentContext, requestedProject))
-                        .project()
-                        .id();
+        final String projectId = gitRegistry
+                .forProject(ProjectContext.resolve(parentContext, requestedProject))
+                .project()
+                .id();
         final String fullTask = buildTask(task, context, scope, pathGlob);
 
-        final OpenAiChatOptions toolOptions =
-                callOptions()
-                        .toolCallbacks(toolCallbacks)
-                        .toolContext(context(conversationId).project(projectId).build())
-                        .build();
+        final OpenAiChatOptions toolOptions = callOptions()
+                .toolCallbacks(toolCallbacks)
+                .toolContext(context(conversationId).project(projectId).build())
+                .build();
 
         final List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(systemPrompt));
@@ -168,14 +161,7 @@ public class SearchAgentService {
             add(usage, response);
         } catch (Exception e) {
             log.error("[{}] search sub-agent initial call failed", conversationId, e);
-            return result(
-                    conversationId,
-                    projectId,
-                    "Поиск не выполнен: " + rootMessage(e),
-                    false,
-                    0,
-                    startMs,
-                    usage);
+            return result(conversationId, projectId, "Поиск не выполнен: " + rootMessage(e), false, 0, startMs, usage);
         }
 
         int hops = 0;
@@ -196,10 +182,7 @@ public class SearchAgentService {
                 // Default exception processor normally turns tool errors into tool-result messages
                 // so the model self-corrects within the loop; this is the backstop for anything
                 // that still escapes. Summarize what we have rather than break the parent.
-                log.warn(
-                        "[{}] search sub-agent tool execution failed: {}",
-                        conversationId,
-                        e.getMessage());
+                log.warn("[{}] search sub-agent tool execution failed: {}", conversationId, e.getMessage());
                 String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET, usage);
                 return result(conversationId, projectId, text, false, hops, startMs, usage);
             }
@@ -209,10 +192,7 @@ public class SearchAgentService {
                 response = chatModel.call(prompt);
                 add(usage, response);
             } catch (Exception e) {
-                log.warn(
-                        "[{}] search sub-agent follow-up call failed: {}",
-                        conversationId,
-                        e.getMessage());
+                log.warn("[{}] search sub-agent follow-up call failed: {}", conversationId, e.getMessage());
                 String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET, usage);
                 return result(conversationId, projectId, text, false, hops, startMs, usage);
             }
@@ -257,8 +237,7 @@ public class SearchAgentService {
                 spent.modelCalls(),
                 oneLine(report, 200));
         log.debug("[{}] search sub-agent report:\n{}", conversationId, report);
-        return new SearchAgentResult(
-                project, report, complete, hops, durationMs, config.modelId(), spent);
+        return new SearchAgentResult(project, report, complete, hops, durationMs, config.modelId(), spent);
     }
 
     /**
@@ -267,8 +246,7 @@ public class SearchAgentService {
      * следующее обращение несёт всю предыдущую переписку заново, поэтому простая сумма prompt'ов
      * росла бы квадратично от числа шагов и говорила бы о «размере поиска» неправду.
      */
-    private static void add(
-            AtomicReference<RunTokenUsage.Tally> usage, @Nullable ChatResponse response) {
+    private static void add(AtomicReference<RunTokenUsage.Tally> usage, @Nullable ChatResponse response) {
         usage.updateAndGet(tally -> tally.with(TokenUsage.of(response)));
     }
 
@@ -290,18 +268,17 @@ public class SearchAgentService {
         messages.add(new UserMessage("Напоминание исходной задачи:\n" + fullTask));
         messages.add(new UserMessage(instruction));
 
-        final OpenAiChatOptions finalOptions =
-                callOptions()
-                        // Keep the SAME tool set as the loop calls, then forbid their use with
-                        // tool_choice=none. Dropping the tools here would change the request's
-                        // `tools` array, and OpenAI prompt caching only reuses a prefix when that
-                        // array is identical across requests — so a tool-less final call would
-                        // force a full cache miss on the whole accumulated conversation (up to
-                        // maxIterations rounds of tool output). tool_choice=none preserves the
-                        // "the model cannot request more" guarantee without busting the cache.
-                        .toolCallbacks(toolCallbacks)
-                        .toolChoice("none")
-                        .build();
+        final OpenAiChatOptions finalOptions = callOptions()
+                // Keep the SAME tool set as the loop calls, then forbid their use with
+                // tool_choice=none. Dropping the tools here would change the request's
+                // `tools` array, and OpenAI prompt caching only reuses a prefix when that
+                // array is identical across requests — so a tool-less final call would
+                // force a full cache miss on the whole accumulated conversation (up to
+                // maxIterations rounds of tool output). tool_choice=none preserves the
+                // "the model cannot request more" guarantee without busting the cache.
+                .toolCallbacks(toolCallbacks)
+                .toolChoice("none")
+                .build();
 
         try {
             final ChatResponse summary = chatModel.call(new Prompt(messages, finalOptions));
@@ -344,10 +321,7 @@ public class SearchAgentService {
      * бывает длинным, и открывать им запрос значило бы топить формулировку под чужими фактами.
      */
     private static String buildTask(
-            String task,
-            @Nullable String context,
-            @Nullable String scope,
-            @Nullable String pathGlob) {
+            String task, @Nullable String context, @Nullable String scope, @Nullable String pathGlob) {
         final StringBuilder sb = new StringBuilder("SEARCH TASK:\n").append(task);
         if (context != null && !context.isBlank()) {
             // Названо чужим — «known to the caller», а не «известно тебе»: это не находки

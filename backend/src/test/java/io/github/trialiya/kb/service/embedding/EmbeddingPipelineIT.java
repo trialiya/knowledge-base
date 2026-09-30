@@ -74,13 +74,26 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
 
     private static final String MODEL_NAME = "bge-m3-test";
 
-    @Autowired private DocumentRepository documentRepo;
-    @Autowired private AttachmentRepository attachmentRepo;
-    @Autowired private DocumentEmbeddingRepository docEmbeddingRepo;
-    @Autowired private AttachmentEmbeddingRepository attEmbeddingRepo;
-    @Autowired private EmbeddingCacheRepository cacheRepo;
-    @Autowired private EmbeddingTaskRepository taskRepo;
-    @Autowired private JdbcTemplate jdbc;
+    @Autowired
+    private DocumentRepository documentRepo;
+
+    @Autowired
+    private AttachmentRepository attachmentRepo;
+
+    @Autowired
+    private DocumentEmbeddingRepository docEmbeddingRepo;
+
+    @Autowired
+    private AttachmentEmbeddingRepository attEmbeddingRepo;
+
+    @Autowired
+    private EmbeddingCacheRepository cacheRepo;
+
+    @Autowired
+    private EmbeddingTaskRepository taskRepo;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     // ── EmbeddingService: cache + batching (real Postgres cache, mocked AI call) ──────
 
@@ -88,8 +101,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     void embedCachesRepeatedTextAndSkipsSecondApiCall() {
         OpenAiEmbeddingModel model = deterministicModel();
         EmbeddingService service =
-                new EmbeddingService(
-                        searchConfig(), model, cacheRepo, embeddingConfig(2, 3, 512, 64));
+                new EmbeddingService(searchConfig(), model, cacheRepo, embeddingConfig(2, 3, 512, 64));
         String text = "повторяющийся текст для проверки кэша";
 
         float[] first = service.embed(text).getResult().getOutput();
@@ -105,8 +117,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     void embedBatchSendsOneApiCallForAllCacheMissesThenServesFromCache() {
         OpenAiEmbeddingModel model = deterministicModel();
         EmbeddingService service =
-                new EmbeddingService(
-                        searchConfig(), model, cacheRepo, embeddingConfig(2, 3, 512, 64));
+                new EmbeddingService(searchConfig(), model, cacheRepo, embeddingConfig(2, 3, 512, 64));
         List<String> texts = List.of("batch-текст-один", "batch-текст-два", "batch-текст-три");
 
         List<float[]> vectors = service.embedBatch(texts);
@@ -125,8 +136,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     void embedChunksLongTextAndCachesEachChunkSeparately() {
         OpenAiEmbeddingModel model = deterministicModel();
         // maxTokens=5 -> 20 chars/chunk: forces the two paragraphs below into separate chunks.
-        EmbeddingService service =
-                new EmbeddingService(searchConfig(), model, cacheRepo, embeddingConfig(2, 3, 5, 1));
+        EmbeddingService service = new EmbeddingService(searchConfig(), model, cacheRepo, embeddingConfig(2, 3, 5, 1));
         String chunkOne = "chunk one text";
         String chunkTwo = "chunk two text";
         String longText = chunkOne + "\n\n" + chunkTwo;
@@ -153,18 +163,15 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     // ── EmbeddingExecutor: concurrency cap (no DB involved) ───────────────────────────
 
     @Test
-    void executorRejectsSubmitBeyondConfiguredWorkersThenAcceptsAgainAfterRelease()
-            throws InterruptedException {
+    void executorRejectsSubmitBeyondConfiguredWorkersThenAcceptsAgainAfterRelease() throws InterruptedException {
         EmbeddingExecutor executor = new EmbeddingExecutor(embeddingConfig(1, 3, 512, 64));
         CountDownLatch taskStarted = new CountDownLatch(1);
         CountDownLatch releaseTask = new CountDownLatch(1);
 
-        boolean firstAccepted =
-                executor.submit(
-                        () -> {
-                            taskStarted.countDown();
-                            awaitUninterruptibly(releaseTask);
-                        });
+        boolean firstAccepted = executor.submit(() -> {
+            taskStarted.countDown();
+            awaitUninterruptibly(releaseTask);
+        });
         assertThat(firstAccepted).isTrue();
         assertThat(taskStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
@@ -182,14 +189,12 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void schedulerIndexesDocumentEndToEndAndCachesTheEmbedding() {
-        DocumentEntity doc =
-                saveDoc("pipeline-happy-doc", "Съешь ещё этих мягких французских булок");
+        DocumentEntity doc = saveDoc("pipeline-happy-doc", "Съешь ещё этих мягких французских булок");
         taskRepo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, doc.getId());
 
         OpenAiEmbeddingModel model = deterministicModel();
         EmbeddingConfiguration config = embeddingConfig(2, 3, 512, 64);
-        EmbeddingService embeddingService =
-                new EmbeddingService(searchConfig(), model, cacheRepo, config);
+        EmbeddingService embeddingService = new EmbeddingService(searchConfig(), model, cacheRepo, config);
         EmbeddingTaskScheduler scheduler = scheduler(embeddingService, config);
 
         try {
@@ -221,18 +226,15 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
 
         AtomicInteger callCount = new AtomicInteger();
         OpenAiEmbeddingModel model = mock(OpenAiEmbeddingModel.class);
-        when(model.embedForResponse(anyList()))
-                .thenAnswer(
-                        inv -> {
-                            if (callCount.getAndIncrement() == 0) {
-                                throw new RuntimeException("transient AI outage");
-                            }
-                            return respondDeterministically(inv);
-                        });
+        when(model.embedForResponse(anyList())).thenAnswer(inv -> {
+            if (callCount.getAndIncrement() == 0) {
+                throw new RuntimeException("transient AI outage");
+            }
+            return respondDeterministically(inv);
+        });
 
         EmbeddingConfiguration config = embeddingConfig(2, 3, 512, 64); // maxAttempts=3
-        EmbeddingService embeddingService =
-                new EmbeddingService(searchConfig(), model, cacheRepo, config);
+        EmbeddingService embeddingService = new EmbeddingService(searchConfig(), model, cacheRepo, config);
         EmbeddingTaskScheduler scheduler = scheduler(embeddingService, config);
 
         try {
@@ -263,8 +265,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
         when(model.embedForResponse(anyList())).thenThrow(new RuntimeException("AI down"));
 
         EmbeddingConfiguration config = embeddingConfig(2, 2, 512, 64); // maxAttempts=2
-        EmbeddingService embeddingService =
-                new EmbeddingService(searchConfig(), model, cacheRepo, config);
+        EmbeddingService embeddingService = new EmbeddingService(searchConfig(), model, cacheRepo, config);
         EmbeddingTaskScheduler scheduler = scheduler(embeddingService, config);
 
         try {
@@ -329,41 +330,37 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
                 1000,
                 300_000,
                 new EmbeddingConfiguration.EmbeddingCacheConfiguration(true, 30, "0 0 2 * * *"),
-                new EmbeddingConfiguration.EmbeddingChunkerConfiguration(
-                        chunkerMaxTokens, chunkerOverlapTokens));
+                new EmbeddingConfiguration.EmbeddingChunkerConfiguration(chunkerMaxTokens, chunkerOverlapTokens));
     }
 
-    private EmbeddingTaskScheduler scheduler(
-            EmbeddingService embeddingService, EmbeddingConfiguration config) {
-        SemanticSearchService searchService =
-                new SemanticSearchService(
-                        embeddingService,
-                        taskRepo,
-                        docEmbeddingRepo,
-                        documentRepo,
-                        attEmbeddingRepo,
-                        attachmentRepo,
-                        searchConfig());
+    private EmbeddingTaskScheduler scheduler(EmbeddingService embeddingService, EmbeddingConfiguration config) {
+        SemanticSearchService searchService = new SemanticSearchService(
+                embeddingService,
+                taskRepo,
+                docEmbeddingRepo,
+                documentRepo,
+                attEmbeddingRepo,
+                attachmentRepo,
+                searchConfig());
         EmbeddingExecutor executor = new EmbeddingExecutor(config);
         return new EmbeddingTaskScheduler(taskRepo, executor, searchService, config);
     }
 
     private DocumentEntity saveDoc(String title, String description) {
-        return documentRepo.save(
-                new DocumentEntity(
-                        null,
-                        title,
-                        DocumentType.DOCUMENT,
-                        null,
-                        description,
-                        LocalDateTime.now(),
-                        LocalDateTime.now(),
-                        0,
-                        false,
-                        0,
-                        null,
-                        null,
-                        1));
+        return documentRepo.save(new DocumentEntity(
+                null,
+                title,
+                DocumentType.DOCUMENT,
+                null,
+                description,
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                0,
+                false,
+                0,
+                null,
+                null,
+                1));
     }
 
     private String taskStatus(Long documentId) {
@@ -376,9 +373,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     /** Undoes what the {@code NOT_SUPPORTED} tests committed outside the rollback safety net. */
     private void cleanupDocument(Long documentId) {
         docEmbeddingRepo.deleteByDocumentId(documentId);
-        jdbc.update(
-                "DELETE FROM embedding_tasks WHERE entity_type = 'document' AND entity_id = ?",
-                documentId);
+        jdbc.update("DELETE FROM embedding_tasks WHERE entity_type = 'document' AND entity_id = ?", documentId);
         documentRepo.deleteById(documentId);
         // Successful indexing also commits embedding_cache rows; the Postgres container is
         // shared JVM-wide, so drop everything this class's model name wrote.
@@ -397,18 +392,15 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     /** Mocked AI call: turns each input text into a deterministic one-hot vector. */
     private static OpenAiEmbeddingModel deterministicModel() {
         OpenAiEmbeddingModel model = mock(OpenAiEmbeddingModel.class);
-        when(model.embedForResponse(anyList()))
-                .thenAnswer(EmbeddingPipelineIT::respondDeterministically);
+        when(model.embedForResponse(anyList())).thenAnswer(EmbeddingPipelineIT::respondDeterministically);
         return model;
     }
 
-    private static EmbeddingResponse respondDeterministically(
-            org.mockito.invocation.InvocationOnMock inv) {
+    private static EmbeddingResponse respondDeterministically(org.mockito.invocation.InvocationOnMock inv) {
         List<String> texts = inv.getArgument(0);
-        List<Embedding> embeddings =
-                IntStream.range(0, texts.size())
-                        .mapToObj(i -> new Embedding(oneHot(texts.get(i)), i))
-                        .toList();
+        List<Embedding> embeddings = IntStream.range(0, texts.size())
+                .mapToObj(i -> new Embedding(oneHot(texts.get(i)), i))
+                .toList();
         return new EmbeddingResponse(embeddings);
     }
 

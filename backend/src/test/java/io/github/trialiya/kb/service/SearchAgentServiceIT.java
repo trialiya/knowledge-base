@@ -53,7 +53,8 @@ class SearchAgentServiceIT {
 
     private static final String MAGIC = "AUTH_MAGIC_TOKEN_42";
 
-    @TempDir Path repo;
+    @TempDir
+    Path repo;
 
     private OpenAiChatModel chatModel;
     private ToolCallingManager toolCallingManager;
@@ -68,28 +69,17 @@ class SearchAgentServiceIT {
         git("config", "user.name", "Test");
         Files.writeString(
                 repo.resolve("AuthService.java"),
-                "package demo;\n"
-                        + "// "
-                        + MAGIC
-                        + "\n"
-                        + "class AuthService { boolean check() { return true; } }\n",
+                "package demo;\n" + "// " + MAGIC + "\n" + "class AuthService { boolean check() { return true; } }\n",
                 StandardCharsets.UTF_8);
         git("add", "-A");
         git("commit", "-q", "-m", "init");
 
         gitRegistry = TestProjects.registry(repo, false);
 
-        Set<String> allowed =
-                Set.of(
-                        "grepContent",
-                        "searchFiles",
-                        "getFileTree",
-                        "getFileOutline",
-                        "getFileContent");
-        readOnlyTools =
-                Stream.of(ToolCallbacks.from(new GitFunction(gitRegistry)))
-                        .filter(cb -> allowed.contains(cb.getToolDefinition().name()))
-                        .toArray(ToolCallback[]::new);
+        Set<String> allowed = Set.of("grepContent", "searchFiles", "getFileTree", "getFileOutline", "getFileContent");
+        readOnlyTools = Stream.of(ToolCallbacks.from(new GitFunction(gitRegistry)))
+                .filter(cb -> allowed.contains(cb.getToolDefinition().name()))
+                .toArray(ToolCallback[]::new);
 
         chatModel = mock(OpenAiChatModel.class);
         // Дедлайн соединения (ChatModelRegistry ставит его в опции модели). Сабагент зовёт модель
@@ -105,8 +95,7 @@ class SearchAgentServiceIT {
     private SearchAgentService newService(int maxIterations) {
         SubAgentConfig cfg = new SubAgentConfig(true, "test-model", 4000, maxIterations, Set.of());
         Resource prompt = new ByteArrayResource("system".getBytes(StandardCharsets.UTF_8));
-        return new SearchAgentService(
-                chatModel, toolCallingManager, cfg, prompt, "", readOnlyTools, gitRegistry);
+        return new SearchAgentService(chatModel, toolCallingManager, cfg, prompt, "", readOnlyTools, gitRegistry);
     }
 
     @Test
@@ -116,8 +105,7 @@ class SearchAgentServiceIT {
                 .thenReturn(toolCall("grepContent", "{\"pattern\":\"" + MAGIC + "\"}"))
                 .thenReturn(text("Итог: найдено в AuthService.java:2"));
 
-        SearchAgentResult result =
-                newService(6).run("Где определён " + MAGIC + "?", null, "code", null, null, null);
+        SearchAgentResult result = newService(6).run("Где определён " + MAGIC + "?", null, "code", null, null, null);
 
         assertThat(result.report()).isEqualTo("Итог: найдено в AuthService.java:2");
         assertThat(result.complete()).isTrue();
@@ -141,8 +129,7 @@ class SearchAgentServiceIT {
                 .thenReturn(toolCall("grepContent", "{\"pattern\":\"class\"}"))
                 .thenReturn(text("Итог: сводка по бюджету."));
 
-        SearchAgentResult result =
-                newService(2).run("исследуй " + MAGIC, null, null, null, null, null);
+        SearchAgentResult result = newService(2).run("исследуй " + MAGIC, null, null, null, null, null);
 
         assertThat(result.report()).isEqualTo("Итог: сводка по бюджету.");
         assertThat(result.complete()).isFalse();
@@ -212,8 +199,7 @@ class SearchAgentServiceIT {
                 .thenReturn(toolCall("nonExistentTool", "{}"))
                 .thenReturn(text("Итог: восстановился после ошибки."));
 
-        SearchAgentResult result =
-                newService(3).run("проверка устойчивости", null, null, null, null, null);
+        SearchAgentResult result = newService(3).run("проверка устойчивости", null, null, null, null, null);
 
         assertThat(result.report()).isNotBlank();
     }
@@ -221,14 +207,10 @@ class SearchAgentServiceIT {
     // ── helpers ─────────────────────────────────────────────────────────────────
 
     private static ChatResponse toolCall(String name, String argsJson) {
-        AssistantMessage msg =
-                AssistantMessage.builder()
-                        .content("")
-                        .toolCalls(
-                                List.of(
-                                        new AssistantMessage.ToolCall(
-                                                "call-1", "function", name, argsJson)))
-                        .build();
+        AssistantMessage msg = AssistantMessage.builder()
+                .content("")
+                .toolCalls(List.of(new AssistantMessage.ToolCall("call-1", "function", name, argsJson)))
+                .build();
         return new ChatResponse(List.of(new Generation(msg)));
     }
 
@@ -258,8 +240,10 @@ class SearchAgentServiceIT {
     private void git(String... args) throws Exception {
         List<String> cmd = new java.util.ArrayList<>(List.of("git"));
         cmd.addAll(List.of(args));
-        Process p =
-                new ProcessBuilder(cmd).directory(repo.toFile()).redirectErrorStream(true).start();
+        Process p = new ProcessBuilder(cmd)
+                .directory(repo.toFile())
+                .redirectErrorStream(true)
+                .start();
         int code = p.waitFor();
         if (code != 0) {
             String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);

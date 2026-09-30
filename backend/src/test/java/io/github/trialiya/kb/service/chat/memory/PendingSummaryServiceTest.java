@@ -51,8 +51,7 @@ class PendingSummaryServiceTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(
-                    30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, null, null, null);
+            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, null, null, null);
 
     private static final RunTokenUsage ROUND_USAGE =
             new RunTokenUsage(48_900, 48_000, 0, 900, 48_000, 40_000, 0, 48_900, 1);
@@ -71,15 +70,14 @@ class PendingSummaryServiceTest {
         when(chatMessages.save(any(ChatMessageEntity.class))).thenAnswer(c -> c.getArgument(0));
         when(parkedRepository.claim(anyLong())).thenReturn(1);
         transactions = transactionManager();
-        service =
-                new PendingSummaryService(
-                        parkedRepository,
-                        chatMessages,
-                        new SummaryWriter(chatMessages, transactions),
-                        events,
-                        PRODUCTION,
-                        CLOCK,
-                        transactions);
+        service = new PendingSummaryService(
+                parkedRepository,
+                chatMessages,
+                new SummaryWriter(chatMessages, transactions),
+                events,
+                PRODUCTION,
+                CLOCK,
+                transactions);
     }
 
     /**
@@ -91,8 +89,7 @@ class PendingSummaryServiceTest {
     void parkingKeepsEverythingTheFutureRowsWillNeed() {
         service.park(CONV, row(), stats(ROUND_USAGE));
 
-        final ArgumentCaptor<ChatPendingSummaryEntity> saved =
-                ArgumentCaptor.forClass(ChatPendingSummaryEntity.class);
+        final ArgumentCaptor<ChatPendingSummaryEntity> saved = ArgumentCaptor.forClass(ChatPendingSummaryEntity.class);
         verify(parkedRepository).save(saved.capture());
         final ChatPendingSummaryEntity parked = saved.getValue();
         assertThat(parked.getStartPosition()).isZero();
@@ -162,8 +159,7 @@ class PendingSummaryServiceTest {
     @Test
     void aQueueThatReachedItsLimitAppliesItselfRightAfterParking() {
         when(parkedRepository.findByConversationIdOrderByStartPositionAsc(CONV))
-                .thenReturn(
-                        List.of(queued(1L, 0L, 40L), queued(2L, 41L, 60L), queued(3L, 61L, 86L)));
+                .thenReturn(List.of(queued(1L, 0L, 40L), queued(2L, 41L, 60L), queued(3L, 61L, 86L)));
 
         service.park(CONV, row(), stats(ROUND_USAGE));
 
@@ -211,8 +207,7 @@ class PendingSummaryServiceTest {
                         org.mockito.ArgumentMatchers.isNull(),
                         payload.capture());
         assertThat(payload.getValue()).isInstanceOf(CompactPayload.class);
-        assertThat(((CompactPayload) payload.getValue()).kind())
-                .isEqualTo(CompactMeta.Kind.SUMMARIZE);
+        assertThat(((CompactPayload) payload.getValue()).kind()).isEqualTo(CompactMeta.Kind.SUMMARIZE);
     }
 
     /**
@@ -343,11 +338,9 @@ class PendingSummaryServiceTest {
 
     private void givenParked(RunTokenUsage usage) {
         service.park(CONV, row(), stats(usage));
-        final ArgumentCaptor<ChatPendingSummaryEntity> saved =
-                ArgumentCaptor.forClass(ChatPendingSummaryEntity.class);
+        final ArgumentCaptor<ChatPendingSummaryEntity> saved = ArgumentCaptor.forClass(ChatPendingSummaryEntity.class);
         verify(parkedRepository).save(saved.capture());
-        when(parkedRepository.findByConversationIdOrderByStartPositionAsc(CONV))
-                .thenReturn(List.of(saved.getValue()));
+        when(parkedRepository.findByConversationIdOrderByStartPositionAsc(CONV)).thenReturn(List.of(saved.getValue()));
     }
 
     private void givenLastRowAt(LocalDateTime at) {
@@ -356,8 +349,7 @@ class PendingSummaryServiceTest {
 
     /** Ряды применения в порядке записи: сводка, за ней плашка. */
     private List<ChatMessageEntity> savedRows() {
-        final ArgumentCaptor<ChatMessageEntity> saved =
-                ArgumentCaptor.forClass(ChatMessageEntity.class);
+        final ArgumentCaptor<ChatMessageEntity> saved = ArgumentCaptor.forClass(ChatMessageEntity.class);
         verify(chatMessages, times(2)).save(saved.capture());
         return saved.getAllValues();
     }
@@ -396,8 +388,7 @@ class PendingSummaryServiceTest {
     }
 
     private static SummaryWriter.CompactStats stats(RunTokenUsage usage) {
-        return new SummaryWriter.CompactStats(
-                CompactMeta.Kind.SUMMARIZE, 58, 4096, usage, null, LocalDateTime.now());
+        return new SummaryWriter.CompactStats(CompactMeta.Kind.SUMMARIZE, 58, 4096, usage, null, LocalDateTime.now());
     }
 
     /**

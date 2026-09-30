@@ -59,7 +59,9 @@ public class PendingMessageService {
      * моменту.
      */
     public record PendingOptions(
-            @Nullable String model, @Nullable String mode, @Nullable String project) {
+            @Nullable String model,
+            @Nullable String mode,
+            @Nullable String project) {
 
         /** Ничего не выбрано — как отсутствующие параметры запроса: решают память чата и конфиг. */
         public static final PendingOptions NONE = new PendingOptions(null, null, null);
@@ -83,34 +85,23 @@ public class PendingMessageService {
             PendingOptions options,
             String runId,
             @Nullable String clientMsgId) {
-        final ChatPendingMessageEntity saved =
-                repository.save(
-                        new ChatPendingMessageEntity(
-                                0,
-                                conversationId,
-                                user,
-                                text,
-                                clientMsgId,
-                                contextItems.isEmpty()
-                                        ? null
-                                        : ChatMessageMeta.ofContextItems(contextItems),
-                                options.model(),
-                                options.mode(),
-                                options.project(),
-                                LocalDateTime.now()));
-        announce(
-                List.of(
-                        () ->
-                                events.publish(
-                                        conversationId,
-                                        MESSAGE_QUEUED,
-                                        runId,
-                                        clientMsgId,
-                                        new QueuedMessagePayload(
-                                                saved.getId(),
-                                                text,
-                                                saved.getCreatedAt(),
-                                                contextItems))));
+        final ChatPendingMessageEntity saved = repository.save(new ChatPendingMessageEntity(
+                0,
+                conversationId,
+                user,
+                text,
+                clientMsgId,
+                contextItems.isEmpty() ? null : ChatMessageMeta.ofContextItems(contextItems),
+                options.model(),
+                options.mode(),
+                options.project(),
+                LocalDateTime.now()));
+        announce(List.of(() -> events.publish(
+                conversationId,
+                MESSAGE_QUEUED,
+                runId,
+                clientMsgId,
+                new QueuedMessagePayload(saved.getId(), text, saved.getCreatedAt(), contextItems))));
         return saved;
     }
 
@@ -160,8 +151,7 @@ public class PendingMessageService {
     public record Flushed(List<ChatMessageEntity> rows, String user, PendingOptions options) {
 
         /** Доставлять было нечего. */
-        public static final Flushed NOTHING =
-                new Flushed(List.of(), ChatUtils.ANONYMOUS_USER, PendingOptions.NONE);
+        public static final Flushed NOTHING = new Flushed(List.of(), ChatUtils.ANONYMOUS_USER, PendingOptions.NONE);
 
         /** Доставлено хоть одно сообщение — у чата появился неотвеченный вопрос. */
         public boolean any() {
@@ -173,45 +163,37 @@ public class PendingMessageService {
         final List<ChatMessageEntity> delivered = new ArrayList<>();
         final List<Runnable> announcements = new ArrayList<>();
         Flushed flushed = Flushed.NOTHING;
-        for (ChatPendingMessageEntity pending :
-                repository.findByConversationIdOrderByIdAsc(conversationId)) {
+        for (ChatPendingMessageEntity pending : repository.findByConversationIdOrderByIdAsc(conversationId)) {
             // Заявка на строку: 0 — её успела доставить другая точка (advisor против терминальной
             // обработки), и второй ряд истории она не получит.
             if (repository.claim(pending.getId()) == 0) {
                 continue;
             }
-            final ChatMessageEntity row =
-                    chatHistory.saveDeliveredPending(
-                            conversationId,
-                            pending.getContent(),
-                            pending.getContextItems(),
-                            interjection);
+            final ChatMessageEntity row = chatHistory.saveDeliveredPending(
+                    conversationId, pending.getContent(), pending.getContextItems(), interjection);
             delivered.add(row);
-            flushed =
-                    new Flushed(
-                            delivered,
-                            pending.getUser(),
-                            new PendingOptions(
-                                    pending.getModel(), pending.getMode(), pending.getProject()));
+            flushed = new Flushed(
+                    delivered,
+                    pending.getUser(),
+                    new PendingOptions(pending.getModel(), pending.getMode(), pending.getProject()));
             final String clientMsgId = pending.getClientMsgId();
-            announcements.add(
-                    () ->
-                            // Хаба может не быть вовсе: восстановление после падения процесса
-                            // доставляет очередь в чат, который никто не смотрит. Тогда событие
-                            // просто пропадёт — publish хаба не заводит (см. ChatEventService).
-                            events.publish(
-                                    conversationId,
-                                    USER_MESSAGE,
-                                    runId,
-                                    clientMsgId,
-                                    new UserMessagePayload(
-                                            row.getId(),
-                                            row.getContent(),
-                                            row.getCreatedAt(),
-                                            row.getContextItems(),
-                                            null,
-                                            null,
-                                            interjection ? Boolean.TRUE : null)));
+            announcements.add(() ->
+                    // Хаба может не быть вовсе: восстановление после падения процесса
+                    // доставляет очередь в чат, который никто не смотрит. Тогда событие
+                    // просто пропадёт — publish хаба не заводит (см. ChatEventService).
+                    events.publish(
+                            conversationId,
+                            USER_MESSAGE,
+                            runId,
+                            clientMsgId,
+                            new UserMessagePayload(
+                                    row.getId(),
+                                    row.getContent(),
+                                    row.getCreatedAt(),
+                                    row.getContextItems(),
+                                    null,
+                                    null,
+                                    interjection ? Boolean.TRUE : null)));
         }
         if (delivered.isEmpty()) {
             return Flushed.NOTHING;
@@ -237,12 +219,11 @@ public class PendingMessageService {
             announcements.forEach(Runnable::run);
             return;
         }
-        TransactionSynchronizationManager.registerSynchronization(
-                new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        announcements.forEach(Runnable::run);
-                    }
-                });
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                announcements.forEach(Runnable::run);
+            }
+        });
     }
 }

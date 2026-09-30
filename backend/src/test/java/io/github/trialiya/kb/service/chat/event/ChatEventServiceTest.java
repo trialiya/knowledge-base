@@ -17,8 +17,7 @@ class ChatEventServiceTest {
     private static final String CONV = "conv-1";
     private static final String RUN = "run-1";
 
-    private final ChatEventService events =
-            new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
+    private final ChatEventService events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
 
     @Test
     void aHubComesFromASubscriptionOrFromAStartedRun() {

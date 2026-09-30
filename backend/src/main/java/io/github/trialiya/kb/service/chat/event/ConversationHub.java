@@ -76,7 +76,8 @@ public class ConversationHub {
     private final List<SseEmitter> subscribers = new ArrayList<>();
 
     /** Колбэк «хаб простаивает» — реестр пытается выгрузить его (см. {@link ChatEventService}). */
-    @Nullable private final Consumer<ConversationHub> onIdle;
+    @Nullable
+    private final Consumer<ConversationHub> onIdle;
 
     /** Номер, ниже которого этот хаб не публиковал ничего: всё до него — из прошлой жизни. */
     private final long baseSeq = SEQ.get();
@@ -86,7 +87,9 @@ public class ConversationHub {
     /** Наибольший seq, выброшенный из переполненного лога; 0 — не выброшено ничего. */
     private long droppedThroughSeq;
 
-    @Nullable private String activeRunId;
+    @Nullable
+    private String activeRunId;
+
     private boolean closed;
 
     static {
@@ -127,14 +130,7 @@ public class ConversationHub {
             // до обрыва, не знает никто. Курсор в этом случае не двигаем — правильного значения
             // для него нет, а историю по концу прогона вкладка перечитает и так.
             if (droppedThroughSeq > cursor || (cursor < fromSeq && !eventLog.isEmpty())) {
-                send(
-                        emitter,
-                        new ChatEvent(
-                                droppedThroughSeq,
-                                ChatEventType.REPLAY_GAP,
-                                activeRunId,
-                                null,
-                                null));
+                send(emitter, new ChatEvent(droppedThroughSeq, ChatEventType.REPLAY_GAP, activeRunId, null, null));
             }
             for (final ChatEvent event : eventLog) {
                 if (event.seq() > cursor) {
@@ -146,22 +142,19 @@ public class ConversationHub {
         } finally {
             lock.unlock();
         }
-        emitter.onCompletion(
-                () -> {
-                    log.debug("[{}] emitter completed (client closed)", conversationId);
-                    remove(emitter);
-                });
-        emitter.onTimeout(
-                () -> {
-                    log.debug("[{}] emitter timed out", conversationId);
-                    emitter.complete();
-                    remove(emitter);
-                });
-        emitter.onError(
-                e -> {
-                    log.debug("[{}] emitter error: {}", conversationId, e.getMessage());
-                    remove(emitter);
-                });
+        emitter.onCompletion(() -> {
+            log.debug("[{}] emitter completed (client closed)", conversationId);
+            remove(emitter);
+        });
+        emitter.onTimeout(() -> {
+            log.debug("[{}] emitter timed out", conversationId);
+            emitter.complete();
+            remove(emitter);
+        });
+        emitter.onError(e -> {
+            log.debug("[{}] emitter error: {}", conversationId, e.getMessage());
+            remove(emitter);
+        });
         return emitter;
     }
 
@@ -190,10 +183,7 @@ public class ConversationHub {
     }
 
     public ChatEvent publish(
-            ChatEventType type,
-            @Nullable String runId,
-            @Nullable String clientMsgId,
-            @Nullable Object payload) {
+            ChatEventType type, @Nullable String runId, @Nullable String clientMsgId, @Nullable Object payload) {
         lock.lock();
         try {
             seq = SEQ.incrementAndGet();
@@ -338,10 +328,7 @@ public class ConversationHub {
             try {
                 emitter.send(SseEmitter.event().comment("heartbeat"));
             } catch (Exception e) {
-                log.debug(
-                        "[{}] heartbeat send failed (dead connection): {}",
-                        conversationId,
-                        e.getMessage());
+                log.debug("[{}] heartbeat send failed (dead connection): {}", conversationId, e.getMessage());
                 // onError/onCompletion callbacks handle removal
             }
         }
@@ -354,11 +341,7 @@ public class ConversationHub {
             subscribers.remove(emitter);
             // «Опустел»: последний подписчик ушёл и прогона нет → пора выгружать из реестра.
             idle = subscribers.isEmpty() && activeRunId == null && !closed;
-            log.debug(
-                    "[{}] subscriber removed, remaining={}, idle={}",
-                    conversationId,
-                    subscribers.size(),
-                    idle);
+            log.debug("[{}] subscriber removed, remaining={}, idle={}", conversationId, subscribers.size(), idle);
         } finally {
             lock.unlock();
         }
@@ -372,10 +355,7 @@ public class ConversationHub {
 
     private void send(SseEmitter emitter, ChatEvent event) {
         try {
-            emitter.send(
-                    SseEmitter.event()
-                            .id(Long.toString(event.seq()))
-                            .data(event, MediaType.APPLICATION_JSON));
+            emitter.send(SseEmitter.event().id(Long.toString(event.seq())).data(event, MediaType.APPLICATION_JSON));
         } catch (Exception e) {
             // Отвалившийся подписчик уберётся через onError/onCompletion — здесь просто молчим.
             log.debug("[{}] drop on send: {}", conversationId, e.getMessage());

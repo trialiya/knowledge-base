@@ -42,13 +42,8 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
      * вызывающего, как и в {@link #updateUpdatedAt}.
      */
     @Modifying
-    @Query(
-            "UPDATE chat_topic SET user_topic = :topic, updated_at = :now WHERE conversation_id ="
-                    + " :convId")
-    void updateUserTopic(
-            @Param("convId") String convId,
-            @Param("topic") String topic,
-            @Param("now") LocalDateTime now);
+    @Query("UPDATE chat_topic SET user_topic = :topic, updated_at = :now WHERE conversation_id =" + " :convId")
+    void updateUserTopic(@Param("convId") String convId, @Param("topic") String topic, @Param("now") LocalDateTime now);
 
     /**
      * Название от ИИ и номер ответа, на котором оно придумано, — точечно, а не сохранением всей
@@ -57,11 +52,8 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
      * списка поднимает сообщение, а не название.
      */
     @Modifying
-    @Query(
-            "UPDATE chat_topic SET ai_topic = :topic, ai_topic_turn = :turn WHERE conversation_id ="
-                    + " :convId")
-    void updateAiTopic(
-            @Param("convId") String convId, @Param("topic") String topic, @Param("turn") int turn);
+    @Query("UPDATE chat_topic SET ai_topic = :topic, ai_topic_turn = :turn WHERE conversation_id =" + " :convId")
+    void updateAiTopic(@Param("convId") String convId, @Param("topic") String topic, @Param("turn") int turn);
 
     /** Только номер ответа — запрос прошёл, но названия не поменял (см. {@link #updateAiTopic}). */
     @Modifying
@@ -85,8 +77,7 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
      * пользовательское имя, если задано, иначе предложенное ИИ (см. {@link
      * io.github.trialiya.kb.model.chat.entity.ChatTopicEntity#getDisplayTopic()}).
      */
-    @Query(
-            """
+    @Query("""
     SELECT * FROM chat_topic
     WHERE "user" = :user AND COALESCE(user_topic, ai_topic) ILIKE '%' || :q || '%'
     ORDER BY updated_at DESC

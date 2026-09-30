@@ -27,14 +27,12 @@ public interface AttachmentRepository extends CrudRepository<AttachmentEntity, L
      * сообщению: она собирается на каждое чтение истории, и тянуть ради имени с размером весь файл
      * там нельзя. Условие по чату — заодно и проверка принадлежности: чужой id просто не вернётся.
      */
-    @Query(
-            """
+    @Query("""
         SELECT id, file_name, content_type, file_size, summary
         FROM attachments
         WHERE conversation_id = :convId AND id IN (:ids)
         """)
-    List<AttachmentSummary> findSummaries(
-            @Param("convId") String conversationId, @Param("ids") Collection<Long> ids);
+    List<AttachmentSummary> findSummaries(@Param("convId") String conversationId, @Param("ids") Collection<Long> ids);
 
     /** Delete all attachments belonging to a document (used on document cascade). */
     void deleteByDocumentId(Long documentId);
@@ -43,8 +41,7 @@ public interface AttachmentRepository extends CrudRepository<AttachmentEntity, L
     void deleteByConversationId(String conversationId);
 
     /** Full-text search across file name, content and summary. */
-    @Query(
-            """
+    @Query("""
         SELECT * FROM attachments
         WHERE file_name ILIKE '%' || :q || '%'
            OR content   ILIKE '%' || :q || '%'
@@ -55,8 +52,7 @@ public interface AttachmentRepository extends CrudRepository<AttachmentEntity, L
     List<AttachmentEntity> search(@Param("q") String q);
 
     /** Full-text search across file name, content and summary. */
-    @Query(
-            """
+    @Query("""
         SELECT *
         FROM attachments
         WHERE conversation_id = :conversationId
@@ -66,6 +62,5 @@ public interface AttachmentRepository extends CrudRepository<AttachmentEntity, L
         ORDER BY updated_at DESC
         LIMIT 20
         """)
-    List<AttachmentEntity> search(
-            @Param("conversationId") String conversationId, @Param("q") String q);
+    List<AttachmentEntity> search(@Param("conversationId") String conversationId, @Param("q") String q);
 }

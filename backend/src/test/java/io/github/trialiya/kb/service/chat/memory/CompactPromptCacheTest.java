@@ -97,19 +97,17 @@ class CompactPromptCacheTest {
     private static final String MODE = "Отвечай кратко.";
 
     /** Ответ заглушки на обычный вызов — им кончается раунд сжатия. */
-    private static final String COMPLETION =
-            """
+    private static final String COMPLETION = """
             {"id":"c1","object":"chat.completion","created":1,"model":"stub-model",\
             "choices":[{"index":0,"finish_reason":"stop",\
             "message":{"role":"assistant","content":"## Overview\\ncompacted"}}]}""";
 
     /** Ответ заглушки на стрим — им кончается прогон чата. */
-    private static final String STREAM =
-            "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"created\":1,"
-                    + "\"model\":\"stub-model\",\"choices\":[{\"index\":0,"
-                    + "\"finish_reason\":\"stop\",\"delta\":{\"role\":\"assistant\","
-                    + "\"content\":\"answer\"}}]}\n\n"
-                    + "data: [DONE]\n\n";
+    private static final String STREAM = "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"created\":1,"
+            + "\"model\":\"stub-model\",\"choices\":[{\"index\":0,"
+            + "\"finish_reason\":\"stop\",\"delta\":{\"role\":\"assistant\","
+            + "\"content\":\"answer\"}}]}\n\n"
+            + "data: [DONE]\n\n";
 
     private final List<String> requests = Collections.synchronizedList(new ArrayList<>());
     private final ObjectMapper json = new ObjectMapper();
@@ -130,23 +128,16 @@ class CompactPromptCacheTest {
         common.setApiKey("sk-stub");
         common.setTimeout(Duration.ofSeconds(30));
         common.setMaxRetries(0);
-        chatModel =
-                ChatModelRegistry.buildDefaultModel(
-                        common,
-                        new OpenAiChatProperties(),
-                        ToolCallingManager.builder().build(),
-                        absent(),
-                        absent(),
-                        empty());
+        chatModel = ChatModelRegistry.buildDefaultModel(
+                common, new OpenAiChatProperties(), ToolCallingManager.builder().build(), absent(), absent(), empty());
         systemPrompts = systemPrompts();
         // Настоящий инструмент, а не заглушка: в тела запросов уезжает его JSON-схема, и сравнение
         // должно ловить расхождение именно в ней.
-        toolset =
-                new ChatToolset(
-                        Stream.of(ToolCallbacks.from(new ChatInfoFunction()))
-                                .<ToolCallback>map(RecordingToolCallback::new)
-                                .toList(),
-                        List.of());
+        toolset = new ChatToolset(
+                Stream.of(ToolCallbacks.from(new ChatInfoFunction()))
+                        .<ToolCallback>map(RecordingToolCallback::new)
+                        .toList(),
+                List.of());
     }
 
     @AfterEach
@@ -164,11 +155,9 @@ class CompactPromptCacheTest {
         final List<PromptRow> window = turns(2);
         // Вопрос пользователя у прогона и команда /compact у сжатия стоят на одном месте — в
         // конце. Историю до него оба берут одну и ту же.
-        final List<Message> chatHistory =
-                Stream.concat(
-                                window.stream().map(PromptRow::toMessage),
-                                Stream.of(new UserMessage("question 2")))
-                        .toList();
+        final List<Message> chatHistory = Stream.concat(
+                        window.stream().map(PromptRow::toMessage), Stream.of(new UserMessage("question 2")))
+                .toList();
 
         chatRun(chatHistory);
         compactRound(window);
@@ -190,8 +179,7 @@ class CompactPromptCacheTest {
         // читает ответ стримом, сжатие обычным вызовом. Сравнение именно списком, а не полем за
         // полем: параметр, добавленный в один из двух запросов и забытый во втором, — это тот же
         // сдвиг начала, и увидеть его надо здесь, а не по счёту за месяц.
-        assertThat(differingFields(chat, compact))
-                .containsExactlyInAnyOrder("messages", "stream", "stream_options");
+        assertThat(differingFields(chat, compact)).containsExactlyInAnyOrder("messages", "stream", "stream_options");
 
         assertThat(compact.get("model")).isEqualTo(chat.get("model"));
         assertThat(compact.get("tools")).isEqualTo(chat.get("tools"));
@@ -209,17 +197,16 @@ class CompactPromptCacheTest {
     private void chatRun(List<Message> history) {
         final ChatMemory memory = mock(ChatMemory.class);
         when(memory.get(CONV)).thenReturn(history);
-        final ChatClient client =
-                new ChatConfig()
-                        .chatClient(
-                                chatModel,
-                                memory,
-                                new ClassPathResource("prompt/sys.md"),
-                                ToolCallingManager.builder().build(),
-                                toolset,
-                                mock(ChatEventService.class),
-                                mock(PendingMessageService.class),
-                                mock(RunRegistry.class));
+        final ChatClient client = new ChatConfig()
+                .chatClient(
+                        chatModel,
+                        memory,
+                        new ClassPathResource("prompt/sys.md"),
+                        ToolCallingManager.builder().build(),
+                        toolset,
+                        mock(ChatEventService.class),
+                        mock(PendingMessageService.class),
+                        mock(RunRegistry.class));
         client
                 .prompt()
                 .system(sp -> sp.params(systemPrompts.placeholders(false, PROJECT, MODE)))
@@ -242,33 +229,28 @@ class CompactPromptCacheTest {
         final ChatModelRegistry models = mock(ChatModelRegistry.class);
         when(models.forModel(any())).thenReturn(chatModel);
 
-        final ChatMessageEntity command = row(6, MessageType.USER, "/compact", null).entity();
-        final CompactService service =
-                new CompactService(
-                        models,
-                        mock(ChatHistoryService.class),
-                        chatTopicRepository(),
-                        messages,
-                        new SummaryWriter(messages, transactions),
-                        mock(PendingSummaryService.class),
-                        mock(ConversationSlots.class),
-                        mock(ChatEventService.class),
-                        systemPrompts,
-                        toolset,
-                        new ClassPathResource("prompt/sys.md"),
-                        new CompactPrompt(
-                                chatTopicRepository(),
-                                new ByteArrayResource("COMPACTOR HANDBOOK".getBytes(UTF_8))),
-                        Runnable::run,
-                        transactions);
+        final ChatMessageEntity command =
+                row(6, MessageType.USER, "/compact", null).entity();
+        final CompactService service = new CompactService(
+                models,
+                mock(ChatHistoryService.class),
+                chatTopicRepository(),
+                messages,
+                new SummaryWriter(messages, transactions),
+                mock(PendingSummaryService.class),
+                mock(ConversationSlots.class),
+                mock(ChatEventService.class),
+                systemPrompts,
+                toolset,
+                new ClassPathResource("prompt/sys.md"),
+                new CompactPrompt(chatTopicRepository(), new ByteArrayResource("COMPACTOR HANDBOOK".getBytes(UTF_8))),
+                Runnable::run,
+                transactions);
         service.compact(
                 CONV,
                 window,
                 new CompactService.CompactTarget(
-                        CompactMeta.Kind.COMPACT,
-                        command.getPosition(),
-                        LocalDateTime.now(),
-                        (call, usage) -> null),
+                        CompactMeta.Kind.COMPACT, command.getPosition(), LocalDateTime.now(), (call, usage) -> null),
                 null,
                 new CompactService.CompactOptions(null, false, PROJECT, MODE, false));
     }
@@ -282,8 +264,7 @@ class CompactPromptCacheTest {
         requests.add(request);
         final boolean streaming = request.contains("\"stream\":true");
         final byte[] response = (streaming ? STREAM : COMPLETION).getBytes(UTF_8);
-        exchange.getResponseHeaders()
-                .set("Content-Type", streaming ? "text/event-stream" : "application/json");
+        exchange.getResponseHeaders().set("Content-Type", streaming ? "text/event-stream" : "application/json");
         exchange.sendResponseHeaders(200, response.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(response);
@@ -354,46 +335,27 @@ class CompactPromptCacheTest {
         for (int turn = 0; turn < count; turn++) {
             final String callId = "call-" + turn;
             rows.add(row(turn * 3, MessageType.USER, "question " + turn, null));
-            rows.add(
-                    row(
-                            turn * 3 + 1,
-                            MessageType.ASSISTANT,
-                            "answer " + turn,
-                            new ToolData(
-                                    List.of(
-                                            new ToolData.Call(
-                                                    callId, "function", "getChatTopic", "{}")),
-                                    null)));
-            rows.add(
-                    row(
-                            turn * 3 + 2,
-                            MessageType.TOOL,
-                            "",
-                            new ToolData(
-                                    null,
-                                    List.of(
-                                            new ToolData.Response(
-                                                    callId,
-                                                    "getChatTopic",
-                                                    "{\"topic\":\"topic " + turn + "\"}")))));
+            rows.add(row(
+                    turn * 3 + 1,
+                    MessageType.ASSISTANT,
+                    "answer " + turn,
+                    new ToolData(List.of(new ToolData.Call(callId, "function", "getChatTopic", "{}")), null)));
+            rows.add(row(
+                    turn * 3 + 2,
+                    MessageType.TOOL,
+                    "",
+                    new ToolData(
+                            null,
+                            List.of(new ToolData.Response(
+                                    callId, "getChatTopic", "{\"topic\":\"topic " + turn + "\"}")))));
         }
         return rows;
     }
 
-    private static PromptRow row(
-            long position, MessageType type, String content, @Nullable ToolData toolData) {
+    private static PromptRow row(long position, MessageType type, String content, @Nullable ToolData toolData) {
         return new PromptRow(
                 new ChatMessageEntity(
-                        position + 1,
-                        CONV,
-                        content,
-                        type,
-                        position,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        null,
-                        toolData),
+                        position + 1, CONV, content, type, position, false, false, LocalDateTime.now(), null, toolData),
                 content);
     }
 

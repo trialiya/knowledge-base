@@ -45,12 +45,20 @@ public class SystemInfoController {
     private final SecurityProperties securityProperties;
     private final Project project;
     private final GitService gitService;
-    @Nullable private final Flyway flyway;
-    @Nullable private final BuildProperties buildProperties;
-    @Nullable private final GitProperties gitProperties;
+
+    @Nullable
+    private final Flyway flyway;
+
+    @Nullable
+    private final BuildProperties buildProperties;
+
+    @Nullable
+    private final GitProperties gitProperties;
 
     private volatile boolean schemaVersionResolved;
-    @Nullable private String cachedSchemaVersion;
+
+    @Nullable
+    private String cachedSchemaVersion;
 
     public SystemInfoController(
             ServerEnvironment environment,
@@ -96,8 +104,7 @@ public class SystemInfoController {
                         project.editEnabled(),
                         project.untrackedEditEnabled(),
                         gitService.isRepoWritable()),
-                new DocumentsInfo(
-                        documentsConfiguration.exportPath(), documentsConfiguration.replace()),
+                new DocumentsInfo(documentsConfiguration.exportPath(), documentsConfiguration.replace()),
                 new SecurityInfo(securityProperties.username()),
                 new IndexingInfo(
                         embeddingConfiguration.workers(),
@@ -129,10 +136,9 @@ public class SystemInfoController {
         }
         try {
             MigrationInfo current = flyway.info().current();
-            cachedSchemaVersion =
-                    current == null || current.getVersion() == null
-                            ? null
-                            : current.getVersion().toString();
+            cachedSchemaVersion = current == null || current.getVersion() == null
+                    ? null
+                    : current.getVersion().toString();
             schemaVersionResolved = true;
         } catch (RuntimeException e) {
             log.debug("Could not read the Flyway schema version", e);
@@ -203,12 +209,7 @@ public class SystemInfoController {
             IndexingInfo indexing) {}
 
     public record ApplicationInfo(
-            String name,
-            List<String> profiles,
-            int port,
-            String javaVersion,
-            String startedAt,
-            long uptimeSeconds) {}
+            String name, List<String> profiles, int port, String javaVersion, String startedAt, long uptimeSeconds) {}
 
     public record DatabaseInfo(
             String url,
@@ -238,11 +239,7 @@ public class SystemInfoController {
      *     always {@code false}) on a project that does not opt into it in the first place, since it
      *     only narrows {@code editEnabled}.
      */
-    public record GitInfo(
-            String projectPath,
-            boolean editEnabled,
-            boolean untrackedEditEnabled,
-            boolean writable) {}
+    public record GitInfo(String projectPath, boolean editEnabled, boolean untrackedEditEnabled, boolean writable) {}
 
     public record DocumentsInfo(String exportPath, boolean replace) {}
 

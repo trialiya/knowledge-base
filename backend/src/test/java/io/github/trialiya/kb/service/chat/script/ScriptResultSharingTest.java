@@ -31,7 +31,8 @@ class ScriptResultSharingTest {
 
     private static final String CHAT = "chat-a";
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private InMemoryScriptResultStore store;
     private ScriptRunner runner;
@@ -55,11 +56,9 @@ class ScriptResultSharingTest {
         assertThat(first.resultId()).isEqualTo("r1");
         assertThat(first.getResultMeta()).containsEntry("resultId", "r1");
 
-        ScriptResult second =
-                run(
-                        ResultScope.keeping(CHAT),
-                        "const r = kb.result('r1'); return r.n + r.names.length"
-                                + " + r.names.filter(x => x === 'b').length;");
+        ScriptResult second = run(
+                ResultScope.keeping(CHAT),
+                "const r = kb.result('r1'); return r.n + r.names.length" + " + r.names.filter(x => x === 'b').length;");
 
         assertThat(second.error()).isNull();
         assertThat(second.value()).isEqualTo(6);
@@ -70,23 +69,15 @@ class ScriptResultSharingTest {
     void theKeptValueIsWholeWhereTheModelWasShownOnlyItsHead() {
         runner = newRunner(withLimits(new ScriptProperties.Limits(0, null, 0, 0, 50, 0, null)));
 
-        ScriptResult big =
-                run(ResultScope.keeping(CHAT), "return Array.from({length: 100}, (_, i) => i);");
+        ScriptResult big = run(ResultScope.keeping(CHAT), "return Array.from({length: 100}, (_, i) => i);");
 
         // The model's copy is cut to max-result-chars — no longer valid JSON, so it is text.
         assertThat(big.value()).isInstanceOf(String.class);
         assertThat((String) big.value()).hasSize(50);
         assertThat(big.log())
-                .anySatisfy(
-                        line ->
-                                assertThat(line)
-                                        .contains("kept as r1")
-                                        .contains("kb.result('r1')"));
+                .anySatisfy(line -> assertThat(line).contains("kept as r1").contains("kb.result('r1')"));
 
-        ScriptResult next =
-                run(
-                        ResultScope.keeping(CHAT),
-                        "const a = kb.result('r1'); return a[a.length - 1];");
+        ScriptResult next = run(ResultScope.keeping(CHAT), "const a = kb.result('r1'); return a[a.length - 1];");
 
         assertThat(next.value()).isEqualTo(99);
     }
@@ -117,7 +108,8 @@ class ScriptResultSharingTest {
         ScriptResult result = runner.run("return 1;", null, RunCancellation.none());
 
         assertThat(result.resultId()).isNull();
-        assertThat(runner.run("return kb.results();", null, RunCancellation.none()).error())
+        assertThat(runner.run("return kb.results();", null, RunCancellation.none())
+                        .error())
                 .extracting(ScriptError::message)
                 .asString()
                 .contains("belongs to no chat");
@@ -142,11 +134,7 @@ class ScriptResultSharingTest {
                                 "return [1, 2];",
                                 "tools/pair.js",
                                 new ScriptRunSource(
-                                        ScriptRunSource.Kind.PROJECT,
-                                        "pair",
-                                        "tools/pair.js",
-                                        "abc",
-                                        Map.of())),
+                                        ScriptRunSource.Kind.PROJECT, "pair", "tools/pair.js", "abc", Map.of())),
                         ScriptArgs.none(),
                         null,
                         false,
@@ -156,17 +144,17 @@ class ScriptResultSharingTest {
                 RunCancellation.none());
 
         ScriptResult listing =
-                run(
-                        ResultScope.keeping(CHAT),
-                        "return kb.results().map(r => [r.id, r.script, r.chars].join(':'));");
+                run(ResultScope.keeping(CHAT), "return kb.results().map(r => [r.id, r.script, r.chars].join(':'));");
 
         assertThat(listing.value()).isEqualTo(List.of("r1:pair:5"));
     }
 
     @Test
     void aFailedRunOrOneThatReturnedNothingKeepsNothing() {
-        assertThat(run(ResultScope.keeping(CHAT), "throw new Error('no');").resultId()).isNull();
-        assertThat(run(ResultScope.keeping(CHAT), "kb.log('only a log');").resultId()).isNull();
+        assertThat(run(ResultScope.keeping(CHAT), "throw new Error('no');").resultId())
+                .isNull();
+        assertThat(run(ResultScope.keeping(CHAT), "kb.log('only a log');").resultId())
+                .isNull();
         assertThat(run(ResultScope.keeping(CHAT), "return null;").resultId()).isNull();
 
         assertThat(store.list(CHAT)).isEmpty();
@@ -177,9 +165,7 @@ class ScriptResultSharingTest {
         run(ResultScope.keeping(CHAT), "return {n: 3};");
 
         ScriptResult result =
-                run(
-                        ResultScope.keeping(CHAT),
-                        "const r = kb.result('r1'); r.n = 99; return kb.result('r1').n;");
+                run(ResultScope.keeping(CHAT), "const r = kb.result('r1'); r.n = 99; return kb.result('r1').n;");
 
         assertThat(result.value()).isEqualTo(3);
     }
@@ -187,11 +173,7 @@ class ScriptResultSharingTest {
     @Test
     void readingAKeptResultIsChargedAgainstTheByteBudget() {
         run(ResultScope.keeping(CHAT), "return 'x'.repeat(100);");
-        runner =
-                newRunner(
-                        withLimits(
-                                new ScriptProperties.Limits(
-                                        0, DataSize.ofBytes(50), 0, 0, 0, 0, null)));
+        runner = newRunner(withLimits(new ScriptProperties.Limits(0, DataSize.ofBytes(50), 0, 0, 0, 0, null)));
 
         ScriptResult result = run(ResultScope.keeping(CHAT), "return kb.result('r1').length;");
 
@@ -204,11 +186,9 @@ class ScriptResultSharingTest {
     void anIdWrittenAnyWayIsOneResultChargedOnceButEveryReadIsACall() {
         run(ResultScope.keeping(CHAT), "return 'x'.repeat(100);");
 
-        ScriptResult result =
-                run(
-                        ResultScope.keeping(CHAT),
-                        "return [kb.result('r1'), kb.result('R1'), kb.result('1')]"
-                                + ".map(v => v.length);");
+        ScriptResult result = run(
+                ResultScope.keeping(CHAT),
+                "return [kb.result('r1'), kb.result('R1'), kb.result('1')]" + ".map(v => v.length);");
 
         assertThat(result.value()).isEqualTo(List.of(100, 100, 100));
         assertThat(result.stats().bytesRead()).isEqualTo(102);
@@ -226,30 +206,17 @@ class ScriptResultSharingTest {
 
     private ScriptResult run(@Nullable ResultScope scope, String script) {
         return runner.run(
-                new ScriptRequest(
-                        ScriptSource.inline(script),
-                        ScriptArgs.none(),
-                        null,
-                        false,
-                        null,
-                        null,
-                        scope),
+                new ScriptRequest(ScriptSource.inline(script), ScriptArgs.none(), null, false, null, null, scope),
                 RunCancellation.none());
     }
 
     private ScriptRunner newRunner(ScriptProperties properties) {
         GitRegistry gitRegistry = TestProjects.registry(repoDir, false);
-        return new ScriptRunner(
-                gitRegistry,
-                null,
-                properties,
-                new ScriptEditPolicy(gitRegistry, properties),
-                store);
+        return new ScriptRunner(gitRegistry, null, properties, new ScriptEditPolicy(gitRegistry, properties), store);
     }
 
     private static ScriptProperties withLimits(ScriptProperties.Limits limits) {
-        return new ScriptProperties(
-                true, false, true, false, null, null, null, null, null, null, null, null, limits);
+        return new ScriptProperties(true, false, true, false, null, null, null, null, null, null, null, null, limits);
     }
 
     private static void write(Path file, String content) {
@@ -266,16 +233,13 @@ class ScriptResultSharingTest {
             var command = new ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             if (process.waitFor() != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();

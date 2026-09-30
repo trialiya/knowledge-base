@@ -45,12 +45,11 @@ public class ChatScriptResults implements ScriptResultStore {
             return Kept.not(null);
         }
         if (json.length() > properties.maxChars()) {
-            return Kept.not(
-                    "Result not kept: it is "
-                            + json.length()
-                            + " characters, over kb.script.results.max-chars="
-                            + properties.maxChars()
-                            + ", so no later script can read it with kb.result. Return less.");
+            return Kept.not("Result not kept: it is "
+                    + json.length()
+                    + " characters, over kb.script.results.max-chars="
+                    + properties.maxChars()
+                    + ", so no later script can read it with kb.result. Return less.");
         }
         final int seq;
         try {
@@ -73,21 +72,12 @@ public class ChatScriptResults implements ScriptResultStore {
         return Kept.as(idOf(seq));
     }
 
-    private int insert(
-            String conversationId, @Nullable String script, String project, String json) {
+    private int insert(String conversationId, @Nullable String script, String project, String json) {
         for (int attempt = 1; ; attempt++) {
             final int seq = repository.maxSeq(conversationId) + 1;
             try {
-                repository.save(
-                        new ChatScriptResultEntity(
-                                0L,
-                                conversationId,
-                                seq,
-                                script,
-                                project,
-                                json,
-                                json.length(),
-                                LocalDateTime.now()));
+                repository.save(new ChatScriptResultEntity(
+                        0L, conversationId, seq, script, project, json, json.length(), LocalDateTime.now()));
                 return seq;
             } catch (DuplicateKeyException e) {
                 if (attempt >= SEQ_ATTEMPTS) {
@@ -114,14 +104,8 @@ public class ChatScriptResults implements ScriptResultStore {
             return List.of();
         }
         return repository.listWithoutValues(conversationId).stream()
-                .map(
-                        row ->
-                                new StoredScriptResult(
-                                        idOf(row.getSeq()),
-                                        row.getScript(),
-                                        row.getProject(),
-                                        row.getChars(),
-                                        row.getCreatedAt()))
+                .map(row -> new StoredScriptResult(
+                        idOf(row.getSeq()), row.getScript(), row.getProject(), row.getChars(), row.getCreatedAt()))
                 .toList();
     }
 
@@ -144,9 +128,7 @@ public class ChatScriptResults implements ScriptResultStore {
         if (text.startsWith("r")) {
             text = text.substring(1);
         }
-        if (text.isEmpty()
-                || text.length() > 9
-                || !text.chars().allMatch(c -> c >= '0' && c <= '9')) {
+        if (text.isEmpty() || text.length() > 9 || !text.chars().allMatch(c -> c >= '0' && c <= '9')) {
             return OptionalInt.empty();
         }
         return OptionalInt.of(Integer.parseInt(text));

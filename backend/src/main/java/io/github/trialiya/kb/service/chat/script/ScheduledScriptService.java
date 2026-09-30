@@ -62,17 +62,15 @@ public class ScheduledScriptService {
      * none. Volatile because the two ends of its life are two threads: {@code @PostConstruct}
      * writes it, {@code @PreDestroy} reads it, and Spring does not promise they are the same one.
      */
-    @Nullable private volatile ThreadPoolTaskScheduler taskScheduler;
+    @Nullable
+    private volatile ThreadPoolTaskScheduler taskScheduler;
 
     /** Last outcome per schedule name; empty for one that has not fired yet. */
     private final Map<String, LastRun> lastRuns = new ConcurrentHashMap<>();
 
     @Autowired
     public ScheduledScriptService(
-            ScriptProperties properties,
-            SavedScriptResolver resolver,
-            ScriptRunner runner,
-            ProjectCatalog projects) {
+            ScriptProperties properties, SavedScriptResolver resolver, ScriptRunner runner, ProjectCatalog projects) {
         this.properties = properties;
         this.resolver = resolver;
         this.runner = runner;
@@ -155,38 +153,28 @@ public class ScheduledScriptService {
             throw new IllegalStateException(where + ": every entry needs a script name");
         }
         if (AttachmentScriptService.addresses(schedule.script())) {
-            throw new IllegalStateException(
-                    where
-                            + "["
-                            + schedule.displayName()
-                            + "]: an attachment belongs to a chat or a document, not to a clock —"
-                            + " schedule a script the repository declares instead");
+            throw new IllegalStateException(where
+                    + "["
+                    + schedule.displayName()
+                    + "]: an attachment belongs to a chat or a document, not to a clock —"
+                    + " schedule a script the repository declares instead");
         }
         if (schedule.cron() == null || !CronExpression.isValidExpression(schedule.cron())) {
-            throw new IllegalStateException(
-                    where
-                            + "["
-                            + schedule.displayName()
-                            + "].cron is not a cron expression: \""
-                            + schedule.cron()
-                            + "\" (six fields, e.g. \"0 0 3 * * *\")");
+            throw new IllegalStateException(where
+                    + "["
+                    + schedule.displayName()
+                    + "].cron is not a cron expression: \""
+                    + schedule.cron()
+                    + "\" (six fields, e.g. \"0 0 3 * * *\")");
         }
         // A project nobody configured would pass here and fail on every firing instead — the
         // month-to-notice failure this check exists to turn into a failed start.
-        if (schedule.project() != null
-                && !schedule.project().isBlank()
-                && !projects.isAllowed(schedule.project())) {
+        if (schedule.project() != null && !schedule.project().isBlank() && !projects.isAllowed(schedule.project())) {
             throw new IllegalStateException(
-                    where
-                            + "["
-                            + schedule.displayName()
-                            + "].project: unknown project \""
-                            + schedule.project()
-                            + "\"");
+                    where + "[" + schedule.displayName() + "].project: unknown project \"" + schedule.project() + "\"");
         }
         if (!names.add(schedule.displayName())) {
-            throw new IllegalStateException(
-                    where + ": duplicate name \"" + schedule.displayName() + "\"");
+            throw new IllegalStateException(where + ": duplicate name \"" + schedule.displayName() + "\"");
         }
     }
 
@@ -195,14 +183,12 @@ public class ScheduledScriptService {
      */
     public List<Status> statuses() {
         return properties.schedules().stream()
-                .map(
-                        schedule ->
-                                new Status(
-                                        schedule.displayName(),
-                                        schedule.script(),
-                                        schedule.project(),
-                                        schedule.cron(),
-                                        lastRuns.get(schedule.displayName())))
+                .map(schedule -> new Status(
+                        schedule.displayName(),
+                        schedule.script(),
+                        schedule.project(),
+                        schedule.cron(),
+                        lastRuns.get(schedule.displayName())))
                 .toList();
     }
 
@@ -215,16 +201,15 @@ public class ScheduledScriptService {
         String name = schedule.displayName();
         long startedAt = System.currentTimeMillis();
         try {
-            ScriptResult result =
-                    runner.run(
-                            resolver.resolve(
-                                    schedule.project(),
-                                    schedule.script(),
-                                    schedule.args(),
-                                    schedule.timeoutSeconds(),
-                                    false,
-                                    null),
-                            RunCancellation.none());
+            ScriptResult result = runner.run(
+                    resolver.resolve(
+                            schedule.project(),
+                            schedule.script(),
+                            schedule.args(),
+                            schedule.timeoutSeconds(),
+                            false,
+                            null),
+                    RunCancellation.none());
             lastRuns.put(
                     name,
                     new LastRun(

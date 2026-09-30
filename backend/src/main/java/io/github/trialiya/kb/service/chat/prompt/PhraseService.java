@@ -59,9 +59,7 @@ public class PhraseService {
         int position = repository.findMaxPosition(category) + 1; // append within category
         Instant now = Instant.now();
         PhraseEntity saved =
-                repository.save(
-                        new PhraseEntity(
-                                null, category, label, text, position, enabled, false, now, now));
+                repository.save(new PhraseEntity(null, category, label, text, position, enabled, false, now, now));
         return Phrase.from(saved);
     }
 
@@ -80,17 +78,16 @@ public class PhraseService {
             position = repository.findMaxPosition(category) + 1;
         }
 
-        PhraseEntity updated =
-                new PhraseEntity(
-                        existing.id(),
-                        category,
-                        label,
-                        text,
-                        position,
-                        enabled,
-                        existing.favorite(),
-                        existing.createdAt(),
-                        Instant.now());
+        PhraseEntity updated = new PhraseEntity(
+                existing.id(),
+                category,
+                label,
+                text,
+                position,
+                enabled,
+                existing.favorite(),
+                existing.createdAt(),
+                Instant.now());
         return Phrase.from(repository.save(updated));
     }
 
@@ -132,9 +129,7 @@ public class PhraseService {
     // ── Helpers ────────────────────────────────────────────────────────────────────
 
     private PhraseEntity get(Long id) {
-        return repository
-                .findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Phrase not found: " + id));
+        return repository.findById(id).orElseThrow(() -> new NoSuchElementException("Phrase not found: " + id));
     }
 
     private static String required(String value, String field) {

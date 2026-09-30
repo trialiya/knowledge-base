@@ -43,8 +43,7 @@ final class FileViews {
             @Nullable Integer toLine) {
         String language = LanguageDetector.detect(path);
         if (RepoFiles.isBinary(bytes)) {
-            return new GitFileContent(
-                    path, tracked, commit, null, true, size, language, 0, false, null, null);
+            return new GitFileContent(path, tracked, commit, null, true, size, language, 0, false, null, null);
         }
 
         String full = RepoFiles.decodeToLf(bytes);
@@ -59,8 +58,7 @@ final class FileViews {
             boolean oversized = size > RepoFiles.MAX_FILE_SIZE;
             String content = oversized ? headTailExcerpt(lines) : full;
             return new GitFileContent(
-                    path, tracked, commit, content, false, size, language, total, oversized, null,
-                    null);
+                    path, tracked, commit, content, false, size, language, total, oversized, null, null);
         }
 
         // Запрошенный диапазон укладываем в [1, total].
@@ -69,31 +67,11 @@ final class FileViews {
         if (from > total || from > to) {
             // Пустой срез: содержимого нет, но метаданные остаются правдой.
             return new GitFileContent(
-                    path,
-                    tracked,
-                    commit,
-                    "",
-                    false,
-                    size,
-                    language,
-                    total,
-                    true,
-                    from,
-                    Math.max(from, to));
+                    path, tracked, commit, "", false, size, language, total, true, from, Math.max(from, to));
         }
         String slice = String.join("\n", Arrays.asList(lines).subList(from - 1, to));
         return new GitFileContent(
-                path,
-                tracked,
-                commit,
-                slice,
-                false,
-                size,
-                language,
-                total,
-                from > 1 || to < total,
-                from,
-                to);
+                path, tracked, commit, slice, false, size, language, total, from > 1 || to < total, from, to);
     }
 
     /** Первые {@code HEAD_LINES} и последние {@code TAIL_LINES} строк с отметкой о пропуске. */

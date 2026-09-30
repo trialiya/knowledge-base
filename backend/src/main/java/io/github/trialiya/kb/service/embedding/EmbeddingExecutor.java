@@ -48,14 +48,13 @@ public class EmbeddingExecutor {
         if (!semaphore.tryAcquire()) {
             return false;
         }
-        delegate.execute(
-                () -> {
-                    try {
-                        task.run();
-                    } finally {
-                        semaphore.release();
-                    }
-                });
+        delegate.execute(() -> {
+            try {
+                task.run();
+            } finally {
+                semaphore.release();
+            }
+        });
         return true;
     }
 }

@@ -68,8 +68,7 @@ public class SavedScriptCatalog {
     /** Parsed manifests by project id, kept only as long as the file behind one does not move. */
     private final Map<String, Cached> cache = new ConcurrentHashMap<>();
 
-    public SavedScriptCatalog(
-            ProjectCatalog projects, GitRegistry gitRegistry, ScriptProperties properties) {
+    public SavedScriptCatalog(ProjectCatalog projects, GitRegistry gitRegistry, ScriptProperties properties) {
         this.projects = projects;
         this.gitRegistry = gitRegistry;
         this.properties = properties;
@@ -82,8 +81,7 @@ public class SavedScriptCatalog {
      */
     public boolean anyManifests() {
         return properties.enabled()
-                && projects.projects().stream()
-                        .anyMatch(project -> project.scriptsManifest() != null);
+                && projects.projects().stream().anyMatch(project -> project.scriptsManifest() != null);
     }
 
     /** What the project declares right now; empty when it declares nothing or has no manifest. */
@@ -104,17 +102,14 @@ public class SavedScriptCatalog {
         return scriptsOf(project).stream()
                 .filter(script -> script.name().equals(name))
                 .findFirst()
-                .orElseThrow(
-                        () ->
-                                new IllegalArgumentException(
-                                        "Unknown script \""
-                                                + name
-                                                + "\" in project "
-                                                + project.id()
-                                                + ". "
-                                                + availableList(project)
-                                                + " To run something else, write it yourself with"
-                                                + " runScript."));
+                .orElseThrow(() -> new IllegalArgumentException("Unknown script \""
+                        + name
+                        + "\" in project "
+                        + project.id()
+                        + ". "
+                        + availableList(project)
+                        + " To run something else, write it yourself with"
+                        + " runScript."));
     }
 
     /**
@@ -130,45 +125,38 @@ public class SavedScriptCatalog {
      *     or of the permissions, so it is the tool's answer and not a server error
      */
     public ScriptSource source(
-            @Nullable String projectId,
-            SavedScript script,
-            Map<String, Object> args,
-            boolean readOnly) {
+            @Nullable String projectId, SavedScript script, Map<String, Object> args, boolean readOnly) {
         requireWritesAvailable(script, readOnly);
         Project project = activeProject(projectId);
         GitFileContent file = readFile(project, script);
         String text = file.content();
         if (text == null || file.binary()) {
-            throw new IllegalArgumentException(
-                    "Script \""
-                            + script.name()
-                            + "\" ("
-                            + script.file()
-                            + ") is not text — the manifest points at a"
-                            + " binary file");
+            throw new IllegalArgumentException("Script \""
+                    + script.name()
+                    + "\" ("
+                    + script.file()
+                    + ") is not text — the manifest points at a"
+                    + " binary file");
         }
         if (!file.tracked()) {
-            throw new IllegalArgumentException(
-                    "Script \""
-                            + script.name()
-                            + "\" ("
-                            + script.file()
-                            + ") is not tracked by git — a saved script has to be a committed file,"
-                            + " not something that appeared in the working tree");
+            throw new IllegalArgumentException("Script \""
+                    + script.name()
+                    + "\" ("
+                    + script.file()
+                    + ") is not tracked by git — a saved script has to be a committed file,"
+                    + " not something that appeared in the working tree");
         }
         if (file.sizeBytes() > MAX_BYTES || file.truncated()) {
-            throw new IllegalArgumentException(
-                    "Script \""
-                            + script.name()
-                            + "\" is too large to run ("
-                            + file.sizeBytes()
-                            + " bytes, the limit is "
-                            + MAX_BYTES
-                            + ") — tell the user its file needs splitting");
+            throw new IllegalArgumentException("Script \""
+                    + script.name()
+                    + "\" is too large to run ("
+                    + file.sizeBytes()
+                    + " bytes, the limit is "
+                    + MAX_BYTES
+                    + ") — tell the user its file needs splitting");
         }
         ScriptRunSource report =
-                new ScriptRunSource(
-                        ScriptRunSource.Kind.PROJECT, script.name(), file.path(), sha(text), args);
+                new ScriptRunSource(ScriptRunSource.Kind.PROJECT, script.name(), file.path(), sha(text), args);
         return new ScriptSource(text, file.path(), report);
     }
 
@@ -190,10 +178,9 @@ public class SavedScriptCatalog {
             return "";
         }
         StringBuilder text =
-                new StringBuilder(
-                        "\n\nScripts this repository saves — run one with `runSavedScript` instead"
-                                + " of writing the same script again (the code is in the"
-                                + " repository, you do not need to read it first):");
+                new StringBuilder("\n\nScripts this repository saves — run one with `runSavedScript` instead"
+                        + " of writing the same script again (the code is in the"
+                        + " repository, you do not need to read it first):");
         for (SavedScript script : scripts) {
             text.append("\n- `")
                     .append(script.name())
@@ -204,9 +191,7 @@ public class SavedScriptCatalog {
                     .append(script.write() ? "; writes files" : "")
                     .append(')');
         }
-        text.append(
-                "\nOnly these names run; anything else is a script you write yourself with"
-                        + " `runScript`.");
+        text.append("\nOnly these names run; anything else is a script you write yourself with" + " `runScript`.");
         return text.toString();
     }
 
@@ -217,12 +202,11 @@ public class SavedScriptCatalog {
      */
     private static void requireWritesAvailable(SavedScript script, boolean readOnly) {
         if (script.write() && readOnly) {
-            throw new IllegalArgumentException(
-                    "Script \""
-                            + script.name()
-                            + "\" edits files, and writes are not available here. It needs"
-                            + " kb.script.edit-enabled, an editable project, and a surface that"
-                            + " writes at all — the settings bench never does.");
+            throw new IllegalArgumentException("Script \""
+                    + script.name()
+                    + "\" edits files, and writes are not available here. It needs"
+                    + " kb.script.edit-enabled, an editable project, and a surface that"
+                    + " writes at all — the settings bench never does.");
         }
     }
 
@@ -249,8 +233,7 @@ public class SavedScriptCatalog {
                 log.warn("{}: larger than {} bytes — not read", where, MAX_BYTES);
                 return List.of();
             }
-            return ScriptManifestReader.parse(
-                    Files.readString(manifest, StandardCharsets.UTF_8), where);
+            return ScriptManifestReader.parse(Files.readString(manifest, StandardCharsets.UTF_8), where);
         } catch (NoSuchFileException e) {
             // The branch does not carry it — a legitimate state, and the stamp already said so.
             return List.of();
@@ -269,8 +252,7 @@ public class SavedScriptCatalog {
     private static void requireInsideTree(Project project, Path manifest) throws IOException {
         if (!manifest.toRealPath().startsWith(project.path().toRealPath())) {
             log.warn(
-                    "kb.projects[{}].scripts-manifest leaves the project tree through a symlink:"
-                            + " {} — not read",
+                    "kb.projects[{}].scripts-manifest leaves the project tree through a symlink:" + " {} — not read",
                     project.id(),
                     manifest);
             throw new NoSuchFileException(manifest.toString());
@@ -294,8 +276,7 @@ public class SavedScriptCatalog {
 
     private static Stamp stamp(Path manifest) {
         try {
-            BasicFileAttributes attributes =
-                    Files.readAttributes(manifest, BasicFileAttributes.class);
+            BasicFileAttributes attributes = Files.readAttributes(manifest, BasicFileAttributes.class);
             return new Stamp(attributes.lastModifiedTime().toMillis(), attributes.size());
         } catch (IOException e) {
             return Stamp.MISSING;
@@ -338,19 +319,14 @@ public class SavedScriptCatalog {
                 + String.join(
                         ", ",
                         script.params().stream()
-                                .map(
-                                        param ->
-                                                PromptMarkup.inert(param.name())
-                                                        + (param.required() ? "" : "?"))
+                                .map(param -> PromptMarkup.inert(param.name()) + (param.required() ? "" : "?"))
                                 .toList());
     }
 
     /** Short SHA-256 of the text that ran — shared with {@code AttachmentScriptService}. */
     static String sha(String text) {
         try {
-            byte[] digest =
-                    MessageDigest.getInstance("SHA-256")
-                            .digest(text.getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest).substring(0, 12);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is not available", e);

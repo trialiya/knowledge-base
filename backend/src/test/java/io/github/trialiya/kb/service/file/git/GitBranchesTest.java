@@ -25,10 +25,12 @@ import org.junit.jupiter.api.io.TempDir;
 class GitBranchesTest {
 
     /** The repository the panel shows — a clone, so it has an upstream to drift from. */
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     /** What it was cloned from; stands in for the remote. */
-    @TempDir Path originDir;
+    @TempDir
+    Path originDir;
 
     private GitService service;
 
@@ -279,11 +281,9 @@ class GitBranchesTest {
                 builder.environment().put("GIT_COMMITTER_DATE", date);
             }
             Process process = builder.start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             if (process.waitFor() != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

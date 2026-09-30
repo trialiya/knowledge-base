@@ -15,17 +15,16 @@ import org.jspecify.annotations.Nullable;
  */
 public final class PreviewMedia {
 
-    private static final Map<String, String> BY_EXTENSION =
-            Map.ofEntries(
-                    Map.entry("png", "image/png"),
-                    Map.entry("jpg", "image/jpeg"),
-                    Map.entry("jpeg", "image/jpeg"),
-                    Map.entry("gif", "image/gif"),
-                    Map.entry("webp", "image/webp"),
-                    Map.entry("avif", "image/avif"),
-                    Map.entry("bmp", "image/bmp"),
-                    Map.entry("ico", "image/x-icon"),
-                    Map.entry("svg", "image/svg+xml"));
+    private static final Map<String, String> BY_EXTENSION = Map.ofEntries(
+            Map.entry("png", "image/png"),
+            Map.entry("jpg", "image/jpeg"),
+            Map.entry("jpeg", "image/jpeg"),
+            Map.entry("gif", "image/gif"),
+            Map.entry("webp", "image/webp"),
+            Map.entry("avif", "image/avif"),
+            Map.entry("bmp", "image/bmp"),
+            Map.entry("ico", "image/x-icon"),
+            Map.entry("svg", "image/svg+xml"));
 
     private PreviewMedia() {}
 

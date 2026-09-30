@@ -19,8 +19,7 @@ class CompactTest {
 
     @Test
     void foldsLineBreaksIntoOneLine() {
-        assertThat(Compact.oneLine("first\n  second\r\nthird", 100))
-                .isEqualTo("first ⏎ second ⏎ third");
+        assertThat(Compact.oneLine("first\n  second\r\nthird", 100)).isEqualTo("first ⏎ second ⏎ third");
     }
 
     @Test

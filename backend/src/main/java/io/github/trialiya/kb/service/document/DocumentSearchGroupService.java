@@ -61,8 +61,7 @@ public class DocumentSearchGroupService {
         long id = Objects.requireNonNull(result.id());
         String body = repo.findDescriptionById(id).orElse("");
         List<DocumentSearchGroups.Fragment> fragments =
-                DocumentGrep.matches(id, result.title(), body, pattern, 0, FRAGMENTS_PER_DOCUMENT)
-                        .stream()
+                DocumentGrep.matches(id, result.title(), body, pattern, 0, FRAGMENTS_PER_DOCUMENT).stream()
                         .map(DocumentSearchGroupService::fragment)
                         .toList();
         if (fragments.isEmpty()) {
@@ -79,7 +78,6 @@ public class DocumentSearchGroupService {
     }
 
     private static DocumentSearchGroups.Fragment fragment(DocumentGrepMatch match) {
-        return new DocumentSearchGroups.Fragment(
-                match.matchLine(), match.sectionPath(), match.text());
+        return new DocumentSearchGroups.Fragment(match.matchLine(), match.sectionPath(), match.text());
     }
 }

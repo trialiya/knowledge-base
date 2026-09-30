@@ -28,8 +28,7 @@ import org.springframework.ai.tool.metadata.ToolMetadata;
  * not deletion — only a server that answered gets to say a tool no longer exists.
  */
 @Slf4j
-public record UnavailableToolCallback(ToolCallback delegate, String connection)
-        implements ToolCallback {
+public record UnavailableToolCallback(ToolCallback delegate, String connection) implements ToolCallback {
 
     @Override
     public ToolDefinition getToolDefinition() {
@@ -62,15 +61,14 @@ public record UnavailableToolCallback(ToolCallback delegate, String connection)
         log.info("Tool '{}' was called while its MCP connection '{}' is down", name, connection);
         throw new ToolExecutionException(
                 getToolDefinition(),
-                new IllegalStateException(
-                        "The tool '"
-                                + name
-                                + "' belongs to the external MCP server '"
-                                + connection
-                                + "', which is not reachable right now, so nothing was executed."
-                                + " The connection is retried in the background: this tool may"
-                                + " work again later in this same conversation. Do not retry it"
-                                + " immediately — carry on without it, and say so if the answer"
-                                + " depends on it."));
+                new IllegalStateException("The tool '"
+                        + name
+                        + "' belongs to the external MCP server '"
+                        + connection
+                        + "', which is not reachable right now, so nothing was executed."
+                        + " The connection is retried in the background: this tool may"
+                        + " work again later in this same conversation. Do not retry it"
+                        + " immediately — carry on without it, and say so if the answer"
+                        + " depends on it."));
     }
 }

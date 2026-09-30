@@ -130,10 +130,9 @@ class ChatEventDeliveryTest {
         // заведёт startRun, — то есть проверяет ровно границу `<=`. Если между этими двумя
         // строками номер успеет взять кто-то ещё (параллельный запуск тестов), проверка границы
         // выродится в тот же случай, что и в соседнем тесте, и её придётся ставить иначе.
-        final long staleCursor =
-                new ConversationHub(CONV, null)
-                        .publish(ChatEventType.STREAM, RUN, null, "прошлый прогон")
-                        .seq();
+        final long staleCursor = new ConversationHub(CONV, null)
+                .publish(ChatEventType.STREAM, RUN, null, "прошлый прогон")
+                .seq();
 
         events.startRun(CONV, RUN);
         events.publish(CONV, ChatEventType.COMPACT_STARTED, RUN, null, null);

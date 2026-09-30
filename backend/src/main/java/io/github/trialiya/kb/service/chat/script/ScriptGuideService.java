@@ -47,8 +47,7 @@ import org.springframework.util.unit.DataSize;
 public class ScriptGuideService {
 
     /** The section on {@code kb.result} and {@code saveScriptResult} — see {@link #render}. */
-    private static final Resource RESULTS_GUIDE =
-            new ClassPathResource("prompt/script-run-results.md");
+    private static final Resource RESULTS_GUIDE = new ClassPathResource("prompt/script-run-results.md");
 
     /**
      * The same section as the search sub-agent needs it: its runs read the chat's results but keep
@@ -66,30 +65,21 @@ public class ScriptGuideService {
     private final String subAgentInstructions;
 
     public ScriptGuideService(
-            ScriptProperties properties,
-            ScriptResultProperties results,
-            ScriptEditPolicy editPolicy) {
+            ScriptProperties properties, ScriptResultProperties results, ScriptEditPolicy editPolicy) {
         this.editPolicy = editPolicy;
         requireKeepingCeiling(properties, results);
         // Kept results are a deployment switch of their own: with it off no run gets a resultId,
         // and a handbook describing kb.result would send the model after ids it never sees.
         @Nullable Resource chatResults = results.enabled() ? RESULTS_GUIDE : null;
-        this.instructionsForWeakModel =
-                properties.enabled() ? render(properties, chatResults, true, true) : "";
-        this.instructionsForStrongModel =
-                properties.enabled() ? render(properties, chatResults, false, true) : "";
+        this.instructionsForWeakModel = properties.enabled() ? render(properties, chatResults, true, true) : "";
+        this.instructionsForStrongModel = properties.enabled() ? render(properties, chatResults, false, true) : "";
         this.readOnlyInstructionsForWeakModel =
                 properties.enabled() ? render(properties, chatResults, true, false) : "";
         this.readOnlyInstructionsForStrongModel =
                 properties.enabled() ? render(properties, chatResults, false, false) : "";
-        this.subAgentInstructions =
-                properties.enabled()
-                        ? render(
-                                properties,
-                                results.enabled() ? SUB_AGENT_RESULTS_GUIDE : null,
-                                false,
-                                false)
-                        : "";
+        this.subAgentInstructions = properties.enabled()
+                ? render(properties, results.enabled() ? SUB_AGENT_RESULTS_GUIDE : null, false, false)
+                : "";
     }
 
     /**
@@ -143,16 +133,14 @@ public class ScriptGuideService {
      * to {@code max-result-chars}. A keeping ceiling below that cut breaks the promise quietly: a
      * value between the two reaches the model uncut yet gets no id. Refused at startup instead.
      */
-    private static void requireKeepingCeiling(
-            ScriptProperties properties, ScriptResultProperties results) {
+    private static void requireKeepingCeiling(ScriptProperties properties, ScriptResultProperties results) {
         int shown = properties.limits().maxResultChars();
         if (properties.enabled() && results.enabled() && results.maxChars() < shown) {
-            throw new IllegalArgumentException(
-                    "kb.script.results.max-chars ("
-                            + results.maxChars()
-                            + ") must not be below kb.script.limits.max-result-chars ("
-                            + shown
-                            + "): a kept result has to hold at least what the model is shown");
+            throw new IllegalArgumentException("kb.script.results.max-chars ("
+                    + results.maxChars()
+                    + ") must not be below kb.script.limits.max-result-chars ("
+                    + shown
+                    + "): a kept result has to hold at least what the model is shown");
         }
     }
 
@@ -161,10 +149,7 @@ public class ScriptGuideService {
      *     keeping is off
      */
     private static String render(
-            ScriptProperties properties,
-            @Nullable Resource resultsSection,
-            boolean extended,
-            boolean editEnabled) {
+            ScriptProperties properties, @Nullable Resource resultsSection, boolean extended, boolean editEnabled) {
         // Two independent gates. The write appendices are added only when kb.edit/kb.create are
         // actually bound, so the handbook can never describe a method the sandbox does not have;
         // the extended halves are added only for a run whose model is flagged weak.
@@ -183,17 +168,16 @@ public class ScriptGuideService {
         }
         String text = handbook.toString();
         ScriptProperties.Limits limits = properties.limits();
-        Map<String, String> values =
-                Map.ofEntries(
-                        Map.entry("max_files_read", String.valueOf(limits.maxFilesRead())),
-                        Map.entry("max_bytes_read", humanBytes(limits.maxBytesRead())),
-                        Map.entry("max_calls", String.valueOf(limits.maxCalls())),
-                        Map.entry("max_log_chars", String.valueOf(limits.maxLogChars())),
-                        Map.entry("max_result_chars", String.valueOf(limits.maxResultChars())),
-                        Map.entry("max_edited_files", String.valueOf(limits.maxEditedFiles())),
-                        Map.entry("max_edited_bytes", humanBytes(limits.maxEditedBytes())),
-                        Map.entry("timeout", properties.timeout().toSeconds() + " с"),
-                        Map.entry("max_timeout", properties.maxTimeout().toSeconds() + " с"));
+        Map<String, String> values = Map.ofEntries(
+                Map.entry("max_files_read", String.valueOf(limits.maxFilesRead())),
+                Map.entry("max_bytes_read", humanBytes(limits.maxBytesRead())),
+                Map.entry("max_calls", String.valueOf(limits.maxCalls())),
+                Map.entry("max_log_chars", String.valueOf(limits.maxLogChars())),
+                Map.entry("max_result_chars", String.valueOf(limits.maxResultChars())),
+                Map.entry("max_edited_files", String.valueOf(limits.maxEditedFiles())),
+                Map.entry("max_edited_bytes", humanBytes(limits.maxEditedBytes())),
+                Map.entry("timeout", properties.timeout().toSeconds() + " с"),
+                Map.entry("max_timeout", properties.maxTimeout().toSeconds() + " с"));
         for (Map.Entry<String, String> entry : values.entrySet()) {
             text = text.replace("{{" + entry.getKey() + "}}", entry.getValue());
         }
@@ -225,8 +209,7 @@ public class ScriptGuideService {
             return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8)
                     .strip();
         } catch (IOException e) {
-            throw new UncheckedIOException(
-                    "Не удалось прочитать руководство по скриптам: " + resource, e);
+            throw new UncheckedIOException("Не удалось прочитать руководство по скриптам: " + resource, e);
         }
     }
 }

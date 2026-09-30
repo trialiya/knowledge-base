@@ -26,12 +26,7 @@ public record SyncEntry(
         int depth) {
 
     public static SyncEntry of(
-            String path,
-            String title,
-            DocumentType type,
-            SyncStatus status,
-            @Nullable Long docId,
-            int depth) {
+            String path, String title, DocumentType type, SyncStatus status, @Nullable Long docId, int depth) {
         return new SyncEntry(path, title, type, status, docId, depth);
     }
 

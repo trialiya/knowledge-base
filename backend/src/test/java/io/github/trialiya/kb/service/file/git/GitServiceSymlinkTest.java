@@ -23,10 +23,12 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitServiceSymlinkTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     /** Stands in for "anywhere on the host filesystem that is not the repository". */
-    @TempDir Path outsideDir;
+    @TempDir
+    Path outsideDir;
 
     private GitService service;
 
@@ -118,17 +120,14 @@ class GitServiceSymlinkTest {
             var command = new ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();

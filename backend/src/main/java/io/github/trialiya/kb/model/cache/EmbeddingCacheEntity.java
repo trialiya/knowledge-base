@@ -23,7 +23,9 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("embedding_cache")
 public class EmbeddingCacheEntity {
 
-    @Id @Nullable private Long id;
+    @Id
+    @Nullable
+    private Long id;
 
     /** Lowercase SHA-256 hex digest of the raw input text (64 chars). */
     private String textHash;

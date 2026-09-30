@@ -27,28 +27,25 @@ final class ToolCallTestSupport {
      */
     static void echoSavedWithIds(ChatMessageRepository messageRepo) {
         final AtomicLong nextId = new AtomicLong(100);
-        when(messageRepo.saveAll(any()))
-                .thenAnswer(
-                        inv -> {
-                            final Iterable<ChatMessageEntity> entities = inv.getArgument(0);
-                            final List<ChatMessageEntity> saved = new ArrayList<>();
-                            for (ChatMessageEntity e : entities) {
-                                saved.add(
-                                        new ChatMessageEntity(
-                                                nextId.incrementAndGet(),
-                                                e.getConversationId(),
-                                                e.getContent(),
-                                                e.getType(),
-                                                e.getPosition(),
-                                                e.isSummarized(),
-                                                e.isSummary(),
-                                                e.getCreatedAt(),
-                                                e.getMeta(),
-                                                e.getToolData(),
-                                                e.getReasoning()));
-                            }
-                            return saved;
-                        });
+        when(messageRepo.saveAll(any())).thenAnswer(inv -> {
+            final Iterable<ChatMessageEntity> entities = inv.getArgument(0);
+            final List<ChatMessageEntity> saved = new ArrayList<>();
+            for (ChatMessageEntity e : entities) {
+                saved.add(new ChatMessageEntity(
+                        nextId.incrementAndGet(),
+                        e.getConversationId(),
+                        e.getContent(),
+                        e.getType(),
+                        e.getPosition(),
+                        e.isSummarized(),
+                        e.isSummary(),
+                        e.getCreatedAt(),
+                        e.getMeta(),
+                        e.getToolData(),
+                        e.getReasoning()));
+            }
+            return saved;
+        });
     }
 
     static AssistantMessage assistantWithCalls(AssistantMessage.ToolCall... calls) {
@@ -60,10 +57,7 @@ final class ToolCallTestSupport {
     }
 
     static ChatMessageEntity entity(
-            String conversationId,
-            MessageType type,
-            @Nullable ChatMessageMeta meta,
-            @Nullable ToolData toolData) {
+            String conversationId, MessageType type, @Nullable ChatMessageMeta meta, @Nullable ToolData toolData) {
         return new ChatMessageEntity(
                 1L, conversationId, "", type, 1, false, false, LocalDateTime.now(), meta, toolData);
     }

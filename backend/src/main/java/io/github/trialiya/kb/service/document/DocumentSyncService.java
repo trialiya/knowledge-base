@@ -132,30 +132,23 @@ public class DocumentSyncService {
             DocumentTreeRow row = unmatched.remove(disk.segment());
 
             if (row == null) {
-                sink.accept(
-                        new SyncEntry(
-                                path, disk.title(), disk.type(), SyncStatus.ADDED, null, depth));
+                sink.accept(new SyncEntry(path, disk.title(), disk.type(), SyncStatus.ADDED, null, depth));
                 if (disk.folder()) {
                     markDiskSubtree(disk.dir(), path, depth + 1, sink);
                 }
                 continue;
             }
-            boolean same =
-                    row.title().equals(disk.title())
-                            && row.isFolder() == disk.folder()
-                            && normalize(readBody(disk.bodyFile()))
-                                    .equals(
-                                            normalize(
-                                                    exportService.renderBody(
-                                                            row, path(row, path), idToFile)));
-            sink.accept(
-                    new SyncEntry(
-                            path,
-                            disk.title(),
-                            disk.type(),
-                            same ? SyncStatus.UNCHANGED : SyncStatus.MODIFIED,
-                            row.id(),
-                            depth));
+            boolean same = row.title().equals(disk.title())
+                    && row.isFolder() == disk.folder()
+                    && normalize(readBody(disk.bodyFile()))
+                            .equals(normalize(exportService.renderBody(row, path(row, path), idToFile)));
+            sink.accept(new SyncEntry(
+                    path,
+                    disk.title(),
+                    disk.type(),
+                    same ? SyncStatus.UNCHANGED : SyncStatus.MODIFIED,
+                    row.id(),
+                    depth));
             if (disk.folder() && row.isFolder()) {
                 compareDir(disk.dir(), row.id(), path, depth + 1, idToFile, sink);
             }
@@ -164,9 +157,7 @@ public class DocumentSyncService {
         // Whatever the database still has at this level has no file behind it any more.
         for (DocumentTreeRow row : unmatched.values()) {
             String path = prefix(pathPrefix, DocumentTreeReader.safeName(row.title()));
-            sink.accept(
-                    new SyncEntry(
-                            path, row.title(), row.type(), SyncStatus.MISSING, row.id(), depth));
+            sink.accept(new SyncEntry(path, row.title(), row.type(), SyncStatus.MISSING, row.id(), depth));
             markDbSubtree(row.id(), path, depth + 1, sink);
         }
     }
@@ -178,8 +169,7 @@ public class DocumentSyncService {
         }
         for (DiskEntry disk : orderedDiskChildren(dir)) {
             String path = prefix(pathPrefix, disk.segment());
-            sink.accept(
-                    new SyncEntry(path, disk.title(), disk.type(), SyncStatus.ADDED, null, depth));
+            sink.accept(new SyncEntry(path, disk.title(), disk.type(), SyncStatus.ADDED, null, depth));
             if (disk.folder()) {
                 markDiskSubtree(disk.dir(), path, depth + 1, sink);
             }
@@ -187,13 +177,10 @@ public class DocumentSyncService {
     }
 
     /** A folder that exists only in the database: everything under it is missing too. */
-    private void markDbSubtree(
-            long parentId, String pathPrefix, int depth, Consumer<SyncEntry> sink) {
+    private void markDbSubtree(long parentId, String pathPrefix, int depth, Consumer<SyncEntry> sink) {
         for (DocumentTreeRow row : tree.children(parentId)) {
             String path = prefix(pathPrefix, DocumentTreeReader.safeName(row.title()));
-            sink.accept(
-                    new SyncEntry(
-                            path, row.title(), row.type(), SyncStatus.MISSING, row.id(), depth));
+            sink.accept(new SyncEntry(path, row.title(), row.type(), SyncStatus.MISSING, row.id(), depth));
             if (row.isFolder()) {
                 markDbSubtree(row.id(), path, depth + 1, sink);
             }
@@ -290,8 +277,7 @@ public class DocumentSyncService {
                 update(disk, row, path, tally, written, sink);
             }
             if (disk.folder()) {
-                importDir(
-                        disk.dir(), id, path, depth + 1, selection, tally, written, toDelete, sink);
+                importDir(disk.dir(), id, path, depth + 1, selection, tally, written, toDelete, sink);
             }
         }
 
@@ -308,20 +294,13 @@ public class DocumentSyncService {
      * {@link #compareDir} does for the same case via {@link #markDbSubtree}.
      */
     private void queueMissing(
-            DocumentTreeRow row,
-            String path,
-            @Nullable Set<String> selection,
-            List<Missing> toDelete) {
+            DocumentTreeRow row, String path, @Nullable Set<String> selection, List<Missing> toDelete) {
         if (selection == null || selection.contains(path)) {
             toDelete.add(new Missing(row.id(), path));
         }
         if (row.isFolder()) {
             for (DocumentTreeRow child : tree.children(row.id())) {
-                queueMissing(
-                        child,
-                        prefix(path, DocumentTreeReader.safeName(child.title())),
-                        selection,
-                        toDelete);
+                queueMissing(child, prefix(path, DocumentTreeReader.safeName(child.title())), selection, toDelete);
             }
         }
     }
@@ -381,16 +360,11 @@ public class DocumentSyncService {
     }
 
     /** Pass B — turn relative links back into {@code /?doc=ID} now that every id is known. */
-    private void relink(
-            List<Written> written,
-            Map<String, Long> fileToId,
-            Tally tally,
-            Consumer<SyncEvent> sink) {
+    private void relink(List<Written> written, Map<String, Long> fileToId, Tally tally, Consumer<SyncEvent> sink) {
 
         for (Written node : written) {
             String body = readBodyByExportPath(node.exportFile());
-            String rewritten =
-                    DocumentLinkRewriter.toDocLinks(body, node.exportFile(), fileToId::get);
+            String rewritten = DocumentLinkRewriter.toDocLinks(body, node.exportFile(), fileToId::get);
             if (rewritten == null) {
                 continue; // nothing resolved — the single write pass A did was enough
             }
@@ -399,8 +373,7 @@ public class DocumentSyncService {
             try {
                 documents.update(node.id(), req);
                 tally.relinked++;
-                sink.accept(
-                        SyncEvent.progress(tally.processed(), node.path(), SyncAction.RELINKED));
+                sink.accept(SyncEvent.progress(tally.processed(), node.path(), SyncAction.RELINKED));
             } catch (RuntimeException e) {
                 failed(tally, node.path(), e, sink);
             }
@@ -418,8 +391,7 @@ public class DocumentSyncService {
                 if (tree.row(node.id()).isPresent()) {
                     documents.delete(node.id());
                     tally.deleted++;
-                    sink.accept(
-                            SyncEvent.progress(tally.processed(), node.path(), SyncAction.DELETED));
+                    sink.accept(SyncEvent.progress(tally.processed(), node.path(), SyncAction.DELETED));
                 }
             } catch (RuntimeException e) {
                 failed(tally, node.path(), e, sink);
@@ -432,8 +404,7 @@ public class DocumentSyncService {
      * right: the row's own status line stays translated, and "три узла пропущены" without saying
      * which, or why, is exactly the report this feature was asked to stop producing.
      */
-    private @Nullable Long failed(
-            Tally tally, String path, RuntimeException e, Consumer<SyncEvent> sink) {
+    private @Nullable Long failed(Tally tally, String path, RuntimeException e, Consumer<SyncEvent> sink) {
         tally.failed++;
         log.warn("Import skipped {}: {}", path, e.getMessage());
         sink.accept(SyncEvent.failure(tally.processed(), path, e.getMessage()));
@@ -452,9 +423,7 @@ public class DocumentSyncService {
         Set<String> taken = new HashSet<>();
         for (DocumentTreeRow row : tree.children(parentId)) {
             bySegment.put(
-                    DocumentTreeReader.claim(
-                            DocumentTreeReader.safeName(row.title()), taken, segment -> false),
-                    row);
+                    DocumentTreeReader.claim(DocumentTreeReader.safeName(row.title()), taken, segment -> false), row);
         }
         return bySegment;
     }
@@ -515,11 +484,9 @@ public class DocumentSyncService {
             }
             String target = m.group(2).trim();
             // A folder is listed through its .content.md; a document through its own .md.
-            String segment =
-                    target.endsWith(FOLDER_CONTENT_FILE)
-                            ? target.substring(
-                                    0, target.length() - FOLDER_CONTENT_FILE.length() - 1)
-                            : DocumentTreeReader.stripMdExtension(target);
+            String segment = target.endsWith(FOLDER_CONTENT_FILE)
+                    ? target.substring(0, target.length() - FOLDER_CONTENT_FILE.length() - 1)
+                    : DocumentTreeReader.stripMdExtension(target);
             if (!segment.isEmpty() && !segment.contains("/")) {
                 entries.add(new IndexEntry(m.group(1).trim(), segment));
             }
@@ -561,8 +528,7 @@ public class DocumentSyncService {
         String path = config.exportPath();
         if (path == null || path.isBlank()) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Export path is not configured (kb.documents.export-path)");
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Export path is not configured (kb.documents.export-path)");
         }
         return path;
     }
@@ -571,8 +537,7 @@ public class DocumentSyncService {
         Path base = Paths.get(requireExportPath());
         if (!Files.isDirectory(base)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Export folder does not exist: " + base.toAbsolutePath());
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Export folder does not exist: " + base.toAbsolutePath());
         }
         return base;
     }
@@ -583,8 +548,7 @@ public class DocumentSyncService {
         }
         DocumentTreeRow row = exportService.requireRow(parentId);
         if (!row.isFolder()) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT, "Target parent must be a folder");
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, "Target parent must be a folder");
         }
     }
 
@@ -603,8 +567,7 @@ public class DocumentSyncService {
      * @param segment file-name segment — the last part of the node path
      * @param title from {@code .index.md}, falling back to the segment
      */
-    private record DiskEntry(
-            Path dir, Path bodyFile, String segment, String title, boolean folder) {
+    private record DiskEntry(Path dir, Path bodyFile, String segment, String title, boolean folder) {
 
         static DiskEntry ofFolder(Path dir, String segment) {
             return new DiskEntry(dir, dir.resolve(FOLDER_CONTENT_FILE), segment, segment, true);
@@ -612,8 +575,7 @@ public class DocumentSyncService {
 
         static DiskEntry ofDocument(Path file, String segment) {
             // file is always nested under the export root, so it always has a parent.
-            return new DiskEntry(
-                    Objects.requireNonNull(file.getParent()), file, segment, segment, false);
+            return new DiskEntry(Objects.requireNonNull(file.getParent()), file, segment, segment, false);
         }
 
         DiskEntry withTitle(String title) {
@@ -663,8 +625,7 @@ public class DocumentSyncService {
         }
 
         int processed() {
-            return added + modified + unchanged + missing + created + updated + deleted + relinked
-                    + failed;
+            return added + modified + unchanged + missing + created + updated + deleted + relinked + failed;
         }
 
         DiffSummary diffSummary() {

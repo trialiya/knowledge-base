@@ -34,8 +34,7 @@ public final class MarkdownSections {
     private static final String PATH_SEPARATOR = " > ";
 
     /** ATX heading: 0–3 leading spaces, 1–6 hashes, then space + title (or nothing). */
-    private static final Pattern HEADING =
-            Pattern.compile("^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?[ \\t]*$");
+    private static final Pattern HEADING = Pattern.compile("^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?[ \\t]*$");
 
     /**
      * Code fence line: indent (group 1), list-item markers the fence may follow on the same line
@@ -43,8 +42,7 @@ public final class MarkdownSections {
      * (group 4). How much indent is allowed depends on whether the line opens or closes a block —
      * see {@link #scanHeadings}.
      */
-    private static final Pattern FENCE =
-            Pattern.compile("^( *)((?:(?:[-*+]|\\d{1,9}[.)])[ \\t]+)*)(`{3,}|~{3,})(.*)$");
+    private static final Pattern FENCE = Pattern.compile("^( *)((?:(?:[-*+]|\\d{1,9}[.)])[ \\t]+)*)(`{3,}|~{3,})(.*)$");
 
     private MarkdownSections() {}
 
@@ -59,8 +57,7 @@ public final class MarkdownSections {
      * @param endOffset offset of the next same-or-higher-level heading, or text length (exclusive)
      * @param subsections number of direct child headings inside the section
      */
-    public record Section(
-            String path, int level, String title, int startOffset, int endOffset, int subsections) {
+    public record Section(String path, int level, String title, int startOffset, int endOffset, int subsections) {
 
         /** Size of the whole subtree (heading + body + subsections) in characters. */
         public int chars() {
@@ -93,9 +90,7 @@ public final class MarkdownSections {
                 stack.remove(stack.size() - 1);
             }
             String path =
-                    stack.isEmpty()
-                            ? h.title()
-                            : stack.get(stack.size() - 1).path() + PATH_SEPARATOR + h.title();
+                    stack.isEmpty() ? h.title() : stack.get(stack.size() - 1).path() + PATH_SEPARATOR + h.title();
             int occurrence = pathCounts.merge(path, 1, Integer::sum);
             String finalPath = occurrence == 1 ? path : path + "[" + occurrence + "]";
             stack.add(new Ancestor(h.level(), finalPath));
@@ -115,8 +110,7 @@ public final class MarkdownSections {
                     childLevel = next.level();
                 }
             }
-            sections.add(
-                    new Section(finalPath, h.level(), h.title(), h.offset(), end, subsections));
+            sections.add(new Section(finalPath, h.level(), h.title(), h.offset(), end, subsections));
         }
         return sections;
     }
@@ -139,8 +133,7 @@ public final class MarkdownSections {
      * Inserts {@code newContent} (trimmed) before or after the {@code anchor} section subtree,
      * keeping blank-line separators on both sides.
      */
-    public static String insertSection(
-            String markdown, Section anchor, String newContent, boolean before) {
+    public static String insertSection(String markdown, Section anchor, String newContent, boolean before) {
         String body = newContent.strip();
         int offset = before ? anchor.startOffset() : anchor.endOffset();
         String prefix = markdown.substring(0, offset);
@@ -223,9 +216,7 @@ public final class MarkdownSections {
             } else if (!inFence) {
                 Matcher heading = HEADING.matcher(line);
                 if (heading.matches()) {
-                    headings.add(
-                            new RawHeading(
-                                    pos, heading.group(1).length(), cleanTitle(heading.group(2))));
+                    headings.add(new RawHeading(pos, heading.group(1).length(), cleanTitle(heading.group(2))));
                 }
             }
             pos = lineEnd + 1;

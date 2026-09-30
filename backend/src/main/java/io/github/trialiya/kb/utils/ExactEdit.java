@@ -66,32 +66,25 @@ public final class ExactEdit {
      *     missing, or ambiguous — every message names what the model has to do next
      */
     public static Result replace(
-            String text,
-            String oldString,
-            String newString,
-            boolean replaceAll,
-            String target,
-            String rereadTool) {
+            String text, String oldString, String newString, boolean replaceAll, String target, String rereadTool) {
         requireUsableFragment(oldString, newString);
 
         int occurrences = countOccurrences(text, oldString);
         if (occurrences == 0) {
-            throw new IllegalArgumentException(
-                    "oldString not found in "
-                            + target
-                            + ". Re-read the current content ("
-                            + rereadTool
-                            + ") and pass an exact, character-for-character fragment including"
-                            + " whitespace.");
+            throw new IllegalArgumentException("oldString not found in "
+                    + target
+                    + ". Re-read the current content ("
+                    + rereadTool
+                    + ") and pass an exact, character-for-character fragment including"
+                    + " whitespace.");
         }
         if (occurrences > 1 && !replaceAll) {
-            throw new IllegalArgumentException(
-                    "oldString occurs "
-                            + occurrences
-                            + " times in "
-                            + target
-                            + ". Extend it with surrounding lines to make it unique, or pass"
-                            + " replaceAll=true to replace every occurrence.");
+            throw new IllegalArgumentException("oldString occurs "
+                    + occurrences
+                    + " times in "
+                    + target
+                    + ". Extend it with surrounding lines to make it unique, or pass"
+                    + " replaceAll=true to replace every occurrence.");
         }
         return new Result(text.replace(oldString, newString), occurrences);
     }

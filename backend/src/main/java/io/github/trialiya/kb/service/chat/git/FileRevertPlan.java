@@ -83,8 +83,7 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
         keptDeletions.keySet().retainAll(paths);
         final Map<String, List<TextEdit>> keptEdits = new LinkedHashMap<>(edits);
         keptEdits.keySet().retainAll(paths);
-        return new FileRevertPlan(
-                Collections.unmodifiableMap(keptDeletions), Collections.unmodifiableMap(keptEdits));
+        return new FileRevertPlan(Collections.unmodifiableMap(keptDeletions), Collections.unmodifiableMap(keptEdits));
     }
 
     /**
@@ -101,8 +100,7 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
             final Map<String, String> arguments = argumentsByCallId(row.getToolData());
             // Плашек нет у ряда без меты — а это каждый TOOL-ряд ответа: мету проставляют одним
             // ASSISTANT-сегментам (см. ChatHistoryService.markRunResult).
-            final List<ToolInvocationMeta> calls =
-                    row.getInvocations() == null ? List.of() : row.getInvocations();
+            final List<ToolInvocationMeta> calls = row.getInvocations() == null ? List.of() : row.getInvocations();
             for (ToolInvocationMeta call : calls) {
                 collect(call, arguments, edits, deletions);
             }
@@ -113,9 +111,7 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
         // же поправленный файл не откатить никогда.
         deletions.replaceAll((path, created) -> applied(path, created, edits.get(path)));
         edits.keySet().removeAll(deletions.keySet());
-        return new FileRevertPlan(
-                Collections.unmodifiableMap(deletions),
-                Collections.unmodifiableMap(reverse(edits)));
+        return new FileRevertPlan(Collections.unmodifiableMap(deletions), Collections.unmodifiableMap(reverse(edits)));
     }
 
     /**
@@ -125,23 +121,21 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
      * состояния для сверки. Не сойдись они — история противоречит сама себе, и лучше отказаться,
      * чем удалить файл, содержимое которого мы не понимаем.
      */
-    private static String applied(
-            String path, String created, @Nullable List<TextEdit> forwardEdits) {
+    private static String applied(String path, String created, @Nullable List<TextEdit> forwardEdits) {
         if (forwardEdits == null) {
             return created;
         }
         String text = created;
         for (TextEdit edit : forwardEdits) {
             try {
-                text =
-                        ExactEdit.replace(
-                                        text,
-                                        edit.oldString().replace("\r\n", "\n"),
-                                        edit.newString().replace("\r\n", "\n"),
-                                        edit.replaceAll(),
-                                        path,
-                                        "getFileContent")
-                                .text();
+                text = ExactEdit.replace(
+                                text,
+                                edit.oldString().replace("\r\n", "\n"),
+                                edit.newString().replace("\r\n", "\n"),
+                                edit.replaceAll(),
+                                path,
+                                "getFileContent")
+                        .text();
             } catch (IllegalArgumentException e) {
                 throw new FileRevertRefusedException(
                         "Cannot tell what this answer left in " + path + " — undo it with git.", e);
@@ -157,9 +151,7 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
             Map<String, String> deletions) {
         if (SCRIPTS.contains(String.valueOf(call.name())) && changedFiles(call)) {
             throw new FileRevertRefusedException(
-                    "The answer changed files with "
-                            + call.name()
-                            + " — those edits can only be undone with git.");
+                    "The answer changed files with " + call.name() + " — those edits can only be undone with git.");
         }
         if (!CREATE.equals(call.name()) && !EDIT.equals(call.name())) {
             return;
@@ -170,8 +162,7 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
             return;
         }
         final String path = path(call);
-        final Map<String, Object> args =
-                parseArguments(call.callId() == null ? null : arguments.get(call.callId()));
+        final Map<String, Object> args = parseArguments(call.callId() == null ? null : arguments.get(call.callId()));
         if (path == null || args.isEmpty()) {
             throw new FileRevertRefusedException(
                     "This answer was written by an older version and does not carry what it changed"
@@ -182,11 +173,8 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
             return;
         }
         edits.computeIfAbsent(path, p -> new ArrayList<>())
-                .add(
-                        new TextEdit(
-                                text(args, "oldString"),
-                                text(args, "newString"),
-                                Boolean.TRUE.equals(args.get("replaceAll"))));
+                .add(new TextEdit(
+                        text(args, "oldString"), text(args, "newString"), Boolean.TRUE.equals(args.get("replaceAll"))));
     }
 
     /** Путь так, как его записал репозиторий, — тем же полем, по которому чат рисует плашку. */
@@ -209,16 +197,13 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
     private static String text(Map<String, Object> args, String key) {
         final Object value = args.get(key);
         if (!(value instanceof String text)) {
-            throw new FileRevertRefusedException(
-                    "The recorded edit has no " + key + " — undo it with git.");
+            throw new FileRevertRefusedException("The recorded edit has no " + key + " — undo it with git.");
         }
         return text;
     }
 
     private static boolean changedFiles(ToolInvocationMeta call) {
-        return call.resultMeta() != null
-                && call.resultMeta().get("edits") instanceof List<?> list
-                && !list.isEmpty();
+        return call.resultMeta() != null && call.resultMeta().get("edits") instanceof List<?> list && !list.isEmpty();
     }
 
     private static Map<String, String> argumentsByCallId(@Nullable ToolData toolData) {
@@ -242,18 +227,11 @@ record FileRevertPlan(Map<String, String> deletions, Map<String, List<TextEdit>>
      */
     private static Map<String, List<TextEdit>> reverse(Map<String, List<TextEdit>> edits) {
         final Map<String, List<TextEdit>> reversed = new LinkedHashMap<>();
-        edits.forEach(
-                (path, forward) ->
-                        reversed.put(
-                                path,
-                                forward.reversed().stream()
-                                        .map(
-                                                e ->
-                                                        new TextEdit(
-                                                                e.newString(),
-                                                                e.oldString(),
-                                                                e.replaceAll()))
-                                        .toList()));
+        edits.forEach((path, forward) -> reversed.put(
+                path,
+                forward.reversed().stream()
+                        .map(e -> new TextEdit(e.newString(), e.oldString(), e.replaceAll()))
+                        .toList()));
         return reversed;
     }
 }

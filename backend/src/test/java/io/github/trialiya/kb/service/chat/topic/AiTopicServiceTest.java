@@ -61,8 +61,7 @@ class AiTopicServiceTest {
 
     @Test
     void theFirstAnswerNamesTheChatAndTellsTheTabs() {
-        when(chatTopics.findById(CONV))
-                .thenReturn(chat(null, null, null), chat(null, "Настройка pgvector", 1));
+        when(chatTopics.findById(CONV)).thenReturn(chat(null, null, null), chat(null, "Настройка pgvector", 1));
         turns(1);
         answerWith("«Настройка pgvector»");
 
@@ -71,11 +70,7 @@ class AiTopicServiceTest {
         verify(chatTopics).updateAiTopic(CONV, "Настройка pgvector", 1);
         verify(events)
                 .publish(
-                        CONV,
-                        CHAT_TOPIC,
-                        null,
-                        null,
-                        new ChatTopicPayload("Настройка pgvector", "Настройка pgvector"));
+                        CONV, CHAT_TOPIC, null, null, new ChatTopicPayload("Настройка pgvector", "Настройка pgvector"));
         assertThat(requestText()).startsWith("Conversation, oldest first:");
     }
 
@@ -162,12 +157,7 @@ class AiTopicServiceTest {
         service(true).name(CONV);
 
         verify(events)
-                .publish(
-                        CONV,
-                        CHAT_TOPIC,
-                        null,
-                        null,
-                        new ChatTopicPayload("Renamed meanwhile", "Kafka retries"));
+                .publish(CONV, CHAT_TOPIC, null, null, new ChatTopicPayload("Renamed meanwhile", "Kafka retries"));
     }
 
     /** Удалённому чату название не нужно — и событие о нём пришло бы после CHAT_DELETED. */
@@ -209,23 +199,13 @@ class AiTopicServiceTest {
     }
 
     private void row(MessageType type, String content) {
-        rows.add(
-                new ChatMessageEntity(
-                        rows.size() + 1L,
-                        CONV,
-                        content,
-                        type,
-                        rows.size(),
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        null));
+        rows.add(new ChatMessageEntity(
+                rows.size() + 1L, CONV, content, type, rows.size(), false, false, LocalDateTime.now(), null));
     }
 
     private void answerWith(String content) {
         when(chatModel.call(any(Prompt.class)))
-                .thenReturn(
-                        new ChatResponse(List.of(new Generation(new AssistantMessage(content)))));
+                .thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(content)))));
     }
 
     private String requestText() {
@@ -240,18 +220,17 @@ class AiTopicServiceTest {
 
     private static Optional<ChatTopicEntity> chat(
             @Nullable String userTopic, @Nullable String aiTopic, @Nullable Integer aiTopicTurn) {
-        return Optional.of(
-                new ChatTopicEntity(
-                        CONV,
-                        "user",
-                        userTopic,
-                        aiTopic,
-                        aiTopicTurn,
-                        null,
-                        null,
-                        null,
-                        LocalDateTime.now(),
-                        LocalDateTime.now(),
-                        false));
+        return Optional.of(new ChatTopicEntity(
+                CONV,
+                "user",
+                userTopic,
+                aiTopic,
+                aiTopicTurn,
+                null,
+                null,
+                null,
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                false));
     }
 }

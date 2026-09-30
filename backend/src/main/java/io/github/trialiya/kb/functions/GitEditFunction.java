@@ -48,21 +48,17 @@ public class GitEditFunction {
         return gitRegistry.requireEditable(ProjectContext.from(context));
     }
 
-    @Tool(
-            description =
-                    """
+    @Tool(description = """
                     Create a NEW file in the repository working tree and stage it (git add). \
                     Fails if file exists (use editFile for modifications) or path is .gitignore'd. \
                     Changes are NOT committed — user reviews and commits. \
                     Returns: operation, path, additions, lineCount.
-                    """,
-            resultConverter = CompactToolResultConverter.class)
+                    """, resultConverter = CompactToolResultConverter.class)
     public GitEditResult createFile(
             ToolContext context,
             @ToolParam(
-                            description =
-                                    "Path of the new file relative to repo root (e.g., "
-                                            + "\"src/main/java/com/example/New.java\").")
+                            description = "Path of the new file relative to repo root (e.g., "
+                                    + "\"src/main/java/com/example/New.java\").")
                     String filePath,
             @ToolParam(description = "Full content of the new file (UTF-8).") String content) {
         requireText(filePath, "filePath");
@@ -73,37 +69,32 @@ public class GitEditFunction {
         return editable(context).createFile(filePath, content);
     }
 
-    @Tool(
-            description =
-                    """
+    @Tool(description = """
                     Surgical edit of an existing tracked file: replace oldString with newString. \
                     oldString must appear EXACTLY once (unless replaceAll=true) and match character-for-character, \
                     including whitespace and line breaks — quote it from real current content (getFileContent, getFileOutline, or a grep result). \
                     No prior read required — the exact match is the safety check. \
                     Changes are NOT committed. Returns: operation, path, additions, deletions, lineCount, diff.
-                    """,
-            resultConverter = CompactToolResultConverter.class)
+                    """, resultConverter = CompactToolResultConverter.class)
     public GitEditResult editFile(
             ToolContext context,
             @ToolParam(
-                            description =
-                                    "Exact file path relative to repo root (e.g., "
-                                            + "\"src/main/java/com/example/App.java\").")
+                            description = "Exact file path relative to repo root (e.g., "
+                                    + "\"src/main/java/com/example/App.java\").")
                     String filePath,
             @ToolParam(
                             description =
                                     "Exact existing text fragment to replace (character-for-character, including whitespace). "
                                             + "Must be unique in the file — add surrounding lines if ambiguous.")
                     String oldString,
-            @ToolParam(
-                            description =
-                                    "New text to replace oldString. Empty string to delete the fragment.")
+            @ToolParam(description = "New text to replace oldString. Empty string to delete the fragment.")
                     String newString,
             @ToolParam(
                             description =
                                     "Replace ALL occurrences of oldString (true) or exactly one (false, default).",
                             required = false)
-                    @Nullable Boolean replaceAll) {
+                    @Nullable
+                    Boolean replaceAll) {
         requireText(filePath, "filePath");
         // Not requireText: a fragment made only of whitespace is a legitimate (if unlikely) edit,
         // and the exactly-once rule below rejects it far more precisely than a blank check would.

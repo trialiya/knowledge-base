@@ -10,5 +10,4 @@ import java.time.LocalDateTime;
  * @param summary текст сводки без протокольной обёртки — ровно тот документ, который написала
  *     модель; обёртка адресована ей, а не читателю
  */
-public record CompactDetail(
-        long messageId, int messages, int summaryChars, LocalDateTime createdAt, String summary) {}
+public record CompactDetail(long messageId, int messages, int summaryChars, LocalDateTime createdAt, String summary) {}

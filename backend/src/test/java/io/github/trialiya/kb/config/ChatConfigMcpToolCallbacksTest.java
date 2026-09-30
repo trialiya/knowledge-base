@@ -37,8 +37,7 @@ class ChatConfigMcpToolCallbacksTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static ObjectProvider<McpClientCommonProperties> provider(
-            McpClientCommonProperties properties) {
+    private static ObjectProvider<McpClientCommonProperties> provider(McpClientCommonProperties properties) {
         ObjectProvider<McpClientCommonProperties> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(properties);
         return provider;

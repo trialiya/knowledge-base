@@ -43,13 +43,13 @@ class DocumentsCreatedAtBackfillTest {
     // chain to parse at all.
     private static final Map<String, String> FLYWAY_PLACEHOLDERS = Map.of("default_user", "admin");
 
-    @TempDir private Path earlierMigrationsDir;
+    @TempDir
+    private Path earlierMigrationsDir;
 
     // Unique per test run so re-runs / parallel forks never share an in-memory instance.
-    private final String jdbcUrl =
-            "jdbc:h2:mem:created-at-backfill-"
-                    + System.nanoTime()
-                    + ";MODE=PostgreSQL;DEFAULT_NULL_ORDERING=HIGH;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1";
+    private final String jdbcUrl = "jdbc:h2:mem:created-at-backfill-"
+            + System.nanoTime()
+            + ";MODE=PostgreSQL;DEFAULT_NULL_ORDERING=HIGH;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1";
 
     private Connection connection;
 
@@ -84,16 +84,14 @@ class DocumentsCreatedAtBackfillTest {
         //          seeded straight into `documents` that was never routed through
         //          DocumentService.create()/update()).
         try (Statement st = connection.createStatement()) {
-            st.execute(
-                    "INSERT INTO documents (id, title, type, updated_at, position, version) VALUES"
-                            + " (1, 'edited since creation', 'document', '2026-06-01 00:00:00+00', 0, 2),"
-                            + " (2, 'never edited', 'document', '2026-03-15 12:00:00+00', 1, 1),"
-                            + " (3, 'no history row', 'document', '2026-04-01 00:00:00+00', 2, 1)");
-            st.execute(
-                    "INSERT INTO document_history (id, document_id, version, title, type, updated_at) VALUES"
-                            + " (10, 1, 2, 'edited since creation', 'document', '2026-01-01 00:00:00+00'),"
-                            + " (11, 1, 3, 'edited since creation', 'document', '2026-06-01 00:00:00+00'),"
-                            + " (20, 2, 1, 'never edited', 'document', '2026-03-15 12:00:00+00')");
+            st.execute("INSERT INTO documents (id, title, type, updated_at, position, version) VALUES"
+                    + " (1, 'edited since creation', 'document', '2026-06-01 00:00:00+00', 0, 2),"
+                    + " (2, 'never edited', 'document', '2026-03-15 12:00:00+00', 1, 1),"
+                    + " (3, 'no history row', 'document', '2026-04-01 00:00:00+00', 2, 1)");
+            st.execute("INSERT INTO document_history (id, document_id, version, title, type, updated_at) VALUES"
+                    + " (10, 1, 2, 'edited since creation', 'document', '2026-01-01 00:00:00+00'),"
+                    + " (11, 1, 3, 'edited since creation', 'document', '2026-06-01 00:00:00+00'),"
+                    + " (20, 2, 1, 'never edited', 'document', '2026-03-15 12:00:00+00')");
         }
 
         // ── Phase 2: the real migration chain, including the migration under test ───
@@ -104,13 +102,10 @@ class DocumentsCreatedAtBackfillTest {
                 .load()
                 .migrate();
 
-        assertThat(createdAtOf(1))
-                .isEqualTo(OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC));
-        assertThat(createdAtOf(2))
-                .isEqualTo(OffsetDateTime.of(2026, 3, 15, 12, 0, 0, 0, ZoneOffset.UTC));
+        assertThat(createdAtOf(1)).isEqualTo(OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC));
+        assertThat(createdAtOf(2)).isEqualTo(OffsetDateTime.of(2026, 3, 15, 12, 0, 0, 0, ZoneOffset.UTC));
         // No history at all: falls back to updated_at rather than failing the backfill.
-        assertThat(createdAtOf(3))
-                .isEqualTo(OffsetDateTime.of(2026, 4, 1, 0, 0, 0, 0, ZoneOffset.UTC));
+        assertThat(createdAtOf(3)).isEqualTo(OffsetDateTime.of(2026, 4, 1, 0, 0, 0, 0, ZoneOffset.UTC));
 
         // The point of the whole migration: doc 1's creation date must NOT be its last edit.
         assertThat(createdAtOf(1)).isNotEqualTo(updatedAtOf(1));
@@ -126,9 +121,7 @@ class DocumentsCreatedAtBackfillTest {
 
     private OffsetDateTime dateColumnOf(long documentId, String column) throws Exception {
         try (Statement st = connection.createStatement();
-                ResultSet rs =
-                        st.executeQuery(
-                                "SELECT " + column + " FROM documents WHERE id = " + documentId)) {
+                ResultSet rs = st.executeQuery("SELECT " + column + " FROM documents WHERE id = " + documentId)) {
             assertThat(rs.next()).as("document " + documentId + " exists").isTrue();
             return rs.getObject(1, OffsetDateTime.class);
         }
@@ -142,8 +135,7 @@ class DocumentsCreatedAtBackfillTest {
         for (String name : migrationFileNames().toList()) {
             if (name.compareTo(exclude) >= 0) continue;
             try (InputStream in =
-                    DocumentsCreatedAtBackfillTest.class.getResourceAsStream(
-                            "/db/migration-h2/" + name)) {
+                    DocumentsCreatedAtBackfillTest.class.getResourceAsStream("/db/migration-h2/" + name)) {
                 Files.copy(in, targetDir.resolve(name));
             }
         }
@@ -158,20 +150,14 @@ class DocumentsCreatedAtBackfillTest {
     private static Stream<String> migrationFileNames() throws IOException {
         Path dir;
         try {
-            dir =
-                    Path.of(
-                            DocumentsCreatedAtBackfillTest.class
-                                    .getResource("/db/migration-h2")
-                                    .toURI());
+            dir = Path.of(DocumentsCreatedAtBackfillTest.class
+                    .getResource("/db/migration-h2")
+                    .toURI());
         } catch (Exception e) {
             throw new UncheckedIOException(new IOException(e));
         }
         try (Stream<Path> files = Files.list(dir)) {
-            return files
-                    .map(p -> p.getFileName().toString())
-                    .sorted(Comparator.naturalOrder())
-                    .toList()
-                    .stream();
+            return files.map(p -> p.getFileName().toString()).sorted(Comparator.naturalOrder()).toList().stream();
         }
     }
 }

@@ -96,8 +96,7 @@ public class RecordingToolCallback implements ToolCallback {
         final long started = System.nanoTime();
         try {
             final String result = delegate.call(toolInput);
-            ToolCallLog.ok(
-                    null, name, toolInput, parseToolInput(toolInput), result, since(started));
+            ToolCallLog.ok(null, name, toolInput, parseToolInput(toolInput), result, since(started));
             return result;
         } catch (RuntimeException e) {
             ToolCallLog.failed(null, name, toolInput, parseToolInput(toolInput), e, since(started));
@@ -116,17 +115,7 @@ public class RecordingToolCallback implements ToolCallback {
         final long started = System.nanoTime();
         if (collector != null) {
             collector.record(
-                    new ToolInvocation(
-                            name,
-                            toolInputMap,
-                            STARTED,
-                            null,
-                            null,
-                            null,
-                            toolInput,
-                            null,
-                            callIdx,
-                            null));
+                    new ToolInvocation(name, toolInputMap, STARTED, null, null, null, toolInput, null, callIdx, null));
         }
         try {
             CURRENT_RESULT.remove();
@@ -137,35 +126,24 @@ public class RecordingToolCallback implements ToolCallback {
             ToolCallLog.ok(toolContext, name, toolInput, toolInputMap, result, since(started));
             if (collector != null) {
                 Object raw = CURRENT_RESULT.get();
-                collector.record(
-                        new ToolInvocation(
-                                name,
-                                toolInputMap,
-                                OK,
-                                null,
-                                getMeta(payload(raw)),
-                                getGist(payload(raw)),
-                                toolInput,
-                                result,
-                                callIdx,
-                                projectOf(raw)));
+                collector.record(new ToolInvocation(
+                        name,
+                        toolInputMap,
+                        OK,
+                        null,
+                        getMeta(payload(raw)),
+                        getGist(payload(raw)),
+                        toolInput,
+                        result,
+                        callIdx,
+                        projectOf(raw)));
             }
             return result;
         } catch (Exception e) {
             ToolCallLog.failed(toolContext, name, toolInput, toolInputMap, e, since(started));
             if (collector != null) {
-                collector.record(
-                        new ToolInvocation(
-                                name,
-                                toolInputMap,
-                                ERROR,
-                                e.getMessage(),
-                                null,
-                                null,
-                                toolInput,
-                                null,
-                                callIdx,
-                                null));
+                collector.record(new ToolInvocation(
+                        name, toolInputMap, ERROR, e.getMessage(), null, null, toolInput, null, callIdx, null));
             }
             throw e;
         } finally {
@@ -178,8 +156,7 @@ public class RecordingToolCallback implements ToolCallback {
         return (System.nanoTime() - startedNanos) / 1_000_000;
     }
 
-    private static @Nullable ToolInvocationCollector collectorFrom(
-            @Nullable ToolContext toolContext) {
+    private static @Nullable ToolInvocationCollector collectorFrom(@Nullable ToolContext toolContext) {
         return ToolInvocationCollector.from(toolContext);
     }
 
@@ -189,15 +166,11 @@ public class RecordingToolCallback implements ToolCallback {
             return Map.of();
         }
         try {
-            return Optional.of((Map<Object, Object>) OBJECT_MAPPER.readValue(toolInput, Map.class))
-                    .stream()
+            return Optional.of((Map<Object, Object>) OBJECT_MAPPER.readValue(toolInput, Map.class)).stream()
                     .map(Map::entrySet)
                     .flatMap(Collection::stream)
                     .filter(entry -> entry.getValue() != null)
-                    .collect(
-                            toMap(
-                                    Map.Entry::getKey,
-                                    entity -> truncateObject(entity.getValue(), 100)));
+                    .collect(toMap(Map.Entry::getKey, entity -> truncateObject(entity.getValue(), 100)));
         } catch (NullPointerException | JsonProcessingException e) {
             log.error("Error parsing tool input {}", truncate(toolInput, 500), e);
             return Map.of();
@@ -223,9 +196,7 @@ public class RecordingToolCallback implements ToolCallback {
             STRICT_OBJECT_READER.readValue(arguments);
             return arguments;
         } catch (JsonProcessingException e) {
-            log.warn(
-                    "Malformed tool call arguments, replacing with an empty object: {}",
-                    truncate(arguments, 500));
+            log.warn("Malformed tool call arguments, replacing with an empty object: {}", truncate(arguments, 500));
             return "{}";
         }
     }
@@ -264,11 +235,8 @@ public class RecordingToolCallback implements ToolCallback {
             return map.entrySet().stream()
                     .filter(it -> it.getValue() instanceof ToolCallResultMetaProvider)
                     .collect(
-                            toMap(
-                                    entry -> entry.getKey().toString(),
-                                    it ->
-                                            ((ToolCallResultMetaProvider) it.getValue())
-                                                    .getResultMeta()));
+                            toMap(entry -> entry.getKey().toString(), it -> ((ToolCallResultMetaProvider) it.getValue())
+                                    .getResultMeta()));
         }
         return Map.of();
     }
@@ -280,24 +248,20 @@ public class RecordingToolCallback implements ToolCallback {
                 && !col.isEmpty()
                 && col.stream().allMatch(ToolCallResponseItem.class::isInstance)) {
             String head = "size=" + col.size() + (col.size() > 5 ? " (first 5)" : "");
-            String body =
-                    col.stream()
-                            .limit(5)
-                            .map(e -> ((ToolCallResponseItem) e).getFormattedResponse())
-                            .collect(Collectors.joining("\n"));
+            String body = col.stream()
+                    .limit(5)
+                    .map(e -> ((ToolCallResponseItem) e).getFormattedResponse())
+                    .collect(Collectors.joining("\n"));
             return head + "\n" + body;
         } else if (result instanceof Map<?, ?> map) {
             return map.entrySet().stream()
                     .filter(it -> it.getValue() != null)
-                    .collect(
-                            toMap(
-                                    Map.Entry::getKey,
-                                    it -> {
-                                        if (it.getValue() instanceof ToolCallResponseItem item) {
-                                            return item.getFormattedResponse();
-                                        }
-                                        return truncateObject(it.getValue(), 30);
-                                    }))
+                    .collect(toMap(Map.Entry::getKey, it -> {
+                        if (it.getValue() instanceof ToolCallResponseItem item) {
+                            return item.getFormattedResponse();
+                        }
+                        return truncateObject(it.getValue(), 30);
+                    }))
                     .toString();
         } else if (result instanceof String str) {
             return truncate(str, 50);

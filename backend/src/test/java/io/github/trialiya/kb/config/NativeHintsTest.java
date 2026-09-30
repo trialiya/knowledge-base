@@ -54,14 +54,10 @@ class NativeHintsTest {
     void everyExportedScriptMethodIsRegistered() {
         List<Method> exported = annotatedMethods(SCRIPT_PACKAGE, HostAccess.Export.class);
         assertThat(exported).as("методы под @HostAccess.Export").isNotEmpty();
-        assertThat(exported)
-                .allSatisfy(
-                        method ->
-                                assertThat(
-                                                RuntimeHintsPredicates.reflection()
-                                                        .onMethodInvocation(method))
-                                        .as("%s#%s", method.getDeclaringClass(), method.getName())
-                                        .accepts(HINTS));
+        assertThat(exported).allSatisfy(method -> assertThat(
+                        RuntimeHintsPredicates.reflection().onMethodInvocation(method))
+                .as("%s#%s", method.getDeclaringClass(), method.getName())
+                .accepts(HINTS));
     }
 
     /**
@@ -70,23 +66,16 @@ class NativeHintsTest {
      */
     @Test
     void everyToolHolderIsRegistered() {
-        List<Class<?>> holders =
-                annotatedMethods(TOOL_PACKAGE, Tool.class).stream()
-                        .<Class<?>>map(Method::getDeclaringClass)
-                        .distinct()
-                        .toList();
+        List<Class<?>> holders = annotatedMethods(TOOL_PACKAGE, Tool.class).stream()
+                .<Class<?>>map(Method::getDeclaringClass)
+                .distinct()
+                .toList();
         assertThat(holders).as("классы с методами под @Tool").isNotEmpty();
-        assertThat(holders)
-                .allSatisfy(
-                        holder ->
-                                assertThat(
-                                                RuntimeHintsPredicates.reflection()
-                                                        .onType(holder)
-                                                        .withMemberCategory(
-                                                                MemberCategory
-                                                                        .INVOKE_DECLARED_METHODS))
-                                        .as("%s", holder)
-                                        .accepts(HINTS));
+        assertThat(holders).allSatisfy(holder -> assertThat(RuntimeHintsPredicates.reflection()
+                        .onType(holder)
+                        .withMemberCategory(MemberCategory.INVOKE_DECLARED_METHODS))
+                .as("%s", holder)
+                .accepts(HINTS));
     }
 
     /**
@@ -101,17 +90,11 @@ class NativeHintsTest {
     void chatEventPayloadsAreRegistered() {
         List<Class<?>> payloads = typesIn(PAYLOAD_PACKAGE);
         assertThat(payloads).as("типы нагрузок событий чата").contains(ChatEvent.class);
-        assertThat(payloads)
-                .allSatisfy(
-                        payload ->
-                                assertThat(
-                                                RuntimeHintsPredicates.reflection()
-                                                        .onType(payload)
-                                                        .withMemberCategory(
-                                                                MemberCategory
-                                                                        .INVOKE_DECLARED_CONSTRUCTORS))
-                                        .as("%s", payload)
-                                        .accepts(HINTS));
+        assertThat(payloads).allSatisfy(payload -> assertThat(RuntimeHintsPredicates.reflection()
+                        .onType(payload)
+                        .withMemberCategory(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
+                .as("%s", payload)
+                .accepts(HINTS));
     }
 
     /**
@@ -135,15 +118,12 @@ class NativeHintsTest {
     }
 
     private List<Class<?>> typesIn(String basePackage) {
-        ClassPathScanningCandidateComponentProvider scanner =
-                new ClassPathScanningCandidateComponentProvider(false);
+        ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
         scanner.addIncludeFilter((reader, factory) -> true);
         List<Class<?>> found = new ArrayList<>();
         for (BeanDefinition definition : scanner.findCandidateComponents(basePackage)) {
-            found.add(
-                    ClassUtils.resolveClassName(
-                            String.valueOf(definition.getBeanClassName()),
-                            getClass().getClassLoader()));
+            found.add(ClassUtils.resolveClassName(
+                    String.valueOf(definition.getBeanClassName()), getClass().getClassLoader()));
         }
         return found;
     }

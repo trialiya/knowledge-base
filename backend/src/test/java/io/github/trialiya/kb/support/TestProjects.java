@@ -24,47 +24,25 @@ public final class TestProjects {
 
     /** A registry over the single repository at {@code repoDir}. */
     public static GitRegistry registry(Path repoDir, boolean editEnabled) {
-        return registry(
-                List.of(
-                        new ProjectOption(
-                                ID,
-                                null,
-                                repoDir.toString(),
-                                editEnabled,
-                                false,
-                                null,
-                                null,
-                                null,
-                                null,
-                                true)));
+        return registry(List.of(
+                new ProjectOption(ID, null, repoDir.toString(), editEnabled, false, null, null, null, null, true)));
     }
 
     /** A registry over several configured projects — the first one is the default. */
     public static GitRegistry registry(List<ProjectOption> projects) {
         return new GitRegistry(
-                new ProjectCatalog(new ProjectProperties(projects), new GitProperties(null)),
-                new OutlineService());
+                new ProjectCatalog(new ProjectProperties(projects), new GitProperties(null)), new OutlineService());
     }
 
     /** A read-only project entry at {@code path}. */
     public static ProjectOption project(String id, Path path) {
-        return new ProjectOption(
-                id, null, path.toString(), false, false, null, null, null, null, true);
+        return new ProjectOption(id, null, path.toString(), false, false, null, null, null, null, true);
     }
 
     /** A project entry at {@code path} whose user-run git commands are configured as given. */
     public static ProjectOption gitCommandsProject(String id, Path path, boolean push) {
         return new ProjectOption(
-                id,
-                null,
-                path.toString(),
-                false,
-                false,
-                null,
-                null,
-                null,
-                new GitCommandsOption(true, push),
-                true);
+                id, null, path.toString(), false, false, null, null, null, new GitCommandsOption(true, push), true);
     }
 
     /** A registry over the single repository at {@code repoDir}, with git commands configured. */
@@ -81,8 +59,7 @@ public final class TestProjects {
      * As {@link #gitService(Path, boolean)}, with the project's untracked {@code allow-globs}. The
      * admitted area is read-only, as it is for a project that does not ask for anything else.
      */
-    public static GitService gitService(
-            Path repoDir, boolean editEnabled, List<String> allowGlobs) {
+    public static GitService gitService(Path repoDir, boolean editEnabled, List<String> allowGlobs) {
         return gitService(repoDir, editEnabled, allowGlobs, false);
     }
 
@@ -98,18 +75,7 @@ public final class TestProjects {
      */
     public static GitRegistry registry(
             Path repoDir, boolean editEnabled, List<String> allowGlobs, boolean untrackedEdits) {
-        return registry(
-                List.of(
-                        new ProjectOption(
-                                ID,
-                                null,
-                                repoDir.toString(),
-                                editEnabled,
-                                untrackedEdits,
-                                allowGlobs,
-                                null,
-                                null,
-                                null,
-                                true)));
+        return registry(List.of(new ProjectOption(
+                ID, null, repoDir.toString(), editEnabled, untrackedEdits, allowGlobs, null, null, null, true)));
     }
 }

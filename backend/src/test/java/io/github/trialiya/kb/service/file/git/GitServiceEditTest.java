@@ -22,7 +22,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitServiceEditTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private GitService service;
 
@@ -48,8 +49,7 @@ class GitServiceEditTest {
         assertThat(result.diff()).isNull();
         assertThat(repoDir.resolve("src/New.java")).hasContent("line1\nline2\nline3");
         // Staged ⇒ tracked ⇒ immediately readable by the read tools.
-        assertThat(service.getFileContent("src/New.java").content())
-                .isEqualTo("line1\nline2\nline3");
+        assertThat(service.getFileContent("src/New.java").content()).isEqualTo("line1\nline2\nline3");
     }
 
     @Test
@@ -137,10 +137,8 @@ class GitServiceEditTest {
         assertThat(GitService.normalizePath("a\\b.txt")).isEqualTo("a/b.txt");
         assertThatThrownBy(() -> GitService.normalizePath("a/../../etc/passwd"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> GitService.normalizePath("/etc/passwd"))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> GitService.normalizePath("./"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> GitService.normalizePath("/etc/passwd")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> GitService.normalizePath("./")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -148,8 +146,7 @@ class GitServiceEditTest {
         // A trailing slash names no file any more than a leading "./" does — it must collapse the
         // same way, not slip through the fast path unchanged.
         assertThat(GitService.normalizePath("docs/")).isEqualTo("docs");
-        assertThatThrownBy(() -> GitService.normalizePath("."))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> GitService.normalizePath(".")).isInstanceOf(IllegalArgumentException.class);
     }
 
     // ── editFile ─────────────────────────────────────────────────────────────
@@ -223,8 +220,7 @@ class GitServiceEditTest {
 
         // Regression: the temp-file + atomic-move write used to replace the inode and reset
         // the mode to the temp file's default (0600), dropping the executable bit.
-        assertThat(Files.getPosixFilePermissions(script))
-                .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+        assertThat(Files.getPosixFilePermissions(script)).isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
         assertThat(script).hasContent("#!/bin/sh\necho new\n");
     }
 
@@ -261,12 +257,10 @@ class GitServiceEditTest {
 
         service.editFile("app.txt", "alpha", "omega", false);
 
-        assertThat(service.getUncommittedChanges(false))
-                .anySatisfy(
-                        entry -> {
-                            assertThat(entry.path()).isEqualTo("app.txt");
-                            assertThat(entry.status()).isEqualTo("M");
-                        });
+        assertThat(service.getUncommittedChanges(false)).anySatisfy(entry -> {
+            assertThat(entry.path()).isEqualTo("app.txt");
+            assertThat(entry.status()).isEqualTo("M");
+        });
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -293,17 +287,14 @@ class GitServiceEditTest {
             var command = new java.util.ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -161,15 +161,13 @@ class GitCommands {
         Set<String> remotes = repository.getRemoteNames();
         if (remotes.isEmpty()) {
             throw new GitCommandFailedException(
-                    "This repository has no remote to push to. Add one on the host:"
-                            + " git remote add origin <url>");
+                    "This repository has no remote to push to. Add one on the host:" + " git remote add origin <url>");
         }
         if (remotes.size() > 1) {
-            throw new GitCommandFailedException(
-                    "The branch tracks nothing and this repository has several remotes ("
-                            + String.join(", ", remotes)
-                            + ") — set the upstream on the host to say which one publishes it:"
-                            + " git push -u <remote> <branch>");
+            throw new GitCommandFailedException("The branch tracks nothing and this repository has several remotes ("
+                    + String.join(", ", remotes)
+                    + ") — set the upstream on the host to say which one publishes it:"
+                    + " git push -u <remote> <branch>");
         }
         return remotes.iterator().next();
     }
@@ -188,8 +186,7 @@ class GitCommands {
                     "HEAD is not on a branch — cannot " + command + ". Switch to one first.");
         }
         if (status.unborn()) {
-            throw new GitCommandFailedException(
-                    "This branch has no commits yet — nothing to " + command);
+            throw new GitCommandFailedException("This branch has no commits yet — nothing to " + command);
         }
         return status;
     }
@@ -214,80 +211,74 @@ class GitCommands {
                 throw new GitCommandFailedException("Cannot resolve branch: " + name, e);
             }
         }
-        return local(
-                create ? "switch -c " + name : "switch " + name,
-                () -> {
-                    try {
-                        git.checkout().setName(name).setCreateBranch(create).call();
-                        return "";
-                    } catch (RefAlreadyExistsException e) {
-                        throw new GitCommandFailedException("Branch already exists: " + name, e);
-                    } catch (RefNotFoundException e) {
-                        throw new GitCommandFailedException("No such branch: " + name, e);
-                    } catch (CheckoutConflictException e) {
-                        // The one refusal a user acts on rather than reports: git names the files
-                        // whose local changes the switch would overwrite, and stashing or
-                        // committing them is what unblocks it.
-                        throw new GitCommandFailedException(
-                                "Uncommitted changes would be overwritten by the switch: "
-                                        + String.join(", ", e.getConflictingPaths())
-                                        + ". Commit or stash them first.",
-                                e);
-                    } catch (GitAPIException e) {
-                        throw new GitCommandFailedException(message(e));
-                    }
-                });
+        return local(create ? "switch -c " + name : "switch " + name, () -> {
+            try {
+                git.checkout().setName(name).setCreateBranch(create).call();
+                return "";
+            } catch (RefAlreadyExistsException e) {
+                throw new GitCommandFailedException("Branch already exists: " + name, e);
+            } catch (RefNotFoundException e) {
+                throw new GitCommandFailedException("No such branch: " + name, e);
+            } catch (CheckoutConflictException e) {
+                // The one refusal a user acts on rather than reports: git names the files
+                // whose local changes the switch would overwrite, and stashing or
+                // committing them is what unblocks it.
+                throw new GitCommandFailedException(
+                        "Uncommitted changes would be overwritten by the switch: "
+                                + String.join(", ", e.getConflictingPaths())
+                                + ". Commit or stash them first.",
+                        e);
+            } catch (GitAPIException e) {
+                throw new GitCommandFailedException(message(e));
+            }
+        });
     }
 
     /**
      * @see GitService#stashPush()
      */
     GitCommandResult stashPush() {
-        return local(
-                "stash push",
-                () -> {
-                    try {
-                        // Untracked files stay where they are: the ones this project serves are
-                        // build output and notes admitted by allow-globs, and sweeping them into a
-                        // stash would hide files nobody was asking about.
-                        RevCommit stash = git.stashCreate().call();
-                        if (stash == null) {
-                            throw new GitCommandFailedException("No local changes to stash");
-                        }
-                        return "Stashed " + stash.getShortMessage();
-                    } catch (GitAPIException e) {
-                        throw new GitCommandFailedException(message(e));
-                    }
-                });
+        return local("stash push", () -> {
+            try {
+                // Untracked files stay where they are: the ones this project serves are
+                // build output and notes admitted by allow-globs, and sweeping them into a
+                // stash would hide files nobody was asking about.
+                RevCommit stash = git.stashCreate().call();
+                if (stash == null) {
+                    throw new GitCommandFailedException("No local changes to stash");
+                }
+                return "Stashed " + stash.getShortMessage();
+            } catch (GitAPIException e) {
+                throw new GitCommandFailedException(message(e));
+            }
+        });
     }
 
     /**
      * @see GitService#stashPop()
      */
     GitCommandResult stashPop() {
-        return local(
-                "stash pop",
-                () -> {
-                    try {
-                        if (git.stashList().call().isEmpty()) {
-                            throw new GitCommandFailedException("The stash is empty");
-                        }
-                        git.stashApply().call();
-                        // Dropped only once the apply succeeded — a pop that conflicts must leave
-                        // the stash in place, or the work would exist nowhere but the conflicted
-                        // working tree.
-                        git.stashDrop().call();
-                        return "";
-                    } catch (StashApplyFailureException e) {
-                        throw new GitCommandFailedException(
-                                "The stashed changes conflict with the working tree — the stash is"
-                                        + " kept. Resolve the conflict, or commit what you have"
-                                        + " first.",
-                                e);
-                    } catch (GitAPIException e) {
-                        throw new GitCommandFailedException(message(e));
-                    }
-                });
+        return local("stash pop", () -> {
+            try {
+                if (git.stashList().call().isEmpty()) {
+                    throw new GitCommandFailedException("The stash is empty");
+                }
+                git.stashApply().call();
+                // Dropped only once the apply succeeded — a pop that conflicts must leave
+                // the stash in place, or the work would exist nowhere but the conflicted
+                // working tree.
+                git.stashDrop().call();
+                return "";
+            } catch (StashApplyFailureException e) {
+                throw new GitCommandFailedException(
+                        "The stashed changes conflict with the working tree — the stash is"
+                                + " kept. Resolve the conflict, or commit what you have"
+                                + " first.",
+                        e);
+            } catch (GitAPIException e) {
+                throw new GitCommandFailedException(message(e));
+            }
+        });
     }
 
     /**
@@ -321,45 +312,42 @@ class GitCommands {
         // Хеш созданного коммита — мимо вывода: вывод — слова для человека, а по хешу чат
         // ссылается на коммит и называет его модели.
         AtomicReference<String> created = new AtomicReference<>();
-        return local(
-                        "commit",
-                        () -> {
-                            Set<String> staged = Set.of();
-                            try {
-                                staged = untrackedAmong(only);
-                                stageForCommit(only);
-                                // Never signed. Signing needs a key, and this application holds
-                                // none of the operator's — with commit.gpgsign on for the host
-                                // user, JGit would otherwise fail the commit outright ("No signer
-                                // for ssh signatures") instead of recording it. A deployment that
-                                // wants signed history signs on the host, where the key is.
-                                CommitCommand command =
-                                        git.commit()
-                                                .setMessage(text)
-                                                // Без этого JGit молча записывает коммит без
-                                                // единого изменения: кнопка «закоммитить» на
-                                                // чистом дереве оставила бы в истории пустышку.
-                                                .setAllowEmpty(false)
-                                                .setSign(false);
-                                // Ровно выбранные пути, как `git commit -- <paths>`: правки
-                                // ассистента лежат в индексе, и коммит всего индекса унёс бы
-                                // файлы, с которых человек снял галочку в окне коммита.
-                                only.forEach(command::setOnly);
-                                RevCommit commit = command.call();
-                                created.set(commit.getName());
-                                return "Committed " + commit.abbreviate(ABBREV_LEN).name();
-                            } catch (EmptyCommitException e) {
-                                unstage(staged);
-                                throw new GitCommandFailedException("Nothing to commit", e);
-                            } catch (GitAPIException | JGitInternalException e) {
-                                // JGitInternalException — как отказ, а не как поломка:
-                                // `setOnly` бросает именно её на пути, которого git не знает, и
-                                // 500 на выбранном файле сказал бы пользователю меньше, чем
-                                // сообщение самого JGit.
-                                unstage(staged);
-                                throw new GitCommandFailedException(message(e));
-                            }
-                        })
+        return local("commit", () -> {
+                    Set<String> staged = Set.of();
+                    try {
+                        staged = untrackedAmong(only);
+                        stageForCommit(only);
+                        // Never signed. Signing needs a key, and this application holds
+                        // none of the operator's — with commit.gpgsign on for the host
+                        // user, JGit would otherwise fail the commit outright ("No signer
+                        // for ssh signatures") instead of recording it. A deployment that
+                        // wants signed history signs on the host, where the key is.
+                        CommitCommand command = git.commit()
+                                .setMessage(text)
+                                // Без этого JGit молча записывает коммит без
+                                // единого изменения: кнопка «закоммитить» на
+                                // чистом дереве оставила бы в истории пустышку.
+                                .setAllowEmpty(false)
+                                .setSign(false);
+                        // Ровно выбранные пути, как `git commit -- <paths>`: правки
+                        // ассистента лежат в индексе, и коммит всего индекса унёс бы
+                        // файлы, с которых человек снял галочку в окне коммита.
+                        only.forEach(command::setOnly);
+                        RevCommit commit = command.call();
+                        created.set(commit.getName());
+                        return "Committed " + commit.abbreviate(ABBREV_LEN).name();
+                    } catch (EmptyCommitException e) {
+                        unstage(staged);
+                        throw new GitCommandFailedException("Nothing to commit", e);
+                    } catch (GitAPIException | JGitInternalException e) {
+                        // JGitInternalException — как отказ, а не как поломка:
+                        // `setOnly` бросает именно её на пути, которого git не знает, и
+                        // 500 на выбранном файле сказал бы пользователю меньше, чем
+                        // сообщение самого JGit.
+                        unstage(staged);
+                        throw new GitCommandFailedException(message(e));
+                    }
+                })
                 // local() выполняет команду до возврата, так что хеш к этому моменту записан.
                 .withCommit(created.get());
     }
@@ -374,8 +362,7 @@ class GitCommands {
     private List<String> commitPaths(List<String> selected) {
         if (selected == null || selected.isEmpty()) return List.of();
         if (selected.size() > MAX_COMMIT_PATHS) {
-            throw new GitCommandFailedException(
-                    "A commit takes at most " + MAX_COMMIT_PATHS + " selected files");
+            throw new GitCommandFailedException("A commit takes at most " + MAX_COMMIT_PATHS + " selected files");
         }
         List<String> only = new ArrayList<>(selected.size());
         for (String raw : selected) {
@@ -461,47 +448,41 @@ class GitCommands {
      */
     GitCommandResult discard(String filePath) {
         String path = RepoPaths.normalize(filePath);
-        return local(
-                "restore " + path,
-                () -> {
-                    try {
-                        // Confined like every other path that reaches the working tree: an
-                        // admitted untracked file may be a symlink out of the repository, and a
-                        // discard must not be the one operation that follows it.
-                        paths.confine(path);
-                        // Asked before the checkout, because JGit's does nothing at all for a
-                        // path HEAD does not have — an untracked file would come back "restored"
-                        // while still sitting there, which is the one answer a discard must not
-                        // give. Deleting it instead is not this command's business either: it
-                        // restores committed state, and an untracked file has none.
-                        ObjectId blob = repository.resolve(Constants.HEAD + ":" + path);
-                        if (blob == null) {
-                            throw new GitCommandFailedException(
-                                    "Nothing committed at " + path + " to restore it to");
-                        }
-                        // A directory resolves too — to a tree, not a blob — and `addPath` filters
-                        // by prefix, so checking out a directory would restore every file beneath
-                        // it at once. This command takes one file; a directory is refused rather
-                        // than silently widened into "restore everything under here".
-                        if (repository.open(blob).getType() != Constants.OBJ_BLOB) {
-                            throw new GitCommandFailedException(
-                                    path + " is a directory, not a file");
-                        }
-                        git.checkout().setStartPoint(Constants.HEAD).addPath(path).call();
-                        return "";
-                    } catch (IOException e) {
-                        throw new GitCommandFailedException("Cannot read HEAD for " + path, e);
-                    } catch (RefNotFoundException e) {
-                        throw new GitCommandFailedException(
-                                "The repository has no commit to restore " + path + " from", e);
-                    } catch (GitAPIException e) {
-                        // JGit reports "did not match any file(s) known to git" for a path HEAD
-                        // does not have — an untracked file, which has no committed state to go
-                        // back to and would have to be deleted instead.
-                        throw new GitCommandFailedException(
-                                "Cannot restore " + path + ": " + message(e), e);
-                    }
-                });
+        return local("restore " + path, () -> {
+            try {
+                // Confined like every other path that reaches the working tree: an
+                // admitted untracked file may be a symlink out of the repository, and a
+                // discard must not be the one operation that follows it.
+                paths.confine(path);
+                // Asked before the checkout, because JGit's does nothing at all for a
+                // path HEAD does not have — an untracked file would come back "restored"
+                // while still sitting there, which is the one answer a discard must not
+                // give. Deleting it instead is not this command's business either: it
+                // restores committed state, and an untracked file has none.
+                ObjectId blob = repository.resolve(Constants.HEAD + ":" + path);
+                if (blob == null) {
+                    throw new GitCommandFailedException("Nothing committed at " + path + " to restore it to");
+                }
+                // A directory resolves too — to a tree, not a blob — and `addPath` filters
+                // by prefix, so checking out a directory would restore every file beneath
+                // it at once. This command takes one file; a directory is refused rather
+                // than silently widened into "restore everything under here".
+                if (repository.open(blob).getType() != Constants.OBJ_BLOB) {
+                    throw new GitCommandFailedException(path + " is a directory, not a file");
+                }
+                git.checkout().setStartPoint(Constants.HEAD).addPath(path).call();
+                return "";
+            } catch (IOException e) {
+                throw new GitCommandFailedException("Cannot read HEAD for " + path, e);
+            } catch (RefNotFoundException e) {
+                throw new GitCommandFailedException("The repository has no commit to restore " + path + " from", e);
+            } catch (GitAPIException e) {
+                // JGit reports "did not match any file(s) known to git" for a path HEAD
+                // does not have — an untracked file, which has no committed state to go
+                // back to and would have to be deleted instead.
+                throw new GitCommandFailedException("Cannot restore " + path + ": " + message(e), e);
+            }
+        });
     }
 
     /**
@@ -529,9 +510,8 @@ class GitCommands {
     private void requireIdentity() {
         UserConfig user = repository.getConfig().get(UserConfig.KEY);
         if (user.isAuthorNameImplicit() || user.isAuthorEmailImplicit()) {
-            throw new GitCommandFailedException(
-                    "This repository has no commit identity. Set it on the host:"
-                            + " git config user.name \"…\" && git config user.email \"…\"");
+            throw new GitCommandFailedException("This repository has no commit identity. Set it on the host:"
+                    + " git config user.name \"…\" && git config user.email \"…\"");
         }
     }
 
@@ -559,9 +539,7 @@ class GitCommands {
 
     /** JGit's message, or the exception's own name when it carries none. */
     private static String message(Exception e) {
-        return e.getMessage() == null || e.getMessage().isBlank()
-                ? e.getClass().getSimpleName()
-                : e.getMessage();
+        return e.getMessage() == null || e.getMessage().isBlank() ? e.getClass().getSimpleName() : e.getMessage();
     }
 
     /**
@@ -590,8 +568,7 @@ class GitCommands {
      */
     private GitCommandResult run(String name, Local command) {
         if (!lock.tryLock()) {
-            throw new GitBusyException(
-                    "Another git command is running for this repository — try again in a moment");
+            throw new GitBusyException("Another git command is running for this repository — try again in a moment");
         }
         try {
             String output = command.call();
@@ -631,20 +608,15 @@ class GitCommands {
         // Read on a thread of our own, and wait on the process rather than on end-of-output: a
         // git that hangs holds its pipe open, and a read that owned the waiting would sit there
         // long past the timeout it is supposed to enforce.
-        var reading =
-                CompletableFuture.supplyAsync(
-                        () -> {
-                            try (var reader =
-                                    new BufferedReader(
-                                            new InputStreamReader(
-                                                    process.getInputStream(),
-                                                    StandardCharsets.UTF_8))) {
-                                return truncate(reader.lines().toList());
-                            } catch (IOException e) {
-                                log.warn("Cannot read the output of git {}", name, e);
-                                return "";
-                            }
-                        });
+        var reading = CompletableFuture.supplyAsync(() -> {
+            try (var reader =
+                    new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                return truncate(reader.lines().toList());
+            } catch (IOException e) {
+                log.warn("Cannot read the output of git {}", name, e);
+                return "";
+            }
+        });
         try {
             // Nothing will ever be written to it, and a git left waiting on its stdin is a git
             // that never exits.
@@ -655,8 +627,7 @@ class GitCommands {
         try {
             if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                throw new GitCommandFailedException(
-                        "git " + name + " did not finish in " + TIMEOUT_SECONDS + "s");
+                throw new GitCommandFailedException("git " + name + " did not finish in " + TIMEOUT_SECONDS + "s");
             }
             String output = reading.get(OUTPUT_DRAIN_SECONDS, TimeUnit.SECONDS);
             int exit = process.exitValue();

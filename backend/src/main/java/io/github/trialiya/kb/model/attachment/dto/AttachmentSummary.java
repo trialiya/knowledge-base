@@ -13,4 +13,8 @@ import org.jspecify.annotations.Nullable;
  * @param summary AI-описание вложения, если его запрашивали
  */
 public record AttachmentSummary(
-        Long id, String fileName, String contentType, long fileSize, @Nullable String summary) {}
+        Long id,
+        String fileName,
+        String contentType,
+        long fileSize,
+        @Nullable String summary) {}

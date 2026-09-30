@@ -58,12 +58,10 @@ public class ChatFileRevertController {
      */
     @PostMapping("/{conversationId}/revert-files")
     public FileRevertPayload revertFiles(
-            @PathVariable String conversationId,
-            @RequestBody(required = false) @Nullable RevertRequest request) {
+            @PathVariable String conversationId, @RequestBody(required = false) @Nullable RevertRequest request) {
         try {
             return chatFileRevert.revertLastAnswer(
-                    conversationId,
-                    request == null || request.paths() == null ? List.of() : request.paths());
+                    conversationId, request == null || request.paths() == null ? List.of() : request.paths());
         } catch (FileRevertRefusedException e) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage(), e);
         } catch (GitBusyException e) {

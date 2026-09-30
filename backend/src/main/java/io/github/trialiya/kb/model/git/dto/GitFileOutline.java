@@ -22,23 +22,16 @@ import org.jspecify.annotations.Nullable;
  * @param symbols список символов в порядке появления в файле
  */
 public record GitFileOutline(
-        String path,
-        boolean tracked,
-        @Nullable String language,
-        int lineCount,
-        String parser,
-        List<GitSymbol> symbols)
+        String path, boolean tracked, @Nullable String language, int lineCount, String parser, List<GitSymbol> symbols)
         implements ToolCallResponseItem {
 
     @Override
     public String getFormattedResponse() {
-        StringBuilder sb =
-                new StringBuilder(
-                        Compact.tag("file:" + path)
-                                .add("lang", language)
-                                .add("untracked", tracked ? null : "1")
-                                .add("lines", lineCount)
-                                .done());
+        StringBuilder sb = new StringBuilder(Compact.tag("file:" + path)
+                .add("lang", language)
+                .add("untracked", tracked ? null : "1")
+                .add("lines", lineCount)
+                .done());
         symbols.forEach(s -> sb.append("\n  ").append(s.getFormattedResponse()));
         return sb.toString();
     }

@@ -13,22 +13,21 @@ class MarkdownOutlineParserTest {
 
     @Test
     void headingsBecomeSymbolsSpanningTheirSubtree() {
-        String source =
-                String.join(
-                        "\n",
-                        "Intro text", // 1
-                        "", // 2
-                        "# Title", // 3
-                        "body", // 4
-                        "## Install", // 5
-                        "```", // 6
-                        "# not a heading", // 7
-                        "```", // 8
-                        "## Usage", // 9
-                        "text", // 10
-                        "# Appendix", // 11
-                        "end", // 12
-                        "");
+        String source = String.join(
+                "\n",
+                "Intro text", // 1
+                "", // 2
+                "# Title", // 3
+                "body", // 4
+                "## Install", // 5
+                "```", // 6
+                "# not a heading", // 7
+                "```", // 8
+                "## Usage", // 9
+                "text", // 10
+                "# Appendix", // 11
+                "end", // 12
+                "");
 
         List<GitSymbol> symbols = parser.parse("markdown", source);
 

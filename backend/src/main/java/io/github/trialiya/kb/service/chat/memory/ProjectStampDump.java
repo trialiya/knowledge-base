@@ -86,10 +86,7 @@ final class ProjectStampDump implements Closeable {
                 return new ProjectStampDump(
                         path,
                         Files.newBufferedWriter(
-                                path,
-                                StandardCharsets.UTF_8,
-                                StandardOpenOption.CREATE_NEW,
-                                StandardOpenOption.WRITE),
+                                path, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                         objectMapper);
             } catch (FileAlreadyExistsException e) {
                 if (attempt > 100) {

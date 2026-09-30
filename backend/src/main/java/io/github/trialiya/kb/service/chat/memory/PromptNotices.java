@@ -111,15 +111,9 @@ public final class PromptNotices {
                 + "\" outcome=\""
                 + (event.ok() ? "ok" : "refused")
                 + "\""
-                + (event.project() == null
-                        ? ""
-                        : " project=\"" + PromptMarkup.inert(event.project()) + "\"")
-                + (event.branch() == null
-                        ? ""
-                        : " branch=\"" + PromptMarkup.inert(event.branch()) + "\"")
-                + (event.commit() == null
-                        ? ""
-                        : " commit=\"" + PromptMarkup.inert(event.commit()) + "\"")
+                + (event.project() == null ? "" : " project=\"" + PromptMarkup.inert(event.project()) + "\"")
+                + (event.branch() == null ? "" : " branch=\"" + PromptMarkup.inert(event.branch()) + "\"")
+                + (event.commit() == null ? "" : " commit=\"" + PromptMarkup.inert(event.commit()) + "\"")
                 + ">\n"
                 + "The user ran this git command on the project from this chat — not you, and not"
                 + " through any tool of yours. "
@@ -147,9 +141,7 @@ public final class PromptNotices {
         }
         final FileRevertMeta revert = meta.fileRevert();
         return "<files-reverted"
-                + (revert.project() == null
-                        ? ""
-                        : " project=\"" + PromptMarkup.inert(revert.project()) + "\"")
+                + (revert.project() == null ? "" : " project=\"" + PromptMarkup.inert(revert.project()) + "\"")
                 + ">\n"
                 + "The user reverted the file changes from your previous answer: "
                 + PromptMarkup.inert(String.join(", ", revert.paths()))
@@ -182,12 +174,8 @@ public final class PromptNotices {
                 + "\" outcome=\""
                 + (event.ok() ? "ok" : "failed")
                 + "\""
-                + (event.project() == null
-                        ? ""
-                        : " project=\"" + PromptMarkup.inert(event.project()) + "\"")
-                + (event.resultId() == null
-                        ? ""
-                        : " result=\"" + PromptMarkup.inert(event.resultId()) + "\"")
+                + (event.project() == null ? "" : " project=\"" + PromptMarkup.inert(event.project()) + "\"")
+                + (event.resultId() == null ? "" : " result=\"" + PromptMarkup.inert(event.resultId()) + "\"")
                 + ">\n"
                 + "The user ran this saved script on the project from this chat — not you, and not"
                 + " through any tool of yours.\n"

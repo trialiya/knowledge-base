@@ -116,59 +116,44 @@ public class ProjectCatalog {
      */
     public Project require(@Nullable String projectId) {
         return find(projectId)
-                .orElseThrow(
-                        () ->
-                                new IllegalArgumentException(
-                                        "Unknown project: "
-                                                + projectId
-                                                + " (configured: "
-                                                + projects.stream().map(Project::id).toList()
-                                                + ")"));
+                .orElseThrow(() -> new IllegalArgumentException("Unknown project: "
+                        + projectId
+                        + " (configured: "
+                        + projects.stream().map(Project::id).toList()
+                        + ")"));
     }
 
     private static List<Project> resolve(List<ProjectOption> all, GitProperties gitProperties) {
         // Switched-off entries are dropped before anything else, validation included: a project
         // prepared for later may well point at a path this deployment has not mounted yet.
-        List<ProjectOption> options = all.stream().filter(ProjectOption::enabled).toList();
+        List<ProjectOption> options =
+                all.stream().filter(ProjectOption::enabled).toList();
         if (!all.isEmpty() && options.isEmpty()) {
-            throw new IllegalStateException(
-                    "kb.projects: every configured project is disabled "
-                            + all.stream().map(ProjectOption::id).toList()
-                            + " — there is no repository left to serve");
+            throw new IllegalStateException("kb.projects: every configured project is disabled "
+                    + all.stream().map(ProjectOption::id).toList()
+                    + " — there is no repository left to serve");
         }
         if (options.isEmpty()) {
             String path = gitProperties.projectPath();
             if (!StringUtils.hasText(path)) {
                 throw new IllegalStateException(
-                        "No project configured: set kb.projects[0].path (or the legacy"
-                                + " kb.git.project-path)");
+                        "No project configured: set kb.projects[0].path (or the legacy" + " kb.git.project-path)");
             }
             // The legacy form carries no flags and no globs: edits, untracked access and the
             // user's git commands are per-project opt-ins, and opting in means writing the
             // kb.projects entry out.
-            return List.of(
-                    new Project(
-                            LEGACY_ID,
-                            LEGACY_ID,
-                            absolute(path),
-                            false,
-                            false,
-                            List.of(),
-                            List.of(),
-                            null,
-                            false,
-                            false));
+            return List.of(new Project(
+                    LEGACY_ID, LEGACY_ID, absolute(path), false, false, List.of(), List.of(), null, false, false));
         }
         List<Project> resolved = new ArrayList<>();
         Set<String> ids = new LinkedHashSet<>();
         for (ProjectOption option : options) {
             String id = option.id();
             if (id == null || !SAFE_ID.matcher(id).matches()) {
-                throw new IllegalStateException(
-                        "kb.projects: id \""
-                                + id
-                                + "\" is not usable — lowercase letters, digits, '.', '_' and '-'"
-                                + " only, starting with a letter or a digit");
+                throw new IllegalStateException("kb.projects: id \""
+                        + id
+                        + "\" is not usable — lowercase letters, digits, '.', '_' and '-'"
+                        + " only, starting with a letter or a digit");
             }
             if (!ids.add(id)) {
                 throw new IllegalStateException("kb.projects: duplicate id \"" + id + "\"");
@@ -177,26 +162,24 @@ public class ProjectCatalog {
             // shipped yaml fills this from PROJECT_PATH, falling back to kb.git.project-path and
             // then to nothing at all.
             if (!StringUtils.hasText(option.path())) {
-                throw new IllegalStateException(
-                        "No project configured: kb.projects["
-                                + id
-                                + "].path is empty — set it, or PROJECT_PATH / the legacy"
-                                + " kb.git.project-path it defaults to");
+                throw new IllegalStateException("No project configured: kb.projects["
+                        + id
+                        + "].path is empty — set it, or PROJECT_PATH / the legacy"
+                        + " kb.git.project-path it defaults to");
             }
             requireRootedGlobs(id, option.allowGlobs());
             Path root = absolute(option.path());
-            resolved.add(
-                    new Project(
-                            id,
-                            option.displayLabel(),
-                            root,
-                            option.editEnabled(),
-                            untrackedEdits(option),
-                            option.allowGlobs(),
-                            skills(id, root, option.skills()),
-                            scriptsManifest(id, root, option.scriptsManifest()),
-                            option.gitCommands().enabled(),
-                            gitPush(option)));
+            resolved.add(new Project(
+                    id,
+                    option.displayLabel(),
+                    root,
+                    option.editEnabled(),
+                    untrackedEdits(option),
+                    option.allowGlobs(),
+                    skills(id, root, option.skills()),
+                    scriptsManifest(id, root, option.scriptsManifest()),
+                    option.gitCommands().enabled(),
+                    gitPush(option)));
         }
         return List.copyOf(resolved);
     }
@@ -275,23 +258,21 @@ public class ProjectCatalog {
             String name = option.name();
             String where = "kb.projects[" + id + "].skills";
             if (name == null || !SAFE_ID.matcher(name).matches()) {
-                throw new IllegalStateException(
-                        where
-                                + ": name \""
-                                + name
-                                + "\" is not usable — lowercase letters, digits, '.', '_' and '-'"
-                                + " only, starting with a letter or a digit");
+                throw new IllegalStateException(where
+                        + ": name \""
+                        + name
+                        + "\" is not usable — lowercase letters, digits, '.', '_' and '-'"
+                        + " only, starting with a letter or a digit");
             }
             if (!names.add(name)) {
                 throw new IllegalStateException(where + ": duplicate name \"" + name + "\"");
             }
             if (!StringUtils.hasText(option.trigger())) {
-                throw new IllegalStateException(
-                        where
-                                + "["
-                                + name
-                                + "].trigger is empty — the trigger is what tells the model when to"
-                                + " load the skill");
+                throw new IllegalStateException(where
+                        + "["
+                        + name
+                        + "].trigger is empty — the trigger is what tells the model when to"
+                        + " load the skill");
             }
             if (!StringUtils.hasText(option.file())) {
                 throw new IllegalStateException(where + "[" + name + "].file is empty");
@@ -301,11 +282,7 @@ public class ProjectCatalog {
             Path file = root.resolve(option.file()).normalize();
             if (!file.startsWith(root) || file.equals(root)) {
                 throw new IllegalStateException(
-                        where
-                                + "["
-                                + name
-                                + "].file resolves outside the project tree: "
-                                + option.file());
+                        where + "[" + name + "].file resolves outside the project tree: " + option.file());
             }
             resolved.add(new ProjectSkill(name, option.trigger().strip(), file));
         }
@@ -332,10 +309,7 @@ public class ProjectCatalog {
         Path manifest = root.resolve(file).normalize();
         if (!manifest.startsWith(root) || manifest.equals(root)) {
             throw new IllegalStateException(
-                    "kb.projects["
-                            + id
-                            + "].scripts-manifest resolves outside the project tree: "
-                            + file);
+                    "kb.projects[" + id + "].scripts-manifest resolves outside the project tree: " + file);
         }
         return manifest;
     }
@@ -354,14 +328,14 @@ public class ProjectCatalog {
      * glob silently losing the project is the opposite of what a refusal is for.
      */
     private static void requireRootedGlobs(String id, List<String> globs) {
-        List<String> unrooted = globs.stream().filter(ProjectCatalog::isUnrooted).toList();
+        List<String> unrooted =
+                globs.stream().filter(ProjectCatalog::isUnrooted).toList();
         if (!unrooted.isEmpty()) {
-            throw new IllegalStateException(
-                    "kb.projects["
-                            + id
-                            + "].allow-globs must start with a directory, not a wildcard: "
-                            + String.join(", ", unrooted)
-                            + " — these globs override .gitignore, so the area has to be named");
+            throw new IllegalStateException("kb.projects["
+                    + id
+                    + "].allow-globs must start with a directory, not a wildcard: "
+                    + String.join(", ", unrooted)
+                    + " — these globs override .gitignore, so the area has to be named");
         }
     }
 

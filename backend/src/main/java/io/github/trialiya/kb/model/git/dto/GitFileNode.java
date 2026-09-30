@@ -21,8 +21,11 @@ import org.jspecify.annotations.Nullable;
  *     попадёт в коммит, и создать рядом новый нельзя
  */
 public record GitFileNode(
-        String path, String name, FileEntryType type, @Nullable Long size, boolean tracked)
-        implements ToolCallResponseItem, ToolCallResultMetaProvider {
+        String path,
+        String name,
+        FileEntryType type,
+        @Nullable Long size,
+        boolean tracked) implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     /** Отслеживаемый узел — обычный случай, для него и есть этот конструктор. */
     public GitFileNode(String path, String name, FileEntryType type, @Nullable Long size) {
@@ -32,9 +35,7 @@ public record GitFileNode(
     @Override
     public String getFormattedResponse() {
         String suffix = tracked ? "" : " [untracked]";
-        return type == FileEntryType.DIRECTORY
-                ? path + "/" + suffix
-                : path + " (" + size + "B)" + suffix;
+        return type == FileEntryType.DIRECTORY ? path + "/" + suffix : path + " (" + size + "B)" + suffix;
     }
 
     @Override

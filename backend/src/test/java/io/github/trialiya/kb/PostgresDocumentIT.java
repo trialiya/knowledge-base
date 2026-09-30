@@ -45,25 +45,21 @@ import org.springframework.context.annotation.Import;
  */
 @DataJdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({
-    CommonConfig.class,
-    JdbcConfig.class,
-    PgVectorJdbcConfig.class,
-    DocumentEmbeddingRepository.class
-})
+@Import({CommonConfig.class, JdbcConfig.class, PgVectorJdbcConfig.class, DocumentEmbeddingRepository.class})
 class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
 
-    @Autowired private DocumentRepository repo;
-    @Autowired private DocumentHistoryRepository historyRepo;
-    @Autowired private DocumentEmbeddingRepository embeddingRepo;
+    @Autowired
+    private DocumentRepository repo;
+
+    @Autowired
+    private DocumentHistoryRepository historyRepo;
+
+    @Autowired
+    private DocumentEmbeddingRepository embeddingRepo;
 
     private DocumentService service() {
         return new DocumentService(
-                repo,
-                historyRepo,
-                mock(DocumentSummaryService.class),
-                mock(SemanticSearchService.class),
-                null);
+                repo, historyRepo, mock(DocumentSummaryService.class), mock(SemanticSearchService.class), null);
     }
 
     // ── Fixtures ─────────────────────────────────────────────────────────────
@@ -77,21 +73,20 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
     }
 
     private DocumentEntity save(String title, String type, Long parentId, int position) {
-        return repo.save(
-                new DocumentEntity(
-                        null,
-                        title,
-                        DocumentType.fromValue(type),
-                        parentId,
-                        null,
-                        LocalDateTime.now(),
-                        LocalDateTime.now(),
-                        position,
-                        false,
-                        0,
-                        null,
-                        null,
-                        1));
+        return repo.save(new DocumentEntity(
+                null,
+                title,
+                DocumentType.fromValue(type),
+                parentId,
+                null,
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                position,
+                false,
+                0,
+                null,
+                null,
+                1));
     }
 
     // ── Миграции и сид ───────────────────────────────────────────────────────
@@ -190,8 +185,9 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
         Document moved = service().move(d.getId(), home.getId(), a.getId());
         assertThat(moved.parentId()).isEqualTo(home.getId());
 
-        List<Long> order =
-                repo.findByParentId(home.getId()).stream().map(DocumentEntity::getId).toList();
+        List<Long> order = repo.findByParentId(home.getId()).stream()
+                .map(DocumentEntity::getId)
+                .toList();
         assertThat(order).containsExactly(a.getId(), d.getId(), b.getId(), c.getId());
     }
 
@@ -202,9 +198,7 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
         DocumentEntity document = doc("vector-doc", null, 103);
 
         float[] vector = unitVector(1024, 0);
-        embeddingRepo.save(
-                new DocumentEmbeddingEntity(
-                        null, document.getId(), vector, "bge-m3", OffsetDateTime.now()));
+        embeddingRepo.save(new DocumentEmbeddingEntity(null, document.getId(), vector, "bge-m3", OffsetDateTime.now()));
 
         float[] read =
                 embeddingRepo.findByDocumentId(document.getId()).orElseThrow().getEmbedding();
@@ -221,20 +215,16 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
 
         // near ≈ запрос (тот же базисный вектор), far — ортогонален.
         embeddingRepo.save(
-                new DocumentEmbeddingEntity(
-                        null, near.getId(), unitVector(1024, 0), "bge-m3", OffsetDateTime.now()));
+                new DocumentEmbeddingEntity(null, near.getId(), unitVector(1024, 0), "bge-m3", OffsetDateTime.now()));
         embeddingRepo.save(
-                new DocumentEmbeddingEntity(
-                        null, far.getId(), unitVector(1024, 1), "bge-m3", OffsetDateTime.now()));
+                new DocumentEmbeddingEntity(null, far.getId(), unitVector(1024, 1), "bge-m3", OffsetDateTime.now()));
 
-        List<SemanticSearchResult> results =
-                embeddingRepo.findSimilar(unitVector(1024, 0), 0.5, 10);
+        List<SemanticSearchResult> results = embeddingRepo.findSimilar(unitVector(1024, 0), 0.5, 10);
 
         assertThat(results).isNotEmpty();
         // первым должен идти «near» с similarity ≈ 1.0 (поле id хранит document_id)
         assertThat(results.getFirst().id()).isEqualTo(near.getId());
-        assertThat(results.getFirst().similarity())
-                .isCloseTo(1.0, org.assertj.core.data.Offset.offset(1e-4));
+        assertThat(results.getFirst().similarity()).isCloseTo(1.0, org.assertj.core.data.Offset.offset(1e-4));
         // ортогональный «far» (similarity ≈ 0) отсечён порогом 0.5
         assertThat(results).extracting(SemanticSearchResult::id).doesNotContain(far.getId());
     }

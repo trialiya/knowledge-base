@@ -35,7 +35,6 @@ public record ScriptRequest(
 
     /** The same run, belonging to {@code results}'s chat. */
     public ScriptRequest withResults(ResultScope results) {
-        return new ScriptRequest(
-                source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results);
+        return new ScriptRequest(source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results);
     }
 }

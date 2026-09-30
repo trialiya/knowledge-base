@@ -41,9 +41,7 @@ public class ChatModelRegistry {
     private final Map<String, OpenAiChatModel> byModelId;
 
     public ChatModelRegistry(
-            String defaultModelId,
-            OpenAiChatModel defaultModel,
-            Map<String, OpenAiChatModel> byModelId) {
+            String defaultModelId, OpenAiChatModel defaultModel, Map<String, OpenAiChatModel> byModelId) {
         this.defaultModelId = defaultModelId;
         this.defaultModel = defaultModel;
         this.byModelId = Map.copyOf(byModelId);
@@ -85,8 +83,7 @@ public class ChatModelRegistry {
             ObjectProvider<OpenAiHttpClientBuilderCustomizer> httpClientCustomizers) {
         List<OpenAiHttpClientBuilderCustomizer> customizers =
                 httpClientCustomizers.orderedStream().toList();
-        ObservationRegistry observations =
-                observationRegistry.getIfAvailable(() -> ObservationRegistry.NOOP);
+        ObservationRegistry observations = observationRegistry.getIfAvailable(() -> ObservationRegistry.NOOP);
         Map<String, OpenAiChatModel> byModelId = new LinkedHashMap<>();
         for (ModelOption option : chatModelProperties.models()) {
             if (option.hasOwnEndpoint()) {
@@ -102,8 +99,7 @@ public class ChatModelRegistry {
                                 customizers));
             }
         }
-        return new ChatModelRegistry(
-                chatModelProperties.defaultModel().id(), defaultModel, byModelId);
+        return new ChatModelRegistry(chatModelProperties.defaultModel().id(), defaultModel, byModelId);
     }
 
     /**
@@ -124,8 +120,7 @@ public class ChatModelRegistry {
             ObjectProvider<MeterRegistry> meterRegistry,
             ObjectProvider<OpenAiHttpClientBuilderCustomizer> httpClientCustomizers) {
         return buildConnection(
-                OpenAiAutoConfigurationUtil.resolveCommonProperties(
-                        commonProperties, chatProperties),
+                OpenAiAutoConfigurationUtil.resolveCommonProperties(commonProperties, chatProperties),
                 chatProperties,
                 toolCallingManager,
                 observationRegistry.getIfAvailable(() -> ObservationRegistry.NOOP),
@@ -145,8 +140,7 @@ public class ChatModelRegistry {
         // common ones), with this model's URL and token laid on top. A model that named only a
         // token keeps the default base-url — same host, its own account.
         ResolvedConnectionProperties connection =
-                OpenAiAutoConfigurationUtil.resolveCommonProperties(
-                        commonProperties, chatProperties);
+                OpenAiAutoConfigurationUtil.resolveCommonProperties(commonProperties, chatProperties);
         if (option.baseUrl() != null) {
             connection.setBaseUrl(option.baseUrl());
             // The provider of the default connection does not carry over to another host. In
@@ -165,12 +159,7 @@ public class ChatModelRegistry {
             connection.setApiKey(option.apiKey());
         }
         return buildConnection(
-                connection,
-                chatProperties,
-                toolCallingManager,
-                observations,
-                meterRegistry,
-                customizers);
+                connection, chatProperties, toolCallingManager, observations, meterRegistry, customizers);
     }
 
     // Builder.toolCallingManager is deprecated for removal upstream (the advisor chain drives the
@@ -184,51 +173,47 @@ public class ChatModelRegistry {
             ObservationRegistry observations,
             ObjectProvider<MeterRegistry> meterRegistry,
             List<OpenAiHttpClientBuilderCustomizer> customizers) {
-        OpenAiChatOptions options =
-                withCallDeadline(chatProperties.toOptions(), connection.getTimeout());
+        OpenAiChatOptions options = withCallDeadline(chatProperties.toOptions(), connection.getTimeout());
         // Mirrors the autoconfiguration: the meter registry is handed to the client only when
         // connection-pool metrics are asked for, otherwise the pool is not instrumented at all.
-        MeterRegistry meters =
-                connection.isConnectionPoolMetricsEnabled() ? meterRegistry.getIfAvailable() : null;
+        MeterRegistry meters = connection.isConnectionPoolMetricsEnabled() ? meterRegistry.getIfAvailable() : null;
         // Both clients get the same deadline: a blocking call can carry the whole context in one
         // request, a streaming one a long generation, and either outlives the framework default.
         return OpenAiChatModel.builder()
-                .openAiClient(
-                        OpenAiSetup.setupSyncClient(
-                                connection.getBaseUrl(),
-                                connection.getApiKey(),
-                                connection.getCredential(),
-                                connection.getMicrosoftDeploymentName(),
-                                connection.getMicrosoftFoundryServiceVersion(),
-                                connection.getOrganizationId(),
-                                connection.isMicrosoftFoundry(),
-                                connection.isGitHubModels(),
-                                connection.getModel(),
-                                connection.getTimeout(),
-                                connection.getMaxRetries(),
-                                connection.getProxy(),
-                                connection.getCustomHeaders(),
-                                observations,
-                                meters,
-                                customizers))
-                .openAiClientAsync(
-                        OpenAiSetup.setupAsyncClient(
-                                connection.getBaseUrl(),
-                                connection.getApiKey(),
-                                connection.getCredential(),
-                                connection.getMicrosoftDeploymentName(),
-                                connection.getMicrosoftFoundryServiceVersion(),
-                                connection.getOrganizationId(),
-                                connection.isMicrosoftFoundry(),
-                                connection.isGitHubModels(),
-                                connection.getModel(),
-                                connection.getTimeout(),
-                                connection.getMaxRetries(),
-                                connection.getProxy(),
-                                connection.getCustomHeaders(),
-                                observations,
-                                meters,
-                                customizers))
+                .openAiClient(OpenAiSetup.setupSyncClient(
+                        connection.getBaseUrl(),
+                        connection.getApiKey(),
+                        connection.getCredential(),
+                        connection.getMicrosoftDeploymentName(),
+                        connection.getMicrosoftFoundryServiceVersion(),
+                        connection.getOrganizationId(),
+                        connection.isMicrosoftFoundry(),
+                        connection.isGitHubModels(),
+                        connection.getModel(),
+                        connection.getTimeout(),
+                        connection.getMaxRetries(),
+                        connection.getProxy(),
+                        connection.getCustomHeaders(),
+                        observations,
+                        meters,
+                        customizers))
+                .openAiClientAsync(OpenAiSetup.setupAsyncClient(
+                        connection.getBaseUrl(),
+                        connection.getApiKey(),
+                        connection.getCredential(),
+                        connection.getMicrosoftDeploymentName(),
+                        connection.getMicrosoftFoundryServiceVersion(),
+                        connection.getOrganizationId(),
+                        connection.isMicrosoftFoundry(),
+                        connection.isGitHubModels(),
+                        connection.getModel(),
+                        connection.getTimeout(),
+                        connection.getMaxRetries(),
+                        connection.getProxy(),
+                        connection.getCustomHeaders(),
+                        observations,
+                        meters,
+                        customizers))
                 .options(options)
                 .toolCallingManager(toolCallingManager)
                 .observationRegistry(observations)

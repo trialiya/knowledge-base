@@ -54,8 +54,7 @@ public record SyncEvent(
 
     /** A node the import gave up on, with the reason it did. */
     public static SyncEvent failure(int processed, String path, @Nullable String message) {
-        return new SyncEvent(
-                Type.PROGRESS, processed, path, null, SyncAction.FAILED, null, message);
+        return new SyncEvent(Type.PROGRESS, processed, path, null, SyncAction.FAILED, null, message);
     }
 
     public static SyncEvent done(int processed, Object summary) {

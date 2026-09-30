@@ -22,16 +22,35 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table(name = "chat_pending_message")
 public class ChatPendingMessageEntity implements Persistable<Long> {
 
-    @Id private long id;
-    @NonNull private final String conversationId;
-    @NonNull private final String user;
-    @NonNull private final String content;
-    @Nullable private final String clientMsgId;
-    @Nullable private final ChatMessageMeta meta;
-    @Nullable private final String model;
-    @Nullable private final String mode;
-    @Nullable private final String project;
-    @NonNull private final LocalDateTime createdAt;
+    @Id
+    private long id;
+
+    @NonNull
+    private final String conversationId;
+
+    @NonNull
+    private final String user;
+
+    @NonNull
+    private final String content;
+
+    @Nullable
+    private final String clientMsgId;
+
+    @Nullable
+    private final ChatMessageMeta meta;
+
+    @Nullable
+    private final String model;
+
+    @Nullable
+    private final String mode;
+
+    @Nullable
+    private final String project;
+
+    @NonNull
+    private final LocalDateTime createdAt;
 
     public ChatPendingMessageEntity(
             long id,

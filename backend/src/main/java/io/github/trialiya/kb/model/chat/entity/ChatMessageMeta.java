@@ -128,9 +128,7 @@ public record ChatMessageMeta(
      * вовсе, и промпту пришлось бы догадываться о репозитории по {@code chat_topic}.
      */
     public static @Nullable ChatMessageMeta ofUserMessage(
-            List<ContextItem> contextItems,
-            @Nullable String project,
-            @Nullable String projectSwitchFrom) {
+            List<ContextItem> contextItems, @Nullable String project, @Nullable String projectSwitchFrom) {
         if (contextItems.isEmpty() && project == null) {
             return null;
         }
@@ -208,8 +206,7 @@ public record ChatMessageMeta(
      * project} («на каком проекте закончилось сжатое») пишется тем же вызовом ради отката на
      * прежнюю версию и в промпт не идёт.
      */
-    public static ChatMessageMeta ofProject(
-            @Nullable String project, List<ProjectSpan> visitedProjects) {
+    public static ChatMessageMeta ofProject(@Nullable String project, List<ProjectSpan> visitedProjects) {
         return builder().project(project).visitedProjects(visitedProjects).build();
     }
 
@@ -242,14 +239,12 @@ public record ChatMessageMeta(
      * ProjectStampBackfill}, который дописывает след к ряду, записанному чужой версией: собери он
      * мету заново, поле, о котором он не знает, пропало бы молча.
      */
-    public ChatMessageMeta withProjectTrace(
-            @Nullable String project, List<ProjectSpan> visitedProjects) {
+    public ChatMessageMeta withProjectTrace(@Nullable String project, List<ProjectSpan> visitedProjects) {
         return toBuilder().project(project).visitedProjects(visitedProjects).build();
     }
 
     /** Копия с заменённым маркером смены проекта; остальные поля переживают перезапись. */
-    public ChatMessageMeta withProjectSwitch(
-            @Nullable String project, @Nullable String projectSwitchFrom) {
+    public ChatMessageMeta withProjectSwitch(@Nullable String project, @Nullable String projectSwitchFrom) {
         return toBuilder().project(project).projectSwitchFrom(projectSwitchFrom).build();
     }
 }

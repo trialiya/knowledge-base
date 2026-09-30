@@ -69,12 +69,10 @@ class AttachmentScriptServiceTest {
     @Test
     void refusesAnEmptyOrOversizeAttachment() {
         stub(4, "empty.js", "text/javascript", "   ");
-        assertThatThrownBy(() -> service(true).source("attachment:4", Map.of()))
-                .hasMessageContaining("empty");
+        assertThatThrownBy(() -> service(true).source("attachment:4", Map.of())).hasMessageContaining("empty");
 
         stub(5, "huge.js", "text/javascript", "x".repeat((int) SavedScriptCatalog.MAX_BYTES + 1));
-        assertThatThrownBy(() -> service(true).source("attachment:5", Map.of()))
-                .hasMessageContaining("too large");
+        assertThatThrownBy(() -> service(true).source("attachment:5", Map.of())).hasMessageContaining("too large");
     }
 
     @Test
@@ -112,36 +110,23 @@ class AttachmentScriptServiceTest {
         return new AttachmentScriptService(
                 attachments,
                 new ScriptProperties(
-                        true,
-                        true,
-                        attachmentRun,
-                        false,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null));
+                        true, true, attachmentRun, false, null, null, null, null, null, null, null, null, null));
     }
 
     private void stub(long id, String fileName, String contentType, String content) {
         when(attachments.getById(id))
-                .thenReturn(
-                        new Attachment(
-                                id,
-                                AttachmentOwnerType.CHAT,
-                                null,
-                                "conv-1",
-                                fileName,
-                                contentType,
-                                content.length(),
-                                null,
-                                null,
-                                OffsetDateTime.now(),
-                                OffsetDateTime.now()));
+                .thenReturn(new Attachment(
+                        id,
+                        AttachmentOwnerType.CHAT,
+                        null,
+                        "conv-1",
+                        fileName,
+                        contentType,
+                        content.length(),
+                        null,
+                        null,
+                        OffsetDateTime.now(),
+                        OffsetDateTime.now()));
         when(attachments.getContent(id)).thenReturn(content);
     }
 }

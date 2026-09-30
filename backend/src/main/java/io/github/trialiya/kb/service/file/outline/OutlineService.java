@@ -24,13 +24,7 @@ public class OutlineService {
      * whether to show itself — keep the two in step.
      */
     private static final List<String> SUPPORTED_LANGUAGES =
-            List.of(
-                    "java",
-                    "javascript",
-                    "typescript",
-                    "python",
-                    "sql",
-                    MarkdownOutlineParser.LANGUAGE);
+            List.of("java", "javascript", "typescript", "python", "sql", MarkdownOutlineParser.LANGUAGE);
 
     private final CodeOutlineParser treeSitter;
     private final CodeOutlineParser regex;

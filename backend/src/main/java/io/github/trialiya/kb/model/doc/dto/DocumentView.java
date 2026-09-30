@@ -16,13 +16,13 @@ import java.util.Map;
  * {@code children} у каждого узла.
  */
 public record DocumentView(
-        @JsonUnwrapped @JsonIgnoreProperties("children") DocumentNode document,
-        List<DocumentSkeletonNode> children)
+        @JsonUnwrapped @JsonIgnoreProperties("children") DocumentNode document, List<DocumentSkeletonNode> children)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     public static DocumentView of(DocumentNode node) {
         List<DocumentNode> kids = node.children() == null ? List.of() : node.children();
-        return new DocumentView(node, kids.stream().map(DocumentSkeletonNode::of).toList());
+        return new DocumentView(
+                node, kids.stream().map(DocumentSkeletonNode::of).toList());
     }
 
     @Override

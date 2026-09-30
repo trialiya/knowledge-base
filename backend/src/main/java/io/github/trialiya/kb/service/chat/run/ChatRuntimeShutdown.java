@@ -58,16 +58,11 @@ public class ChatRuntimeShutdown {
         // остановки, в stopAll не попал, но его терминальная обработка ещё пишет в БД (см.
         // ChatRunService#awaitQuiescence). Когда ждать и правда некого, вызов возвращается сразу.
         if (!chatRunService.awaitQuiescence(grace)) {
-            log.warn(
-                    "Chat runs did not finish within {} ms — partial replies may be lost",
-                    grace.toMillis());
+            log.warn("Chat runs did not finish within {} ms — partial replies may be lost", grace.toMillis());
         }
         final int subscribers = chatEventService.closeAll();
         if (runs > 0 || subscribers > 0) {
-            log.info(
-                    "Chat runtime stopped: runs cancelled={}, SSE subscriptions closed={}",
-                    runs,
-                    subscribers);
+            log.info("Chat runtime stopped: runs cancelled={}, SSE subscriptions closed={}", runs, subscribers);
         }
     }
 }

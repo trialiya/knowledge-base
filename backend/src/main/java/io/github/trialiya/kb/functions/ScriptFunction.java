@@ -66,9 +66,7 @@ public class ScriptFunction {
         return new ScriptFunction(scriptRunner, gitRegistry, true);
     }
 
-    @Tool(
-            description =
-                    """
+    @Tool(description = """
                     Runs JavaScript (ES2023) that traverses the repo itself: only kb object available \
                     (kb.files, kb.read, kb.grep, kb.outline, kb.searchDocs, kb.log; kb.stat, kb.readBytes, \
                     kb.readBase64, kb.hash for binary files; kb.edit, kb.create, kb.writeBytes, kb.createBytes \
@@ -79,39 +77,36 @@ public class ScriptFunction {
                     filesRead, edits (file diffs), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET with fix hint), \
                     resultId (the whole value kept for a later script's kb.result(id) and for \
                     saveScriptResult).
-                    """,
-            resultConverter = CompactToolResultConverter.class)
+                    """, resultConverter = CompactToolResultConverter.class)
     public ScriptResult runScript(
             ToolContext context,
             @ToolParam(
-                            description =
-                                    "JavaScript (ES2023) script body. Executes as function body—top-level "
-                                            + "return allowed, only way to return result.")
+                            description = "JavaScript (ES2023) script body. Executes as function body—top-level "
+                                    + "return allowed, only way to return result.")
                     String script,
             @ToolParam(
-                            description =
-                                    "Time limit in seconds. Omit for the deployment default; values over the"
-                                            + " deployment ceiling are cut to it silently.",
+                            description = "Time limit in seconds. Omit for the deployment default; values over the"
+                                    + " deployment ceiling are cut to it silently.",
                             required = false)
-                    @Nullable Integer timeoutSeconds,
+                    @Nullable
+                    Integer timeoutSeconds,
             @ToolParam(
-                            description =
-                                    "Optional: read a different project (repository id) than the chat's "
-                                            + "active one, for a cross-project question. Such a run is "
-                                            + "read-only whatever the other project allows — to write, "
-                                            + "switch the chat's project. Omit to use the active project. "
-                                            + "The result's \"project\" field names which repository "
-                                            + "actually ran — check it, don't assume.",
+                            description = "Optional: read a different project (repository id) than the chat's "
+                                    + "active one, for a cross-project question. Such a run is "
+                                    + "read-only whatever the other project allows — to write, "
+                                    + "switch the chat's project. Omit to use the active project. "
+                                    + "The result's \"project\" field names which repository "
+                                    + "actually ran — check it, don't assume.",
                             required = false)
-                    @Nullable String project) {
+                    @Nullable
+                    String project) {
         requireText(script, "script");
         final int timeout = positiveOrDefault(timeoutSeconds, 10);
         final String projectId = ProjectContext.resolve(context, project);
         // Naming another project buys reading, never writing: the repository the user chose for
         // this chat is the only one a run may touch. Without this the argument would be a way
         // around that choice — the reason createFile/editFile were not given one at all.
-        final boolean readOnly =
-                forceReadOnly || !gitRegistry.sameProject(projectId, ProjectContext.from(context));
+        final boolean readOnly = forceReadOnly || !gitRegistry.sameProject(projectId, ProjectContext.from(context));
         log.debug(
                 "runScript called: {} chars, timeoutSeconds={}, project='{}', readOnly={}",
                 script.length(),
@@ -119,21 +114,18 @@ public class ScriptFunction {
                 projectId,
                 readOnly);
         final String chat = conversationId(context);
-        ScriptResult result =
-                scriptRunner.run(
-                        new ScriptRequest(
-                                ScriptSource.inline(script),
-                                ScriptArgs.none(),
-                                timeout,
-                                readOnly,
-                                ToolInvocationCollector.from(context),
-                                projectId,
-                                // The sub-agent's value reaches the chat model only through its
-                                // summary, so an id handed out here would be one nobody can name.
-                                forceReadOnly
-                                        ? ResultScope.readOnly(chat)
-                                        : ResultScope.keeping(chat)),
-                        RunCancellation.from(context));
+        ScriptResult result = scriptRunner.run(
+                new ScriptRequest(
+                        ScriptSource.inline(script),
+                        ScriptArgs.none(),
+                        timeout,
+                        readOnly,
+                        ToolInvocationCollector.from(context),
+                        projectId,
+                        // The sub-agent's value reaches the chat model only through its
+                        // summary, so an id handed out here would be one nobody can name.
+                        forceReadOnly ? ResultScope.readOnly(chat) : ResultScope.keeping(chat)),
+                RunCancellation.from(context));
         log.debug("runScript finished: {}", result.getFormattedResponse());
         return result;
     }

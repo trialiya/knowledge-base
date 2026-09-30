@@ -82,20 +82,17 @@ class ChatRunStopMetaTest {
     void setUp() {
         chatHistory = mock(ChatHistoryService.class);
         when(chatHistory.saveUserMessage(anyString(), anyString(), anyList(), any(), any()))
-                .thenAnswer(
-                        inv ->
-                                new ChatMessageEntity(
-                                        1L,
-                                        inv.getArgument(0),
-                                        inv.getArgument(1),
-                                        MessageType.USER,
-                                        1,
-                                        false,
-                                        false,
-                                        LocalDateTime.now(),
-                                        null));
-        when(chatHistory.markRunResult(
-                        anyString(), anyString(), any(), any(), anyList(), anyList()))
+                .thenAnswer(inv -> new ChatMessageEntity(
+                        1L,
+                        inv.getArgument(0),
+                        inv.getArgument(1),
+                        MessageType.USER,
+                        1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        null));
+        when(chatHistory.markRunResult(anyString(), anyString(), any(), any(), anyList(), anyList()))
                 .thenReturn(List.of(editFile()));
         events = spy(new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))));
         runs = new RunRegistry();
@@ -115,15 +112,8 @@ class ChatRunStopMetaTest {
 
         final ArgumentCaptor<Object> payload = ArgumentCaptor.captor();
         final InOrder order = inOrder(events);
-        order.verify(events)
-                .publish(
-                        eq(CONV),
-                        eq(ChatEventType.TOOL_CALLS),
-                        anyString(),
-                        any(),
-                        payload.capture());
-        order.verify(events)
-                .publish(eq(CONV), eq(ChatEventType.RUN_STOPPED), anyString(), any(), any());
+        order.verify(events).publish(eq(CONV), eq(ChatEventType.TOOL_CALLS), anyString(), any(), payload.capture());
+        order.verify(events).publish(eq(CONV), eq(ChatEventType.RUN_STOPPED), anyString(), any(), any());
         assertThat(payload.getValue()).isEqualTo(new ToolCallsMessage(List.of(editFile())));
     }
 
@@ -143,8 +133,7 @@ class ChatRunStopMetaTest {
         verify(chatMemory).add(eq(CONV), written.capture());
         assertThat(written.getValue().getText()).isEqualTo("[stopped]");
         final ArgumentCaptor<List<TokenUsage>> calls = ArgumentCaptor.captor();
-        verify(chatHistory)
-                .markRunResult(eq(CONV), anyString(), any(), any(), calls.capture(), anyList());
+        verify(chatHistory).markRunResult(eq(CONV), anyString(), any(), any(), calls.capture(), anyList());
         assertThat(calls.getValue()).containsExactly(TokenUsage.EMPTY);
     }
 
@@ -155,18 +144,8 @@ class ChatRunStopMetaTest {
     @Test
     void aStopBeforeAnyOutputLeavesTheQuestionRetryable() {
         when(chatHistory.unansweredUserMessage(CONV))
-                .thenReturn(
-                        Optional.of(
-                                new ChatMessageEntity(
-                                        1L,
-                                        CONV,
-                                        "привет",
-                                        MessageType.USER,
-                                        1,
-                                        false,
-                                        false,
-                                        LocalDateTime.now(),
-                                        null)));
+                .thenReturn(Optional.of(new ChatMessageEntity(
+                        1L, CONV, "привет", MessageType.USER, 1, false, false, LocalDateTime.now(), null)));
         runService = runService(Flux.empty());
         runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
 
@@ -200,20 +179,18 @@ class ChatRunStopMetaTest {
     @Test
     void theMarkerRowDoesNotRepeatReasoningAlreadyStored() {
         when(chatHistory.lastAnswerRows(CONV))
-                .thenReturn(
-                        List.of(
-                                new ChatMessageEntity(
-                                        2L,
-                                        CONV,
-                                        "",
-                                        MessageType.ASSISTANT,
-                                        2,
-                                        false,
-                                        false,
-                                        LocalDateTime.now(),
-                                        null,
-                                        null,
-                                        "Сначала история")));
+                .thenReturn(List.of(new ChatMessageEntity(
+                        2L,
+                        CONV,
+                        "",
+                        MessageType.ASSISTANT,
+                        2,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        null,
+                        null,
+                        "Сначала история")));
         runService = runService(Flux.just(thinking("Сначала история")));
         runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
 
@@ -221,22 +198,16 @@ class ChatRunStopMetaTest {
 
         final ArgumentCaptor<Message> written = ArgumentCaptor.captor();
         verify(chatMemory).add(eq(CONV), written.capture());
-        assertThat(written.getValue().getMetadata())
-                .doesNotContainKey(AssistantChatMessage.REASONING_CONTENT);
+        assertThat(written.getValue().getMetadata()).doesNotContainKey(AssistantChatMessage.REASONING_CONTENT);
     }
 
     /** Чанк рассуждения одного обращения ({@code id} — его ответ), без текста. */
     private static ChatResponse thinking(String runningTotal) {
         return new ChatResponse(
-                List.of(
-                        new Generation(
-                                AssistantMessage.builder()
-                                        .content("")
-                                        .properties(
-                                                Map.of(
-                                                        AssistantChatMessage.REASONING_CONTENT,
-                                                        runningTotal))
-                                        .build())),
+                List.of(new Generation(AssistantMessage.builder()
+                        .content("")
+                        .properties(Map.of(AssistantChatMessage.REASONING_CONTENT, runningTotal))
+                        .build())),
                 ChatResponseMetadata.builder().id("chatcmpl-1").build());
     }
 
@@ -288,9 +259,7 @@ class ChatRunStopMetaTest {
                 mock(PendingSummaryService.class),
                 mock(AutoCompactService.class),
                 new ChatModelProperties(
-                        new ModelOption(
-                                "default-model", "Default", true, true, null, null, null, false),
-                        List.of()),
+                        new ModelOption("default-model", "Default", true, true, null, null, null, false), List.of()),
                 events,
                 mock(SystemPromptService.class),
                 pendingMessages,

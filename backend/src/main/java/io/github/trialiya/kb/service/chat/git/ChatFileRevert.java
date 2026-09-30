@@ -115,22 +115,19 @@ public class ChatFileRevert {
      * <p>Отказ называет файл и причину: человек нажал кнопку у конкретной строки, и «откатывать
      * нечего» ему не объяснит, что не так именно с ней.
      */
-    private static FileRevertPlan remaining(
-            FileRevertPlan whole, Set<String> reverted, List<String> paths) {
+    private static FileRevertPlan remaining(FileRevertPlan whole, Set<String> reverted, List<String> paths) {
         if (paths.isEmpty()) {
             final Set<String> left = new LinkedHashSet<>(whole.paths());
             left.removeAll(reverted);
             if (left.isEmpty()) {
-                throw new FileRevertRefusedException(
-                        "The file changes from this answer have already been reverted.");
+                throw new FileRevertRefusedException("The file changes from this answer have already been reverted.");
             }
             return whole.only(left);
         }
         final Set<String> wanted = new LinkedHashSet<>(paths);
         for (String path : wanted) {
             if (reverted.contains(path)) {
-                throw new FileRevertRefusedException(
-                        "The changes to " + path + " have already been reverted.");
+                throw new FileRevertRefusedException("The changes to " + path + " have already been reverted.");
             }
             if (!whole.paths().contains(path)) {
                 throw new FileRevertRefusedException("This answer did not change " + path + ".");
@@ -168,9 +165,7 @@ public class ChatFileRevert {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         } catch (IllegalStateException e) {
             throw new ResponseStatusException(
-                    gitRegistry.isAvailable(project)
-                            ? HttpStatus.FORBIDDEN
-                            : HttpStatus.SERVICE_UNAVAILABLE,
+                    gitRegistry.isAvailable(project) ? HttpStatus.FORBIDDEN : HttpStatus.SERVICE_UNAVAILABLE,
                     e.getMessage(),
                     e);
         }
@@ -186,31 +181,22 @@ public class ChatFileRevert {
      * ровно ничего.
      */
     private FileRevertPayload write(
-            String conversationId,
-            GitService git,
-            FileRevertPlan plan,
-            Map<String, String> reverted) {
+            String conversationId, GitService git, FileRevertPlan plan, Map<String, String> reverted) {
         final List<String> done = new ArrayList<>();
         try {
-            reverted.forEach(
-                    (path, text) -> {
-                        git.replaceTrackedFile(path, text);
-                        done.add(path);
-                    });
-            plan.deletions()
-                    .forEach(
-                            (path, created) -> {
-                                git.deleteFile(path, created);
-                                done.add(path);
-                            });
+            reverted.forEach((path, text) -> {
+                git.replaceTrackedFile(path, text);
+                done.add(path);
+            });
+            plan.deletions().forEach((path, created) -> {
+                git.deleteFile(path, created);
+                done.add(path);
+            });
         } catch (RuntimeException e) {
             if (!done.isEmpty()) {
                 record(conversationId, new FileRevertMeta(git.project().id(), List.copyOf(done)));
             }
-            log.error(
-                    "Revert of files of the last answer in chat {} failed midway",
-                    conversationId,
-                    e);
+            log.error("Revert of files of the last answer in chat {} failed midway", conversationId, e);
             throw new FileRevertRefusedException(
                     "The revert is incomplete: "
                             + done.size()
@@ -233,8 +219,7 @@ public class ChatFileRevert {
      */
     private FileRevertPayload record(String conversationId, FileRevertMeta revert) {
         final ChatMessageEntity row = chatHistory.appendFileRevert(conversationId, revert);
-        final FileRevertPayload payload =
-                new FileRevertPayload(row.getId(), row.getCreatedAt(), revert);
+        final FileRevertPayload payload = new FileRevertPayload(row.getId(), row.getCreatedAt(), revert);
         chatEvents.publish(conversationId, ChatEventType.FILE_REVERT, null, null, payload);
         return payload;
     }

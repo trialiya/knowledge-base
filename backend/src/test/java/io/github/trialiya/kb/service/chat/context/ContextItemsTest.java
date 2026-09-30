@@ -78,10 +78,17 @@ class ContextItemsTest {
     private static final String QUESTION = "Посмотри файл";
     private static final long ATTACHMENT_ID = 7L;
 
-    @Autowired private ChatTopicRepository topicRepo;
-    @Autowired private ChatMessageRepository messageRepo;
-    @Autowired private ToolCallIndexRepository toolCallIndexRepo;
-    @Autowired private AttachmentRepository attachmentRepo;
+    @Autowired
+    private ChatTopicRepository topicRepo;
+
+    @Autowired
+    private ChatMessageRepository messageRepo;
+
+    @Autowired
+    private ToolCallIndexRepository toolCallIndexRepo;
+
+    @Autowired
+    private AttachmentRepository attachmentRepo;
 
     private AttachmentService attachmentService;
     private ContextItemService contextItemService;
@@ -91,16 +98,13 @@ class ContextItemsTest {
     void setUp() {
         attachmentService = mock(AttachmentService.class);
         contextItemService = new ContextItemService(attachmentService);
-        memoryService =
-                new ChatHistoryService(
-                        messageRepo,
-                        contextItemService,
-                        new ToolCallService(messageRepo, toolCallIndexRepo),
-                        new ToolCallEventPublisher(
-                                new ChatEventService(
-                                        new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                                new RunRegistry()),
-                        ActiveProjectNotices.silent());
+        memoryService = new ChatHistoryService(
+                messageRepo,
+                contextItemService,
+                new ToolCallService(messageRepo, toolCallIndexRepo),
+                new ToolCallEventPublisher(
+                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))), new RunRegistry()),
+                ActiveProjectNotices.silent());
     }
 
     /** Вложение чата видно только своему чату — этим и занимается запрос за метаданными. */
@@ -110,10 +114,7 @@ class ContextItemsTest {
 
     private void haveAttachment(String conversationId, String fileName, String summary) {
         when(attachmentService.findSummaries(eq(conversationId), any()))
-                .thenReturn(
-                        List.of(
-                                new AttachmentSummary(
-                                        ATTACHMENT_ID, fileName, "text/markdown", 1234, summary)));
+                .thenReturn(List.of(new AttachmentSummary(ATTACHMENT_ID, fileName, "text/markdown", 1234, summary)));
     }
 
     private static ContextItemRequest attachmentRequest() {
@@ -129,13 +130,12 @@ class ContextItemsTest {
 
         assertThat(contextItemService.resolve(conversationId, List.of(attachmentRequest())))
                 .singleElement()
-                .isEqualTo(
-                        new ContextItem(
-                                ContextItemKind.ATTACHMENT,
-                                String.valueOf(ATTACHMENT_ID),
-                                "report.md",
-                                // Описания у вложения нет — и это тоже фиксируется при отправке.
-                                Map.of("summary", "")));
+                .isEqualTo(new ContextItem(
+                        ContextItemKind.ATTACHMENT,
+                        String.valueOf(ATTACHMENT_ID),
+                        "report.md",
+                        // Описания у вложения нет — и это тоже фиксируется при отправке.
+                        Map.of("summary", "")));
     }
 
     /** Иначе id чужого вложения был бы способом прочитать его содержимое через свой чат. */
@@ -144,10 +144,7 @@ class ContextItemsTest {
         // Запрос за метаданными ограничен своим чатом, поэтому чужой id просто не вернётся.
         when(attachmentService.findSummaries(anyString(), any())).thenReturn(List.of());
 
-        assertThatThrownBy(
-                        () ->
-                                contextItemService.resolve(
-                                        UUID.randomUUID().toString(), List.of(attachmentRequest())))
+        assertThatThrownBy(() -> contextItemService.resolve(UUID.randomUUID().toString(), List.of(attachmentRequest())))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
@@ -157,17 +154,11 @@ class ContextItemsTest {
     void unknownKindAndNonNumericRefAreRejected() {
         String conversationId = UUID.randomUUID().toString();
 
-        assertThatThrownBy(
-                        () ->
-                                contextItemService.resolve(
-                                        conversationId,
-                                        List.of(new ContextItemRequest("COMMENT", "1"))))
+        assertThatThrownBy(() ->
+                        contextItemService.resolve(conversationId, List.of(new ContextItemRequest("COMMENT", "1"))))
                 .isInstanceOf(ResponseStatusException.class);
-        assertThatThrownBy(
-                        () ->
-                                contextItemService.resolve(
-                                        conversationId,
-                                        List.of(new ContextItemRequest("ATTACHMENT", "../etc"))))
+        assertThatThrownBy(() -> contextItemService.resolve(
+                        conversationId, List.of(new ContextItemRequest("ATTACHMENT", "../etc"))))
                 .isInstanceOf(ResponseStatusException.class);
     }
 
@@ -178,44 +169,32 @@ class ContextItemsTest {
         String conversationId = UUID.randomUUID().toString();
         haveAttachment(conversationId, "report.md");
 
-        var saved =
-                memoryService.saveUserMessage(
-                        conversationId,
-                        QUESTION,
-                        contextItemService.resolve(conversationId, List.of(attachmentRequest())),
-                        null,
-                        null);
+        var saved = memoryService.saveUserMessage(
+                conversationId,
+                QUESTION,
+                contextItemService.resolve(conversationId, List.of(attachmentRequest())),
+                null,
+                null);
 
         // В БД — только ссылка: содержимое файла в историю не разворачивается.
-        assertThat(messageRepo.findById(saved.getId()))
-                .get()
-                .satisfies(
-                        row -> {
-                            assertThat(row.getContent()).isEqualTo(QUESTION);
-                            assertThat(row.getContextItems())
-                                    .singleElement()
-                                    .satisfies(
-                                            item -> {
-                                                assertThat(item.kind())
-                                                        .isEqualTo(ContextItemKind.ATTACHMENT);
-                                                assertThat(item.ref())
-                                                        .isEqualTo(String.valueOf(ATTACHMENT_ID));
-                                            });
-                        });
+        assertThat(messageRepo.findById(saved.getId())).get().satisfies(row -> {
+            assertThat(row.getContent()).isEqualTo(QUESTION);
+            assertThat(row.getContextItems()).singleElement().satisfies(item -> {
+                assertThat(item.kind()).isEqualTo(ContextItemKind.ATTACHMENT);
+                assertThat(item.ref()).isEqualTo(String.valueOf(ATTACHMENT_ID));
+            });
+        });
 
         // А модель видит опись приложенного, дописанную к вопросу при чтении истории.
-        assertThat(memoryService.promptMessages(conversationId))
-                .singleElement()
-                .satisfies(
-                        message -> {
-                            assertThat(message.getMessageType()).isEqualTo(MessageType.USER);
-                            assertThat(message.getText())
-                                    .startsWith(QUESTION)
-                                    .contains("<attached-context>")
-                                    .contains("id=" + ATTACHMENT_ID)
-                                    .contains("report.md")
-                                    .contains("getAttachmentContent");
-                        });
+        assertThat(memoryService.promptMessages(conversationId)).singleElement().satisfies(message -> {
+            assertThat(message.getMessageType()).isEqualTo(MessageType.USER);
+            assertThat(message.getText())
+                    .startsWith(QUESTION)
+                    .contains("<attached-context>")
+                    .contains("id=" + ATTACHMENT_ID)
+                    .contains("report.md")
+                    .contains("getAttachmentContent");
+        });
     }
 
     /**
@@ -237,10 +216,8 @@ class ContextItemsTest {
 
         memoryService.append(conversationId, memoryService.promptMessages(conversationId));
 
-        assertThat(
-                        messageRepo
-                                .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
-                                        conversationId))
+        assertThat(messageRepo.findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                        conversationId))
                 .singleElement()
                 .satisfies(row -> assertThat(row.getContent()).isEqualTo(QUESTION));
     }
@@ -280,30 +257,20 @@ class ContextItemsTest {
         final String otherChat = UUID.randomUUID().toString();
         haveAttachment(otherChat, "log.txt");
         memoryService.saveUserMessage(
-                otherChat,
-                QUESTION,
-                contextItemService.resolve(otherChat, List.of(attachmentRequest())),
-                null,
-                null);
+                otherChat, QUESTION, contextItemService.resolve(otherChat, List.of(attachmentRequest())), null, null);
 
         haveAttachment(conversationId, "report-v2.md", "Переписанное описание");
         haveAttachment(otherChat, "log.txt", "Описание, заказанное после вопроса");
 
-        assertThat(memoryService.promptMessages(conversationId))
-                .singleElement()
-                .satisfies(
-                        message ->
-                                assertThat(message.getText())
-                                        .contains("report-v2.md")
-                                        .contains("summary=\"Отчёт за квартал\"")
-                                        .doesNotContain("Переписанное описание"));
+        assertThat(memoryService.promptMessages(conversationId)).singleElement().satisfies(message -> assertThat(
+                        message.getText())
+                .contains("report-v2.md")
+                .contains("summary=\"Отчёт за квартал\"")
+                .doesNotContain("Переписанное описание"));
         assertThat(memoryService.promptMessages(otherChat))
                 .singleElement()
-                .satisfies(
-                        message ->
-                                assertThat(message.getText())
-                                        .contains("log.txt")
-                                        .doesNotContain("summary="));
+                .satisfies(message ->
+                        assertThat(message.getText()).contains("log.txt").doesNotContain("summary="));
     }
 
     /** Элемент, записанный до заморозки, описания в себе не несёт — оно читается живым. */
@@ -313,21 +280,14 @@ class ContextItemsTest {
         memoryService.saveUserMessage(
                 conversationId,
                 QUESTION,
-                List.of(
-                        new ContextItem(
-                                ContextItemKind.ATTACHMENT,
-                                String.valueOf(ATTACHMENT_ID),
-                                "report.md")),
+                List.of(new ContextItem(ContextItemKind.ATTACHMENT, String.valueOf(ATTACHMENT_ID), "report.md")),
                 null,
                 null);
         haveAttachment(conversationId, "report.md", "Живое описание");
 
         assertThat(memoryService.promptMessages(conversationId))
                 .singleElement()
-                .satisfies(
-                        message ->
-                                assertThat(message.getText())
-                                        .contains("summary=\"Живое описание\""));
+                .satisfies(message -> assertThat(message.getText()).contains("summary=\"Живое описание\""));
     }
 
     /**
@@ -341,19 +301,17 @@ class ContextItemsTest {
     void originalMessagesLookupKeepsTheAttachedContext() {
         String conversationId = UUID.randomUUID().toString();
         haveAttachment(conversationId, "report.md");
-        var saved =
-                memoryService.saveUserMessage(
-                        conversationId,
-                        QUESTION,
-                        contextItemService.resolve(conversationId, List.of(attachmentRequest())),
-                        null,
-                        null);
+        var saved = memoryService.saveUserMessage(
+                conversationId,
+                QUESTION,
+                contextItemService.resolve(conversationId, List.of(attachmentRequest())),
+                null,
+                null);
 
-        final String lookup =
-                new MessageLookupFunction(messageRepo, contextItemService)
-                        .getOriginalMessages(
-                                new ToolContext(Map.of(ChatMemory.CONVERSATION_ID, conversationId)),
-                                List.of(saved.getPosition()));
+        final String lookup = new MessageLookupFunction(messageRepo, contextItemService)
+                .getOriginalMessages(
+                        new ToolContext(Map.of(ChatMemory.CONVERSATION_ID, conversationId)),
+                        List.of(saved.getPosition()));
 
         assertThat(lookup).contains(QUESTION).contains("report.md").contains("id=" + ATTACHMENT_ID);
     }
@@ -384,29 +342,27 @@ class ContextItemsTest {
 
         assertThat(attachmentRepo.findSummaries(conversationId, List.of(mine, theirs)))
                 .singleElement()
-                .satisfies(
-                        found -> {
-                            assertThat(found.id()).isEqualTo(mine);
-                            assertThat(found.fileName()).isEqualTo("report.md");
-                            assertThat(found.fileSize()).isEqualTo(50_000);
-                        });
+                .satisfies(found -> {
+                    assertThat(found.id()).isEqualTo(mine);
+                    assertThat(found.fileName()).isEqualTo("report.md");
+                    assertThat(found.fileSize()).isEqualTo(50_000);
+                });
     }
 
     private long insertAttachment(String conversationId, String fileName, String content) {
         // conversation_id — внешний ключ на chat_topic, поэтому чат должен существовать.
-        topicRepo.save(
-                new ChatTopicEntity(
-                        conversationId,
-                        "admin",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        LocalDateTime.now(),
-                        LocalDateTime.now(),
-                        true));
+        topicRepo.save(new ChatTopicEntity(
+                conversationId,
+                "admin",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                true));
         final AttachmentEntity entity = new AttachmentEntity();
         entity.setOwnerType(AttachmentOwnerType.CHAT);
         entity.setConversationId(conversationId);
@@ -426,20 +382,13 @@ class ContextItemsTest {
         String conversationId = UUID.randomUUID().toString();
         memoryService.saveUserMessage(conversationId, "первый вопрос", List.of(), "kb", null);
 
-        var switched =
-                memoryService.saveUserMessage(
-                        conversationId,
-                        QUESTION,
-                        List.of(),
-                        "billing",
-                        new ProjectSwitch("kb", "billing"));
+        var switched = memoryService.saveUserMessage(
+                conversationId, QUESTION, List.of(), "billing", new ProjectSwitch("kb", "billing"));
 
-        assertThat(messageRepo.findById(switched.getId()))
-                .hasValueSatisfying(
-                        row -> {
-                            assertThat(row.getMeta().project()).isEqualTo("billing");
-                            assertThat(row.getMeta().projectSwitchFrom()).isEqualTo("kb");
-                        });
+        assertThat(messageRepo.findById(switched.getId())).hasValueSatisfying(row -> {
+            assertThat(row.getMeta().project()).isEqualTo("billing");
+            assertThat(row.getMeta().projectSwitchFrom()).isEqualTo("kb");
+        });
         var text = memoryService.promptRows(conversationId).getLast().text();
         assertThat(text).startsWith("<project-switched from=\"kb\" to=\"billing\">");
         assertThat(text).contains(QUESTION);
@@ -455,13 +404,8 @@ class ContextItemsTest {
     void theFirstMessageCarriesTheProjectWithoutASwitchMarker() {
         String conversationId = UUID.randomUUID().toString();
 
-        var first =
-                memoryService.saveUserMessage(
-                        conversationId,
-                        QUESTION,
-                        List.of(),
-                        "billing",
-                        new ProjectSwitch("kb", "billing"));
+        var first = memoryService.saveUserMessage(
+                conversationId, QUESTION, List.of(), "billing", new ProjectSwitch("kb", "billing"));
 
         assertThat(first.getMeta().project()).isEqualTo("billing");
         assertThat(first.getMeta().projectSwitchFrom()).isNull();
@@ -494,8 +438,7 @@ class ContextItemsTest {
     void aRetryInAnotherProjectMarksTheQuestionItRepeats() {
         String conversationId = UUID.randomUUID().toString();
         memoryService.saveUserMessage(conversationId, "первый вопрос", List.of(), "kb", null);
-        var question =
-                memoryService.saveUserMessage(conversationId, QUESTION, List.of(), "kb", null);
+        var question = memoryService.saveUserMessage(conversationId, QUESTION, List.of(), "kb", null);
 
         var marked = memoryService.markProjectSwitch(question, new ProjectSwitch("kb", "billing"));
         assertThat(marked.getMeta().projectSwitchFrom()).isEqualTo("kb");
@@ -519,16 +462,13 @@ class ContextItemsTest {
     void unknownKindInStoredMetaIsDroppedNotFatal() {
         var reader = new ChatMessageMetaToJsonConverter.Reader(new ObjectMapper());
 
-        var meta =
-                reader.convert(
-                        """
+        var meta = reader.convert("""
                         {"runId":null,"toolCalls":false,"invocations":[],"contextItems":[
                           {"kind":"COMMENT","ref":"1","label":"из будущего"},
                           {"kind":"ATTACHMENT","ref":"7","label":"report.md"}]}
                         """);
 
-        assertThat(meta.contextItems())
-                .singleElement()
-                .satisfies(item -> assertThat(item.ref()).isEqualTo("7"));
+        assertThat(meta.contextItems()).singleElement().satisfies(item -> assertThat(item.ref())
+                .isEqualTo("7"));
     }
 }

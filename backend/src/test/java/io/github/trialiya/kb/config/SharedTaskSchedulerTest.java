@@ -50,15 +50,12 @@ class SharedTaskSchedulerTest {
     }
 
     private List<Class<?>> typesIn(String basePackage) {
-        ClassPathScanningCandidateComponentProvider scanner =
-                new ClassPathScanningCandidateComponentProvider(false);
+        ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
         scanner.addIncludeFilter((reader, factory) -> true);
         List<Class<?>> found = new ArrayList<>();
         for (BeanDefinition definition : scanner.findCandidateComponents(basePackage)) {
-            found.add(
-                    ClassUtils.resolveClassName(
-                            String.valueOf(definition.getBeanClassName()),
-                            getClass().getClassLoader()));
+            found.add(ClassUtils.resolveClassName(
+                    String.valueOf(definition.getBeanClassName()), getClass().getClassLoader()));
         }
         return found;
     }

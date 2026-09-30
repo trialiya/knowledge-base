@@ -32,8 +32,7 @@ public class DocumentSummaryService {
 
     // Intentionally not shared with AttachmentService: the two prompts serve
     // different content shapes (structured markdown vs raw file content).
-    private static final String SUMMARIZE_PROMPT =
-            """
+    private static final String SUMMARIZE_PROMPT = """
         Создай краткое описание документа с заголовком "{title}".
         Описание должно передавать основную тему, ключевые понятия и структуру содержимого. \
         2-5 предложения. Используй простой текст без форматирования.
@@ -67,16 +66,13 @@ public class DocumentSummaryService {
      */
     @Nullable
     public String summarize(DocumentEntity entity) {
-        String summaryText =
-                chatClient
-                        .prompt()
-                        .user(
-                                u ->
-                                        u.text(SUMMARIZE_PROMPT)
-                                                .param("title", entity.getTitle())
-                                                .param("description", entity.getDescription()))
-                        .call()
-                        .content();
+        String summaryText = chatClient
+                .prompt()
+                .user(u -> u.text(SUMMARIZE_PROMPT)
+                        .param("title", entity.getTitle())
+                        .param("description", entity.getDescription()))
+                .call()
+                .content();
         log.info("Summarised document id={} title='{}'", entity.getId(), entity.getTitle());
         return summaryText != null ? summaryText.trim() : null;
     }

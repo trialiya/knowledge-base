@@ -61,9 +61,7 @@ class TokenUsageAdvisorTest {
     @Test
     void contextComesFromTheLastCallAndGrowthFromTheDifference() {
         final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
-        when(chain.nextStream(any()))
-                .thenReturn(Flux.just(chunk(100, 10)))
-                .thenReturn(Flux.just(chunk(400, 30)));
+        when(chain.nextStream(any())).thenReturn(Flux.just(chunk(100, 10))).thenReturn(Flux.just(chunk(400, 30)));
 
         advisor.adviseStream(request(), chain).blockLast();
         advisor.adviseStream(request(), chain).blockLast();
@@ -86,8 +84,7 @@ class TokenUsageAdvisorTest {
     @Test
     void aRunningTotalWithinOneCallIsNotSummed() {
         final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
-        when(chain.nextStream(any()))
-                .thenReturn(Flux.just(chunk(100, 5), chunk(100, 20), chunk(100, 33)));
+        when(chain.nextStream(any())).thenReturn(Flux.just(chunk(100, 5), chunk(100, 20), chunk(100, 33)));
 
         advisor.adviseStream(request(), chain).blockLast();
 
@@ -137,8 +134,7 @@ class TokenUsageAdvisorTest {
     @Test
     void aMeasurementWithoutAContextIsNotPublished() {
         final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
-        when(chain.nextStream(any()))
-                .thenReturn(Flux.just(chunk(0, 7), chunk(0, 12), chunk(400, 30)));
+        when(chain.nextStream(any())).thenReturn(Flux.just(chunk(0, 7), chunk(0, 12), chunk(400, 30)));
 
         advisor.adviseStream(request(), chain).blockLast();
 
@@ -149,8 +145,7 @@ class TokenUsageAdvisorTest {
     @Test
     void anUnchangedMeasurementIsNotRepublished() {
         final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
-        when(chain.nextStream(any()))
-                .thenReturn(Flux.just(chunk(100, 20), chunk(100, 20), chunk(100, 20)));
+        when(chain.nextStream(any())).thenReturn(Flux.just(chunk(100, 20), chunk(100, 20), chunk(100, 20)));
 
         advisor.adviseStream(request(), chain).blockLast();
 
@@ -204,13 +199,10 @@ class TokenUsageAdvisorTest {
     void theRunTotalIsCompleteWhenOnErrorReachesTheSubscriber() {
         final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
         when(chain.nextStream(any()))
-                .thenReturn(
-                        Flux.just(chunk(1000, 50))
-                                .concatWith(Flux.error(new IllegalStateException("boom"))));
+                .thenReturn(Flux.just(chunk(1000, 50)).concatWith(Flux.error(new IllegalStateException("boom"))));
 
         final AtomicReference<RunTokenUsage> seenAtError = new AtomicReference<>();
-        advisor.adviseStream(request(), chain)
-                .subscribe(response -> {}, error -> seenAtError.set(scope.usage()));
+        advisor.adviseStream(request(), chain).subscribe(response -> {}, error -> seenAtError.set(scope.usage()));
 
         assertThat(seenAtError.get()).isEqualTo(usage(1050, 1000, 0, 50, 1000, 1));
     }
@@ -219,8 +211,7 @@ class TokenUsageAdvisorTest {
     @Test
     void aCancelledCallStillCounts() {
         final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
-        when(chain.nextStream(any()))
-                .thenReturn(Flux.just(chunk(100, 10)).concatWith(Flux.never()));
+        when(chain.nextStream(any())).thenReturn(Flux.just(chunk(100, 10)).concatWith(Flux.never()));
 
         advisor.adviseStream(request(), chain).take(1).blockLast();
 
@@ -238,9 +229,7 @@ class TokenUsageAdvisorTest {
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(1000, 50)))
                 .thenReturn(Flux.just(chunkWithoutMetadata()))
-                .thenReturn(
-                        Flux.just(chunk(1200, 30))
-                                .concatWith(Flux.error(new IllegalStateException("boom"))))
+                .thenReturn(Flux.just(chunk(1200, 30)).concatWith(Flux.error(new IllegalStateException("boom"))))
                 .thenReturn(Flux.just(chunk(1300, 10)).concatWith(Flux.never()));
 
         advisor.adviseStream(request(), chain).blockLast();
@@ -248,24 +237,19 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain).onErrorComplete().blockLast();
         advisor.adviseStream(request(), chain).take(1).blockLast();
 
-        assertThat(scope.calls())
-                .extracting(TokenUsage::contextTokens)
-                .containsExactly(1050L, null, 1230L, 1310L);
+        assertThat(scope.calls()).extracting(TokenUsage::contextTokens).containsExactly(1050L, null, 1230L, 1310L);
         assertThat(scope.lastCallContextTokens()).isEqualTo(1310L);
     }
 
     /** Ожидаемый итог прогона; кэш во всех сценариях здесь нулевой. */
-    private static RunTokenUsage usage(
-            long context, long base, long tools, long output, long prompt, int calls) {
-        return new RunTokenUsage(
-                context, base, tools, output, prompt, 0, 0, output + prompt, calls);
+    private static RunTokenUsage usage(long context, long base, long tools, long output, long prompt, int calls) {
+        return new RunTokenUsage(context, base, tools, output, prompt, 0, 0, output + prompt, calls);
     }
 
     /** Замеры, доехавшие до фронта, по порядку. */
     private List<RunTokenUsage> publishedUsage() {
         final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
-        verify(events, atLeastOnce())
-                .publish(eq(CONV), eq(RUN_USAGE), eq(RUN), isNull(), payload.capture());
+        verify(events, atLeastOnce()).publish(eq(CONV), eq(RUN_USAGE), eq(RUN), isNull(), payload.capture());
         return payload.getAllValues().stream().map(RunTokenUsage.class::cast).toList();
     }
 
@@ -278,12 +262,11 @@ class TokenUsageAdvisorTest {
 
     private static ChatClientResponse chunk(int prompt, int completion) {
         return ChatClientResponse.builder()
-                .chatResponse(
-                        new ChatResponse(
-                                List.of(new Generation(new AssistantMessage("…"))),
-                                ChatResponseMetadata.builder()
-                                        .usage(new DefaultUsage(prompt, completion))
-                                        .build()))
+                .chatResponse(new ChatResponse(
+                        List.of(new Generation(new AssistantMessage("…"))),
+                        ChatResponseMetadata.builder()
+                                .usage(new DefaultUsage(prompt, completion))
+                                .build()))
                 .build();
     }
 

@@ -12,7 +12,8 @@ import org.jspecify.annotations.Nullable;
  * @param message human-readable detail, taken verbatim from the engine or the budget check
  * @param line 1-based line in the script, when the engine reported one
  */
-public record ScriptError(Kind kind, String message, @Nullable Integer line) {
+public record ScriptError(
+        Kind kind, String message, @Nullable Integer line) {
 
     public enum Kind {
         /** The script did not parse. */

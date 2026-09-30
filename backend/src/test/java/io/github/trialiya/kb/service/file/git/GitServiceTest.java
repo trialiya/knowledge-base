@@ -26,7 +26,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitServiceTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private GitService service;
 
@@ -75,17 +76,14 @@ class GitServiceTest {
             var command = new java.util.ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (failOnError && exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -103,7 +101,8 @@ class GitServiceTest {
 
         // Regression: without core.quotepath=false, git quotes/octal-escapes the Cyrillic path,
         // which used to split into a bogus quoted "docs" node distinct from the real one.
-        List<GitFileNode> docsNodes = root.stream().filter(n -> n.name().equals("docs")).toList();
+        List<GitFileNode> docsNodes =
+                root.stream().filter(n -> n.name().equals("docs")).toList();
         assertThat(docsNodes).hasSize(1);
         assertThat(docsNodes.get(0).path()).isEqualTo("docs");
         assertThat(docsNodes.get(0).type()).isEqualTo(FileEntryType.DIRECTORY);
@@ -266,8 +265,7 @@ class GitServiceTest {
 
         // Pure addition, no deletions — a naive numstat heuristic (additions>0 && deletions==0)
         // would misclassify this as "added" even though the file already existed.
-        Files.writeString(
-                repoDir.resolve("a.txt"), "line1\nline2\nline3\n", StandardCharsets.UTF_8);
+        Files.writeString(repoDir.resolve("a.txt"), "line1\nline2\nline3\n", StandardCharsets.UTF_8);
 
         List<GitDiffEntry> changes = service.getUncommittedChanges(false);
         assertThat(changes).hasSize(1);
@@ -479,7 +477,8 @@ class GitServiceTest {
         runGit("commit", "-q", "-m", "rename");
 
         List<GitCommit> log = service.getCommitLog(1, null, false);
-        List<GitDiffEntry> files = service.getCommitDiff(log.get(0).hash(), false).get(0).files();
+        List<GitDiffEntry> files =
+                service.getCommitDiff(log.get(0).hash(), false).get(0).files();
 
         assertThat(files).hasSize(1);
         GitDiffEntry entry = files.get(0);
@@ -502,18 +501,15 @@ class GitServiceTest {
         commitAll();
 
         List<GitCommit> log = service.getCommitLog(1, null, false);
-        List<GitDiffEntry> files = service.getCommitDiff(log.get(0).hash(), false).get(0).files();
+        List<GitDiffEntry> files =
+                service.getCommitDiff(log.get(0).hash(), false).get(0).files();
 
         // Both new files are byte-identical, so which one the detector promotes to RENAME (vs
         // COPY) is an arbitrary internal choice — assert the pair, not the assignment.
         assertThat(files).extracting(GitDiffEntry::status).containsExactlyInAnyOrder("R", "C");
-        assertThat(files)
-                .extracting(GitDiffEntry::path)
-                .containsExactlyInAnyOrder("kept.txt", "extra.txt");
+        assertThat(files).extracting(GitDiffEntry::path).containsExactlyInAnyOrder("kept.txt", "extra.txt");
         // The copy must carry its source path, same as the rename.
-        assertThat(files)
-                .extracting(GitDiffEntry::oldPath)
-                .containsExactly("origin.txt", "origin.txt");
+        assertThat(files).extracting(GitDiffEntry::oldPath).containsExactly("origin.txt", "origin.txt");
     }
 
     /**
@@ -537,7 +533,8 @@ class GitServiceTest {
                 .containsExactlyInAnyOrder(tuple("M", "kept.txt"), tuple("D", "gone.txt"));
         assertThat(commit.files()).allSatisfy(f -> assertThat(f.patch()).isNull());
 
-        GitDiffEntry deleted = service.getCommit("HEAD", true, "gone.txt").files().getFirst();
+        GitDiffEntry deleted =
+                service.getCommit("HEAD", true, "gone.txt").files().getFirst();
         assertThat(deleted.status()).isEqualTo("D");
         assertThat(deleted.patch()).contains("-bye");
         assertThat(service.getCommit("HEAD~1", true, "nowhere.txt").files()).isEmpty();
@@ -573,15 +570,13 @@ class GitServiceTest {
         runGit("mv", "old-name.txt", "new-name.txt");
         runGit("commit", "-q", "-m", "rename");
 
-        List<GitDiffEntry> files = service.getCommit("HEAD", true, "new-name.txt").files();
+        List<GitDiffEntry> files =
+                service.getCommit("HEAD", true, "new-name.txt").files();
 
-        assertThat(files)
-                .singleElement()
-                .satisfies(
-                        entry -> {
-                            assertThat(entry.status()).isEqualTo("R");
-                            assertThat(entry.oldPath()).isEqualTo("old-name.txt");
-                        });
+        assertThat(files).singleElement().satisfies(entry -> {
+            assertThat(entry.status()).isEqualTo("R");
+            assertThat(entry.oldPath()).isEqualTo("old-name.txt");
+        });
     }
 
     @Test
@@ -647,8 +642,7 @@ class GitServiceTest {
         writeFile("crlf.txt", "line1\nline2\n");
         commitAll();
         // Overwrite the working-tree file with CRLF content (simulating Windows checkout).
-        Files.write(
-                repoDir.resolve("crlf.txt"), "line1\r\nline2\r\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(repoDir.resolve("crlf.txt"), "line1\r\nline2\r\n".getBytes(StandardCharsets.UTF_8));
 
         var content = service.getFileContent("crlf.txt");
         // Returned content must use LF; no trailing \r should appear on any line.
@@ -672,9 +666,7 @@ class GitServiceTest {
 
         // A conflicted file has only stage-1..3 index entries (no stage 0). It is still tracked,
         // so it must not vanish from the tree, from file content, or from uncommitted changes.
-        assertThat(service.getFileTree(null))
-                .extracting(GitFileNode::name)
-                .contains("conflict.txt");
+        assertThat(service.getFileTree(null)).extracting(GitFileNode::name).contains("conflict.txt");
         assertThat(service.getFileContent("conflict.txt").content()).contains("<<<<<<<");
 
         List<GitDiffEntry> changes = service.getUncommittedChanges(false);
@@ -702,13 +694,7 @@ class GitServiceTest {
         // one round trip per level of nesting.
         assertThat(view.tree())
                 .extracting(GitTreeLevel::path)
-                .containsExactly(
-                        "",
-                        "src",
-                        "src/main",
-                        "src/main/java",
-                        "src/main/java/com",
-                        "src/main/java/com/app");
+                .containsExactly("", "src", "src/main", "src/main/java", "src/main/java/com", "src/main/java/com/app");
         assertThat(view.tree().getFirst().nodes())
                 .extracting(GitFileNode::name)
                 .containsExactly("src", "README.md"); // directories first
@@ -756,9 +742,7 @@ class GitServiceTest {
         assertThat(view.file()).isNull();
         assertThat(view.nodes()).isNull();
         // The tree still expands as far as the path exists, so the user sees where it broke.
-        assertThat(view.tree())
-                .extracting(GitTreeLevel::path)
-                .containsExactly("", "docs", "docs/guide");
+        assertThat(view.tree()).extracting(GitTreeLevel::path).containsExactly("", "docs", "docs/guide");
     }
 
     /**
@@ -779,12 +763,9 @@ class GitServiceTest {
 
         assertThat(view.type()).isNull();
         assertThat(view.file()).isNull();
-        assertThat(view.tree())
-                .extracting(GitTreeLevel::path)
-                .containsExactly("", "docs", "docs/guide");
+        assertThat(view.tree()).extracting(GitTreeLevel::path).containsExactly("", "docs", "docs/guide");
         // Соседний файл того же каталога открывается как ни в чём не бывало.
-        assertThat(service.browsePath("docs/guide/intro.md", false).type())
-                .isEqualTo(FileEntryType.FILE);
+        assertThat(service.browsePath("docs/guide/intro.md", false).type()).isEqualTo(FileEntryType.FILE);
     }
 
     @Test
@@ -821,11 +802,8 @@ class GitServiceTest {
         assertThat(view.tree())
                 .filteredOn(level -> "src".equals(level.path()))
                 .singleElement()
-                .satisfies(
-                        level ->
-                                assertThat(level.nodes())
-                                        .extracting(GitFileNode::name)
-                                        .containsExactly("main", "README.md"));
+                .satisfies(level ->
+                        assertThat(level.nodes()).extracting(GitFileNode::name).containsExactly("main", "README.md"));
     }
 
     @Test
@@ -833,8 +811,7 @@ class GitServiceTest {
         writeFile("src/main/Foo.java", "class Foo {}\n");
         commitAll();
 
-        assertThat(service.browsePath("src\\main\\Foo.java", true).type())
-                .isEqualTo(FileEntryType.FILE);
+        assertThat(service.browsePath("src\\main\\Foo.java", true).type()).isEqualTo(FileEntryType.FILE);
 
         var dir = service.browsePath("src/main/", true);
         assertThat(dir.path()).isEqualTo("src/main");
@@ -893,8 +870,7 @@ class GitServiceTest {
     @Test
     void searchCommitsIgnoresTheMessageBody() {
         writeFile("a.txt", "a\n");
-        commitAll(
-                "Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions zzz");
+        commitAll("Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions zzz");
 
         assertThat(service.searchCommits("zzz", 10)).isEmpty();
         assertThat(service.searchCommits("Subject", 10)).hasSize(1);
@@ -904,18 +880,16 @@ class GitServiceTest {
     @Test
     void grepCommitsMatchesTheDescriptionAndReturnsIt() {
         writeFile("a.txt", "a\n");
-        commitAll(
-                "Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
+        commitAll("Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
         writeFile("b.txt", "b\n");
         commitAll("Unrelated change");
 
         assertThat(service.grepCommits("zzz", 10, null).commits())
                 .singleElement()
-                .satisfies(
-                        c -> {
-                            assertThat(c.message()).isEqualTo("Subject line");
-                            assertThat(c.body()).isEqualTo("mentions ZZZ");
-                        });
+                .satisfies(c -> {
+                    assertThat(c.message()).isEqualTo("Subject line");
+                    assertThat(c.body()).isEqualTo("mentions ZZZ");
+                });
         // A subject hit is still a hit, and it carries its body along.
         assertThat(service.grepCommits("unrelated", 10, null).commits())
                 .extracting(GitCommit::message)
@@ -948,7 +922,8 @@ class GitServiceTest {
 
         assertThat(service.grepCommits("fix", 1, null).truncated()).isTrue();
         assertThat(service.grepCommits("fix", 2, null).truncated()).isFalse();
-        assertThat(service.grepCommits("nothing-like-this", 2, null).truncated()).isFalse();
+        assertThat(service.grepCommits("nothing-like-this", 2, null).truncated())
+                .isFalse();
     }
 
     /**
@@ -958,8 +933,7 @@ class GitServiceTest {
     @Test
     void searchCommitLogSearchesTheDescriptionButReturnsItOnlyWhenAsked() {
         writeFile("a.txt", "a\n");
-        commitAll(
-                "Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
+        commitAll("Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
 
         assertThat(service.searchCommitLog("zzz", 10, null, false))
                 .singleElement()
@@ -1035,8 +1009,7 @@ class GitServiceTest {
         assertThatThrownBy(() -> service.getRawFile("docs/icon.svg"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("docs/icon.svg");
-        assertThatThrownBy(() -> service.getFileContent("docs/icon.svg"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.getFileContent("docs/icon.svg")).isInstanceOf(IllegalArgumentException.class);
     }
 
     /**
@@ -1050,11 +1023,7 @@ class GitServiceTest {
         writeFile("docs/a\"b.md", "b\n");
         commitAll();
 
-        assertThat(service.getFileTree("docs"))
-                .extracting(GitFileNode::path)
-                .containsExactly("docs/plain.md");
-        assertThat(service.searchFiles("md", 5))
-                .extracting(GitFileNode::path)
-                .containsExactly("docs/plain.md");
+        assertThat(service.getFileTree("docs")).extracting(GitFileNode::path).containsExactly("docs/plain.md");
+        assertThat(service.searchFiles("md", 5)).extracting(GitFileNode::path).containsExactly("docs/plain.md");
     }
 }

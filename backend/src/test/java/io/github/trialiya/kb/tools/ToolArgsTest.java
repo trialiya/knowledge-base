@@ -24,8 +24,7 @@ class ToolArgsTest {
 
     @Test
     void blankIsMissingForANameButNotForContent() {
-        assertThatThrownBy(() -> ToolArgs.requireText("   ", "query"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ToolArgs.requireText("   ", "query")).isInstanceOf(IllegalArgumentException.class);
         // A deliberate empty body — create an empty file, delete a fragment — is a real value.
         assertThat(ToolArgs.requireContent("", "content")).isEmpty();
         assertThat(ToolArgs.requireContent("   ", "content")).isEqualTo("   ");

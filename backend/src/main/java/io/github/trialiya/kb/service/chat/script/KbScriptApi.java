@@ -88,10 +88,7 @@ public class KbScriptApi {
     private @Nullable Function<Value, String> formatter;
 
     public KbScriptApi(
-            GitService gitService,
-            DocumentService documentService,
-            ScriptSession session,
-            ScriptResultReader results) {
+            GitService gitService, DocumentService documentService, ScriptSession session, ScriptResultReader results) {
         this.gitService = gitService;
         this.documentService = documentService;
         this.session = session;
@@ -128,18 +125,15 @@ public class KbScriptApi {
      */
     @HostAccess.Export
     public Object files(@Nullable String glob) {
-        List<String> paths =
-                session.call(
-                        Arrays.<Object>asList("files", glob),
-                        () -> {
-                            List<String> result = new ArrayList<>();
-                            for (String path : gitService.listTrackedFiles()) {
-                                if (glob == null || glob.isBlank() || MATCHER.match(glob, path)) {
-                                    result.add(path);
-                                }
-                            }
-                            return result;
-                        });
+        List<String> paths = session.call(Arrays.<Object>asList("files", glob), () -> {
+            List<String> result = new ArrayList<>();
+            for (String path : gitService.listTrackedFiles()) {
+                if (glob == null || glob.isBlank() || MATCHER.match(glob, path)) {
+                    result.add(path);
+                }
+            }
+            return result;
+        });
         // Strings are immutable — a shallow copy of the list is all a fresh proxy needs.
         return ProxyArray.fromList(new ArrayList<>(paths));
     }
@@ -159,53 +153,45 @@ public class KbScriptApi {
     @HostAccess.Export
     public String read(String path, int fromLine, int toLine) {
         String canonical = canonical(path);
-        return session.call(
-                Arrays.<Object>asList("read", canonical, fromLine, toLine),
-                () -> {
-                    GitFileContent content =
-                            gitService.getFileContent(
-                                    canonical,
-                                    fromLine > 0 ? fromLine : null,
-                                    toLine > 0 ? toLine : null);
-                    if (content.binary()) {
-                        // Not a budget, and not a refusal to open the file either — only a refusal
-                        // to pretend its bytes are text. Decoding them as UTF-8 would hand back a
-                        // string full of replacement characters that no longer round-trips, so the
-                        // model is sent to the two methods that do serve bytes as bytes. Same
-                        // exception type as the equivalent refusal in GitService, so it arrives as
-                        // RUNTIME and the model stops retrying kb.read.
-                        throw new IllegalArgumentException(
-                                "Cannot read "
-                                        + content.path()
-                                        + " as text: it is a binary file. Read its bytes instead"
-                                        + " — kb.readBytes(path[, offset, length]) for an array of"
-                                        + " byte values, kb.readBase64(path[, offset, length]) for"
-                                        + " base64.");
-                    }
-                    // GitService answers an oversized whole-file read with a head+tail excerpt.
-                    // For a person reading a plaque that is a courtesy; for a script it is a wrong
-                    // answer that looks like a right one — every count it goes on to make would
-                    // silently be of the middle-less file. So the excerpt is refused and the
-                    // script is told the one call that does return exact text. (Line ranges are
-                    // exempt at the source, which is why this cannot be a size threshold: any
-                    // ceiling on the file is one range loop away from being circumvented anyway.)
-                    // truncated() is also set for an ordinary range read, so only a whole-file
-                    // request can have been cut short against the caller's wishes.
-                    if (fromLine <= 0 && toLine <= 0 && content.truncated()) {
-                        throw new ScriptLimitExceededException(
-                                "Cannot read "
-                                        + content.path()
-                                        + " whole: it is "
-                                        + content.sizeBytes()
-                                        + " bytes, and a whole-file read that large comes back"
-                                        + " excerpted. Read line ranges instead:"
-                                        + " kb.read(path, from, to).");
-                    }
-                    String text = content.content() == null ? "" : content.content();
-                    session.chargeRead(
-                            content.path(), text.getBytes(StandardCharsets.UTF_8).length);
-                    return text;
-                });
+        return session.call(Arrays.<Object>asList("read", canonical, fromLine, toLine), () -> {
+            GitFileContent content =
+                    gitService.getFileContent(canonical, fromLine > 0 ? fromLine : null, toLine > 0 ? toLine : null);
+            if (content.binary()) {
+                // Not a budget, and not a refusal to open the file either — only a refusal
+                // to pretend its bytes are text. Decoding them as UTF-8 would hand back a
+                // string full of replacement characters that no longer round-trips, so the
+                // model is sent to the two methods that do serve bytes as bytes. Same
+                // exception type as the equivalent refusal in GitService, so it arrives as
+                // RUNTIME and the model stops retrying kb.read.
+                throw new IllegalArgumentException("Cannot read "
+                        + content.path()
+                        + " as text: it is a binary file. Read its bytes instead"
+                        + " — kb.readBytes(path[, offset, length]) for an array of"
+                        + " byte values, kb.readBase64(path[, offset, length]) for"
+                        + " base64.");
+            }
+            // GitService answers an oversized whole-file read with a head+tail excerpt.
+            // For a person reading a plaque that is a courtesy; for a script it is a wrong
+            // answer that looks like a right one — every count it goes on to make would
+            // silently be of the middle-less file. So the excerpt is refused and the
+            // script is told the one call that does return exact text. (Line ranges are
+            // exempt at the source, which is why this cannot be a size threshold: any
+            // ceiling on the file is one range loop away from being circumvented anyway.)
+            // truncated() is also set for an ordinary range read, so only a whole-file
+            // request can have been cut short against the caller's wishes.
+            if (fromLine <= 0 && toLine <= 0 && content.truncated()) {
+                throw new ScriptLimitExceededException("Cannot read "
+                        + content.path()
+                        + " whole: it is "
+                        + content.sizeBytes()
+                        + " bytes, and a whole-file read that large comes back"
+                        + " excerpted. Read line ranges instead:"
+                        + " kb.read(path, from, to).");
+            }
+            String text = content.content() == null ? "" : content.content();
+            session.chargeRead(content.path(), text.getBytes(StandardCharsets.UTF_8).length);
+            return text;
+        });
     }
 
     // ── Bytes (binary files included) ───────────────────────────────────────
@@ -220,18 +206,15 @@ public class KbScriptApi {
     @HostAccess.Export
     public Object stat(String path) {
         String canonical = canonical(path);
-        Map<String, Object> row =
-                session.call(
-                        Arrays.<Object>asList("stat", canonical),
-                        () -> {
-                            GitFileInfo info = gitService.getFileInfo(canonical);
-                            Map<String, Object> result = new LinkedHashMap<>();
-                            result.put("path", info.path());
-                            result.put("size", info.sizeBytes());
-                            result.put("binary", info.binary());
-                            result.put("language", info.language());
-                            return result;
-                        });
+        Map<String, Object> row = session.call(Arrays.<Object>asList("stat", canonical), () -> {
+            GitFileInfo info = gitService.getFileInfo(canonical);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("path", info.path());
+            result.put("size", info.sizeBytes());
+            result.put("binary", info.binary());
+            result.put("language", info.language());
+            return result;
+        });
         return ProxyObject.fromMap(new LinkedHashMap<>(row));
     }
 
@@ -277,13 +260,11 @@ public class KbScriptApi {
     @HostAccess.Export
     public String hash(String path) {
         String canonical = canonical(path);
-        return session.call(
-                Arrays.<Object>asList("hash", canonical),
-                () -> {
-                    String hex = gitService.hashFile(canonical);
-                    session.chargeScan(canonical);
-                    return hex;
-                });
+        return session.call(Arrays.<Object>asList("hash", canonical), () -> {
+            String hex = gitService.hashFile(canonical);
+            session.chargeScan(canonical);
+            return hex;
+        });
     }
 
     /**
@@ -301,39 +282,36 @@ public class KbScriptApi {
      */
     private byte[] readWindow(String path, int offset, int length, String method) {
         String canonical = canonical(path);
-        return session.call(
-                Arrays.<Object>asList("bytes", canonical, offset, length),
-                () -> {
-                    long size = gitService.getFileInfo(canonical).sizeBytes();
-                    long from = Math.min(Math.max(offset, 0), size);
-                    long want = length > 0 ? Math.min(length, size - from) : size - from;
-                    if (want > MAX_BYTES_PER_CALL) {
-                        throw new ScriptLimitExceededException(
-                                "Budget exceeded: maxBytesPerCall="
-                                        + MAX_BYTES_PER_CALL
-                                        + " bytes per kb."
-                                        + method
-                                        + " call, but "
-                                        + canonical
-                                        + " has "
-                                        + want
-                                        + " bytes left to read. Read it in windows: kb."
-                                        + method
-                                        + "(path, offset, length).");
-                    }
-                    if (want == 0) {
-                        // A window past the end of the file hands the script nothing, so it is not
-                        // evidence of having looked at anything — booking it as a read would let
-                        // kb.readBytes(path, 1e9, 1) authorise a kb.writeBytes over content the
-                        // script never saw.
-                        session.chargeScan(canonical);
-                        return new byte[0];
-                    }
-                    // Charged before the read so the byte budget bounds what is allocated, not
-                    // only what is handed over.
-                    session.chargeRead(canonical, want);
-                    return gitService.getFileBytes(canonical, from, want).bytes();
-                });
+        return session.call(Arrays.<Object>asList("bytes", canonical, offset, length), () -> {
+            long size = gitService.getFileInfo(canonical).sizeBytes();
+            long from = Math.min(Math.max(offset, 0), size);
+            long want = length > 0 ? Math.min(length, size - from) : size - from;
+            if (want > MAX_BYTES_PER_CALL) {
+                throw new ScriptLimitExceededException("Budget exceeded: maxBytesPerCall="
+                        + MAX_BYTES_PER_CALL
+                        + " bytes per kb."
+                        + method
+                        + " call, but "
+                        + canonical
+                        + " has "
+                        + want
+                        + " bytes left to read. Read it in windows: kb."
+                        + method
+                        + "(path, offset, length).");
+            }
+            if (want == 0) {
+                // A window past the end of the file hands the script nothing, so it is not
+                // evidence of having looked at anything — booking it as a read would let
+                // kb.readBytes(path, 1e9, 1) authorise a kb.writeBytes over content the
+                // script never saw.
+                session.chargeScan(canonical);
+                return new byte[0];
+            }
+            // Charged before the read so the byte budget bounds what is allocated, not
+            // only what is handed over.
+            session.chargeRead(canonical, want);
+            return gitService.getFileBytes(canonical, from, want).bytes();
+        });
     }
 
     /**
@@ -342,26 +320,21 @@ public class KbScriptApi {
     @HostAccess.Export
     public Object outline(String path) {
         String canonical = canonical(path);
-        List<Map<String, Object>> symbols =
-                session.call(
-                        Arrays.<Object>asList("outline", canonical),
-                        () -> {
-                            GitFileOutline outline = gitService.getFileOutline(canonical);
-                            session.chargeRead(outline.path(), 0);
-                            List<Map<String, Object>> rows = new ArrayList<>();
-                            outline.symbols()
-                                    .forEach(
-                                            symbol -> {
-                                                Map<String, Object> row = new LinkedHashMap<>();
-                                                row.put("kind", symbol.kind());
-                                                row.put("name", symbol.name());
-                                                row.put("signature", symbol.signature());
-                                                row.put("startLine", symbol.startLine());
-                                                row.put("endLine", symbol.endLine());
-                                                rows.add(row);
-                                            });
-                            return rows;
-                        });
+        List<Map<String, Object>> symbols = session.call(Arrays.<Object>asList("outline", canonical), () -> {
+            GitFileOutline outline = gitService.getFileOutline(canonical);
+            session.chargeRead(outline.path(), 0);
+            List<Map<String, Object>> rows = new ArrayList<>();
+            outline.symbols().forEach(symbol -> {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("kind", symbol.kind());
+                row.put("name", symbol.name());
+                row.put("signature", symbol.signature());
+                row.put("startLine", symbol.startLine());
+                row.put("endLine", symbol.endLine());
+                rows.add(row);
+            });
+            return rows;
+        });
         return ProxyArray.fromList(freshRows(symbols));
     }
 
@@ -389,35 +362,31 @@ public class KbScriptApi {
         Boolean untracked = member(options, "untracked", Value::isBoolean, Value::asBoolean);
 
         List<Map<String, Object>> rows =
-                session.call(
-                        Arrays.<Object>asList(
-                                "grep", pattern, glob, regex, context, max, untracked),
-                        () -> {
-                            List<GitGrepMatch> matches =
-                                    gitService.grepContent(
-                                            pattern,
-                                            glob,
-                                            regex != null && regex,
-                                            context != null && context > 0 ? context : 0,
-                                            // GitService caps every caller at 200; passing the
-                                            // request through means a script asking for fewer gets
-                                            // fewer, and asking for more is not an error.
-                                            max != null && max > 0 ? max : Integer.MAX_VALUE,
-                                            untracked != null && untracked);
+                session.call(Arrays.<Object>asList("grep", pattern, glob, regex, context, max, untracked), () -> {
+                    List<GitGrepMatch> matches = gitService.grepContent(
+                            pattern,
+                            glob,
+                            regex != null && regex,
+                            context != null && context > 0 ? context : 0,
+                            // GitService caps every caller at 200; passing the
+                            // request through means a script asking for fewer gets
+                            // fewer, and asking for more is not an error.
+                            max != null && max > 0 ? max : Integer.MAX_VALUE,
+                            untracked != null && untracked);
 
-                            List<Map<String, Object>> result = new ArrayList<>();
-                            long bytes = 0;
-                            for (GitGrepMatch match : matches) {
-                                Map<String, Object> row = new LinkedHashMap<>();
-                                row.put("path", match.path());
-                                row.put("line", match.matchLine());
-                                row.put("text", match.text());
-                                result.add(row);
-                                bytes += match.text().getBytes(StandardCharsets.UTF_8).length;
-                            }
-                            session.chargeSearch(bytes);
-                            return result;
-                        });
+                    List<Map<String, Object>> result = new ArrayList<>();
+                    long bytes = 0;
+                    for (GitGrepMatch match : matches) {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("path", match.path());
+                        row.put("line", match.matchLine());
+                        row.put("text", match.text());
+                        result.add(row);
+                        bytes += match.text().getBytes(StandardCharsets.UTF_8).length;
+                    }
+                    session.chargeSearch(bytes);
+                    return result;
+                });
         return ProxyArray.fromList(freshRows(rows));
     }
 
@@ -432,26 +401,21 @@ public class KbScriptApi {
      */
     @HostAccess.Export
     public Object searchDocs(String query, int limit) {
-        List<Map<String, Object>> rows =
-                session.call(
-                        Arrays.<Object>asList("searchDocs", query, limit),
-                        () -> {
-                            List<SearchResult> hits =
-                                    documentService.hybridSearch(
-                                            query, null, limit > 0 ? limit : null, null, null);
-                            List<Map<String, Object>> result = new ArrayList<>();
-                            long bytes = 0;
-                            for (SearchResult hit : hits) {
-                                Map<String, Object> row = new LinkedHashMap<>();
-                                row.put("docId", hit.id());
-                                row.put("title", hit.title());
-                                row.put("snippet", hit.snippet());
-                                result.add(row);
-                                bytes += utf8Length(hit.title()) + utf8Length(hit.snippet());
-                            }
-                            session.chargeDocSearch(bytes);
-                            return result;
-                        });
+        List<Map<String, Object>> rows = session.call(Arrays.<Object>asList("searchDocs", query, limit), () -> {
+            List<SearchResult> hits = documentService.hybridSearch(query, null, limit > 0 ? limit : null, null, null);
+            List<Map<String, Object>> result = new ArrayList<>();
+            long bytes = 0;
+            for (SearchResult hit : hits) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("docId", hit.id());
+                row.put("title", hit.title());
+                row.put("snippet", hit.snippet());
+                result.add(row);
+                bytes += utf8Length(hit.title()) + utf8Length(hit.snippet());
+            }
+            session.chargeDocSearch(bytes);
+            return result;
+        });
         return ProxyArray.fromList(freshRows(rows));
     }
 
@@ -470,15 +434,12 @@ public class KbScriptApi {
     public @Nullable Object result(@Nullable String id) {
         String canonical = ScriptResultReader.canonical(id);
         AtomicBoolean fetched = new AtomicBoolean();
-        Object value =
-                session.call(
-                        Arrays.<Object>asList("result", canonical),
-                        () -> {
-                            fetched.set(true);
-                            String json = results.valueJson(canonical);
-                            session.chargeKeptResult(utf8Length(json));
-                            return parse(canonical, json);
-                        });
+        Object value = session.call(Arrays.<Object>asList("result", canonical), () -> {
+            fetched.set(true);
+            String json = results.valueJson(canonical);
+            session.chargeKeptResult(utf8Length(json));
+            return parse(canonical, json);
+        });
         if (!fetched.get()) {
             session.chargeCall();
         }
@@ -488,22 +449,19 @@ public class KbScriptApi {
     /** The chat's kept results, oldest first: id, script, project, chars, createdAt. */
     @HostAccess.Export
     public Object results() {
-        List<Map<String, Object>> rows =
-                session.call(
-                        List.<Object>of("results"),
-                        () -> {
-                            List<Map<String, Object>> list = new ArrayList<>();
-                            for (StoredScriptResult kept : results.list()) {
-                                Map<String, Object> row = new LinkedHashMap<>();
-                                row.put("id", kept.id());
-                                row.put("script", kept.script());
-                                row.put("project", kept.project());
-                                row.put("chars", kept.chars());
-                                row.put("createdAt", kept.createdAt().toString());
-                                list.add(row);
-                            }
-                            return list;
-                        });
+        List<Map<String, Object>> rows = session.call(List.<Object>of("results"), () -> {
+            List<Map<String, Object>> list = new ArrayList<>();
+            for (StoredScriptResult kept : results.list()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", kept.id());
+                row.put("script", kept.script());
+                row.put("project", kept.project());
+                row.put("chars", kept.chars());
+                row.put("createdAt", kept.createdAt().toString());
+                list.add(row);
+            }
+            return list;
+        });
         return ProxyArray.fromList(freshRows(rows));
     }
 

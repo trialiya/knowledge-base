@@ -46,21 +46,10 @@ class GitCommandChatTest {
     private final ChatActionClaim chatActionClaim = mock(ChatActionClaim.class);
     private final GitService git = mock(GitService.class);
 
-    private final GitCommandController controller =
-            new GitCommandController(gitRegistry, chatGitLog, chatActionClaim);
+    private final GitCommandController controller = new GitCommandController(gitRegistry, chatGitLog, chatActionClaim);
 
     private static final GitBranchStatus AFTER =
-            new GitBranchStatus(
-                    "main",
-                    false,
-                    false,
-                    "origin/main",
-                    0,
-                    0,
-                    List.of("main"),
-                    false,
-                    false,
-                    List.of());
+            new GitBranchStatus("main", false, false, "origin/main", 0, 0, List.of("main"), false, false, List.of());
 
     @BeforeEach
     void permitEverything() {
@@ -88,9 +77,8 @@ class GitCommandChatTest {
                 .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"));
 
         assertThatThrownBy(() -> controller.pull("kb", CHAT))
-                .isInstanceOfSatisfying(
-                        ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+                .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode())
+                        .isEqualTo(HttpStatus.CONFLICT));
 
         verifyNoInteractions(git);
     }
@@ -110,9 +98,7 @@ class GitCommandChatTest {
     void aCommitIsRecordedWithTheCommitItCreated() {
         String hash = "0123456789abcdef0123456789abcdef01234567";
         when(git.commit("msg", List.of()))
-                .thenReturn(
-                        new GitCommandResult("commit", "Committed 0123456", AFTER)
-                                .withCommit(hash));
+                .thenReturn(new GitCommandResult("commit", "Committed 0123456", AFTER).withCommit(hash));
 
         controller.commit("msg", new LinkedMultiValueMap<>(), "kb", CHAT);
 
@@ -128,11 +114,8 @@ class GitCommandChatTest {
         when(git.push()).thenThrow(new GitCommandFailedException("remote rejected"));
 
         assertThatThrownBy(() -> controller.push("kb", CHAT))
-                .isInstanceOfSatisfying(
-                        ResponseStatusException.class,
-                        e ->
-                                assertThat(e.getStatusCode())
-                                        .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
+                .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode())
+                        .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
 
         verify(chatGitLog).record(CHAT, "push", "kb", false, "remote rejected", null, null);
     }
@@ -145,26 +128,21 @@ class GitCommandChatTest {
     void aBusyRepositoryLeavesNoTrace() {
         when(git.stashPush()).thenThrow(new GitBusyException("another command is running"));
 
-        assertThatThrownBy(() -> controller.stashPush("kb", CHAT))
-                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> controller.stashPush("kb", CHAT)).isInstanceOf(ResponseStatusException.class);
 
-        verify(chatGitLog, never())
-                .record(anyString(), anyString(), any(), anyBoolean(), anyString(), any(), any());
+        verify(chatGitLog, never()).record(anyString(), anyString(), any(), anyBoolean(), anyString(), any(), any());
     }
 
     /** Неверный аргумент — ошибка вызывающего, а не событие репозитория. */
     @Test
     void aBadArgumentLeavesNoTraceEither() {
-        when(git.discard("../etc"))
-                .thenThrow(new IllegalArgumentException("path escapes the repo"));
+        when(git.discard("../etc")).thenThrow(new IllegalArgumentException("path escapes the repo"));
 
         assertThatThrownBy(() -> controller.discard("../etc", "kb", CHAT))
-                .isInstanceOfSatisfying(
-                        ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+                .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode())
+                        .isEqualTo(HttpStatus.BAD_REQUEST));
 
-        verify(chatGitLog, never())
-                .record(anyString(), anyString(), any(), anyBoolean(), anyString(), any(), any());
+        verify(chatGitLog, never()).record(anyString(), anyString(), any(), anyBoolean(), anyString(), any(), any());
     }
 
     /**
@@ -176,8 +154,7 @@ class GitCommandChatTest {
         when(chatActionClaim.claimIdleAndOwned(CHAT)).thenReturn(CLAIM);
         when(git.push()).thenThrow(new GitCommandFailedException("remote rejected"));
 
-        assertThatThrownBy(() -> controller.push("kb", CHAT))
-                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> controller.push("kb", CHAT)).isInstanceOf(ResponseStatusException.class);
 
         verify(chatActionClaim).release(CHAT, CLAIM);
     }
@@ -188,8 +165,7 @@ class GitCommandChatTest {
         when(chatActionClaim.claimIdleAndOwned(CHAT))
                 .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"));
 
-        assertThatThrownBy(() -> controller.pull("kb", CHAT))
-                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> controller.pull("kb", CHAT)).isInstanceOf(ResponseStatusException.class);
 
         verify(chatActionClaim, never()).release(anyString(), anyString());
     }
@@ -203,7 +179,6 @@ class GitCommandChatTest {
         assertThatThrownBy(() -> controller.switchBranch("feature/x", false, "kb", CHAT))
                 .isInstanceOf(ResponseStatusException.class);
 
-        verify(chatGitLog)
-                .record(CHAT, "switch feature/x", "kb", false, "would be overwritten", null, null);
+        verify(chatGitLog).record(CHAT, "switch feature/x", "kb", false, "would be overwritten", null, null);
     }
 }

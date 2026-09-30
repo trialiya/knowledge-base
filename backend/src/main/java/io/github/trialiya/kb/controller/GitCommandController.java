@@ -52,8 +52,7 @@ public class GitCommandController {
     private final ChatGitLog chatGitLog;
     private final ChatActionClaim chatActionClaim;
 
-    public GitCommandController(
-            GitRegistry gitRegistry, ChatGitLog chatGitLog, ChatActionClaim chatActionClaim) {
+    public GitCommandController(GitRegistry gitRegistry, ChatGitLog chatGitLog, ChatActionClaim chatActionClaim) {
         this.gitRegistry = gitRegistry;
         this.chatGitLog = chatGitLog;
         this.chatActionClaim = chatActionClaim;
@@ -220,10 +219,7 @@ public class GitCommandController {
             boolean push) {
         GitService git;
         try {
-            git =
-                    push
-                            ? gitRegistry.requireGitPush(project)
-                            : gitRegistry.requireGitCommands(project);
+            git = push ? gitRegistry.requireGitPush(project) : gitRegistry.requireGitCommands(project);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         } catch (IllegalStateException e) {
@@ -231,9 +227,7 @@ public class GitCommandController {
             // policy — the same 503 the read endpoints answer with. Everything else here is the
             // configuration saying no, which no retry will change.
             throw new ResponseStatusException(
-                    gitRegistry.isAvailable(project)
-                            ? HttpStatus.FORBIDDEN
-                            : HttpStatus.SERVICE_UNAVAILABLE,
+                    gitRegistry.isAvailable(project) ? HttpStatus.FORBIDDEN : HttpStatus.SERVICE_UNAVAILABLE,
                     e.getMessage(),
                     e);
         }
@@ -284,8 +278,7 @@ public class GitCommandController {
             // reason again, and the model must not take the command for done. A busy repository
             // and a bad argument are not outcomes — nothing was attempted.
             if (chat != null) {
-                chatGitLog.record(
-                        chat, verb, project, false, String.valueOf(e.getMessage()), null, null);
+                chatGitLog.record(chat, verb, project, false, String.valueOf(e.getMessage()), null, null);
             }
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage(), e);
         } catch (IllegalStateException e) {

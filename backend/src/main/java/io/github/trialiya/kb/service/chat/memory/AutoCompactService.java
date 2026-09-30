@@ -88,8 +88,7 @@ public class AutoCompactService {
             // фоновый раунд, стартовавший по прошлому RUN_DONE, успел бы записать сводку по тому же
             // куску, который этот раунд уже заменяет своей.
             summaryWriter.inConversation(
-                    conversationId,
-                    () -> compact(conversationId, runId, questionPosition, limit, options, spent));
+                    conversationId, () -> compact(conversationId, runId, questionPosition, limit, options, spent));
         } catch (Exception e) {
             log.error("[{}] Auto-compaction failed: {}", conversationId, e.getMessage(), e);
         }
@@ -120,30 +119,28 @@ public class AutoCompactService {
         }
         final ChatMessageEntity lastRow = rows.getLast().entity();
         log.info(
-                "[{}] Auto-compacting before the answer — live window {} reached the {} token"
-                        + " limit: {}",
+                "[{}] Auto-compacting before the answer — live window {} reached the {} token" + " limit: {}",
                 conversationId,
                 weight,
                 limit,
                 MessageMix.of(rows));
-        final CompactPayload payload =
-                compactService.compact(
-                        conversationId,
-                        rows,
-                        new CompactService.CompactTarget(
-                                CompactMeta.Kind.AUTO_COMPACT,
-                                // Граница — последний сжатый ряд, а не вопрос: он уже сохранён и
-                                // размеченный диапазон, дотянувшись до него, оставил бы прогон без
-                                // вопроса. Время рядов оттуда же: по времени конца раунда плашка
-                                // встала бы в ленте ПОД вопросом, который она не сжимала.
-                                lastRow.getPosition(),
-                                lastRow.getCreatedAt(),
-                                (call, usage) -> {
-                                    spent.accept(call);
-                                    return null;
-                                }),
-                        null,
-                        options);
+        final CompactPayload payload = compactService.compact(
+                conversationId,
+                rows,
+                new CompactService.CompactTarget(
+                        CompactMeta.Kind.AUTO_COMPACT,
+                        // Граница — последний сжатый ряд, а не вопрос: он уже сохранён и
+                        // размеченный диапазон, дотянувшись до него, оставил бы прогон без
+                        // вопроса. Время рядов оттуда же: по времени конца раунда плашка
+                        // встала бы в ленте ПОД вопросом, который она не сжимала.
+                        lastRow.getPosition(),
+                        lastRow.getCreatedAt(),
+                        (call, usage) -> {
+                            spent.accept(call);
+                            return null;
+                        }),
+                null,
+                options);
         // runId — прогона, который за раунд заплатил; своего прогона у сжатия нет, и занятость чата
         // вкладкам уже показывает сам прогон.
         events.publish(conversationId, COMPACT_APPLIED, runId, null, payload);

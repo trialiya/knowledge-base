@@ -28,7 +28,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitServiceGrepTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private GitService service;
 
@@ -55,13 +56,10 @@ class GitServiceGrepTest {
         List<GitGrepMatch> atFirst = service.grepContentAt("HEAD~1", "needle", null, false, 0, 50);
         List<GitGrepMatch> now = service.grepContent("needle", null, false, 0, 50, false);
 
-        assertThat(atFirst)
-                .singleElement()
-                .satisfies(
-                        m -> {
-                            assertThat(m.path()).isEqualTo("src/App.java");
-                            assertThat(m.matchLine()).isEqualTo(2);
-                        });
+        assertThat(atFirst).singleElement().satisfies(m -> {
+            assertThat(m.path()).isEqualTo("src/App.java");
+            assertThat(m.matchLine()).isEqualTo(2);
+        });
         assertThat(now).isEmpty();
     }
 
@@ -71,8 +69,7 @@ class GitServiceGrepTest {
         writeFile("docs/A.md", "needle\n");
         commitAll("first");
 
-        List<GitGrepMatch> matches =
-                service.grepContentAt("HEAD", "needle", "docs/*", false, 0, 50);
+        List<GitGrepMatch> matches = service.grepContentAt("HEAD", "needle", "docs/*", false, 0, 50);
 
         assertThat(matches).extracting(GitGrepMatch::path).containsExactly("docs/A.md");
     }
@@ -92,8 +89,7 @@ class GitServiceGrepTest {
         assertThat(service.grepContent("needle", null, false, 0, 50, false))
                 .extracting(GitGrepMatch::path, GitGrepMatch::matchLine, GitGrepMatch::text)
                 .containsExactlyInAnyOrder(
-                        tuple("2024-01-15-notes.md", 2, "needle"),
-                        tuple("docs/part-2", 1, "needle"));
+                        tuple("2024-01-15-notes.md", 2, "needle"), tuple("docs/part-2", 1, "needle"));
 
         assertThat(service.grepContent("needle", null, false, 1, 50, false))
                 .extracting(GitGrepMatch::path, GitGrepMatch::matchLine, GitGrepMatch::text)
@@ -141,8 +137,7 @@ class GitServiceGrepTest {
         writeFile("a.txt", "needle\n");
         commitAll("first");
 
-        assertThatThrownBy(
-                        () -> service.grepContentAt("no-such-branch", "needle", null, false, 0, 50))
+        assertThatThrownBy(() -> service.grepContentAt("no-such-branch", "needle", null, false, 0, 50))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -169,8 +164,7 @@ class GitServiceGrepTest {
         writeFile("a.txt", "needle\n");
         commitAll("first");
 
-        assertThatThrownBy(
-                        () -> service.grepContent("needle", ":(bogus)a.txt", false, 0, 50, false))
+        assertThatThrownBy(() -> service.grepContent("needle", ":(bogus)a.txt", false, 0, 50, false))
                 .isInstanceOf(IllegalStateException.class)
                 .isNotInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("bogus");
@@ -184,9 +178,7 @@ class GitServiceGrepTest {
     @Test
     void outputIsReadOnlyUpToTheLimit() {
         String body =
-                IntStream.range(0, 5_000)
-                        .mapToObj(i -> "needle " + i)
-                        .collect(Collectors.joining("\n", "", "\n"));
+                IntStream.range(0, 5_000).mapToObj(i -> "needle " + i).collect(Collectors.joining("\n", "", "\n"));
         writeFile("big.txt", body);
         commitAll("first");
 
@@ -203,10 +195,9 @@ class GitServiceGrepTest {
      */
     @Test
     void aBlockCutByTheOutputCapIsDroppedRatherThanShownHalfRead() {
-        String body =
-                IntStream.range(0, GitGrepRunner.MAX_OUTPUT_LINES + 5_000)
-                        .mapToObj(i -> "needle " + i)
-                        .collect(Collectors.joining("\n", "", "\n"));
+        String body = IntStream.range(0, GitGrepRunner.MAX_OUTPUT_LINES + 5_000)
+                .mapToObj(i -> "needle " + i)
+                .collect(Collectors.joining("\n", "", "\n"));
         writeFile("big.txt", body);
         commitAll("first");
 
@@ -229,12 +220,8 @@ class GitServiceGrepTest {
         RepoPaths paths = new RepoPaths(repoDir);
         try (Repository repository =
                 new FileRepositoryBuilder().setWorkTree(repoDir.toFile()).build()) {
-            GitGrepRunner runner =
-                    new GitGrepRunner(
-                            paths,
-                            repository,
-                            new VisibleFiles(service.project(), paths, repository),
-                            Duration.ZERO);
+            GitGrepRunner runner = new GitGrepRunner(
+                    paths, repository, new VisibleFiles(service.project(), paths, repository), Duration.ZERO);
 
             assertThatThrownBy(() -> runner.grepContent("needle", null, false, 0, 50, false))
                     .isInstanceOf(GitGrepTimeoutException.class);
@@ -261,13 +248,11 @@ class GitServiceGrepTest {
             List<String> command = new ArrayList<>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             if (process.waitFor() != 0) {
                 throw new IllegalStateException("git " + String.join(" ", args) + ": " + output);
             }

@@ -72,9 +72,7 @@ public final class ToolArgs {
     public static <T> List<T> requireNonEmpty(@Nullable List<T> value, String name) {
         if (value == null || value.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Tool argument '"
-                            + name
-                            + "' is empty. Call the tool again with at least one value in it.");
+                    "Tool argument '" + name + "' is empty. Call the tool again with at least one value in it.");
         }
         return value;
     }

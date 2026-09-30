@@ -42,8 +42,7 @@ public class ActiveProjectNotice {
     private final ProjectPromptService projectPrompt;
     private final ChatTopicRepository chatTopicRepository;
 
-    public ActiveProjectNotice(
-            ProjectPromptService projectPrompt, ChatTopicRepository chatTopicRepository) {
+    public ActiveProjectNotice(ProjectPromptService projectPrompt, ChatTopicRepository chatTopicRepository) {
         this.projectPrompt = projectPrompt;
         this.chatTopicRepository = chatTopicRepository;
     }
@@ -71,16 +70,16 @@ public class ActiveProjectNotice {
         if (rows.isEmpty()) {
             return null;
         }
-        final ProjectTrace trace =
-                ProjectTrace.of(
-                        rows.stream().filter(ChatMessageEntity::isSummary).toList(),
-                        rows.stream().filter(row -> !row.isSummary()).toList(),
-                        () -> storedProject(conversationId),
-                        rows.getLast().getPosition());
-        final long anchor =
-                anchor(
-                        rows,
-                        trace.spans().isEmpty() ? Long.MIN_VALUE : trace.spans().getLast().from());
+        final ProjectTrace trace = ProjectTrace.of(
+                rows.stream().filter(ChatMessageEntity::isSummary).toList(),
+                rows.stream().filter(row -> !row.isSummary()).toList(),
+                () -> storedProject(conversationId),
+                rows.getLast().getPosition());
+        final long anchor = anchor(
+                rows,
+                trace.spans().isEmpty()
+                        ? Long.MIN_VALUE
+                        : trace.spans().getLast().from());
         if (anchor < 0) {
             return null;
         }

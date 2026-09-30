@@ -36,34 +36,32 @@ import org.springframework.util.StreamUtils;
  */
 class SystemPromptRenderTest {
 
-    private static final StTemplateRenderer RENDERER = StTemplateRenderer.builder().build();
+    private static final StTemplateRenderer RENDERER =
+            StTemplateRenderer.builder().build();
 
     @Test
     @Timeout(30)
     void rendersWithTheScriptHandbookInjected() throws IOException {
         // With writes on, so the appendix — and its JavaScript examples — is in the fragment too.
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
-        when(policy.enabled(org.mockito.ArgumentMatchers.nullable(String.class))).thenReturn(true);
-        String handbook =
-                new ScriptGuideService(
-                                ScriptProperties.enabledWithDefaults(),
-                                ScriptResultProperties.defaults(),
-                                policy)
-                        .instructions(true);
+        when(policy.enabled(org.mockito.ArgumentMatchers.nullable(String.class)))
+                .thenReturn(true);
+        String handbook = new ScriptGuideService(
+                        ScriptProperties.enabledWithDefaults(), ScriptResultProperties.defaults(), policy)
+                .instructions(true);
         assertThat(handbook).contains("kb.grep", "kb.edit", "{", "}");
 
-        String rendered =
-                RENDERER.apply(
-                        systemPrompt(),
-                        Map.of(
-                                "mode_instructions",
-                                "",
-                                "skill_catalogue",
-                                "",
-                                "script_instructions",
-                                handbook,
-                                "system_extended",
-                                ""));
+        String rendered = RENDERER.apply(
+                systemPrompt(),
+                Map.of(
+                        "mode_instructions",
+                        "",
+                        "skill_catalogue",
+                        "",
+                        "script_instructions",
+                        handbook,
+                        "system_extended",
+                        ""));
 
         // The handbook arrives verbatim: braces inside a substituted value are content, not syntax.
         assertThat(rendered).contains(handbook);
@@ -72,19 +70,17 @@ class SystemPromptRenderTest {
     @Test
     @Timeout(30)
     void rendersWithEveryFragmentEmpty() {
-        assertThatCode(
-                        () ->
-                                RENDERER.apply(
-                                        systemPrompt(),
-                                        Map.of(
-                                                "mode_instructions",
-                                                "",
-                                                "skill_catalogue",
-                                                "",
-                                                "script_instructions",
-                                                "",
-                                                "system_extended",
-                                                "")))
+        assertThatCode(() -> RENDERER.apply(
+                        systemPrompt(),
+                        Map.of(
+                                "mode_instructions",
+                                "",
+                                "skill_catalogue",
+                                "",
+                                "script_instructions",
+                                "",
+                                "system_extended",
+                                "")))
                 .doesNotThrowAnyException();
     }
 
@@ -96,8 +92,7 @@ class SystemPromptRenderTest {
     @Test
     @Timeout(30)
     void hasExactlyThePlaceholdersTheApplicationFills() {
-        assertThat(placeholdersOf(systemPrompt()))
-                .containsExactlyInAnyOrderElementsOf(FILLED_BY_THE_APPLICATION);
+        assertThat(placeholdersOf(systemPrompt())).containsExactlyInAnyOrderElementsOf(FILLED_BY_THE_APPLICATION);
     }
 
     /**
@@ -113,8 +108,7 @@ class SystemPromptRenderTest {
     @Test
     @Timeout(30)
     void theOnePlaceThatFillsThemCoversTheWholeTemplate() {
-        assertThat(placeholders().keySet())
-                .containsExactlyInAnyOrderElementsOf(placeholdersOf(systemPrompt()));
+        assertThat(placeholders().keySet()).containsExactlyInAnyOrderElementsOf(placeholdersOf(systemPrompt()));
     }
 
     private static Map<String, Object> placeholders() {
@@ -129,11 +123,7 @@ class SystemPromptRenderTest {
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{(\\w+)}");
 
     private static final Set<String> FILLED_BY_THE_APPLICATION =
-            Set.of(
-                    "mode_instructions",
-                    "skill_catalogue",
-                    "script_instructions",
-                    "system_extended");
+            Set.of("mode_instructions", "skill_catalogue", "script_instructions", "system_extended");
 
     private static Set<String> placeholdersOf(String template) {
         return PLACEHOLDER.matcher(template).results().map(m -> m.group(1)).collect(toSet());
@@ -142,8 +132,7 @@ class SystemPromptRenderTest {
     private static String systemPrompt() {
         try {
             return StreamUtils.copyToString(
-                    new ClassPathResource("prompt/sys.md").getInputStream(),
-                    StandardCharsets.UTF_8);
+                    new ClassPathResource("prompt/sys.md").getInputStream(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new IllegalStateException("prompt/sys.md is not on the test classpath", e);
         }

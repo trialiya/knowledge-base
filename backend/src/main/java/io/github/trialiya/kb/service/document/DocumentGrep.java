@@ -36,8 +36,7 @@ final class DocumentGrep {
             // UNICODE_CASE, or CASE_INSENSITIVE would only fold ASCII and a Russian knowledge base
             // — which is what this searches — would be case-sensitive in practice.
             return Pattern.compile(
-                    regex ? pattern : Pattern.quote(pattern),
-                    Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+                    regex ? pattern : Pattern.quote(pattern), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
         } catch (PatternSyntaxException e) {
             throw new IllegalArgumentException(
                     "pattern '"
@@ -57,12 +56,7 @@ final class DocumentGrep {
      * @param limit stop after this many blocks — the caller's budget across all documents
      */
     static List<DocumentGrepMatch> matches(
-            long documentId,
-            String title,
-            String markdown,
-            Pattern pattern,
-            int contextLines,
-            int limit) {
+            long documentId, String title, String markdown, Pattern pattern, int contextLines, int limit) {
         if (markdown.isEmpty() || limit <= 0) {
             return List.of();
         }
@@ -90,20 +84,17 @@ final class DocumentGrep {
             // rather than the same lines repeated once per hit. Without context there are no
             // windows to touch: every hit is its own block, exactly as `git grep -C0` prints them.
             int last = cursor;
-            while (contextLines > 0
-                    && last + 1 < hits.size()
-                    && hits.get(last + 1) - contextLines <= to + 1) {
+            while (contextLines > 0 && last + 1 < hits.size() && hits.get(last + 1) - contextLines <= to + 1) {
                 last++;
                 to = Math.min(lines.length - 1, hits.get(last) + contextLines);
             }
 
-            blocks.add(
-                    new DocumentGrepMatch(
-                            documentId,
-                            title,
-                            sectionPathAt(sections, lineOffsets[firstHit]),
-                            firstHit + 1,
-                            blockText(lines, from, to, hits, cursor, last, contextLines)));
+            blocks.add(new DocumentGrepMatch(
+                    documentId,
+                    title,
+                    sectionPathAt(sections, lineOffsets[firstHit]),
+                    firstHit + 1,
+                    blockText(lines, from, to, hits, cursor, last, contextLines)));
             cursor = last + 1;
         }
         return List.copyOf(blocks);
@@ -150,8 +141,7 @@ final class DocumentGrep {
      * children's — so the last one that starts at or before the offset is the deepest, and that is
      * the path an edit should be addressed to.
      */
-    private static @Nullable String sectionPathAt(
-            List<MarkdownSections.Section> sections, int offset) {
+    private static @Nullable String sectionPathAt(List<MarkdownSections.Section> sections, int offset) {
         String path = null;
         for (MarkdownSections.Section section : sections) {
             if (section.startOffset() > offset) {

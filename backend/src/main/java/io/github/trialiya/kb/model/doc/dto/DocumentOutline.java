@@ -18,8 +18,7 @@ import java.util.Map;
  *     updateDocumentSection} so a concurrent edit is detected instead of silently splicing against
  *     stale section boundaries
  */
-public record DocumentOutline(
-        long id, String title, int descriptionVersion, List<OutlineSection> sections)
+public record DocumentOutline(long id, String title, int descriptionVersion, List<OutlineSection> sections)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     /**
@@ -29,15 +28,13 @@ public record DocumentOutline(
      * @param chars size of the whole subtree in characters
      * @param subsections number of direct child headings
      */
-    public record OutlineSection(
-            String path, int level, String title, int chars, int subsections) {}
+    public record OutlineSection(String path, int level, String title, int chars, int subsections) {}
 
     @Override
     public String getFormattedResponse() {
-        String body =
-                sections.stream()
-                        .map(s -> (s.level() > 0 ? "H" + s.level() + " " : "") + s.path())
-                        .collect(joining(", "));
+        String body = sections.stream()
+                .map(s -> (s.level() > 0 ? "H" + s.level() + " " : "") + s.path())
+                .collect(joining(", "));
         return Compact.tag("outline:" + id)
                 .add("title", title)
                 .add("descVer", descriptionVersion)

@@ -153,12 +153,7 @@ public class DocumentTreeReader {
         walkLevel(rootId, "", 0, namer, visitor);
     }
 
-    private void walkLevel(
-            @Nullable Long parentId,
-            String parentDir,
-            int depth,
-            SegmentNamer namer,
-            Visitor visitor) {
+    private void walkLevel(@Nullable Long parentId, String parentDir, int depth, SegmentNamer namer, Visitor visitor) {
 
         if (depth >= MAX_DEPTH) {
             log.warn("Tree walk stopped at depth {} under parentId={} — cycle?", depth, parentId);
@@ -230,11 +225,10 @@ public class DocumentTreeReader {
         if (title == null || title.isBlank()) {
             return "untitled";
         }
-        String name =
-                title.trim()
-                        .toLowerCase(Locale.ROOT)
-                        .replaceAll("[^a-z0-9а-яё]+", "-")
-                        .replaceAll("^-+|-+$", "");
+        String name = title.trim()
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9а-яё]+", "-")
+                .replaceAll("^-+|-+$", "");
         return name.isEmpty() ? "untitled" : name;
     }
 

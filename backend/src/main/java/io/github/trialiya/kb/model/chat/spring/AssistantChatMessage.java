@@ -33,8 +33,7 @@ public class AssistantChatMessage extends AssistantMessage implements IMessage {
      * Рассуждение уходит модели ключом {@link #REASONING_CONTENT}: по нему {@code OpenAiChatModel}
      * выписывает {@code reasoning_content} в сообщение запроса.
      */
-    private static Map<String, Object> reasoningMetadata(
-            ChatMessageEntity entity, boolean replayReasoning) {
+    private static Map<String, Object> reasoningMetadata(ChatMessageEntity entity, boolean replayReasoning) {
         final String reasoning = entity.getReasoning();
         return replayReasoning && reasoning != null && !reasoning.isEmpty()
                 ? Map.of(REASONING_CONTENT, reasoning)

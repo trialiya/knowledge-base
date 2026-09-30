@@ -20,8 +20,7 @@ import org.mockito.InOrder;
  */
 class PendingMessageRecoveryTest {
 
-    private final ChatPendingMessageRepository repository =
-            mock(ChatPendingMessageRepository.class);
+    private final ChatPendingMessageRepository repository = mock(ChatPendingMessageRepository.class);
     private final PendingMessageService pendingMessages = mock(PendingMessageService.class);
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
 
@@ -33,8 +32,7 @@ class PendingMessageRecoveryTest {
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
         when(slots.claim(anyString())).thenReturn("claim-1");
-        when(pendingMessages.flushPlain(anyString()))
-                .thenReturn(PendingMessageService.Flushed.NOTHING);
+        when(pendingMessages.flushPlain(anyString())).thenReturn(PendingMessageService.Flushed.NOTHING);
     }
 
     /**
@@ -74,9 +72,7 @@ class PendingMessageRecoveryTest {
     @Test
     void theClaimIsReleasedEvenWhenRepairFails() {
         when(repository.conversationIds()).thenReturn(List.of("conv-1"));
-        doThrow(new IllegalStateException("boom"))
-                .when(chatHistory)
-                .repairDanglingToolCalls("conv-1");
+        doThrow(new IllegalStateException("boom")).when(chatHistory).repairDanglingToolCalls("conv-1");
 
         recovery.deliverLeftovers();
 
@@ -87,9 +83,7 @@ class PendingMessageRecoveryTest {
     @Test
     void oneFailingChatDoesNotStopTheRest() {
         when(repository.conversationIds()).thenReturn(List.of("conv-1", "conv-2"));
-        doThrow(new IllegalStateException("boom"))
-                .when(chatHistory)
-                .repairDanglingToolCalls("conv-1");
+        doThrow(new IllegalStateException("boom")).when(chatHistory).repairDanglingToolCalls("conv-1");
 
         recovery.deliverLeftovers();
 

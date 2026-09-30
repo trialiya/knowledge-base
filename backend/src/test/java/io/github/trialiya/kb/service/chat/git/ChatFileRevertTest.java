@@ -51,8 +51,7 @@ class ChatFileRevertTest {
     private final GitRegistry gitRegistry = mock(GitRegistry.class);
     private final GitService git = mock(GitService.class);
 
-    private final ChatFileRevert revert =
-            new ChatFileRevert(chatActionClaim, chatHistory, chatEvents, gitRegistry);
+    private final ChatFileRevert revert = new ChatFileRevert(chatActionClaim, chatHistory, chatEvents, gitRegistry);
 
     @BeforeEach
     void setUp() {
@@ -115,8 +114,7 @@ class ChatFileRevertTest {
     @Test
     void aFileGoneFromDiskIsRefusedLikeAnyOtherMismatch() {
         givenAnswer(editCall("call-1", "a.txt", "было", "стало"));
-        when(git.previewEdited(eq("a.txt"), any()))
-                .thenThrow(new IllegalStateException("Cannot read file: a.txt"));
+        when(git.previewEdited(eq("a.txt"), any())).thenThrow(new IllegalStateException("Cannot read file: a.txt"));
 
         assertThatThrownBy(() -> revert.revertLastAnswer(CONV, List.of()))
                 .isInstanceOf(FileRevertRefusedException.class)
@@ -130,9 +128,7 @@ class ChatFileRevertTest {
      */
     @Test
     void aWriteThatFailsMidwayStillRecordsWhatWentBack() {
-        givenAnswer(
-                editCall("call-1", "a.txt", "было", "стало"),
-                editCall("call-2", "b.txt", "x", "y"));
+        givenAnswer(editCall("call-1", "a.txt", "было", "стало"), editCall("call-2", "b.txt", "x", "y"));
         when(git.previewEdited(eq("a.txt"), any())).thenReturn("было\n");
         when(git.previewEdited(eq("b.txt"), any())).thenReturn("x\n");
         when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
@@ -144,8 +140,7 @@ class ChatFileRevertTest {
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining("incomplete");
 
-        final ArgumentCaptor<FileRevertMeta> recorded =
-                ArgumentCaptor.forClass(FileRevertMeta.class);
+        final ArgumentCaptor<FileRevertMeta> recorded = ArgumentCaptor.forClass(FileRevertMeta.class);
         verify(chatHistory).appendFileRevert(eq(CONV), recorded.capture());
         assertThat(recorded.getValue().paths()).containsExactly("a.txt");
     }
@@ -156,9 +151,7 @@ class ChatFileRevertTest {
      */
     @Test
     void nothingIsWrittenWhenOneOfTheFilesNoLongerMatches() {
-        givenAnswer(
-                editCall("call-1", "a.txt", "было", "стало"),
-                editCall("call-2", "b.txt", "x", "y"));
+        givenAnswer(editCall("call-1", "a.txt", "было", "стало"), editCall("call-2", "b.txt", "x", "y"));
         when(git.previewEdited(eq("a.txt"), any())).thenReturn("было\n");
         when(git.previewEdited(eq("b.txt"), any()))
                 .thenThrow(new IllegalArgumentException("oldString not found in b.txt"));
@@ -175,9 +168,7 @@ class ChatFileRevertTest {
     /** Названный файл возвращается один: соседний по ответу остаётся как есть. */
     @Test
     void onlyTheNamedFileGoesBack() {
-        givenAnswer(
-                editCall("call-1", "a.txt", "было", "стало"),
-                editCall("call-2", "b.txt", "x", "y"));
+        givenAnswer(editCall("call-1", "a.txt", "было", "стало"), editCall("call-2", "b.txt", "x", "y"));
         when(git.previewEdited(eq("b.txt"), any())).thenReturn("x\n");
         when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
 
@@ -194,9 +185,7 @@ class ChatFileRevertTest {
      */
     @Test
     void aRevertOfEverythingSkipsWhatEarlierRowsAlreadyTookBack() {
-        givenAnswer(
-                editCall("call-1", "a.txt", "было", "стало"),
-                editCall("call-2", "b.txt", "x", "y"));
+        givenAnswer(editCall("call-1", "a.txt", "было", "стало"), editCall("call-2", "b.txt", "x", "y"));
         givenRevertedAlready("a.txt");
         when(git.previewEdited(eq("b.txt"), any())).thenReturn("x\n");
         when(chatHistory.appendFileRevert(eq(CONV), any())).thenReturn(revertRow());
@@ -253,27 +242,24 @@ class ChatFileRevertTest {
 
     private void givenAnswer(Call... calls) {
         when(chatHistory.lastAnswerRows(CONV))
-                .thenReturn(
-                        List.of(
-                                answer(
-                                        List.of(calls).stream().map(Call::call).toList(),
-                                        List.of(calls).stream().map(Call::meta).toList())));
+                .thenReturn(List.of(answer(
+                        List.of(calls).stream().map(Call::call).toList(),
+                        List.of(calls).stream().map(Call::meta).toList())));
     }
 
     /** Дописывает к уже заданному ответу ряд отката названных файлов. */
     private void givenRevertedAlready(String... paths) {
         final List<ChatMessageEntity> rows = new ArrayList<>(chatHistory.lastAnswerRows(CONV));
-        rows.add(
-                new ChatMessageEntity(
-                        2,
-                        CONV,
-                        "",
-                        MessageType.USER,
-                        2,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofFileRevert(new FileRevertMeta("kb", List.of(paths)))));
+        rows.add(new ChatMessageEntity(
+                2,
+                CONV,
+                "",
+                MessageType.USER,
+                2,
+                false,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofFileRevert(new FileRevertMeta("kb", List.of(paths)))));
         when(chatHistory.lastAnswerRows(CONV)).thenReturn(rows);
     }
 
@@ -293,15 +279,7 @@ class ChatFileRevertTest {
                                 + newString
                                 + "\"}"),
                 new ToolInvocationMeta(
-                        "editFile",
-                        Map.of(),
-                        ToolInvocationStatus.OK,
-                        null,
-                        Map.of("path", path),
-                        true,
-                        0,
-                        null,
-                        id));
+                        "editFile", Map.of(), ToolInvocationStatus.OK, null, Map.of("path", path), true, 0, null, id));
     }
 
     private static Call createCall(String id, String path, String content) {
@@ -323,8 +301,7 @@ class ChatFileRevertTest {
                         id));
     }
 
-    private static ChatMessageEntity answer(
-            List<ToolData.Call> calls, List<ToolInvocationMeta> invocations) {
+    private static ChatMessageEntity answer(List<ToolData.Call> calls, List<ToolInvocationMeta> invocations) {
         return new ChatMessageEntity(
                 1,
                 CONV,
@@ -334,7 +311,10 @@ class ChatFileRevertTest {
                 false,
                 false,
                 LocalDateTime.now(),
-                ChatMessageMeta.builder().runId("run-1").invocations(invocations).build(),
+                ChatMessageMeta.builder()
+                        .runId("run-1")
+                        .invocations(invocations)
+                        .build(),
                 new ToolData(calls, null));
     }
 
@@ -352,16 +332,6 @@ class ChatFileRevertTest {
     }
 
     private static Project project() {
-        return new Project(
-                "kb",
-                "KB",
-                Path.of("/tmp/kb"),
-                true,
-                false,
-                List.of(),
-                List.of(),
-                null,
-                true,
-                false);
+        return new Project("kb", "KB", Path.of("/tmp/kb"), true, false, List.of(), List.of(), null, true, false);
     }
 }

@@ -32,8 +32,7 @@ class ChatSearchSnippetTest {
 
     @Test
     void collapsesWhitespaceIntoSingleLine() {
-        String snippet =
-                ChatSearchService.buildSnippet("# Заголовок\n\nстрока про  жирафов\n", "жирафов");
+        String snippet = ChatSearchService.buildSnippet("# Заголовок\n\nстрока про  жирафов\n", "жирафов");
 
         assertThat(snippet).isEqualTo("# Заголовок строка про жирафов");
     }

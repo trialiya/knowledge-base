@@ -79,9 +79,7 @@ final class RepoFiles {
         } catch (IOException e) {
             throw new IllegalStateException("Cannot read file: " + normalized, e);
         }
-        return buffer.position() == length
-                ? buffer.array()
-                : Arrays.copyOf(buffer.array(), buffer.position());
+        return buffer.position() == length ? buffer.array() : Arrays.copyOf(buffer.array(), buffer.position());
     }
 
     /**

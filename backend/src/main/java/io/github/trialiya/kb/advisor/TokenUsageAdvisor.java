@@ -58,8 +58,7 @@ public class TokenUsageAdvisor implements StreamAdvisor {
     }
 
     @Override
-    public Flux<ChatClientResponse> adviseStream(
-            ChatClientRequest request, StreamAdvisorChain chain) {
+    public Flux<ChatClientResponse> adviseStream(ChatClientRequest request, StreamAdvisorChain chain) {
         final Object runIdParam = request.context().get(RUN_ID_PARAM);
         // Считаем только прогон, который завёл ChatRunService. Проверка не формальность: параметр
         // прогона в контексте ставит вызывающий, а область прогона заводит и закрывает лишь её
@@ -71,8 +70,7 @@ public class TokenUsageAdvisor implements StreamAdvisor {
         if (scope == null) {
             return chain.nextStream(request);
         }
-        final String conversationId =
-                String.valueOf(request.context().getOrDefault(ChatMemory.CONVERSATION_ID, "?"));
+        final String conversationId = String.valueOf(request.context().getOrDefault(ChatMemory.CONVERSATION_ID, "?"));
         final AtomicReference<TokenUsage> iteration = new AtomicReference<>(TokenUsage.EMPTY);
         final AtomicBoolean ended = new AtomicBoolean();
 
@@ -98,8 +96,7 @@ public class TokenUsageAdvisor implements StreamAdvisor {
      * заодно закрывает обращение в перечне обращений прогона — ряд ответа этой итерации пишется уже
      * после него (advisor памяти снаружи и получает сигнал позже), и замер к записи готов.
      */
-    private static void flush(
-            RunScope scope, AtomicReference<TokenUsage> iteration, AtomicBoolean ended) {
+    private static void flush(RunScope scope, AtomicReference<TokenUsage> iteration, AtomicBoolean ended) {
         final TokenUsage measured = iteration.getAndSet(TokenUsage.EMPTY);
         scope.addCall(measured);
         if (ended.compareAndSet(false, true)) {

@@ -35,7 +35,8 @@ class ProjectCatalogTest {
         Project project = catalog.defaultProject();
         assertThat(catalog.projects()).hasSize(1);
         assertThat(project.id()).isEqualTo("default");
-        assertThat(project.path()).isEqualTo(Path.of("/srv/repo").toAbsolutePath().normalize());
+        assertThat(project.path())
+                .isEqualTo(Path.of("/srv/repo").toAbsolutePath().normalize());
         // The legacy form carries no edit opt-in: writes require a kb.projects entry of their own.
         assertThat(project.editEnabled()).isFalse();
         assertThat(project.allowGlobs()).isEmpty();
@@ -50,32 +51,12 @@ class ProjectCatalogTest {
 
     @Test
     void editsAndAllowGlobsAreCarriedPerProject() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb",
-                                        null,
-                                        "/srv/kb",
-                                        true,
-                                        true,
-                                        List.of("notes/**"),
-                                        null,
-                                        null,
-                                        null,
-                                        true),
-                                new ProjectOption(
-                                        "billing",
-                                        null,
-                                        "/srv/billing",
-                                        false,
-                                        false,
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        true)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(
+                        new ProjectOption(
+                                "kb", null, "/srv/kb", true, true, List.of("notes/**"), null, null, null, true),
+                        new ProjectOption("billing", null, "/srv/billing", false, false, null, null, null, null, true)),
+                legacy(null));
 
         assertThat(catalog.require("kb").editEnabled()).isTrue();
         assertThat(catalog.require("kb").untrackedEditEnabled()).isTrue();
@@ -92,21 +73,10 @@ class ProjectCatalogTest {
      */
     @Test
     void untrackedEditsNeedTheProjectToAllowEditsAtAll() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb",
-                                        null,
-                                        "/srv/kb",
-                                        false,
-                                        true,
-                                        List.of("notes/**"),
-                                        null,
-                                        null,
-                                        null,
-                                        true)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(new ProjectOption(
+                        "kb", null, "/srv/kb", false, true, List.of("notes/**"), null, null, null, true)),
+                legacy(null));
 
         assertThat(catalog.require("kb").editEnabled()).isFalse();
         assertThat(catalog.require("kb").untrackedEditEnabled()).isFalse();
@@ -115,32 +85,31 @@ class ProjectCatalogTest {
     /** Пользовательские git-команды — свой раздел конфигурации и своё разрешение на проект. */
     @Test
     void gitCommandsAreCarriedPerProject() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb",
-                                        null,
-                                        "/srv/kb",
-                                        false,
-                                        false,
-                                        null,
-                                        null,
-                                        null,
-                                        new GitCommandsOption(true, true),
-                                        true),
-                                new ProjectOption(
-                                        "billing",
-                                        null,
-                                        "/srv/billing",
-                                        false,
-                                        false,
-                                        null,
-                                        null,
-                                        null,
-                                        new GitCommandsOption(true, false),
-                                        true)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(
+                        new ProjectOption(
+                                "kb",
+                                null,
+                                "/srv/kb",
+                                false,
+                                false,
+                                null,
+                                null,
+                                null,
+                                new GitCommandsOption(true, true),
+                                true),
+                        new ProjectOption(
+                                "billing",
+                                null,
+                                "/srv/billing",
+                                false,
+                                false,
+                                null,
+                                null,
+                                null,
+                                new GitCommandsOption(true, false),
+                                true)),
+                legacy(null));
 
         assertThat(catalog.require("kb").gitCommandsEnabled()).isTrue();
         assertThat(catalog.require("kb").gitPushEnabled()).isTrue();
@@ -151,13 +120,9 @@ class ProjectCatalogTest {
     /** Раздела нет — не даётся ничего: команды пользователя всегда явный opt-in. */
     @Test
     void withoutTheSectionNoGitCommandIsOffered() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb", null, "/srv/kb", true, false, null, null, null, null,
-                                        true)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(new ProjectOption("kb", null, "/srv/kb", true, false, null, null, null, null, true)),
+                legacy(null));
 
         assertThat(catalog.require("kb").gitCommandsEnabled()).isFalse();
         assertThat(catalog.require("kb").gitPushEnabled()).isFalse();
@@ -170,21 +135,19 @@ class ProjectCatalogTest {
      */
     @Test
     void pushNeedsTheProjectToAllowGitCommandsAtAll() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb",
-                                        null,
-                                        "/srv/kb",
-                                        false,
-                                        false,
-                                        null,
-                                        null,
-                                        null,
-                                        new GitCommandsOption(false, true),
-                                        true)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(new ProjectOption(
+                        "kb",
+                        null,
+                        "/srv/kb",
+                        false,
+                        false,
+                        null,
+                        null,
+                        null,
+                        new GitCommandsOption(false, true),
+                        true)),
+                legacy(null));
 
         assertThat(catalog.require("kb").gitCommandsEnabled()).isFalse();
         assertThat(catalog.require("kb").gitPushEnabled()).isFalse();
@@ -192,13 +155,9 @@ class ProjectCatalogTest {
 
     @Test
     void theLabelDefaultsToTheId() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb", " ", "/srv/kb", false, false, null, null, null, null,
-                                        true)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(new ProjectOption("kb", " ", "/srv/kb", false, false, null, null, null, null, true)),
+                legacy(null));
 
         assertThat(catalog.defaultProject().label()).isEqualTo("kb");
     }
@@ -206,24 +165,12 @@ class ProjectCatalogTest {
     /** Порядок записей — не украшение: первая и есть ответ на «проект не назван». */
     @Test
     void everyEnabledProjectIsServedAndTheFirstOneIsTheDefault() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
-                                        true),
-                                new ProjectOption(
-                                        "billing",
-                                        "Billing",
-                                        "/srv/billing",
-                                        true,
-                                        false,
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        true)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(
+                        new ProjectOption("kb", null, "/srv/kb", false, false, null, null, null, null, true),
+                        new ProjectOption(
+                                "billing", "Billing", "/srv/billing", true, false, null, null, null, null, true)),
+                legacy(null));
 
         assertThat(catalog.projects()).extracting(Project::id).containsExactly("kb", "billing");
         assertThat(catalog.defaultProject().id()).isEqualTo("kb");
@@ -239,24 +186,12 @@ class ProjectCatalogTest {
      */
     @Test
     void aDisabledProjectIsNeitherServedNorCounted() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
-                                        true),
-                                new ProjectOption(
-                                        "billing",
-                                        null,
-                                        "/srv/billing",
-                                        false,
-                                        false,
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        false)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(
+                        new ProjectOption("kb", null, "/srv/kb", false, false, null, null, null, null, true),
+                        new ProjectOption(
+                                "billing", null, "/srv/billing", false, false, null, null, null, null, false)),
+                legacy(null));
 
         assertThat(catalog.projects()).singleElement().extracting(Project::id).isEqualTo("kb");
         assertThat(catalog.isAllowed("billing")).isFalse();
@@ -266,79 +201,48 @@ class ProjectCatalogTest {
     /** Выключенный проект не проверяют: его путь может быть ещё не смонтирован. */
     @Test
     void aDisabledProjectIsNotValidated() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
-                                        true),
-                                new ProjectOption(
-                                        "Not An Id",
-                                        null,
-                                        "",
-                                        false,
-                                        false,
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        false)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(
+                        new ProjectOption("kb", null, "/srv/kb", false, false, null, null, null, null, true),
+                        new ProjectOption("Not An Id", null, "", false, false, null, null, null, null, false)),
+                legacy(null));
 
         assertThat(catalog.defaultProject().id()).isEqualTo("kb");
     }
 
     @Test
     void switchingOffEveryProjectLeavesNothingToServe() {
-        assertThatThrownBy(
-                        () ->
-                                catalog(
-                                        List.of(
-                                                new ProjectOption(
-                                                        "kb", null, "/srv/kb", false, false, null,
-                                                        null, null, null, false)),
-                                        legacy("/srv/legacy")))
+        assertThatThrownBy(() -> catalog(
+                        List.of(new ProjectOption("kb", null, "/srv/kb", false, false, null, null, null, null, false)),
+                        legacy("/srv/legacy")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("every configured project is disabled");
     }
 
     @Test
     void anIdThatCouldNotSurviveAUrlIsRefused() {
-        assertThatThrownBy(
-                        () ->
-                                catalog(
-                                        List.of(
-                                                new ProjectOption(
-                                                        "My Repo", null, "/srv/kb", false, false,
-                                                        null, null, null, null, true)),
-                                        legacy(null)))
+        assertThatThrownBy(() -> catalog(
+                        List.of(new ProjectOption(
+                                "My Repo", null, "/srv/kb", false, false, null, null, null, null, true)),
+                        legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("My Repo");
     }
 
     @Test
     void aProjectWithoutAPathIsRefused() {
-        assertThatThrownBy(
-                        () ->
-                                catalog(
-                                        List.of(
-                                                new ProjectOption(
-                                                        "kb", null, " ", false, false, null, null,
-                                                        null, null, true)),
-                                        legacy(null)))
+        assertThatThrownBy(() -> catalog(
+                        List.of(new ProjectOption("kb", null, " ", false, false, null, null, null, null, true)),
+                        legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("No project configured");
     }
 
     @Test
     void namingNoProjectMeansTheFirstOne() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
-                                        true)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(new ProjectOption("kb", null, "/srv/kb", false, false, null, null, null, null, true)),
+                legacy(null));
 
         assertThat(catalog.find(null)).contains(catalog.defaultProject());
         assertThat(catalog.find("")).contains(catalog.defaultProject());
@@ -352,13 +256,9 @@ class ProjectCatalogTest {
      */
     @Test
     void anUnsetProjectIsNotAllowedEvenThoughItResolvesToTheDefault() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
-                                        true)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(new ProjectOption("kb", null, "/srv/kb", false, false, null, null, null, null, true)),
+                legacy(null));
 
         assertThat(catalog.isAllowed("kb")).isTrue();
         assertThat(catalog.isAllowed("billing")).isFalse();
@@ -369,35 +269,24 @@ class ProjectCatalogTest {
     // ── kb.projects[].skills ─────────────────────────────────────────────────
 
     private static ProjectOption withSkills(SkillOption... skills) {
-        return new ProjectOption(
-                "kb", null, "/srv/kb", false, false, null, List.of(skills), null, null, true);
+        return new ProjectOption("kb", null, "/srv/kb", false, false, null, List.of(skills), null, null, true);
     }
 
     /** Путь навыка разрешается от дерева проекта; триггер обрезается, порядок — конфигурации. */
     @Test
     void skillsAreResolvedAgainstTheProjectTree() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                withSkills(
-                                        new SkillOption(
-                                                "release",
-                                                " before a release ",
-                                                "docs/skills/release.md"))),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(withSkills(new SkillOption("release", " before a release ", "docs/skills/release.md"))),
+                legacy(null));
 
-        assertThat(catalog.require("kb").skills())
-                .singleElement()
-                .satisfies(
-                        skill -> {
-                            assertThat(skill.name()).isEqualTo("release");
-                            assertThat(skill.trigger()).isEqualTo("before a release");
-                            assertThat(skill.file())
-                                    .isEqualTo(
-                                            Path.of("/srv/kb/docs/skills/release.md")
-                                                    .toAbsolutePath()
-                                                    .normalize());
-                        });
+        assertThat(catalog.require("kb").skills()).singleElement().satisfies(skill -> {
+            assertThat(skill.name()).isEqualTo("release");
+            assertThat(skill.trigger()).isEqualTo("before a release");
+            assertThat(skill.file())
+                    .isEqualTo(Path.of("/srv/kb/docs/skills/release.md")
+                            .toAbsolutePath()
+                            .normalize());
+        });
     }
 
     /**
@@ -407,43 +296,25 @@ class ProjectCatalogTest {
      */
     @Test
     void aSkillFileOutsideTheProjectTreeIsRefused() {
-        assertThatThrownBy(
-                        () ->
-                                catalog(
-                                        List.of(
-                                                withSkills(
-                                                        new SkillOption(
-                                                                "release",
-                                                                "t",
-                                                                "../secrets/notes.md"))),
-                                        legacy(null)))
+        assertThatThrownBy(() -> catalog(
+                        List.of(withSkills(new SkillOption("release", "t", "../secrets/notes.md"))), legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("outside the project tree");
     }
 
     @Test
     void aSkillNameThatCouldNotBeCalledIsRefused() {
-        assertThatThrownBy(
-                        () ->
-                                catalog(
-                                        List.of(
-                                                withSkills(
-                                                        new SkillOption("My Skill", "t", "a.md"))),
-                                        legacy(null)))
+        assertThatThrownBy(() -> catalog(List.of(withSkills(new SkillOption("My Skill", "t", "a.md"))), legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("My Skill");
     }
 
     @Test
     void duplicateSkillNamesWithinAProjectAreRefused() {
-        assertThatThrownBy(
-                        () ->
-                                catalog(
-                                        List.of(
-                                                withSkills(
-                                                        new SkillOption("release", "t", "a.md"),
-                                                        new SkillOption("release", "t", "b.md"))),
-                                        legacy(null)))
+        assertThatThrownBy(() -> catalog(
+                        List.of(withSkills(
+                                new SkillOption("release", "t", "a.md"), new SkillOption("release", "t", "b.md"))),
+                        legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("duplicate");
     }
@@ -451,33 +322,19 @@ class ProjectCatalogTest {
     /** Без триггера каталог не скажет, когда навык загружать, — пустым он бесполезен. */
     @Test
     void aSkillWithoutATriggerOrFileIsRefused() {
-        assertThatThrownBy(
-                        () ->
-                                catalog(
-                                        List.of(
-                                                withSkills(
-                                                        new SkillOption("release", " ", "a.md"))),
-                                        legacy(null)))
+        assertThatThrownBy(() -> catalog(List.of(withSkills(new SkillOption("release", " ", "a.md"))), legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("trigger");
-        assertThatThrownBy(
-                        () ->
-                                catalog(
-                                        List.of(withSkills(new SkillOption("release", "t", ""))),
-                                        legacy(null)))
+        assertThatThrownBy(() -> catalog(List.of(withSkills(new SkillOption("release", "t", ""))), legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("file");
     }
 
     @Test
     void anUnknownProjectIsAnErrorRatherThanASilentFallback() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(
-                                new ProjectOption(
-                                        "kb", null, "/srv/kb", false, false, null, null, null, null,
-                                        true)),
-                        legacy(null));
+        ProjectCatalog catalog = catalog(
+                List.of(new ProjectOption("kb", null, "/srv/kb", false, false, null, null, null, null, true)),
+                legacy(null));
 
         assertThat(catalog.find("billing")).isEmpty();
         assertThatThrownBy(() -> catalog.require("billing"))

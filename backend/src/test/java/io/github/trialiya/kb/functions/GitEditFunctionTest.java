@@ -40,16 +40,14 @@ class GitEditFunctionTest {
         when(gitRegistry.requireEditable(any())).thenReturn(gitService);
         function = new GitEditFunction(gitRegistry);
         // An empty collector: the response has made no tool call at all before this edit.
-        context =
-                new ToolContext(Map.of(ToolInvocationCollector.KEY, new ToolInvocationCollector()));
+        context = new ToolContext(Map.of(ToolInvocationCollector.KEY, new ToolInvocationCollector()));
         when(gitService.editFile(anyString(), anyString(), anyString(), anyBoolean()))
                 .thenReturn(new GitEditResult("edit", PATH, 1, 1, 10, "diff"));
     }
 
     @Test
     void editNeedsNoPriorRead() {
-        assertThatCode(() -> function.editFile(context, PATH, "a", "b", false))
-                .doesNotThrowAnyException();
+        assertThatCode(() -> function.editFile(context, PATH, "a", "b", false)).doesNotThrowAnyException();
         verify(gitService).editFile(PATH, "a", "b", false);
     }
 
@@ -65,7 +63,6 @@ class GitEditFunctionTest {
         when(gitService.createFile(anyString(), anyString()))
                 .thenReturn(new GitEditResult("create", "new.txt", 1, 0, 1, null));
 
-        assertThatCode(() -> function.createFile(context, "new.txt", "content"))
-                .doesNotThrowAnyException();
+        assertThatCode(() -> function.createFile(context, "new.txt", "content")).doesNotThrowAnyException();
     }
 }

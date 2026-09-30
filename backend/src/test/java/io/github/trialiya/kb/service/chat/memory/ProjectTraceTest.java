@@ -25,15 +25,7 @@ class ProjectTraceTest {
 
     private static ChatMessageEntity row(long position, @Nullable ChatMessageMeta meta) {
         return new ChatMessageEntity(
-                position,
-                CONV,
-                "text",
-                MessageType.USER,
-                position,
-                false,
-                false,
-                LocalDateTime.now(),
-                meta);
+                position, CONV, "text", MessageType.USER, position, false, false, LocalDateTime.now(), meta);
     }
 
     /** Базовый штамп первого сообщения: проект без «откуда». */
@@ -43,7 +35,9 @@ class ProjectTraceTest {
 
     /** Маркер смены: этим сообщением чат перешёл из {@code from} в {@code to}. */
     private static ChatMessageEntity switched(long position, String from, String to) {
-        return row(position, ChatMessageMeta.builder().project(to).projectSwitchFrom(from).build());
+        return row(
+                position,
+                ChatMessageMeta.builder().project(to).projectSwitchFrom(from).build());
     }
 
     private static ChatMessageEntity plain(long position) {
@@ -80,48 +74,31 @@ class ProjectTraceTest {
     /** Отрезок закрывается на сообщении ПЕРЕД маркером: маркер уже прочитан в новом репозитории. */
     @Test
     void aSwitchClosesThePreviousStretchOnTheMessageBeforeIt() {
-        ProjectTrace trace =
-                trace(
-                        List.of(),
-                        List.of(stamp(1, "kb"), plain(2), switched(3, "kb", "billing")),
-                        5);
+        ProjectTrace trace = trace(List.of(), List.of(stamp(1, "kb"), plain(2), switched(3, "kb", "billing")), 5);
 
-        assertThat(trace.spans())
-                .containsExactly(new ProjectSpan("kb", 1, 2), new ProjectSpan("billing", 3, 5));
+        assertThat(trace.spans()).containsExactly(new ProjectSpan("kb", 1, 2), new ProjectSpan("billing", 3, 5));
         assertThat(trace.lastProject()).isEqualTo("billing");
     }
 
     /** A→B→A — три отрезка. Свернув повторы, «где читан файл из сообщения 4» уже не ответить. */
     @Test
     void returningToAProjectOpensAThirdStretch() {
-        ProjectTrace trace =
-                trace(
-                        List.of(),
-                        List.of(
-                                stamp(1, "kb"),
-                                switched(3, "kb", "billing"),
-                                switched(6, "billing", "kb")),
-                        9);
+        ProjectTrace trace = trace(
+                List.of(), List.of(stamp(1, "kb"), switched(3, "kb", "billing"), switched(6, "billing", "kb")), 9);
 
         assertThat(trace.spans())
                 .containsExactly(
-                        new ProjectSpan("kb", 1, 2),
-                        new ProjectSpan("billing", 3, 5),
-                        new ProjectSpan("kb", 6, 9));
+                        new ProjectSpan("kb", 1, 2), new ProjectSpan("billing", 3, 5), new ProjectSpan("kb", 6, 9));
     }
 
     /** Отрезки смыкаются: между концом одного и началом следующего не должно быть ни дыры... */
     @Test
     void stretchesMeetWithoutGapsOrOverlaps() {
-        List<ProjectSpan> spans =
-                trace(
-                                List.of(),
-                                List.of(
-                                        stamp(1, "kb"),
-                                        switched(4, "kb", "billing"),
-                                        switched(8, "billing", "docs")),
-                                12)
-                        .spans();
+        List<ProjectSpan> spans = trace(
+                        List.of(),
+                        List.of(stamp(1, "kb"), switched(4, "kb", "billing"), switched(8, "billing", "docs")),
+                        12)
+                .spans();
 
         for (int i = 1; i < spans.size(); i++) {
             assertThat(spans.get(i).from()).isEqualTo(spans.get(i - 1).to() + 1);
@@ -146,11 +123,9 @@ class ProjectTraceTest {
     void aSwitchAfterASummaryExtendsTheInheritedStretchUpToIt() {
         ChatMessageEntity earlier = summary(40, List.of(new ProjectSpan("kb", 1, 40)));
 
-        ProjectTrace trace =
-                trace(List.of(earlier), List.of(plain(41), switched(50, "kb", "billing")), 80);
+        ProjectTrace trace = trace(List.of(earlier), List.of(plain(41), switched(50, "kb", "billing")), 80);
 
-        assertThat(trace.spans())
-                .containsExactly(new ProjectSpan("kb", 1, 49), new ProjectSpan("billing", 50, 80));
+        assertThat(trace.spans()).containsExactly(new ProjectSpan("kb", 1, 49), new ProjectSpan("billing", 50, 80));
     }
 
     /**
@@ -160,31 +135,26 @@ class ProjectTraceTest {
     @Test
     void spansComeFromTheLastSummaryNotTheFirst() {
         ChatMessageEntity first = summary(40, List.of(new ProjectSpan("kb", 1, 40)));
-        ChatMessageEntity last =
-                summary(
-                        80,
-                        List.of(new ProjectSpan("kb", 1, 49), new ProjectSpan("billing", 50, 80)));
+        ChatMessageEntity last = summary(80, List.of(new ProjectSpan("kb", 1, 49), new ProjectSpan("billing", 50, 80)));
 
         ProjectTrace trace = trace(List.of(first, last), List.of(plain(81)), 90);
 
-        assertThat(trace.spans())
-                .containsExactly(new ProjectSpan("kb", 1, 49), new ProjectSpan("billing", 50, 90));
+        assertThat(trace.spans()).containsExactly(new ProjectSpan("kb", 1, 49), new ProjectSpan("billing", 50, 90));
     }
 
     /** Одинокий {@code project} на сводке носителем не считается — иначе он открывал бы отрезок. */
     @Test
     void theLegacyScalarOnASummaryDoesNotOpenAStretch() {
-        ChatMessageEntity legacy =
-                new ChatMessageEntity(
-                        40,
-                        CONV,
-                        "summary",
-                        MessageType.ASSISTANT,
-                        40,
-                        false,
-                        true,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofProject("billing", List.of()));
+        ChatMessageEntity legacy = new ChatMessageEntity(
+                40,
+                CONV,
+                "summary",
+                MessageType.ASSISTANT,
+                40,
+                false,
+                true,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofProject("billing", List.of()));
 
         ProjectTrace trace = trace(List.of(legacy), List.of(stamp(41, "kb"), plain(42)), 42);
 
@@ -196,8 +166,7 @@ class ProjectTraceTest {
     void carriersBelowTheInheritedCursorAreIgnored() {
         ChatMessageEntity earlier = summary(40, List.of(new ProjectSpan("billing", 1, 40)));
 
-        ProjectTrace trace =
-                trace(List.of(earlier), List.of(stamp(1, "kb"), plain(41), plain(42)), 42);
+        ProjectTrace trace = trace(List.of(earlier), List.of(stamp(1, "kb"), plain(41), plain(42)), 42);
 
         assertThat(trace.spans()).containsExactly(new ProjectSpan("billing", 1, 42));
     }
@@ -205,8 +174,7 @@ class ProjectTraceTest {
     /** Носителя нет вовсе — отвечает проект чата, а спрашивают его только в этом случае. */
     @Test
     void withoutAnyCarrierTheChatsOwnProjectAnswers() {
-        ProjectTrace trace =
-                ProjectTrace.of(List.of(), List.of(plain(1), plain(2)), () -> "docs", 2);
+        ProjectTrace trace = ProjectTrace.of(List.of(), List.of(plain(1), plain(2)), () -> "docs", 2);
 
         assertThat(trace.spans()).containsExactly(new ProjectSpan("docs", 1, 2));
         assertThat(trace.lastProject()).isEqualTo("docs");

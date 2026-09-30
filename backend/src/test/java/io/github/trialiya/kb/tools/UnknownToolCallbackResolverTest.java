@@ -43,8 +43,7 @@ class UnknownToolCallbackResolverTest {
     /** The plaque in chat is keyed by the definition's name, so it has to be the invented one. */
     @Test
     void theCallbackCarriesTheNameItWasAskedFor() {
-        assertThat(resolver.resolve("noSuchTool").getToolDefinition().name())
-                .isEqualTo("noSuchTool");
+        assertThat(resolver.resolve("noSuchTool").getToolDefinition().name()).isEqualTo("noSuchTool");
     }
 
     /**

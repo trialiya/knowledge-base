@@ -63,8 +63,7 @@ class ToolArgumentGapsTest {
     /** Where the chat model's tools live; everything in here is scanned. */
     private static final String FUNCTIONS_PACKAGE = "io.github.trialiya.kb.functions";
 
-    private final ToolContext context =
-            new ToolContext(Map.of(ChatMemory.CONVERSATION_ID, "test-chat"));
+    private final ToolContext context = new ToolContext(Map.of(ChatMemory.CONVERSATION_ID, "test-chat"));
 
     /** Every {@code @Tool} in {@link #FUNCTIONS_PACKAGE}, over mocked services. */
     private static ToolCallback[] allTools() {
@@ -81,10 +80,7 @@ class ToolArgumentGapsTest {
                 .map(BeanDefinition::getBeanClassName)
                 .filter(Objects::nonNull)
                 .<Class<?>>map(name -> ClassUtils.resolveClassName(name, null))
-                .filter(
-                        type ->
-                                Stream.of(type.getDeclaredMethods())
-                                        .anyMatch(m -> m.isAnnotationPresent(Tool.class)))
+                .filter(type -> Stream.of(type.getDeclaredMethods()).anyMatch(m -> m.isAnnotationPresent(Tool.class)))
                 .sorted(Comparator.comparing(Class::getName));
     }
 
@@ -93,15 +89,13 @@ class ToolArgumentGapsTest {
      * scan honest: a tool class that grows a new dependency needs no edit here.
      */
     private static Object withMockedDeps(Class<?> type) {
-        final Constructor<?> constructor =
-                Stream.of(type.getDeclaredConstructors())
-                        .max(Comparator.comparingInt(Constructor::getParameterCount))
-                        .orElseThrow(() -> new IllegalStateException("no constructor on " + type));
+        final Constructor<?> constructor = Stream.of(type.getDeclaredConstructors())
+                .max(Comparator.comparingInt(Constructor::getParameterCount))
+                .orElseThrow(() -> new IllegalStateException("no constructor on " + type));
         constructor.setAccessible(true);
-        final Object[] dependencies =
-                Stream.of(constructor.getParameterTypes())
-                        .map(ToolArgumentGapsTest::stubbed)
-                        .toArray();
+        final Object[] dependencies = Stream.of(constructor.getParameterTypes())
+                .map(ToolArgumentGapsTest::stubbed)
+                .toArray();
         try {
             return constructor.newInstance(dependencies);
         } catch (ReflectiveOperationException e) {
@@ -122,17 +116,7 @@ class ToolArgumentGapsTest {
             // уже после того, о чём этот класс.
             when(gitService.project())
                     .thenReturn(
-                            new Project(
-                                    "kb",
-                                    "KB",
-                                    Path.of("/repo"),
-                                    false,
-                                    false,
-                                    null,
-                                    null,
-                                    null,
-                                    false,
-                                    false));
+                            new Project("kb", "KB", Path.of("/repo"), false, false, null, null, null, false, false));
             when(registry.forProject(any())).thenReturn(gitService);
             when(registry.requireEditable(any())).thenReturn(gitService);
             return registry;
@@ -146,9 +130,7 @@ class ToolArgumentGapsTest {
             case "boolean" -> false;
             case "int" -> 0;
             case "long" -> 0L;
-            default ->
-                    throw new IllegalStateException(
-                            "unhandled constructor primitive: " + dependency);
+            default -> throw new IllegalStateException("unhandled constructor primitive: " + dependency);
         };
     }
 
@@ -173,12 +155,7 @@ class ToolArgumentGapsTest {
                 // The good failure: wrapped, so the processor turns it into a tool result the
                 // model reads and retries from.
             } catch (Exception e) {
-                broken.add(
-                        name
-                                + " → escaped as "
-                                + e.getClass().getSimpleName()
-                                + ": "
-                                + e.getMessage());
+                broken.add(name + " → escaped as " + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
         }
         assertThat(broken)
@@ -231,9 +208,7 @@ class ToolArgumentGapsTest {
             tool.call("{\"documentId\": \"doc-7\"}", context);
             fail("expected a refusal");
         } catch (ToolExecutionException e) {
-            assertThat(rootCause(e).getMessage())
-                    .contains("doc-7")
-                    .doesNotContain("For input string");
+            assertThat(rootCause(e).getMessage()).contains("doc-7").doesNotContain("For input string");
         }
     }
 
@@ -246,9 +221,7 @@ class ToolArgumentGapsTest {
             tool.call("{\"position\": \"before\"}", context);
             fail("expected a refusal");
         } catch (ToolExecutionException e) {
-            assertThat(rootCause(e).getMessage())
-                    .contains("documentId")
-                    .doesNotContainIgnoringCase("InsertPosition");
+            assertThat(rootCause(e).getMessage()).contains("documentId").doesNotContainIgnoringCase("InsertPosition");
         }
     }
 
@@ -289,17 +262,15 @@ class ToolArgumentGapsTest {
         final ToolCallback tool = ToolCallbacks.from(new PrimitiveArgumentTool())[0];
         try {
             final String answered = tool.call("{}", context);
-            fail(
-                    "Spring AI now supplies a missing primitive by itself (answered "
-                            + answered
-                            + "): a primitive no longer kills the run, so the no-primitives rule in"
-                            + " this class can be revisited.");
+            fail("Spring AI now supplies a missing primitive by itself (answered "
+                    + answered
+                    + "): a primitive no longer kills the run, so the no-primitives rule in"
+                    + " this class can be revisited.");
         } catch (ToolExecutionException e) {
-            fail(
-                    "Spring AI now wraps the null primitive ("
-                            + rootCause(e).getMessage()
-                            + "): the failure reaches the exception processor and the run survives,"
-                            + " so the no-primitives rule can be revisited.");
+            fail("Spring AI now wraps the null primitive ("
+                    + rootCause(e).getMessage()
+                    + "): the failure reaches the exception processor and the run survives,"
+                    + " so the no-primitives rule can be revisited.");
         } catch (IllegalArgumentException expected) {
             assertThat(expected)
                     .describedAs("thrown by Method.invoke itself, past every Spring AI handler")

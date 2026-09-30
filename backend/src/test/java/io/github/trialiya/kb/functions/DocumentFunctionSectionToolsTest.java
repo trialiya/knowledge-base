@@ -54,9 +54,7 @@ class DocumentFunctionSectionToolsTest {
     @BeforeEach
     void setUp() {
         documentService = mock(DocumentService.class);
-        function =
-                new DocumentFunction(
-                        documentService, mock(AttachmentService.class), EarlierToolResults.NONE);
+        function = new DocumentFunction(documentService, mock(AttachmentService.class), EarlierToolResults.NONE);
         collector = new ToolInvocationCollector();
         context = new ToolContext(Map.of(ToolInvocationCollector.KEY, collector));
 
@@ -84,17 +82,7 @@ class DocumentFunctionSectionToolsTest {
 
     private void record(String tool, Map<Object, Object> args, ToolInvocationStatus status) {
         collector.record(
-                new ToolInvocation(
-                        tool,
-                        args,
-                        status,
-                        null,
-                        null,
-                        null,
-                        "{}",
-                        null,
-                        collector.nextCallIndex(),
-                        null));
+                new ToolInvocation(tool, args, status, null, null, null, "{}", null, collector.nextCallIndex(), null));
     }
 
     @Nested
@@ -175,8 +163,7 @@ class DocumentFunctionSectionToolsTest {
                     Map.of("documentId", String.valueOf(DOC_ID), "sectionPath", "Гайд > FAQ"),
                     ToolInvocationStatus.OK);
 
-            assertThatThrownBy(() -> updateSection("## Установка\nnew"))
-                    .isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> updateSection("## Установка\nnew")).isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -186,8 +173,7 @@ class DocumentFunctionSectionToolsTest {
                     Map.of("documentId", String.valueOf(DOC_ID), "sectionPath", "Гайд > Установка"),
                     ToolInvocationStatus.ERROR);
 
-            assertThatThrownBy(() -> updateSection("## Установка\nnew"))
-                    .isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> updateSection("## Установка\nnew")).isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -195,14 +181,8 @@ class DocumentFunctionSectionToolsTest {
             stubPatch();
             ToolContext noCollector = new ToolContext(Map.of());
 
-            assertThatCode(
-                            () ->
-                                    function.updateDocumentSection(
-                                            noCollector,
-                                            DOC_ID,
-                                            "Гайд > Установка",
-                                            "## Установка\nnew",
-                                            3))
+            assertThatCode(() -> function.updateDocumentSection(
+                            noCollector, DOC_ID, "Гайд > Установка", "## Установка\nnew", 3))
                     .doesNotThrowAnyException();
         }
 
@@ -223,45 +203,31 @@ class DocumentFunctionSectionToolsTest {
         void splicesOnlyTheTargetSection() {
             AtomicReference<String> patched = stubPatch();
 
-            function.updateDocumentSection(
-                    context, DOC_ID, "Гайд > Установка", "## Установка\nnew install", 3);
+            function.updateDocumentSection(context, DOC_ID, "Гайд > Установка", "## Установка\nnew install", 3);
 
-            assertThat(patched.get())
-                    .isEqualTo("# Гайд\nintro\n## Установка\nnew install\n\n## FAQ\nq&a\n");
+            assertThat(patched.get()).isEqualTo("# Гайд\nintro\n## Установка\nnew install\n\n## FAQ\nq&a\n");
         }
 
         @Test
         void sectionMissingAtPatchTimeFails() {
             stubPatch();
 
-            assertThatThrownBy(
-                            () ->
-                                    function.updateDocumentSection(
-                                            context, DOC_ID, "Гайд > Нет", "## Нет\nx", 3))
+            assertThatThrownBy(() -> function.updateDocumentSection(context, DOC_ID, "Гайд > Нет", "## Нет\nx", 3))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("не найдена");
         }
 
         @Test
         void blankContentIsRejected() {
-            assertThatThrownBy(
-                            () ->
-                                    function.updateDocumentSection(
-                                            context, DOC_ID, "Гайд > Установка", "  ", 3))
+            assertThatThrownBy(() -> function.updateDocumentSection(context, DOC_ID, "Гайд > Установка", "  ", 3))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("пуст");
         }
 
         @Test
         void contentWithoutHeadingIsRejected() {
-            assertThatThrownBy(
-                            () ->
-                                    function.updateDocumentSection(
-                                            context,
-                                            DOC_ID,
-                                            "Гайд > Установка",
-                                            "просто текст без заголовка",
-                                            3))
+            assertThatThrownBy(() -> function.updateDocumentSection(
+                            context, DOC_ID, "Гайд > Установка", "просто текст без заголовка", 3))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("заголовка");
         }
@@ -292,10 +258,7 @@ class DocumentFunctionSectionToolsTest {
         @Test
         void outlineReadSatisfiesTheGuard() {
             stubPatch();
-            record(
-                    "getDocumentOutline",
-                    Map.of("documentId", String.valueOf(DOC_ID)),
-                    ToolInvocationStatus.OK);
+            record("getDocumentOutline", Map.of("documentId", String.valueOf(DOC_ID)), ToolInvocationStatus.OK);
 
             assertThatCode(() -> insert("Гайд > FAQ", BEFORE, "## Новая\nтекст"))
                     .doesNotThrowAnyException();
@@ -309,9 +272,7 @@ class DocumentFunctionSectionToolsTest {
             insert("Гайд > FAQ", BEFORE, "## Новая\nтекст");
 
             assertThat(patched.get())
-                    .isEqualTo(
-                            "# Гайд\nintro\n## Установка\nold install\n\n"
-                                    + "## Новая\nтекст\n\n## FAQ\nq&a\n");
+                    .isEqualTo("# Гайд\nintro\n## Установка\nold install\n\n" + "## Новая\nтекст\n\n## FAQ\nq&a\n");
         }
 
         @Test
@@ -322,9 +283,7 @@ class DocumentFunctionSectionToolsTest {
             insert("Гайд > Установка", AFTER, "## Новая\nтекст");
 
             assertThat(patched.get())
-                    .isEqualTo(
-                            "# Гайд\nintro\n## Установка\nold install\n\n"
-                                    + "## Новая\nтекст\n\n## FAQ\nq&a\n");
+                    .isEqualTo("# Гайд\nintro\n## Установка\nold install\n\n" + "## Новая\nтекст\n\n## FAQ\nq&a\n");
         }
 
         @Test
@@ -349,8 +308,7 @@ class DocumentFunctionSectionToolsTest {
             record("getDocument", Map.of("documentId", DOC_ID), ToolInvocationStatus.OK);
         }
 
-        private void insert(
-                String anchor, DocumentFunction.InsertPosition position, String newContent) {
+        private void insert(String anchor, DocumentFunction.InsertPosition position, String newContent) {
             function.insertDocumentSection(context, DOC_ID, anchor, position, newContent, 3);
         }
     }
@@ -360,10 +318,7 @@ class DocumentFunctionSectionToolsTest {
 
         @Test
         void deleteWithoutPriorReadIsRejected() {
-            assertThatThrownBy(
-                            () ->
-                                    function.deleteDocumentSection(
-                                            context, DOC_ID, "Гайд > Установка", 3))
+            assertThatThrownBy(() -> function.deleteDocumentSection(context, DOC_ID, "Гайд > Установка", 3))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("getDocumentSection");
             Mockito.verify(documentService, never()).patchDescription(anyLong(), anyInt(), any());
@@ -384,15 +339,9 @@ class DocumentFunctionSectionToolsTest {
 
         @Test
         void outlineReadAloneDoesNotSatisfyTheGuard() {
-            record(
-                    "getDocumentOutline",
-                    Map.of("documentId", String.valueOf(DOC_ID)),
-                    ToolInvocationStatus.OK);
+            record("getDocumentOutline", Map.of("documentId", String.valueOf(DOC_ID)), ToolInvocationStatus.OK);
 
-            assertThatThrownBy(
-                            () ->
-                                    function.deleteDocumentSection(
-                                            context, DOC_ID, "Гайд > Установка", 3))
+            assertThatThrownBy(() -> function.deleteDocumentSection(context, DOC_ID, "Гайд > Установка", 3))
                     .isInstanceOf(IllegalStateException.class);
         }
     }
@@ -402,25 +351,16 @@ class DocumentFunctionSectionToolsTest {
 
         @BeforeEach
         void allowStructure() {
-            record(
-                    "getDocumentOutline",
-                    Map.of("documentId", String.valueOf(DOC_ID)),
-                    ToolInvocationStatus.OK);
+            record("getDocumentOutline", Map.of("documentId", String.valueOf(DOC_ID)), ToolInvocationStatus.OK);
         }
 
         @Test
         void renameWithoutPriorStructureReadIsRejected() {
             ToolContext freshContext =
-                    new ToolContext(
-                            Map.of(ToolInvocationCollector.KEY, new ToolInvocationCollector()));
+                    new ToolContext(Map.of(ToolInvocationCollector.KEY, new ToolInvocationCollector()));
 
-            assertThatThrownBy(
-                            () ->
-                                    function.renameDocumentSections(
-                                            freshContext,
-                                            DOC_ID,
-                                            List.of(rename("Гайд > FAQ", "Вопросы")),
-                                            3))
+            assertThatThrownBy(() -> function.renameDocumentSections(
+                            freshContext, DOC_ID, List.of(rename("Гайд > FAQ", "Вопросы")), 3))
                     .isInstanceOf(IllegalStateException.class);
         }
 
@@ -431,13 +371,10 @@ class DocumentFunctionSectionToolsTest {
             function.renameDocumentSections(
                     context,
                     DOC_ID,
-                    List.of(
-                            rename("Гайд > Установка", "1. Установка"),
-                            rename("Гайд > FAQ", "2. FAQ")),
+                    List.of(rename("Гайд > Установка", "1. Установка"), rename("Гайд > FAQ", "2. FAQ")),
                     3);
 
-            assertThat(patched.get())
-                    .isEqualTo("# Гайд\nintro\n## 1. Установка\nold install\n## 2. FAQ\nq&a\n");
+            assertThat(patched.get()).isEqualTo("# Гайд\nintro\n## 1. Установка\nold install\n## 2. FAQ\nq&a\n");
         }
 
         @Test
@@ -449,9 +386,7 @@ class DocumentFunctionSectionToolsTest {
             function.renameDocumentSections(
                     context,
                     DOC_ID,
-                    List.of(
-                            rename("Гайд > Установка", "Сетап"),
-                            rename("Гайд > Установка > Docker", "Podman")),
+                    List.of(rename("Гайд > Установка", "Сетап"), rename("Гайд > Установка > Docker", "Podman")),
                     3);
 
             assertThat(patched.get()).isEqualTo("# Гайд\n## Сетап\n### Podman\nтекст\n");
@@ -466,33 +401,19 @@ class DocumentFunctionSectionToolsTest {
 
         @Test
         void duplicatePathsAreRejected() {
-            assertThatThrownBy(
-                            () ->
-                                    function.renameDocumentSections(
-                                            context,
-                                            DOC_ID,
-                                            List.of(
-                                                    rename("Гайд > FAQ", "A"),
-                                                    rename("Гайд > FAQ", "B")),
-                                            3))
+            assertThatThrownBy(() -> function.renameDocumentSections(
+                            context, DOC_ID, List.of(rename("Гайд > FAQ", "A"), rename("Гайд > FAQ", "B")), 3))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("уникальны");
         }
 
         @Test
         void preambleAndInvalidTitlesAreRejected() {
-            assertThatThrownBy(
-                            () ->
-                                    function.renameDocumentSections(
-                                            context, DOC_ID, List.of(rename("_preamble", "X")), 3))
+            assertThatThrownBy(() ->
+                            function.renameDocumentSections(context, DOC_ID, List.of(rename("_preamble", "X")), 3))
                     .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(
-                            () ->
-                                    function.renameDocumentSections(
-                                            context,
-                                            DOC_ID,
-                                            List.of(rename("Гайд > FAQ", "## Новое")),
-                                            3))
+            assertThatThrownBy(() -> function.renameDocumentSections(
+                            context, DOC_ID, List.of(rename("Гайд > FAQ", "## Новое")), 3))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
@@ -500,10 +421,8 @@ class DocumentFunctionSectionToolsTest {
         void unknownPathFailsAtPatchTime() {
             stubPatch();
 
-            assertThatThrownBy(
-                            () ->
-                                    function.renameDocumentSections(
-                                            context, DOC_ID, List.of(rename("Гайд > Нет", "X")), 3))
+            assertThatThrownBy(() ->
+                            function.renameDocumentSections(context, DOC_ID, List.of(rename("Гайд > Нет", "X")), 3))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("не найдена");
         }
@@ -523,23 +442,12 @@ class DocumentFunctionSectionToolsTest {
         Document document = mock(Document.class);
         when(document.toDocumentShort())
                 .thenReturn(
-                        new DocumentShort(
-                                DOC_ID,
-                                "Гайд",
-                                "document",
-                                null,
-                                2,
-                                4,
-                                LocalDateTime.now(),
-                                false,
-                                null));
-        when(documentService.patchDescription(anyLong(), anyInt(), any()))
-                .thenAnswer(
-                        inv -> {
-                            UnaryOperator<String> patch = inv.getArgument(2);
-                            patched.set(patch.apply(currentDescription));
-                            return document;
-                        });
+                        new DocumentShort(DOC_ID, "Гайд", "document", null, 2, 4, LocalDateTime.now(), false, null));
+        when(documentService.patchDescription(anyLong(), anyInt(), any())).thenAnswer(inv -> {
+            UnaryOperator<String> patch = inv.getArgument(2);
+            patched.set(patch.apply(currentDescription));
+            return document;
+        });
         return patched;
     }
 }

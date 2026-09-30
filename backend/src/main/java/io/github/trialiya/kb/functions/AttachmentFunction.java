@@ -42,8 +42,7 @@ public class AttachmentFunction {
             description =
                     "List attachments (files) for a document by id. Returns metadata: file name, type, size, description.",
             resultConverter = CompactToolResultConverter.class)
-    public List<Attachment> getDocumentAttachments(
-            @ToolParam(description = "Document ID.") Long documentId) {
+    public List<Attachment> getDocumentAttachments(@ToolParam(description = "Document ID.") Long documentId) {
         final long id = requireId(documentId, "documentId");
         log.debug("getDocumentAttachments called: documentId={}", id);
         return attachmentService.findByDocument(id);
@@ -91,13 +90,12 @@ public class AttachmentFunction {
             ToolContext context,
             @ToolParam(description = "Attachment file name (e.g., 'report.md').") String fileName,
             @ToolParam(
-                            description =
-                                    "MIME type (e.g., 'text/markdown', 'application/json'). "
-                                            + "Null for 'text/plain'.",
+                            description = "MIME type (e.g., 'text/markdown', 'application/json'). "
+                                    + "Null for 'text/plain'.",
                             required = false)
-                    @Nullable String contentType,
-            @ToolParam(description = "Attachment content (text, markdown, JSON, etc.).")
-                    String content) {
+                    @Nullable
+                    String contentType,
+            @ToolParam(description = "Attachment content (text, markdown, JSON, etc.).") String content) {
         requireText(fileName, "fileName");
         // An attachment nobody can read is not a lesser version of the one the model asked for, so
         // a missing content is an error — while an explicit "" stays a legitimate empty file.
@@ -118,18 +116,12 @@ public class AttachmentFunction {
             ToolContext context, @ToolParam(description = "File name.") String fileName) {
         requireText(fileName, "fileName");
         final String conversationId = conversationId(context);
-        log.debug(
-                "[{}] getAttachmentContentByFileName called: fileName='{}'",
-                conversationId,
-                fileName);
+        log.debug("[{}] getAttachmentContentByFileName called: fileName='{}'", conversationId, fileName);
         return attachmentService.getByFileName(conversationId, fileName).stream()
-                .map(
-                        attachment ->
-                                new AttachmentContext(
-                                        attachment.id(),
-                                        attachment.fileName(),
-                                        getTruncatedContent(
-                                                attachmentService.getContent(attachment.id()))))
+                .map(attachment -> new AttachmentContext(
+                        attachment.id(),
+                        attachment.fileName(),
+                        getTruncatedContent(attachmentService.getContent(attachment.id()))))
                 .toList();
     }
 
@@ -152,10 +144,7 @@ public class AttachmentFunction {
     private static @NonNull String getTruncatedContent(String content) {
         // Truncate for tool response to avoid flooding the context window
         if (content.length() > 15_000) {
-            return content.substring(0, 15_000)
-                    + "\n... (content truncated; total chars: "
-                    + content.length()
-                    + ")";
+            return content.substring(0, 15_000) + "\n... (content truncated; total chars: " + content.length() + ")";
         }
         return content;
     }

@@ -45,17 +45,9 @@ class ToolTranslationsTest {
         assertThat(localeKeys).as("Не найдено ни одного chat.json в locales/").isNotEmpty();
 
         List<String> problems = new ArrayList<>();
-        localeKeys.forEach(
-                (locale, keys) ->
-                        toolNames.stream()
-                                .filter(tool -> !keys.contains(tool))
-                                .forEach(
-                                        tool ->
-                                                problems.add(
-                                                        locale
-                                                                + ": нет перевода для tool '"
-                                                                + tool
-                                                                + "'")));
+        localeKeys.forEach((locale, keys) -> toolNames.stream()
+                .filter(tool -> !keys.contains(tool))
+                .forEach(tool -> problems.add(locale + ": нет перевода для tool '" + tool + "'")));
 
         assertThat(problems)
                 .as("Пропущенные переводы инструментов:%n%s", String.join("\n", problems))
@@ -75,17 +67,9 @@ class ToolTranslationsTest {
         Map<String, Set<String>> localeKeys = loadLocaleToolKeys();
 
         List<String> orphans = new ArrayList<>();
-        localeKeys.forEach(
-                (locale, keys) ->
-                        keys.stream()
-                                .filter(key -> !toolNames.contains(key))
-                                .forEach(
-                                        key ->
-                                                orphans.add(
-                                                        locale
-                                                                + ": лишний ключ tools."
-                                                                + key
-                                                                + " (нет такого @Tool)")));
+        localeKeys.forEach((locale, keys) -> keys.stream()
+                .filter(key -> !toolNames.contains(key))
+                .forEach(key -> orphans.add(locale + ": лишний ключ tools." + key + " (нет такого @Tool)")));
 
         assertThat(orphans)
                 .as("Устаревшие ключи переводов:%n%s", String.join("\n", orphans))
@@ -103,16 +87,9 @@ class ToolTranslationsTest {
         localeKeys.values().forEach(union::addAll);
 
         List<String> problems = new ArrayList<>();
-        localeKeys.forEach(
-                (locale, keys) ->
-                        union.stream()
-                                .filter(key -> !keys.contains(key))
-                                .forEach(
-                                        key ->
-                                                problems.add(
-                                                        locale
-                                                                + ": отсутствует ключ tools."
-                                                                + key)));
+        localeKeys.forEach((locale, keys) -> union.stream()
+                .filter(key -> !keys.contains(key))
+                .forEach(key -> problems.add(locale + ": отсутствует ключ tools." + key)));
 
         assertThat(problems)
                 .as("Локали рассинхронизированы:%n%s", String.join("\n", problems))
@@ -152,12 +129,11 @@ class ToolTranslationsTest {
 
         List<Path> chatFiles;
         try (Stream<Path> dirs = Files.list(localesDir)) {
-            chatFiles =
-                    dirs.filter(Files::isDirectory)
-                            .map(dir -> dir.resolve("chat.json"))
-                            .filter(Files::isRegularFile)
-                            .sorted()
-                            .toList();
+            chatFiles = dirs.filter(Files::isDirectory)
+                    .map(dir -> dir.resolve("chat.json"))
+                    .filter(Files::isRegularFile)
+                    .sorted()
+                    .toList();
         }
 
         Map<String, Set<String>> result = new TreeMap<>();
@@ -183,7 +159,6 @@ class ToolTranslationsTest {
                 return candidate;
             }
         }
-        throw new IllegalStateException(
-                "Не найден каталог frontend/src/i18n/locales (искал вверх от " + start + ")");
+        throw new IllegalStateException("Не найден каталог frontend/src/i18n/locales (искал вверх от " + start + ")");
     }
 }

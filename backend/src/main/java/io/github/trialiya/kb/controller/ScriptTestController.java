@@ -90,10 +90,7 @@ public class ScriptTestController {
         if (script.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Script is empty");
         }
-        log.info(
-                "Settings script bench: {} chars, timeoutSeconds={}",
-                script.length(),
-                request.timeoutSeconds());
+        log.info("Settings script bench: {} chars, timeoutSeconds={}", script.length(), request.timeoutSeconds());
         // No RunCancellation: there is no chat run to stop, so the wall-clock budget is the only
         // limit — the same situation as the synchronous chat endpoint (see RunCancellation#none).
         return scriptRunner.run(script, request.timeoutSeconds(), RunCancellation.none(), true);
@@ -114,8 +111,9 @@ public class ScriptTestController {
     @GetMapping("/saved")
     public SavedScripts saved(@RequestParam(required = false) @Nullable String project) {
         Project resolved = projects.find(project).orElseGet(projects::defaultProject);
-        List<SavedScriptView> scripts =
-                savedScripts.scripts(resolved.id()).stream().map(SavedScriptView::of).toList();
+        List<SavedScriptView> scripts = savedScripts.scripts(resolved.id()).stream()
+                .map(SavedScriptView::of)
+                .toList();
         return new SavedScripts(resolved.id(), resolved.label(), scripts);
     }
 
@@ -153,14 +151,7 @@ public class ScriptTestController {
         // 400 they are instead of a 500 with a stack trace behind it (same move as GitController).
         ScriptRequest run;
         try {
-            run =
-                    resolver.resolve(
-                            request.project(),
-                            name,
-                            request.args(),
-                            request.timeoutSeconds(),
-                            false,
-                            null);
+            run = resolver.resolve(request.project(), name, request.args(), request.timeoutSeconds(), false, null);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }
@@ -174,8 +165,7 @@ public class ScriptTestController {
 
     private void requireEnabled() {
         if (!scriptProperties.enabled()) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "Scripts are disabled (kb.script.enabled=false)");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Scripts are disabled (kb.script.enabled=false)");
         }
     }
 
@@ -243,5 +233,6 @@ public class ScriptTestController {
      * @param timeoutSeconds wall-clock budget; null for {@code kb.script.timeout}, clamped to
      *     {@code kb.script.max-timeout}
      */
-    public record ScriptRunRequest(@Nullable String script, @Nullable Integer timeoutSeconds) {}
+    public record ScriptRunRequest(
+            @Nullable String script, @Nullable Integer timeoutSeconds) {}
 }

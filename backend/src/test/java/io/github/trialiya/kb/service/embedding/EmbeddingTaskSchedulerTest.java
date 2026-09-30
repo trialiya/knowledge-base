@@ -34,28 +34,15 @@ class EmbeddingTaskSchedulerTest {
         taskRepo = mock(EmbeddingTaskRepository.class);
         executor = mock(EmbeddingExecutor.class);
         searchService = mock(SemanticSearchService.class);
-        scheduler =
-                new EmbeddingTaskScheduler(
-                        taskRepo,
-                        executor,
-                        searchService,
-                        new EmbeddingConfiguration(
-                                "test-model",
-                                50,
-                                4,
-                                20,
-                                MAX_ATTEMPTS,
-                                BACKOFF_SECONDS,
-                                10,
-                                7,
-                                1000,
-                                300_000,
-                                null,
-                                null));
+        scheduler = new EmbeddingTaskScheduler(
+                taskRepo,
+                executor,
+                searchService,
+                new EmbeddingConfiguration(
+                        "test-model", 50, 4, 20, MAX_ATTEMPTS, BACKOFF_SECONDS, 10, 7, 1000, 300_000, null, null));
     }
 
-    private static EmbeddingTaskEntity task(
-            EmbeddingEntityType entityType, long entityId, int attempts) {
+    private static EmbeddingTaskEntity task(EmbeddingEntityType entityType, long entityId, int attempts) {
         EmbeddingTaskEntity t = new EmbeddingTaskEntity();
         t.setId(entityId * 10);
         t.setEntityType(entityType);
@@ -68,12 +55,10 @@ class EmbeddingTaskSchedulerTest {
 
     /** Настраивает executor исполнять задачи синхронно — так тест видит работу воркера. */
     private void runTasksInline() {
-        when(executor.submit(any()))
-                .thenAnswer(
-                        invocation -> {
-                            invocation.<Runnable>getArgument(0).run();
-                            return true;
-                        });
+        when(executor.submit(any())).thenAnswer(invocation -> {
+            invocation.<Runnable>getArgument(0).run();
+            return true;
+        });
     }
 
     // ── poll(): адаптивный размер батча ──────────────────────────────────────

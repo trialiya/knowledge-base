@@ -32,5 +32,6 @@ public interface CodeOutlineParser {
      * @return symbols, empty when the file declares none; {@code null} when this parser could not
      *     read the file at all — the caller may then try another one
      */
-    @Nullable List<GitSymbol> parse(String language, String source);
+    @Nullable
+    List<GitSymbol> parse(String language, String source);
 }

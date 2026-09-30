@@ -39,9 +39,7 @@ public class SummaryWriter {
      */
     private final Striped<Lock> locks = Striped.lock(1024);
 
-    public SummaryWriter(
-            ChatMessageRepository chatMessageRepository,
-            PlatformTransactionManager transactionManager) {
+    public SummaryWriter(ChatMessageRepository chatMessageRepository, PlatformTransactionManager transactionManager) {
         this.chatMessageRepository = chatMessageRepository;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -130,32 +128,21 @@ public class SummaryWriter {
      * @return строка-плашка; её id уезжает в {@code COMPACT_DONE} и служит адресом деталей сжатия
      */
     public ChatMessageEntity writeCompacted(SummaryRow row, CompactStats stats) {
-        return Objects.requireNonNull(
-                transactionTemplate.execute(
-                        s -> {
-                            final ChatMessageEntity summary = saveSummary(row);
-                            final ChatMessageMeta meta =
-                                    ChatMessageMeta.ofCompact(
-                                            new CompactMeta(
-                                                    stats.messages(),
-                                                    stats.summaryChars(),
-                                                    summary.getId(),
-                                                    stats.kind(),
-                                                    stats.carried()));
-                            return chatMessageRepository.save(
-                                    new ChatMessageEntity(
-                                            0L,
-                                            row.conversationId(),
-                                            "",
-                                            MessageType.ASSISTANT,
-                                            row.position() + 1,
-                                            true,
-                                            false,
-                                            stats.noticeAt(),
-                                            stats.usage() == null
-                                                    ? meta
-                                                    : meta.withUsage(stats.usage())));
-                        }));
+        return Objects.requireNonNull(transactionTemplate.execute(s -> {
+            final ChatMessageEntity summary = saveSummary(row);
+            final ChatMessageMeta meta = ChatMessageMeta.ofCompact(new CompactMeta(
+                    stats.messages(), stats.summaryChars(), summary.getId(), stats.kind(), stats.carried()));
+            return chatMessageRepository.save(new ChatMessageEntity(
+                    0L,
+                    row.conversationId(),
+                    "",
+                    MessageType.ASSISTANT,
+                    row.position() + 1,
+                    true,
+                    false,
+                    stats.noticeAt(),
+                    stats.usage() == null ? meta : meta.withUsage(stats.usage())));
+        }));
     }
 
     /**
@@ -190,19 +177,17 @@ public class SummaryWriter {
 
     /** Разметка сжатого куска и сама строка-сводка; вызывать только внутри транзакции. */
     private ChatMessageEntity saveSummary(SummaryRow row) {
-        chatMessageRepository.updateSummarized(
-                row.conversationId(), row.startPosition(), row.endPosition());
-        return chatMessageRepository.save(
-                new ChatMessageEntity(
-                        0L,
-                        row.conversationId(),
-                        row.text(),
-                        MessageType.ASSISTANT,
-                        row.position(),
-                        false,
-                        true,
-                        row.createdAt(),
-                        metaOf(row.trace())));
+        chatMessageRepository.updateSummarized(row.conversationId(), row.startPosition(), row.endPosition());
+        return chatMessageRepository.save(new ChatMessageEntity(
+                0L,
+                row.conversationId(),
+                row.text(),
+                MessageType.ASSISTANT,
+                row.position(),
+                false,
+                true,
+                row.createdAt(),
+                metaOf(row.trace())));
     }
 
     /**

@@ -39,14 +39,8 @@ class McpClientSourcesTest {
     /** Both kinds at once cannot happen through the autoconfiguration, but neither is dropped. */
     @Test
     void syncAndAsyncClientsLandInTheSameMap() {
-        Map<String, ToolSource> sources =
-                McpToolRegistry.sources(
-                        List.of(syncClient("files")),
-                        List.of(asyncClient("jira", "issue")),
-                        CLIENT_NAME,
-                        null,
-                        null,
-                        null);
+        Map<String, ToolSource> sources = McpToolRegistry.sources(
+                List.of(syncClient("files")), List.of(asyncClient("jira", "issue")), CLIENT_NAME, null, null, null);
 
         assertThat(sources).containsOnlyKeys("files", "jira");
     }
@@ -84,15 +78,9 @@ class McpClientSourcesTest {
                         Mono.just(listToolsResult("issue", "Looks an issue up")),
                         Mono.just(listToolsResult("issue", "Looks an issue up, faster")));
 
-        ToolSource source =
-                McpToolRegistry.sources(
-                                List.of(),
-                                List.of(client),
-                                CLIENT_NAME,
-                                null,
-                                new DefaultMcpToolNamePrefixGenerator(),
-                                null)
-                        .get("jira");
+        ToolSource source = McpToolRegistry.sources(
+                        List.of(), List.of(client), CLIENT_NAME, null, new DefaultMcpToolNamePrefixGenerator(), null)
+                .get("jira");
 
         assertThat(source.list().getFirst().getToolDefinition().name()).isEqualTo("issue");
         assertThat(source.list().getFirst().getToolDefinition().name()).isEqualTo("issue");
@@ -119,7 +107,8 @@ class McpClientSourcesTest {
 
     /** Named the way {@code McpClientAutoConfiguration} names a client of that connection. */
     private static McpSchema.Implementation implementation(String connection) {
-        return McpSchema.Implementation.builder(CLIENT_NAME + " - " + connection, "1").build();
+        return McpSchema.Implementation.builder(CLIENT_NAME + " - " + connection, "1")
+                .build();
     }
 
     private static McpSchema.ListToolsResult listToolsResult(String toolName) {
@@ -128,10 +117,9 @@ class McpClientSourcesTest {
 
     private static McpSchema.ListToolsResult listToolsResult(String toolName, String description) {
         return new McpSchema.ListToolsResult(
-                List.of(
-                        McpSchema.Tool.builder(toolName, Map.of("type", "object"))
-                                .description(description)
-                                .build()),
+                List.of(McpSchema.Tool.builder(toolName, Map.of("type", "object"))
+                        .description(description)
+                        .build()),
                 null,
                 Map.of());
     }

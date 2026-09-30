@@ -26,15 +26,12 @@ class ScriptGuideServiceTest {
      * Results kept off, so a guide rendered from a stub markdown is that markdown alone — the
      * results section has a switch of its own and a test of its own.
      */
-    private static final ScriptResultProperties NO_RESULTS =
-            new ScriptResultProperties(false, 1000, 10);
+    private static final ScriptResultProperties NO_RESULTS = new ScriptResultProperties(false, 1000, 10);
 
     @Test
     void saysNothingAboutScriptsWhenTheToolIsDisabled() {
         ScriptProperties disabled =
-                new ScriptProperties(
-                        false, false, true, false, null, null, null, null, null, null, null, null,
-                        null);
+                new ScriptProperties(false, false, true, false, null, null, null, null, null, null, null, null, null);
 
         ScriptGuideService service = guide(disabled, false);
         assertThat(service.instructions(true)).isEmpty();
@@ -55,36 +52,27 @@ class ScriptGuideServiceTest {
     @Test
     void substitutesBudgetsFromTheConfigurationNotFromTheMarkdown() {
         Resource guide =
-                new ByteArrayResource(
-                        "файлов: {{max_files_read}}, время: {{timeout}}, максимум {{max_timeout}}"
-                                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        ScriptProperties properties =
-                new ScriptProperties(
-                        true,
-                        false,
-                        true,
-                        false,
-                        guide,
-                        null,
-                        null,
-                        null,
-                        null,
-                        java.time.Duration.ofSeconds(7),
-                        java.time.Duration.ofSeconds(42),
-                        null,
-                        new ScriptProperties.Limits(
-                                13,
-                                DataSize.ofMegabytes(32),
-                                2000,
-                                20_000,
-                                20_000,
-                                20,
-                                DataSize.ofKilobytes(256)));
+                new ByteArrayResource("файлов: {{max_files_read}}, время: {{timeout}}, максимум {{max_timeout}}"
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        ScriptProperties properties = new ScriptProperties(
+                true,
+                false,
+                true,
+                false,
+                guide,
+                null,
+                null,
+                null,
+                null,
+                java.time.Duration.ofSeconds(7),
+                java.time.Duration.ofSeconds(42),
+                null,
+                new ScriptProperties.Limits(
+                        13, DataSize.ofMegabytes(32), 2000, 20_000, 20_000, 20, DataSize.ofKilobytes(256)));
 
         // weak=false: the real script-run-extended.md must not get appended on top of the tiny
         // stand-in guide above, or the equality check below would see its text too.
-        assertThat(guide(properties, false).instructions(false))
-                .isEqualTo("файлов: 13, время: 7 с, максимум 42 с");
+        assertThat(guide(properties, false).instructions(false)).isEqualTo("файлов: 13, время: 7 с, максимум 42 с");
     }
 
     /**
@@ -94,10 +82,8 @@ class ScriptGuideServiceTest {
      */
     @Test
     void rendersEachSizeInAUnitThatDoesNotRoundItAway() {
-        Resource guide =
-                new ByteArrayResource(
-                        "всего: {{max_bytes_read}}, правки: {{max_edited_bytes}}"
-                                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Resource guide = new ByteArrayResource("всего: {{max_bytes_read}}, правки: {{max_edited_bytes}}"
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         assertThat(guide(sized(guide, DataSize.ofKilobytes(512)), false).instructions(false))
                 .isEqualTo("всего: 512 КБ, правки: 256 КБ");
@@ -109,8 +95,7 @@ class ScriptGuideServiceTest {
     void mentionsTheWriteMethodsOnlyWhenTheyAreActuallyBound() {
         ScriptProperties properties = ScriptProperties.enabledWithDefaults();
 
-        assertThat(guide(properties, false).instructions(true))
-                .doesNotContain("kb.edit", "kb.create");
+        assertThat(guide(properties, false).instructions(true)).doesNotContain("kb.edit", "kb.create");
         assertThat(guide(properties, true).instructions(true)).contains("kb.edit", "kb.create");
     }
 
@@ -128,8 +113,7 @@ class ScriptGuideServiceTest {
         String reference = service.instructions(false);
 
         assertThat(reference)
-                .contains(
-                        "### kb reference", "kb.grep", "### Limits per run", "### Rules", "kb.edit")
+                .contains("### kb reference", "kb.grep", "### Limits per run", "### Rules", "kb.edit")
                 .doesNotContain("readSkill", "script-writing", "script-editing");
         assertThat(full).contains("readSkill", "script-writing", "script-editing");
         // The examples themselves are the skill, loaded on demand — the handbook must not carry a
@@ -167,8 +151,7 @@ class ScriptGuideServiceTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(nullable(String.class))).thenReturn(true);
         when(policy.enabled("readonly")).thenReturn(false);
-        ScriptGuideService service =
-                new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy);
+        ScriptGuideService service = new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy);
 
         assertThat(service.instructions(true, "writable")).contains("kb.edit");
         assertThat(service.instructions(true, "readonly")).doesNotContain("kb.edit");
@@ -180,17 +163,10 @@ class ScriptGuideServiceTest {
         ScriptProperties properties = ScriptProperties.enabledWithDefaults();
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
 
-        assertThat(
-                        new ScriptGuideService(
-                                        properties, ScriptResultProperties.defaults(), policy)
-                                .instructions(false))
+        assertThat(new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy).instructions(false))
                 .contains("kb.result(id)", "saveScriptResult");
-        assertThat(
-                        new ScriptGuideService(
-                                        properties,
-                                        new ScriptResultProperties(false, 1000, 10),
-                                        policy)
-                                .instructions(false))
+        assertThat(new ScriptGuideService(properties, new ScriptResultProperties(false, 1000, 10), policy)
+                        .instructions(false))
                 .doesNotContain("kb.result", "resultId", "saveScriptResult");
     }
 
@@ -204,17 +180,12 @@ class ScriptGuideServiceTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         int shown = properties.limits().maxResultChars();
 
-        assertThatThrownBy(
-                        () ->
-                                new ScriptGuideService(
-                                        properties,
-                                        new ScriptResultProperties(true, shown - 1, 10),
-                                        policy))
+        assertThatThrownBy(() ->
+                        new ScriptGuideService(properties, new ScriptResultProperties(true, shown - 1, 10), policy))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("kb.script.results.max-chars");
         // Выключенное хранение ничего не обещает — проверять нечего.
-        new ScriptGuideService(
-                properties, new ScriptResultProperties(false, shown - 1, 10), policy);
+        new ScriptGuideService(properties, new ScriptResultProperties(false, shown - 1, 10), policy);
     }
 
     /**
@@ -227,18 +198,13 @@ class ScriptGuideServiceTest {
         when(policy.enabled(nullable(String.class))).thenReturn(true);
 
         String subAgent =
-                new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy)
-                        .subAgentInstructions();
+                new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy).subAgentInstructions();
 
         assertThat(subAgent)
                 .contains("kb.result(id)", "kb.results()", "Your own runs keep nothing")
                 .doesNotContain("saveScriptResult", "kb.edit", "readSkill");
-        assertThat(
-                        new ScriptGuideService(
-                                        properties,
-                                        new ScriptResultProperties(false, 1000, 10),
-                                        policy)
-                                .subAgentInstructions())
+        assertThat(new ScriptGuideService(properties, new ScriptResultProperties(false, 1000, 10), policy)
+                        .subAgentInstructions())
                 .doesNotContain("kb.result");
     }
 
@@ -257,8 +223,7 @@ class ScriptGuideServiceTest {
                 null,
                 null,
                 null,
-                new ScriptProperties.Limits(
-                        2000, maxBytesRead, 2000, 20_000, 20_000, 20, DataSize.ofKilobytes(256)));
+                new ScriptProperties.Limits(2000, maxBytesRead, 2000, 20_000, 20_000, 20, DataSize.ofKilobytes(256)));
     }
 
     private static ScriptGuideService guide(ScriptProperties properties, boolean editEnabled) {

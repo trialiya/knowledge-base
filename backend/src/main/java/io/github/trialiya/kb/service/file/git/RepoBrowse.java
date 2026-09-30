@@ -28,9 +28,9 @@ import org.jspecify.annotations.Nullable;
 final class RepoBrowse {
 
     /** Tree listing order: directories first, then by name, case-insensitively. */
-    private static final Comparator<GitFileNode> NODE_ORDER =
-            Comparator.<GitFileNode, Boolean>comparing(n -> FileEntryType.DIRECTORY != n.type())
-                    .thenComparing(GitFileNode::name, String.CASE_INSENSITIVE_ORDER);
+    private static final Comparator<GitFileNode> NODE_ORDER = Comparator.<GitFileNode, Boolean>comparing(
+                    n -> FileEntryType.DIRECTORY != n.type())
+            .thenComparing(GitFileNode::name, String.CASE_INSENSITIVE_ORDER);
 
     private RepoBrowse() {}
 
@@ -46,10 +46,7 @@ final class RepoBrowse {
      *     этот вопрос только у пути, который открывают
      */
     record Snapshot(
-            List<String> paths,
-            Set<String> tracked,
-            ToLongFunction<String> sizeOf,
-            Predicate<String> present) {}
+            List<String> paths, Set<String> tracked, ToLongFunction<String> sizeOf, Predicate<String> present) {}
 
     /** Узлы одного листинга в порядке браузера: каталоги, потом файлы, внутри — по имени. */
     static List<GitFileNode> ordered(List<GitFileNode> nodes) {
@@ -96,9 +93,7 @@ final class RepoBrowse {
                     if (slash >= 0) {
                         String name = path.substring(from, slash);
                         String dirPath = dir.isEmpty() ? name : dir + "/" + name;
-                        GitFileNode node =
-                                new GitFileNode(
-                                        dirPath, name, FileEntryType.DIRECTORY, null, isTracked);
+                        GitFileNode node = new GitFileNode(dirPath, name, FileEntryType.DIRECTORY, null, isTracked);
                         // A directory counts as tracked as soon as one tracked file runs through
                         // it, whichever order the paths arrive in.
                         bucket.merge(dirPath, node, (old, fresh) -> old.tracked() ? old : fresh);
@@ -120,9 +115,8 @@ final class RepoBrowse {
         }
 
         Map<String, List<GitFileNode>> result = new LinkedHashMap<>();
-        acc.forEach(
-                (base, nodes) ->
-                        result.put(base, nodes.values().stream().sorted(NODE_ORDER).toList()));
+        acc.forEach((base, nodes) ->
+                result.put(base, nodes.values().stream().sorted(NODE_ORDER).toList()));
         return result;
     }
 
@@ -147,22 +141,19 @@ final class RepoBrowse {
         // это missing, а не отказ: браузер рисует «не найдено», а режим изменений — diff, где
         // такой файл только и виден. Отказ на его месте уносил бы и дерево, и листинги предков,
         // то есть всю панель, ради одного пути.
-        @Nullable FileEntryType type =
-                typeInPaths == FileEntryType.FILE && !snapshot.present().test(target)
-                        ? null
-                        : typeInPaths;
+        @Nullable
+        FileEntryType type =
+                typeInPaths == FileEntryType.FILE && !snapshot.present().test(target) ? null : typeInPaths;
 
         List<String> ancestors = includeAncestors ? ancestorDirs(target) : List.of();
         Set<String> bases = new LinkedHashSet<>(ancestors);
         boolean isDirectory = type == FileEntryType.DIRECTORY;
         if (isDirectory) bases.add(target);
-        Map<String, List<GitFileNode>> listings =
-                bases.isEmpty() ? Map.of() : listDirectories(snapshot, bases);
+        Map<String, List<GitFileNode>> listings = bases.isEmpty() ? Map.of() : listDirectories(snapshot, bases);
 
-        List<GitTreeLevel> tree =
-                ancestors.stream()
-                        .map(dir -> new GitTreeLevel(dir, listings.getOrDefault(dir, List.of())))
-                        .toList();
+        List<GitTreeLevel> tree = ancestors.stream()
+                .map(dir -> new GitTreeLevel(dir, listings.getOrDefault(dir, List.of())))
+                .toList();
 
         boolean targetTracked = snapshot.tracked().contains(target);
 
@@ -176,10 +167,7 @@ final class RepoBrowse {
                 tree,
                 null,
                 // The root and any missing path count as tracked: there is nothing to warn about.
-                target.isEmpty()
-                        || type == null
-                        || targetTracked
-                        || isTrackedPrefix(snapshot.tracked(), target));
+                target.isEmpty() || type == null || targetTracked || isTrackedPrefix(snapshot.tracked(), target));
     }
 
     /** Whether any tracked file lives under {@code dir} — the directory form of the membership. */

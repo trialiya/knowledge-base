@@ -51,22 +51,14 @@ class ScriptTestControllerTest {
 
     private static final String MANIFEST = ".kb/scripts.yaml";
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     /** Вложения стенд не показывает, но резолвер общий — мок нужен, чтобы его собрать. */
     private final AttachmentService attachments = mock(AttachmentService.class);
 
-    private static final ScriptResult EMPTY_RESULT =
-            new ScriptResult(
-                    "default",
-                    null,
-                    null,
-                    null,
-                    List.of(),
-                    new ScriptStats(0, 0, 0, 0, 0),
-                    null,
-                    List.of(),
-                    List.of());
+    private static final ScriptResult EMPTY_RESULT = new ScriptResult(
+            "default", null, null, null, List.of(), new ScriptStats(0, 0, 0, 0, 0), null, List.of(), List.of());
 
     /**
      * Even the free-form runs need the repository: the controller opens it to build a catalogue.
@@ -78,35 +70,22 @@ class ScriptTestControllerTest {
 
     private ScriptTestController controller(ScriptRunner runner, boolean enabled) {
         ScriptProperties properties = properties(enabled);
-        ProjectOption option =
-                new ProjectOption(
-                        TestProjects.ID,
-                        null,
-                        repoDir.toString(),
-                        true,
-                        false,
-                        null,
-                        null,
-                        MANIFEST,
-                        null,
-                        true);
-        ProjectCatalog projects =
-                new ProjectCatalog(new ProjectProperties(List.of(option)), new GitProperties(null));
+        ProjectOption option = new ProjectOption(
+                TestProjects.ID, null, repoDir.toString(), true, false, null, null, MANIFEST, null, true);
+        ProjectCatalog projects = new ProjectCatalog(new ProjectProperties(List.of(option)), new GitProperties(null));
         GitRegistry registry = TestProjects.registry(List.of(option));
         SavedScriptCatalog catalog = new SavedScriptCatalog(projects, registry, properties);
         return new ScriptTestController(
                 runner,
                 properties,
                 catalog,
-                new SavedScriptResolver(
-                        catalog, new AttachmentScriptService(attachments, properties)),
+                new SavedScriptResolver(catalog, new AttachmentScriptService(attachments, properties)),
                 mock(ScheduledScriptService.class),
                 projects);
     }
 
     private static ScriptProperties properties(boolean enabled) {
-        return new ScriptProperties(
-                enabled, true, true, false, null, null, null, null, null, null, null, null, null);
+        return new ScriptProperties(enabled, true, true, false, null, null, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -175,18 +154,13 @@ class ScriptTestControllerTest {
     @DisplayName("a saved script runs read-only, with its declared arguments checked first")
     void runsSavedScriptReadOnly() {
         ScriptRunner runner = mock(ScriptRunner.class);
-        when(runner.run(any(ScriptRequest.class), any(RunCancellation.class)))
-                .thenReturn(EMPTY_RESULT);
+        when(runner.run(any(ScriptRequest.class), any(RunCancellation.class))).thenReturn(EMPTY_RESULT);
         ScriptTestController controller = controller(runner, true);
 
-        assertThat(
-                        controller.runSaved(
-                                new SavedScriptRunRequest(
-                                        "report", Map.of("area", "docs"), null, null)))
+        assertThat(controller.runSaved(new SavedScriptRunRequest("report", Map.of("area", "docs"), null, null)))
                 .isSameAs(EMPTY_RESULT);
 
-        org.mockito.ArgumentCaptor<ScriptRequest> request =
-                org.mockito.ArgumentCaptor.forClass(ScriptRequest.class);
+        org.mockito.ArgumentCaptor<ScriptRequest> request = org.mockito.ArgumentCaptor.forClass(ScriptRequest.class);
         verify(runner).run(request.capture(), any(RunCancellation.class));
         assertThat(request.getValue().forceReadOnly()).isTrue();
         assertThat(request.getValue().args().values()).containsEntry("area", "docs");
@@ -201,25 +175,16 @@ class ScriptTestControllerTest {
 
         // Each of these is the request's fault, so each is a 400 with the reason in it — not a 500
         // with a stack trace, which is what an unmapped IllegalArgumentException would have been.
+        assertBadRequest(() -> controller.runSaved(new SavedScriptRunRequest("repoort", null, null, null)), "report");
+        assertBadRequest(() -> controller.runSaved(new SavedScriptRunRequest("report", null, null, null)), "area");
         assertBadRequest(
-                () -> controller.runSaved(new SavedScriptRunRequest("repoort", null, null, null)),
-                "report");
-        assertBadRequest(
-                () -> controller.runSaved(new SavedScriptRunRequest("report", null, null, null)),
-                "area");
-        assertBadRequest(
-                () ->
-                        controller.runSaved(
-                                new SavedScriptRunRequest(
-                                        "report", Map.of("area", List.of("a")), null, null)),
+                () -> controller.runSaved(
+                        new SavedScriptRunRequest("report", Map.of("area", List.of("a")), null, null)),
                 "must be a string");
         // Declared as writing: the bench never writes, so it says so instead of running the script
         // with half its job silently undone.
-        assertBadRequest(
-                () -> controller.runSaved(new SavedScriptRunRequest("bump", null, null, null)),
-                "edits files");
-        assertThatThrownBy(
-                        () -> controller.runSaved(new SavedScriptRunRequest(" ", null, null, null)))
+        assertBadRequest(() -> controller.runSaved(new SavedScriptRunRequest("bump", null, null, null)), "edits files");
+        assertThatThrownBy(() -> controller.runSaved(new SavedScriptRunRequest(" ", null, null, null)))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
@@ -232,19 +197,14 @@ class ScriptTestControllerTest {
         ScriptRunner runner = mock(ScriptRunner.class);
 
         assertThatThrownBy(
-                        () ->
-                                controller(runner, false)
-                                        .runSaved(
-                                                new SavedScriptRunRequest(
-                                                        "report", null, null, null)))
+                        () -> controller(runner, false).runSaved(new SavedScriptRunRequest("report", null, null, null)))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(HttpStatus.CONFLICT);
         verifyNoInteractions(runner);
     }
 
-    private static void assertBadRequest(
-            org.assertj.core.api.ThrowableAssert.ThrowingCallable call, String saying) {
+    private static void assertBadRequest(org.assertj.core.api.ThrowableAssert.ThrowingCallable call, String saying) {
         assertThatThrownBy(call)
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining(saying)
@@ -261,9 +221,7 @@ class ScriptTestControllerTest {
         runGit("config", "user.name", "Test");
         write(repoDir.resolve("tools/report.js"), "return kb.files('**/*.md').length;\n");
         write(repoDir.resolve("tools/bump.js"), "return 1;\n");
-        write(
-                repoDir.resolve(MANIFEST),
-                """
+        write(repoDir.resolve(MANIFEST), """
                 scripts:
                   - name: report
                     file: tools/report.js
@@ -290,16 +248,13 @@ class ScriptTestControllerTest {
             var command = new ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             if (process.waitFor() != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();

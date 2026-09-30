@@ -15,8 +15,7 @@ public interface DocumentHistoryRepository extends CrudRepository<DocumentHistor
      *
      * @param documentId the document whose history to load
      */
-    @Query(
-            """
+    @Query("""
         SELECT * FROM document_history
         WHERE document_id = :documentId
         ORDER BY version DESC
@@ -29,8 +28,7 @@ public interface DocumentHistoryRepository extends CrudRepository<DocumentHistor
      * @param documentId the document id
      * @param version the exact version to retrieve
      */
-    @Query(
-            """
+    @Query("""
         SELECT * FROM document_history
         WHERE document_id = :documentId
           AND version     = :version
@@ -43,8 +41,7 @@ public interface DocumentHistoryRepository extends CrudRepository<DocumentHistor
      * История изменений описания: по одной строке на каждое distinct description_version (берём
      * самую раннюю — момент, когда контент стал таким), newest-first.
      */
-    @Query(
-            """
+    @Query("""
     SELECT id, document_id, version, title, type,
            updated_at, summary_source_version, description_version
     FROM (

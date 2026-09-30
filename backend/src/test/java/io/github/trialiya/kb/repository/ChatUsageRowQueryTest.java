@@ -47,7 +47,8 @@ class ChatUsageRowQueryTest {
     private static final RunTokenUsage MEASURED =
             new RunTokenUsage(12_400, 11_400, 700, 320, 31_000, 24_000, 1_100, 31_320, 3);
 
-    @Autowired private ChatMessageRepository repo;
+    @Autowired
+    private ChatMessageRepository repo;
 
     @Test
     void mapsTypeAndMetaOfEveryRow() {
@@ -56,9 +57,7 @@ class ChatUsageRowQueryTest {
 
         final List<ChatUsageRow> rows = repo.findUsageRows(CONV);
 
-        assertThat(rows)
-                .extracting(ChatUsageRow::type)
-                .containsExactly(MessageType.USER, MessageType.ASSISTANT);
+        assertThat(rows).extracting(ChatUsageRow::type).containsExactly(MessageType.USER, MessageType.ASSISTANT);
         assertThat(rows.getFirst().meta()).isNull();
         assertThat(rows.getLast().meta()).isNotNull();
         assertThat(rows.getLast().meta().usage()).isEqualTo(MEASURED);
@@ -80,22 +79,16 @@ class ChatUsageRowQueryTest {
         assertThat(repo.findUsageRows("другой-чат")).isEmpty();
     }
 
-    private void save(
-            String content,
-            MessageType type,
-            long position,
-            boolean summary,
-            ChatMessageMeta meta) {
-        repo.save(
-                new ChatMessageEntity(
-                        0L,
-                        CONV,
-                        content,
-                        type,
-                        position,
-                        false,
-                        summary,
-                        LocalDateTime.now().plusSeconds(position),
-                        meta));
+    private void save(String content, MessageType type, long position, boolean summary, ChatMessageMeta meta) {
+        repo.save(new ChatMessageEntity(
+                0L,
+                CONV,
+                content,
+                type,
+                position,
+                false,
+                summary,
+                LocalDateTime.now().plusSeconds(position),
+                meta));
     }
 }

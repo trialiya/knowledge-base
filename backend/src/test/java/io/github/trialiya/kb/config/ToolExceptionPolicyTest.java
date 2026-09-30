@@ -22,12 +22,11 @@ import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
  */
 class ToolExceptionPolicyTest {
 
-    private static final ToolDefinition TOOL =
-            DefaultToolDefinition.builder()
-                    .name("runScript")
-                    .description("test")
-                    .inputSchema("{}")
-                    .build();
+    private static final ToolDefinition TOOL = DefaultToolDefinition.builder()
+            .name("runScript")
+            .description("test")
+            .inputSchema("{}")
+            .build();
 
     private final ToolExecutionExceptionProcessor processor =
             new ChatConfig().toolExecutionExceptionProcessor(new ToolCallingProperties());
@@ -43,9 +42,7 @@ class ToolExceptionPolicyTest {
     @Test
     void anOrdinaryToolFailureIsStillReportedToTheModel() {
         // Unchanged from the framework default: the model reads what went wrong and tries again.
-        String result =
-                processor.process(
-                        new ToolExecutionException(TOOL, new IllegalArgumentException("no such")));
+        String result = processor.process(new ToolExecutionException(TOOL, new IllegalArgumentException("no such")));
 
         assertThat(result).contains("no such");
     }

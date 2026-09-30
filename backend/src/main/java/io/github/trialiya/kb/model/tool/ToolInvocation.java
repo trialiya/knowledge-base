@@ -39,14 +39,6 @@ public record ToolInvocation(
     @JsonIgnore
     public ToolInvocationMeta toMeta(boolean hasDetails, @Nullable String callId) {
         return new ToolInvocationMeta(
-                name,
-                arguments,
-                status,
-                error,
-                resultMeta,
-                hasDetails,
-                callIndex,
-                resultGist,
-                callId);
+                name, arguments, status, error, resultMeta, hasDetails, callIndex, resultGist, callId);
     }
 }

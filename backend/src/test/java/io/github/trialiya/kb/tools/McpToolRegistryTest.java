@@ -39,13 +39,8 @@ class McpToolRegistryTest {
 
     @Test
     void aConnectionThatFailsCostsOnlyItsOwnTools() {
-        McpToolRegistry registry =
-                new McpToolRegistry(
-                        sources(
-                                "up",
-                                () -> List.of(tool("search")),
-                                "down",
-                                McpToolRegistryTest::unreachable));
+        McpToolRegistry registry = new McpToolRegistry(
+                sources("up", () -> List.of(tool("search")), "down", McpToolRegistryTest::unreachable));
 
         registry.connect();
         awaitProbed(registry);
@@ -53,44 +48,34 @@ class McpToolRegistryTest {
         assertThat(names(registry)).containsExactly("search");
         assertThat(registry.statuses())
                 .containsExactly(
-                        new ConnectionStatus("up", Status.UP, 1),
-                        new ConnectionStatus("down", Status.DOWN, 0));
+                        new ConnectionStatus("up", Status.UP, 1), new ConnectionStatus("down", Status.DOWN, 0));
     }
 
     /** Nothing is read off a server while the context is coming up — that is the whole point. */
     @Test
     void nothingIsProbedBeforeTheApplicationIsUp() {
         AtomicInteger probes = new AtomicInteger();
-        McpToolRegistry registry =
-                new McpToolRegistry(
-                        sources(
-                                "jira",
-                                () -> {
-                                    probes.incrementAndGet();
-                                    return List.of(tool("issue"));
-                                }));
+        McpToolRegistry registry = new McpToolRegistry(sources("jira", () -> {
+            probes.incrementAndGet();
+            return List.of(tool("issue"));
+        }));
 
         assertThat(probes).hasValue(0);
         assertThat(registry.callbacks()).isEmpty();
-        assertThat(registry.statuses())
-                .containsExactly(new ConnectionStatus("jira", Status.PENDING, 0));
+        assertThat(registry.statuses()).containsExactly(new ConnectionStatus("jira", Status.PENDING, 0));
     }
 
     /** A server that was down at startup and came up later, without a restart of this process. */
     @Test
     void aConnectionThatComesUpLaterIsPickedUpByTheRetry() {
         AtomicReference<List<ToolCallback>> answer = new AtomicReference<>(null);
-        McpToolRegistry registry =
-                new McpToolRegistry(
-                        sources(
-                                "jira",
-                                () -> {
-                                    List<ToolCallback> tools = answer.get();
-                                    if (tools == null) {
-                                        return unreachable();
-                                    }
-                                    return tools;
-                                }));
+        McpToolRegistry registry = new McpToolRegistry(sources("jira", () -> {
+            List<ToolCallback> tools = answer.get();
+            if (tools == null) {
+                return unreachable();
+            }
+            return tools;
+        }));
 
         registry.connect();
         awaitProbed(registry);
@@ -99,9 +84,8 @@ class McpToolRegistryTest {
         answer.set(List.of(tool("issue")));
         registry.refreshAll();
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(5))
-                .untilAsserted(() -> assertThat(names(registry)).containsExactly("issue"));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
+                .containsExactly("issue"));
     }
 
     /**
@@ -114,10 +98,7 @@ class McpToolRegistryTest {
     void toolsOfAConnectionThatDiedStayInTheSetAndAnswerWithAnError() {
         AtomicReference<Boolean> reachable = new AtomicReference<>(true);
         McpToolRegistry registry =
-                new McpToolRegistry(
-                        sources(
-                                "jira",
-                                () -> reachable.get() ? List.of(tool("issue")) : unreachable()));
+                new McpToolRegistry(sources("jira", () -> reachable.get() ? List.of(tool("issue")) : unreachable()));
 
         registry.connect();
         awaitProbed(registry);
@@ -126,13 +107,8 @@ class McpToolRegistryTest {
         reachable.set(false);
         registry.refreshAll();
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(5))
-                .untilAsserted(
-                        () ->
-                                assertThat(registry.statuses())
-                                        .containsExactly(
-                                                new ConnectionStatus("jira", Status.DOWN, 1)));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(registry.statuses())
+                .containsExactly(new ConnectionStatus("jira", Status.DOWN, 1)));
         assertThat(names(registry)).containsExactly("issue");
         assertThatThrownBy(() -> registry.callbacks().getFirst().call("{}"))
                 .isInstanceOf(ToolExecutionException.class)
@@ -145,19 +121,15 @@ class McpToolRegistryTest {
     void aToolIsCallableAgainOnceItsConnectionIsBack() {
         AtomicReference<Boolean> reachable = new AtomicReference<>(false);
         McpToolRegistry registry =
-                new McpToolRegistry(
-                        sources(
-                                "jira",
-                                () -> reachable.get() ? List.of(tool("issue")) : unreachable()));
+                new McpToolRegistry(sources("jira", () -> reachable.get() ? List.of(tool("issue")) : unreachable()));
 
         registry.connect();
         awaitProbed(registry);
         reachable.set(true);
         registry.refreshAll();
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(5))
-                .untilAsserted(() -> assertThat(names(registry)).containsExactly("issue"));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
+                .containsExactly("issue"));
         assertThat(registry.callbacks().getFirst().call("{}")).isEqualTo("{}");
     }
 
@@ -167,8 +139,7 @@ class McpToolRegistryTest {
      */
     @Test
     void aToolTheServerStoppedAdvertisingIsDropped() {
-        AtomicReference<List<ToolCallback>> advertised =
-                new AtomicReference<>(List.of(tool("issue"), tool("search")));
+        AtomicReference<List<ToolCallback>> advertised = new AtomicReference<>(List.of(tool("issue"), tool("search")));
         McpToolRegistry registry = new McpToolRegistry(sources("jira", advertised::get));
 
         registry.connect();
@@ -176,12 +147,10 @@ class McpToolRegistryTest {
         assertThat(names(registry)).containsExactly("issue", "search");
 
         advertised.set(List.of(tool("issue")));
-        registry.onToolsChanged(
-                new org.springframework.ai.mcp.McpToolsChangedEvent("jira", List.of()));
+        registry.onToolsChanged(new org.springframework.ai.mcp.McpToolsChangedEvent("jira", List.of()));
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(5))
-                .untilAsserted(() -> assertThat(names(registry)).containsExactly("issue"));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
+                .containsExactly("issue"));
     }
 
     /**
@@ -192,30 +161,21 @@ class McpToolRegistryTest {
     @Test
     void aToolNameIsPublishedOnceAndTheFirstConfiguredConnectionKeepsIt() {
         AtomicReference<List<ToolCallback>> first = new AtomicReference<>(List.of());
-        McpToolRegistry registry =
-                new McpToolRegistry(
-                        sources(
-                                "jira",
-                                first::get,
-                                "github",
-                                () -> List.of(tool("search"), tool("issue"))));
+        McpToolRegistry registry = new McpToolRegistry(
+                sources("jira", first::get, "github", () -> List.of(tool("search"), tool("issue"))));
 
         registry.connect();
         awaitProbed(registry);
         assertThat(names(registry)).containsExactly("search", "issue");
 
         first.set(List.of(tool("issue")));
-        registry.onToolsChanged(
-                new org.springframework.ai.mcp.McpToolsChangedEvent("jira", List.of()));
+        registry.onToolsChanged(new org.springframework.ai.mcp.McpToolsChangedEvent("jira", List.of()));
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(5))
-                .untilAsserted(
-                        () -> assertThat(names(registry)).containsExactly("issue", "search"));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
+                .containsExactly("issue", "search"));
         assertThat(registry.statuses())
                 .containsExactly(
-                        new ConnectionStatus("jira", Status.UP, 1),
-                        new ConnectionStatus("github", Status.UP, 2));
+                        new ConnectionStatus("jira", Status.UP, 1), new ConnectionStatus("github", Status.UP, 2));
     }
 
     /**
@@ -226,32 +186,22 @@ class McpToolRegistryTest {
     @Test
     void aSlowConnectionDoesNotHoldBackTheOnesAlreadyProbed() throws Exception {
         CountDownLatch answering = new CountDownLatch(1);
-        McpToolRegistry registry =
-                new McpToolRegistry(
-                        sources(
-                                "fast",
-                                () -> List.of(tool("search")),
-                                "slow",
-                                () -> {
-                                    await(answering);
-                                    return List.of(tool("issue"));
-                                }));
+        McpToolRegistry registry = new McpToolRegistry(sources("fast", () -> List.of(tool("search")), "slow", () -> {
+            await(answering);
+            return List.of(tool("issue"));
+        }));
 
         registry.connect();
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(5))
-                .untilAsserted(() -> assertThat(names(registry)).containsExactly("search"));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
+                .containsExactly("search"));
         assertThat(registry.statuses())
                 .containsExactly(
-                        new ConnectionStatus("fast", Status.UP, 1),
-                        new ConnectionStatus("slow", Status.PENDING, 0));
+                        new ConnectionStatus("fast", Status.UP, 1), new ConnectionStatus("slow", Status.PENDING, 0));
 
         answering.countDown();
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(5))
-                .untilAsserted(
-                        () -> assertThat(names(registry)).containsExactly("search", "issue"));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
+                .containsExactly("search", "issue"));
     }
 
     /**
@@ -266,16 +216,12 @@ class McpToolRegistryTest {
         CountDownLatch probing = new CountDownLatch(1);
         CountDownLatch answering = new CountDownLatch(1);
         AtomicInteger probes = new AtomicInteger();
-        McpToolRegistry registry =
-                new McpToolRegistry(
-                        sources(
-                                "jira",
-                                () -> {
-                                    probes.incrementAndGet();
-                                    probing.countDown();
-                                    await(answering);
-                                    return List.of(tool("issue"));
-                                }));
+        McpToolRegistry registry = new McpToolRegistry(sources("jira", () -> {
+            probes.incrementAndGet();
+            probing.countDown();
+            await(answering);
+            return List.of(tool("issue"));
+        }));
 
         registry.connect();
         assertThat(probing.await(5, TimeUnit.SECONDS)).isTrue();
@@ -317,12 +263,8 @@ class McpToolRegistryTest {
 
     /** The registry probes in the background; a probe is done once no connection is PENDING. */
     private static void awaitProbed(McpToolRegistry registry) {
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(5))
-                .until(
-                        () ->
-                                registry.statuses().stream()
-                                        .noneMatch(status -> status.status() == Status.PENDING));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).until(() -> registry.statuses().stream()
+                .noneMatch(status -> status.status() == Status.PENDING));
     }
 
     private static List<ToolCallback> unreachable() {
@@ -358,8 +300,7 @@ class McpToolRegistryTest {
             }
 
             @Override
-            public String call(
-                    String toolInput, @org.jspecify.annotations.Nullable ToolContext ctx) {
+            public String call(String toolInput, @org.jspecify.annotations.Nullable ToolContext ctx) {
                 return call(toolInput);
             }
         };

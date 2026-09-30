@@ -13,8 +13,7 @@ class DocumentToolJsonTest {
 
     private final DefaultToolCallResultConverter converter = new DefaultToolCallResultConverter();
 
-    private static DocumentNode node(
-            long id, @Nullable Long parentId, List<DocumentNode> children) {
+    private static DocumentNode node(long id, @Nullable Long parentId, List<DocumentNode> children) {
         return new DocumentNode(
                 id,
                 "Doc " + id,
@@ -35,14 +34,12 @@ class DocumentToolJsonTest {
 
     @Test
     void skeletonNodeKeepsRootParentIdAndNothingEmpty() {
-        String json =
-                converter.convert(List.of(DocumentSkeletonNode.of(node(5, null, List.of()))), null);
+        String json = converter.convert(List.of(DocumentSkeletonNode.of(node(5, null, List.of()))), null);
 
         assertThat(json)
-                .isEqualTo(
-                        "[{\"id\":5,\"title\":\"Doc 5\",\"type\":\"document\",\"parentId\":null,"
-                                + "\"version\":3,\"descriptionVersion\":2,"
-                                + "\"hasChildren\":false,\"system\":false}]");
+                .isEqualTo("[{\"id\":5,\"title\":\"Doc 5\",\"type\":\"document\",\"parentId\":null,"
+                        + "\"version\":3,\"descriptionVersion\":2,"
+                        + "\"hasChildren\":false,\"system\":false}]");
     }
 
     @Test
@@ -56,10 +53,9 @@ class DocumentToolJsonTest {
                 .contains("\"updatedAt\":")
                 .doesNotContain("\"summary\"")
                 .doesNotContain("\"summarySourceVersion\"")
-                .endsWith(
-                        "\"children\":[{\"id\":2,\"title\":\"Doc 2\",\"type\":\"document\","
-                                + "\"parentId\":1,\"version\":3,\"descriptionVersion\":2,"
-                                + "\"hasChildren\":false,\"system\":false}]}");
+                .endsWith("\"children\":[{\"id\":2,\"title\":\"Doc 2\",\"type\":\"document\","
+                        + "\"parentId\":1,\"version\":3,\"descriptionVersion\":2,"
+                        + "\"hasChildren\":false,\"system\":false}]}");
         assertThat(json.indexOf("\"children\"")).isEqualTo(json.lastIndexOf("\"children\""));
     }
 }

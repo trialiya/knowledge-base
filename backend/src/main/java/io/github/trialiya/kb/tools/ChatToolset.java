@@ -50,10 +50,9 @@ public final class ChatToolset {
 
     public ChatToolset(List<ToolCallback> builtin, Supplier<List<ToolCallback>> mcp) {
         this.builtin = List.copyOf(builtin);
-        this.builtinNames =
-                this.builtin.stream()
-                        .map(tool -> tool.getToolDefinition().name())
-                        .collect(Collectors.toUnmodifiableSet());
+        this.builtinNames = this.builtin.stream()
+                .map(tool -> tool.getToolDefinition().name())
+                .collect(Collectors.toUnmodifiableSet());
         this.mcp = mcp;
     }
 

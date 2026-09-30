@@ -66,8 +66,7 @@ final class CommitFiles {
         try (Commit commit = Commit.open(repository, rev)) {
             Entry entry = commit.entry(path);
             if (entry.kind() == Kind.MISSING) {
-                throw new IllegalArgumentException(
-                        "File not found in " + commit.name() + ": " + path);
+                throw new IllegalArgumentException("File not found in " + commit.name() + ": " + path);
             }
             if (entry.kind() != Kind.FILE) {
                 // Каталог: содержимого, которое имеет смысл показывать как файл, у него нет.
@@ -146,8 +145,7 @@ final class CommitFiles {
                 if (mode == FileMode.TREE) {
                     return new Entry(Kind.DIRECTORY, id);
                 }
-                if ((mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE)
-                        && RepoPaths.isNameable(path)) {
+                if ((mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE) && RepoPaths.isNameable(path)) {
                     return new Entry(Kind.FILE, id);
                 }
                 return Entry.MISSING;
@@ -217,8 +215,7 @@ final class CommitFiles {
                         }
                     } else if ((mode == FileMode.REGULAR_FILE || mode == FileMode.EXECUTABLE_FILE)
                             && RepoPaths.isNameable(path)) {
-                        children.add(
-                                new Child(path, name, false, size(reader, tree.getObjectId(0))));
+                        children.add(new Child(path, name, false, size(reader, tree.getObjectId(0))));
                     }
                 }
             }
@@ -280,8 +277,7 @@ final class CommitFiles {
     }
 
     /** Объект дерева по пути внутри коммита, либо null — такого каталога там нет. */
-    private static @Nullable ObjectId subtree(ObjectReader reader, RevCommit commit, String dir)
-            throws IOException {
+    private static @Nullable ObjectId subtree(ObjectReader reader, RevCommit commit, String dir) throws IOException {
         try (TreeWalk tree = TreeWalk.forPath(reader, dir, commit.getTree())) {
             if (tree == null || tree.getFileMode(0) != FileMode.TREE) {
                 return null;
@@ -297,8 +293,7 @@ final class CommitFiles {
      *
      * @param dir путь самого каталога: имя проверяется целиком, а обход знает только имена внутри
      */
-    private static boolean holdsFile(ObjectReader reader, ObjectId treeId, String dir)
-            throws IOException {
+    private static boolean holdsFile(ObjectReader reader, ObjectId treeId, String dir) throws IOException {
         try (TreeWalk tree = new TreeWalk(reader)) {
             tree.addTree(treeId);
             tree.setRecursive(true);
@@ -354,8 +349,7 @@ final class CommitFiles {
      * @param maxBytes потолок на размер объекта у этого вызывающего
      * @throws IllegalArgumentException объект больше {@code maxBytes}
      */
-    private static Blob load(
-            ObjectReader reader, ObjectId id, String commit, String path, long maxBytes)
+    private static Blob load(ObjectReader reader, ObjectId id, String commit, String path, long maxBytes)
             throws IOException {
         ObjectLoader loader = reader.open(id, Constants.OBJ_BLOB);
         long size = loader.getSize();
@@ -363,16 +357,15 @@ final class CommitFiles {
             // Отказ, а не усечение: ответ строится из начала И конца файла, и прочитать конец, не
             // подняв в память всё остальное, нельзя. Размер объекта известен до чтения, поэтому
             // граница проходит здесь, а не по факту нехватки памяти.
-            throw new IllegalArgumentException(
-                    "Too large to read from history: "
-                            + path
-                            + " at "
-                            + commit
-                            + " is "
-                            + size
-                            + " bytes (limit "
-                            + maxBytes
-                            + ")");
+            throw new IllegalArgumentException("Too large to read from history: "
+                    + path
+                    + " at "
+                    + commit
+                    + " is "
+                    + size
+                    + " bytes (limit "
+                    + maxBytes
+                    + ")");
         }
         // Через поток, а не getBytes(): тот отказывает по своему порогу
         // (core.streamFileThreshold), то есть по настройке репозитория, а не по нашей. Поток

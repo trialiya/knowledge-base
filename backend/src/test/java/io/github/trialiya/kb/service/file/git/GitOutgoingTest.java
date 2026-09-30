@@ -22,9 +22,11 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitOutgoingTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
-    @TempDir Path remoteDir;
+    @TempDir
+    Path remoteDir;
 
     private GitService service;
 
@@ -105,17 +107,14 @@ class GitOutgoingTest {
             String[] command = new String[args.length + 1];
             command[0] = "git";
             System.arraycopy(args, 0, command, 1, args.length);
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(dir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(dir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

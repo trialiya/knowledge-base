@@ -47,8 +47,7 @@ public final class ProjectContext {
      * what the model named, else the run's own. Blank counts as unnamed, the way {@code
      * ToolArgs#orDefault} reads a mode the model left empty.
      */
-    public static @Nullable String resolve(
-            @Nullable ToolContext context, @Nullable String requested) {
+    public static @Nullable String resolve(@Nullable ToolContext context, @Nullable String requested) {
         return requested != null && !requested.isBlank() ? requested : from(context);
     }
 }

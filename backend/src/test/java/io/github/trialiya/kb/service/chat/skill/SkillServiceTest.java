@@ -22,7 +22,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class SkillServiceTest {
 
-    @TempDir Path tree;
+    @TempDir
+    Path tree;
 
     private SkillService service(boolean editsAllowed) {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
@@ -36,17 +37,7 @@ class SkillServiceTest {
      */
     private ProjectCatalog catalogWith(String projectId, ProjectSkill... skills) {
         Project project =
-                new Project(
-                        projectId,
-                        projectId,
-                        tree,
-                        false,
-                        false,
-                        List.of(),
-                        List.of(skills),
-                        null,
-                        false,
-                        false);
+                new Project(projectId, projectId, tree, false, false, List.of(), List.of(skills), null, false, false);
         ProjectCatalog catalog = mock(ProjectCatalog.class);
         when(catalog.projects()).thenReturn(List.of(project));
         when(catalog.find(nullable(String.class))).thenReturn(Optional.empty());
@@ -58,8 +49,7 @@ class SkillServiceTest {
     private SkillService serviceWithProjectSkill(String projectId, ProjectSkill... skills) {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(nullable(String.class))).thenReturn(true);
-        return new SkillService(
-                ScriptProperties.enabledWithDefaults(), policy, catalogWith(projectId, skills));
+        return new SkillService(ScriptProperties.enabledWithDefaults(), policy, catalogWith(projectId, skills));
     }
 
     private ProjectSkill written(String name, String text) throws IOException {
@@ -90,13 +80,10 @@ class SkillServiceTest {
     /** Скрипты выключены, проектных навыков нет — инструмент не регистрируется, каталог пуст. */
     @Test
     void noSkillsExistWhenScriptsAreOffAndNoProjectDefinesAny() {
-        SkillService service =
-                new SkillService(
-                        new ScriptProperties(
-                                false, false, true, false, null, null, null, null, null, null, null,
-                                null, null),
-                        mock(ScriptEditPolicy.class),
-                        mock(ProjectCatalog.class));
+        SkillService service = new SkillService(
+                new ScriptProperties(false, false, true, false, null, null, null, null, null, null, null, null, null),
+                mock(ScriptEditPolicy.class),
+                mock(ProjectCatalog.class));
         assertThat(service.anySkills()).isFalse();
         assertThat(service.catalogue(null)).isEmpty();
     }
@@ -152,8 +139,7 @@ class SkillServiceTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled("writable")).thenReturn(true);
         when(policy.enabled("readonly")).thenReturn(false);
-        SkillService service =
-                new SkillService(ScriptProperties.enabledWithDefaults(), policy, catalogWith("kb"));
+        SkillService service = new SkillService(ScriptProperties.enabledWithDefaults(), policy, catalogWith("kb"));
 
         assertThat(service.read("script-editing", "writable").content()).contains("kb.edit");
         assertThat(service.catalogue("readonly")).doesNotContain("`script-editing`");
@@ -173,21 +159,15 @@ class SkillServiceTest {
         ProjectCatalog catalog = catalogWith("kb", written("release", "# Release"));
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(nullable(String.class))).thenReturn(true);
-        SkillService service =
-                new SkillService(ScriptProperties.enabledWithDefaults(), policy, catalog);
+        SkillService service = new SkillService(ScriptProperties.enabledWithDefaults(), policy, catalog);
 
         String block = service.projectSkills(catalog.defaultProject());
         assertThat(block).contains("`release`").contains("when testing release");
 
-        assertThat(service.catalogue("kb"))
-                .doesNotContain("`release`")
-                .contains("<active-project>");
+        assertThat(service.catalogue("kb")).doesNotContain("`release`").contains("<active-project>");
 
         // Проекту без навыков секция не достаётся вовсе — блок и так переоплачивается каждый ход.
-        Project bare =
-                new Project(
-                        "bare", "bare", tree, false, false, List.of(), List.of(), null, false,
-                        false);
+        Project bare = new Project("bare", "bare", tree, false, false, List.of(), List.of(), null, false, false);
         assertThat(service.projectSkills(bare)).isEmpty();
     }
 
@@ -212,22 +192,18 @@ class SkillServiceTest {
      */
     @Test
     void anotherProjectsSkillIsUnknownHere() throws IOException {
-        Project kb =
-                new Project(
-                        "kb",
-                        "kb",
-                        tree,
-                        false,
-                        false,
-                        List.of(),
-                        List.of(written("release", "# Release")),
-                        null,
-                        false,
-                        false);
-        Project other =
-                new Project(
-                        "other", "other", tree, false, false, List.of(), List.of(), null, false,
-                        false);
+        Project kb = new Project(
+                "kb",
+                "kb",
+                tree,
+                false,
+                false,
+                List.of(),
+                List.of(written("release", "# Release")),
+                null,
+                false,
+                false);
+        Project other = new Project("other", "other", tree, false, false, List.of(), List.of(), null, false, false);
         ProjectCatalog catalog = mock(ProjectCatalog.class);
         when(catalog.projects()).thenReturn(List.of(kb, other));
         when(catalog.find("kb")).thenReturn(Optional.of(kb));
@@ -235,8 +211,7 @@ class SkillServiceTest {
         when(catalog.defaultProject()).thenReturn(kb);
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(nullable(String.class))).thenReturn(true);
-        SkillService service =
-                new SkillService(ScriptProperties.enabledWithDefaults(), policy, catalog);
+        SkillService service = new SkillService(ScriptProperties.enabledWithDefaults(), policy, catalog);
 
         assertThat(service.read("release", "kb").content()).isEqualTo("# Release");
 
@@ -266,14 +241,12 @@ class SkillServiceTest {
      * системы, куда путь ведёт на самом деле.
      */
     @Test
-    void aSkillFileLeavingTheTreeThroughASymlinkIsRefused(@TempDir Path outside)
-            throws IOException {
+    void aSkillFileLeavingTheTreeThroughASymlinkIsRefused(@TempDir Path outside) throws IOException {
         Path secret = outside.resolve("passwd");
         Files.writeString(secret, "root:x:0:0");
         Path link = tree.resolve("release.md");
         Files.createSymbolicLink(link, secret);
-        SkillService service =
-                serviceWithProjectSkill("kb", new ProjectSkill("release", "when releasing", link));
+        SkillService service = serviceWithProjectSkill("kb", new ProjectSkill("release", "when releasing", link));
 
         assertThatThrownBy(() -> service.read("release", "kb"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -285,9 +258,7 @@ class SkillServiceTest {
     @Test
     void anUnreadableSkillFileIsAToolAnswer() throws IOException {
         Path directory = Files.createDirectory(tree.resolve("release.md"));
-        SkillService service =
-                serviceWithProjectSkill(
-                        "kb", new ProjectSkill("release", "when releasing", directory));
+        SkillService service = serviceWithProjectSkill("kb", new ProjectSkill("release", "when releasing", directory));
 
         assertThatThrownBy(() -> service.read("release", "kb"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -295,8 +266,7 @@ class SkillServiceTest {
 
         Path binary = tree.resolve("binary.md");
         Files.write(binary, new byte[] {(byte) 0xff, (byte) 0xfe, 0x00});
-        SkillService withBinary =
-                serviceWithProjectSkill("kb", new ProjectSkill("binary", "never", binary));
+        SkillService withBinary = serviceWithProjectSkill("kb", new ProjectSkill("binary", "never", binary));
 
         assertThatThrownBy(() -> withBinary.read("binary", "kb"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -308,8 +278,7 @@ class SkillServiceTest {
     void anOversizedSkillFileIsRefused() throws IOException {
         Path file = tree.resolve("big.md");
         Files.writeString(file, "x".repeat((int) SkillService.MAX_PROJECT_SKILL_BYTES + 1));
-        SkillService service =
-                serviceWithProjectSkill("kb", new ProjectSkill("big", "never", file));
+        SkillService service = serviceWithProjectSkill("kb", new ProjectSkill("big", "never", file));
 
         assertThatThrownBy(() -> service.read("big", "kb"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -336,13 +305,10 @@ class SkillServiceTest {
      */
     @Test
     void projectSkillsAloneKeepTheToolRegistered() throws IOException {
-        SkillService service =
-                new SkillService(
-                        new ScriptProperties(
-                                false, false, true, false, null, null, null, null, null, null, null,
-                                null, null),
-                        mock(ScriptEditPolicy.class),
-                        catalogWith("kb", written("release", "# Release")));
+        SkillService service = new SkillService(
+                new ScriptProperties(false, false, true, false, null, null, null, null, null, null, null, null, null),
+                mock(ScriptEditPolicy.class),
+                catalogWith("kb", written("release", "# Release")));
 
         assertThat(service.anySkills()).isTrue();
         assertThat(service.catalogue("kb"))

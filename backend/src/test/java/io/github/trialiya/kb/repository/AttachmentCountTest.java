@@ -39,21 +39,20 @@ class AttachmentCountTest {
 
     private static final String CHAT_ID = "c5dfa618-0ad2-4845-a976-ada46c50f9a4";
 
-    @Autowired private JdbcTemplate jdbc;
-    @Autowired private AttachmentRepository attachmentRepo;
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private AttachmentRepository attachmentRepo;
 
     private void insertDocumentAttachment(long id, long documentId, String fileName) {
-        jdbc.update(
-                """
+        jdbc.update("""
                 INSERT INTO attachments
                     (id, owner_type, document_id, conversation_id, file_name, content_type,
                      file_size, content, created_at, updated_at)
                 VALUES (?, 'document', ?, NULL, ?, 'text/plain', 10, 'body',
                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """,
-                id,
-                documentId,
-                fileName);
+                """, id, documentId, fileName);
     }
 
     @Test

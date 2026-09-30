@@ -7,5 +7,8 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * io.github.trialiya.kb.functions.DocumentFunction#renameDocumentSections}.
  */
 public record SectionRename(
-        @ToolParam(description = "Путь секции из getDocumentOutline") String sectionPath,
-        @ToolParam(description = "Новый текст заголовка (без ведущих #)") String newTitle) {}
+        @ToolParam(description = "Путь секции из getDocumentOutline")
+        String sectionPath,
+
+        @ToolParam(description = "Новый текст заголовка (без ведущих #)")
+        String newTitle) {}

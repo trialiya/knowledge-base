@@ -66,8 +66,10 @@ final class SummarizeWindow {
     SummarizeWindow(List<PromptRow> rows, SummarizeProperties properties, boolean replayReasoning) {
         this.properties = properties;
         this.replayReasoning = replayReasoning;
-        this.summaries =
-                rows.stream().map(PromptRow::entity).filter(ChatMessageEntity::isSummary).toList();
+        this.summaries = rows.stream()
+                .map(PromptRow::entity)
+                .filter(ChatMessageEntity::isSummary)
+                .toList();
         // allLive keeps the blank-text TOOL protocol rows — their payloads occupy the model's
         // context on every request, so they weigh on the slice. prompt drops them: a blank row
         // gives the summarizer nothing to quote, and its content is already exposed through the
@@ -87,10 +89,8 @@ final class SummarizeWindow {
      */
     private static int tailStart(List<PromptRow> prompt, SummarizeProperties properties) {
         int start = prompt.size() - properties.overlapMessages();
-        start =
-                Math.min(
-                        start,
-                        userBoundary(prompt, properties.overlapUserMessages()).orElse(start));
+        start = Math.min(
+                start, userBoundary(prompt, properties.overlapUserMessages()).orElse(start));
         return turnBoundary(prompt, start).orElse(start);
     }
 
@@ -163,9 +163,7 @@ final class SummarizeWindow {
      * together with its TOOL responses — whichever rule picked the boundary.
      */
     long endPosition() {
-        return cutoffPosition == Long.MAX_VALUE
-                ? allLive.getLast().entity().getPosition()
-                : cutoffPosition - 1;
+        return cutoffPosition == Long.MAX_VALUE ? allLive.getLast().entity().getPosition() : cutoffPosition - 1;
     }
 
     /** Weight of the slice, empty TOOL protocol rows included. */
@@ -279,9 +277,7 @@ final class SummarizeWindow {
 
     /** Больший из двух весов; {@code null} — замеров нет, отвечает оценка. */
     private static Weight heavier(@Nullable Integer measured, int estimated) {
-        return measured != null && measured >= estimated
-                ? new Weight(measured, true)
-                : new Weight(estimated, false);
+        return measured != null && measured >= estimated ? new Weight(measured, true) : new Weight(estimated, false);
     }
 
     /**
@@ -396,7 +392,9 @@ final class SummarizeWindow {
             }
             if (toolData.responses() != null) {
                 for (ToolData.Response response : toolData.responses()) {
-                    chars += response.responseData() == null ? 0 : response.responseData().length();
+                    chars += response.responseData() == null
+                            ? 0
+                            : response.responseData().length();
                 }
             }
         }
@@ -437,12 +435,7 @@ final class SummarizeWindow {
         public String toString() {
             return "%d messages (user=%d, assistant=%d, tool=%d%s, tool calls=%d)"
                     .formatted(
-                            total,
-                            user,
-                            assistant,
-                            tool,
-                            other == 0 ? "" : ", other=%d".formatted(other),
-                            toolCalls);
+                            total, user, assistant, tool, other == 0 ? "" : ", other=%d".formatted(other), toolCalls);
         }
     }
 }

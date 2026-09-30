@@ -64,26 +64,23 @@ public class SyncJobRunner {
         emitter.onTimeout(() -> alive.set(false));
         emitter.onError(e -> alive.set(false));
 
-        executor.execute(
-                () -> {
-                    try {
-                        Object summary =
-                                job.run(
-                                        event -> {
-                                            processed.set(event.processed());
-                                            send(emitter, alive, event);
-                                        });
-                        send(emitter, alive, SyncEvent.done(processed.get(), summary));
-                        emitter.complete();
-                    } catch (CancellationException e) {
-                        log.debug("{} cancelled — client disconnected", name);
-                        emitter.complete();
-                    } catch (Exception e) {
-                        log.warn("{} failed: {}", name, e.toString());
-                        send(emitter, alive, SyncEvent.error(reasonOf(e)));
-                        emitter.complete();
-                    }
+        executor.execute(() -> {
+            try {
+                Object summary = job.run(event -> {
+                    processed.set(event.processed());
+                    send(emitter, alive, event);
                 });
+                send(emitter, alive, SyncEvent.done(processed.get(), summary));
+                emitter.complete();
+            } catch (CancellationException e) {
+                log.debug("{} cancelled — client disconnected", name);
+                emitter.complete();
+            } catch (Exception e) {
+                log.warn("{} failed: {}", name, e.toString());
+                send(emitter, alive, SyncEvent.error(reasonOf(e)));
+                emitter.complete();
+            }
+        });
         return emitter;
     }
 
@@ -99,8 +96,7 @@ public class SyncJobRunner {
             emitter.send(SseEmitter.event().data(event));
         } catch (Exception e) {
             alive.set(false);
-            CancellationException cancelled =
-                    new CancellationException("send failed: " + e.getMessage());
+            CancellationException cancelled = new CancellationException("send failed: " + e.getMessage());
             cancelled.initCause(e);
             throw cancelled;
         }

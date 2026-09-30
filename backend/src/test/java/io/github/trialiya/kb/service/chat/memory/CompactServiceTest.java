@@ -118,8 +118,7 @@ class CompactServiceTest {
     @Test
     void theWholeLiveWindowPlusTheCommandIsCompactedIntoOneSummaryRow() {
         final CompactPayload payload =
-                service()
-                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
+                service().compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         verify(repository).updateSummarized(CONV, 0L, 9L);
         final ChatMessageEntity summary = savedRows().get(0);
@@ -141,18 +140,17 @@ class CompactServiceTest {
         final List<PromptRow> rows = turns(3);
         final ChatMessageEntity lastRow = rows.getLast().entity();
 
-        final CompactPayload payload =
-                service()
-                        .compact(
-                                CONV,
-                                rows,
-                                new CompactService.CompactTarget(
-                                        CompactMeta.Kind.AUTO_COMPACT,
-                                        lastRow.getPosition(),
-                                        lastRow.getCreatedAt(),
-                                        (call, usage) -> null),
-                                null,
-                                OPTIONS);
+        final CompactPayload payload = service()
+                .compact(
+                        CONV,
+                        rows,
+                        new CompactService.CompactTarget(
+                                CompactMeta.Kind.AUTO_COMPACT,
+                                lastRow.getPosition(),
+                                lastRow.getCreatedAt(),
+                                (call, usage) -> null),
+                        null,
+                        OPTIONS);
 
         assertThat(payload.messages()).isEqualTo(rows.size());
         verify(repository).updateSummarized(CONV, 0L, lastRow.getPosition());
@@ -170,27 +168,24 @@ class CompactServiceTest {
         final ChatMessageEntity command = commandRow(9).entity();
         final CompactWindow window = windowKeepingLastRun(live);
 
-        final CompactPayload payload =
-                service()
-                        .compact(
-                                CONV,
-                                live.subList(0, window.compacted().size()),
-                                forCommandKeepingLastRun(live, command),
-                                null,
-                                OPTIONS);
+        final CompactPayload payload = service()
+                .compact(
+                        CONV,
+                        live.subList(0, window.compacted().size()),
+                        forCommandKeepingLastRun(live, command),
+                        null,
+                        OPTIONS);
 
         // Разметка кончается на последнем СЖАТОМ ряду: сбережённый ход (6..8) в неё не входит.
         verify(repository).updateSummarized(CONV, 0L, 5L);
         assertThat(payload.kind()).isEqualTo(CompactMeta.Kind.COMPACT_KEEP_LAST);
         // Шесть сжатых рядов плюс сама команда — ровно то, что перестало ехать модели.
         assertThat(payload.messages()).isEqualTo(7);
-        assertThat(savedRowsOf(3))
-                .anySatisfy(
-                        row -> {
-                            assertThat(row.getId()).isEqualTo(command.getId());
-                            assertThat(row.isSummarized()).isTrue();
-                            assertThat(row.getContent()).isEqualTo(command.getContent());
-                        });
+        assertThat(savedRowsOf(3)).anySatisfy(row -> {
+            assertThat(row.getId()).isEqualTo(command.getId());
+            assertThat(row.isSummarized()).isTrue();
+            assertThat(row.getContent()).isEqualTo(command.getContent());
+        });
     }
 
     /**
@@ -223,8 +218,7 @@ class CompactServiceTest {
         // сбережённым ходом: человек читает ленту, а не промпт.
         assertThat(saved.get(2).getCreatedAt()).isAfter(lastCompacted.getCreatedAt());
         // Сбережённый ход модели по-прежнему едет: его обёртка так и говорит.
-        assertThat(summary.getContent())
-                .contains("The conversation continues in the messages below");
+        assertThat(summary.getContent()).contains("The conversation continues in the messages below");
     }
 
     /**
@@ -254,8 +248,7 @@ class CompactServiceTest {
         when(pendingSummaries.discard(CONV)).thenReturn(carried);
 
         final CompactPayload payload =
-                service()
-                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
+                service().compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         assertThat(payload.carried()).isEqualTo(carried);
         final CompactMeta compact = savedRows().get(1).getMeta().compact();
@@ -286,15 +279,8 @@ class CompactServiceTest {
     void aRoundThatWroteNoSummaryLeavesTheQueueParked() {
         answerWith("");
 
-        assertThatThrownBy(
-                        () ->
-                                service()
-                                        .compact(
-                                                CONV,
-                                                turns(3),
-                                                forCommand(commandRow(9).entity()),
-                                                null,
-                                                OPTIONS))
+        assertThatThrownBy(() -> service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS))
                 .isInstanceOf(IllegalStateException.class);
 
         verify(pendingSummaries, never()).discard(anyString());
@@ -308,8 +294,7 @@ class CompactServiceTest {
     @Test
     void aVisibleNoticeRowSurvivesTheRoundAndPointsAtTheSummary() {
         final CompactPayload payload =
-                service()
-                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
+                service().compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         final ChatMessageEntity notice = savedRows().get(1);
         assertThat(notice.isSummary()).isFalse();
@@ -336,37 +321,33 @@ class CompactServiceTest {
 
         service().compact(CONV, turns(3), forCommand(command), null, OPTIONS);
 
-        assertThat(savedRows())
-                .allSatisfy(row -> assertThat(row.getCreatedAt()).isAfter(command.getCreatedAt()));
+        assertThat(savedRows()).allSatisfy(row -> assertThat(row.getCreatedAt()).isAfter(command.getCreatedAt()));
     }
 
     /** Детали сжатия: числа с плашки и текст сводки — без адресованной модели обёртки. */
     @Test
     void detailsReturnTheSummaryTextWithoutItsProtocolWrapper() {
-        final ChatMessageEntity summary =
-                new ChatMessageEntity(
-                        7L,
-                        CONV,
-                        "Compacted conversation summary (requested by the user):\n"
-                                + "<summary>\n## Overview\ncompacted\n</summary>\nTreat this as…",
-                        MessageType.ASSISTANT,
-                        9L,
-                        false,
-                        true,
-                        LocalDateTime.now(),
-                        null);
-        final ChatMessageEntity notice =
-                new ChatMessageEntity(
-                        8L,
-                        CONV,
-                        "",
-                        MessageType.ASSISTANT,
-                        10L,
-                        true,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofCompact(
-                                new CompactMeta(10, 128, 7L, CompactMeta.Kind.COMPACT, null)));
+        final ChatMessageEntity summary = new ChatMessageEntity(
+                7L,
+                CONV,
+                "Compacted conversation summary (requested by the user):\n"
+                        + "<summary>\n## Overview\ncompacted\n</summary>\nTreat this as…",
+                MessageType.ASSISTANT,
+                9L,
+                false,
+                true,
+                LocalDateTime.now(),
+                null);
+        final ChatMessageEntity notice = new ChatMessageEntity(
+                8L,
+                CONV,
+                "",
+                MessageType.ASSISTANT,
+                10L,
+                true,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofCompact(new CompactMeta(10, 128, 7L, CompactMeta.Kind.COMPACT, null)));
         when(repository.findById(8L)).thenReturn(Optional.of(notice));
         when(repository.findById(7L)).thenReturn(Optional.of(summary));
 
@@ -401,12 +382,10 @@ class CompactServiceTest {
         final List<Message> sent = capturedPrompt().getInstructions();
         // system + 3 строки окна + инструкция; команда сама не входит.
         assertThat(sent).hasSize(5);
-        assertThat(((AssistantMessage) sent.get(2)).getToolCalls().getFirst())
-                .satisfies(
-                        call -> {
-                            assertThat(call.name()).isEqualTo("grepContent");
-                            assertThat(call.arguments()).isEqualTo("{\"query\":\"summarize\"}");
-                        });
+        assertThat(((AssistantMessage) sent.get(2)).getToolCalls().getFirst()).satisfies(call -> {
+            assertThat(call.name()).isEqualTo("grepContent");
+            assertThat(call.arguments()).isEqualTo("{\"query\":\"summarize\"}");
+        });
         // Результат инструмента — целиком, а не гистом: этим сжатие и отличается от суммаризации.
         assertThat(((ToolResponseMessage) sent.get(3)).getResponses().getFirst().responseData())
                 .isEqualTo("SummarizeService.java:42 — the whole hit");
@@ -426,12 +405,10 @@ class CompactServiceTest {
         service().compact(CONV, turns(1), forCommand(commandRow(3).entity()), null, OPTIONS);
 
         final Prompt prompt = capturedPrompt();
-        assertThat(prompt.getInstructions().getFirst())
-                .satisfies(
-                        system -> {
-                            assertThat(system.getMessageType()).isEqualTo(MessageType.SYSTEM);
-                            assertThat(system.getText()).isEqualTo("SYSTEM MODE SCRIPTS");
-                        });
+        assertThat(prompt.getInstructions().getFirst()).satisfies(system -> {
+            assertThat(system.getMessageType()).isEqualTo(MessageType.SYSTEM);
+            assertThat(system.getText()).isEqualTo("SYSTEM MODE SCRIPTS");
+        });
         assertThat(((ToolCallingChatOptions) prompt.getOptions()).getToolCallbacks())
                 .extracting(callback -> callback.getToolDefinition().name())
                 .containsExactly("getFileContent");
@@ -457,13 +434,10 @@ class CompactServiceTest {
      */
     @Test
     void theRoundsTokensAreRecordedOnTheNoticeRow() {
-        answerWith(
-                "## Overview\ncompacted",
-                new DefaultUsage(169_000, 1_200, 170_200, null, 160_000L, 8_000L));
+        answerWith("## Overview\ncompacted", new DefaultUsage(169_000, 1_200, 170_200, null, 160_000L, 8_000L));
 
         final CompactPayload payload =
-                service()
-                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
+                service().compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         final RunTokenUsage usage = savedRows().get(1).getMeta().usage();
         assertThat(usage).isNotNull();
@@ -490,31 +464,14 @@ class CompactServiceTest {
     @Test
     void aToolCallInsteadOfTheDocumentFailsTheRoundEvenWithTextBesideIt() {
         when(chatModel.call(any(Prompt.class)))
-                .thenReturn(
-                        new ChatResponse(
-                                List.of(
-                                        new Generation(
-                                                AssistantMessage.builder()
-                                                        .content("Сейчас посмотрю историю.")
-                                                        .toolCalls(
-                                                                List.of(
-                                                                        new AssistantMessage
-                                                                                .ToolCall(
-                                                                                "call-1",
-                                                                                "function",
-                                                                                "getOriginalMessages",
-                                                                                "{}")))
-                                                        .build()))));
+                .thenReturn(new ChatResponse(List.of(new Generation(AssistantMessage.builder()
+                        .content("Сейчас посмотрю историю.")
+                        .toolCalls(List.of(
+                                new AssistantMessage.ToolCall("call-1", "function", "getOriginalMessages", "{}")))
+                        .build()))));
 
-        assertThatThrownBy(
-                        () ->
-                                service()
-                                        .compact(
-                                                CONV,
-                                                turns(2),
-                                                forCommand(commandRow(6).entity()),
-                                                null,
-                                                OPTIONS))
+        assertThatThrownBy(() -> service()
+                        .compact(CONV, turns(2), forCommand(commandRow(6).entity()), null, OPTIONS))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("called a tool");
 
@@ -526,8 +483,7 @@ class CompactServiceTest {
     @Test
     void anEndpointThatMeasuresNothingLeavesTheNoticeWithoutTokens() {
         final CompactPayload payload =
-                service()
-                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
+                service().compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         assertThat(savedRows().get(1).getMeta().usage()).isNull();
         assertThat(payload.usage()).isNull();
@@ -545,15 +501,7 @@ class CompactServiceTest {
         final ChatMessageEntity command = commandRow(6).entity();
 
         final Throwable thrown =
-                catchThrowable(
-                        () ->
-                                service()
-                                        .compact(
-                                                CONV,
-                                                turns(2),
-                                                forCommand(command),
-                                                null,
-                                                OPTIONS));
+                catchThrowable(() -> service().compact(CONV, turns(2), forCommand(command), null, OPTIONS));
 
         assertThat(thrown).isInstanceOf(CompactService.CompactRoundFailed.class);
         final CompactService.CompactRoundFailed failed = (CompactService.CompactRoundFailed) thrown;
@@ -564,8 +512,7 @@ class CompactServiceTest {
         assertThat(failed.usage().promptTokens()).isEqualTo(169_000);
 
         verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
-        final ArgumentCaptor<ChatMessageEntity> saved =
-                ArgumentCaptor.forClass(ChatMessageEntity.class);
+        final ArgumentCaptor<ChatMessageEntity> saved = ArgumentCaptor.forClass(ChatMessageEntity.class);
         verify(repository).save(saved.capture());
         final ChatMessageMeta meta = saved.getValue().getMeta();
         assertThat(saved.getValue().getId()).isEqualTo(command.getId());
@@ -592,13 +539,7 @@ class CompactServiceTest {
         service().start(CONV, "/compact", null, false, OPTIONS, null);
 
         final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
-        verify(events)
-                .publish(
-                        eq(CONV),
-                        eq(ChatEventType.COMPACT_ERROR),
-                        eq("run-1"),
-                        isNull(),
-                        payload.capture());
+        verify(events).publish(eq(CONV), eq(ChatEventType.COMPACT_ERROR), eq("run-1"), isNull(), payload.capture());
         final CompactErrorPayload error = (CompactErrorPayload) payload.getValue();
         assertThat(error.messageId()).isEqualTo(command.entity().getId());
         assertThat(error.usage()).isNotNull();
@@ -645,15 +586,8 @@ class CompactServiceTest {
     void anEmptyModelAnswerLeavesTheHistoryUntouched() {
         answerWith("   ");
 
-        assertThatThrownBy(
-                        () ->
-                                service()
-                                        .compact(
-                                                CONV,
-                                                turns(2),
-                                                forCommand(commandRow(6).entity()),
-                                                null,
-                                                OPTIONS))
+        assertThatThrownBy(() -> service()
+                        .compact(CONV, turns(2), forCommand(commandRow(6).entity()), null, OPTIONS))
                 .isInstanceOf(IllegalStateException.class);
 
         verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
@@ -705,23 +639,12 @@ class CompactServiceTest {
 
         final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(events)
-                .publish(
-                        eq(CONV),
-                        eq(ChatEventType.USER_MESSAGE),
-                        eq("run-1"),
-                        eq("client-1"),
-                        payload.capture());
+                .publish(eq(CONV), eq(ChatEventType.USER_MESSAGE), eq("run-1"), eq("client-1"), payload.capture());
         final UserMessagePayload echoed = (UserMessagePayload) payload.getValue();
         assertThat(echoed.id()).isEqualTo(saved.getId());
         assertThat(echoed.text()).isEqualTo("/compact фокус");
 
-        verify(events)
-                .publish(
-                        eq(CONV),
-                        eq(ChatEventType.COMPACT_STARTED),
-                        eq("run-1"),
-                        isNull(),
-                        isNull());
+        verify(events).publish(eq(CONV), eq(ChatEventType.COMPACT_STARTED), eq("run-1"), isNull(), isNull());
 
         // Диапазон, который перестал ехать модели, — окно (0..2) ПЛЮС сама команда (3), а не
         // только окно: результат виден в updateSummarized, вызванном фоновым раундом (executor
@@ -750,8 +673,7 @@ class CompactServiceTest {
         when(chatHistory.liveRowsBefore(CONV, 3L)).thenReturn(entitiesOf(oldWindow));
         when(chatHistory.promptRowsFor(eq(CONV), any())).thenReturn(oldWindow);
         when(chatHistory.saveCommandMessage(CONV, "/compact")).thenReturn(command.entity());
-        when(repository.findById(command.entity().getId()))
-                .thenReturn(Optional.of(command.entity()));
+        when(repository.findById(command.entity().getId())).thenReturn(Optional.of(command.entity()));
         answerWith("");
 
         service().start(CONV, "/compact", null, false, OPTIONS, null);
@@ -759,19 +681,17 @@ class CompactServiceTest {
         // Ряд перечитан, а не записан по снимку: замер несостоявшегося раунда мог лечь на него
         // секундой раньше, и устаревшая копия стёрла бы эти деньги из итога по чату.
         verify(repository).findById(command.entity().getId());
-        final ArgumentCaptor<ChatMessageEntity> saved =
-                ArgumentCaptor.forClass(ChatMessageEntity.class);
+        final ArgumentCaptor<ChatMessageEntity> saved = ArgumentCaptor.forClass(ChatMessageEntity.class);
         verify(repository, atLeastOnce()).save(saved.capture());
         assertThat(saved.getAllValues())
                 .filteredOn(row -> row.getId().equals(command.entity().getId()))
                 .isNotEmpty()
-                .allSatisfy(
-                        row -> {
-                            assertThat(row.isSummarized()).isTrue();
-                            // Из ленты ряд никуда не девается — сводкой он не становится.
-                            assertThat(row.isSummary()).isFalse();
-                            assertThat(row.getContent()).isEqualTo("/compact");
-                        });
+                .allSatisfy(row -> {
+                    assertThat(row.isSummarized()).isTrue();
+                    // Из ленты ряд никуда не девается — сводкой он не становится.
+                    assertThat(row.isSummary()).isFalse();
+                    assertThat(row.getContent()).isEqualTo("/compact");
+                });
     }
 
     /**
@@ -814,14 +734,10 @@ class CompactServiceTest {
         when(chatHistory.saveCommandMessage(eq(CONV), anyString()))
                 .thenReturn(row(3, MessageType.USER, "/compact").entity());
 
-        assertThatThrownBy(
-                        () ->
-                                service(rejectingExecutor())
-                                        .start(CONV, "/compact", null, false, OPTIONS, null))
+        assertThatThrownBy(() -> service(rejectingExecutor()).start(CONV, "/compact", null, false, OPTIONS, null))
                 .isInstanceOf(RejectedExecutionException.class);
 
-        verify(events)
-                .publish(eq(CONV), eq(ChatEventType.COMPACT_ERROR), eq("run-1"), isNull(), any());
+        verify(events).publish(eq(CONV), eq(ChatEventType.COMPACT_ERROR), eq("run-1"), isNull(), any());
         verify(slots).release(CONV, "run-1");
     }
 
@@ -837,8 +753,7 @@ class CompactServiceTest {
      * своей команды — она лежит за размеченным диапазоном (см. {@code CompactTarget#detached}).
      */
     private List<ChatMessageEntity> savedRowsOf(int count) {
-        final ArgumentCaptor<ChatMessageEntity> saved =
-                ArgumentCaptor.forClass(ChatMessageEntity.class);
+        final ArgumentCaptor<ChatMessageEntity> saved = ArgumentCaptor.forClass(ChatMessageEntity.class);
         verify(repository, times(count)).save(saved.capture());
         return saved.getAllValues();
     }
@@ -862,16 +777,14 @@ class CompactServiceTest {
 
     private void answerWith(String content) {
         when(chatModel.call(any(Prompt.class)))
-                .thenReturn(
-                        new ChatResponse(List.of(new Generation(new AssistantMessage(content)))));
+                .thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(content)))));
     }
 
     private void answerWith(String content, Usage usage) {
         when(chatModel.call(any(Prompt.class)))
-                .thenReturn(
-                        new ChatResponse(
-                                List.of(new Generation(new AssistantMessage(content))),
-                                ChatResponseMetadata.builder().usage(usage).build()));
+                .thenReturn(new ChatResponse(
+                        List.of(new Generation(new AssistantMessage(content))),
+                        ChatResponseMetadata.builder().usage(usage).build()));
     }
 
     private Prompt capturedPrompt() {
@@ -892,68 +805,60 @@ class CompactServiceTest {
     }
 
     private static PromptRow withToolCall(long position, String name, String arguments) {
-        final ChatMessageEntity entity =
-                new ChatMessageEntity(
-                        position + 1,
-                        CONV,
-                        "answer",
-                        MessageType.ASSISTANT,
-                        position,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        null,
-                        new ToolData(
-                                List.of(new ToolData.Call("call-1", "function", name, arguments)),
-                                null));
+        final ChatMessageEntity entity = new ChatMessageEntity(
+                position + 1,
+                CONV,
+                "answer",
+                MessageType.ASSISTANT,
+                position,
+                false,
+                false,
+                LocalDateTime.now(),
+                null,
+                new ToolData(List.of(new ToolData.Call("call-1", "function", name, arguments)), null));
         return new PromptRow(entity, "answer");
     }
 
     private static PromptRow withToolResponse(long position, String name, String responseData) {
-        final ChatMessageEntity entity =
-                new ChatMessageEntity(
-                        position + 1,
-                        CONV,
-                        "",
-                        MessageType.TOOL,
-                        position,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        null,
-                        new ToolData(
-                                null,
-                                List.of(new ToolData.Response("call-1", name, responseData))));
+        final ChatMessageEntity entity = new ChatMessageEntity(
+                position + 1,
+                CONV,
+                "",
+                MessageType.TOOL,
+                position,
+                false,
+                false,
+                LocalDateTime.now(),
+                null,
+                new ToolData(null, List.of(new ToolData.Response("call-1", name, responseData))));
         return new PromptRow(entity, "");
     }
 
     private static PromptRow switchRow(long position, String from, String to) {
-        final ChatMessageEntity entity =
-                new ChatMessageEntity(
-                        position + 1,
-                        CONV,
-                        "question",
-                        MessageType.USER,
-                        position,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofUserMessage(List.of(), to, from));
+        final ChatMessageEntity entity = new ChatMessageEntity(
+                position + 1,
+                CONV,
+                "question",
+                MessageType.USER,
+                position,
+                false,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofUserMessage(List.of(), to, from));
         return new PromptRow(entity, "question");
     }
 
     private static PromptRow summaryRow(long position) {
-        final ChatMessageEntity entity =
-                new ChatMessageEntity(
-                        position + 1,
-                        CONV,
-                        "earlier summary",
-                        MessageType.ASSISTANT,
-                        position,
-                        false,
-                        true,
-                        LocalDateTime.now(),
-                        null);
+        final ChatMessageEntity entity = new ChatMessageEntity(
+                position + 1,
+                CONV,
+                "earlier summary",
+                MessageType.ASSISTANT,
+                position,
+                false,
+                true,
+                LocalDateTime.now(),
+                null);
         return new PromptRow(entity, "earlier summary");
     }
 
@@ -963,17 +868,8 @@ class CompactServiceTest {
     }
 
     private static PromptRow row(long position, MessageType type, String content) {
-        final ChatMessageEntity entity =
-                new ChatMessageEntity(
-                        position + 1,
-                        CONV,
-                        content,
-                        type,
-                        position,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        null);
+        final ChatMessageEntity entity = new ChatMessageEntity(
+                position + 1, CONV, content, type, position, false, false, LocalDateTime.now(), null);
         return new PromptRow(entity, content);
     }
 
@@ -986,8 +882,7 @@ class CompactServiceTest {
     }
 
     /** То же для {@code /compact-1}: деление окна, в котором последний ход сбережён. */
-    private CompactService.CompactTarget forCommandKeepingLastRun(
-            List<PromptRow> live, ChatMessageEntity commandRow) {
+    private CompactService.CompactTarget forCommandKeepingLastRun(List<PromptRow> live, ChatMessageEntity commandRow) {
         return service().commandTarget(commandRow, windowKeepingLastRun(live));
     }
 
@@ -1004,8 +899,7 @@ class CompactServiceTest {
         final ChatModelRegistry models = mock(ChatModelRegistry.class);
         when(models.forModel(any())).thenReturn(chatModel);
         final SystemPromptService systemPrompts = mock(SystemPromptService.class);
-        when(systemPrompts.placeholders(false, "kb", "MODE"))
-                .thenReturn(Map.of("mode", "MODE", "scripts", "SCRIPTS"));
+        when(systemPrompts.placeholders(false, "kb", "MODE")).thenReturn(Map.of("mode", "MODE", "scripts", "SCRIPTS"));
         return new CompactService(
                 models,
                 chatHistory,
@@ -1019,8 +913,7 @@ class CompactServiceTest {
                 new ChatToolset(List.of(toolCallback("getFileContent")), List.of()),
                 new ByteArrayResource("SYSTEM {mode} {scripts}".getBytes()),
                 new CompactPrompt(
-                        mock(ChatTopicRepository.class),
-                        new ByteArrayResource("COMPACTOR HANDBOOK".getBytes())),
+                        mock(ChatTopicRepository.class), new ByteArrayResource("COMPACTOR HANDBOOK".getBytes())),
                 executor,
                 transactions);
     }
@@ -1029,12 +922,11 @@ class CompactServiceTest {
     private static ToolCallback toolCallback(String name) {
         final ToolCallback callback = mock(ToolCallback.class);
         when(callback.getToolDefinition())
-                .thenReturn(
-                        DefaultToolDefinition.builder()
-                                .name(name)
-                                .description(name)
-                                .inputSchema("{\"type\":\"object\",\"properties\":{}}")
-                                .build());
+                .thenReturn(DefaultToolDefinition.builder()
+                        .name(name)
+                        .description(name)
+                        .inputSchema("{\"type\":\"object\",\"properties\":{}}")
+                        .build());
         return callback;
     }
 

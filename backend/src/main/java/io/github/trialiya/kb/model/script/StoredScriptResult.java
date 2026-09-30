@@ -14,8 +14,4 @@ import org.jspecify.annotations.Nullable;
  * @param createdAt when the run that produced it finished
  */
 public record StoredScriptResult(
-        String id,
-        @Nullable String script,
-        @Nullable String project,
-        int chars,
-        LocalDateTime createdAt) {}
+        String id, @Nullable String script, @Nullable String project, int chars, LocalDateTime createdAt) {}

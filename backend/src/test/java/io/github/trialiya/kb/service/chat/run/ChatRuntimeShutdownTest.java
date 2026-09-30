@@ -78,18 +78,16 @@ class ChatRuntimeShutdownTest {
         chatHistory = mock(ChatHistoryService.class);
         // Вопрос пользователя сохраняется до старта прогона — прогон берёт из ряда id и текст.
         when(chatHistory.saveUserMessage(anyString(), anyString(), anyList(), any(), any()))
-                .thenAnswer(
-                        inv ->
-                                new ChatMessageEntity(
-                                        1L,
-                                        inv.getArgument(0),
-                                        inv.getArgument(1),
-                                        MessageType.USER,
-                                        1,
-                                        false,
-                                        false,
-                                        LocalDateTime.now(),
-                                        null));
+                .thenAnswer(inv -> new ChatMessageEntity(
+                        1L,
+                        inv.getArgument(0),
+                        inv.getArgument(1),
+                        MessageType.USER,
+                        1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        null));
         events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
         runs = new RunRegistry();
         slots = new ConversationSlots(events);
@@ -117,8 +115,7 @@ class ChatRuntimeShutdownTest {
         verify(chatMemory).add(eq(CONV), saved.capture());
         assertThat(saved.getValue().getText()).isEqualTo("Привет\n\n[stopped]");
         // Подписка завершена: запрос больше не активен, Tomcat остановится сразу.
-        assertThatThrownBy(() -> emitter.send(SseEmitter.event().data("x")))
-                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> emitter.send(SseEmitter.event().data("x"))).isInstanceOf(IllegalStateException.class);
     }
 
     /** Прогон, которому сигнал остановки пришёл до подписки на стрим, всё равно останавливается. */
@@ -145,11 +142,7 @@ class ChatRuntimeShutdownTest {
     void aStoppedRunDeliversItsQueueButStartsNoAnswer() {
         runService = runService(Runnable::run);
         when(pendingMessages.flushPlain(CONV))
-                .thenReturn(
-                        new Flushed(
-                                List.of(userRow()),
-                                USER,
-                                PendingMessageService.PendingOptions.NONE));
+                .thenReturn(new Flushed(List.of(userRow()), USER, PendingMessageService.PendingOptions.NONE));
         runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
@@ -162,8 +155,7 @@ class ChatRuntimeShutdownTest {
     }
 
     private static ChatMessageEntity userRow() {
-        return new ChatMessageEntity(
-                42L, CONV, "вопрос", MessageType.USER, 2, false, false, LocalDateTime.now(), null);
+        return new ChatMessageEntity(42L, CONV, "вопрос", MessageType.USER, 2, false, false, LocalDateTime.now(), null);
     }
 
     /**
@@ -175,12 +167,10 @@ class ChatRuntimeShutdownTest {
     void quiescenceWaitsForTheDeliveryThatFollowsTheRegistry() {
         runService = runService(Runnable::run);
         final Deque<Boolean> quiescentDuringFlush = new ArrayDeque<>();
-        when(pendingMessages.flushPlain(CONV))
-                .thenAnswer(
-                        inv -> {
-                            quiescentDuringFlush.add(runService.awaitQuiescence(Duration.ZERO));
-                            return Flushed.NOTHING;
-                        });
+        when(pendingMessages.flushPlain(CONV)).thenAnswer(inv -> {
+            quiescentDuringFlush.add(runService.awaitQuiescence(Duration.ZERO));
+            return Flushed.NOTHING;
+        });
         runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
@@ -245,14 +235,9 @@ class ChatRuntimeShutdownTest {
         when(spec.options(any(OpenAiChatOptions.Builder.class))).thenReturn(spec);
         when(spec.stream()).thenReturn(stream);
         when(stream.chatResponse())
-                .thenReturn(
-                        Flux.concat(
-                                Flux.just(
-                                        new ChatResponse(
-                                                List.of(
-                                                        new Generation(
-                                                                new AssistantMessage("Привет"))))),
-                                Flux.never()));
+                .thenReturn(Flux.concat(
+                        Flux.just(new ChatResponse(List.of(new Generation(new AssistantMessage("Привет"))))),
+                        Flux.never()));
         return new ChatRunService(
                 new ChatClientRegistry("default-model", chatClient, Map.of()),
                 new ChatToolset(List.of(), List.of()),
@@ -263,9 +248,7 @@ class ChatRuntimeShutdownTest {
                 mock(PendingSummaryService.class),
                 mock(AutoCompactService.class),
                 new ChatModelProperties(
-                        new ModelOption(
-                                "default-model", "Default", true, true, null, null, null, false),
-                        List.of()),
+                        new ModelOption("default-model", "Default", true, true, null, null, null, false), List.of()),
                 events,
                 mock(SystemPromptService.class),
                 pendingMessages,

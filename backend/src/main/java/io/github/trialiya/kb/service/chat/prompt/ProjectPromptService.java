@@ -65,10 +65,7 @@ public class ProjectPromptService {
     private final SavedScriptCatalog savedScripts;
 
     public ProjectPromptService(
-            ProjectCatalog catalog,
-            GitRegistry gitRegistry,
-            SkillService skills,
-            SavedScriptCatalog savedScripts) {
+            ProjectCatalog catalog, GitRegistry gitRegistry, SkillService skills, SavedScriptCatalog savedScripts) {
         this.catalog = catalog;
         this.gitRegistry = gitRegistry;
         this.skills = skills;
@@ -88,8 +85,7 @@ public class ProjectPromptService {
         Files, commits and scripts in this chat read the **%s** repository — project id `%s`.
         Every repo-file link must carry it: `[filename](/files?path=PATH&project=%s)`; so must \
         every commit link: `[shortHash](/files?rev=HASH&project=%s)`.\
-        """
-                        .formatted(project.label(), project.id(), project.id(), project.id())
+        """.formatted(project.label(), project.id(), project.id(), project.id())
                 + allowGlobs(project, gitRegistry.editsAllowed(project.id()))
                 + skills.projectSkills(project)
                 + savedScripts.projectScripts(project)
@@ -117,9 +113,7 @@ public class ProjectPromptService {
             return "";
         }
         final StringBuilder sb =
-                new StringBuilder(
-                        "\n\nThis chat changed repository along the way. Which messages belong"
-                                + " where:");
+                new StringBuilder("\n\nThis chat changed repository along the way. Which messages belong" + " where:");
         for (int i = 0; i < visited.size(); i++) {
             final ProjectSpan span = visited.get(i);
             sb.append("\n- `")
@@ -129,9 +123,8 @@ public class ProjectPromptService {
                     .append(" — ")
                     .append(range(span, i == visited.size() - 1));
         }
-        sb.append(
-                "\nPaths, file contents, grep hits and script output in a range belong to that"
-                        + " range's repository, whatever the active project is now.");
+        sb.append("\nPaths, file contents, grep hits and script output in a range belong to that"
+                + " range's repository, whatever the active project is now.");
         return sb.toString();
     }
 
@@ -147,9 +140,7 @@ public class ProjectPromptService {
         if (current) {
             return "message " + span.from() + " onward (the active project)";
         }
-        return span.from() == span.to()
-                ? "message " + span.from()
-                : "messages " + span.from() + "-" + span.to();
+        return span.from() == span.to() ? "message " + span.from() : "messages " + span.from() + "-" + span.to();
     }
 
     /**
@@ -166,33 +157,28 @@ public class ProjectPromptService {
      * модель может только чтобы получить отказ.
      */
     private String otherProjects(Project active, List<ProjectSpan> visited) {
-        List<String> earlier =
-                visited.stream()
-                        .map(ProjectSpan::project)
-                        .filter(id -> !id.equals(active.id()))
-                        .filter(catalog::isAllowed)
-                        .filter(gitRegistry::isAvailable)
-                        .distinct()
-                        .toList();
-        List<Project> rest =
-                catalog.projects().stream()
-                        .filter(p -> !p.id().equals(active.id()))
-                        .filter(p -> !earlier.contains(p.id()))
-                        .filter(p -> gitRegistry.isAvailable(p.id()))
-                        .toList();
+        List<String> earlier = visited.stream()
+                .map(ProjectSpan::project)
+                .filter(id -> !id.equals(active.id()))
+                .filter(catalog::isAllowed)
+                .filter(gitRegistry::isAvailable)
+                .distinct()
+                .toList();
+        List<Project> rest = catalog.projects().stream()
+                .filter(p -> !p.id().equals(active.id()))
+                .filter(p -> !earlier.contains(p.id()))
+                .filter(p -> gitRegistry.isAvailable(p.id()))
+                .toList();
         if (earlier.isEmpty() && rest.isEmpty()) {
             return "";
         }
-        StringBuilder sb =
-                new StringBuilder("\n\nOther repositories you may read — pass the id as the");
+        StringBuilder sb = new StringBuilder("\n\nOther repositories you may read — pass the id as the");
         sb.append(" `project` argument of a read tool (see \"Reading another project\"):");
-        earlier.forEach(
-                id ->
-                        sb.append("\n- `")
-                                .append(id)
-                                .append("` — ")
-                                .append(catalog.require(id).label())
-                                .append(" — this chat worked in it earlier, see the ranges above"));
+        earlier.forEach(id -> sb.append("\n- `")
+                .append(id)
+                .append("` — ")
+                .append(catalog.require(id).label())
+                .append(" — this chat worked in it earlier, see the ranges above"));
         rest.forEach(p -> sb.append("\n- `").append(p.id()).append("` — ").append(p.label()));
         return sb.toString();
     }
@@ -222,9 +208,7 @@ public class ProjectPromptService {
         """
                 // stripTrailing: у проекта без правок вторая подстановка пуста, и без этого
                 // абзац кончался бы висящим пробелом.
-                .formatted(
-                        String.join(", ", project.allowGlobs()),
-                        untrackedEdits(project, editsAllowed))
+                .formatted(String.join(", ", project.allowGlobs()), untrackedEdits(project, editsAllowed))
                 .stripTrailing();
     }
 
@@ -237,12 +221,10 @@ public class ProjectPromptService {
         if (!editsAllowed) {
             return "";
         }
-        return project.untrackedEditEnabled()
-                ? """
+        return project.untrackedEditEnabled() ? """
                 Editing them is allowed: `editFile` works on them and leaves them untracked (they
                 are never staged), but they cannot be created — `createFile` there is refused.\
-                """
-                : """
+                """ : """
                 Editing them is NOT allowed: they are read-only here, and `editFile`, `createFile`
                 and the `runScript` write methods all refuse them. Only tracked files can be
                 changed in this project.\

@@ -122,15 +122,16 @@ public class GitFunction {
                             description =
                                     "Subdirectory path relative to repo root (e.g., \"src/main/java\"). Empty or null for root.",
                             required = false)
-                    @Nullable String path,
+                    @Nullable
+                    String path,
             @ToolParam(
-                            description =
-                                    "Optional: another project (repository id) to read instead of"
-                                            + " the chat's active one; the response's"
-                                            + " top-level \"project\" field says which"
-                                            + " one answered.",
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " top-level \"project\" field says which"
+                                    + " one answered.",
                             required = false)
-                    @Nullable String project) {
+                    @Nullable
+                    String project) {
         log.debug("getFileTree called: path='{}', project='{}'", path, project);
         GitService git = git(context, project);
         List<GitFileNode> fileTree = git.getFileTree(path);
@@ -156,52 +157,49 @@ public class GitFunction {
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
-            @ToolParam(
-                            description = "Maximum commits to return (1–100, default 20).",
-                            required = false)
-                    @Nullable Integer maxCount,
+            @ToolParam(description = "Maximum commits to return (1–100, default 20).", required = false) @Nullable
+                    Integer maxCount,
             @ToolParam(
                             description =
                                     "Optional: file path (relative to repo root) to filter commits that touched it.",
                             required = false)
-                    @Nullable String filePath,
+                    @Nullable
+                    String filePath,
             @ToolParam(
-                            description =
-                                    "Optional: text to find in commit messages — subject and"
-                                            + " description — or a hash prefix. The"
-                                            + " description is searched even without"
-                                            + " includeMessageBody.",
+                            description = "Optional: text to find in commit messages — subject and"
+                                    + " description — or a hash prefix. The"
+                                    + " description is searched even without"
+                                    + " includeMessageBody.",
                             required = false)
-                    @Nullable String query,
+                    @Nullable
+                    String query,
             @ToolParam(
-                            description =
-                                    "Add each commit's full message body in \"body\". Turn on"
-                                            + " carefully, it may contain long bodies.",
+                            description = "Add each commit's full message body in \"body\". Turn on"
+                                    + " carefully, it may contain long bodies.",
                             required = false)
-                    @Nullable Boolean includeMessageBody,
+                    @Nullable
+                    Boolean includeMessageBody,
             @ToolParam(
-                            description =
-                                    "Optional: another project (repository id) to read instead of"
-                                            + " the chat's active one; the response's"
-                                            + " top-level \"project\" field says which"
-                                            + " one answered.",
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " top-level \"project\" field says which"
+                                    + " one answered.",
                             required = false)
-                    @Nullable String project) {
+                    @Nullable
+                    String project) {
         final int limit = positiveOrDefault(maxCount, 20);
         final boolean withBody = orDefault(includeMessageBody, false);
         log.debug(
-                "getCommitLog called: maxCount={}, filePath='{}', query='{}',"
-                        + " includeMessageBody={}, project='{}'",
+                "getCommitLog called: maxCount={}, filePath='{}', query='{}'," + " includeMessageBody={}, project='{}'",
                 limit,
                 filePath,
                 query,
                 withBody,
                 project);
         GitService git = git(context, project);
-        List<GitCommit> commitLog =
-                query == null || query.isBlank()
-                        ? git.getCommitLog(limit, filePath, withBody)
-                        : git.searchCommitLog(query.strip(), limit, filePath, withBody);
+        List<GitCommit> commitLog = query == null || query.isBlank()
+                ? git.getCommitLog(limit, filePath, withBody)
+                : git.searchCommitLog(query.strip(), limit, filePath, withBody);
         log.debug("getCommitLog called: commitLog={}", commitLog);
         return answer(git, commitLog);
     }
@@ -230,20 +228,19 @@ public class GitFunction {
                             description =
                                     "Include unified diff for each file (false=list only, true=includes patch text).",
                             required = false)
-                    @Nullable Boolean includePatch,
+                    @Nullable
+                    Boolean includePatch,
+            @ToolParam(description = "Optional: file path to filter diff output to only that file.", required = false)
+                    @Nullable
+                    String filePath,
             @ToolParam(
-                            description =
-                                    "Optional: file path to filter diff output to only that file.",
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " top-level \"project\" field says which"
+                                    + " one answered.",
                             required = false)
-                    @Nullable String filePath,
-            @ToolParam(
-                            description =
-                                    "Optional: another project (repository id) to read instead of"
-                                            + " the chat's active one; the response's"
-                                            + " top-level \"project\" field says which"
-                                            + " one answered.",
-                            required = false)
-                    @Nullable String project) {
+                    @Nullable
+                    String project) {
         requireText(commitHashes, "commitHashes");
         final boolean patch = orDefault(includePatch, false);
         log.debug(
@@ -274,29 +271,21 @@ public class GitFunction {
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitFileNode>> searchFiles(
             ToolContext context,
-            @ToolParam(
-                            description =
-                                    "Partial file name pattern (fuzzy: case-insensitive subsequence match).")
+            @ToolParam(description = "Partial file name pattern (fuzzy: case-insensitive subsequence match).")
                     String pattern,
+            @ToolParam(description = "Maximum results to return (1–50, default 20).", required = false) @Nullable
+                    Integer maxResults,
             @ToolParam(
-                            description = "Maximum results to return (1–50, default 20).",
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " top-level \"project\" field says which"
+                                    + " one answered.",
                             required = false)
-                    @Nullable Integer maxResults,
-            @ToolParam(
-                            description =
-                                    "Optional: another project (repository id) to read instead of"
-                                            + " the chat's active one; the response's"
-                                            + " top-level \"project\" field says which"
-                                            + " one answered.",
-                            required = false)
-                    @Nullable String project) {
+                    @Nullable
+                    String project) {
         requireText(pattern, "pattern");
         final int limit = positiveOrDefault(maxResults, 20);
-        log.debug(
-                "searchFiles called: pattern='{}', maxResults={}, project='{}'",
-                pattern,
-                limit,
-                project);
+        log.debug("searchFiles called: pattern='{}', maxResults={}, project='{}'", pattern, limit, project);
         GitService git = git(context, project);
         List<GitFileNode> gitFileNodes = git.searchFiles(pattern, limit);
         log.debug("searchFiles called: gitFileNodes={}", gitFileNodes);
@@ -325,13 +314,13 @@ public class GitFunction {
             ToolContext context,
             @ToolParam(description = "Source file path relative to repo root.") String filePath,
             @ToolParam(
-                            description =
-                                    "Optional: another project (repository id) to read instead of"
-                                            + " the chat's active one; the response's"
-                                            + " top-level \"project\" field says which"
-                                            + " one answered.",
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " top-level \"project\" field says which"
+                                    + " one answered.",
                             required = false)
-                    @Nullable String project) {
+                    @Nullable
+                    String project) {
         requireText(filePath, "filePath");
         log.debug("getFileOutline called: filePath='{}', project='{}'", filePath, project);
         GitService git = git(context, project);
@@ -358,66 +347,61 @@ public class GitFunction {
      * @return file content (full, ranged, or excerpt) with metadata
      */
     @Tool(
-            description =
-                    "Read file content (full or line range). Reads the working tree, including "
-                            + "uncommitted edits, unless commit is given — then it reads the file "
-                            + "as of that commit (git show COMMIT:PATH), which is how you see what "
-                            + "a file said before a change or read one that no longer exists. "
-                            + "Binary files flagged without content. Large files (>512 KB) return "
-                            + "excerpt with truncated=true. When mentioning the file in your "
-                            + "response, link it as [filename](/files?path=PATH&project=ID), where "
-                            + "PATH is the path from the response and ID is the response's project "
-                            + "field; append #Lfrom-Lto for a line range. Read with commit? Link "
-                            + "that version: [filename](/files?path=PATH&rev=HASH&project=ID), HASH "
-                            + "being the response's commit. tracked=false marks a "
-                            + "file git does not track, served through the project's allow-globs.",
+            description = "Read file content (full or line range). Reads the working tree, including "
+                    + "uncommitted edits, unless commit is given — then it reads the file "
+                    + "as of that commit (git show COMMIT:PATH), which is how you see what "
+                    + "a file said before a change or read one that no longer exists. "
+                    + "Binary files flagged without content. Large files (>512 KB) return "
+                    + "excerpt with truncated=true. When mentioning the file in your "
+                    + "response, link it as [filename](/files?path=PATH&project=ID), where "
+                    + "PATH is the path from the response and ID is the response's project "
+                    + "field; append #Lfrom-Lto for a line range. Read with commit? Link "
+                    + "that version: [filename](/files?path=PATH&rev=HASH&project=ID), HASH "
+                    + "being the response's commit. tracked=false marks a "
+                    + "file git does not track, served through the project's allow-globs.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<GitFileContent> getFileContent(
             ToolContext context,
             @ToolParam(description = "File path relative to repo root.") String filePath,
             @ToolParam(
-                            description =
-                                    "First line to read (1-based, inclusive). Null for start of file.",
+                            description = "First line to read (1-based, inclusive). Null for start of file.",
                             required = false)
-                    @Nullable Integer fromLine,
+                    @Nullable
+                    Integer fromLine,
+            @ToolParam(description = "Last line to read (1-based, inclusive). Null for end of file.", required = false)
+                    @Nullable
+                    Integer toLine,
             @ToolParam(
-                            description =
-                                    "Last line to read (1-based, inclusive). Null for end of file.",
+                            description = "Optional: read the file as of this commit instead of the"
+                                    + " working tree — a full or short hash, a branch, a"
+                                    + " tag, or a revision like HEAD~2. Note HEAD is the"
+                                    + " last commit, not the working tree, so leave this"
+                                    + " out to see uncommitted edits. Give the path as it"
+                                    + " was spelled in that commit; for a renamed file,"
+                                    + " getCommitDiff says what that was.",
                             required = false)
-                    @Nullable Integer toLine,
+                    @Nullable
+                    String commit,
             @ToolParam(
-                            description =
-                                    "Optional: read the file as of this commit instead of the"
-                                            + " working tree — a full or short hash, a branch, a"
-                                            + " tag, or a revision like HEAD~2. Note HEAD is the"
-                                            + " last commit, not the working tree, so leave this"
-                                            + " out to see uncommitted edits. Give the path as it"
-                                            + " was spelled in that commit; for a renamed file,"
-                                            + " getCommitDiff says what that was.",
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " top-level \"project\" field says which"
+                                    + " one answered.",
                             required = false)
-                    @Nullable String commit,
-            @ToolParam(
-                            description =
-                                    "Optional: another project (repository id) to read instead of"
-                                            + " the chat's active one; the response's"
-                                            + " top-level \"project\" field says which"
-                                            + " one answered.",
-                            required = false)
-                    @Nullable String project) {
+                    @Nullable
+                    String project) {
         requireText(filePath, "filePath");
         log.debug(
-                "getFileContent called: filePath='{}', fromLine={}, toLine={}, commit='{}',"
-                        + " project='{}'",
+                "getFileContent called: filePath='{}', fromLine={}, toLine={}, commit='{}'," + " project='{}'",
                 filePath,
                 fromLine,
                 toLine,
                 commit,
                 project);
         GitService git = git(context, project);
-        GitFileContent fileContent =
-                commit == null || commit.isBlank()
-                        ? git.getFileContent(filePath, fromLine, toLine)
-                        : git.getFileContentAt(commit, filePath, fromLine, toLine);
+        GitFileContent fileContent = commit == null || commit.isBlank()
+                ? git.getFileContent(filePath, fromLine, toLine)
+                : git.getFileContentAt(commit, filePath, fromLine, toLine);
         log.debug("getFileContent called: fileContent='{}'", fileContent);
         return answer(git, fileContent);
     }
@@ -455,32 +439,32 @@ public class GitFunction {
                             description =
                                     "Include unified diff for changed files (false=list only, true=includes patch, default false).",
                             required = false)
-                    @Nullable Boolean includePatch,
-            @ToolParam(description = "Include untracked files (default false).", required = false)
-                    @Nullable Boolean includeUntracked,
+                    @Nullable
+                    Boolean includePatch,
+            @ToolParam(description = "Include untracked files (default false).", required = false) @Nullable
+                    Boolean includeUntracked,
             @ToolParam(
-                            description =
-                                    "Optional: comma-separated files, directories or globs to"
-                                            + " narrow to (git pathspec rules: no wildcard is a"
-                                            + " path prefix, a wildcard crosses \"/\"; e.g."
-                                            + " \"backend/src,*.java\"). Omit for the whole"
-                                            + " working tree.",
+                            description = "Optional: comma-separated files, directories or globs to"
+                                    + " narrow to (git pathspec rules: no wildcard is a"
+                                    + " path prefix, a wildcard crosses \"/\"; e.g."
+                                    + " \"backend/src,*.java\"). Omit for the whole"
+                                    + " working tree.",
                             required = false)
-                    @Nullable String paths,
+                    @Nullable
+                    String paths,
             @ToolParam(
-                            description =
-                                    "Optional: another project (repository id) to read instead of"
-                                            + " the chat's active one; the response's"
-                                            + " top-level \"project\" field says which"
-                                            + " one answered.",
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " top-level \"project\" field says which"
+                                    + " one answered.",
                             required = false)
-                    @Nullable String project) {
+                    @Nullable
+                    String project) {
         final boolean patch = orDefault(includePatch, false);
         final boolean untracked = orDefault(includeUntracked, false);
         final List<String> filters = pathList(paths);
         log.debug(
-                "getUncommittedChanges called: includePatch='{}', includeUntracked='{}', paths={},"
-                        + " project='{}'",
+                "getUncommittedChanges called: includePatch='{}', includeUntracked='{}', paths={}," + " project='{}'",
                 patch,
                 untracked,
                 filters,
@@ -510,42 +494,39 @@ public class GitFunction {
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitGrepMatch>> grepContent(
             ToolContext context,
-            @ToolParam(description = "Search pattern: literal string or regex (if regex=true).")
-                    String pattern,
+            @ToolParam(description = "Search pattern: literal string or regex (if regex=true).") String pattern,
             @ToolParam(
                             description =
                                     "Optional: glob pattern to restrict search to certain files (e.g., \"*.java\", \"src/main/**\").",
                             required = false)
-                    @Nullable String pathGlob,
+                    @Nullable
+                    String pathGlob,
             @ToolParam(
                             description =
                                     "Treat pattern as POSIX regex (true=regex, false=literal substring, default true).",
                             required = false)
-                    @Nullable Boolean regex,
+                    @Nullable
+                    Boolean regex,
+            @ToolParam(description = "Context lines before/after match (0–10, default 1).", required = false) @Nullable
+                    Integer contextLines,
+            @ToolParam(description = "Maximum matches to return (1–200, default 50).", required = false) @Nullable
+                    Integer maxResults,
             @ToolParam(
-                            description = "Context lines before/after match (0–10, default 1).",
+                            description = "Also search the project's untracked files, where it allows any "
+                                    + "(build reports, local notes — see the active project "
+                                    + "note). Default false: a plain search answers about "
+                                    + "the committed codebase.",
                             required = false)
-                    @Nullable Integer contextLines,
+                    @Nullable
+                    Boolean includeUntracked,
             @ToolParam(
-                            description = "Maximum matches to return (1–200, default 50).",
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " top-level \"project\" field says which"
+                                    + " one answered.",
                             required = false)
-                    @Nullable Integer maxResults,
-            @ToolParam(
-                            description =
-                                    "Also search the project's untracked files, where it allows any "
-                                            + "(build reports, local notes — see the active project "
-                                            + "note). Default false: a plain search answers about "
-                                            + "the committed codebase.",
-                            required = false)
-                    @Nullable Boolean includeUntracked,
-            @ToolParam(
-                            description =
-                                    "Optional: another project (repository id) to read instead of"
-                                            + " the chat's active one; the response's"
-                                            + " top-level \"project\" field says which"
-                                            + " one answered.",
-                            required = false)
-                    @Nullable String project) {
+                    @Nullable
+                    String project) {
         requireText(pattern, "pattern");
         final boolean useRegex = orDefault(regex, true);
         // contextLines defaults through orDefault rather than positiveOrDefault: 0 means "the
@@ -564,8 +545,7 @@ public class GitFunction {
                 untracked,
                 project);
         GitService git = git(context, project);
-        List<GitGrepMatch> matches =
-                git.grepContent(pattern, pathGlob, useRegex, ctx, limit, untracked);
+        List<GitGrepMatch> matches = git.grepContent(pattern, pathGlob, useRegex, ctx, limit, untracked);
         log.debug("grepContent called: {} matches found", matches.size());
         return answer(git, matches);
     }

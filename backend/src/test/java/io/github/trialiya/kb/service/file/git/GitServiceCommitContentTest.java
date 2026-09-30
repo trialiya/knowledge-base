@@ -22,7 +22,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitServiceCommitContentTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private GitService service;
 
@@ -44,25 +45,20 @@ class GitServiceCommitContentTest {
         commitAll("second");
         write("src/App.java", "uncommitted\n");
 
-        assertThat(service.getFileContentAt(first, "src/App.java", null, null))
-                .satisfies(
-                        c -> {
-                            assertThat(c.content())
-                                    .isEqualTo("class App {\n    void one() {}\n}\n");
-                            assertThat(c.commit()).isEqualTo(first);
-                            assertThat(c.path()).isEqualTo("src/App.java");
-                            assertThat(c.language()).isEqualTo("java");
-                            assertThat(c.lineCount()).isEqualTo(4);
-                            assertThat(c.truncated()).isFalse();
-                        });
+        assertThat(service.getFileContentAt(first, "src/App.java", null, null)).satisfies(c -> {
+            assertThat(c.content()).isEqualTo("class App {\n    void one() {}\n}\n");
+            assertThat(c.commit()).isEqualTo(first);
+            assertThat(c.path()).isEqualTo("src/App.java");
+            assertThat(c.language()).isEqualTo("java");
+            assertThat(c.lineCount()).isEqualTo(4);
+            assertThat(c.truncated()).isFalse();
+        });
 
         // А чтение с диска отвечает тем, что там лежит сейчас, и коммита у него нет.
-        assertThat(service.getFileContent("src/App.java"))
-                .satisfies(
-                        c -> {
-                            assertThat(c.content()).isEqualTo("uncommitted\n");
-                            assertThat(c.commit()).isNull();
-                        });
+        assertThat(service.getFileContent("src/App.java")).satisfies(c -> {
+            assertThat(c.content()).isEqualTo("uncommitted\n");
+            assertThat(c.commit()).isNull();
+        });
     }
 
     /**
@@ -75,10 +71,10 @@ class GitServiceCommitContentTest {
         runGit("rm", "-q", "src/App.java");
         commitAll("drop it");
 
-        assertThat(service.getFileContentAt(withFile, "src/App.java", null, null).content())
+        assertThat(service.getFileContentAt(withFile, "src/App.java", null, null)
+                        .content())
                 .isEqualTo("class App {\n    void one() {}\n}\n");
-        assertThatThrownBy(() -> service.getFileContent("src/App.java"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.getFileContent("src/App.java")).isInstanceOf(IllegalArgumentException.class);
     }
 
     /** Обзор на коммите — тоже о коммите: заголовок, дописанный на диске, в него не попадает. */
@@ -89,15 +85,11 @@ class GitServiceCommitContentTest {
         String committed = head();
         write("docs/guide.md", "# Guide\n## Install\n## Uncommitted\n");
 
-        assertThat(service.getFileOutlineAt(committed, "docs/guide.md"))
-                .satisfies(
-                        o -> {
-                            assertThat(o.parser()).isEqualTo("markdown");
-                            assertThat(o.lineCount()).isEqualTo(3);
-                            assertThat(o.symbols())
-                                    .extracting(GitSymbol::signature)
-                                    .containsExactly("Guide", "Guide > Install");
-                        });
+        assertThat(service.getFileOutlineAt(committed, "docs/guide.md")).satisfies(o -> {
+            assertThat(o.parser()).isEqualTo("markdown");
+            assertThat(o.lineCount()).isEqualTo(3);
+            assertThat(o.symbols()).extracting(GitSymbol::signature).containsExactly("Guide", "Guide > Install");
+        });
         assertThat(service.getFileOutline("docs/guide.md").symbols())
                 .extracting(GitSymbol::signature)
                 .containsExactly("Guide", "Guide > Install", "Guide > Uncommitted");
@@ -123,11 +115,10 @@ class GitServiceCommitContentTest {
 
         for (String rev : List.of(first.substring(0, 7), "HEAD~1", "v1", "  " + first + "  ")) {
             assertThat(service.getFileContentAt(rev, "src/App.java", null, null))
-                    .satisfies(
-                            c -> {
-                                assertThat(c.commit()).isEqualTo(first);
-                                assertThat(c.content()).contains("void one()");
-                            });
+                    .satisfies(c -> {
+                        assertThat(c.commit()).isEqualTo(first);
+                        assertThat(c.content()).contains("void one()");
+                    });
         }
     }
 
@@ -183,8 +174,7 @@ class GitServiceCommitContentTest {
 
     @Test
     void anUnknownRevisionIsRefused() {
-        assertThatThrownBy(
-                        () -> service.getFileContentAt("no-such-rev", "src/App.java", null, null))
+        assertThatThrownBy(() -> service.getFileContentAt("no-such-rev", "src/App.java", null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Commit not found");
     }
@@ -202,13 +192,11 @@ class GitServiceCommitContentTest {
         writeBytes("logo.png", new byte[] {(byte) 0x89, 'P', 'N', 'G', 0, 0, 1});
         commitAll("add binary");
 
-        assertThat(service.getFileContentAt(head(), "logo.png", null, null))
-                .satisfies(
-                        c -> {
-                            assertThat(c.binary()).isTrue();
-                            assertThat(c.content()).isNull();
-                            assertThat(c.sizeBytes()).isEqualTo(7);
-                        });
+        assertThat(service.getFileContentAt(head(), "logo.png", null, null)).satisfies(c -> {
+            assertThat(c.binary()).isTrue();
+            assertThat(c.content()).isNull();
+            assertThat(c.sizeBytes()).isEqualTo(7);
+        });
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -243,16 +231,13 @@ class GitServiceCommitContentTest {
             var command = new java.util.ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             if (process.waitFor() != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

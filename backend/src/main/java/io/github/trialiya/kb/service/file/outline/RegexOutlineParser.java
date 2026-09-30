@@ -20,14 +20,12 @@ public final class RegexOutlineParser implements CodeOutlineParser {
     /** Longer lines are not matched at all; see {@link #parse}. */
     private static final int MAX_LINE = 1_000;
 
-    private static final Set<String> SUPPORTED =
-            Set.of("java", "javascript", "typescript", "python", "sql");
+    private static final Set<String> SUPPORTED = Set.of("java", "javascript", "typescript", "python", "sql");
 
     // ── Java ──────────────────────────────────────────────────────────────────
     private static final Pattern JAVA_TYPE =
-            Pattern.compile(
-                    "^\\s*(?:public|private|protected|abstract|final|sealed|static|\\s)*"
-                            + "(class|interface|enum|record)\\s+(\\w+)");
+            Pattern.compile("^\\s*(?:public|private|protected|abstract|final|sealed|static|\\s)*"
+                    + "(class|interface|enum|record)\\s+(\\w+)");
 
     /**
      * Matched against a line with its whitespace collapsed ({@link #collapse}): with runs of
@@ -38,35 +36,29 @@ public final class RegexOutlineParser implements CodeOutlineParser {
      * words, not over spaces.
      */
     private static final Pattern JAVA_METHOD =
-            Pattern.compile(
-                    "^(?:(?:public|private|protected|static|final|abstract|synchronized|native"
-                            + "|default) )*"
-                            + "(?:<[^>]*> )?[\\w<>\\[\\].?]+(?: ?, ?[\\w<>\\[\\].?]+)*"
-                            + " (\\w+) ?\\([^;{]*\\) ?(?:throws [\\w,. ]+)?\\{");
+            Pattern.compile("^(?:(?:public|private|protected|static|final|abstract|synchronized|native"
+                    + "|default) )*"
+                    + "(?:<[^>]*> )?[\\w<>\\[\\].?]+(?: ?, ?[\\w<>\\[\\].?]+)*"
+                    + " (\\w+) ?\\([^;{]*\\) ?(?:throws [\\w,. ]+)?\\{");
 
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     // ── JS / TS ─────────────────────────────────────────────────────────────────
-    private static final Pattern JS_CLASS =
-            Pattern.compile("^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+(\\w+)");
+    private static final Pattern JS_CLASS = Pattern.compile("^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+(\\w+)");
     private static final Pattern JS_FUNC =
             Pattern.compile("^\\s*(?:export\\s+)?(?:async\\s+)?function\\s*\\*?\\s*(\\w+)\\s*\\(");
-    private static final Pattern JS_ARROW =
-            Pattern.compile(
-                    "^\\s*(?:export\\s+)?(?:const|let|var)\\s+(\\w+)\\s*=\\s*"
-                            + "(?:async\\s+)?\\([^)]*\\)\\s*(?::[^=]+)?=>");
+    private static final Pattern JS_ARROW = Pattern.compile(
+            "^\\s*(?:export\\s+)?(?:const|let|var)\\s+(\\w+)\\s*=\\s*" + "(?:async\\s+)?\\([^)]*\\)\\s*(?::[^=]+)?=>");
 
     // ── Python ──────────────────────────────────────────────────────────────────
-    private static final Pattern PY_DEF =
-            Pattern.compile("^(\\s*)(?:async\\s+)?def\\s+(\\w+)\\s*\\(");
+    private static final Pattern PY_DEF = Pattern.compile("^(\\s*)(?:async\\s+)?def\\s+(\\w+)\\s*\\(");
     private static final Pattern PY_CLASS = Pattern.compile("^(\\s*)class\\s+(\\w+)");
 
     // ── SQL ──────────────────────────────────────────────────────────────────────
     private static final Pattern SQL_OBJECT =
-            Pattern.compile(
-                    "(?i)^\\s*create\\s+(?:or\\s+replace\\s+)?(?:temp(?:orary)?\\s+)?"
-                            + "(table|view|index|function|procedure|trigger|sequence|schema)\\s+"
-                            + "(?:if\\s+not\\s+exists\\s+)?[\"`\\[]?([\\w.]+)");
+            Pattern.compile("(?i)^\\s*create\\s+(?:or\\s+replace\\s+)?(?:temp(?:orary)?\\s+)?"
+                    + "(table|view|index|function|procedure|trigger|sequence|schema)\\s+"
+                    + "(?:if\\s+not\\s+exists\\s+)?[\"`\\[]?([\\w.]+)");
 
     @Override
     public String name() {
@@ -167,13 +159,8 @@ public final class RegexOutlineParser implements CodeOutlineParser {
         for (int i = 0; i < lines.length; i++) {
             Matcher m = SQL_OBJECT.matcher(lines[i]);
             if (m.find()) {
-                out.add(
-                        new GitSymbol(
-                                m.group(1).toLowerCase(Locale.ROOT),
-                                m.group(2),
-                                trimSig(lines[i]),
-                                i + 1,
-                                i + 1));
+                out.add(new GitSymbol(
+                        m.group(1).toLowerCase(Locale.ROOT), m.group(2), trimSig(lines[i]), i + 1, i + 1));
             }
         }
         return out;
