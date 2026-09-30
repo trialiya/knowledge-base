@@ -46,6 +46,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Сборка {@link ToolCallDetail} из {@code chat_message} по {@code callId} (точечный lookup через
@@ -69,6 +70,9 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
 
     @Autowired
     private ToolCallFullResultRepository toolCallFullResultRepo;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private ToolCallService toolCalls() {
         return new ToolCallService(messageRepo, toolCallIndexRepo, toolCallFullResultRepo);
@@ -330,9 +334,9 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     }
 
     /**
-     * Ответ, урезанный для модели ({@code ModelView}): {@code append} идущего прогона дописывает к
-     * протокольному ответу результат целиком из коллектора, деталь отдаёт обе версии, а история,
-     * которая уходит модели, — по-прежнему только урезанную.
+     * Ответ, урезанный для модели ({@code ModelView}): {@code append} идущего прогона кладёт
+     * результат целиком из коллектора в {@code tool_call_full_result}, а не в {@code tool_data};
+     * деталь отдаёт обе версии, а история, которая уходит модели, — только урезанную.
      */
     @Test
     void trimmedResponseKeepsTheWholeResultForTheDetailOnly() {
@@ -381,6 +385,10 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                 .orElseThrow();
         assertThat(toolRow.getToolData().responses())
                 .containsExactly(new ToolData.Response("call_s", "runScript", shown));
+        // Сырая колонка, а не разобранный ToolData: тот молча выбрасывает незнакомые ключи.
+        assertThat(jdbc.queryForObject(
+                        "select tool_data from chat_message where id = ?", String.class, toolRow.getId()))
+                .doesNotContain("b.md");
         assertThat(toolCallFullResultRepo.findByMessageIdAndCallId(toolRow.getId(), "call_s"))
                 .get()
                 .extracting(ToolCallFullResultEntity::getResultText)
@@ -390,6 +398,40 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         history.delete(conv);
         assertThat(toolCallFullResultRepo.findByMessageIdAndCallId(toolRow.getId(), "call_s"))
                 .isEmpty();
+    }
+
+    /**
+     * Ремонт оборванного хвоста: вызов отработал, но протокольный ответ записать не успели. Ремонтный
+     * TOOL-ряд получает то, что видела модель, а целое — ту же отдельную таблицу, что и обычный
+     * ответ.
+     */
+    @Test
+    void repairedResponseOfATrimmedCallKeepsTheWholeResultApart() {
+        String conv = UUID.randomUUID().toString();
+        RunScope scope = new RunRegistry().open(UUID.randomUUID().toString(), conv, "user", "model");
+        ToolInvocationCollector collector = new ToolInvocationCollector();
+        scope.attachCollector(collector);
+        ChatHistoryService history = history();
+        String shown = "{\"filesRead\":[\"a.md\"],\"filesReadMore\":1}";
+        String whole = "{\"filesRead\":[\"a.md\",\"b.md\"]}";
+
+        history.append(
+                conv,
+                List.of(AssistantMessage.builder()
+                        .content("")
+                        .toolCalls(List.of(new AssistantMessage.ToolCall("call_r", "function", "runScript", "{}")))
+                        .build()),
+                scope);
+        scope.rememberCall("call_r", collector.nextCallIndex(), Map.of());
+        collector.record(new ToolInvocation(
+                "runScript", Map.of(), ToolInvocationStatus.OK, null, null, null, "{}", shown, 0, "kb", whole));
+
+        history.repairDanglingToolCalls(conv, scope);
+
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_r");
+        assertThat(detail).isPresent();
+        assertThat(detail.get().resultText()).isEqualTo(shown);
+        assertThat(detail.get().fullResultText()).isEqualTo(whole);
     }
 
     /** Без идущего прогона полному тексту взяться неоткуда: деталь отдаёт то, что видела модель. */

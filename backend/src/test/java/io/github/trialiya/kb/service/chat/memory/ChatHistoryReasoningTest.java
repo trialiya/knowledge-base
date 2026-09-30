@@ -52,7 +52,8 @@ class ChatHistoryReasoningTest {
         history = new ChatHistoryService(
                 messageRepo,
                 new ContextItemService(mock(AttachmentService.class)),
-                new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class), mock(ToolCallFullResultRepository.class)),
+                new ToolCallService(
+                        messageRepo, mock(ToolCallIndexRepository.class), mock(ToolCallFullResultRepository.class)),
                 new ToolCallEventPublisher(events, runs),
                 ActiveProjectNotices.silent());
         ToolCallTestSupport.echoSavedWithIds(messageRepo);

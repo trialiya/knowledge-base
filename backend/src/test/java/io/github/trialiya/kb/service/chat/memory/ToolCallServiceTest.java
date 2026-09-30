@@ -35,7 +35,8 @@ class ToolCallServiceTest {
 
     private final ToolCallIndexRepository indexRepo = mock(ToolCallIndexRepository.class);
 
-    private final ToolCallService service = new ToolCallService(mock(ChatMessageRepository.class), indexRepo, mock(ToolCallFullResultRepository.class));
+    private final ToolCallService service =
+            new ToolCallService(mock(ChatMessageRepository.class), indexRepo, mock(ToolCallFullResultRepository.class));
 
     /** Индекс знает эти вызовы — только по ним синтезированная плашка предлагает детали. */
     private void indexKnows(String... callIds) {

@@ -10,8 +10,9 @@ import org.springframework.ai.chat.messages.ToolResponseMessage;
  * Протокольные данные tool-цикла, хранящиеся в колонке {@code chat_message.tool_data}. Ровно то,
  * что нужно для восстановления сообщения в формате OpenAI: у ASSISTANT-сообщения — список
  * tool_calls, у TOOL-сообщения — список ответов инструментов. В отличие от {@link
- * ToolInvocationMeta} (усечённые «крошки» для UI) здесь полный результат — модель должна видеть его
- * целиком на следующих итерациях цикла.
+ * ToolInvocationMeta} (усечённые «крошки» для UI) здесь ответ ровно в том виде, в каком его получила
+ * модель, — она должна видеть его таким же на следующих итерациях цикла. Где модели ушёл урезанный
+ * вид результата ({@link ModelView}), целиком он лежит не здесь, а в {@code tool_call_full_result}.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ToolData(

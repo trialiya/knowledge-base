@@ -1,6 +1,7 @@
 -- Результат вызова инструмента целиком — там, где модели ушёл его урезанный вид (ModelView:
 -- сегодня runScript / runSavedScript). Читает только окно деталей вызова
--- (ToolCallService#findToolCallDetail), пишет ChatHistoryService, когда сохраняет TOOL-ряд.
+-- (ToolCallService#findToolCallDetail), пишет ToolCallService#keepFullResults, когда ChatHistoryService
+-- сохраняет TOOL-ряд.
 --
 -- Отдельной таблицей, а не полем chat_message.tool_data: tool_data — ровно то, что модель получает
 -- при каждом повторе истории, и текст, который ей показывать нельзя, не должен лежать там, откуда

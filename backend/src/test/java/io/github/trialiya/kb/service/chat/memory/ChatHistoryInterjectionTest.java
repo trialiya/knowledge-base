@@ -40,7 +40,10 @@ class ChatHistoryInterjectionTest {
     private final ChatHistoryService service = new ChatHistoryService(
             chatMessageRepository,
             contextItemService,
-            new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class), mock(ToolCallFullResultRepository.class)),
+            new ToolCallService(
+                    chatMessageRepository,
+                    mock(ToolCallIndexRepository.class),
+                    mock(ToolCallFullResultRepository.class)),
             new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
             ActiveProjectNotices.silent());
 
