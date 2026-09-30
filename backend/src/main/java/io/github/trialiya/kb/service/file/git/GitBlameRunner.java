@@ -10,6 +10,7 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -116,17 +117,22 @@ final class GitBlameRunner {
     }
 
     /**
-     * The object {@code rev} names, or {@code null} when the repository does not hold it. {@code
-     * resolve} alone is not that check: a full 40-hex hash it hands back as is, never having
-     * looked for the object.
+     * The commit {@code rev} names, or {@code null} when the repository holds no such commit.
+     * {@code resolve} alone is not that check: a full 40-hex hash it hands back as is, never
+     * having looked for the object — and git takes only a commit for {@code --ignore-rev}, so a
+     * tree or a blob under that hash counts as absent too.
      */
     private @Nullable ObjectId resolve(String rev) {
-        try {
+        try (RevWalk walk = new RevWalk(repository)) {
             ObjectId id = repository.resolve(rev);
-            return id != null && repository.getObjectDatabase().has(id) ? id : null;
+            if (id == null) {
+                return null;
+            }
+            walk.parseCommit(id);
+            return id;
         } catch (IOException | RuntimeException e) {
-            // An ambiguous abbreviation or an unreadable object is as good as absent here.
-            log.debug("Cannot resolve {} in {}", rev, paths.root(), e);
+            // Missing, not a commit, an ambiguous abbreviation, an unreadable object: all absent.
+            log.debug("Cannot resolve {} as a commit in {}", rev, paths.root(), e);
             return null;
         }
     }

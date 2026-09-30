@@ -12,6 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One read-only {@code git} subprocess, bounded in time and in output: the part of a shell-out
@@ -142,7 +143,7 @@ final class GitReadProcess {
             try (var reader =
                     new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
-                while ((line = reader.readLine()) != null) {
+                while ((line = readLine(reader)) != null) {
                     lines.add(line);
                     if (lines.size() >= maxLines) {
                         // Enough. Whatever git still has to say would be thrown away, so it is
@@ -172,6 +173,31 @@ final class GitReadProcess {
         } catch (IOException e) {
             throw new IllegalStateException("Git command failed: " + command, e);
         }
+    }
+
+    /**
+     * One line of git's output, ended by {@code \n} alone — a trailing {@code \r} (a CRLF file)
+     * is dropped, a bare {@code \r} inside the line is kept. {@link BufferedReader#readLine} ends
+     * a line at a bare {@code \r} too, and both commands print file content verbatim: a source
+     * line holding one would come back as two, the second without the prefix that marks it as
+     * content, to be read as something else by the parser.
+     *
+     * @return the line without its terminator, or {@code null} at end of stream
+     */
+    private static @Nullable String readLine(BufferedReader reader) throws IOException {
+        StringBuilder line = new StringBuilder();
+        int c;
+        while ((c = reader.read()) >= 0) {
+            if (c == '\n') {
+                int end = line.length();
+                if (end > 0 && line.charAt(end - 1) == '\r') {
+                    line.setLength(end - 1);
+                }
+                return line.toString();
+            }
+            line.append((char) c);
+        }
+        return line.isEmpty() ? null : line.toString();
     }
 
     /**

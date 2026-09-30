@@ -119,6 +119,42 @@ class GitServiceBlameTest {
                 .containsExactly("first");
     }
 
+    /** Хеш дерева или блоба в игнор-файле git тоже не принимает — пропускается, как отсутствующий. */
+    @Test
+    void anIgnoredHashThatIsNotACommitIsLeftOut() {
+        writeFile("f.txt", "one\n");
+        commitAll("first");
+        String tree = runGit("rev-parse", "HEAD^{tree}").strip();
+        String blob = runGit("rev-parse", "HEAD:f.txt").strip();
+        writeFile(GitBlameRunner.IGNORE_REVS_FILE, tree + "\n" + blob + "\n");
+
+        assertThat(service.getBlame("f.txt").hunks())
+                .extracting(GitFileBlame.Hunk::summary)
+                .containsExactly("first");
+    }
+
+    /**
+     * Путь с пробелами, кириллицей и символами оболочки уезжает одним аргументом после {@code --}
+     * и возвращается в {@code filename} как есть; голый {@code \r} внутри строки не делит её на две
+     * — иначе хвост без табуляции читался бы как поле коммита, а строк стало бы больше, чем в
+     * файле.
+     */
+    @Test
+    void aPathWithSpecialCharactersAndABareCarriageReturnSurviveTheRoundTrip() {
+        String path = "тест dir/a b#'$c(1).txt";
+        writeFile(path, "one\rtwo\nthree\n");
+        commitAll("first");
+
+        GitFileBlame blame = service.getBlame(path);
+
+        assertThat(blame.lineCount()).isEqualTo(2);
+        assertThat(blame.hunks()).singleElement().satisfies(h -> {
+            assertThat(h.lineCount()).isEqualTo(2);
+            assertThat(h.path()).isEqualTo(path);
+            assertThat(h.author()).isEqualTo("Test");
+        });
+    }
+
     /** Файл в индексе репозитория без единого коммита: истории нет — это ошибка запроса. */
     @Test
     void aStagedFileOnAnUnbornBranchIsTheCallersMistake() {
