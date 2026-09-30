@@ -10,7 +10,10 @@ vi.mock('@/api/chatApi');
 
 const FILES = { total: 2, truncated: false, files: [{ path: 'a.java', lines: [{ line: 1, text: 'x' }] }] };
 const DOCS = { total: 1, documents: [{ id: 7, title: 'Doc', fragments: [] }] };
-const COMMITS = [{ hash: 'abc1234', shortHash: 'abc1234', message: 'Find the needle', body: null }];
+const COMMITS = {
+  truncated: false,
+  commits: [{ hash: 'abc1234', shortHash: 'abc1234', message: 'Find the needle', body: null }],
+};
 const CHATS = { total: 1, truncated: false, chats: [{ conversationId: 'c1', messages: [] }] };
 
 const args = { query: 'needle', mode: 'hybrid', path: '', project: '', rev: '', regex: false, untracked: false };
@@ -21,7 +24,7 @@ const settled = (r) =>
 
 beforeEach(() => {
   gitApi.grep.mockResolvedValue(FILES);
-  gitApi.searchCommits.mockResolvedValue(COMMITS);
+  gitApi.grepCommits.mockResolvedValue(COMMITS);
   documentsApi.searchGrouped.mockResolvedValue(DOCS);
   chatApi.searchChatsGrouped.mockResolvedValue(CHATS);
 });
@@ -33,7 +36,7 @@ test('спрашивает все категории разом — счётчи
 
   await waitFor(() => expect(settled(result)).toBe(true));
   expect(gitApi.grep).toHaveBeenCalledTimes(1);
-  expect(gitApi.searchCommits).toHaveBeenCalledWith('needle', expect.objectContaining({ body: true }));
+  expect(gitApi.grepCommits).toHaveBeenCalledWith('needle', expect.anything());
   expect(documentsApi.searchGrouped).toHaveBeenCalledTimes(1);
   expect(chatApi.searchChatsGrouped).toHaveBeenCalledTimes(1);
   expect(result.current.files.entry.data).toBe(FILES);
@@ -74,7 +77,7 @@ test('фильтр файлов перезапрашивает только фа
   // Документы и чаты про маску пути, ревизию и неотслеживаемые ничего не знают,
   // а поиск по документам в hybrid — это ещё и эмбеддинг запроса. История
   // коммитов — про неотслеживаемые тоже.
-  expect(gitApi.searchCommits).toHaveBeenCalledTimes(1);
+  expect(gitApi.grepCommits).toHaveBeenCalledTimes(1);
   expect(documentsApi.searchGrouped).toHaveBeenCalledTimes(1);
   expect(chatApi.searchChatsGrouped).toHaveBeenCalledTimes(1);
 });
@@ -157,7 +160,7 @@ test('ревизия перезапрашивает и коммиты — ист
   rerender({ ...args, rev: 'v1.4.0' });
 
   await waitFor(() => expect(settled(result)).toBe(true));
-  expect(gitApi.searchCommits).toHaveBeenCalledTimes(2);
-  expect(gitApi.searchCommits).toHaveBeenLastCalledWith('needle', expect.objectContaining({ rev: 'v1.4.0' }));
+  expect(gitApi.grepCommits).toHaveBeenCalledTimes(2);
+  expect(gitApi.grepCommits).toHaveBeenLastCalledWith('needle', expect.objectContaining({ rev: 'v1.4.0' }));
   expect(documentsApi.searchGrouped).toHaveBeenCalledTimes(1);
 });

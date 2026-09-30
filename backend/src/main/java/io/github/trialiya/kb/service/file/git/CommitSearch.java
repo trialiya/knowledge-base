@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.file.git;
 
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,17 +41,19 @@ final class CommitSearch {
      * @param maxCount сколько коммитов вернуть, не больше {@value #MAX_RESULTS}
      * @param inBody искать и в теле сообщения — и отдавать его в {@link GitCommit#body()}
      * @param rev откуда начинать обход; {@code null} — от HEAD
+     * @return совпадения и признак того, что обход остановился раньше конца истории — на лимите
+     *     выдачи или на {@link #SCAN}
      */
     // ObjectReader принадлежит RevWalk и закрывается вместе с ним; закрыть его здесь значило бы
     // выдернуть читатель из-под обхода, который ещё идёт.
     @SuppressWarnings("PMD.CloseResource")
-    static List<GitCommit> search(
+    static GitCommitSearchResult search(
             Repository repository,
             String query,
             int maxCount,
             boolean inBody,
             @Nullable String rev) {
-        if (query.isBlank()) return List.of();
+        if (query.isBlank()) return new GitCommitSearchResult(List.of(), false);
         String q = query.strip().toLowerCase(Locale.ROOT);
         int limit = Math.min(Math.max(maxCount, 1), MAX_RESULTS);
         ObjectId start =
@@ -61,19 +64,21 @@ final class CommitSearch {
         try (RevWalk walk = new RevWalk(repository)) {
             if (start == null) start = repository.resolve(Constants.HEAD);
             // Коммитов в репозитории ещё нет — это пустая история, а не ошибка.
-            if (start == null) return List.of();
+            if (start == null) return new GitCommitSearchResult(List.of(), false);
             walk.markStart(walk.parseCommit(start));
 
             ObjectReader reader = walk.getObjectReader();
             List<GitCommit> matches = new ArrayList<>();
             int scanned = 0;
             for (RevCommit commit : walk) {
-                if (++scanned > SCAN) break;
-                if (!matches(commit, q, inBody)) continue;
-                matches.add(GitService.toGitCommit(commit, null, reader, inBody));
-                if (matches.size() >= limit) break;
+                if (++scanned > SCAN || matches.size() >= limit) {
+                    return new GitCommitSearchResult(matches, true);
+                }
+                if (matches(commit, q, inBody)) {
+                    matches.add(GitService.toGitCommit(commit, null, reader, inBody));
+                }
             }
-            return matches;
+            return new GitCommitSearchResult(matches, false);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to search commit log", e);
         }

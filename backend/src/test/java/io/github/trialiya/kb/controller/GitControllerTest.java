@@ -111,26 +111,25 @@ class GitControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /** Поиск коммитов со страницы поиска: ревизия из её фильтра, опечатка в ней — 400. */
+    @Test
+    void aCommitSearchFromAnUnknownRevisionIsABadRequest() throws Exception {
+        when(git.grepCommits("fix", 50, "nosuchtag"))
+                .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag"));
+
+        mockMvc.perform(
+                        get("/api/git/commits/grep")
+                                .param("q", "fix")
+                                .param("limit", "50")
+                                .param("rev", "nosuchtag"))
+                .andExpect(status().isBadRequest());
+    }
+
     /**
      * Картинка отдаётся с типом, взятым по расширению, — и без права на что-либо активное внутри:
      * SVG умеет и скрипты, и открыть такой ответ можно прямым переходом, а не только из {@code
      * <img>}.
      */
-    /** Поиск коммитов со страницы поиска: ревизия из её фильтра, опечатка в ней — 400. */
-    @Test
-    void aCommitSearchFromAnUnknownRevisionIsABadRequest() throws Exception {
-        when(git.searchCommits("fix", 50, true, "nosuchtag"))
-                .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag"));
-
-        mockMvc.perform(
-                        get("/api/git/commits/search")
-                                .param("q", "fix")
-                                .param("limit", "50")
-                                .param("body", "true")
-                                .param("rev", "nosuchtag"))
-                .andExpect(status().isBadRequest());
-    }
-
     @Test
     void anImageIsServedRawWithItsOwnTypeAndNothingActiveAllowed() throws Exception {
         byte[] bytes = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>".getBytes(UTF_8);

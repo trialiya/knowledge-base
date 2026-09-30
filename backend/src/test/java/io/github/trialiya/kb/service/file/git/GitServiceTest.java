@@ -902,14 +902,14 @@ class GitServiceTest {
 
     /** The search page asks for the description too: a hit there counts and the body comes back. */
     @Test
-    void searchCommitsInBodyMatchesTheDescriptionAndReturnsIt() {
+    void grepCommitsMatchesTheDescriptionAndReturnsIt() {
         writeFile("a.txt", "a\n");
         commitAll(
                 "Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
         writeFile("b.txt", "b\n");
         commitAll("Unrelated change");
 
-        assertThat(service.searchCommits("zzz", 10, true, null))
+        assertThat(service.grepCommits("zzz", 10, null).commits())
                 .singleElement()
                 .satisfies(
                         c -> {
@@ -917,30 +917,46 @@ class GitServiceTest {
                             assertThat(c.body()).isEqualTo("mentions ZZZ");
                         });
         // A subject hit is still a hit, and it carries its body along.
-        assertThat(service.searchCommits("unrelated", 10, true, null))
+        assertThat(service.grepCommits("unrelated", 10, null).commits())
                 .extracting(GitCommit::message)
                 .containsExactly("Unrelated change");
     }
 
     @Test
-    void searchCommitsFromARevisionSkipsCommitsMadeAfterIt() {
+    void grepCommitsFromARevisionSkipsCommitsMadeAfterIt() {
         writeFile("a.txt", "a\n");
         commitAll("fix one");
         String first = service.getCommitLog(1, null, false).get(0).hash();
         writeFile("b.txt", "b\n");
         commitAll("fix two");
 
-        assertThat(service.searchCommits("fix", 10, true, first))
+        assertThat(service.grepCommits("fix", 10, first).commits())
                 .extracting(GitCommit::message)
                 .containsExactly("fix one");
     }
 
+    /**
+     * Truncated means history was left unwalked: a full page with more commits behind it is, a walk
+     * that reached the root is not — even when it found exactly as many as asked for.
+     */
     @Test
-    void searchCommitsFromAnUnknownRevisionIsRefused() {
+    void grepCommitsSaysWhetherHistoryWasWalkedToItsEnd() {
+        writeFile("a.txt", "a\n");
+        commitAll("fix one");
+        writeFile("b.txt", "b\n");
+        commitAll("fix two");
+
+        assertThat(service.grepCommits("fix", 1, null).truncated()).isTrue();
+        assertThat(service.grepCommits("fix", 2, null).truncated()).isFalse();
+        assertThat(service.grepCommits("nothing-like-this", 2, null).truncated()).isFalse();
+    }
+
+    @Test
+    void grepCommitsFromAnUnknownRevisionIsRefused() {
         writeFile("a.txt", "a\n");
         commitAll("Only commit");
 
-        assertThatThrownBy(() -> service.searchCommits("only", 10, true, "nosuchtag"))
+        assertThatThrownBy(() -> service.grepCommits("only", 10, "nosuchtag"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

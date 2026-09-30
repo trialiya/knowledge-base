@@ -8,9 +8,6 @@ import commitHits from './commitHits';
 /** Сколько файлов просить по имени: больше бэкенд всё равно не отдаст (потолок 50). */
 const NAME_LIMIT = 50;
 
-/** Сколько коммитов просить: каждый приходит с описанием целиком. */
-const COMMIT_LIMIT = 50;
-
 /** Сколько чатов запрашивать: больше двадцати в одном экране всё равно не читают. */
 const CHAT_LIMIT = 20;
 
@@ -95,9 +92,7 @@ export default function useSearchResults({ query, mode, path, project, rev, rege
   // Маска пути, регулярка и неотслеживаемые — фильтры содержимого файлов; на
   // историю из них влияют только репозиторий и ревизия.
   const commits = useAnswer(JSON.stringify([query, project, rev]), enabled, (signal) =>
-    gitApi
-      .searchCommits(query, { limit: COMMIT_LIMIT, body: true, rev, project, signal })
-      .then((found) => commitHits(found, query, COMMIT_LIMIT)),
+    gitApi.grepCommits(query, { rev, project, signal }).then((found) => commitHits(found, query)),
   );
   const docs = useAnswer(JSON.stringify([query, mode]), enabled, (signal) =>
     documentsApi.searchGrouped(query, mode, signal),

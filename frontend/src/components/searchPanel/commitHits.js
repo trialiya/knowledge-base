@@ -13,14 +13,13 @@ const norm = (s) => s.toLowerCase();
  * Счёт совпадений — как у файлов: строка описания — одно, заголовок — ещё
  * одно, коммит без того и другого (по хешу) — одно.
  *
- * `truncated` — бэкенд отдал ровно столько, сколько просили: дальше по истории
- * могли быть ещё.
+ * `truncated` приходит от бэкенда как есть: история просмотрена не вся, и
+ * дальше по ней могли быть ещё совпадения — даже при пустой выдаче.
  *
- * @param commits ответ gitApi.searchCommits({ body: true })
- * @param query   строка запроса
- * @param limit   сколько коммитов просили
+ * @param result ответ gitApi.grepCommits — { commits, truncated }
+ * @param query  строка запроса
  */
-export default function commitHits(commits, query, limit) {
+export default function commitHits({ commits, truncated }, query) {
   const q = norm(query.trim());
   const found = commits.map((commit) => {
     const subjectMatch = norm(commit.message).includes(q);
@@ -32,5 +31,5 @@ export default function commitHits(commits, query, limit) {
     return { ...commit, subjectMatch, hashMatch, lines };
   });
   const total = found.reduce((sum, c) => sum + Math.max(1, c.lines.length + (c.subjectMatch ? 1 : 0)), 0);
-  return { total, truncated: commits.length >= limit, commits: found };
+  return { total, truncated, commits: found };
 }

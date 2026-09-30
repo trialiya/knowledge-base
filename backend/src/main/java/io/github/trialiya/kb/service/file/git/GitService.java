@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.git.dto.GitFileBytes;
@@ -436,19 +437,19 @@ public class GitService {
      * @param maxCount max commits to return, capped at 100
      */
     public List<GitCommit> searchCommits(@NonNull String query, int maxCount) {
-        return searchCommits(query, maxCount, false, null);
+        return CommitSearch.search(repository, query, maxCount, false, null).commits();
     }
 
     /**
-     * Commits matching {@code query}, newest first.
+     * Commits whose subject or description contains {@code query}, or whose hash starts with it,
+     * newest first, each with its description in {@link GitCommit#body()} — the search page shows
+     * where in the description the query was found.
      *
-     * @param inBody match the message body too, and return it in {@link GitCommit#body()} — the
-     *     search page shows where in the description the query was found
      * @param rev optional — walk from this revision instead of HEAD
      */
-    public List<GitCommit> searchCommits(
-            @NonNull String query, int maxCount, boolean inBody, @Nullable String rev) {
-        return CommitSearch.search(repository, query, maxCount, inBody, rev);
+    public GitCommitSearchResult grepCommits(
+            @NonNull String query, int maxCount, @Nullable String rev) {
+        return CommitSearch.search(repository, query, maxCount, true, rev);
     }
 
     // ── Diff for commit(s) ──────────────────────────────────────────────────

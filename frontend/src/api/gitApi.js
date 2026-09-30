@@ -353,19 +353,26 @@ const gitApi = {
   },
 
   /**
-   * Поиск коммитов по префиксу хэша или подстроке сообщения (свежие первыми).
-   * Возвращает те же GitCommit[], что и getCommits.
-   *
-   * Без `body` совпадение ищется только в заголовке — пикер другого не
-   * показывает. С `body: true` ищется и в описании, и оно приходит в `body`.
-   * `rev` — обходить историю от этой ревизии, а не от HEAD.
+   * Поиск коммитов по префиксу хэша или подстроке заголовка (свежие первыми) —
+   * для пикера. Возвращает те же GitCommit[], что и getCommits.
    */
-  searchCommits: (q, { limit = 10, body = false, rev, project, signal } = {}) => {
+  searchCommits: (q, { limit = 10, project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams({ q, limit: String(limit) }), project, signal);
+    return request(`/api/git/commits/search${qs}`, init);
+  },
+
+  /**
+   * Поиск коммитов для страницы поиска: по заголовку, описанию и префиксу хеша.
+   * `rev` — обходить историю от этой ревизии, а не от HEAD.
+   *
+   * Возвращает { commits: GitCommit[] (с body), truncated } — `truncated`
+   * говорит, что история просмотрена не вся (лимит выдачи или предел обхода).
+   */
+  grepCommits: (q, { limit = 50, rev, project, signal } = {}) => {
     const params = new URLSearchParams({ q, limit: String(limit) });
-    if (body) params.set('body', 'true');
     if (rev) params.set('rev', rev);
     const [qs, init] = opts(params, project, signal);
-    return request(`/api/git/commits/search${qs}`, init);
+    return request(`/api/git/commits/grep${qs}`, init);
   },
 };
 

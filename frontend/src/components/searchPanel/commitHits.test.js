@@ -11,9 +11,8 @@ const commit = (over) => ({
 
 test('строки описания с запросом становятся строками карточки, без учёта регистра', () => {
   const { commits, total } = commitHits(
-    [commit({ message: 'Fix search', body: 'first line\nSearch by body\nlast' })],
+    { truncated: false, commits: [commit({ message: 'Fix search', body: 'first line\nSearch by body\nlast' })] },
     'search',
-    50,
   );
 
   expect(commits[0].subjectMatch).toBe(true);
@@ -23,14 +22,14 @@ test('строки описания с запросом становятся с�
 });
 
 test('коммит, найденный только по хешу, помечен и считается за одно совпадение', () => {
-  const { commits, total } = commitHits([commit({ body: 'nothing' })], 'abc12', 50);
+  const { commits, total } = commitHits({ truncated: false, commits: [commit({ body: 'nothing' })] }, 'abc12');
 
   expect(commits[0].hashMatch).toBe(true);
   expect(commits[0].lines).toEqual([]);
   expect(total).toBe(1);
 });
 
-test('выдача длиной в лимит считается обрезанной', () => {
-  expect(commitHits([commit(), commit({ hash: 'ff' })], 'subject', 2).truncated).toBe(true);
-  expect(commitHits([commit()], 'subject', 2).truncated).toBe(false);
+test('обрезку выдачи решает бэкенд — и пустая выдача может быть обрезанной', () => {
+  expect(commitHits({ truncated: true, commits: [] }, 'subject')).toEqual({ total: 0, truncated: true, commits: [] });
+  expect(commitHits({ truncated: false, commits: [commit()] }, 'subject').truncated).toBe(false);
 });

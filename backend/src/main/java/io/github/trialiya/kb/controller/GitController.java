@@ -3,6 +3,7 @@ package io.github.trialiya.kb.controller;
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCapabilities;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileBytes;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
@@ -219,27 +220,39 @@ public class GitController {
     }
 
     /**
-     * Commit lookup: matches a hash prefix or a substring of the commit message, newest first.
-     * History has no index for either, so matching is a bounded walk — see {@link
-     * GitService#searchCommits}.
-     *
-     * <p>The phrase placeholder picker matches the subject only, because its row shows nothing
-     * else. The search page passes {@code body=true}: the description is searched too and comes
-     * back with each commit, so the page can show the lines that matched. With {@code rev} the walk
-     * starts there instead of HEAD.
+     * Commit lookup for the phrase placeholder picker: matches a hash prefix or a substring of the
+     * commit message, newest first. History has no index for either, so matching is a bounded walk
+     * — see {@link GitService#searchCommits}.
      */
     @GetMapping("/commits/search")
     public List<GitCommit> searchCommits(
             @RequestParam("q") String query,
             @RequestParam(name = "limit", defaultValue = "10") int limit,
-            @RequestParam(name = "body", defaultValue = "false") boolean body,
-            @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         String sanitized = query.strip();
         if (sanitized.isBlank()) return List.of();
+        return read(() -> git(project).searchCommits(sanitized, limit));
+    }
+
+    /**
+     * Commit search for the search page: the subject and the description are both searched (plus a
+     * hash prefix), and each commit comes back with its description so the page can show the lines
+     * that matched. With {@code rev} the walk starts there instead of HEAD.
+     *
+     * <p>Unlike {@code /commits/search}, the answer says whether history was walked to its end: the
+     * walk is bounded, and an empty result from a bounded walk is not the same as "nothing there".
+     */
+    @GetMapping("/commits/grep")
+    public GitCommitSearchResult grepCommits(
+            @RequestParam("q") String query,
+            @RequestParam(name = "limit", defaultValue = "50") int limit,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        String sanitized = query.strip();
+        if (sanitized.isBlank()) return new GitCommitSearchResult(List.of(), false);
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> git.searchCommits(sanitized, limit, body, at));
+        return read(() -> git.grepCommits(sanitized, limit, at));
     }
 
     /**
