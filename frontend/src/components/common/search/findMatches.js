@@ -48,7 +48,11 @@ export function collectMatchRanges(root, matcher, { within } = {}) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => {
       const el = node.parentElement;
-      if (!el || el.closest('[data-find-bar], textarea, script, style')) return NodeFilter.FILTER_REJECT;
+      // data-find-skip — служебный текст рядом с содержимым (колонка blame):
+      // совпадение в имени автора увело бы к строке, где искомого нет.
+      if (!el || el.closest('[data-find-bar], [data-find-skip], textarea, script, style')) {
+        return NodeFilter.FILTER_REJECT;
+      }
       if (within && !el.closest(within)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },

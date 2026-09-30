@@ -1,11 +1,21 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FileView from './FileView';
+import gitApi from '@/api/gitApi';
+import { navigateToFile } from '@/navigation/fileNavigationBus';
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal()),
-  useTranslation: () => ({ t: (key) => key }),
+  useTranslation: () => ({ t: (key) => key, i18n: { language: 'en' } }),
 }));
+// Только blame — мок: адрес картинки (`rawUrl`) строится настоящим клиентом.
+vi.mock('@/api/gitApi', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { default: { ...actual.default, getBlame: vi.fn() } };
+});
+vi.mock('@/navigation/fileNavigationBus', () => ({ navigateToFile: vi.fn() }));
+
+afterEach(() => vi.resetAllMocks());
 
 const binary = { content: null, binary: true, lineCount: 0, sizeBytes: 2048 };
 const svg = {
@@ -35,11 +45,11 @@ describe('FileView', () => {
 
     expect(screen.getByRole('img')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button'));
+    await user.click(screen.getByTitle('file.togglePicture'));
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
     expect(screen.getByText(/<svg/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button'));
+    await user.click(screen.getByTitle('file.togglePicture'));
     expect(screen.getByRole('img')).toBeInTheDocument();
   });
 
@@ -49,7 +59,7 @@ describe('FileView', () => {
     const user = userEvent.setup();
     const { rerender } = render(<FileView file={svg} path="icon.svg" />);
 
-    await user.click(screen.getByRole('button'));
+    await user.click(screen.getByTitle('file.togglePicture'));
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
 
     rerender(<FileView file={svg} path="other.svg" />);
@@ -128,7 +138,7 @@ describe('FileView', () => {
     test('в разметке едет к заголовку с этой строкой исходника', async () => {
       const user = userEvent.setup();
       const { rerender } = render(<FileView file={md} path="guide.md" />);
-      await user.click(screen.getByRole('button'));
+      await user.click(screen.getByTitle('file.toggleMarkdown'));
 
       rerender(<FileView file={md} path="guide.md" jump={{ path: 'guide.md', line: 5 }} />);
 
@@ -145,6 +155,87 @@ describe('FileView', () => {
       rerender(<FileView file={excerpt} path="guide.md" jump={{ path: 'guide.md', line: 5 }} />);
 
       expect(scrolled).toHaveLength(0);
+    });
+  });
+
+  describe('колонка blame', () => {
+    const code = { content: 'one\ntwo\nthree', binary: false, lineCount: 3, sizeBytes: 13, tracked: true };
+    const hash = 'a'.repeat(40);
+    const hunks = [
+      {
+        fromLine: 1,
+        lineCount: 2,
+        hash,
+        shortHash: 'aaaaaaa',
+        author: 'Alice',
+        date: '2024-01-02T03:04:05Z',
+        summary: 'first',
+      },
+      { fromLine: 3, lineCount: 1, hash: null },
+    ];
+
+    test('без тумблера колонки нет и её не спрашивают', () => {
+      render(<FileView file={code} path="a.js" blame />);
+
+      expect(screen.queryByText('file.showBlame')).not.toBeInTheDocument();
+      expect(gitApi.getBlame).not.toHaveBeenCalled();
+    });
+
+    test('тумблер включает колонку через обработчик, а не сам', async () => {
+      const user = userEvent.setup();
+      const onToggleBlame = vi.fn();
+      render(<FileView file={code} path="a.js" onToggleBlame={onToggleBlame} />);
+
+      await user.click(screen.getByText('file.showBlame'));
+
+      expect(onToggleBlame).toHaveBeenCalledWith(true);
+      expect(gitApi.getBlame).not.toHaveBeenCalled();
+    });
+
+    test('включённая колонка подписывает первую строку ханка и ведёт к файлу в снимке коммита', async () => {
+      gitApi.getBlame.mockResolvedValue({ path: 'a.js', hunks });
+      const user = userEvent.setup();
+      render(<FileView file={code} path="a.js" project="kb" blame onToggleBlame={() => {}} />);
+
+      expect(screen.getByText('file.showBlame')).toHaveAttribute('aria-pressed', 'true');
+      await waitFor(() => expect(screen.getByText('Alice')).toBeInTheDocument());
+      expect(gitApi.getBlame).toHaveBeenCalledWith('a.js', expect.objectContaining({ project: 'kb' }));
+      // Одна ячейка на две строки ханка; незакоммиченная строка подписана словами.
+      expect(screen.getByText('Alice').closest('td')).toHaveAttribute('rowspan', '2');
+      expect(screen.getByText('file.blameUncommitted')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Alice/ })).toHaveAttribute(
+        'href',
+        `/files/a.js?project=kb&rev=${hash}&right=commit`,
+      );
+
+      await user.click(screen.getByRole('link', { name: /Alice/ }));
+
+      expect(navigateToFile).toHaveBeenCalledWith('a.js', 'kb', { rev: hash, right: 'commit' });
+    });
+
+    // Номера строк усечённого файла не настоящие, у неотслеживаемого истории нет,
+    // а в diff'е строки — не строки файла.
+    test('у усечённого, неотслеживаемого и показанного diff-ом файла тумблера нет', () => {
+      const { rerender } = render(
+        <FileView file={{ ...code, truncated: true, fromLine: null }} path="a.js" onToggleBlame={() => {}} />,
+      );
+      expect(screen.queryByText('file.showBlame')).not.toBeInTheDocument();
+
+      rerender(<FileView file={{ ...code, tracked: false }} path="a.js" onToggleBlame={() => {}} />);
+      expect(screen.queryByText('file.showBlame')).not.toBeInTheDocument();
+
+      rerender(
+        <FileView file={code} path="a.js" diff={{ entry: null, loading: false }} showDiff onToggleBlame={() => {}} />,
+      );
+      expect(screen.queryByText('file.showBlame')).not.toBeInTheDocument();
+    });
+
+    test('отказ сервера показан бейджем, колонка остаётся пустой', async () => {
+      gitApi.getBlame.mockRejectedValue(new Error('503'));
+      render(<FileView file={code} path="a.js" blame onToggleBlame={() => {}} />);
+
+      await waitFor(() => expect(screen.getByText('file.blameError')).toBeInTheDocument());
+      expect(document.querySelectorAll('.file-code__blame')).toHaveLength(3);
     });
   });
 });

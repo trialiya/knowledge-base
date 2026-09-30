@@ -60,6 +60,7 @@ function App() {
     openFilePath,
     setFileChanges,
     setFileRev,
+    setFileBlame,
     setFileFind,
     setChatFind,
     setDocFind,
@@ -289,10 +290,12 @@ function App() {
               path={nav.filePath}
               changes={nav.fileChanges}
               rev={nav.fileRev}
+              blame={nav.fileBlame}
               find={nav.fileFind}
               findRegex={nav.fileFindRegex}
               onChangesToggle={setFileChanges}
               onRevChange={setFileRev}
+              onBlameToggle={setFileBlame}
               onFindChange={setFileFind}
               onPathChange={openFilePath}
               refreshToken={filesRefreshTick}

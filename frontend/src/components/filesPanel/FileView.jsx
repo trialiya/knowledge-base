@@ -6,28 +6,8 @@ import gitApi from '@/api/gitApi';
 import { formatFileSize } from '@/utils/formatting';
 import { previewKind, defaultPreviewView } from '@/utils/filePreview';
 import ChangeDiffView from './changes/ChangeDiffView';
-
-const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
-  const lines = text.split('\n');
-  return (
-    <div className="file-code">
-      <table className="file-code__table">
-        <tbody>
-          {lines.map((line, i) => (
-            // Номер строки как адрес — для прокрутки к символу структуры (FileView), и
-            // только там, где нумерация честная.
-            <tr key={i} data-line={showLineNumbers ? fromLine + i : undefined}>
-              {showLineNumbers && <td className="file-code__gutter">{fromLine + i}</td>}
-              <td className="file-code__line">
-                <code>{line.length ? line : ' '}</code>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
+import CodeView from './code/CodeView';
+import useFileBlame from './code/useFileBlame';
 
 /**
  * Заголовок разметки с номером своей строки в исходнике (`data-line`) — по нему
@@ -90,6 +70,10 @@ const ImageView = ({ path, project, rev, reloadToken = 0 }) => {
  * Выбор «рисунок или исходник», наоборот, здесь: его делают для файла, который
  * уже открыт, и переживать открытие другого он не должен — у растровой картинки
  * исходника нет вовсе.
+ *
+ * `blame` / `onToggleBlame` — колонка авторства строк: включена ли она (из
+ * адреса, `?blame=1`) и чем её переключать. Без `onToggleBlame` (превью в
+ * модалках) тумблера нет и колонка не спрашивается.
  */
 const FileView = ({
   file,
@@ -100,6 +84,8 @@ const FileView = ({
   diff = null,
   showDiff = false,
   onToggleDiff,
+  blame = false,
+  onToggleBlame = null,
   jump = null,
 }) => {
   const { t } = useTranslation('files');
@@ -125,6 +111,18 @@ const FileView = ({
   // разрыва в разметке не совпадают с исходником, и прокрутка по ним увела бы
   // не туда. У такого файла строки номеров не несут, и к символу не едем.
   const excerpt = file.truncated && file.fromLine == null;
+  // Авторство есть только у строк с историей: не у бинарного, не у усечённого
+  // (номера его строк не настоящие), не у неотслеживаемого, не у diff'а, и
+  // только в исходнике — у разметки в превью строк нет.
+  const blamable =
+    !!onToggleBlame &&
+    !file.binary &&
+    !excerpt &&
+    file.tracked !== false &&
+    !showDiff &&
+    !(kind === 'markdown' && preview);
+  const blameShown = blamable && blame;
+  const lineBlame = useFileBlame({ path: filePath, project, rev, reloadToken, enabled: blameShown });
 
   // Прокрутка к символу структуры: и в разметке, и в исходнике строка помечена
   // `data-line`. Эффект следует объекту `jump`, а не строке — повторный клик по
@@ -144,17 +142,31 @@ const FileView = ({
         {diff && (
           <button
             type="button"
-            className="btn btn--ghost btn--sm file-view__diff-toggle"
+            className="btn btn--ghost btn--sm file-view__toggle"
             aria-pressed={showDiff}
             onClick={() => onToggleDiff(!showDiff)}
           >
             {t('file.showDiff')}
           </button>
         )}
+        {blamable && (
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm file-view__toggle"
+            aria-pressed={blameShown}
+            onClick={() => onToggleBlame(!blameShown)}
+            title={t('file.blameTitle')}
+          >
+            {t('file.showBlame')}
+          </button>
+        )}
+        {blameShown && lineBlame.error && (
+          <span className="file-view__badge file-view__badge--warn">{t('file.blameError')}</span>
+        )}
         {togglable && (
           <button
             type="button"
-            className={`file-view__view-toggle${preview ? ' file-view__view-toggle--active' : ''}`}
+            className="btn btn--ghost btn--sm file-view__toggle"
             aria-pressed={preview}
             onClick={() => setView(preview ? 'source' : 'preview')}
             title={t(kind === 'vector' ? 'file.togglePicture' : 'file.toggleMarkdown')}
@@ -180,7 +192,14 @@ const FileView = ({
         // (см. GitService.headTailExcerpt): хвост идёт не сразу за головой,
         // сквозная нумерация от 1 была бы неверной для его строк. Диапазонный
         // же запрос (fromLine задан) нумеруется корректно от fromLine.
-        <CodeView text={file.content ?? ''} fromLine={file.fromLine ?? 1} showLineNumbers={!excerpt} />
+        <CodeView
+          text={file.content ?? ''}
+          fromLine={file.fromLine ?? 1}
+          showLineNumbers={!excerpt}
+          blame={blameShown ? lineBlame : null}
+          path={filePath}
+          project={project}
+        />
       )}
     </div>
   );
