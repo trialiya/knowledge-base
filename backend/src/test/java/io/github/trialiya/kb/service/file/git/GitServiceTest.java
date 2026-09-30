@@ -951,6 +951,36 @@ class GitServiceTest {
         assertThat(service.grepCommits("nothing-like-this", 2, null).truncated()).isFalse();
     }
 
+    /**
+     * The model's search: the description is searched either way, but only comes back when asked
+     * for — choosing a commit needs its subject, and bodies run to thousands of characters.
+     */
+    @Test
+    void searchCommitLogSearchesTheDescriptionButReturnsItOnlyWhenAsked() {
+        writeFile("a.txt", "a\n");
+        commitAll(
+                "Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
+
+        assertThat(service.searchCommitLog("zzz", 10, null, false))
+                .singleElement()
+                .satisfies(c -> assertThat(c.body()).isNull());
+        assertThat(service.searchCommitLog("zzz", 10, null, true))
+                .singleElement()
+                .satisfies(c -> assertThat(c.body()).isEqualTo("mentions ZZZ"));
+    }
+
+    @Test
+    void searchCommitLogWithAPathKeepsOnlyCommitsThatTouchedIt() {
+        writeFile("src/a.txt", "a\n");
+        commitAll("fix in src");
+        writeFile("docs/b.txt", "b\n");
+        commitAll("fix in docs");
+
+        assertThat(service.searchCommitLog("fix", 10, "src", false))
+                .extracting(GitCommit::message)
+                .containsExactly("fix in src");
+    }
+
     @Test
     void grepCommitsFromAnUnknownRevisionIsRefused() {
         writeFile("a.txt", "a\n");

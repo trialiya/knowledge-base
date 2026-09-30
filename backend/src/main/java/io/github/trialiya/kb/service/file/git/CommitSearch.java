@@ -12,6 +12,9 @@ import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
+import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
+import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -21,10 +24,11 @@ import org.jspecify.annotations.Nullable;
  * #SCAN} коммитами: на длинной истории запрос, которому ничего не соответствует, иначе читал бы
  * весь репозиторий.
  *
- * <p>Где искать в сообщении, решает вызывающий. Пикер плейсхолдера показывает строку на коммит —
- * заголовок, и совпадение в теле, которого в строке не видно, читалось бы как ошибочное. Страница
- * поиска показывает и тело: там оно ищется и приходит в ответе, иначе найденное в нём нечем
- * показать.
+ * <p>Где искать и что отдавать, решает вызывающий ({@link Scope}). Пикер плейсхолдера показывает
+ * строку на коммит — заголовок, и совпадение в теле, которого в строке не видно, читалось бы как
+ * ошибочное. Страница поиска ищет и в теле и показывает его: иначе найденное в нём нечем показать.
+ * Модель ищет в теле, но получает его только по просьбе: тело идёт на тысячи символов, а чтобы
+ * выбрать коммит, хватает заголовка.
  */
 final class CommitSearch {
 
@@ -37,10 +41,23 @@ final class CommitSearch {
     private CommitSearch() {}
 
     /**
+     * Где искать и что отдавать.
+     *
+     * @param inBody искать и в теле сообщения, а не только в заголовке
+     * @param withBody отдавать тело в {@link GitCommit#body()}
+     * @param rev откуда начинать обход; {@code null} — от HEAD
+     * @param path только коммиты, менявшие этот путь (файл или каталог); {@code null} — все. Предел
+     *     обхода считает только такие коммиты: остальные отсеивает сам обход, до сравнения
+     */
+    record Scope(boolean inBody, boolean withBody, @Nullable String rev, @Nullable String path) {
+
+        /** Пикер плейсхолдера: только заголовок, от HEAD, без тел. */
+        static final Scope SUBJECT = new Scope(false, false, null, null);
+    }
+
+    /**
      * @param query префикс хеша или подстрока сообщения, без учёта регистра
      * @param maxCount сколько коммитов вернуть, не больше {@value #MAX_RESULTS}
-     * @param inBody искать и в теле сообщения — и отдавать его в {@link GitCommit#body()}
-     * @param rev откуда начинать обход; {@code null} — от HEAD
      * @return совпадения и признак того, что обход остановился раньше конца истории — на лимите
      *     выдачи или на {@link #SCAN}
      */
@@ -48,16 +65,14 @@ final class CommitSearch {
     // выдернуть читатель из-под обхода, который ещё идёт.
     @SuppressWarnings("PMD.CloseResource")
     static GitCommitSearchResult search(
-            Repository repository,
-            String query,
-            int maxCount,
-            boolean inBody,
-            @Nullable String rev) {
+            Repository repository, String query, int maxCount, Scope scope) {
         if (query.isBlank()) return new GitCommitSearchResult(List.of(), false);
         String q = query.strip().toLowerCase(Locale.ROOT);
         int limit = Math.min(Math.max(maxCount, 1), MAX_RESULTS);
+        String rev = scope.rev();
         ObjectId start =
                 rev == null || rev.isBlank() ? null : CommitFiles.commitOf(repository, rev.strip());
+        String path = scope.path();
 
         // Обход строим сами, а не через git.log(): LogCommand отдаёт свой RevWalk как
         // Iterable, и закрыть его уже нечем — а выходим мы отсюда почти всегда по break.
@@ -66,6 +81,14 @@ final class CommitSearch {
             // Коммитов в репозитории ещё нет — это пустая история, а не ошибка.
             if (start == null) return new GitCommitSearchResult(List.of(), false);
             walk.markStart(walk.parseCommit(start));
+            if (path != null && !path.isBlank()) {
+                // То же, что делает LogCommand.addPath: коммит, не менявший путь, обход пропускает.
+                walk.setTreeFilter(
+                        AndTreeFilter.create(
+                                PathFilterGroup.createFromStrings(
+                                        RepoPaths.toForwardSlashes(path.strip())),
+                                TreeFilter.ANY_DIFF));
+            }
 
             ObjectReader reader = walk.getObjectReader();
             List<GitCommit> matches = new ArrayList<>();
@@ -74,8 +97,8 @@ final class CommitSearch {
                 if (++scanned > SCAN || matches.size() >= limit) {
                     return new GitCommitSearchResult(matches, true);
                 }
-                if (matches(commit, q, inBody)) {
-                    matches.add(GitService.toGitCommit(commit, null, reader, inBody));
+                if (matches(commit, q, scope.inBody())) {
+                    matches.add(GitService.toGitCommit(commit, null, reader, scope.withBody()));
                 }
             }
             return new GitCommitSearchResult(matches, false);

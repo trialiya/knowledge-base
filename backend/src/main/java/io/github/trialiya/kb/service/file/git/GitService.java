@@ -437,7 +437,26 @@ public class GitService {
      * @param maxCount max commits to return, capped at 100
      */
     public List<GitCommit> searchCommits(@NonNull String query, int maxCount) {
-        return CommitSearch.search(repository, query, maxCount, false, null).commits();
+        return CommitSearch.search(repository, query, maxCount, CommitSearch.Scope.SUBJECT)
+                .commits();
+    }
+
+    /**
+     * Commits whose subject or description contains {@code query}, or whose hash starts with it,
+     * newest first, walking from HEAD — the model's search through history ({@code getCommitLog}
+     * with a query).
+     *
+     * @param filePath optional — only commits that touched this file or directory
+     * @param includeBody fill {@link GitCommit#body()}; the description is searched either way
+     */
+    public List<GitCommit> searchCommitLog(
+            @NonNull String query, int maxCount, @Nullable String filePath, boolean includeBody) {
+        return CommitSearch.search(
+                        repository,
+                        query,
+                        maxCount,
+                        new CommitSearch.Scope(true, includeBody, null, filePath))
+                .commits();
     }
 
     /**
@@ -449,7 +468,8 @@ public class GitService {
      */
     public GitCommitSearchResult grepCommits(
             @NonNull String query, int maxCount, @Nullable String rev) {
-        return CommitSearch.search(repository, query, maxCount, true, rev);
+        return CommitSearch.search(
+                repository, query, maxCount, new CommitSearch.Scope(true, true, rev, null));
     }
 
     // ── Diff for commit(s) ──────────────────────────────────────────────────

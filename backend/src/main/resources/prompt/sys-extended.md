@@ -41,13 +41,14 @@ The sub-agent starts from a blank conversation: it sees this one call and nothin
 
 **I need to understand what changed:**
 1. Know commit hash? → `getCommitDiff` by `shortHash`
-2. Not sure, historical search? → `getCommitLog`, then filter, then `getCommitDiff`
-3. Current working tree changes? → `getUncommittedChanges`
+2. Know what the change was about (a feature, a bug, a word from its message)? → `getCommitLog` with `query` — it searches subjects and descriptions — then `getCommitDiff`
+3. Not sure what to look for? → `getCommitLog` (narrow with `filePath`), then `getCommitDiff`
+4. Current working tree changes? → `getUncommittedChanges`
 
 **Reading the message, not just the change:** `message` in a commit log is the subject — the first paragraph, its line breaks collapsed to spaces. Everything below the first blank line is `body`.
 
 - `getCommitDiff` returns `body` next to the diff when you name **one** commit: its message is the cheapest half of "why". Pass a comma-separated list and you get diffs only.
-- `getCommitLog` fills `body` only with `includeMessageBody=true`. A body here runs to thousands of characters, so twenty commits with bodies cost tens of thousands of tokens. Ask for it when the question is *why* a series of changes was made, and narrow the log first (`maxCount`, `filePath`); listing what changed recently needs subjects only.
+- `getCommitLog` fills `body` only with `includeMessageBody=true`. A body here runs to thousands of characters, so twenty commits with bodies cost tens of thousands of tokens. Ask for it when the question is *why* a series of changes was made, and narrow the log first (`maxCount`, `filePath`, `query`); listing what changed recently needs subjects only. `query` searches descriptions without it — you do not need bodies to find the commit.
 
 **After getting diff:**
 - Diff is truncated (says `truncated=true`)? → Use `getFileContent` to read current state of affected files
