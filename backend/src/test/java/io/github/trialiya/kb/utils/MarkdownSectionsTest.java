@@ -122,6 +122,15 @@ class MarkdownSectionsTest {
         }
 
         @Test
+        void fenceOpenedDeepInNestedListItemHidesItsContent() {
+            String md = "# A\n- a\n  - b\n    - ```sh\n      # comment\n      ```\n# B\n";
+
+            assertThat(MarkdownSections.parse(md))
+                    .extracting(Section::path)
+                    .containsExactly("A", "B");
+        }
+
+        @Test
         void fenceInNestedOrderedItemClosesAtItsContentIndent() {
             String md = "# A\n  10. ```py\n      # comment\n      ```\n# B\n";
 
