@@ -25,7 +25,9 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("document_history")
 public class DocumentHistoryEntity {
 
-    @Id @Nullable private Long id;
+    @Id
+    @Nullable
+    private Long id;
 
     private Long documentId;
 
@@ -39,7 +41,12 @@ public class DocumentHistoryEntity {
     private String type;
     private String description;
     private LocalDateTime updatedAt;
-    @Nullable private String summary;
-    @Nullable private Integer summarySourceVersion;
+
+    @Nullable
+    private String summary;
+
+    @Nullable
+    private Integer summarySourceVersion;
+
     private int descriptionVersion;
 }

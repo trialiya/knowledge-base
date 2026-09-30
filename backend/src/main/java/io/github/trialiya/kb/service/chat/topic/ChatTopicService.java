@@ -36,31 +36,28 @@ public class ChatTopicService {
     public boolean ensureExists(String conversationId) {
         return chatTopicRepository
                 .findById(conversationId)
-                .map(
-                        existing -> {
-                            if (!existing.getUser().equals(getUser())) {
-                                throw new ResponseStatusException(FORBIDDEN, "Forbidden");
-                            }
-                            return true;
-                        })
-                .orElseGet(
-                        () -> {
-                            chatTopicRepository.save(
-                                    new ChatTopicEntity(
-                                            conversationId,
-                                            getUser(),
-                                            null,
-                                            null,
-                                            null,
-                                            null,
-                                            null,
-                                            null,
-                                            // перезаписывается аудитом
-                                            // @CreatedDate/@LastModifiedDate перед вставкой
-                                            LocalDateTime.now(),
-                                            LocalDateTime.now(),
-                                            true));
-                            return false;
-                        });
+                .map(existing -> {
+                    if (!existing.getUser().equals(getUser())) {
+                        throw new ResponseStatusException(FORBIDDEN, "Forbidden");
+                    }
+                    return true;
+                })
+                .orElseGet(() -> {
+                    chatTopicRepository.save(new ChatTopicEntity(
+                            conversationId,
+                            getUser(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            // перезаписывается аудитом
+                            // @CreatedDate/@LastModifiedDate перед вставкой
+                            LocalDateTime.now(),
+                            LocalDateTime.now(),
+                            true));
+                    return false;
+                });
     }
 }

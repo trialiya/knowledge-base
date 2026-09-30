@@ -35,7 +35,9 @@ public class MarkdownOutlineParser implements CodeOutlineParser {
     @Override
     public List<GitSymbol> parse(String language, String source) {
         int[] lineStarts = lineStarts(source);
-        return MarkdownSections.parse(source).stream().map(s -> toSymbol(s, lineStarts)).toList();
+        return MarkdownSections.parse(source).stream()
+                .map(s -> toSymbol(s, lineStarts))
+                .toList();
     }
 
     private static GitSymbol toSymbol(Section section, int[] lineStarts) {

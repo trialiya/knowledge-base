@@ -47,10 +47,8 @@ public record CompactPayload(
         @Nullable RunTokenUsage carried) {
 
     public static CompactPayload of(ChatMessageEntity notice) {
-        final ChatMessageMeta meta =
-                Objects.requireNonNull(notice.getMeta(), "not a compaction notice row");
-        final CompactMeta compact =
-                Objects.requireNonNull(meta.compact(), "not a compaction notice row");
+        final ChatMessageMeta meta = Objects.requireNonNull(notice.getMeta(), "not a compaction notice row");
+        final CompactMeta compact = Objects.requireNonNull(meta.compact(), "not a compaction notice row");
         return new CompactPayload(
                 notice.getId(),
                 compact.messages(),

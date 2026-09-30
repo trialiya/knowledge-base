@@ -67,13 +67,7 @@ final class ToolCallLog {
             Exception error,
             long millis) {
         if (log.isDebugEnabled()) {
-            log.debug(
-                    "[{}] tool {} failed in {} ms\n  args: {}",
-                    conversationId(context),
-                    tool,
-                    millis,
-                    input,
-                    error);
+            log.debug("[{}] tool {} failed in {} ms\n  args: {}", conversationId(context), tool, millis, input, error);
         } else if (log.isInfoEnabled()) {
             log.info(
                     "[{}] tool {}({}) failed in {} ms: {}",

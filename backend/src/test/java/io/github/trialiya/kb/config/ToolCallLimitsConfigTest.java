@@ -37,8 +37,7 @@ class ToolCallLimitsConfigTest {
 
     @Test
     void breachingALimitAnswersTheModelInsteadOfEndingTheRun() {
-        assertThat(properties.getLimits().getOnLimitExceeded())
-                .isEqualTo(ToolCallLimitBehavior.RETURN_ERROR_RESPONSE);
+        assertThat(properties.getLimits().getOnLimitExceeded()).isEqualTo(ToolCallLimitBehavior.RETURN_ERROR_RESPONSE);
     }
 
     /**
@@ -58,17 +57,14 @@ class ToolCallLimitsConfigTest {
     private static ToolCallingProperties bindApplicationYaml() {
         final MutablePropertySources sources = new MutablePropertySources();
         yaml().forEach(sources::addLast);
-        return new Binder(
-                        ConfigurationPropertySources.from(sources),
-                        new PropertySourcesPlaceholdersResolver(sources))
+        return new Binder(ConfigurationPropertySources.from(sources), new PropertySourcesPlaceholdersResolver(sources))
                 .bind("spring.ai.tools", Bindable.ofInstance(new ToolCallingProperties()))
                 .get();
     }
 
     private static List<PropertySource<?>> yaml() {
         try {
-            return new YamlPropertySourceLoader()
-                    .load("application", new ClassPathResource("application.yaml"));
+            return new YamlPropertySourceLoader().load("application", new ClassPathResource("application.yaml"));
         } catch (IOException e) {
             throw new IllegalStateException("application.yaml не читается", e);
         }

@@ -13,4 +13,5 @@ import org.jspecify.annotations.Nullable;
  *     моменту закрыт. Тот же {@code contextTokens}, что {@code markRunResult} запишет ряду в мету,
  *     — живьём и после перезагрузки подсказка одна и та же
  */
-public record ToolCallMessage(ToolInvocationMeta toolCall, @Nullable Long contextTokens) {}
+public record ToolCallMessage(
+        ToolInvocationMeta toolCall, @Nullable Long contextTokens) {}

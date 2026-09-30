@@ -45,10 +45,17 @@ import org.springframework.test.context.jdbc.Sql;
 @Sql("/db/sample-data.sql")
 class SampleDataFixtureTest {
 
-    @Autowired private JdbcTemplate jdbc;
-    @Autowired private DocumentRepository documentRepo;
-    @Autowired private ChatMessageRepository chatMessageRepo;
-    @Autowired private ChatTopicRepository chatTopicRepo;
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private DocumentRepository documentRepo;
+
+    @Autowired
+    private ChatMessageRepository chatMessageRepo;
+
+    @Autowired
+    private ChatTopicRepository chatTopicRepo;
 
     /**
      * The chat names the project its tools ran in. Asserted because the column is nullable and the
@@ -70,21 +77,19 @@ class SampleDataFixtureTest {
     @Test
     void secondChatCarriesTheSearchWordOnSeveralLinesOfOneAnswer() {
         List<ChatMessageEntity> messages =
-                chatMessageRepo
-                        .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
-                                "e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13");
+                chatMessageRepo.findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                        "e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13");
 
         assertThat(messages).hasSize(4);
         assertThat(messages).allSatisfy(m -> assertThat(m.getToolData()).isNull());
-        long linesWithGrep =
-                messages.stream()
-                        .filter(m -> m.getId() == 1659)
-                        .findFirst()
-                        .orElseThrow()
-                        .getContent()
-                        .lines()
-                        .filter(line -> line.toLowerCase().contains("grep"))
-                        .count();
+        long linesWithGrep = messages.stream()
+                .filter(m -> m.getId() == 1659)
+                .findFirst()
+                .orElseThrow()
+                .getContent()
+                .lines()
+                .filter(line -> line.toLowerCase().contains("grep"))
+                .count();
         assertThat(linesWithGrep).isGreaterThan(1);
     }
 
@@ -96,19 +101,15 @@ class SampleDataFixtureTest {
      */
     @Test
     void nestedFoldersAndSystemDocumentAreInPlace() {
-        assertThat(documentRepo.findById(78L).orElseThrow())
-                .satisfies(
-                        folder -> {
-                            assertThat(folder.getType()).isEqualTo(DocumentType.FOLDER);
-                            assertThat(folder.getParentId()).isEqualTo(75L);
-                        });
+        assertThat(documentRepo.findById(78L).orElseThrow()).satisfies(folder -> {
+            assertThat(folder.getType()).isEqualTo(DocumentType.FOLDER);
+            assertThat(folder.getParentId()).isEqualTo(75L);
+        });
         assertThat(documentRepo.findById(79L).orElseThrow().getParentId()).isEqualTo(78L);
-        assertThat(documentRepo.findById(81L).orElseThrow())
-                .satisfies(
-                        folder -> {
-                            assertThat(folder.getType()).isEqualTo(DocumentType.FOLDER);
-                            assertThat(folder.getParentId()).isEqualTo(78L);
-                        });
+        assertThat(documentRepo.findById(81L).orElseThrow()).satisfies(folder -> {
+            assertThat(folder.getType()).isEqualTo(DocumentType.FOLDER);
+            assertThat(folder.getParentId()).isEqualTo(78L);
+        });
         assertThat(documentRepo.findById(82L).orElseThrow().getParentId()).isEqualTo(81L);
         assertThat(jdbc.queryForList("select id from documents where is_system = true", Long.class))
                 .containsExactly(80L);
@@ -131,11 +132,10 @@ class SampleDataFixtureTest {
                 .isSortedAccordingTo(java.util.Comparator.reverseOrder());
         assertThat(chatMessageRepo.findLastTurns("c5dfa618-0ad2-4845-a976-ada46c50f9a4", 3))
                 .extracting(ChatMessageEntity::getId)
-                .containsExactlyElementsOf(
-                        turns.subList(0, 3).stream().map(ChatMessageEntity::getId).toList());
-        assertThat(turns)
-                .extracting(ChatMessageEntity::getType)
-                .containsOnly(MessageType.USER, MessageType.ASSISTANT);
+                .containsExactlyElementsOf(turns.subList(0, 3).stream()
+                        .map(ChatMessageEntity::getId)
+                        .toList());
+        assertThat(turns).extracting(ChatMessageEntity::getType).containsOnly(MessageType.USER, MessageType.ASSISTANT);
         assertThat(turns).extracting(ChatMessageEntity::getToolData).containsOnlyNulls();
         // Через сущность, а не через SQL: колонка новая, и проверять надо в том числе то, что она
         // доезжает до ChatTopicEntity — по ней AiTopicService и решает, пора ли называть чат.
@@ -193,9 +193,8 @@ class SampleDataFixtureTest {
     @Test
     void chatMessagesRoundTripToolDataAndMeta() {
         List<ChatMessageEntity> messages =
-                chatMessageRepo
-                        .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
-                                "c5dfa618-0ad2-4845-a976-ada46c50f9a4");
+                chatMessageRepo.findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                        "c5dfa618-0ad2-4845-a976-ada46c50f9a4");
 
         assertThat(messages).hasSize(20);
         // ASSISTANT breadcrumb message carries a parsed meta with tool invocations
@@ -209,10 +208,9 @@ class SampleDataFixtureTest {
         // Модель ответа: у прогонов, записанных после появления поля, она есть, у более
         // раннего — нет. Обе половины фикстуры нужны: null здесь значит «неизвестно», и
         // подпись под таким ответом не рисуется вовсе.
-        assertThat(
-                        messages.stream()
-                                .filter(m -> m.getMeta() != null && m.getMeta().model() != null)
-                                .map(m -> m.getMeta().model()))
+        assertThat(messages.stream()
+                        .filter(m -> m.getMeta() != null && m.getMeta().model() != null)
+                        .map(m -> m.getMeta().model()))
                 .containsOnly("deepseek-chat");
         assertThat(messages.stream().filter(m -> m.getId() == 1657).findFirst().orElseThrow())
                 .satisfies(m -> assertThat(m.getMeta().model()).isEqualTo("deepseek-chat"));
@@ -220,32 +218,27 @@ class SampleDataFixtureTest {
 
         // Токены прогона: по одному ряду на прогон — последнему, как их пишет markRunResult.
         // Их тут два, и это не «два числа про один ответ», а два разных прогона в одном чате.
-        assertThat(
-                        messages.stream()
-                                .filter(m -> m.getMeta() != null && m.getMeta().usage() != null)
-                                .map(ChatMessageEntity::getId))
+        assertThat(messages.stream()
+                        .filter(m -> m.getMeta() != null && m.getMeta().usage() != null)
+                        .map(ChatMessageEntity::getId))
                 .containsExactly(1653L, 1657L);
-        assertThat(
-                        messages.stream()
-                                .filter(m -> m.getId() == 1657)
-                                .findFirst()
-                                .orElseThrow()
-                                .getMeta()
-                                .usage()
-                                .contextTokens())
+        assertThat(messages.stream()
+                        .filter(m -> m.getId() == 1657)
+                        .findFirst()
+                        .orElseThrow()
+                        .getMeta()
+                        .usage()
+                        .contextTokens())
                 .isEqualTo(21_050);
 
         // Вопрос с приложенным вложением: в сообщении лежит ссылка, а не содержимое файла.
         ChatMessageEntity question =
                 messages.stream().filter(m -> m.getId() == 1638).findFirst().orElseThrow();
-        assertThat(question.getContextItems())
-                .singleElement()
-                .satisfies(
-                        item -> {
-                            assertThat(item.kind()).isEqualTo(ContextItemKind.ATTACHMENT);
-                            assertThat(item.ref()).isEqualTo("1");
-                            assertThat(item.label()).isEqualTo("gradle-build-error.log");
-                        });
+        assertThat(question.getContextItems()).singleElement().satisfies(item -> {
+            assertThat(item.kind()).isEqualTo(ContextItemKind.ATTACHMENT);
+            assertThat(item.ref()).isEqualTo("1");
+            assertThat(item.label()).isEqualTo("gradle-build-error.log");
+        });
     }
 
     /**
@@ -256,26 +249,23 @@ class SampleDataFixtureTest {
      */
     @Test
     void everyInvocationResolvesThroughTheToolCallIndex() {
-        List<String> indexed =
-                jdbc.queryForList(
-                        "select call_id from tool_call_index where conversation_id = ?",
-                        String.class,
-                        "c5dfa618-0ad2-4845-a976-ada46c50f9a4");
+        List<String> indexed = jdbc.queryForList(
+                "select call_id from tool_call_index where conversation_id = ?",
+                String.class,
+                "c5dfa618-0ad2-4845-a976-ada46c50f9a4");
 
-        assertThat(
-                        chatMessageRepo
-                                .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
-                                        "c5dfa618-0ad2-4845-a976-ada46c50f9a4")
-                                .stream()
-                                .map(ChatMessageEntity::getInvocations)
-                                .filter(Objects::nonNull)
-                                .flatMap(List::stream))
+        assertThat(chatMessageRepo
+                        .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                                "c5dfa618-0ad2-4845-a976-ada46c50f9a4")
+                        .stream()
+                        .map(ChatMessageEntity::getInvocations)
+                        .filter(Objects::nonNull)
+                        .flatMap(List::stream))
                 .isNotEmpty()
-                .allSatisfy(
-                        inv -> {
-                            assertThat(inv.callId()).isNotBlank();
-                            assertThat(indexed).contains(inv.callId());
-                        });
+                .allSatisfy(inv -> {
+                    assertThat(inv.callId()).isNotBlank();
+                    assertThat(indexed).contains(inv.callId());
+                });
     }
 
     /**
@@ -284,21 +274,20 @@ class SampleDataFixtureTest {
      */
     @Test
     void fileContentCallCarriesTextResult() {
-        String responseData =
-                chatMessageRepo
-                        .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
-                                "c5dfa618-0ad2-4845-a976-ada46c50f9a4")
-                        .stream()
-                        .filter(m -> m.getId() == 1656)
-                        .findFirst()
-                        .orElseThrow()
-                        .getToolData()
-                        .responses()
-                        .stream()
-                        .filter(r -> "getFileContent".equals(r.name()))
-                        .findFirst()
-                        .orElseThrow()
-                        .responseData();
+        String responseData = chatMessageRepo
+                .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                        "c5dfa618-0ad2-4845-a976-ada46c50f9a4")
+                .stream()
+                .filter(m -> m.getId() == 1656)
+                .findFirst()
+                .orElseThrow()
+                .getToolData()
+                .responses()
+                .stream()
+                .filter(r -> "getFileContent".equals(r.name()))
+                .findFirst()
+                .orElseThrow()
+                .responseData();
 
         assertThat(responseData).contains("\"language\":\"groovy\"").contains("plugins {");
     }
@@ -319,13 +308,9 @@ class SampleDataFixtureTest {
     @Test
     void chatAndDocumentAttachmentsAreQueryable() {
         String chatFile =
-                jdbc.queryForObject(
-                        "select file_name from attachments where owner_type = 'chat'",
-                        String.class);
+                jdbc.queryForObject("select file_name from attachments where owner_type = 'chat'", String.class);
         String docFile =
-                jdbc.queryForObject(
-                        "select file_name from attachments where owner_type = 'document'",
-                        String.class);
+                jdbc.queryForObject("select file_name from attachments where owner_type = 'document'", String.class);
         assertThat(chatFile).isEqualTo("gradle-build-error.log");
         assertThat(docFile).isEqualTo("build.gradle");
     }

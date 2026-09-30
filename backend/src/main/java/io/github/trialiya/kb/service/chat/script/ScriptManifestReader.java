@@ -55,11 +55,9 @@ final class ScriptManifestReader {
      */
     private static final Pattern SAFE_NAME = Pattern.compile("[a-z0-9][a-z0-9._-]*");
 
-    private static final Set<String> SCRIPT_FIELDS =
-            Set.of("name", "file", "desc", "params", "write", "timeout");
+    private static final Set<String> SCRIPT_FIELDS = Set.of("name", "file", "desc", "params", "write", "timeout");
 
-    private static final Set<String> PARAM_FIELDS =
-            Set.of("name", "desc", "type", "required", "default");
+    private static final Set<String> PARAM_FIELDS = Set.of("name", "desc", "type", "required", "default");
 
     private ScriptManifestReader() {}
 
@@ -91,8 +89,7 @@ final class ScriptManifestReader {
             try {
                 SavedScript script = script(entry);
                 if (!names.add(script.name())) {
-                    throw new IllegalArgumentException(
-                            "name \"" + script.name() + "\" is used twice");
+                    throw new IllegalArgumentException("name \"" + script.name() + "\" is used twice");
                 }
                 resolved.add(script);
             } catch (IllegalArgumentException e) {
@@ -107,11 +104,10 @@ final class ScriptManifestReader {
         requireKnownFields(fields, SCRIPT_FIELDS, "script");
         String name = requireText(fields.get("name"), "name");
         if (!SAFE_NAME.matcher(name).matches()) {
-            throw new IllegalArgumentException(
-                    "name \""
-                            + name
-                            + "\" is not usable — lowercase letters, digits, '.', '_' and '-'"
-                            + " only, starting with a letter or a digit");
+            throw new IllegalArgumentException("name \""
+                    + name
+                    + "\" is not usable — lowercase letters, digits, '.', '_' and '-'"
+                    + " only, starting with a letter or a digit");
         }
         return new SavedScript(
                 name,
@@ -151,28 +147,23 @@ final class ScriptManifestReader {
         // Both at once is not a stricter declaration but a contradiction — the default could only
         // be reached through the refusal that `required` promises — so it is the entry's error.
         if (required && fallback != null) {
-            throw new IllegalArgumentException(
-                    "\""
-                            + script
-                            + "\": param \""
-                            + name
-                            + "\" is required and has a default — a required argument never falls"
-                            + " back to one");
+            throw new IllegalArgumentException("\""
+                    + script
+                    + "\": param \""
+                    + name
+                    + "\" is required and has a default — a required argument never falls"
+                    + " back to one");
         }
-        ScriptParam.Type type =
-                fields.get("type") == null
-                        ? ScriptParam.Type.STRING
-                        : ScriptParam.Type.parse(String.valueOf(fields.get("type")));
-        String desc = fields.get("desc") == null ? "" : String.valueOf(fields.get("desc")).strip();
+        ScriptParam.Type type = fields.get("type") == null
+                ? ScriptParam.Type.STRING
+                : ScriptParam.Type.parse(String.valueOf(fields.get("type")));
+        String desc = fields.get("desc") == null
+                ? ""
+                : String.valueOf(fields.get("desc")).strip();
         ScriptParam declared = new ScriptParam(name, desc, type, required, fallback);
         return fallback == null
                 ? declared
-                : new ScriptParam(
-                        name,
-                        desc,
-                        type,
-                        required,
-                        ScriptArgs.checkDeclaredDefault(script, declared));
+                : new ScriptParam(name, desc, type, required, ScriptArgs.checkDeclaredDefault(script, declared));
     }
 
     /**
@@ -206,18 +197,16 @@ final class ScriptManifestReader {
     }
 
     private static void requireKnownFields(Map<?, ?> fields, Set<String> known, String what) {
-        List<String> unknown =
-                fields.keySet().stream()
-                        .map(String::valueOf)
-                        .filter(key -> !known.contains(key))
-                        .toList();
+        List<String> unknown = fields.keySet().stream()
+                .map(String::valueOf)
+                .filter(key -> !known.contains(key))
+                .toList();
         if (!unknown.isEmpty()) {
-            throw new IllegalArgumentException(
-                    what
-                            + ": unknown field(s) "
-                            + unknown
-                            + " — known fields are "
-                            + known.stream().sorted().toList());
+            throw new IllegalArgumentException(what
+                    + ": unknown field(s) "
+                    + unknown
+                    + " — known fields are "
+                    + known.stream().sorted().toList());
         }
     }
 

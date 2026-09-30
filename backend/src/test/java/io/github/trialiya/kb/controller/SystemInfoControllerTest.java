@@ -24,8 +24,7 @@ class SystemInfoControllerTest {
     @ParameterizedTest
     @CsvSource({
         // Postgres, credentials as query parameters — everything after '?' goes.
-        "jdbc:postgresql://localhost:5432/kb?user=admin&password=hunter2,"
-                + "jdbc:postgresql://localhost:5432/kb",
+        "jdbc:postgresql://localhost:5432/kb?user=admin&password=hunter2," + "jdbc:postgresql://localhost:5432/kb",
         // Credentials in the authority — the user:password@ prefix goes, the host stays.
         "jdbc:postgresql://admin:hunter2@db.internal:5432/kb,jdbc:postgresql://db.internal:5432/kb",
         // H2 uses ';' for its settings, and PASSWORD= can hide among them.
@@ -69,9 +68,7 @@ class SystemInfoControllerTest {
         gitEntries.setProperty("commit.time", "2026-09-13T10:41:34+0000");
         gitEntries.setProperty("dirty", "true");
 
-        var build =
-                SystemInfoController.buildInfo(
-                        new BuildProperties(buildEntries), new GitProperties(gitEntries));
+        var build = SystemInfoController.buildInfo(new BuildProperties(buildEntries), new GitProperties(gitEntries));
 
         assertThat(build.version()).isEqualTo("1.0.0-RC1");
         assertThat(build.builtAt()).isEqualTo("2026-09-13T11:00:28Z");

@@ -20,7 +20,9 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("attachment_embeddings")
 public class AttachmentEmbeddingEntity {
 
-    @Id @Nullable private Long id;
+    @Id
+    @Nullable
+    private Long id;
 
     /** FK → attachments.id (UNIQUE — one embedding per attachment). */
     private Long attachmentId;

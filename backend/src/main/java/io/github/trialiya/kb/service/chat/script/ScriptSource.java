@@ -13,7 +13,8 @@ import org.jspecify.annotations.Nullable;
  * @param report what the result tells its readers about the source; null for an inline script,
  *     where the call's own argument is the text
  */
-public record ScriptSource(String text, String sourceName, @Nullable ScriptRunSource report) {
+public record ScriptSource(
+        String text, String sourceName, @Nullable ScriptRunSource report) {
 
     /** A script the model wrote in the call itself. */
     public static ScriptSource inline(String text) {

@@ -22,18 +22,11 @@ public final class InMemoryScriptResultStore implements ScriptResultStore {
     private record Entry(StoredScriptResult summary, String json) {}
 
     @Override
-    public synchronized Kept keep(
-            String conversationId, @Nullable String script, String project, String json) {
-        Map<Integer, Entry> chat =
-                chats.computeIfAbsent(conversationId, c -> new LinkedHashMap<>());
+    public synchronized Kept keep(String conversationId, @Nullable String script, String project, String json) {
+        Map<Integer, Entry> chat = chats.computeIfAbsent(conversationId, c -> new LinkedHashMap<>());
         int seq = chat.size() + 1;
         String id = ChatScriptResults.idOf(seq);
-        chat.put(
-                seq,
-                new Entry(
-                        new StoredScriptResult(
-                                id, script, project, json.length(), LocalDateTime.now()),
-                        json));
+        chat.put(seq, new Entry(new StoredScriptResult(id, script, project, json.length(), LocalDateTime.now()), json));
         return Kept.as(id);
     }
 

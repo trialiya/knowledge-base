@@ -39,9 +39,11 @@ class SavedScriptCatalogTest {
 
     private static final String MANIFEST = ".kb/scripts.yaml";
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
-    @TempDir Path outsideDir;
+    @TempDir
+    Path outsideDir;
 
     /** The project {@link #catalog} last built — what the prompt section is rendered for. */
     private Project project;
@@ -57,8 +59,7 @@ class SavedScriptCatalogTest {
 
     @Test
     void listsWhatTheManifestDeclares() {
-        manifest(
-                """
+        manifest("""
                 scripts:
                   - name: report
                     file: tools/report.js
@@ -86,12 +87,9 @@ class SavedScriptCatalogTest {
     void withScriptsDisabledNothingIsAnnounced() {
         manifest("scripts:\n  - { name: report, file: tools/report.js, desc: Count }\n");
         commitAll();
-        SavedScriptCatalog catalog =
-                catalog(
-                        MANIFEST,
-                        new ScriptProperties(
-                                false, false, true, false, null, null, null, null, null, null, null,
-                                null, null));
+        SavedScriptCatalog catalog = catalog(
+                MANIFEST,
+                new ScriptProperties(false, false, true, false, null, null, null, null, null, null, null, null, null));
 
         assertThat(catalog.anyManifests()).isFalse();
         assertThat(catalog.projectScripts(project)).isEmpty();
@@ -128,8 +126,7 @@ class SavedScriptCatalogTest {
                 .extracting(SavedScript::desc)
                 .containsExactly("First");
 
-        manifest(
-                """
+        manifest("""
                 scripts:
                   - { name: report, file: tools/report.js, desc: Second }
                   - { name: bump, file: scripts/bump.js, desc: Added }
@@ -152,11 +149,7 @@ class SavedScriptCatalogTest {
         SavedScriptCatalog catalog = catalog();
 
         ScriptSource source =
-                catalog.source(
-                        TestProjects.ID,
-                        catalog.require(TestProjects.ID, "report"),
-                        Map.of(),
-                        true);
+                catalog.source(TestProjects.ID, catalog.require(TestProjects.ID, "report"), Map.of(), true);
 
         assertThat(source.text()).contains("kb.files");
         assertThat(source.sourceName()).isEqualTo("tools/report.js");
@@ -174,13 +167,8 @@ class SavedScriptCatalogTest {
         write(repoDir.resolve("tools/fresh.js"), "return 1;\n");
         SavedScriptCatalog catalog = catalog();
 
-        assertThatThrownBy(
-                        () ->
-                                catalog.source(
-                                        TestProjects.ID,
-                                        catalog.require(TestProjects.ID, "fresh"),
-                                        Map.of(),
-                                        true))
+        assertThatThrownBy(() ->
+                        catalog.source(TestProjects.ID, catalog.require(TestProjects.ID, "fresh"), Map.of(), true))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("fresh");
     }
@@ -203,9 +191,7 @@ class SavedScriptCatalogTest {
      */
     @Test
     void aManifestReachedThroughASymlinkIsNotRead() throws IOException {
-        write(
-                outsideDir.resolve("scripts.yaml"),
-                "scripts:\n  - { name: x, file: a.js, desc: X }\n");
+        write(outsideDir.resolve("scripts.yaml"), "scripts:\n  - { name: x, file: a.js, desc: X }\n");
         Files.createDirectories(repoDir.resolve(".kb"));
         try {
             Files.createSymbolicLink(repoDir.resolve(MANIFEST), outsideDir.resolve("scripts.yaml"));
@@ -220,8 +206,7 @@ class SavedScriptCatalogTest {
     /** The block the model reads: names, one line each, and what may be passed. */
     @Test
     void rendersTheActiveProjectSection() {
-        manifest(
-                """
+        manifest("""
                 scripts:
                   - name: report
                     file: tools/report.js
@@ -256,20 +241,9 @@ class SavedScriptCatalogTest {
     }
 
     private SavedScriptCatalog catalog(@Nullable String manifestPath, ScriptProperties properties) {
-        ProjectOption option =
-                new ProjectOption(
-                        TestProjects.ID,
-                        null,
-                        repoDir.toString(),
-                        false,
-                        false,
-                        null,
-                        null,
-                        manifestPath,
-                        null,
-                        true);
-        ProjectCatalog projects =
-                new ProjectCatalog(new ProjectProperties(List.of(option)), new GitProperties(null));
+        ProjectOption option = new ProjectOption(
+                TestProjects.ID, null, repoDir.toString(), false, false, null, null, manifestPath, null, true);
+        ProjectCatalog projects = new ProjectCatalog(new ProjectProperties(List.of(option)), new GitProperties(null));
         GitRegistry registry = TestProjects.registry(List.of(option));
         project = projects.defaultProject();
         return new SavedScriptCatalog(projects, registry, properties);
@@ -298,17 +272,14 @@ class SavedScriptCatalogTest {
             var command = new ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();

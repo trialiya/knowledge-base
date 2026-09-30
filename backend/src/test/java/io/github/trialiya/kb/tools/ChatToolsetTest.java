@@ -19,9 +19,7 @@ class ChatToolsetTest {
 
     @Test
     void anMcpToolNamedLikeABuiltinOneIsLeftOut() {
-        ChatToolset toolset =
-                new ChatToolset(
-                        List.of(tool("readFile")), List.of(tool("readFile"), tool("issue")));
+        ChatToolset toolset = new ChatToolset(List.of(tool("readFile")), List.of(tool("readFile"), tool("issue")));
 
         assertThat(names(toolset.mcp())).containsExactly("issue");
         assertThat(names(Arrays.asList(toolset.all()))).containsExactly("readFile", "issue");

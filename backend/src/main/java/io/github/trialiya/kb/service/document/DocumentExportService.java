@@ -164,8 +164,7 @@ public class DocumentExportService {
     public void streamSubtree(long rootId, boolean includeMeta, Consumer<ExportEntry> sink) {
         DocumentTreeRow root = requireRow(rootId);
         if (!root.isFolder()) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT, "Subtree download requires a folder");
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, "Subtree download requires a folder");
         }
         String base = DocumentTreeReader.safeName(root.title());
 
@@ -205,24 +204,21 @@ public class DocumentExportService {
             Consumer<TreeNode> onNode) {
 
         Counter rootIndex = new Counter();
-        tree.walk(
-                rootId,
-                replayNamer(idToFile),
-                new DocumentTreeReader.Visitor() {
-                    @Override
-                    public void node(TreeNode node) {
-                        renderNode(node, idToFile, includeMeta).forEach(sink);
-                        onNode.accept(node);
-                    }
+        tree.walk(rootId, replayNamer(idToFile), new DocumentTreeReader.Visitor() {
+            @Override
+            public void node(TreeNode node) {
+                renderNode(node, idToFile, includeMeta).forEach(sink);
+                onNode.accept(node);
+            }
 
-                    @Override
-                    public void levelDone(String parentDir, List<TreeNode> level) {
-                        sink.accept(renderIndex(parentDir, level));
-                        if (parentDir.isEmpty()) {
-                            rootIndex.value++;
-                        }
-                    }
-                });
+            @Override
+            public void levelDone(String parentDir, List<TreeNode> level) {
+                sink.accept(renderIndex(parentDir, level));
+                if (parentDir.isEmpty()) {
+                    rootIndex.value++;
+                }
+            }
+        });
 
         // An empty tree produces no levels at all, so the top-level index needs its own guarantee:
         // whoever reads the result back has to find the file there, listing nothing.
@@ -248,9 +244,7 @@ public class DocumentExportService {
     }
 
     public DocumentTreeRow requireRow(long id) {
-        return tree.row(id)
-                .orElseThrow(
-                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No such node"));
+        return tree.row(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No such node"));
     }
 
     // ── Pass 1 ───────────────────────────────────────────────────────────────
@@ -280,16 +274,10 @@ public class DocumentExportService {
             return DocumentTreeReader.dedupingNamer();
         }
         return (parentDir, row, taken) ->
-                DocumentTreeReader.claim(
-                        DocumentTreeReader.safeName(row.title()),
-                        taken,
-                        segment -> {
-                            String candidate =
-                                    prefix(
-                                            parentDir,
-                                            row.isFolder() ? segment : segment + MD_EXTENSION);
-                            return Files.exists(root.resolve(candidate));
-                        });
+                DocumentTreeReader.claim(DocumentTreeReader.safeName(row.title()), taken, segment -> {
+                    String candidate = prefix(parentDir, row.isFolder() ? segment : segment + MD_EXTENSION);
+                    return Files.exists(root.resolve(candidate));
+                });
     }
 
     /**
@@ -316,14 +304,9 @@ public class DocumentExportService {
     // ── Rendering ────────────────────────────────────────────────────────────
 
     /** The files one node owns: its body, and its metadata sidecar when asked for. */
-    private List<ExportEntry> renderNode(
-            TreeNode node, Map<Long, String> idToFile, boolean includeMeta) {
-        ExportEntry body =
-                new ExportEntry(
-                        node.contentFile(), renderBody(node.row(), node.contentFile(), idToFile));
-        return includeMeta
-                ? List.of(body, new ExportEntry(node.metaFile(), renderMeta(node.row())))
-                : List.of(body);
+    private List<ExportEntry> renderNode(TreeNode node, Map<Long, String> idToFile, boolean includeMeta) {
+        ExportEntry body = new ExportEntry(node.contentFile(), renderBody(node.row(), node.contentFile(), idToFile));
+        return includeMeta ? List.of(body, new ExportEntry(node.metaFile(), renderMeta(node.row()))) : List.of(body);
     }
 
     /**
@@ -339,8 +322,7 @@ public class DocumentExportService {
             return "";
         }
         String text = DocumentLinkRewriter.toRelativeLinks(description.trim(), ownFile, idToFile);
-        return DocumentLinkRewriter.flattenCommitLinks(DocumentLinkRewriter.flattenFileLinks(text))
-                + "\n";
+        return DocumentLinkRewriter.flattenCommitLinks(DocumentLinkRewriter.flattenFileLinks(text)) + "\n";
     }
 
     /**
@@ -380,8 +362,7 @@ public class DocumentExportService {
         String path = config.exportPath();
         if (path == null || path.isBlank()) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Export path is not configured (kb.documents.export-path)");
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Export path is not configured (kb.documents.export-path)");
         }
         return path;
     }

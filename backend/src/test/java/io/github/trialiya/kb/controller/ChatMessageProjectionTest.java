@@ -28,18 +28,17 @@ class ChatMessageProjectionTest {
 
     @Test
     void aScriptRunRowSurvivesTheProjectionLikeAGitCommandRow() throws Exception {
-        final ScriptEventMeta event =
-                new ScriptEventMeta(
-                        "locale-diff",
-                        "frontend/scripts/locale-diff.js",
-                        "kb",
-                        true,
-                        "3 ключа",
-                        null,
-                        "сверено 12 файлов",
-                        List.of("frontend/src/i18n/ru/chat.json"),
-                        new ScriptStats(12, 2048, 30, 1, 420),
-                        null);
+        final ScriptEventMeta event = new ScriptEventMeta(
+                "locale-diff",
+                "frontend/scripts/locale-diff.js",
+                "kb",
+                true,
+                "3 ключа",
+                null,
+                "сверено 12 файлов",
+                List.of("frontend/src/i18n/ru/chat.json"),
+                new ScriptStats(12, 2048, 30, 1, 420),
+                null);
 
         final ChatMessage message = project(row(ChatMessageMeta.ofScriptEvent(event)));
 
@@ -55,25 +54,24 @@ class ChatMessageProjectionTest {
         final GitEventMeta event = new GitEventMeta("pull", "kb", true, "Fast-forward", "main");
 
         assertThat(project(row(ChatMessageMeta.ofGitEvent(event))).gitEvent()).isEqualTo(event);
-        assertThat(ChatHistoryService.isEventRow(row(ChatMessageMeta.ofGitEvent(event)))).isTrue();
+        assertThat(ChatHistoryService.isEventRow(row(ChatMessageMeta.ofGitEvent(event))))
+                .isTrue();
     }
 
     /** Обычный вопрос рядом события не является — иначе фильтр пустых потерял бы смысл. */
     @Test
     void anOrdinaryQuestionIsNotAnEventRow() {
-        assertThat(
-                        ChatHistoryService.isEventRow(
-                                new ChatMessageEntity(
-                                        1L,
-                                        "conv-1",
-                                        "почини сборку",
-                                        MessageType.USER,
-                                        1,
-                                        false,
-                                        false,
-                                        LocalDateTime.now(),
-                                        null,
-                                        null)))
+        assertThat(ChatHistoryService.isEventRow(new ChatMessageEntity(
+                        1L,
+                        "conv-1",
+                        "почини сборку",
+                        MessageType.USER,
+                        1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        null,
+                        null)))
                 .isFalse();
     }
 
@@ -82,23 +80,13 @@ class ChatMessageProjectionTest {
 
     private static ChatMessage project(ChatMessageEntity entity) throws Exception {
         final Method method =
-                ChatController.class.getDeclaredMethod(
-                        "toChatMessage", ChatMessageEntity.class, List.class);
+                ChatController.class.getDeclaredMethod("toChatMessage", ChatMessageEntity.class, List.class);
         method.setAccessible(true);
         return (ChatMessage) method.invoke(null, entity, List.of());
     }
 
     private static ChatMessageEntity row(ChatMessageMeta meta) {
         return new ChatMessageEntity(
-                7L,
-                "conv-1",
-                "",
-                MessageType.USER,
-                3,
-                false,
-                false,
-                LocalDateTime.now(),
-                meta,
-                null);
+                7L, "conv-1", "", MessageType.USER, 3, false, false, LocalDateTime.now(), meta, null);
     }
 }

@@ -52,8 +52,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class SummarizeService implements DisposableBean {
 
-    private static final String COLLAPSE_HEADER =
-            "The following are consecutive summaries of a long conversation:\n";
+    private static final String COLLAPSE_HEADER = "The following are consecutive summaries of a long conversation:\n";
 
     /**
      * Заголовок контекстных сводок. Говорит не только «не пересказывай», но и почему: эти документы
@@ -63,16 +62,14 @@ public class SummarizeService implements DisposableBean {
      * «authoritative context for the entire conversation» — та обёртка написана чату, а не
      * суммаризатору.
      */
-    private static final String CONTEXT_HEADER =
-            """
+    private static final String CONTEXT_HEADER = """
         Previous summaries — context only, do not re-summarize them. They stay in the \
         conversation exactly as they are, right next to what you write, so anything carried \
         over from them is read twice and paid for twice. Summarize ONLY the messages listed \
         after them:
         """;
 
-    private static final String COLLAPSE_FOOTER =
-            """
+    private static final String COLLAPSE_FOOTER = """
         Now produce a SINGLE merged summary that combines ALL the previous summaries (above) \
         and the following new messages. The result must be a cohesive summary of the entire \
         conversation so far, in the section format, merged section by section — carrying over \
@@ -98,13 +95,10 @@ public class SummarizeService implements DisposableBean {
             SummarizeProperties summarizeProperties,
             ContextItemService contextItemService,
             ChatModelProperties chatModels) {
-        this.chatClient =
-                BackgroundCallOptions.clientBuilder(openAiChatModel, summarizeProperties)
-                        .defaultSystem(summarizerPrompt)
-                        .defaultTools(
-                                new MessageLookupFunction(
-                                        chatMessageRepository, contextItemService))
-                        .build();
+        this.chatClient = BackgroundCallOptions.clientBuilder(openAiChatModel, summarizeProperties)
+                .defaultSystem(summarizerPrompt)
+                .defaultTools(new MessageLookupFunction(chatMessageRepository, contextItemService))
+                .build();
         this.chatHistory = chatHistory;
         this.chatTopicRepository = chatTopicRepository;
         this.summaryWriter = summaryWriter;
@@ -120,23 +114,16 @@ public class SummarizeService implements DisposableBean {
     }
 
     public void trySummarize(@Nonnull final String conversationId) {
-        executorService.submit(
-                () ->
-                        // Замок держит SummaryWriter — он общий с /compact, который сжимает тот же
-                        // чат тем же способом и без общего замка успел бы прочитать то же окно.
-                        summaryWriter.inConversation(
-                                conversationId,
-                                () -> {
-                                    try {
-                                        doSummarize(conversationId);
-                                    } catch (Exception e) {
-                                        log.error(
-                                                "[{}] Summarization failed: {}",
-                                                conversationId,
-                                                e.getMessage(),
-                                                e);
-                                    }
-                                }));
+        executorService.submit(() ->
+                // Замок держит SummaryWriter — он общий с /compact, который сжимает тот же
+                // чат тем же способом и без общего замка успел бы прочитать то же окно.
+                summaryWriter.inConversation(conversationId, () -> {
+                    try {
+                        doSummarize(conversationId);
+                    } catch (Exception e) {
+                        log.error("[{}] Summarization failed: {}", conversationId, e.getMessage(), e);
+                    }
+                }));
     }
 
     public void doSummarize(@Nonnull final String conversationId) {
@@ -147,17 +134,12 @@ public class SummarizeService implements DisposableBean {
         final List<ChatPendingSummaryEntity> parked = pendingSummaries.parked(conversationId);
         // Модель чата — та, на которой пойдёт следующий запрос, если в нём не выберут другую: от
         // неё зависит, уедут ли рассуждения ответов, а значит, весят ли они в окне.
-        final boolean replayReasoning =
-                chatModels.replayReasoning(
-                        chatTopicRepository
-                                .findById(conversationId)
-                                .map(ChatTopicEntity::getModel)
-                                .orElse(null));
-        final SummarizeWindow window =
-                new SummarizeWindow(
-                        withParked(chatHistory.promptRows(conversationId), parked),
-                        summarizeProperties,
-                        replayReasoning);
+        final boolean replayReasoning = chatModels.replayReasoning(chatTopicRepository
+                .findById(conversationId)
+                .map(ChatTopicEntity::getModel)
+                .orElse(null));
+        final SummarizeWindow window = new SummarizeWindow(
+                withParked(chatHistory.promptRows(conversationId), parked), summarizeProperties, replayReasoning);
 
         // The second mix is spelled out only when it differs — that is, when the window carries
         // empty TOOL protocol rows: context the model pays for but the summarizer never sees.
@@ -167,9 +149,7 @@ public class SummarizeService implements DisposableBean {
                 "[{}] Summarization check — live context: {}{}",
                 conversationId,
                 liveMix,
-                liveMix.total() == promptMix.total()
-                        ? ""
-                        : "; of them prompt-eligible: " + promptMix);
+                liveMix.total() == promptMix.total() ? "" : "; of them prompt-eligible: " + promptMix);
         if (!window.worthARound()) {
             log.info(
                     "[{}] Skipping summarization — compressible: {}, {}; neither threshold"
@@ -185,8 +165,7 @@ public class SummarizeService implements DisposableBean {
 
         final List<PromptRow> toCompress = window.toCompress();
         log.info(
-                "[{}] Compressing positions {}-{} ({} reached the threshold): {}, {};"
-                        + " keeping live: {}",
+                "[{}] Compressing positions {}-{} ({} reached the threshold): {}, {};" + " keeping live: {}",
                 conversationId,
                 toCompress.getFirst().entity().getPosition(),
                 window.endPosition(),
@@ -204,34 +183,22 @@ public class SummarizeService implements DisposableBean {
         // раундом после применения, как обычные, а порог считает только применённые: сводка,
         // которой в промпте ещё нет, его и не удлиняет.
         final boolean collapseSummaries =
-                parked.isEmpty()
-                        && existingSummaries.size() + 1
-                                >= summarizeProperties.summaryCollapseThreshold();
+                parked.isEmpty() && existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
         // Замер на весь раунд, включая обращения tool-цикла: у фоновой суммаризации своей области
         // прогона нет, и без накопителя её токены не попали бы в итог по чату ни одним числом —
         // при том что тратит она столько же, сколько ответ (см. RoundUsageAdvisor).
         final RoundUsageAdvisor roundUsage = new RoundUsageAdvisor();
         final @Nullable String summaryContent =
-                generateSummary(
-                        conversationId,
-                        existingSummaries,
-                        toCompress,
-                        collapseSummaries,
-                        roundUsage);
+                generateSummary(conversationId, existingSummaries, toCompress, collapseSummaries, roundUsage);
         if (summaryContent == null || summaryContent.isBlank()) {
-            log.error(
-                    "[{}] Summarization produced an empty result, skipping this round",
-                    conversationId);
+            log.error("[{}] Summarization produced an empty result, skipping this round", conversationId);
             return;
         }
 
-        final String summaryText =
-                collapseSummaries
-                        ? buildMetaSummaryText(summaryContent)
-                        : buildSummaryText(
-                                summaryContent,
-                                toCompress.getFirst().entity().getPosition(),
-                                window.endPosition());
+        final String summaryText = collapseSummaries
+                ? buildMetaSummaryText(summaryContent)
+                : buildSummaryText(
+                        summaryContent, toCompress.getFirst().entity().getPosition(), window.endPosition());
 
         final RunTokenUsage usage = roundUsage.usage();
         log.info(
@@ -282,8 +249,7 @@ public class SummarizeService implements DisposableBean {
      * начала разговора — а след проектов ({@link ProjectTrace#of}) наследуется по цепочке и
      * оборвался бы вместе с ними.
      */
-    private static List<PromptRow> withParked(
-            List<PromptRow> rows, List<ChatPendingSummaryEntity> parked) {
+    private static List<PromptRow> withParked(List<PromptRow> rows, List<ChatPendingSummaryEntity> parked) {
         if (parked.isEmpty()) {
             return rows;
         }
@@ -304,17 +270,16 @@ public class SummarizeService implements DisposableBean {
      * ProjectTrace#of}), иначе на ней оборвётся весь след сжатой истории.
      */
     private static PromptRow parkedRow(ChatPendingSummaryEntity parked) {
-        final ChatMessageEntity entity =
-                new ChatMessageEntity(
-                        0L,
-                        parked.getConversationId(),
-                        parked.getText(),
-                        MessageType.ASSISTANT,
-                        parked.getSummaryPosition(),
-                        false,
-                        true,
-                        parked.getSummaryCreatedAt(),
-                        parked.getMeta());
+        final ChatMessageEntity entity = new ChatMessageEntity(
+                0L,
+                parked.getConversationId(),
+                parked.getText(),
+                MessageType.ASSISTANT,
+                parked.getSummaryPosition(),
+                false,
+                true,
+                parked.getSummaryCreatedAt(),
+                parked.getMeta());
         return new PromptRow(entity, parked.getText());
     }
 
@@ -327,10 +292,7 @@ public class SummarizeService implements DisposableBean {
         final StringBuilder prompt = new StringBuilder();
 
         if (collapseSummaries) {
-            log.info(
-                    "[{}] Including {} summaries into one meta-summary",
-                    conversationId,
-                    existingSummaries.size());
+            log.info("[{}] Including {} summaries into one meta-summary", conversationId, existingSummaries.size());
             prompt.append(COLLAPSE_HEADER);
         } else if (!existingSummaries.isEmpty()) {
             prompt.append(CONTEXT_HEADER);
@@ -344,21 +306,20 @@ public class SummarizeService implements DisposableBean {
         }
 
         prompt.append("Summarize the following ").append(toCompress.size()).append(" messages:\n");
-        toCompress.forEach(
-                row -> {
-                    // row.text() already carries the attachment inventory: it is appended at read
-                    // time and never stored. Without it summarizer.md would be asked to preserve
-                    // what its own input never showed, and the last trace of an attachment would
-                    // vanish together with the message that carried it.
-                    prompt.append("[msg:")
-                            .append(row.entity().getPosition())
-                            .append("] ")
-                            .append(row.entity().getMessageType())
-                            .append(": <msg>\n")
-                            .append(row.text())
-                            .append("\n</msg>\n");
-                    appendToolCalls(prompt, row.entity().getInvocations());
-                });
+        toCompress.forEach(row -> {
+            // row.text() already carries the attachment inventory: it is appended at read
+            // time and never stored. Without it summarizer.md would be asked to preserve
+            // what its own input never showed, and the last trace of an attachment would
+            // vanish together with the message that carried it.
+            prompt.append("[msg:")
+                    .append(row.entity().getPosition())
+                    .append("] ")
+                    .append(row.entity().getMessageType())
+                    .append(": <msg>\n")
+                    .append(row.text())
+                    .append("\n</msg>\n");
+            appendToolCalls(prompt, row.entity().getInvocations());
+        });
         if (collapseSummaries) {
             prompt.append(COLLAPSE_FOOTER);
         }
@@ -377,8 +338,7 @@ public class SummarizeService implements DisposableBean {
      * happened*, not to replay it. Without this the model sees only the assistant's prose and has
      * no idea tools ran at all, since tool_calls/responses live in {@code tool_data}, not in text.
      */
-    private static void appendToolCalls(
-            StringBuilder prompt, @Nullable List<ToolInvocationMeta> invocations) {
+    private static void appendToolCalls(StringBuilder prompt, @Nullable List<ToolInvocationMeta> invocations) {
         if (invocations == null || invocations.isEmpty()) {
             return;
         }
@@ -453,8 +413,9 @@ public class SummarizeService implements DisposableBean {
         if (oldMessages.isEmpty()) {
             return;
         }
-        final ChatMessageEntity firstMsg =
-                collapseSummaries ? existingSummaries.getFirst() : oldMessages.getFirst().entity();
+        final ChatMessageEntity firstMsg = collapseSummaries
+                ? existingSummaries.getFirst()
+                : oldMessages.getFirst().entity();
         final ChatMessageEntity lastMsg = oldMessages.getLast().entity();
 
         pendingSummaries.park(
@@ -472,11 +433,10 @@ public class SummarizeService implements DisposableBean {
                         ProjectTrace.of(
                                 existingSummaries,
                                 oldMessages.stream().map(PromptRow::entity).toList(),
-                                () ->
-                                        chatTopicRepository
-                                                .findById(conversationId)
-                                                .map(ChatTopicEntity::getProject)
-                                                .orElse(null),
+                                () -> chatTopicRepository
+                                        .findById(conversationId)
+                                        .map(ChatTopicEntity::getProject)
+                                        .orElse(null),
                                 endPosition)),
                 new SummaryWriter.CompactStats(
                         CompactMeta.Kind.SUMMARIZE,

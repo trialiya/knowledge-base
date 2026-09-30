@@ -100,12 +100,11 @@ public class GitRegistry {
         Project project = catalog.require(projectId);
         GitService service = byProjectId.get(project.id());
         if (service == null) {
-            throw new IllegalStateException(
-                    "Project \""
-                            + project.id()
-                            + "\" is unavailable: its repository at "
-                            + project.path()
-                            + " could not be opened at startup");
+            throw new IllegalStateException("Project \""
+                    + project.id()
+                    + "\" is unavailable: its repository at "
+                    + project.path()
+                    + " could not be opened at startup");
         }
         return service;
     }
@@ -214,11 +213,10 @@ public class GitRegistry {
     public GitService requireGitCommands(@Nullable String projectId) {
         Project project = catalog.require(projectId);
         if (!gitCommandsAllowed(project.id())) {
-            throw new IllegalStateException(
-                    "Project \""
-                            + project.id()
-                            + "\" does not offer git commands: they are not enabled for it, or its"
-                            + " working tree is read-only");
+            throw new IllegalStateException("Project \""
+                    + project.id()
+                    + "\" does not offer git commands: they are not enabled for it, or its"
+                    + " working tree is read-only");
         }
         return forProject(project.id());
     }
@@ -230,11 +228,10 @@ public class GitRegistry {
     public GitService requireGitPush(@Nullable String projectId) {
         Project project = catalog.require(projectId);
         if (!gitPushAllowed(project.id())) {
-            throw new IllegalStateException(
-                    "Project \""
-                            + project.id()
-                            + "\" does not offer push: it is not enabled for"
-                            + " this project, or the project offers no git commands at all");
+            throw new IllegalStateException("Project \""
+                    + project.id()
+                    + "\" does not offer push: it is not enabled for"
+                    + " this project, or the project offers no git commands at all");
         }
         return forProject(project.id());
     }

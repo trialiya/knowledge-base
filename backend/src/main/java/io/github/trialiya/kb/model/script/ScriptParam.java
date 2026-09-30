@@ -22,7 +22,11 @@ import org.jspecify.annotations.Nullable;
  *     null — an explicit null is a value the script asked to see
  */
 public record ScriptParam(
-        String name, String desc, Type type, boolean required, @Nullable Object defaultValue) {
+        String name,
+        String desc,
+        Type type,
+        boolean required,
+        @Nullable Object defaultValue) {
 
     /**
      * The value shapes a declaration can ask for. Deliberately shallow — no element type for a
@@ -42,10 +46,7 @@ public record ScriptParam(
                 return valueOf(text.strip().toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException(
-                        "unknown param type \""
-                                + text
-                                + "\" — one of string, number, boolean, array, object",
-                        e);
+                        "unknown param type \"" + text + "\" — one of string, number, boolean, array, object", e);
             }
         }
     }

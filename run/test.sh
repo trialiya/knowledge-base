@@ -13,7 +13,7 @@
 #   it          backend integration tests (*IT) — needs Docker, started if absent
 #   back        all backend tests (unit + IT)
 #   front       frontend tests (vitest) + eslint
-#   format      spotlessCheck (Google Java Format, AOSP) — fails on a violation
+#   format      spotlessCheck (Palantir Java Format) — fails on a violation
 #   formatApply spotlessApply — same rules, rewrites the files instead of failing
 #   lint        PMD + SpotBugs over backend main sources — rules and exclusions
 #               live in config/pmd/ruleset.xml and config/spotbugs/exclude.xml.

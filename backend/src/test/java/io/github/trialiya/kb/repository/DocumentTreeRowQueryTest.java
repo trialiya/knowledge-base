@@ -41,7 +41,8 @@ import org.springframework.test.context.ActiveProfiles;
 @Import({CommonConfig.class})
 class DocumentTreeRowQueryTest {
 
-    @Autowired private DocumentRepository repo;
+    @Autowired
+    private DocumentRepository repo;
 
     private long folderId;
     private long docId;
@@ -49,7 +50,8 @@ class DocumentTreeRowQueryTest {
     @BeforeEach
     void setUp() {
         folderId = save("Обзор проекта!", null, DocumentType.FOLDER, 0, null).getId();
-        docId = save("Введение", folderId, DocumentType.DOCUMENT, 0, "Тело документа").getId();
+        docId = save("Введение", folderId, DocumentType.DOCUMENT, 0, "Тело документа")
+                .getId();
         save("Архитектура", folderId, DocumentType.DOCUMENT, 1, null);
     }
 
@@ -57,9 +59,7 @@ class DocumentTreeRowQueryTest {
     void mapsEveryColumnOfALevel() {
         List<DocumentTreeRow> level = repo.findTreeRowsByParent(folderId);
 
-        assertThat(level)
-                .extracting(DocumentTreeRow::title)
-                .containsExactly("Введение", "Архитектура");
+        assertThat(level).extracting(DocumentTreeRow::title).containsExactly("Введение", "Архитектура");
         DocumentTreeRow first = level.getFirst();
         assertThat(first.id()).isEqualTo(docId);
         assertThat(first.parentId()).isEqualTo(folderId);
@@ -96,8 +96,7 @@ class DocumentTreeRowQueryTest {
         assertThat(repo.findMaxPosition(docId)).isEqualTo(-1);
     }
 
-    private DocumentEntity save(
-            String title, Long parentId, DocumentType type, int position, String description) {
+    private DocumentEntity save(String title, Long parentId, DocumentType type, int position, String description) {
         DocumentEntity entity = new DocumentEntity();
         entity.setTitle(title);
         entity.setType(type);

@@ -175,13 +175,15 @@ final class VisibleFiles {
     Visible all() {
         // Имя, которое нельзя назвать обратно в API, из листингов выпадает: показать его значило
         // бы предложить файл, который на клик ответит отказом (см. RepoPaths#isNameable).
-        List<String> tracked = trackedPaths().stream().filter(RepoPaths::isNameable).toList();
+        List<String> tracked =
+                trackedPaths().stream().filter(RepoPaths::isNameable).toList();
         Set<String> trackedSet = Set.copyOf(tracked);
         if (project.allowGlobs().isEmpty()) {
             return new Visible(tracked, trackedSet);
         }
-        List<String> admitted =
-                admittedUntracked(trackedSet).stream().filter(RepoPaths::isNameable).toList();
+        List<String> admitted = admittedUntracked(trackedSet).stream()
+                .filter(RepoPaths::isNameable)
+                .toList();
         if (admitted.isEmpty()) {
             return new Visible(tracked, trackedSet);
         }

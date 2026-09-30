@@ -59,33 +59,17 @@ class DocumentReadGuardTest {
     @BeforeEach
     void setUp() {
         documentService = mock(DocumentService.class);
-        function =
-                new DocumentFunction(
-                        documentService,
-                        mock(AttachmentService.class),
-                        chat -> CHAT.equals(chat) ? List.copyOf(window) : List.of());
+        function = new DocumentFunction(
+                documentService,
+                mock(AttachmentService.class),
+                chat -> CHAT.equals(chat) ? List.copyOf(window) : List.of());
         collector = new ToolInvocationCollector();
-        context =
-                new ToolContext(
-                        Map.of(
-                                ToolInvocationCollector.KEY,
-                                collector,
-                                ChatMemory.CONVERSATION_ID,
-                                CHAT));
+        context = new ToolContext(Map.of(ToolInvocationCollector.KEY, collector, ChatMemory.CONVERSATION_ID, CHAT));
 
         when(documentService.getById(DOC_ID)).thenReturn(node(CURRENT_VERSION));
         Document updated = mock(Document.class);
-        DocumentShort shortDoc =
-                new DocumentShort(
-                        DOC_ID,
-                        "title",
-                        "document",
-                        null,
-                        1,
-                        CURRENT_VERSION + 1,
-                        LocalDateTime.now(),
-                        false,
-                        null);
+        DocumentShort shortDoc = new DocumentShort(
+                DOC_ID, "title", "document", null, 1, CURRENT_VERSION + 1, LocalDateTime.now(), false, null);
         when(updated.toDocumentShort()).thenReturn(shortDoc);
         when(documentService.update(anyLong(), any())).thenReturn(updated);
         when(documentService.patchDescription(anyLong(), anyInt(), any())).thenReturn(updated);
@@ -120,9 +104,7 @@ class DocumentReadGuardTest {
 
         @Test
         void anUnchangedDocumentNeedsNoSecondRead() {
-            earlierRead(
-                    "getDocument",
-                    "{\"id\":42,\"title\":\"Гайд\",\"descriptionVersion\":3,\"description\":\"…\"}");
+            earlierRead("getDocument", "{\"id\":42,\"title\":\"Гайд\",\"descriptionVersion\":3,\"description\":\"…\"}");
 
             assertThatCode(() -> function.updateDocument(context, DOC_ID, null, "new"))
                     .doesNotThrowAnyException();
@@ -165,23 +147,12 @@ class DocumentReadGuardTest {
 
         @Test
         void anEarlierSectionReadCoversThatSectionOnly() {
-            earlierRead(
-                    "getDocumentSection",
-                    "{\"id\":42,\"path\":\"Гайд > Установка\",\"descriptionVersion\":3}");
+            earlierRead("getDocumentSection", "{\"id\":42,\"path\":\"Гайд > Установка\",\"descriptionVersion\":3}");
 
-            assertThatCode(
-                            () ->
-                                    function.updateDocumentSection(
-                                            context,
-                                            DOC_ID,
-                                            "Гайд > Установка",
-                                            "## Установка\nnew\n",
-                                            CURRENT_VERSION))
+            assertThatCode(() -> function.updateDocumentSection(
+                            context, DOC_ID, "Гайд > Установка", "## Установка\nnew\n", CURRENT_VERSION))
                     .doesNotThrowAnyException();
-            assertThatThrownBy(
-                            () ->
-                                    function.deleteDocumentSection(
-                                            context, DOC_ID, "Гайд", CURRENT_VERSION))
+            assertThatThrownBy(() -> function.deleteDocumentSection(context, DOC_ID, "Гайд", CURRENT_VERSION))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("НЕ изменена");
         }
@@ -190,15 +161,13 @@ class DocumentReadGuardTest {
         void anEarlierOutlineCoversAStructureChange() {
             earlierRead("getDocumentOutline", "{\"id\":42,\"descriptionVersion\":3}");
 
-            assertThatCode(
-                            () ->
-                                    function.insertDocumentSection(
-                                            context,
-                                            DOC_ID,
-                                            "Гайд > Установка",
-                                            DocumentFunction.InsertPosition.AFTER,
-                                            "## FAQ\nq\n",
-                                            CURRENT_VERSION))
+            assertThatCode(() -> function.insertDocumentSection(
+                            context,
+                            DOC_ID,
+                            "Гайд > Установка",
+                            DocumentFunction.InsertPosition.AFTER,
+                            "## FAQ\nq\n",
+                            CURRENT_VERSION))
                     .doesNotThrowAnyException();
         }
 
@@ -220,37 +189,31 @@ class DocumentReadGuardTest {
         }
 
         private ToolCallback recorded(String name) {
-            ToolCallback callback =
-                    Stream.of(ToolCallbacks.from(function))
-                            .filter(cb -> name.equals(cb.getToolDefinition().name()))
-                            .findFirst()
-                            .orElseThrow();
+            ToolCallback callback = Stream.of(ToolCallbacks.from(function))
+                    .filter(cb -> name.equals(cb.getToolDefinition().name()))
+                    .findFirst()
+                    .orElseThrow();
             return new RecordingToolCallback(callback);
         }
 
         private void recordRead() {
-            collector.record(
-                    new ToolInvocation(
-                            "getDocument",
-                            Map.of("documentId", DOC_ID),
-                            OK,
-                            null,
-                            null,
-                            null,
-                            "{\"documentId\":42}",
-                            null,
-                            collector.nextCallIndex(),
-                            null));
+            collector.record(new ToolInvocation(
+                    "getDocument",
+                    Map.of("documentId", DOC_ID),
+                    OK,
+                    null,
+                    null,
+                    null,
+                    "{\"documentId\":42}",
+                    null,
+                    collector.nextCallIndex(),
+                    null));
         }
 
         @Test
         void theRefusalNamesItsCallRefAndTheRetryReplaysTheSameArguments() {
-            assertThatThrownBy(
-                            () ->
-                                    recorded("updateDocument")
-                                            .call(
-                                                    "{\"documentId\":42,\"description\":\"long text\"}",
-                                                    context))
+            assertThatThrownBy(() -> recorded("updateDocument")
+                            .call("{\"documentId\":42,\"description\":\"long text\"}", context))
                     .isInstanceOf(ToolExecutionException.class)
                     .hasMessageContaining("retryDocumentWrite(callRef=\"" + ref(0) + "\")");
             verify(documentService, never()).update(anyLong(), any());
@@ -262,20 +225,14 @@ class DocumentReadGuardTest {
             verify(documentService)
                     .update(
                             anyLong(),
-                            argThat(
-                                    (UpdateDocumentRequest req) ->
-                                            "long text".equals(req.getDescription())
-                                                    && req.getTitle() == null));
+                            argThat((UpdateDocumentRequest req) ->
+                                    "long text".equals(req.getDescription()) && req.getTitle() == null));
         }
 
         @Test
         void theRetryStillNeedsTheRead() {
             assertThatThrownBy(
-                            () ->
-                                    recorded("updateDocument")
-                                            .call(
-                                                    "{\"documentId\":42,\"description\":\"x\"}",
-                                                    context))
+                            () -> recorded("updateDocument").call("{\"documentId\":42,\"description\":\"x\"}", context))
                     .isInstanceOf(ToolExecutionException.class);
 
             assertThatThrownBy(() -> function.retryDocumentWrite(context, ref(0)))
@@ -286,15 +243,10 @@ class DocumentReadGuardTest {
 
         @Test
         void aSectionWriteIsReplayedWithItsVersion() {
-            assertThatThrownBy(
-                            () ->
-                                    recorded("updateDocumentSection")
-                                            .call(
-                                                    """
+            assertThatThrownBy(() -> recorded("updateDocumentSection").call("""
                                                     {"documentId":42,"sectionPath":"Гайд > Установка",\
                                                     "newContent":"## Установка\\nnew\\n",\
-                                                    "expectedDescriptionVersion":3}""",
-                                                    context))
+                                                    "expectedDescriptionVersion":3}""", context))
                     .isInstanceOf(ToolExecutionException.class)
                     .hasMessageContaining("callRef=\"" + ref(0) + "\"");
 
@@ -307,17 +259,10 @@ class DocumentReadGuardTest {
         @Test
         void aRefusedRetryPointsBackToTheOriginalWrite() {
             assertThatThrownBy(
-                            () ->
-                                    recorded("updateDocument")
-                                            .call(
-                                                    "{\"documentId\":42,\"description\":\"x\"}",
-                                                    context))
+                            () -> recorded("updateDocument").call("{\"documentId\":42,\"description\":\"x\"}", context))
                     .isInstanceOf(ToolExecutionException.class);
             // Retried before reading: refused again, and this refusal names the retry's own call.
-            assertThatThrownBy(
-                            () ->
-                                    recorded("retryDocumentWrite")
-                                            .call("{\"callRef\":\"" + ref(0) + "\"}", context))
+            assertThatThrownBy(() -> recorded("retryDocumentWrite").call("{\"callRef\":\"" + ref(0) + "\"}", context))
                     .isInstanceOf(ToolExecutionException.class)
                     .hasMessageContaining("retryDocumentWrite(callRef=\"" + ref(1) + "\")");
 
@@ -325,21 +270,13 @@ class DocumentReadGuardTest {
             function.retryDocumentWrite(context, ref(1));
 
             verify(documentService)
-                    .update(
-                            anyLong(),
-                            argThat(
-                                    (UpdateDocumentRequest req) ->
-                                            "x".equals(req.getDescription())));
+                    .update(anyLong(), argThat((UpdateDocumentRequest req) -> "x".equals(req.getDescription())));
         }
 
         @Test
         void anAppliedRetryCannotBeAppliedAgain() {
-            assertThatThrownBy(
-                            () ->
-                                    recorded("updateDocument")
-                                            .call(
-                                                    "{\"documentId\":42,\"description\":\"old\"}",
-                                                    context))
+            assertThatThrownBy(() ->
+                            recorded("updateDocument").call("{\"documentId\":42,\"description\":\"old\"}", context))
                     .isInstanceOf(ToolExecutionException.class);
             recordRead();
             // Through the recording wrapper, so the successful replay is in the collector.
@@ -354,11 +291,7 @@ class DocumentReadGuardTest {
         @Test
         void aCallRefOfAnotherResponseDoesNotReachThisOne() {
             assertThatThrownBy(
-                            () ->
-                                    recorded("updateDocument")
-                                            .call(
-                                                    "{\"documentId\":42,\"description\":\"x\"}",
-                                                    context))
+                            () -> recorded("updateDocument").call("{\"documentId\":42,\"description\":\"x\"}", context))
                     .isInstanceOf(ToolExecutionException.class);
             recordRead();
             String earlierTurnRef = new ToolInvocationCollector().callRef(0);

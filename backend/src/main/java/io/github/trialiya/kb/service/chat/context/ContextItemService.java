@@ -66,46 +66,35 @@ public class ContextItemService {
      * chat_message.meta}. Всё, что не проходит проверку, — ошибка запроса, а не тихо выброшенный
      * элемент: пользователь видел чип и вправе ожидать, что модель увидит файл.
      */
-    public List<ContextItem> resolve(
-            String conversationId, @Nullable List<ContextItemRequest> requested) {
+    public List<ContextItem> resolve(String conversationId, @Nullable List<ContextItemRequest> requested) {
         if (requested == null || requested.isEmpty()) {
             return List.of();
         }
         if (requested.size() > MAX_ITEMS) {
-            throw new ResponseStatusException(
-                    BAD_REQUEST, "Too many context items: " + requested.size());
+            throw new ResponseStatusException(BAD_REQUEST, "Too many context items: " + requested.size());
         }
         final List<ContextItemRequest> unique =
                 List.copyOf(new LinkedHashSet<>(requested)); // порядок сохраняем, дубли снимаем
         unique.forEach(request -> kindOf(request.kind())); // ранний отказ на неизвестном виде
 
-        final Map<Long, AttachmentSummary> attachments =
-                attachmentsOf(conversationId, requestedAttachmentIds(unique));
+        final Map<Long, AttachmentSummary> attachments = attachmentsOf(conversationId, requestedAttachmentIds(unique));
 
         return unique.stream()
-                .map(
-                        request ->
-                                switch (kindOf(request.kind())) {
-                                    case ATTACHMENT -> {
-                                        final AttachmentSummary found =
-                                                attachments.get(attachmentId(request.ref()));
-                                        if (found == null) {
-                                            // Не существует или чужое — снаружи это один и тот же
-                                            // ответ: существование чужих объектов не подтверждаем.
-                                            throw new ResponseStatusException(
-                                                    NOT_FOUND,
-                                                    "Attachment not found: " + request.ref());
-                                        }
-                                        yield new ContextItem(
-                                                ContextItemKind.ATTACHMENT,
-                                                request.ref(),
-                                                found.fileName(),
-                                                Map.of(
-                                                        SUMMARY,
-                                                        Objects.requireNonNullElse(
-                                                                found.summary(), "")));
-                                    }
-                                })
+                .map(request -> switch (kindOf(request.kind())) {
+                    case ATTACHMENT -> {
+                        final AttachmentSummary found = attachments.get(attachmentId(request.ref()));
+                        if (found == null) {
+                            // Не существует или чужое — снаружи это один и тот же
+                            // ответ: существование чужих объектов не подтверждаем.
+                            throw new ResponseStatusException(NOT_FOUND, "Attachment not found: " + request.ref());
+                        }
+                        yield new ContextItem(
+                                ContextItemKind.ATTACHMENT,
+                                request.ref(),
+                                found.fileName(),
+                                Map.of(SUMMARY, Objects.requireNonNullElse(found.summary(), "")));
+                    }
+                })
                 .toList();
     }
 
@@ -143,11 +132,10 @@ public class ContextItemService {
         if (withItems.isEmpty()) {
             return Map.of();
         }
-        final Set<Long> ids =
-                withItems.stream()
-                        .map(ChatMessageEntity::getContextItems)
-                        .flatMap(items -> storedAttachmentIds(items).stream())
-                        .collect(Collectors.toSet());
+        final Set<Long> ids = withItems.stream()
+                .map(ChatMessageEntity::getContextItems)
+                .flatMap(items -> storedAttachmentIds(items).stream())
+                .collect(Collectors.toSet());
         final Map<Long, AttachmentSummary> attachments = attachmentsOf(conversationId, ids);
 
         final Map<Long, String> rendered = new LinkedHashMap<>();
@@ -162,11 +150,10 @@ public class ContextItemService {
 
     /** Общая сборка блока для {@link #render} и {@link #renderAll} — формат описи ровно один. */
     private String renderItems(List<ContextItem> items, Map<Long, AttachmentSummary> attachments) {
-        final List<String> lines =
-                items.stream()
-                        .map(item -> renderOne(item, attachments))
-                        .flatMap(Optional::stream)
-                        .toList();
+        final List<String> lines = items.stream()
+                .map(item -> renderOne(item, attachments))
+                .flatMap(Optional::stream)
+                .toList();
         if (lines.isEmpty()) {
             return "";
         }
@@ -179,33 +166,28 @@ public class ContextItemService {
     private Optional<String> renderOne(ContextItem item, Map<Long, AttachmentSummary> attachments) {
         return switch (item.kind()) {
             case ATTACHMENT -> {
-                final AttachmentSummary attachment =
-                        attachments.get(attachmentIdOrNull(item.ref()));
+                final AttachmentSummary attachment = attachments.get(attachmentIdOrNull(item.ref()));
                 if (attachment == null) {
                     // Вложение удалили после отправки. Молчать честнее, чем звать модель читать
                     // то, чего нет: инструмент всё равно вернул бы ошибку.
                     yield Optional.empty();
                 }
-                yield Optional.of(
-                        "- attachment id="
-                                + attachment.id()
-                                + " name=\""
-                                + attachment.fileName()
-                                + "\" type="
-                                + attachment.contentType()
-                                + " size="
-                                + attachment.fileSize()
-                                + summaryAttribute(item, attachment));
+                yield Optional.of("- attachment id="
+                        + attachment.id()
+                        + " name=\""
+                        + attachment.fileName()
+                        + "\" type="
+                        + attachment.contentType()
+                        + " size="
+                        + attachment.fileSize()
+                        + summaryAttribute(item, attachment));
             }
         };
     }
 
     /** Описание в описи — замороженное при отправке, а у элемента без него — живое. */
     private static String summaryAttribute(ContextItem item, AttachmentSummary attachment) {
-        final String summary =
-                item.payload().get(SUMMARY) instanceof String frozen
-                        ? frozen
-                        : attachment.summary();
+        final String summary = item.payload().get(SUMMARY) instanceof String frozen ? frozen : attachment.summary();
         return summary == null || summary.isEmpty() ? "" : " summary=\"" + summary + "\"";
     }
 

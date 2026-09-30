@@ -129,12 +129,7 @@ class AutoCompactServiceTest {
         service().compactIfOversized(CONV, RUN, QUESTION, MODEL_WINDOW, OPTIONS, sink -> {});
 
         verify(events)
-                .publish(
-                        eq(CONV),
-                        eq(ChatEventType.COMPACT_APPLIED),
-                        eq(RUN),
-                        isNull(),
-                        any(CompactPayload.class));
+                .publish(eq(CONV), eq(ChatEventType.COMPACT_APPLIED), eq(RUN), isNull(), any(CompactPayload.class));
     }
 
     /**
@@ -146,15 +141,12 @@ class AutoCompactServiceTest {
     void theTokensOfARoundThatWroteNoSummaryGoToTheRunThatPaid() {
         window(measured(9_000));
         final TokenUsage spent = new TokenUsage(9_000, 40, 9_040, 8_000, 0);
-        when(compactService.compact(anyString(), any(), any(), any(), any()))
-                .thenAnswer(
-                        invocation -> {
-                            final CompactService.CompactTarget target = invocation.getArgument(2);
-                            target.spentRound()
-                                    .record(spent, RunTokenUsage.Tally.EMPTY.with(spent).view());
-                            throw new IllegalStateException(
-                                    "The model returned an empty compaction");
-                        });
+        when(compactService.compact(anyString(), any(), any(), any(), any())).thenAnswer(invocation -> {
+            final CompactService.CompactTarget target = invocation.getArgument(2);
+            target.spentRound()
+                    .record(spent, RunTokenUsage.Tally.EMPTY.with(spent).view());
+            throw new IllegalStateException("The model returned an empty compaction");
+        });
         final AtomicReference<TokenUsage> folded = new AtomicReference<>();
 
         service().compactIfOversized(CONV, RUN, QUESTION, MODEL_WINDOW, OPTIONS, folded::set);
@@ -173,19 +165,7 @@ class AutoCompactServiceTest {
                 new SummaryWriter(mock(ChatMessageRepository.class), transactionManager()),
                 events,
                 new SummarizeProperties(
-                        30_000,
-                        50,
-                        30,
-                        5,
-                        5,
-                        Duration.ofMinutes(10),
-                        0.5,
-                        3,
-                        0.8,
-                        4,
-                        null,
-                        null,
-                        null));
+                        30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, null, null, null));
     }
 
     private CompactService.CompactTarget capturedTarget() {
@@ -207,16 +187,13 @@ class AutoCompactServiceTest {
         final PromptRow last = rows.getLast();
         rows.set(
                 rows.size() - 1,
-                new PromptRow(
-                        last.entity().withMeta(ChatMessageMeta.ofUsage(lastRunUsage)),
-                        last.text()));
+                new PromptRow(last.entity().withMeta(ChatMessageMeta.ofUsage(lastRunUsage)), last.text()));
         when(chatHistory.promptRowsBefore(CONV, QUESTION)).thenReturn(rows);
         return rows;
     }
 
     private static RunTokenUsage measured(long contextTokens) {
-        return new RunTokenUsage(
-                contextTokens, contextTokens, 0, 0, contextTokens, 0, 0, contextTokens, 1);
+        return new RunTokenUsage(contextTokens, contextTokens, 0, 0, contextTokens, 0, 0, contextTokens, 1);
     }
 
     private static PromptRow row(long position, MessageType type) {
@@ -251,8 +228,7 @@ class AutoCompactServiceTest {
 
     /** Ответ удавшегося раунда: здесь важно только то, что он есть и уезжает плашкой. */
     private static CompactPayload payload() {
-        return new CompactPayload(
-                42L, 6, 500, CompactMeta.Kind.AUTO_COMPACT, LocalDateTime.now(), null, null);
+        return new CompactPayload(42L, 6, 500, CompactMeta.Kind.AUTO_COMPACT, LocalDateTime.now(), null, null);
     }
 
     private static PlatformTransactionManager transactionManager() {

@@ -15,7 +15,8 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("embedding_tasks")
 public class EmbeddingTaskEntity {
 
-    @Id private Long id;
+    @Id
+    private Long id;
 
     private EmbeddingEntityType entityType;
 

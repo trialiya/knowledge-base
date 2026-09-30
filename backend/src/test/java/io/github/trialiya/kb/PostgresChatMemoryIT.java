@@ -62,10 +62,17 @@ import org.springframework.context.annotation.Import;
 @Import({CommonConfig.class, JdbcConfig.class, PgVectorJdbcConfig.class})
 class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
 
-    @Autowired private ChatTopicRepository topicRepo;
-    @Autowired private Clock clock;
-    @Autowired private ChatMessageRepository messageRepo;
-    @Autowired private ToolCallIndexRepository toolCallIndexRepo;
+    @Autowired
+    private ChatTopicRepository topicRepo;
+
+    @Autowired
+    private Clock clock;
+
+    @Autowired
+    private ChatMessageRepository messageRepo;
+
+    @Autowired
+    private ToolCallIndexRepository toolCallIndexRepo;
 
     private ChatHistoryService memory() {
         return new ChatHistoryService(
@@ -73,8 +80,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                 new ContextItemService(mock(AttachmentService.class)),
                 toolCalls(),
                 new ToolCallEventPublisher(
-                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                        new RunRegistry()),
+                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))), new RunRegistry()),
                 ActiveProjectNotices.silent());
     }
 
@@ -91,13 +97,8 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     }
 
     private static ChatMessageEntity entity(
-            String conversationId,
-            String content,
-            MessageType type,
-            long position,
-            LocalDateTime createdAt) {
-        return new ChatMessageEntity(
-                0L, conversationId, content, type, position, false, false, createdAt, null);
+            String conversationId, String content, MessageType type, long position, LocalDateTime createdAt) {
+        return new ChatMessageEntity(0L, conversationId, content, type, position, false, false, createdAt, null);
     }
 
     // ── ChatHistoryService: round-trip ───────────────────────────────────────
@@ -109,9 +110,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
 
         memory.append(
                 conv,
-                List.of(
-                        new UserMessage("Что такое pgvector?"),
-                        new AssistantMessage("Это расширение для векторов.")));
+                List.of(new UserMessage("Что такое pgvector?"), new AssistantMessage("Это расширение для векторов.")));
 
         List<Message> reloaded = memory.promptMessages(conv);
 
@@ -141,10 +140,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                         new UserMessage("Почему упала сборка?"),
                         AssistantMessage.builder()
                                 .content("Из-за зависимости.")
-                                .properties(
-                                        Map.of(
-                                                AssistantChatMessage.REASONING_CONTENT,
-                                                "Смотрю лог."))
+                                .properties(Map.of(AssistantChatMessage.REASONING_CONTENT, "Смотрю лог."))
                                 .build()));
 
         assertThat(memory.promptMessages(conv, true).getLast().getMetadata())
@@ -158,8 +154,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String conv = newConversation();
         ChatHistoryService memory = memory();
 
-        memory.append(
-                conv, List.of(new UserMessage("   "), new AssistantMessage("реальный ответ")));
+        memory.append(conv, List.of(new UserMessage("   "), new AssistantMessage("реальный ответ")));
 
         List<Message> reloaded = memory.promptMessages(conv);
         assertThat(reloaded).hasSize(1);
@@ -173,30 +168,21 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String conv = newConversation();
         ChatHistoryService memory = memory();
 
-        AssistantMessage withCalls =
-                AssistantMessage.builder()
-                        .content("смотрю документ")
-                        .toolCalls(
-                                List.of(
-                                        new AssistantMessage.ToolCall(
-                                                "call-1", "function", "getDocument", "{\"id\":5}")))
-                        .build();
-        ToolResponseMessage response =
-                ToolResponseMessage.builder()
-                        .responses(
-                                List.of(
-                                        new ToolResponseMessage.ToolResponse(
-                                                "call-1", "getDocument", "содержимое документа")))
-                        .build();
+        AssistantMessage withCalls = AssistantMessage.builder()
+                .content("смотрю документ")
+                .toolCalls(List.of(new AssistantMessage.ToolCall("call-1", "function", "getDocument", "{\"id\":5}")))
+                .build();
+        ToolResponseMessage response = ToolResponseMessage.builder()
+                .responses(
+                        List.of(new ToolResponseMessage.ToolResponse("call-1", "getDocument", "содержимое документа")))
+                .build();
 
         memory.append(conv, List.of(new UserMessage("покажи документ 5"), withCalls));
         // Следующая итерация цикла: уже сохранённые приходят как IMessage-обёртки + новые.
         List<Message> afterFirst = memory.promptMessages(conv);
         memory.append(
                 conv,
-                Stream.concat(
-                                afterFirst.stream(),
-                                Stream.of(response, (Message) new AssistantMessage("готово")))
+                Stream.concat(afterFirst.stream(), Stream.of(response, (Message) new AssistantMessage("готово")))
                         .toList());
 
         List<Message> reloaded = memory.promptMessages(conv);
@@ -205,15 +191,11 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         AssistantMessage reloadedCalls = (AssistantMessage) reloaded.get(1);
         assertThat(reloadedCalls.getText()).isEqualTo("смотрю документ");
         assertThat(reloadedCalls.getToolCalls())
-                .containsExactly(
-                        new AssistantMessage.ToolCall(
-                                "call-1", "function", "getDocument", "{\"id\":5}"));
+                .containsExactly(new AssistantMessage.ToolCall("call-1", "function", "getDocument", "{\"id\":5}"));
 
         ToolResponseMessage reloadedResponse = (ToolResponseMessage) reloaded.get(2);
         assertThat(reloadedResponse.getResponses())
-                .containsExactly(
-                        new ToolResponseMessage.ToolResponse(
-                                "call-1", "getDocument", "содержимое документа"));
+                .containsExactly(new ToolResponseMessage.ToolResponse("call-1", "getDocument", "содержимое документа"));
 
         assertThat(reloaded.get(3).getText()).isEqualTo("готово");
     }
@@ -223,14 +205,10 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String conv = newConversation();
         ChatHistoryService memory = memory();
 
-        AssistantMessage callsOnly =
-                AssistantMessage.builder()
-                        .content("")
-                        .toolCalls(
-                                List.of(
-                                        new AssistantMessage.ToolCall(
-                                                "call-9", "function", "searchDocs", "{}")))
-                        .build();
+        AssistantMessage callsOnly = AssistantMessage.builder()
+                .content("")
+                .toolCalls(List.of(new AssistantMessage.ToolCall("call-9", "function", "searchDocs", "{}")))
+                .build();
 
         memory.append(conv, List.of(new UserMessage("найди"), callsOnly));
 
@@ -260,24 +238,16 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String conv = newConversation();
         ChatHistoryService memory = memory();
 
-        AssistantMessage segment1 =
-                AssistantMessage.builder()
-                        .content("сегмент 1")
-                        .toolCalls(
-                                List.of(
-                                        new AssistantMessage.ToolCall(
-                                                "c1", "function", "getDocument", "{}"),
-                                        new AssistantMessage.ToolCall(
-                                                "c2", "function", "getCurrentDateTime", "{}")))
-                        .build();
-        AssistantMessage segment2 =
-                AssistantMessage.builder()
-                        .content("сегмент 2")
-                        .toolCalls(
-                                List.of(
-                                        new AssistantMessage.ToolCall(
-                                                "c3", "function", "searchDocs", "{}")))
-                        .build();
+        AssistantMessage segment1 = AssistantMessage.builder()
+                .content("сегмент 1")
+                .toolCalls(List.of(
+                        new AssistantMessage.ToolCall("c1", "function", "getDocument", "{}"),
+                        new AssistantMessage.ToolCall("c2", "function", "getCurrentDateTime", "{}")))
+                .build();
+        AssistantMessage segment2 = AssistantMessage.builder()
+                .content("сегмент 2")
+                .toolCalls(List.of(new AssistantMessage.ToolCall("c3", "function", "searchDocs", "{}")))
+                .build();
 
         memory.append(
                 conv,
@@ -285,12 +255,9 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                         new UserMessage("вопрос"),
                         segment1,
                         ToolResponseMessage.builder()
-                                .responses(
-                                        List.of(
-                                                new ToolResponseMessage.ToolResponse(
-                                                        "c1", "getDocument", "r1"),
-                                                new ToolResponseMessage.ToolResponse(
-                                                        "c2", "getCurrentDateTime", "r2")))
+                                .responses(List.of(
+                                        new ToolResponseMessage.ToolResponse("c1", "getDocument", "r1"),
+                                        new ToolResponseMessage.ToolResponse("c2", "getCurrentDateTime", "r2")))
                                 .build(),
                         segment2,
                         new AssistantMessage("финальный ответ")));
@@ -312,10 +279,9 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         assertThat(rows.stream().filter(r -> r.getMeta() != null)).hasSize(3);
         // Именно «плашки непустые»: getInvocations() отдаёт список меты, а он у помеченного ряда
         // никогда не null — по != null сюда попал бы и финальный ответ без вызовов.
-        List<ChatMessageEntity> stamped =
-                rows.stream()
-                        .filter(r -> r.getInvocations() != null && !r.getInvocations().isEmpty())
-                        .toList();
+        List<ChatMessageEntity> stamped = rows.stream()
+                .filter(r -> r.getInvocations() != null && !r.getInvocations().isEmpty())
+                .toList();
         assertThat(stamped).hasSize(2);
 
         ChatMessageEntity first = stamped.get(0);
@@ -338,14 +304,10 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String conv = newConversation();
         ChatHistoryService memory = memory();
 
-        AssistantMessage dangling =
-                AssistantMessage.builder()
-                        .content("зову инструмент")
-                        .toolCalls(
-                                List.of(
-                                        new AssistantMessage.ToolCall(
-                                                "c1", "function", "getDocument", "{}")))
-                        .build();
+        AssistantMessage dangling = AssistantMessage.builder()
+                .content("зову инструмент")
+                .toolCalls(List.of(new AssistantMessage.ToolCall("c1", "function", "getDocument", "{}")))
+                .build();
         memory.append(conv, List.of(new UserMessage("вопрос"), dangling));
 
         memory.repairDanglingToolCalls(conv);
@@ -372,36 +334,30 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         // Батч из двух вызовов: первый отработал, на втором прогон оборвали. Ответы на батч
         // advisor-цепочка сохраняет одним сообщением в конце — результат успевшего пропал
         // вместе с брошенным, и вернуть его может только область прогона.
-        AssistantMessage dangling =
-                AssistantMessage.builder()
-                        .content("зову инструменты")
-                        .toolCalls(
-                                List.of(
-                                        new AssistantMessage.ToolCall(
-                                                "c1", "function", "getDocument", "{}"),
-                                        new AssistantMessage.ToolCall(
-                                                "c2", "function", "searchDocs", "{}")))
-                        .build();
+        AssistantMessage dangling = AssistantMessage.builder()
+                .content("зову инструменты")
+                .toolCalls(List.of(
+                        new AssistantMessage.ToolCall("c1", "function", "getDocument", "{}"),
+                        new AssistantMessage.ToolCall("c2", "function", "searchDocs", "{}")))
+                .build();
         memory.append(conv, List.of(new UserMessage("вопрос"), dangling));
 
-        RunScope scope =
-                new RunRegistry().open(UUID.randomUUID().toString(), conv, "user", "gpt-5");
+        RunScope scope = new RunRegistry().open(UUID.randomUUID().toString(), conv, "user", "gpt-5");
         ToolInvocationCollector collector = new ToolInvocationCollector();
         scope.attachCollector(collector);
         scope.rememberCall("c1", 0, Map.of());
         scope.rememberCall("c2", 1, Map.of());
-        collector.record(
-                new ToolInvocation(
-                        "getDocument",
-                        Map.of(),
-                        ToolInvocationStatus.OK,
-                        null,
-                        null,
-                        "текст документа",
-                        "{}",
-                        "полный текст документа",
-                        0,
-                        null));
+        collector.record(new ToolInvocation(
+                "getDocument",
+                Map.of(),
+                ToolInvocationStatus.OK,
+                null,
+                null,
+                "текст документа",
+                "{}",
+                "полный текст документа",
+                0,
+                null));
 
         memory.repairDanglingToolCalls(conv, scope);
 
@@ -410,8 +366,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         assertThat(synthetic.getResponses()).hasSize(2);
         // Успевший вызов отдаёт модели (и модалке деталей) то, что инструмент действительно
         // вернул, — «результата нет» заслужил только брошенный.
-        assertThat(synthetic.getResponses().getFirst().responseData())
-                .isEqualTo("полный текст документа");
+        assertThat(synthetic.getResponses().getFirst().responseData()).isEqualTo("полный текст документа");
         assertThat(synthetic.getResponses().get(1).responseData()).contains("interrupted");
     }
 
@@ -420,53 +375,36 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String conv = newConversation();
         ChatHistoryService memory = memory();
 
-        AssistantMessage oldSegment =
-                AssistantMessage.builder()
-                        .content("старый сегмент")
-                        .toolCalls(
-                                List.of(
-                                        new AssistantMessage.ToolCall(
-                                                "old", "function", "getDocument", "{}")))
-                        .build();
+        AssistantMessage oldSegment = AssistantMessage.builder()
+                .content("старый сегмент")
+                .toolCalls(List.of(new AssistantMessage.ToolCall("old", "function", "getDocument", "{}")))
+                .build();
         memory.append(conv, List.of(new UserMessage("старый вопрос"), oldSegment));
 
         // Новый ход: user + сегмент текущего прогона.
         List<Message> existing = memory.promptMessages(conv);
-        AssistantMessage newSegment =
-                AssistantMessage.builder()
-                        .content("новый сегмент")
-                        .toolCalls(
-                                List.of(
-                                        new AssistantMessage.ToolCall(
-                                                "new", "function", "searchDocs", "{}")))
-                        .build();
+        AssistantMessage newSegment = AssistantMessage.builder()
+                .content("новый сегмент")
+                .toolCalls(List.of(new AssistantMessage.ToolCall("new", "function", "searchDocs", "{}")))
+                .build();
         memory.append(
                 conv,
-                Stream.concat(
-                                existing.stream(),
-                                Stream.of(new UserMessage("новый вопрос"), (Message) newSegment))
+                Stream.concat(existing.stream(), Stream.of(new UserMessage("новый вопрос"), (Message) newSegment))
                         .toList());
 
         memory.markRunResult(
-                conv,
-                "run-7",
-                "gpt-5",
-                RunTokenUsage.EMPTY,
-                List.of(),
-                List.of(invocation("searchDocs", 0)));
+                conv, "run-7", "gpt-5", RunTokenUsage.EMPTY, List.of(), List.of(invocation("searchDocs", 0)));
 
         List<ChatMessageEntity> rows = memory.displayMessages(conv);
-        ChatMessageEntity old =
-                rows.stream()
-                        .filter(r -> r.getContent().equals("старый сегмент"))
-                        .findFirst()
-                        .orElseThrow();
+        ChatMessageEntity old = rows.stream()
+                .filter(r -> r.getContent().equals("старый сегмент"))
+                .findFirst()
+                .orElseThrow();
         assertThat(old.getMeta()).isNull(); // сегмент до последнего USER не тронут
-        ChatMessageEntity fresh =
-                rows.stream()
-                        .filter(r -> r.getContent().equals("новый сегмент"))
-                        .findFirst()
-                        .orElseThrow();
+        ChatMessageEntity fresh = rows.stream()
+                .filter(r -> r.getContent().equals("новый сегмент"))
+                .findFirst()
+                .orElseThrow();
         assertThat(fresh.getMeta()).isNotNull();
         assertThat(fresh.getMeta().runId()).isEqualTo("run-7");
     }
@@ -479,44 +417,27 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         LocalDateTime base = LocalDateTime.of(2026, 1, 1, 12, 0);
         // 5 сообщений, по одному в минуту: m0(старое) … m4(новое)
         for (int i = 0; i < 5; i++) {
-            messageRepo.save(
-                    new ChatMessageEntity(
-                            0L,
-                            conv,
-                            "m" + i,
-                            MessageType.USER,
-                            i,
-                            false,
-                            false,
-                            base.plusMinutes(i),
-                            null));
+            messageRepo.save(new ChatMessageEntity(
+                    0L, conv, "m" + i, MessageType.USER, i, false, false, base.plusMinutes(i), null));
         }
 
         ChatHistoryService memory = memory();
 
         // первая страница: 2 самых новых, в хронологическом порядке -> [m3, m4]
         ChatHistoryService.Page first = memory.findLatestPage(conv, 2);
-        assertThat(first.messages())
-                .extracting(ChatMessageEntity::getContent)
-                .containsExactly("m3", "m4");
+        assertThat(first.messages()).extracting(ChatMessageEntity::getContent).containsExactly("m3", "m4");
         assertThat(first.hasMore()).isTrue();
 
         // следующая страница «до» курсора (m3) -> [m1, m2]
-        ChatHistoryService.Page second =
-                memory.findPageBefore(
-                        conv, first.oldestCursor().createdAt(), first.oldestCursor().id(), 2);
-        assertThat(second.messages())
-                .extracting(ChatMessageEntity::getContent)
-                .containsExactly("m1", "m2");
+        ChatHistoryService.Page second = memory.findPageBefore(
+                conv, first.oldestCursor().createdAt(), first.oldestCursor().id(), 2);
+        assertThat(second.messages()).extracting(ChatMessageEntity::getContent).containsExactly("m1", "m2");
         assertThat(second.hasMore()).isTrue();
 
         // последняя страница -> [m0], больше нет
-        ChatHistoryService.Page third =
-                memory.findPageBefore(
-                        conv, second.oldestCursor().createdAt(), second.oldestCursor().id(), 2);
-        assertThat(third.messages())
-                .extracting(ChatMessageEntity::getContent)
-                .containsExactly("m0");
+        ChatHistoryService.Page third = memory.findPageBefore(
+                conv, second.oldestCursor().createdAt(), second.oldestCursor().id(), 2);
+        assertThat(third.messages()).extracting(ChatMessageEntity::getContent).containsExactly("m0");
         assertThat(third.hasMore()).isFalse();
     }
 
@@ -565,10 +486,9 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         topicRepo.updateUpdatedAt(older, now.minusHours(1));
         topicRepo.updateUpdatedAt(newer, now);
 
-        List<String> ids =
-                topicRepo.findAllByUserOrderByUpdatedAtDesc(user).stream()
-                        .map(ChatTopicEntity::getConversationId)
-                        .toList();
+        List<String> ids = topicRepo.findAllByUserOrderByUpdatedAtDesc(user).stream()
+                .map(ChatTopicEntity::getConversationId)
+                .toList();
 
         assertThat(ids).first().isEqualTo(newer);
         assertThat(ids).contains(older);
@@ -588,8 +508,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     @Test
     void touchingTopicMovesUpdatedAtForward() {
         String conv = newConversation();
-        topicRepo.save(
-                new ChatTopicEntity(conv, "bob-" + UUID.randomUUID(), "тема", null, null, true));
+        topicRepo.save(new ChatTopicEntity(conv, "bob-" + UUID.randomUUID(), "тема", null, null, true));
         LocalDateTime afterSave = topicRepo.findById(conv).orElseThrow().getUpdatedAt();
 
         // отматываем назад, чтобы «тронуть» было чем проверить: без этого проверка
@@ -599,8 +518,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
 
         topicRepo.updateUpdatedAt(conv, LocalDateTime.now(clock));
 
-        assertThat(topicRepo.findById(conv).orElseThrow().getUpdatedAt())
-                .isAfterOrEqualTo(afterSave);
+        assertThat(topicRepo.findById(conv).orElseThrow().getUpdatedAt()).isAfterOrEqualTo(afterSave);
     }
 
     // ── Поиск по сообщениям внутри чата (find-бар, Ctrl+F) ───────────────────
@@ -610,15 +528,8 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String conv = newConversation();
         LocalDateTime base = LocalDateTime.of(2026, 2, 1, 10, 0);
         messageRepo.save(entity(conv, "Расскажи про PostgreSQL", MessageType.USER, 0, base));
-        messageRepo.save(
-                entity(conv, "Это не совпадает", MessageType.ASSISTANT, 1, base.plusMinutes(1)));
-        messageRepo.save(
-                entity(
-                        conv,
-                        "postgresql отлично подходит",
-                        MessageType.ASSISTANT,
-                        2,
-                        base.plusMinutes(2)));
+        messageRepo.save(entity(conv, "Это не совпадает", MessageType.ASSISTANT, 1, base.plusMinutes(1)));
+        messageRepo.save(entity(conv, "postgresql отлично подходит", MessageType.ASSISTANT, 2, base.plusMinutes(2)));
 
         List<MessageSearchHit> hits = search().searchMessages(conv, "postgresql");
 
@@ -630,26 +541,18 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     void searchMessagesExcludesSystemAndToolCallBreadcrumbs() {
         String conv = newConversation();
         LocalDateTime base = LocalDateTime.of(2026, 2, 2, 10, 0);
-        messageRepo.save(
-                entity(conv, "служебное сообщение про единорога", MessageType.SYSTEM, 0, base));
-        messageRepo.save(
-                new ChatMessageEntity(
-                        0L,
-                        conv,
-                        "Инструменты...\n{\"name\":\"unicornTool\"}",
-                        MessageType.ASSISTANT,
-                        1,
-                        false,
-                        false,
-                        base.plusMinutes(1),
-                        ChatMessageMeta.builder().runId("run-1").toolCalls(true).build()));
-        messageRepo.save(
-                entity(
-                        conv,
-                        "настоящий ответ про единорога",
-                        MessageType.ASSISTANT,
-                        2,
-                        base.plusMinutes(2)));
+        messageRepo.save(entity(conv, "служебное сообщение про единорога", MessageType.SYSTEM, 0, base));
+        messageRepo.save(new ChatMessageEntity(
+                0L,
+                conv,
+                "Инструменты...\n{\"name\":\"unicornTool\"}",
+                MessageType.ASSISTANT,
+                1,
+                false,
+                false,
+                base.plusMinutes(1),
+                ChatMessageMeta.builder().runId("run-1").toolCalls(true).build()));
+        messageRepo.save(entity(conv, "настоящий ответ про единорога", MessageType.ASSISTANT, 2, base.plusMinutes(2)));
 
         List<MessageSearchHit> hits = search().searchMessages(conv, "единорога");
 
@@ -675,32 +578,23 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         topicRepo.save(new ChatTopicEntity(byMessage, user, "Другая тема", null, null, true));
 
         messageRepo.save(
-                entity(
-                        byMessage,
-                        "а вот жирафы действительно высокие",
-                        MessageType.USER,
-                        0,
-                        LocalDateTime.now()));
+                entity(byMessage, "а вот жирафы действительно высокие", MessageType.USER, 0, LocalDateTime.now()));
 
         List<ChatSearchResult> results = search().searchChats(user, "жираф", 20);
 
-        assertThat(results)
-                .extracting(ChatSearchResult::conversationId)
-                .containsExactlyInAnyOrder(byTitle, byMessage);
+        assertThat(results).extracting(ChatSearchResult::conversationId).containsExactlyInAnyOrder(byTitle, byMessage);
 
-        ChatSearchResult titleResult =
-                results.stream()
-                        .filter(r -> r.conversationId().equals(byTitle))
-                        .findFirst()
-                        .orElseThrow();
+        ChatSearchResult titleResult = results.stream()
+                .filter(r -> r.conversationId().equals(byTitle))
+                .findFirst()
+                .orElseThrow();
         assertThat(titleResult.titleMatched()).isTrue();
         assertThat(titleResult.messageMatchCount()).isZero();
 
-        ChatSearchResult messageResult =
-                results.stream()
-                        .filter(r -> r.conversationId().equals(byMessage))
-                        .findFirst()
-                        .orElseThrow();
+        ChatSearchResult messageResult = results.stream()
+                .filter(r -> r.conversationId().equals(byMessage))
+                .findFirst()
+                .orElseThrow();
         assertThat(messageResult.titleMatched()).isFalse();
         assertThat(messageResult.messageMatchCount()).isEqualTo(1);
         assertThat(messageResult.snippet()).contains("жирафы");
@@ -712,11 +606,8 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String otherUser = "eve-" + UUID.randomUUID();
         String mine = newConversation();
         String theirs = newConversation();
-        topicRepo.save(
-                new ChatTopicEntity(mine, user, "мой уникальный секрет123", null, null, true));
-        topicRepo.save(
-                new ChatTopicEntity(
-                        theirs, otherUser, "чужой уникальный секрет123", null, null, true));
+        topicRepo.save(new ChatTopicEntity(mine, user, "мой уникальный секрет123", null, null, true));
+        topicRepo.save(new ChatTopicEntity(theirs, otherUser, "чужой уникальный секрет123", null, null, true));
 
         List<ChatSearchResult> results = search().searchChats(user, "секрет123", 20);
 

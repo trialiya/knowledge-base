@@ -66,11 +66,10 @@ public class EmbeddingService {
         this.cacheRepo = cacheRepo;
         this.cacheEnabled = embeddingConfig.cache().enabled();
         this.modelName = embeddingConfig.model();
-        this.chunker =
-                TextChunker.builder()
-                        .maxTokens(embeddingConfig.chunker().maxTokens())
-                        .overlapTokens(embeddingConfig.chunker().overlapTokens())
-                        .build();
+        this.chunker = TextChunker.builder()
+                .maxTokens(embeddingConfig.chunker().maxTokens())
+                .overlapTokens(embeddingConfig.chunker().overlapTokens())
+                .build();
     }
 
     public String getModelName() {
@@ -187,14 +186,11 @@ public class EmbeddingService {
 
     private float[] embedWithCacheAndChunking(String text) {
         if (chunker.fitsInOneChunk(text)) {
-            return lookupCache(text, modelName)
-                    .orElseGet(
-                            () -> {
-                                float[] vec =
-                                        callApi(List.of(text)).getResults().get(0).getOutput();
-                                writeCache(text, modelName, vec);
-                                return vec;
-                            });
+            return lookupCache(text, modelName).orElseGet(() -> {
+                float[] vec = callApi(List.of(text)).getResults().get(0).getOutput();
+                writeCache(text, modelName, vec);
+                return vec;
+            });
         }
 
         List<String> chunks = chunker.split(text);
@@ -214,8 +210,7 @@ public class EmbeddingService {
         }
 
         if (!missIndexes.isEmpty()) {
-            List<String> missTexts =
-                    missIndexes.stream().map(chunks::get).collect(Collectors.toList());
+            List<String> missTexts = missIndexes.stream().map(chunks::get).collect(Collectors.toList());
             EmbeddingResponse resp = callApi(missTexts);
             for (int k = 0; k < missIndexes.size(); k++) {
                 float[] vec = resp.getResults().get(k).getOutput();
@@ -233,13 +228,10 @@ public class EmbeddingService {
     private Optional<float[]> lookupCache(String text, String model) {
         if (!cacheEnabled) return Optional.empty();
         String hash = sha256(text);
-        return cacheRepo
-                .findByTextHashAndModel(hash, model)
-                .map(
-                        entity -> {
-                            cacheRepo.touchLastUsed(hash, model, OffsetDateTime.now());
-                            return entity.getEmbedding();
-                        });
+        return cacheRepo.findByTextHashAndModel(hash, model).map(entity -> {
+            cacheRepo.touchLastUsed(hash, model, OffsetDateTime.now());
+            return entity.getEmbedding();
+        });
     }
 
     private void writeCache(String text, String model, float[] vector) {
@@ -247,8 +239,7 @@ public class EmbeddingService {
         String hash = sha256(text);
         if (cacheRepo.findByTextHashAndModel(hash, model).isEmpty()) {
             OffsetDateTime now = OffsetDateTime.now();
-            EmbeddingCacheEntity entity =
-                    new EmbeddingCacheEntity(null, hash, model, vector, now, now);
+            EmbeddingCacheEntity entity = new EmbeddingCacheEntity(null, hash, model, vector, now, now);
             cacheRepo.save(entity);
             log.debug("Cache write: hash={} model={}", hash, model);
         }
@@ -271,15 +262,13 @@ public class EmbeddingService {
         return sb.toString();
     }
 
-    private static final ThreadLocal<MessageDigest> SHA256_DIGEST =
-            ThreadLocal.withInitial(
-                    () -> {
-                        try {
-                            return MessageDigest.getInstance("SHA-256");
-                        } catch (NoSuchAlgorithmException e) {
-                            throw new IllegalStateException("SHA-256 not available", e);
-                        }
-                    });
+    private static final ThreadLocal<MessageDigest> SHA256_DIGEST = ThreadLocal.withInitial(() -> {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    });
 
     static String sha256(String text) {
         MessageDigest md = SHA256_DIGEST.get();

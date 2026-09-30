@@ -15,8 +15,7 @@ import java.util.Map;
  *     <active-project>}
  * @param content текст инструкции как есть
  */
-public record SkillContent(String name, String content)
-        implements ToolCallResponseItem, ToolCallResultMetaProvider {
+public record SkillContent(String name, String content) implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     /**
      * Гист — единственное, что из этого ответа увидит суммаризатор ({@code

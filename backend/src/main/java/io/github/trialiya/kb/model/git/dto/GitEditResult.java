@@ -26,8 +26,7 @@ public record GitEditResult(
         int additions,
         int deletions,
         int lineCount,
-        @Nullable String diff)
-        implements ToolCallResultMetaProvider, ToolCallResponseItem {
+        @Nullable String diff) implements ToolCallResultMetaProvider, ToolCallResponseItem {
 
     @Override
     public Map<String, Object> getResultMeta() {

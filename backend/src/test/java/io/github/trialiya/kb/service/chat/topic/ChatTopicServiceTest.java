@@ -39,7 +39,8 @@ import org.springframework.web.server.ResponseStatusException;
 @Import(CommonConfig.class)
 class ChatTopicServiceTest {
 
-    @Autowired private ChatTopicRepository topicRepo;
+    @Autowired
+    private ChatTopicRepository topicRepo;
 
     private ChatTopicService service;
 
@@ -75,19 +76,18 @@ class ChatTopicServiceTest {
     @Test
     void chatOfAnotherUserIsRefused() {
         String conversationId = UUID.randomUUID().toString();
-        topicRepo.save(
-                new ChatTopicEntity(
-                        conversationId,
-                        "somebody-else",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        LocalDateTime.now(),
-                        LocalDateTime.now(),
-                        true));
+        topicRepo.save(new ChatTopicEntity(
+                conversationId,
+                "somebody-else",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                true));
 
         assertThatThrownBy(() -> service.ensureExists(conversationId))
                 .isInstanceOf(ResponseStatusException.class)

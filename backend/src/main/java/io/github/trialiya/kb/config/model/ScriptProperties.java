@@ -78,11 +78,9 @@ public record ScriptProperties(
 
     private static final Resource DEFAULT_GUIDE = new ClassPathResource("prompt/script-run.md");
 
-    private static final Resource DEFAULT_EXTENDED_GUIDE =
-            new ClassPathResource("prompt/script-run-extended.md");
+    private static final Resource DEFAULT_EXTENDED_GUIDE = new ClassPathResource("prompt/script-run-extended.md");
 
-    private static final Resource DEFAULT_EDIT_GUIDE =
-            new ClassPathResource("prompt/script-run-edit.md");
+    private static final Resource DEFAULT_EDIT_GUIDE = new ClassPathResource("prompt/script-run-edit.md");
 
     private static final Resource DEFAULT_EXTENDED_EDIT_GUIDE =
             new ClassPathResource("prompt/script-run-edit-extended.md");
@@ -108,8 +106,7 @@ public record ScriptProperties(
         this.guide = guide != null ? guide : DEFAULT_GUIDE;
         this.extendedGuide = extendedGuide != null ? extendedGuide : DEFAULT_EXTENDED_GUIDE;
         this.editGuide = editGuide != null ? editGuide : DEFAULT_EDIT_GUIDE;
-        this.extendedEditGuide =
-                extendedEditGuide != null ? extendedEditGuide : DEFAULT_EXTENDED_EDIT_GUIDE;
+        this.extendedEditGuide = extendedEditGuide != null ? extendedEditGuide : DEFAULT_EXTENDED_EDIT_GUIDE;
         this.schedules = schedules == null ? List.of() : List.copyOf(schedules);
         this.timeout = timeout != null ? timeout : Duration.ofSeconds(10);
         this.maxTimeout = maxTimeout != null ? maxTimeout : Duration.ofSeconds(30);
@@ -119,8 +116,7 @@ public record ScriptProperties(
 
     /** All-defaults instance with the tool enabled — for tests and programmatic setups. */
     public static ScriptProperties enabledWithDefaults() {
-        return new ScriptProperties(
-                true, true, true, false, null, null, null, null, null, null, null, null, null);
+        return new ScriptProperties(true, true, true, false, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -236,8 +232,7 @@ public record ScriptProperties(
             this.maxLogChars = maxLogChars > 0 ? maxLogChars : DEFAULT_MAX_LOG_CHARS;
             this.maxResultChars = maxResultChars > 0 ? maxResultChars : DEFAULT_MAX_RESULT_CHARS;
             this.maxEditedFiles = maxEditedFiles > 0 ? maxEditedFiles : DEFAULT_MAX_EDITED_FILES;
-            this.maxEditedBytes =
-                    maxEditedBytes != null ? maxEditedBytes : DEFAULT_MAX_EDITED_BYTES;
+            this.maxEditedBytes = maxEditedBytes != null ? maxEditedBytes : DEFAULT_MAX_EDITED_BYTES;
         }
     }
 }

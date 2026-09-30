@@ -49,10 +49,8 @@ class ActiveProjectNoticeTest {
         notice = new ActiveProjectNotice(projectPrompt, chatTopicRepository);
     }
 
-    private static ChatMessageEntity row(
-            long position, MessageType type, @Nullable ChatMessageMeta meta) {
-        return new ChatMessageEntity(
-                position, CONV, "text", type, position, false, false, LocalDateTime.now(), meta);
+    private static ChatMessageEntity row(long position, MessageType type, @Nullable ChatMessageMeta meta) {
+        return new ChatMessageEntity(position, CONV, "text", type, position, false, false, LocalDateTime.now(), meta);
     }
 
     private static ChatMessageEntity question(long position) {
@@ -60,7 +58,10 @@ class ActiveProjectNoticeTest {
     }
 
     private static ChatMessageEntity stamp(long position, String project) {
-        return row(position, MessageType.USER, ChatMessageMeta.builder().project(project).build());
+        return row(
+                position,
+                MessageType.USER,
+                ChatMessageMeta.builder().project(project).build());
     }
 
     /** Маркер смены: этим вопросом чат перешёл из {@code from} в {@code to}. */
@@ -119,21 +120,15 @@ class ActiveProjectNoticeTest {
      */
     @Test
     void aSwitchMovesTheAnchorToTheQuestionThatMadeIt() {
-        assertThat(
-                        anchorOf(
-                                List.of(
-                                        stamp(1, "kb"),
-                                        answer(2),
-                                        switched(3, "kb", "billing"),
-                                        answer(4),
-                                        question(5))))
+        assertThat(anchorOf(List.of(stamp(1, "kb"), answer(2), switched(3, "kb", "billing"), answer(4), question(5))))
                 .isEqualTo(3);
     }
 
     /** Оба ряда прозрачны для «вопроса» — ход открыл не они. */
     @Test
     void neitherAGitEventNorAnInterjectionBecomesTheAnchor() {
-        assertThat(anchorOf(List.of(gitEvent(1), interjection(2), stamp(3, "kb")))).isEqualTo(3);
+        assertThat(anchorOf(List.of(gitEvent(1), interjection(2), stamp(3, "kb"))))
+                .isEqualTo(3);
     }
 
     /**
@@ -142,13 +137,8 @@ class ActiveProjectNoticeTest {
      */
     @Test
     void aStretchInheritedFromASummaryAnchorsOnTheFirstLivingQuestion() {
-        assertThat(
-                        anchorOf(
-                                List.of(
-                                        summary(8, "kb", new ProjectSpan("kb", 1, 8)),
-                                        question(9),
-                                        answer(10),
-                                        question(11))))
+        assertThat(anchorOf(
+                        List.of(summary(8, "kb", new ProjectSpan("kb", 1, 8)), question(9), answer(10), question(11))))
                 .isEqualTo(9);
     }
 
@@ -160,7 +150,8 @@ class ActiveProjectNoticeTest {
 
     @Test
     void theNoticeIsTaggedAndTellsTheSummarizerToDropIt() {
-        String text = requireNonNull(notice.place(CONV, List.of(stamp(1, "kb"), answer(2)))).text();
+        String text = requireNonNull(notice.place(CONV, List.of(stamp(1, "kb"), answer(2))))
+                .text();
 
         assertThat(text).startsWith("<active-project>\n").endsWith("</active-project>");
         assertThat(text).contains("do not preserve it");
@@ -191,8 +182,7 @@ class ActiveProjectNoticeTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<ProjectSpan>> spans = ArgumentCaptor.forClass(List.class);
         verify(projectPrompt).context(any(), spans.capture());
-        assertThat(spans.getValue())
-                .containsExactly(new ProjectSpan("kb", 1, 3), new ProjectSpan("billing", 4, 5));
+        assertThat(spans.getValue()).containsExactly(new ProjectSpan("kb", 1, 3), new ProjectSpan("billing", 4, 5));
     }
 
     /**
@@ -204,8 +194,7 @@ class ActiveProjectNoticeTest {
      */
     @Test
     void growingTheWindowMovesOnlyTheOpenEndOfTheLastStretch() {
-        final List<ChatMessageEntity> window =
-                new ArrayList<>(List.of(stamp(1, "kb"), switched(4, "kb", "billing")));
+        final List<ChatMessageEntity> window = new ArrayList<>(List.of(stamp(1, "kb"), switched(4, "kb", "billing")));
 
         notice.place(CONV, window);
         window.add(answer(5));
@@ -216,8 +205,7 @@ class ActiveProjectNoticeTest {
         final List<ProjectSpan> before = renders.get(0);
         final List<ProjectSpan> after = renders.get(1);
         assertThat(after).hasSameSizeAs(before);
-        assertThat(after.subList(0, after.size() - 1))
-                .isEqualTo(before.subList(0, before.size() - 1));
+        assertThat(after.subList(0, after.size() - 1)).isEqualTo(before.subList(0, before.size() - 1));
         assertThat(after.getLast().project()).isEqualTo(before.getLast().project());
         assertThat(after.getLast().from()).isEqualTo(before.getLast().from());
     }
@@ -226,20 +214,18 @@ class ActiveProjectNoticeTest {
     @Test
     void aWindowWithoutACarrierFallsBackToTheChatsProject() {
         when(chatTopicRepository.findById(CONV))
-                .thenReturn(
-                        Optional.of(
-                                new ChatTopicEntity(
-                                        CONV,
-                                        "admin",
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        "docs",
-                                        LocalDateTime.now(),
-                                        LocalDateTime.now(),
-                                        false)));
+                .thenReturn(Optional.of(new ChatTopicEntity(
+                        CONV,
+                        "admin",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        "docs",
+                        LocalDateTime.now(),
+                        LocalDateTime.now(),
+                        false)));
 
         notice.place(CONV, List.of(gitEvent(1), question(2)));
 

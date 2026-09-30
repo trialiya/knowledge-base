@@ -61,22 +61,18 @@ final class TopicPrompt {
     static final String CUT = " … ";
 
     private static final Pattern LABEL =
-            Pattern.compile(
-                    "^(title|topic|тема|название)\\s*:\\s*",
-                    Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+            Pattern.compile("^(title|topic|тема|название)\\s*:\\s*", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**
      * Обёртка названия: кавычки, заголовок markdown ({@code #} с пробелом) и жирный ({@code **}).
      * Одиночные {@code #}, {@code *} и {@code _} не трогаются — ими названия начинаются и кончаются
      * по делу: «Async в C#», {@code __init__}, {@code *.gradle}.
      */
-    private static final Pattern LEADING_JUNK =
-            Pattern.compile("^(?:#+\\s+|\\*\\*|[\\s\"'`«»“”„])+");
+    private static final Pattern LEADING_JUNK = Pattern.compile("^(?:#+\\s+|\\*\\*|[\\s\"'`«»“”„])+");
 
     /** Забор кода, его язык и всё до закрывающего забора той же длины (или до конца текста). */
     private static final Pattern CODE_BLOCK =
-            Pattern.compile(
-                    "(?ms)^[ \\t]*(`{3,}|~{3,})[ \\t]*([^\\n]*)$.*?(?:^[ \\t]*\\1[ \\t]*$|\\z)");
+            Pattern.compile("(?ms)^[ \\t]*(`{3,}|~{3,})[ \\t]*([^\\n]*)$.*?(?:^[ \\t]*\\1[ \\t]*$|\\z)");
 
     private static final Pattern TRAILING_JUNK = Pattern.compile("(?:\\*\\*|[\\s\"'`«»“”„.!。])+$");
 
@@ -115,9 +111,7 @@ final class TopicPrompt {
     static List<Line> excerpt(List<ChatMessageEntity> rows) {
         final Deque<Line> picked = new ArrayDeque<>();
         int total = 0;
-        for (int i = answeredEnd(rows) - 1;
-                i >= 0 && picked.size() < MAX_MESSAGES && total < ENOUGH_CHARS;
-                i--) {
+        for (int i = answeredEnd(rows) - 1; i >= 0 && picked.size() < MAX_MESSAGES && total < ENOUGH_CHARS; i--) {
             final ChatMessageEntity row = rows.get(i);
             if (!readable(row)) {
                 continue;
@@ -136,13 +130,9 @@ final class TopicPrompt {
 
     /** Сообщение пользователя для запроса: текущее название, если есть, и окно. */
     static String request(@Nullable String currentTopic, List<Line> lines) {
-        final String conversation =
-                lines.stream()
-                        .map(
-                                line ->
-                                        (line.type() == MessageType.USER ? "User: " : "Assistant: ")
-                                                + line.text())
-                        .collect(Collectors.joining("\n\n"));
+        final String conversation = lines.stream()
+                .map(line -> (line.type() == MessageType.USER ? "User: " : "Assistant: ") + line.text())
+                .collect(Collectors.joining("\n\n"));
         return (currentTopic == null ? "" : "Current title: " + currentTopic + "\n\n")
                 + "Conversation, oldest first:\n\n"
                 + conversation;
@@ -225,9 +215,7 @@ final class TopicPrompt {
             final String info = block.group(2).strip();
             final String language = info.isEmpty() ? "" : info.split("\\s+", 2)[0];
             block.appendReplacement(
-                    out,
-                    Matcher.quoteReplacement(
-                            language.isEmpty() ? "[code]" : "[code: " + language + "]"));
+                    out, Matcher.quoteReplacement(language.isEmpty() ? "[code]" : "[code: " + language + "]"));
         }
         block.appendTail(out);
         return out.toString().replaceAll("\n{3,}", "\n\n").strip();
@@ -264,13 +252,12 @@ final class TopicPrompt {
         if (row.getType() != MessageType.USER) {
             return text;
         }
-        final List<String> names =
-                row.getContextItems().stream()
-                        .filter(item -> item.kind() == ContextItemKind.ATTACHMENT)
-                        .map(ContextItem::label)
-                        .filter(Objects::nonNull)
-                        .filter(label -> !label.isBlank())
-                        .toList();
+        final List<String> names = row.getContextItems().stream()
+                .filter(item -> item.kind() == ContextItemKind.ATTACHMENT)
+                .map(ContextItem::label)
+                .filter(Objects::nonNull)
+                .filter(label -> !label.isBlank())
+                .toList();
         if (names.isEmpty()) {
             return text;
         }

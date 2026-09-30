@@ -28,26 +28,19 @@ class CompactPromptTest {
     private static final String CONV = "conv-1";
 
     private final CompactPrompt prompt =
-            new CompactPrompt(
-                    chatTopicRepository(), new ByteArrayResource("HANDBOOK".getBytes(UTF_8)));
+            new CompactPrompt(chatTopicRepository(), new ByteArrayResource("HANDBOOK".getBytes(UTF_8)));
 
     @Test
     void aWindowWithoutSummariesAsksForExactlyOneBulletPerQuestion() {
-        final String text =
-                prompt.instruction(
-                        CONV,
-                        List.of(
-                                user(1, "first"),
-                                assistant(2, "answer"),
-                                user(3, "second"),
-                                assistant(4, "answer")),
-                        null);
+        final String text = prompt.instruction(
+                CONV,
+                List.of(user(1, "first"), assistant(2, "answer"), user(3, "second"), assistant(4, "answer")),
+                null);
 
         assertThat(text)
                 .contains("- Messages above: 4\n")
-                .contains(
-                        "- Of them USER messages with a request: 2 (`## User requests` must have"
-                                + " exactly this many bullets)\n")
+                .contains("- Of them USER messages with a request: 2 (`## User requests` must have"
+                        + " exactly this many bullets)\n")
                 .doesNotContain("earlier summary");
     }
 
@@ -58,17 +51,13 @@ class CompactPromptTest {
     @Test
     void anEarlierSummaryIsCountedApartFromTheLiveQuestions() {
         final String text =
-                prompt.instruction(
-                        CONV,
-                        List.of(summary(1), user(2, "question"), assistant(3, "answer")),
-                        null);
+                prompt.instruction(CONV, List.of(summary(1), user(2, "question"), assistant(3, "answer")), null);
 
         assertThat(text)
                 .contains("- Messages above: 3\n")
-                .contains(
-                        "- Of them USER messages with a request: 1 (`## User requests` must have"
-                                + " exactly this many bullets for them, ON TOP OF every bullet"
-                                + " carried over from the earlier summaries)\n")
+                .contains("- Of them USER messages with a request: 1 (`## User requests` must have"
+                        + " exactly this many bullets for them, ON TOP OF every bullet"
+                        + " carried over from the earlier summaries)\n")
                 .contains("- Of them earlier summary messages: 1 (carry their `## User requests`");
     }
 
@@ -77,27 +66,23 @@ class CompactPromptTest {
      */
     @Test
     void anEventRowIsNotCountedAsARequest() {
-        final ChatMessageEntity pull =
-                new ChatMessageEntity(
-                        2,
-                        CONV,
-                        "",
-                        MessageType.USER,
-                        2,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofGitEvent(
-                                new GitEventMeta("pull", "kb", true, "ok", "main")));
-        final String text =
-                prompt.instruction(
-                        CONV,
-                        List.of(
-                                user(1, "question"),
-                                new PromptRow(
-                                        pull, "<git-command command=\"pull\" outcome=\"ok\"/>"),
-                                assistant(3, "answer")),
-                        null);
+        final ChatMessageEntity pull = new ChatMessageEntity(
+                2,
+                CONV,
+                "",
+                MessageType.USER,
+                2,
+                false,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofGitEvent(new GitEventMeta("pull", "kb", true, "ok", "main")));
+        final String text = prompt.instruction(
+                CONV,
+                List.of(
+                        user(1, "question"),
+                        new PromptRow(pull, "<git-command command=\"pull\" outcome=\"ok\"/>"),
+                        assistant(3, "answer")),
+                null);
 
         assertThat(text).contains("- Of them USER messages with a request: 1 (");
     }
@@ -117,15 +102,7 @@ class CompactPromptTest {
     private static PromptRow row(long position, MessageType type, String content, boolean summary) {
         return new PromptRow(
                 new ChatMessageEntity(
-                        position,
-                        CONV,
-                        content,
-                        type,
-                        position,
-                        false,
-                        summary,
-                        LocalDateTime.now(),
-                        null),
+                        position, CONV, content, type, position, false, summary, LocalDateTime.now(), null),
                 content);
     }
 

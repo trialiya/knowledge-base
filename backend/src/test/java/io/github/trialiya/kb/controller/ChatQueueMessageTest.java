@@ -59,28 +59,25 @@ class ChatQueueMessageTest {
         when(runService.isGenerating(CONV, RUN)).thenReturn(true);
 
         final ChatModelProperties models =
-                new ChatModelProperties(
-                        new ModelOption("gpt", "GPT", true, true, null, null, null, false),
-                        List.of());
-        controller =
-                new ChatController(
-                        models,
-                        new ChatModeProperties(List.of()),
-                        resolver(models),
-                        pendingMessages,
-                        mock(ChatTopicRepository.class),
-                        mock(ChatHistoryService.class),
-                        mock(ChatUsageService.class),
-                        mock(ToolCallService.class),
-                        mock(ChatSearchService.class),
-                        runService,
-                        mock(CompactService.class),
-                        mock(ChatEventService.class),
-                        contextItemService,
-                        mock(ChatTopicService.class),
-                        mock(GitRegistry.class),
-                        mock(ChatScriptRun.class),
-                        Clock.systemUTC());
+                new ChatModelProperties(new ModelOption("gpt", "GPT", true, true, null, null, null, false), List.of());
+        controller = new ChatController(
+                models,
+                new ChatModeProperties(List.of()),
+                resolver(models),
+                pendingMessages,
+                mock(ChatTopicRepository.class),
+                mock(ChatHistoryService.class),
+                mock(ChatUsageService.class),
+                mock(ToolCallService.class),
+                mock(ChatSearchService.class),
+                runService,
+                mock(CompactService.class),
+                mock(ChatEventService.class),
+                contextItemService,
+                mock(ChatTopicService.class),
+                mock(GitRegistry.class),
+                mock(ChatScriptRun.class),
+                Clock.systemUTC());
     }
 
     /** Выбор запоминается как есть — резолвить его будет уже follow-up прогон. */
@@ -150,8 +147,7 @@ class ChatQueueMessageTest {
     }
 
     private void queue(String text, String model) {
-        controller.queueMessage(
-                CONV, RUN, new StartRunRequest(text, null, model, null, null, "msg-1", false));
+        controller.queueMessage(CONV, RUN, new StartRunRequest(text, null, model, null, null, "msg-1", false));
     }
 
     private static RunOptionsResolver resolver(ChatModelProperties models) {

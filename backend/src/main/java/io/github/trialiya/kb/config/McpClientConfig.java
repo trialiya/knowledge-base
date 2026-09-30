@@ -33,15 +33,13 @@ public class McpClientConfig {
     @SuppressWarnings("deprecation")
     public McpClientCustomizer<HttpClientSseClientTransport.Builder> mcpSseBearerAuthCustomizer(
             McpProperties mcpProperties) {
-        return (name, builder) ->
-                authRequest(mcpProperties, name).ifPresent(builder::requestBuilder);
+        return (name, builder) -> authRequest(mcpProperties, name).ifPresent(builder::requestBuilder);
     }
 
     @Bean
-    public McpClientCustomizer<HttpClientStreamableHttpTransport.Builder>
-            mcpStreamableHttpBearerAuthCustomizer(McpProperties mcpProperties) {
-        return (name, builder) ->
-                authRequest(mcpProperties, name).ifPresent(builder::requestBuilder);
+    public McpClientCustomizer<HttpClientStreamableHttpTransport.Builder> mcpStreamableHttpBearerAuthCustomizer(
+            McpProperties mcpProperties) {
+        return (name, builder) -> authRequest(mcpProperties, name).ifPresent(builder::requestBuilder);
     }
 
     /**
@@ -51,8 +49,7 @@ public class McpClientConfig {
      * {@code header} so a {@code kb.mcp.headers} entry named {@code Authorization} replaces rather
      * than duplicates the bearer-token header. Empty when the connection has neither configured.
      */
-    static Optional<HttpRequest.Builder> authRequest(
-            McpProperties mcpProperties, String connectionName) {
+    static Optional<HttpRequest.Builder> authRequest(McpProperties mcpProperties, String connectionName) {
         Optional<String> token = bearerToken(mcpProperties, connectionName);
         Map<String, String> headers = customHeaders(mcpProperties, connectionName);
         if (token.isEmpty() && headers.isEmpty()) {
@@ -60,22 +57,20 @@ public class McpClientConfig {
         }
         HttpRequest.Builder request = HttpRequest.newBuilder();
         token.ifPresent(value -> request.setHeader("Authorization", "Bearer " + value));
-        headers.forEach(
-                (headerName, headerValue) -> {
-                    try {
-                        request.setHeader(headerName, headerValue);
-                    } catch (IllegalArgumentException e) {
-                        throw new IllegalStateException(
-                                "kb.mcp.headers.%s has an invalid header '%s': %s"
-                                        .formatted(connectionName, headerName, e.getMessage()),
-                                e);
-                    }
-                });
+        headers.forEach((headerName, headerValue) -> {
+            try {
+                request.setHeader(headerName, headerValue);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException(
+                        "kb.mcp.headers.%s has an invalid header '%s': %s"
+                                .formatted(connectionName, headerName, e.getMessage()),
+                        e);
+            }
+        });
         return Optional.of(request);
     }
 
-    private static Optional<String> bearerToken(
-            McpProperties mcpProperties, String connectionName) {
+    private static Optional<String> bearerToken(McpProperties mcpProperties, String connectionName) {
         return Optional.ofNullable(mcpProperties.bearerTokens().get(connectionName))
                 .filter(token -> !token.isBlank());
     }
@@ -89,8 +84,7 @@ public class McpClientConfig {
      * checks it would be an NPE while building the customizer, i.e. a failed startup over a header
      * the deployment does not use.
      */
-    private static Map<String, String> customHeaders(
-            McpProperties mcpProperties, String connectionName) {
+    private static Map<String, String> customHeaders(McpProperties mcpProperties, String connectionName) {
         Map<String, String> configured = mcpProperties.headers().get(connectionName);
         if (configured == null) {
             return Map.of();

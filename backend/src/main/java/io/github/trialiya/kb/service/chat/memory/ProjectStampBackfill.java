@@ -94,11 +94,10 @@ public class ProjectStampBackfill {
         }
         final @Nullable Path dir = dumpDir();
         if (dir == null) {
-            log.warn(
-                    "Project stamp backfill skipped: kb.chat.backfill.dump-path is not set, and the"
-                            + " pass will not rewrite chat_message without a snapshot to restore from."
-                            + " Old chats keep answering \"which repository\" from chat_topic, without"
-                            + " per-message ranges, until it is set and the app restarted.");
+            log.warn("Project stamp backfill skipped: kb.chat.backfill.dump-path is not set, and the"
+                    + " pass will not rewrite chat_message without a snapshot to restore from."
+                    + " Old chats keep answering \"which repository\" from chat_topic, without"
+                    + " per-message ranges, until it is set and the app restarted.");
             return;
         }
         final List<String> conversations = chatTopicRepository.findAllConversationIds();
@@ -128,8 +127,7 @@ public class ProjectStampBackfill {
         }
         if (failed > 0) {
             log.warn(
-                    "Project stamp backfill not marked done: {} chat(s) failed, retrying on the next"
-                            + " start",
+                    "Project stamp backfill not marked done: {} chat(s) failed, retrying on the next" + " start",
                     failed);
             return;
         }
@@ -148,8 +146,7 @@ public class ProjectStampBackfill {
      */
     private int inLock(String conversationId, ProjectStampDump dump) {
         final int[] touched = {0};
-        summaryWriter.inConversation(
-                conversationId, () -> touched[0] = backfill(conversationId, dump));
+        summaryWriter.inConversation(conversationId, () -> touched[0] = backfill(conversationId, dump));
         return touched[0];
     }
 
@@ -189,8 +186,7 @@ public class ProjectStampBackfill {
      * <p>Ставится только там, где проекта ещё нет: у вопроса, который сам является маркером смены,
      * репозиторий уже назван, и переписывать его нечем.
      */
-    private Optional<ChatMessageEntity> stampFirstQuestion(
-            List<ChatMessageEntity> rows, @Nullable String leading) {
+    private Optional<ChatMessageEntity> stampFirstQuestion(List<ChatMessageEntity> rows, @Nullable String leading) {
         if (leading == null) {
             return Optional.empty();
         }
@@ -204,9 +200,7 @@ public class ProjectStampBackfill {
                 return Optional.empty();
             }
             final ChatMessageEntity stamped =
-                    row.withMeta(
-                            (meta == null ? ChatMessageMeta.EMPTY : meta)
-                                    .withProjectSwitch(leading, null));
+                    row.withMeta((meta == null ? ChatMessageMeta.EMPTY : meta).withProjectSwitch(leading, null));
             rows.set(i, stamped);
             return Optional.of(stamped);
         }
@@ -226,29 +220,27 @@ public class ProjectStampBackfill {
      * неё ничего, кроме следа проектов, но проход идёт по рядам, записанным версиями, которых уже
      * нет, и стирать в них поле, о котором он ничего не знает, ему незачем.
      */
-    private List<ChatMessageEntity> traceSummaries(
-            List<ChatMessageEntity> rows, @Nullable String leading) {
-        final List<ChatMessageEntity> live = rows.stream().filter(row -> !row.isSummary()).toList();
+    private List<ChatMessageEntity> traceSummaries(List<ChatMessageEntity> rows, @Nullable String leading) {
+        final List<ChatMessageEntity> live =
+                rows.stream().filter(row -> !row.isSummary()).toList();
         final List<ChatMessageEntity> summaries = new ArrayList<>();
         final List<ChatMessageEntity> changed = new ArrayList<>();
         for (ChatMessageEntity row : rows) {
             if (!row.isSummary()) {
                 continue;
             }
-            final ProjectTrace trace =
-                    ProjectTrace.of(
-                            summaries,
-                            live.stream()
-                                    .filter(r -> r.getPosition() <= row.getPosition())
-                                    .toList(),
-                            () -> leading,
-                            row.getPosition());
+            final ProjectTrace trace = ProjectTrace.of(
+                    summaries,
+                    live.stream()
+                            .filter(r -> r.getPosition() <= row.getPosition())
+                            .toList(),
+                    () -> leading,
+                    row.getPosition());
             final @Nullable ChatMessageMeta meta = row.getMeta();
-            final ChatMessageEntity updated =
-                    row.withMeta(
-                            meta == null
-                                    ? ChatMessageMeta.ofProject(trace.lastProject(), trace.spans())
-                                    : meta.withProjectTrace(trace.lastProject(), trace.spans()));
+            final ChatMessageEntity updated = row.withMeta(
+                    meta == null
+                            ? ChatMessageMeta.ofProject(trace.lastProject(), trace.spans())
+                            : meta.withProjectTrace(trace.lastProject(), trace.spans()));
             summaries.add(updated);
             if (!trace.spans().isEmpty()) {
                 changed.add(updated);

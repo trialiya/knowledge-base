@@ -12,5 +12,4 @@ import java.util.List;
  * @param text текст сообщения — вкладки, не отправлявшие его, рисуют пузырь по нему
  * @param contextItems что приложено к сообщению — чипы на «ожидающем» пузыре
  */
-public record QueuedMessagePayload(
-        Long id, String text, LocalDateTime createdAt, List<ContextItem> contextItems) {}
+public record QueuedMessagePayload(Long id, String text, LocalDateTime createdAt, List<ContextItem> contextItems) {}

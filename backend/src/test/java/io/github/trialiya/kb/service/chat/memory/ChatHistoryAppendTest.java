@@ -44,13 +44,12 @@ class ChatHistoryAppendTest {
     void setUp() {
         messageRepo = mock(ChatMessageRepository.class);
         toolCallIndexRepo = mock(ToolCallIndexRepository.class);
-        history =
-                new ChatHistoryService(
-                        messageRepo,
-                        new ContextItemService(mock(AttachmentService.class)),
-                        new ToolCallService(messageRepo, toolCallIndexRepo),
-                        new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
-                        ActiveProjectNotices.silent());
+        history = new ChatHistoryService(
+                messageRepo,
+                new ContextItemService(mock(AttachmentService.class)),
+                new ToolCallService(messageRepo, toolCallIndexRepo),
+                new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
+                ActiveProjectNotices.silent());
         ToolCallTestSupport.echoSavedWithIds(messageRepo);
     }
 
@@ -64,16 +63,14 @@ class ChatHistoryAppendTest {
                         // Missing closing brace, replaced by a second tool call's empty argument
                         // object — as a mis-accumulated streaming tool call would produce.
                         ToolCallTestSupport.assistantWithCalls(
-                                ToolCallTestSupport.call(
-                                        "id-0", "editFile", "{\"filePath\": \"a\"{}"))));
+                                ToolCallTestSupport.call("id-0", "editFile", "{\"filePath\": \"a\"{}"))));
 
         final ArgumentCaptor<List<ChatMessageEntity>> saved = ArgumentCaptor.forClass(List.class);
         verify(messageRepo).saveAll(saved.capture());
-        final ChatMessageEntity segment =
-                saved.getValue().stream()
-                        .filter(e -> e.getType() == MessageType.ASSISTANT)
-                        .findFirst()
-                        .orElseThrow();
+        final ChatMessageEntity segment = saved.getValue().stream()
+                .filter(e -> e.getType() == MessageType.ASSISTANT)
+                .findFirst()
+                .orElseThrow();
         assertThat(segment.getToolData().toolCalls()).hasSize(1);
         // Persisted as valid JSON — this is what gets replayed to the model on every later turn,
         // and malformed JSON there would make the provider reject the whole request forever.
@@ -90,9 +87,8 @@ class ChatHistoryAppendTest {
                         ToolCallTestSupport.assistantWithCalls(
                                 ToolCallTestSupport.call("id-0", "searchDocuments", "{}")),
                         new ToolResponseMessage(
-                                List.<ToolResponseMessage.ToolResponse>of(
-                                        new ToolResponseMessage.ToolResponse(
-                                                "id-0", "searchDocuments", "\"found 3 docs\"")),
+                                List.<ToolResponseMessage.ToolResponse>of(new ToolResponseMessage.ToolResponse(
+                                        "id-0", "searchDocuments", "\"found 3 docs\"")),
                                 Map.of()) {}));
 
         final ArgumentCaptor<List<ToolCallIndexEntity>> rows = ArgumentCaptor.forClass(List.class);
@@ -109,16 +105,11 @@ class ChatHistoryAppendTest {
     @Test
     @SuppressWarnings("unchecked")
     void alreadyPersistedMessagesAreNotWrittenTwice() {
-        final ChatMessageEntity stored =
-                ToolCallTestSupport.entity(
-                        CONV,
-                        MessageType.USER,
-                        null,
-                        null); // ряд, прочитанный из истории — приходит обратно как IMessage
+        final ChatMessageEntity stored = ToolCallTestSupport.entity(
+                CONV, MessageType.USER, null, null); // ряд, прочитанный из истории — приходит обратно как IMessage
         when(messageRepo.maxPosition(CONV)).thenReturn(stored.getPosition());
 
-        history.append(
-                CONV, List.<Message>of(stored.getMessage(), new AssistantMessage("свежий ответ")));
+        history.append(CONV, List.<Message>of(stored.getMessage(), new AssistantMessage("свежий ответ")));
 
         final ArgumentCaptor<List<ChatMessageEntity>> saved = ArgumentCaptor.forClass(List.class);
         verify(messageRepo).saveAll(saved.capture());

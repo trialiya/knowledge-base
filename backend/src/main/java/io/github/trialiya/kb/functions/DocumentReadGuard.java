@@ -56,25 +56,22 @@ final class DocumentReadGuard {
     static final String GET_DOCUMENT_OUTLINE = "getDocumentOutline";
     static final String GET_DOCUMENT_SECTION = "getDocumentSection";
 
-    private static final Set<String> READ_TOOLS =
-            Set.of(GET_DOCUMENT, GET_DOCUMENT_OUTLINE, GET_DOCUMENT_SECTION);
+    private static final Set<String> READ_TOOLS = Set.of(GET_DOCUMENT, GET_DOCUMENT_OUTLINE, GET_DOCUMENT_SECTION);
 
     /** Tools whose refusal {@code retryDocumentWrite} can replay — the ones behind this rule. */
-    private static final Set<String> GUARDED_WRITES =
-            Set.of(
-                    "updateDocument",
-                    "updateDocumentSection",
-                    "insertDocumentSection",
-                    "deleteDocumentSection",
-                    "renameDocumentSections");
+    private static final Set<String> GUARDED_WRITES = Set.of(
+            "updateDocument",
+            "updateDocumentSection",
+            "insertDocumentSection",
+            "deleteDocumentSection",
+            "renameDocumentSections");
 
     /** The replay tool itself: a refused replay is followed back to the write it replays. */
     private static final String RETRY_TOOL = "retryDocumentWrite";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final TypeReference<List<SectionRename>> SECTION_RENAMES =
-            new TypeReference<>() {};
+    private static final TypeReference<List<SectionRename>> SECTION_RENAMES = new TypeReference<>() {};
 
     /**
      * Whether a read — by this tool, of this section ({@code null}: not a section read) — suffices.
@@ -112,8 +109,7 @@ final class DocumentReadGuard {
                 context,
                 documentId,
                 (tool, path) ->
-                        GET_DOCUMENT.equals(tool)
-                                || (GET_DOCUMENT_SECTION.equals(tool) && sectionPath.equals(path)),
+                        GET_DOCUMENT.equals(tool) || (GET_DOCUMENT_SECTION.equals(tool) && sectionPath.equals(path)),
                 "Секция '"
                         + sectionPath
                         + "' документа id="
@@ -132,17 +128,15 @@ final class DocumentReadGuard {
      * An insert or a rename: the outline, the whole document, or — when {@code anchorSectionPath}
      * is given — the anchor section.
      */
-    void requireStructureRead(
-            ToolContext context, long documentId, @Nullable String anchorSectionPath) {
+    void requireStructureRead(ToolContext context, long documentId, @Nullable String anchorSectionPath) {
         require(
                 context,
                 documentId,
-                (tool, path) ->
-                        GET_DOCUMENT.equals(tool)
-                                || GET_DOCUMENT_OUTLINE.equals(tool)
-                                || (anchorSectionPath != null
-                                        && GET_DOCUMENT_SECTION.equals(tool)
-                                        && anchorSectionPath.equals(path)),
+                (tool, path) -> GET_DOCUMENT.equals(tool)
+                        || GET_DOCUMENT_OUTLINE.equals(tool)
+                        || (anchorSectionPath != null
+                                && GET_DOCUMENT_SECTION.equals(tool)
+                                && anchorSectionPath.equals(path)),
                 "Документ id="
                         + documentId
                         + " НЕ изменён: его текущая структура не прочитана — ни в этом ответе, ни"
@@ -163,8 +157,7 @@ final class DocumentReadGuard {
         throw new IllegalStateException(refusal + retryHint(collector));
     }
 
-    private static boolean readInThisResponse(
-            ToolInvocationCollector collector, long documentId, Covers covers) {
+    private static boolean readInThisResponse(ToolInvocationCollector collector, long documentId, Covers covers) {
         final String id = String.valueOf(documentId);
         return collector.snapshot().stream()
                 .filter(inv -> ToolInvocationStatus.OK == inv.status())
@@ -275,18 +268,13 @@ final class DocumentReadGuard {
         }
 
         int expectedVersion() {
-            return requireInt(
-                    argument("expectedDescriptionVersion", Integer.class),
-                    "expectedDescriptionVersion");
+            return requireInt(argument("expectedDescriptionVersion", Integer.class), "expectedDescriptionVersion");
         }
 
         List<SectionRename> renames() {
             final JsonNode value = args.get("renames");
             return requireNonEmpty(
-                    value == null || value.isNull()
-                            ? null
-                            : MAPPER.convertValue(value, SECTION_RENAMES),
-                    "renames");
+                    value == null || value.isNull() ? null : MAPPER.convertValue(value, SECTION_RENAMES), "renames");
         }
     }
 
@@ -307,17 +295,15 @@ final class DocumentReadGuard {
         if (origin < 0) {
             throw notARefusedWrite(callRef);
         }
-        final boolean replayed =
-                calls.stream()
-                        .filter(inv -> RETRY_TOOL.equals(inv.name()))
-                        .filter(inv -> ToolInvocationStatus.OK == inv.status())
-                        .anyMatch(inv -> origin(collector, calls, refOf(inv)) == origin);
+        final boolean replayed = calls.stream()
+                .filter(inv -> RETRY_TOOL.equals(inv.name()))
+                .filter(inv -> ToolInvocationStatus.OK == inv.status())
+                .anyMatch(inv -> origin(collector, calls, refOf(inv)) == origin);
         if (replayed) {
-            throw new IllegalArgumentException(
-                    "callRef="
-                            + callRef
-                            + " has already been applied by an earlier retryDocumentWrite. To"
-                            + " change the document again, read it and call the write tool anew.");
+            throw new IllegalArgumentException("callRef="
+                    + callRef
+                    + " has already been applied by an earlier retryDocumentWrite. To"
+                    + " change the document again, read it and call the write tool anew.");
         }
         final ToolInvocation refused = refusedCall(calls, origin).orElseThrow();
         return new RefusedWrite(refused.name(), argumentsOf(refused, callRef));
@@ -329,8 +315,7 @@ final class DocumentReadGuard {
      * first attempt), so the walk follows its {@code callRef} back. Each hop goes to an earlier
      * call, which is what ends the walk.
      */
-    private static int origin(
-            ToolInvocationCollector collector, List<ToolInvocation> calls, @Nullable String ref) {
+    private static int origin(ToolInvocationCollector collector, List<ToolInvocation> calls, @Nullable String ref) {
         int index = collector.callIndexOf(ref).orElse(-1);
         while (index >= 0) {
             final ToolInvocation call = refusedCall(calls, index).orElse(null);
@@ -365,20 +350,18 @@ final class DocumentReadGuard {
         if (args != null && args.isObject()) {
             return args;
         }
-        throw new IllegalStateException(
-                "The arguments of callRef="
-                        + asked
-                        + " cannot be read back. Call "
-                        + refused.name()
-                        + " again with its arguments.");
+        throw new IllegalStateException("The arguments of callRef="
+                + asked
+                + " cannot be read back. Call "
+                + refused.name()
+                + " again with its arguments.");
     }
 
     private static IllegalArgumentException notARefusedWrite(String callRef) {
-        return new IllegalArgumentException(
-                "callRef="
-                        + callRef
-                        + " is not a refused document write of this response (a callRef from an"
-                        + " earlier turn cannot be retried). Call the write tool again with its"
-                        + " arguments.");
+        return new IllegalArgumentException("callRef="
+                + callRef
+                + " is not a refused document write of this response (a callRef from an"
+                + " earlier turn cannot be retried). Call the write tool again with its"
+                + " arguments.");
     }
 }

@@ -39,23 +39,19 @@ class ScriptFunctionTest {
         // "kb" is this deployment's default project, so a chat that stored none runs on it too —
         // the case that made a raw id comparison wrong.
         when(gitRegistry.sameProject(any(), any()))
-                .thenAnswer(
-                        call ->
-                                canonical(call.getArgument(0))
-                                        .equals(canonical(call.getArgument(1))));
+                .thenAnswer(call -> canonical(call.getArgument(0)).equals(canonical(call.getArgument(1))));
         function = ScriptFunction.forChat(runner, gitRegistry);
         when(runner.run(any(ScriptRequest.class), any()))
-                .thenReturn(
-                        new ScriptResult(
-                                "billing",
-                                null,
-                                null,
-                                null,
-                                List.of(),
-                                new ScriptStats(0, 0, 0, 0, 0),
-                                null,
-                                List.of(),
-                                List.of()));
+                .thenReturn(new ScriptResult(
+                        "billing",
+                        null,
+                        null,
+                        null,
+                        List.of(),
+                        new ScriptStats(0, 0, 0, 0, 0),
+                        null,
+                        List.of(),
+                        List.of()));
     }
 
     @Test

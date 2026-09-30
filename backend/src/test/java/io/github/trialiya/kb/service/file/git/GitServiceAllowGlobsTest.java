@@ -27,7 +27,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitServiceAllowGlobsTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private GitService service;
 
@@ -51,12 +52,9 @@ class GitServiceAllowGlobsTest {
 
     @Test
     void servesAnUntrackedFileTheGlobsAdmit() {
-        assertThat(service.getFileContent("notes/todo.md").content())
-                .isEqualTo("remember the milk\n");
+        assertThat(service.getFileContent("notes/todo.md").content()).isEqualTo("remember the milk\n");
         assertThat(service.listTrackedFiles()).contains("src/App.java", "notes/todo.md");
-        assertThat(service.getFileTree("notes"))
-                .extracting(GitFileNode::path)
-                .contains("notes/todo.md");
+        assertThat(service.getFileTree("notes")).extracting(GitFileNode::path).contains("notes/todo.md");
     }
 
     /**
@@ -118,13 +116,10 @@ class GitServiceAllowGlobsTest {
                 .singleElement()
                 .extracting(GitFileNode::tracked)
                 .isEqualTo(false);
-        assertThat(service.searchFiles("App", 5))
-                .singleElement()
-                .satisfies(
-                        n -> {
-                            assertThat(n.path()).isEqualTo("src/App.java");
-                            assertThat(n.tracked()).isTrue();
-                        });
+        assertThat(service.searchFiles("App", 5)).singleElement().satisfies(n -> {
+            assertThat(n.path()).isEqualTo("src/App.java");
+            assertThat(n.tracked()).isTrue();
+        });
     }
 
     /** {@code *.java} достаёт файл на любой глубине — иначе фильтр съедал бы всё. */
@@ -268,7 +263,8 @@ class GitServiceAllowGlobsTest {
                 .extracting(GitGrepMatch::path)
                 .containsExactly("notes/generated/report.md");
 
-        assertThat(service.grepContent("not admitted", null, false, 0, 50, true)).isEmpty();
+        assertThat(service.grepContent("not admitted", null, false, 0, 50, true))
+                .isEmpty();
     }
 
     /**
@@ -283,9 +279,7 @@ class GitServiceAllowGlobsTest {
 
         List<GitGrepMatch> hits = service.grepContent("milk", null, false, 0, 2, true);
 
-        assertThat(hits)
-                .extracting(GitGrepMatch::path)
-                .containsExactly("notes/todo.md", "src/App.java");
+        assertThat(hits).extracting(GitGrepMatch::path).containsExactly("notes/todo.md", "src/App.java");
     }
 
     /**
@@ -309,13 +303,10 @@ class GitServiceAllowGlobsTest {
      */
     @Test
     void admittedUntrackedFilesShowUpAmongTheUncommittedChangesAsU() {
-        assertThat(service.getUncommittedChanges(false))
-                .singleElement()
-                .satisfies(
-                        entry -> {
-                            assertThat(entry.path()).isEqualTo("notes/todo.md");
-                            assertThat(entry.status()).isEqualTo("U");
-                        });
+        assertThat(service.getUncommittedChanges(false)).singleElement().satisfies(entry -> {
+            assertThat(entry.path()).isEqualTo("notes/todo.md");
+            assertThat(entry.status()).isEqualTo("U");
+        });
     }
 
     /**
@@ -338,7 +329,8 @@ class GitServiceAllowGlobsTest {
     /** Отбор по пути не воскрешает половину, которую вызывающий не просил. */
     @Test
     void narrowingToAnUntrackedPathWithoutTheFlagAnswersWithNothing() {
-        assertThat(service.getUncommittedChanges(false, false, List.of("notes"))).isEmpty();
+        assertThat(service.getUncommittedChanges(false, false, List.of("notes")))
+                .isEmpty();
     }
 
     /**
@@ -363,18 +355,17 @@ class GitServiceAllowGlobsTest {
     void anAdmittedUntrackedFileIsAlsoFoundWhenTheListIsNarrowedToIt() {
         assertThat(service.getUncommittedChanges(true, "notes/todo.md"))
                 .singleElement()
-                .satisfies(
-                        entry -> {
-                            assertThat(entry.status()).isEqualTo("U");
-                            // Файла вне git нет в индексе, поэтому «патч» — всё его содержимое
-                            // добавленными строками, без ханков. Финальный перевод строки закрывает
-                            // последнюю строку, а не добавляет пустую: столько же строк насчитал бы
-                            // git, будь этот файл отслеживаемым.
-                            assertThat(entry.patch()).isEqualTo("+remember the milk\n");
-                            assertThat(entry.additions()).isEqualTo(1);
-                            // Имя — такие же метаданные, как у остальных, и приходит тем же полем.
-                            assertThat(entry.patchHeader()).isEqualTo("+++ b/notes/todo.md");
-                        });
+                .satisfies(entry -> {
+                    assertThat(entry.status()).isEqualTo("U");
+                    // Файла вне git нет в индексе, поэтому «патч» — всё его содержимое
+                    // добавленными строками, без ханков. Финальный перевод строки закрывает
+                    // последнюю строку, а не добавляет пустую: столько же строк насчитал бы
+                    // git, будь этот файл отслеживаемым.
+                    assertThat(entry.patch()).isEqualTo("+remember the milk\n");
+                    assertThat(entry.additions()).isEqualTo(1);
+                    // Имя — такие же метаданные, как у остальных, и приходит тем же полем.
+                    assertThat(entry.patchHeader()).isEqualTo("+++ b/notes/todo.md");
+                });
     }
 
     /**
@@ -387,11 +378,10 @@ class GitServiceAllowGlobsTest {
 
         assertThat(service.getUncommittedChanges(true, "notes/blank.md"))
                 .singleElement()
-                .satisfies(
-                        entry -> {
-                            assertThat(entry.additions()).isEqualTo(1);
-                            assertThat(entry.patch()).isEqualTo("+\n");
-                        });
+                .satisfies(entry -> {
+                    assertThat(entry.additions()).isEqualTo(1);
+                    assertThat(entry.patch()).isEqualTo("+\n");
+                });
     }
 
     /**
@@ -439,13 +429,10 @@ class GitServiceAllowGlobsTest {
                 .singleElement()
                 .extracting(GitFileNode::tracked)
                 .isEqualTo(false);
-        assertThat(service.getFileTree("src"))
-                .singleElement()
-                .satisfies(
-                        n -> {
-                            assertThat(n.path()).isEqualTo("src/App.java");
-                            assertThat(n.tracked()).isTrue();
-                        });
+        assertThat(service.getFileTree("src")).singleElement().satisfies(n -> {
+            assertThat(n.path()).isEqualTo("src/App.java");
+            assertThat(n.tracked()).isTrue();
+        });
     }
 
     @Test
@@ -508,17 +495,14 @@ class GitServiceAllowGlobsTest {
             var command = new java.util.ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(dir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(dir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
             return output;
         } catch (IOException e) {

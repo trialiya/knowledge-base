@@ -77,9 +77,7 @@ public class DocumentFunction {
      *     earlier turn count for a write in this one (see {@link DocumentReadGuard})
      */
     public DocumentFunction(
-            DocumentService documentService,
-            AttachmentService attachmentService,
-            EarlierToolResults earlier) {
+            DocumentService documentService, AttachmentService attachmentService, EarlierToolResults earlier) {
         this.documentService = documentService;
         this.attachmentService = attachmentService;
         this.readGuard = new DocumentReadGuard(documentService, earlier);
@@ -103,10 +101,8 @@ public class DocumentFunction {
                 case "BEFORE" -> BEFORE;
                 case "AFTER" -> AFTER;
                 default ->
-                        throw new IllegalArgumentException(
-                                "Tool argument 'position' must be BEFORE or AFTER, got \""
-                                        + raw
-                                        + "\".");
+                    throw new IllegalArgumentException(
+                            "Tool argument 'position' must be BEFORE or AFTER, got \"" + raw + "\".");
             };
         }
     }
@@ -125,36 +121,27 @@ public class DocumentFunction {
      * @return list of matching documents with title, snippet, and update time
      */
     @Tool(
-            description =
-                    "Search knowledge base documents by topic/keywords (hybrid: keyword + semantic).",
+            description = "Search knowledge base documents by topic/keywords (hybrid: keyword + semantic).",
             resultConverter = CompactToolResultConverter.class)
     public List<SearchResult> searchDocuments(
             @ToolParam(description = "Search query in any language.") String query,
+            @ToolParam(description = "Search mode: hybrid (default), semantic, keyword.", required = false) @Nullable
+                    String mode,
             @ToolParam(
-                            description = "Search mode: hybrid (default), semantic, keyword.",
+                            description = "Minimum cosine similarity for semantic/hybrid search (0.0–1.0).",
                             required = false)
-                    @Nullable String mode,
-            @ToolParam(
-                            description =
-                                    "Minimum cosine similarity for semantic/hybrid search (0.0–1.0).",
-                            required = false)
-                    @Nullable Double threshold,
-            @ToolParam(description = "Maximum number of results.", required = false)
-                    @Nullable Integer limit,
-            @ToolParam(description = "Keyword weight in hybrid mode (0.0–1.0).", required = false)
-                    @Nullable Double kwWeight,
-            @ToolParam(description = "Semantic weight in hybrid mode (0.0–1.0).", required = false)
-                    @Nullable Double semWeight) {
+                    @Nullable
+                    Double threshold,
+            @ToolParam(description = "Maximum number of results.", required = false) @Nullable Integer limit,
+            @ToolParam(description = "Keyword weight in hybrid mode (0.0–1.0).", required = false) @Nullable
+                    Double kwWeight,
+            @ToolParam(description = "Semantic weight in hybrid mode (0.0–1.0).", required = false) @Nullable
+                    Double semWeight) {
         // No empty-query fallback: semantic and hybrid both embed the query, and the embedding API
         // rejects an empty string — the "safe" default would fail deeper down with a worse message.
         requireText(query, "query");
         final String effectiveMode = orDefault(mode, "hybrid").toLowerCase(Locale.ROOT);
-        log.debug(
-                "Document search: query='{}' mode={} threshold={} limit={}",
-                query,
-                effectiveMode,
-                threshold,
-                limit);
+        log.debug("Document search: query='{}' mode={} threshold={} limit={}", query, effectiveMode, threshold, limit);
 
         return switch (effectiveMode) {
             case "semantic" -> documentService.semanticSearch(query, threshold, limit);
@@ -185,27 +172,22 @@ public class DocumentFunction {
                             + "Use it to find where a wording occurs before editing; use searchDocuments to find which document is about a topic.",
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentGrepMatch> grepDocuments(
-            @ToolParam(description = "Search pattern: literal string or regex (if regex=true).")
-                    String pattern,
+            @ToolParam(description = "Search pattern: literal string or regex (if regex=true).") String pattern,
             @ToolParam(
-                            description =
-                                    "Treat pattern as regex (true, default) or literal substring (false).",
+                            description = "Treat pattern as regex (true, default) or literal substring (false).",
                             required = false)
-                    @Nullable Boolean regex,
+                    @Nullable
+                    Boolean regex,
+            @ToolParam(description = "Context lines before/after match (0–10, default 1).", required = false) @Nullable
+                    Integer contextLines,
+            @ToolParam(description = "Maximum match blocks to return (1–200, default 50).", required = false) @Nullable
+                    Integer maxResults,
             @ToolParam(
-                            description = "Context lines before/after match (0–10, default 1).",
+                            description = "Optional: search only inside this document and its descendants. "
+                                    + "Omit to search the whole knowledge base.",
                             required = false)
-                    @Nullable Integer contextLines,
-            @ToolParam(
-                            description = "Maximum match blocks to return (1–200, default 50).",
-                            required = false)
-                    @Nullable Integer maxResults,
-            @ToolParam(
-                            description =
-                                    "Optional: search only inside this document and its descendants. "
-                                            + "Omit to search the whole knowledge base.",
-                            required = false)
-                    @Nullable Long documentId) {
+                    @Nullable
+                    Long documentId) {
         requireText(pattern, "pattern");
         final boolean useRegex = orDefault(regex, true);
         // As in grepContent: 0 context lines is a real answer ("the matching line only"), so this
@@ -232,8 +214,7 @@ public class DocumentFunction {
      * @return flat list of skeleton nodes; parentId=null means root level
      */
     @Tool(
-            description =
-                    "List all knowledge base nodes (id, title, type, parentId) without content.",
+            description = "List all knowledge base nodes (id, title, type, parentId) without content.",
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentSkeletonNode> getTreeSkeleton() {
         log.debug("getTreeSkeleton called");
@@ -256,9 +237,8 @@ public class DocumentFunction {
      * @return list of matching nodes with id, title, type, parentId, description, hasChildren
      */
     @Tool(
-            description =
-                    "Find document/folder by title (exact or partial match, case-insensitive, "
-                            + "exact matches first). Matches ONLY the title, not content.",
+            description = "Find document/folder by title (exact or partial match, case-insensitive, "
+                    + "exact matches first). Matches ONLY the title, not content.",
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentNode> findDocumentsByName(
             @ToolParam(description = "Document/folder title (full or partial).") String name) {
@@ -278,11 +258,9 @@ public class DocumentFunction {
      * @return document node with description, updatedAt, and direct children as skeleton nodes
      */
     @Tool(
-            description =
-                    "Read full document/folder content by id, including direct children (shallow).",
+            description = "Read full document/folder content by id, including direct children (shallow).",
             resultConverter = CompactToolResultConverter.class)
-    public DocumentView getDocument(
-            @ToolParam(description = "Document or folder id.") Long documentId) {
+    public DocumentView getDocument(@ToolParam(description = "Document or folder id.") Long documentId) {
         final long id = requireId(documentId, "documentId");
         log.debug("getDocument called: documentId={}", id);
         return DocumentView.of(requireDocument(id));
@@ -301,8 +279,7 @@ public class DocumentFunction {
     @Tool(
             description = "Get markdown outline (section titles, levels, sizes) without content.",
             resultConverter = CompactToolResultConverter.class)
-    public DocumentOutline getDocumentOutline(
-            @ToolParam(description = "Document id.") Long documentId) {
+    public DocumentOutline getDocumentOutline(@ToolParam(description = "Document id.") Long documentId) {
         final long id = requireId(documentId, "documentId");
         log.debug("getDocumentOutline called: documentId={}", id);
         DocumentNode node = requireDocument(id);
@@ -312,14 +289,8 @@ public class DocumentFunction {
                 node.title(),
                 node.descriptionVersion(),
                 sections.stream()
-                        .map(
-                                s ->
-                                        new DocumentOutline.OutlineSection(
-                                                s.path(),
-                                                s.level(),
-                                                s.title(),
-                                                s.chars(),
-                                                s.subsections()))
+                        .map(s -> new DocumentOutline.OutlineSection(
+                                s.path(), s.level(), s.title(), s.chars(), s.subsections()))
                         .toList());
     }
 
@@ -331,14 +302,11 @@ public class DocumentFunction {
      * @return section content with the current descriptionVersion
      */
     @Tool(
-            description =
-                    "Read one markdown section (heading + body + subsections) without full load.",
+            description = "Read one markdown section (heading + body + subsections) without full load.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentSection getDocumentSection(
             @ToolParam(description = "Document id.") Long documentId,
-            @ToolParam(
-                            description =
-                                    "Section path from getDocumentOutline (e.g., \"Setup > Docker\").")
+            @ToolParam(description = "Section path from getDocumentOutline (e.g., \"Setup > Docker\").")
                     String sectionPath) {
         final long id = requireId(documentId, "documentId");
         requireText(sectionPath, "sectionPath");
@@ -382,29 +350,20 @@ public class DocumentFunction {
     public DocumentShort updateDocumentSection(
             ToolContext context,
             @ToolParam(description = "Document id.") Long documentId,
-            @ToolParam(
-                            description =
-                                    "Section path from getDocumentOutline; _preamble = text before first heading.")
+            @ToolParam(description = "Section path from getDocumentOutline; _preamble = text before first heading.")
                     String sectionPath,
             @ToolParam(
-                            description =
-                                    "Full new section text, starting with its heading (e.g., \"## Title\"). "
-                                            + "Link other documents as [Title](/?doc=ID).")
+                            description = "Full new section text, starting with its heading (e.g., \"## Title\"). "
+                                    + "Link other documents as [Title](/?doc=ID).")
                     String newContent,
-            @ToolParam(
-                            description =
-                                    "descriptionVersion from getDocumentOutline/getDocumentSection.")
+            @ToolParam(description = "descriptionVersion from getDocumentOutline/getDocumentSection.")
                     Integer expectedDescriptionVersion) {
         final long id = requireId(documentId, "documentId");
         requireText(sectionPath, "sectionPath");
         requireContent(newContent, "newContent");
         final int version = requireInt(expectedDescriptionVersion, "expectedDescriptionVersion");
 
-        log.debug(
-                "updateDocumentSection called: id={} sectionPath='{}' expectedDescVer={}",
-                id,
-                sectionPath,
-                version);
+        log.debug("updateDocumentSection called: id={} sectionPath='{}' expectedDescVer={}", id, sectionPath, version);
 
         readGuard.requireSectionRead(context, id, sectionPath);
         if (newContent.isBlank()) {
@@ -419,11 +378,8 @@ public class DocumentFunction {
                 .patchDescription(
                         id,
                         version,
-                        current ->
-                                MarkdownSections.replaceSection(
-                                        current,
-                                        findSectionOrThrow(current, sectionPath),
-                                        newContent))
+                        current -> MarkdownSections.replaceSection(
+                                current, findSectionOrThrow(current, sectionPath), newContent))
                 .toDocumentShort();
     }
 
@@ -448,14 +404,11 @@ public class DocumentFunction {
     public DocumentShort insertDocumentSection(
             ToolContext context,
             @ToolParam(description = "Document id.") Long documentId,
-            @ToolParam(description = "Existing anchor section path from getDocumentOutline.")
-                    String anchorSectionPath,
-            @ToolParam(description = "Position: BEFORE or AFTER the anchor.")
-                    InsertPosition position,
+            @ToolParam(description = "Existing anchor section path from getDocumentOutline.") String anchorSectionPath,
+            @ToolParam(description = "Position: BEFORE or AFTER the anchor.") InsertPosition position,
             @ToolParam(
-                            description =
-                                    "Full text of new section, starting with its heading (e.g., \"## Title\"). "
-                                            + "Link other documents as [Title](/?doc=ID).")
+                            description = "Full text of new section, starting with its heading (e.g., \"## Title\"). "
+                                    + "Link other documents as [Title](/?doc=ID).")
                     String newContent,
             @ToolParam(description = "descriptionVersion from getDocumentOutline/getDocument.")
                     Integer expectedDescriptionVersion) {
@@ -475,8 +428,7 @@ public class DocumentFunction {
         readGuard.requireStructureRead(context, id, anchorSectionPath);
         boolean before = position == InsertPosition.BEFORE;
         if (before && MarkdownSections.PREAMBLE_PATH.equals(anchorSectionPath)) {
-            throw new IllegalArgumentException(
-                    "Вставка before _preamble невозможна — используй after.");
+            throw new IllegalArgumentException("Вставка before _preamble невозможна — используй after.");
         }
         requireStartsWithHeading(newContent);
 
@@ -484,12 +436,8 @@ public class DocumentFunction {
                 .patchDescription(
                         id,
                         version,
-                        current ->
-                                MarkdownSections.insertSection(
-                                        current,
-                                        findSectionOrThrow(current, anchorSectionPath),
-                                        newContent,
-                                        before))
+                        current -> MarkdownSections.insertSection(
+                                current, findSectionOrThrow(current, anchorSectionPath), newContent, before))
                 .toDocumentShort();
     }
 
@@ -511,23 +459,15 @@ public class DocumentFunction {
     public DocumentShort deleteDocumentSection(
             ToolContext context,
             @ToolParam(description = "Document id.") Long documentId,
-            @ToolParam(
-                            description =
-                                    "Section path from getDocumentOutline; _preamble = text before first heading.")
+            @ToolParam(description = "Section path from getDocumentOutline; _preamble = text before first heading.")
                     String sectionPath,
-            @ToolParam(
-                            description =
-                                    "descriptionVersion from getDocumentOutline/getDocumentSection.")
+            @ToolParam(description = "descriptionVersion from getDocumentOutline/getDocumentSection.")
                     Integer expectedDescriptionVersion) {
         final long id = requireId(documentId, "documentId");
         requireText(sectionPath, "sectionPath");
         final int version = requireInt(expectedDescriptionVersion, "expectedDescriptionVersion");
 
-        log.debug(
-                "deleteDocumentSection called: id={} sectionPath='{}' expectedDescVer={}",
-                id,
-                sectionPath,
-                version);
+        log.debug("deleteDocumentSection called: id={} sectionPath='{}' expectedDescVer={}", id, sectionPath, version);
 
         readGuard.requireSectionRead(context, id, sectionPath);
 
@@ -536,8 +476,7 @@ public class DocumentFunction {
                         id,
                         version,
                         current ->
-                                MarkdownSections.replaceSection(
-                                        current, findSectionOrThrow(current, sectionPath), ""))
+                                MarkdownSections.replaceSection(current, findSectionOrThrow(current, sectionPath), ""))
                 .toDocumentShort();
     }
 
@@ -560,8 +499,7 @@ public class DocumentFunction {
     public DocumentShort renameDocumentSections(
             ToolContext context,
             @ToolParam(description = "Document id.") Long documentId,
-            @ToolParam(description = "List of renames: {sectionPath, newTitle}.")
-                    List<SectionRename> renames,
+            @ToolParam(description = "List of renames: {sectionPath, newTitle}.") List<SectionRename> renames,
             @ToolParam(description = "descriptionVersion from getDocumentOutline/getDocument.")
                     Integer expectedDescriptionVersion) {
         final long id = requireId(documentId, "documentId");
@@ -584,45 +522,31 @@ public class DocumentFunction {
             }
             String title = rename.newTitle() == null ? "" : rename.newTitle().strip();
             if (title.isBlank() || title.contains("\n") || title.startsWith("#")) {
-                throw new IllegalArgumentException(
-                        "newTitle для '"
-                                + rename.sectionPath()
-                                + "' должен быть непустой одной строкой без ведущих #.");
+                throw new IllegalArgumentException("newTitle для '"
+                        + rename.sectionPath()
+                        + "' должен быть непустой одной строкой без ведущих #.");
             }
         }
 
         return documentService
-                .patchDescription(
-                        id,
-                        version,
-                        current -> {
-                            // Resolve every path against the same text, then splice from the
-                            // bottom of the document up so a rename never shifts the offsets of
-                            // the sections still to be renamed.
-                            record Resolved(MarkdownSections.Section section, String newTitle) {}
-                            String result = current;
-                            for (Resolved r :
-                                    renames.stream()
-                                            .map(
-                                                    rn ->
-                                                            new Resolved(
-                                                                    findSectionOrThrow(
-                                                                            current,
-                                                                            rn.sectionPath()),
-                                                                    rn.newTitle().strip()))
-                                            .sorted(
-                                                    Comparator.comparingInt(
-                                                                    (Resolved r) ->
-                                                                            r.section()
-                                                                                    .startOffset())
-                                                            .reversed())
-                                            .toList()) {
-                                result =
-                                        MarkdownSections.renameHeading(
-                                                result, r.section(), r.newTitle());
-                            }
-                            return result;
-                        })
+                .patchDescription(id, version, current -> {
+                    // Resolve every path against the same text, then splice from the
+                    // bottom of the document up so a rename never shifts the offsets of
+                    // the sections still to be renamed.
+                    record Resolved(MarkdownSections.Section section, String newTitle) {}
+                    String result = current;
+                    for (Resolved r : renames.stream()
+                            .map(rn -> new Resolved(
+                                    findSectionOrThrow(current, rn.sectionPath()),
+                                    rn.newTitle().strip()))
+                            .sorted(Comparator.comparingInt(
+                                            (Resolved r) -> r.section().startOffset())
+                                    .reversed())
+                            .toList()) {
+                        result = MarkdownSections.renameHeading(result, r.section(), r.newTitle());
+                    }
+                    return result;
+                })
                 .toDocumentShort();
     }
 
@@ -639,24 +563,20 @@ public class DocumentFunction {
         return node.description() == null ? "" : node.description();
     }
 
-    private static MarkdownSections.Section findSectionOrThrow(
-            String markdown, String sectionPath) {
+    private static MarkdownSections.Section findSectionOrThrow(String markdown, String sectionPath) {
         List<MarkdownSections.Section> sections = MarkdownSections.parse(markdown);
         return sections.stream()
                 .filter(s -> s.path().equals(sectionPath))
                 .findFirst()
-                .orElseThrow(
-                        () ->
-                                new IllegalArgumentException(
-                                        "Секция '"
-                                                + sectionPath
-                                                + "' не найдена. Доступные секции: "
-                                                + sections.stream()
-                                                        .map(MarkdownSections.Section::path)
-                                                        .limit(50)
-                                                        .collect(Collectors.joining(", "))
-                                                + ". Вызови getDocumentOutline для актуального "
-                                                + "оглавления."));
+                .orElseThrow(() -> new IllegalArgumentException("Секция '"
+                        + sectionPath
+                        + "' не найдена. Доступные секции: "
+                        + sections.stream()
+                                .map(MarkdownSections.Section::path)
+                                .limit(50)
+                                .collect(Collectors.joining(", "))
+                        + ". Вызови getDocumentOutline для актуального "
+                        + "оглавления."));
     }
 
     /**
@@ -673,28 +593,22 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort createDocument(
             @ToolParam(description = "Document or folder title.") String title,
-            @ToolParam(description = "Type: 'document' or 'folder'.", required = false)
-                    @Nullable String type,
+            @ToolParam(description = "Type: 'document' or 'folder'.", required = false) @Nullable String type,
+            @ToolParam(description = "Parent folder id (null or empty for root level).", required = false) @Nullable
+                    Long parentId,
             @ToolParam(
-                            description = "Parent folder id (null or empty for root level).",
+                            description = "Document content (text or markdown). Link other knowledge "
+                                    + "base documents as [Title](/?doc=ID).",
                             required = false)
-                    @Nullable Long parentId,
-            @ToolParam(
-                            description =
-                                    "Document content (text or markdown). Link other knowledge "
-                                            + "base documents as [Title](/?doc=ID).",
-                            required = false)
-                    @Nullable String description) {
+                    @Nullable
+                    String description) {
         requireText(title, "title");
 
         log.debug("createDocument called: title='{}' type={} parentId={}", title, type, parentId);
 
         CreateDocumentRequest req = new CreateDocumentRequest();
         req.setTitle(title);
-        req.setType(
-                type != null && !type.isBlank()
-                        ? DocumentType.fromValue(type)
-                        : DocumentType.DOCUMENT);
+        req.setType(type != null && !type.isBlank() ? DocumentType.fromValue(type) : DocumentType.DOCUMENT);
         req.setParentId(parentId);
         req.setDescription(description);
 
@@ -722,14 +636,13 @@ public class DocumentFunction {
     public DocumentShort updateDocument(
             ToolContext context,
             @ToolParam(description = "Document id.") Long documentId,
-            @ToolParam(description = "New title (null to keep current).", required = false)
-                    @Nullable String title,
+            @ToolParam(description = "New title (null to keep current).", required = false) @Nullable String title,
             @ToolParam(
-                            description =
-                                    "New content (null to keep current). Link other knowledge "
-                                            + "base documents as [Title](/?doc=ID).",
+                            description = "New content (null to keep current). Link other knowledge "
+                                    + "base documents as [Title](/?doc=ID).",
                             required = false)
-                    @Nullable String description) {
+                    @Nullable
+                    String description) {
         final long id = requireId(documentId, "documentId");
 
         log.debug("updateDocument called: id={} title='{}'", id, title);
@@ -767,16 +680,13 @@ public class DocumentFunction {
      * @param replaceAll replace every occurrence instead of requiring a unique one
      * @return updated document
      */
-    @Tool(
-            description =
-                    """
+    @Tool(description = """
                     Surgical edit of a document: replace oldString with newString in its content. \
                     oldString must appear EXACTLY once (unless replaceAll=true) and match \
                     character-for-character, including whitespace and line breaks. \
                     No prior read required — the exact match is the safety check. \
                     For a whole rewrite use updateDocument, for a whole section updateDocumentSection.
-                    """,
-            resultConverter = CompactToolResultConverter.class)
+                    """, resultConverter = CompactToolResultConverter.class)
     public DocumentShort editDocument(
             @ToolParam(description = "Document id.") Long documentId,
             @ToolParam(
@@ -785,15 +695,15 @@ public class DocumentFunction {
                                             + "Must be unique in the document — add surrounding lines if ambiguous.")
                     String oldString,
             @ToolParam(
-                            description =
-                                    "New text to replace oldString. Empty string to delete the fragment. "
-                                            + "Link other knowledge base documents as [Title](/?doc=ID).")
+                            description = "New text to replace oldString. Empty string to delete the fragment. "
+                                    + "Link other knowledge base documents as [Title](/?doc=ID).")
                     String newString,
             @ToolParam(
                             description =
                                     "Replace ALL occurrences of oldString (true) or exactly one (false, default).",
                             required = false)
-                    @Nullable Boolean replaceAll) {
+                    @Nullable
+                    Boolean replaceAll) {
         final long id = requireId(documentId, "documentId");
         // Not requireText: a fragment made only of whitespace is a legitimate (if unlikely) edit,
         // and the exactly-once rule rejects a useless one far more precisely than a blank check.
@@ -811,21 +721,18 @@ public class DocumentFunction {
                 all);
 
         return documentService
-                .patchDescription(
-                        id,
-                        current ->
-                                ExactEdit.replace(
-                                                current,
-                                                // The stored text keeps whatever line endings it
-                                                // has (a document imported from Windows has CRLF),
-                                                // so the fragments are brought to those rather than
-                                                // the body rewritten to the fragments'.
-                                                ExactEdit.alignLineEndings(current, oldString),
-                                                ExactEdit.alignLineEndings(current, newString),
-                                                all,
-                                                "document id=" + id,
-                                                "getDocument")
-                                        .text())
+                .patchDescription(id, current -> ExactEdit.replace(
+                                current,
+                                // The stored text keeps whatever line endings it
+                                // has (a document imported from Windows has CRLF),
+                                // so the fragments are brought to those rather than
+                                // the body rewritten to the fragments'.
+                                ExactEdit.alignLineEndings(current, oldString),
+                                ExactEdit.alignLineEndings(current, newString),
+                                all,
+                                "document id=" + id,
+                                "getDocument")
+                        .text())
                 .toDocumentShort();
     }
 
@@ -843,18 +750,14 @@ public class DocumentFunction {
      * @param callRef the call reference named in the refusal
      * @return the result of the replayed write
      */
-    @Tool(
-            description =
-                    """
+    @Tool(description = """
                     Repeat a document write that was refused because the document had not been \
                     read — with exactly the arguments of that call, so its content need not be \
                     sent again. First make the read the refusal asks for. callRef comes from the \
                     refusal; only calls of this same response can be repeated, each once.
-                    """,
-            resultConverter = CompactToolResultConverter.class)
+                    """, resultConverter = CompactToolResultConverter.class)
     public DocumentShort retryDocumentWrite(
-            ToolContext context,
-            @ToolParam(description = "callRef from the refusal message.") String callRef) {
+            ToolContext context, @ToolParam(description = "callRef from the refusal message.") String callRef) {
         final String ref = requireText(callRef, "callRef");
         final DocumentReadGuard.RefusedWrite refused = DocumentReadGuard.refusedWrite(context, ref);
 
@@ -863,33 +766,30 @@ public class DocumentFunction {
         final long id = requireId(refused.argument("documentId", Object.class), "documentId");
         return switch (refused.tool()) {
             case "updateDocument" ->
-                    updateDocument(
-                            context,
-                            id,
-                            refused.argument("title", String.class),
-                            refused.argument("description", String.class));
+                updateDocument(
+                        context,
+                        id,
+                        refused.argument("title", String.class),
+                        refused.argument("description", String.class));
             case "updateDocumentSection" ->
-                    updateDocumentSection(
-                            context,
-                            id,
-                            refused.text("sectionPath"),
-                            refused.content("newContent"),
-                            refused.expectedVersion());
+                updateDocumentSection(
+                        context,
+                        id,
+                        refused.text("sectionPath"),
+                        refused.content("newContent"),
+                        refused.expectedVersion());
             case "insertDocumentSection" ->
-                    insertDocumentSection(
-                            context,
-                            id,
-                            refused.text("anchorSectionPath"),
-                            requireValue(
-                                    refused.argument("position", InsertPosition.class), "position"),
-                            refused.content("newContent"),
-                            refused.expectedVersion());
+                insertDocumentSection(
+                        context,
+                        id,
+                        refused.text("anchorSectionPath"),
+                        requireValue(refused.argument("position", InsertPosition.class), "position"),
+                        refused.content("newContent"),
+                        refused.expectedVersion());
             case "deleteDocumentSection" ->
-                    deleteDocumentSection(
-                            context, id, refused.text("sectionPath"), refused.expectedVersion());
+                deleteDocumentSection(context, id, refused.text("sectionPath"), refused.expectedVersion());
             case "renameDocumentSections" ->
-                    renameDocumentSections(
-                            context, id, refused.renames(), refused.expectedVersion());
+                renameDocumentSections(context, id, refused.renames(), refused.expectedVersion());
             default -> throw new IllegalStateException("not a guarded write: " + refused.tool());
         };
     }
@@ -897,9 +797,8 @@ public class DocumentFunction {
     /** Rejects section content that does not start with an ATX markdown heading. */
     private static void requireStartsWithHeading(String content) {
         if (!content.strip().matches("(?s)#{1,6}[ \\t].*")) {
-            throw new IllegalArgumentException(
-                    "Текст секции должен начинаться с markdown-заголовка (например "
-                            + "'## Название') — секция включает заголовок.");
+            throw new IllegalArgumentException("Текст секции должен начинаться с markdown-заголовка (например "
+                    + "'## Название') — секция включает заголовок.");
         }
     }
 
@@ -930,12 +829,9 @@ public class DocumentFunction {
      * @param targetDocumentId id of the target document to attach the file to
      * @return confirmation message with new attachment id
      */
-    @Tool(
-            description =
-                    """
+    @Tool(description = """
                     Скопировать вложение из текущего чата в документ базы знаний. Используй, \
-                    когда пользователь хочет сохранить файл из чата в документ.""",
-            resultConverter = CompactToolResultConverter.class)
+                    когда пользователь хочет сохранить файл из чата в документ.""", resultConverter = CompactToolResultConverter.class)
     public String copyAttachmentToDocument(
             ToolContext context,
             @ToolParam(description = "ID вложения из чата") Long attachmentId,

@@ -18,7 +18,6 @@ public class DocumentSyncConfig {
      */
     @Bean(destroyMethod = "shutdown")
     public ExecutorService documentSyncExecutor() {
-        return new DelegatingSecurityContextExecutorService(
-                Executors.newVirtualThreadPerTaskExecutor());
+        return new DelegatingSecurityContextExecutorService(Executors.newVirtualThreadPerTaskExecutor());
     }
 }

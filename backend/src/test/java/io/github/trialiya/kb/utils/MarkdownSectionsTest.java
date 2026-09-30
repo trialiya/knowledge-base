@@ -40,8 +40,7 @@ class MarkdownSectionsTest {
             String md = "# A\n## A1\n## A2\n### A2a\n# B\n";
 
             Section a = section(md, "A");
-            assertThat(md.substring(a.startOffset(), a.endOffset()))
-                    .isEqualTo("# A\n## A1\n## A2\n### A2a\n");
+            assertThat(md.substring(a.startOffset(), a.endOffset())).isEqualTo("# A\n## A1\n## A2\n### A2a\n");
             assertThat(a.subsections()).isEqualTo(2); // A1, A2 (A2a is nested deeper)
         }
 
@@ -51,17 +50,14 @@ class MarkdownSectionsTest {
 
             assertThat(MarkdownSections.parse(md))
                     .extracting(Section::path)
-                    .containsExactly(
-                            "Гайд", "Гайд > Установка", "Гайд > Установка > Docker", "Гайд > FAQ");
+                    .containsExactly("Гайд", "Гайд > Установка", "Гайд > Установка > Docker", "Гайд > FAQ");
         }
 
         @Test
         void skippedLevelStillNestsUnderNearestShallowerHeading() {
             String md = "# A\n### deep\n## B\n";
 
-            assertThat(MarkdownSections.parse(md))
-                    .extracting(Section::path)
-                    .containsExactly("A", "A > deep", "A > B");
+            assertThat(MarkdownSections.parse(md)).extracting(Section::path).containsExactly("A", "A > deep", "A > B");
         }
 
         @Test
@@ -78,9 +74,7 @@ class MarkdownSectionsTest {
         void ignoresHeadingsInsideFencedCodeBlocks() {
             String md = "# A\n```bash\n# not a heading\n```\n~~~\n## also not\n~~~\n# B\n";
 
-            assertThat(MarkdownSections.parse(md))
-                    .extracting(Section::path)
-                    .containsExactly("A", "B");
+            assertThat(MarkdownSections.parse(md)).extracting(Section::path).containsExactly("A", "B");
         }
 
         @Test
@@ -100,8 +94,7 @@ class MarkdownSectionsTest {
 
             assertThat(MarkdownSections.parse(md))
                     .extracting(Section::path)
-                    .containsExactly(
-                            "A", "A > X", "A[2]", "A[2] > X", "A[2] > X[2]", "A[2] > X[2] > Y");
+                    .containsExactly("A", "A > X", "A[2]", "A[2] > X", "A[2] > X[2]", "A[2] > X[2] > Y");
             assertThat(contentOf(md, "A[2] > X[2]")).isEqualTo("## X\n### Y\n");
         }
 
@@ -109,18 +102,14 @@ class MarkdownSectionsTest {
         void backtickRunWithBacktickInInfoStringIsInlineCodeNotAFence() {
             String md = "# A\n```js``` is inline\n# B\n";
 
-            assertThat(MarkdownSections.parse(md))
-                    .extracting(Section::path)
-                    .containsExactly("A", "B");
+            assertThat(MarkdownSections.parse(md)).extracting(Section::path).containsExactly("A", "B");
         }
 
         @Test
         void tildeFenceInfoStringMayContainBackticks() {
             String md = "# A\n~~~ `x`\n# hidden\n~~~\n# B\n";
 
-            assertThat(MarkdownSections.parse(md))
-                    .extracting(Section::path)
-                    .containsExactly("A", "B");
+            assertThat(MarkdownSections.parse(md)).extracting(Section::path).containsExactly("A", "B");
         }
 
         @Test
@@ -129,18 +118,14 @@ class MarkdownSectionsTest {
             // rather than open a new one that would swallow "# B".
             String md = "# A\n- ```sh\n  # comment\n  ```\n# B\n";
 
-            assertThat(MarkdownSections.parse(md))
-                    .extracting(Section::path)
-                    .containsExactly("A", "B");
+            assertThat(MarkdownSections.parse(md)).extracting(Section::path).containsExactly("A", "B");
         }
 
         @Test
         void fenceInNestedOrderedItemClosesAtItsContentIndent() {
             String md = "# A\n  10. ```py\n      # comment\n      ```\n# B\n";
 
-            assertThat(MarkdownSections.parse(md))
-                    .extracting(Section::path)
-                    .containsExactly("A", "B");
+            assertThat(MarkdownSections.parse(md)).extracting(Section::path).containsExactly("A", "B");
         }
 
         @Test
@@ -179,9 +164,7 @@ class MarkdownSectionsTest {
 
             List<Section> sections = MarkdownSections.parse(md);
 
-            assertThat(sections)
-                    .extracting(Section::path)
-                    .containsExactly(MarkdownSections.PREAMBLE_PATH, "A");
+            assertThat(sections).extracting(Section::path).containsExactly(MarkdownSections.PREAMBLE_PATH, "A");
             assertThat(contentOf(md, MarkdownSections.PREAMBLE_PATH)).isEqualTo("intro line\n\n");
             assertThat(sections.get(0).level()).isZero();
         }
@@ -192,9 +175,7 @@ class MarkdownSectionsTest {
 
             List<Section> sections = MarkdownSections.parse(md);
 
-            assertThat(sections)
-                    .extracting(Section::path)
-                    .containsExactly(MarkdownSections.PREAMBLE_PATH);
+            assertThat(sections).extracting(Section::path).containsExactly(MarkdownSections.PREAMBLE_PATH);
             assertThat(sections.get(0).chars()).isEqualTo(md.length());
         }
 
@@ -208,9 +189,7 @@ class MarkdownSectionsTest {
         void hashWithoutSpaceIsNotAHeading() {
             String md = "# A\n#hashtag\n# B\n";
 
-            assertThat(MarkdownSections.parse(md))
-                    .extracting(Section::path)
-                    .containsExactly("A", "B");
+            assertThat(MarkdownSections.parse(md)).extracting(Section::path).containsExactly("A", "B");
         }
 
         @Test
@@ -244,8 +223,7 @@ class MarkdownSectionsTest {
         void replacesSubtreeIncludingSubsections() {
             String md = "# A\n## A1\nold\n## A2\nold\n# B\n";
 
-            String result =
-                    MarkdownSections.replaceSection(md, section(md, "A"), "# A\n## A1\nnew");
+            String result = MarkdownSections.replaceSection(md, section(md, "A"), "# A\n## A1\nnew");
 
             assertThat(result).isEqualTo("# A\n## A1\nnew\n\n# B\n");
         }
@@ -264,8 +242,7 @@ class MarkdownSectionsTest {
             String md = "old intro\n\n# A\ntext\n";
 
             String result =
-                    MarkdownSections.replaceSection(
-                            md, section(md, MarkdownSections.PREAMBLE_PATH), "new intro");
+                    MarkdownSections.replaceSection(md, section(md, MarkdownSections.PREAMBLE_PATH), "new intro");
 
             assertThat(result).isEqualTo("new intro\n\n# A\ntext\n");
         }
@@ -274,8 +251,7 @@ class MarkdownSectionsTest {
         void reparsingAfterReplaceKeepsOtherSectionsIntact() {
             String md = "# A\ntext a\n## A1\nsub\n# B\ntext b\n";
 
-            String result =
-                    MarkdownSections.replaceSection(md, section(md, "A > A1"), "## A1\nизменено");
+            String result = MarkdownSections.replaceSection(md, section(md, "A > A1"), "## A1\nизменено");
 
             assertThat(contentOf(result, "A > A1")).isEqualTo("## A1\nизменено\n\n");
             assertThat(contentOf(result, "B")).isEqualTo("# B\ntext b\n");
@@ -298,8 +274,7 @@ class MarkdownSectionsTest {
         void insertsBeforeAnchorSection() {
             String md = "# A\ntext a\n# B\ntext b\n";
 
-            String result =
-                    MarkdownSections.insertSection(md, section(md, "B"), "# New\nтекст", true);
+            String result = MarkdownSections.insertSection(md, section(md, "B"), "# New\nтекст", true);
 
             assertThat(result).isEqualTo("# A\ntext a\n\n# New\nтекст\n\n# B\ntext b\n");
         }
@@ -308,8 +283,7 @@ class MarkdownSectionsTest {
         void insertsAfterAnchorSubtree() {
             String md = "# A\n## A1\nsub\n# B\ntext b\n";
 
-            String result =
-                    MarkdownSections.insertSection(md, section(md, "A"), "# New\nтекст", false);
+            String result = MarkdownSections.insertSection(md, section(md, "A"), "# New\nтекст", false);
 
             assertThat(result).isEqualTo("# A\n## A1\nsub\n\n# New\nтекст\n\n# B\ntext b\n");
         }
@@ -318,8 +292,7 @@ class MarkdownSectionsTest {
         void insertsAfterLastSectionWithSingleTrailingNewline() {
             String md = "# A\ntext\n# B\nlast";
 
-            String result =
-                    MarkdownSections.insertSection(md, section(md, "B"), "# C\nновая", false);
+            String result = MarkdownSections.insertSection(md, section(md, "B"), "# C\nновая", false);
 
             assertThat(result).isEqualTo("# A\ntext\n# B\nlast\n\n# C\nновая\n");
         }
@@ -328,9 +301,7 @@ class MarkdownSectionsTest {
         void insertsBeforeFirstSectionAtDocumentStart() {
             String md = "# A\ntext\n";
 
-            String result =
-                    MarkdownSections.insertSection(
-                            md, section(md, "A"), "# Intro\nвступление", true);
+            String result = MarkdownSections.insertSection(md, section(md, "A"), "# Intro\nвступление", true);
 
             assertThat(result).isEqualTo("# Intro\nвступление\n\n# A\ntext\n");
         }
@@ -339,8 +310,7 @@ class MarkdownSectionsTest {
         void doesNotDoubleBlankLinesAroundInsertion() {
             String md = "# A\ntext a\n\n# B\ntext b\n";
 
-            String result =
-                    MarkdownSections.insertSection(md, section(md, "B"), "# New\nтекст", true);
+            String result = MarkdownSections.insertSection(md, section(md, "B"), "# New\nтекст", true);
 
             assertThat(result).isEqualTo("# A\ntext a\n\n# New\nтекст\n\n# B\ntext b\n");
         }

@@ -34,8 +34,7 @@ class SummarizeWindowTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(
-                    30_000, 30, 30, 3, 3, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, null, null, null);
+            new SummarizeProperties(30_000, 30, 30, 3, 3, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, null, null, null);
 
     /**
      * Порог по токенам, до которого срезы в тестах про границу заведомо не дотягиваются: они про
@@ -280,11 +279,7 @@ class SummarizeWindowTest {
     @Test
     void theSliceWeighsToolPayloadsAndPerMessageOverhead() {
         final List<PromptRow> live =
-                new ArrayList<>(
-                        List.of(
-                                row(0, MessageType.USER, 100),
-                                toolCallSegment(1, 200),
-                                toolResponse(2, 400)));
+                new ArrayList<>(List.of(row(0, MessageType.USER, 100), toolCallSegment(1, 200), toolResponse(2, 400)));
         live.addAll(alternating(3, 7));
 
         final SummarizeWindow window = window(live, properties(4, 0, 1));
@@ -469,24 +464,14 @@ class SummarizeWindowTest {
      */
     @Test
     void storedReasoningWeighsOnlyWhenItIsReplayed() {
-        final ChatMessageEntity answer =
-                new ChatMessageEntity(
-                        2,
-                        CONV,
-                        "ok",
-                        MessageType.ASSISTANT,
-                        1,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        null,
-                        null,
-                        text(40_000));
-        final List<PromptRow> live =
-                List.of(row(0, MessageType.USER), new PromptRow(answer, answer.getContent()));
+        final ChatMessageEntity answer = new ChatMessageEntity(
+                2, CONV, "ok", MessageType.ASSISTANT, 1, false, false, LocalDateTime.now(), null, null, text(40_000));
+        final List<PromptRow> live = List.of(row(0, MessageType.USER), new PromptRow(answer, answer.getContent()));
 
-        final long withoutReplay = new SummarizeWindow(live, PRODUCTION).windowTokens().tokens();
-        final long withReplay = new SummarizeWindow(live, PRODUCTION, true).windowTokens().tokens();
+        final long withoutReplay =
+                new SummarizeWindow(live, PRODUCTION).windowTokens().tokens();
+        final long withReplay =
+                new SummarizeWindow(live, PRODUCTION, true).windowTokens().tokens();
 
         assertThat(withReplay - withoutReplay).isEqualTo(40_000L / PRODUCTION.charsPerToken());
     }
@@ -537,12 +522,7 @@ class SummarizeWindowTest {
         final List<PromptRow> live = new ArrayList<>();
         for (int i = 0; i < 58; i++) {
             final ChatMessageEntity entity = entity(i, MessageType.USER, text(500), null, null);
-            live.add(
-                    new PromptRow(
-                            entity,
-                            withAttachment
-                                    ? entity.getContent() + inventory()
-                                    : entity.getContent()));
+            live.add(new PromptRow(entity, withAttachment ? entity.getContent() + inventory() : entity.getContent()));
         }
         return live;
     }
@@ -579,26 +559,19 @@ class SummarizeWindowTest {
     }
 
     private static PromptRow measured(long position, MessageType type, long base, long context) {
-        final ChatMessageEntity entity =
-                entity(
-                        position,
-                        type,
-                        text(3),
-                        ChatMessageMeta.ofUsage(
-                                new RunTokenUsage(context, base, 0, 0, base, 0, 0, base, 1)),
-                        null);
+        final ChatMessageEntity entity = entity(
+                position,
+                type,
+                text(3),
+                ChatMessageMeta.ofUsage(new RunTokenUsage(context, base, 0, 0, base, 0, 0, base, 1)),
+                null);
         return new PromptRow(entity, entity.getContent());
     }
 
     /** Вопрос, доставленный внутрь идущего прогона: обычный USER-ряд, не открывающий ход. */
     private static PromptRow interjection(long position) {
         final ChatMessageEntity entity =
-                entity(
-                        position,
-                        MessageType.USER,
-                        text(3),
-                        ChatMessageMeta.ofInterjection(List.of()),
-                        null);
+                entity(position, MessageType.USER, text(3), ChatMessageMeta.ofInterjection(List.of()), null);
         return new PromptRow(entity, entity.getContent());
     }
 
@@ -608,57 +581,32 @@ class SummarizeWindowTest {
 
     /** ASSISTANT-сегмент вызова инструмента: текста нет, есть tool_calls и мета для промпта. */
     private static PromptRow toolCallSegment(long position, int argumentChars) {
-        final ToolData toolData =
-                new ToolData(
-                        List.of(
-                                new ToolData.Call(
-                                        "call-" + position,
-                                        "function",
-                                        "search",
-                                        "x".repeat(argumentChars))),
-                        null);
-        final ChatMessageMeta meta =
-                ChatMessageMeta.ofToolCalls(
-                        List.of(
-                                new ToolInvocationMeta(
-                                        "search",
-                                        Map.of(),
-                                        ToolInvocationStatus.OK,
-                                        null,
-                                        null,
-                                        true,
-                                        0,
-                                        "gist",
-                                        "call-" + position)));
+        final ToolData toolData = new ToolData(
+                List.of(new ToolData.Call("call-" + position, "function", "search", "x".repeat(argumentChars))), null);
+        final ChatMessageMeta meta = ChatMessageMeta.ofToolCalls(List.of(new ToolInvocationMeta(
+                "search", Map.of(), ToolInvocationStatus.OK, null, null, true, 0, "gist", "call-" + position)));
         return new PromptRow(entity(position, MessageType.ASSISTANT, "", meta, toolData), "");
     }
 
     /** Протокольная TOOL-строка: текст пустой, полезная нагрузка — в {@code tool_data}. */
     private static PromptRow toolResponse(long position, int responseChars) {
-        final ToolData toolData =
-                new ToolData(
-                        null,
-                        List.of(
-                                new ToolData.Response(
-                                        "call-" + (position - 1),
-                                        "search",
-                                        "x".repeat(responseChars))));
+        final ToolData toolData = new ToolData(
+                null, List.of(new ToolData.Response("call-" + (position - 1), "search", "x".repeat(responseChars))));
         return new PromptRow(entity(position, MessageType.TOOL, "", null, toolData), "");
     }
 
     private static PromptRow summary(long position) {
-        final ChatMessageEntity entity =
-                new ChatMessageEntity(
-                        position + 1,
-                        CONV,
-                        "Earlier conversation summary",
-                        MessageType.ASSISTANT,
-                        position,
-                        false,
-                        true,
-                        LocalDateTime.now(),
-                        null,
-                        null);
+        final ChatMessageEntity entity = new ChatMessageEntity(
+                position + 1,
+                CONV,
+                "Earlier conversation summary",
+                MessageType.ASSISTANT,
+                position,
+                false,
+                true,
+                LocalDateTime.now(),
+                null,
+                null);
         return new PromptRow(entity, entity.getContent());
     }
 
@@ -669,15 +617,6 @@ class SummarizeWindowTest {
             @Nullable ChatMessageMeta meta,
             @Nullable ToolData toolData) {
         return new ChatMessageEntity(
-                position + 1,
-                CONV,
-                content,
-                type,
-                position,
-                false,
-                false,
-                LocalDateTime.now(),
-                meta,
-                toolData);
+                position + 1, CONV, content, type, position, false, false, LocalDateTime.now(), meta, toolData);
     }
 }

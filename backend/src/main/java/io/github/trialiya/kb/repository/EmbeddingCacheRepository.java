@@ -18,8 +18,7 @@ public interface EmbeddingCacheRepository extends CrudRepository<EmbeddingCacheE
 
     /** Returns the cached row for the given hash + model, or empty if not cached. */
     @Query("SELECT * FROM embedding_cache WHERE text_hash = :hash AND model = :model LIMIT 1")
-    Optional<EmbeddingCacheEntity> findByTextHashAndModel(
-            @Param("hash") String hash, @Param("model") String model);
+    Optional<EmbeddingCacheEntity> findByTextHashAndModel(@Param("hash") String hash, @Param("model") String model);
 
     /**
      * Bumps {@code last_used_at} for a cache hit without a round-trip load + save.
@@ -29,17 +28,14 @@ public interface EmbeddingCacheRepository extends CrudRepository<EmbeddingCacheE
      * @param touchedAt the new timestamp (usually {@code OffsetDateTime.now()})
      */
     @Modifying
-    @Query(
-            """
+    @Query("""
             UPDATE embedding_cache
                SET last_used_at = :touchedAt
              WHERE text_hash = :hash
                AND model     = :model
             """)
     void touchLastUsed(
-            @Param("hash") String hash,
-            @Param("model") String model,
-            @Param("touchedAt") OffsetDateTime touchedAt);
+            @Param("hash") String hash, @Param("model") String model, @Param("touchedAt") OffsetDateTime touchedAt);
 
     /**
      * Deletes all rows that have not been accessed since {@code before}. Called by {@code

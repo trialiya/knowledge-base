@@ -68,7 +68,6 @@ public record CompactWindow(List<ChatMessageEntity> compacted, List<ChatMessageE
      * не даёт: без неё раунд сжимал бы ту же сводку ради одной строки уведомления.
      */
     static boolean nothingToCompact(List<ChatMessageEntity> rows) {
-        return rows.stream()
-                .noneMatch(row -> !row.isSummary() && !ChatHistoryService.isEventRow(row));
+        return rows.stream().noneMatch(row -> !row.isSummary() && !ChatHistoryService.isEventRow(row));
     }
 }

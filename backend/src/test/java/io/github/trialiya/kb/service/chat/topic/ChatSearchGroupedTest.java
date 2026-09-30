@@ -40,14 +40,12 @@ class ChatSearchGroupedTest {
     }
 
     private static ChatTopicEntity topic(String id, String title, LocalDateTime updatedAt) {
-        return new ChatTopicEntity(
-                id, USER, title, null, null, null, null, null, T0, updatedAt, false);
+        return new ChatTopicEntity(id, USER, title, null, null, null, null, null, T0, updatedAt, false);
     }
 
     private static ChatMessageEntity message(
             long id, String conv, MessageType type, String content, int minutesAfterT0) {
-        return new ChatMessageEntity(
-                id, conv, content, type, id, false, false, T0.plusMinutes(minutesAfterT0), null);
+        return new ChatMessageEntity(id, conv, content, type, id, false, false, T0.plusMinutes(minutesAfterT0), null);
     }
 
     private static ChatMessageEntity toolCrumb(long id, String conv, int minutesAfterT0) {
@@ -68,13 +66,11 @@ class ChatSearchGroupedTest {
         when(topics.searchByTopic(USER, "жирафы")).thenReturn(List.of());
         // От новых к старым, как отдаёт репозиторий.
         when(messages.searchForUser(eq(USER), eq("жирафы"), anyInt()))
-                .thenReturn(
-                        List.of(
-                                message(30, "c1", MessageType.ASSISTANT, "Жирафы высокие", 30),
-                                toolCrumb(20, "c1", 20),
-                                message(10, "c1", MessageType.USER, "расскажи про жирафы", 10)));
-        when(topics.findAllById(List.of("c1")))
-                .thenReturn(List.of(topic("c1", "Про животных", T0.plusMinutes(30))));
+                .thenReturn(List.of(
+                        message(30, "c1", MessageType.ASSISTANT, "Жирафы высокие", 30),
+                        toolCrumb(20, "c1", 20),
+                        message(10, "c1", MessageType.USER, "расскажи про жирафы", 10)));
+        when(topics.findAllById(List.of("c1"))).thenReturn(List.of(topic("c1", "Про животных", T0.plusMinutes(30))));
 
         ChatSearchGroups groups = service.searchChatsGrouped(USER, "жирафы", 20);
 
@@ -97,19 +93,15 @@ class ChatSearchGroupedTest {
      */
     @Test
     void aTitleOnlyHitHasNoMessagesAndChatsAreNewestFirst() {
-        when(topics.searchByTopic(USER, "жирафы"))
-                .thenReturn(List.of(topic("old", "Жирафы", T0.plusMinutes(1))));
+        when(topics.searchByTopic(USER, "жирафы")).thenReturn(List.of(topic("old", "Жирафы", T0.plusMinutes(1))));
         when(messages.searchForUser(eq(USER), eq("жирафы"), anyInt()))
                 .thenReturn(List.of(message(5, "new", MessageType.USER, "жирафы?", 50)));
-        when(topics.findAllById(List.of("new")))
-                .thenReturn(List.of(topic("new", "Вопрос", T0.plusMinutes(50))));
+        when(topics.findAllById(List.of("new"))).thenReturn(List.of(topic("new", "Вопрос", T0.plusMinutes(50))));
 
         ChatSearchGroups groups = service.searchChatsGrouped(USER, "жирафы", 20);
 
         assertThat(groups.chats())
-                .extracting(
-                        ChatSearchGroups.Group::conversationId,
-                        ChatSearchGroups.Group::titleMatched)
+                .extracting(ChatSearchGroups.Group::conversationId, ChatSearchGroups.Group::titleMatched)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("new", false),
                         org.assertj.core.groups.Tuple.tuple("old", true));
@@ -121,28 +113,21 @@ class ChatSearchGroupedTest {
     void theLimitCountsChatsAndTheDropdownFormAgreesOnCountsAndSnippet() {
         when(topics.searchByTopic(USER, "q")).thenReturn(List.of());
         when(messages.searchForUser(eq(USER), eq("q"), anyInt()))
-                .thenReturn(
-                        List.of(
-                                message(3, "a", MessageType.USER, "q latest", 3),
-                                message(2, "b", MessageType.USER, "q other", 2),
-                                message(1, "a", MessageType.USER, "q first", 1)));
+                .thenReturn(List.of(
+                        message(3, "a", MessageType.USER, "q latest", 3),
+                        message(2, "b", MessageType.USER, "q other", 2),
+                        message(1, "a", MessageType.USER, "q first", 1)));
         when(topics.findAllById(List.of("a", "b")))
-                .thenReturn(
-                        List.of(
-                                topic("a", "A", T0.plusMinutes(3)),
-                                topic("b", "B", T0.plusMinutes(2))));
+                .thenReturn(List.of(topic("a", "A", T0.plusMinutes(3)), topic("b", "B", T0.plusMinutes(2))));
 
         List<ChatSearchResult> flat = service.searchChats(USER, "q", 1);
         ChatSearchGroups grouped = service.searchChatsGrouped(USER, "q", 1);
 
-        assertThat(flat)
-                .singleElement()
-                .satisfies(
-                        r -> {
-                            assertThat(r.conversationId()).isEqualTo("a");
-                            assertThat(r.messageMatchCount()).isEqualTo(2);
-                            assertThat(r.snippet()).isEqualTo("q latest");
-                        });
+        assertThat(flat).singleElement().satisfies(r -> {
+            assertThat(r.conversationId()).isEqualTo("a");
+            assertThat(r.messageMatchCount()).isEqualTo(2);
+            assertThat(r.snippet()).isEqualTo("q latest");
+        });
         assertThat(grouped.chats())
                 .singleElement()
                 .extracting(ChatSearchGroups.Group::conversationId)
@@ -159,27 +144,19 @@ class ChatSearchGroupedTest {
     @Test
     void aFullScanMarksTheAnswerTruncated() {
         when(topics.searchByTopic(USER, "q")).thenReturn(List.of());
-        when(messages.searchForUser(eq(USER), eq("q"), anyInt()))
-                .thenAnswer(
-                        inv -> {
-                            int scan = inv.getArgument(2);
-                            return java.util.stream.IntStream.range(0, scan)
-                                    .mapToObj(
-                                            i ->
-                                                    message(
-                                                            scan - i,
-                                                            "c",
-                                                            MessageType.USER,
-                                                            "q",
-                                                            scan - i))
-                                    .toList();
-                        });
+        when(messages.searchForUser(eq(USER), eq("q"), anyInt())).thenAnswer(inv -> {
+            int scan = inv.getArgument(2);
+            return java.util.stream.IntStream.range(0, scan)
+                    .mapToObj(i -> message(scan - i, "c", MessageType.USER, "q", scan - i))
+                    .toList();
+        });
         when(topics.findAllById(List.of("c"))).thenReturn(List.of(topic("c", "C", T0)));
 
         ChatSearchGroups groups = service.searchChatsGrouped(USER, "q", 20);
 
         assertThat(groups.truncated()).isTrue();
-        assertThat(groups.total()).isEqualTo(groups.chats().getFirst().messages().size());
+        assertThat(groups.total())
+                .isEqualTo(groups.chats().getFirst().messages().size());
     }
 
     /**
@@ -190,14 +167,12 @@ class ChatSearchGroupedTest {
     void everyMatchingLineOfAMessageBecomesItsOwnFragment() {
         when(topics.searchByTopic(USER, "жирафы")).thenReturn(List.of());
         when(messages.searchForUser(eq(USER), eq("жирафы"), anyInt()))
-                .thenReturn(
-                        List.of(
-                                message(
-                                        10,
-                                        "c1",
-                                        MessageType.ASSISTANT,
-                                        "Жирафы высокие.\n\nА ещё жирафы пятнистые.\nЗебры полосатые.",
-                                        10)));
+                .thenReturn(List.of(message(
+                        10,
+                        "c1",
+                        MessageType.ASSISTANT,
+                        "Жирафы высокие.\n\nА ещё жирафы пятнистые.\nЗебры полосатые.",
+                        10)));
         when(topics.findAllById(List.of("c1"))).thenReturn(List.of(topic("c1", "Звери", T0)));
 
         ChatSearchGroups groups = service.searchChatsGrouped(USER, "жирафы", 20);
@@ -209,7 +184,6 @@ class ChatSearchGroupedTest {
 
     @Test
     void aBlankQueryFindsNothingWithoutTouchingTheRepositories() {
-        assertThat(service.searchChatsGrouped(USER, "  ", 20))
-                .isEqualTo(new ChatSearchGroups(0, false, List.of()));
+        assertThat(service.searchChatsGrouped(USER, "  ", 20)).isEqualTo(new ChatSearchGroups(0, false, List.of()));
     }
 }

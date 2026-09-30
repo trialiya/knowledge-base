@@ -22,13 +22,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * </pre>
  */
 @ConfigurationProperties(prefix = "kb.search")
-public record SearchConfiguration(
-        KeywordConfig keyword, SemanticConfig semantic, HybridConfig hybrid) {
+public record SearchConfiguration(KeywordConfig keyword, SemanticConfig semantic, HybridConfig hybrid) {
 
     public record KeywordConfig(int limit) {}
 
     public record SemanticConfig(boolean enabled, double threshold, int limit) {}
 
-    public record HybridConfig(
-            double keywordWeight, double semanticWeight, double threshold, int limit) {}
+    public record HybridConfig(double keywordWeight, double semanticWeight, double threshold, int limit) {}
 }

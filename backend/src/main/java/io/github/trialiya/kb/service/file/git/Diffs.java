@@ -25,8 +25,7 @@ final class Diffs {
         if (diff.lines().count() <= MAX_DIFF_LINES) {
             return diff;
         }
-        return diff.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n"))
-                + "\n... (truncated)";
+        return diff.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n")) + "\n... (truncated)";
     }
 
     /** A unified diff split into the file's header lines and the hunks themselves. */
@@ -60,9 +59,8 @@ final class Diffs {
     static Stats between(String before, String after) {
         RawText a = new RawText(before.getBytes(StandardCharsets.UTF_8));
         RawText b = new RawText(after.getBytes(StandardCharsets.UTF_8));
-        EditList edits =
-                DiffAlgorithm.getAlgorithm(DiffAlgorithm.SupportedAlgorithm.HISTOGRAM)
-                        .diff(RawTextComparator.DEFAULT, a, b);
+        EditList edits = DiffAlgorithm.getAlgorithm(DiffAlgorithm.SupportedAlgorithm.HISTOGRAM)
+                .diff(RawTextComparator.DEFAULT, a, b);
         int add = 0;
         int del = 0;
         for (Edit edit : edits) {

@@ -88,27 +88,24 @@ import org.springframework.util.ClassUtils;
 public class NativeHints implements RuntimeHintsRegistrar {
 
     /** Классы с методами под {@code @Tool} — см. {@code ChatConfig#chatToolset}. */
-    private static final List<Class<?>> TOOL_HOLDERS =
-            List.of(
-                    AttachmentFunction.class,
-                    DocumentFunction.class,
-                    GitEditFunction.class,
-                    GitFunction.class,
-                    MessageLookupFunction.class,
-                    SavedScriptFunction.class,
-                    ScriptFunction.class,
-                    ScriptResultFunction.class,
-                    SearchAgentFunction.class,
-                    SkillFunction.class,
-                    ChatInfoFunction.class);
+    private static final List<Class<?>> TOOL_HOLDERS = List.of(
+            AttachmentFunction.class,
+            DocumentFunction.class,
+            GitEditFunction.class,
+            GitFunction.class,
+            MessageLookupFunction.class,
+            SavedScriptFunction.class,
+            ScriptFunction.class,
+            ScriptResultFunction.class,
+            SearchAgentFunction.class,
+            SkillFunction.class,
+            ChatInfoFunction.class);
 
     /** Классы, чьи объекты связываются с гостевым {@code kb} — см. {@code ScriptRunner}. */
-    private static final List<Class<?>> SCRIPT_APIS =
-            List.of(KbScriptApi.class, KbEditScriptApi.class);
+    private static final List<Class<?>> SCRIPT_APIS = List.of(KbScriptApi.class, KbEditScriptApi.class);
 
     /** Полезные нагрузки событий чата — см. {@code ConversationHub}. */
-    private static final String CHAT_EVENT_PAYLOADS =
-            "classpath*:io/github/trialiya/kb/model/chat/dto/*.class";
+    private static final String CHAT_EVENT_PAYLOADS = "classpath*:io/github/trialiya/kb/model/chat/dto/*.class";
 
     /** Классы JGit, среди которых ищем перечисления. */
     private static final String JGIT_CLASSES = "classpath*:org/eclipse/jgit/**/*.class";
@@ -135,10 +132,7 @@ public class NativeHints implements RuntimeHintsRegistrar {
     void registerToolHolders(RuntimeHints hints) {
         for (Class<?> holder : TOOL_HOLDERS) {
             hints.reflection()
-                    .registerType(
-                            holder,
-                            MemberCategory.INVOKE_DECLARED_METHODS,
-                            MemberCategory.INVOKE_PUBLIC_METHODS);
+                    .registerType(holder, MemberCategory.INVOKE_DECLARED_METHODS, MemberCategory.INVOKE_PUBLIC_METHODS);
             registerToolSignatures(hints, holder);
         }
         hints.reflection()
@@ -164,10 +158,8 @@ public class NativeHints implements RuntimeHintsRegistrar {
      * держать разобранными все сразу незачем. По той же причине фабрика простая: каждый ресурс
      * читается ровно один раз, и кэшу нечего переиспользовать.
      */
-    private void forEachClass(
-            String pattern, @Nullable ClassLoader loader, Consumer<MetadataReader> action) {
-        PathMatchingResourcePatternResolver resolver =
-                new PathMatchingResourcePatternResolver(loader);
+    private void forEachClass(String pattern, @Nullable ClassLoader loader, Consumer<MetadataReader> action) {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver(loader);
         MetadataReaderFactory metadataReaders = new SimpleMetadataReaderFactory(resolver);
         try {
             for (Resource resource : resolver.getResources(pattern)) {
@@ -185,36 +177,27 @@ public class NativeHints implements RuntimeHintsRegistrar {
      * типы ({@code ToolInvocationMeta} и соседи) Jackson сериализует по той же рефлексии.
      */
     void registerChatEventPayloads(RuntimeHints hints, @Nullable ClassLoader loader) {
-        forEachClass(
-                CHAT_EVENT_PAYLOADS,
-                loader,
-                reader -> {
-                    String className = reader.getClassMetadata().getClassName();
-                    if (className.endsWith("package-info")) {
-                        return;
-                    }
-                    binding.registerReflectionHints(
-                            hints.reflection(), ClassUtils.resolveClassName(className, loader));
-                });
+        forEachClass(CHAT_EVENT_PAYLOADS, loader, reader -> {
+            String className = reader.getClassMetadata().getClassName();
+            if (className.endsWith("package-info")) {
+                return;
+            }
+            binding.registerReflectionHints(hints.reflection(), ClassUtils.resolveClassName(className, loader));
+        });
     }
 
     /** {@code values()} у всех перечислений JGit — через них читается конфигурация репозитория. */
     private void registerJGitEnums(RuntimeHints hints, @Nullable ClassLoader loader) {
-        forEachClass(
-                JGIT_CLASSES,
-                loader,
-                reader -> {
-                    ClassMetadata metadata = reader.getClassMetadata();
-                    if (!Enum.class.getName().equals(metadata.getSuperClassName())) {
-                        return;
-                    }
-                    hints.reflection()
-                            .registerType(
-                                    TypeReference.of(metadata.getClassName()),
-                                    type ->
-                                            type.withMethod(
-                                                    "values", List.of(), ExecutableMode.INVOKE));
-                });
+        forEachClass(JGIT_CLASSES, loader, reader -> {
+            ClassMetadata metadata = reader.getClassMetadata();
+            if (!Enum.class.getName().equals(metadata.getSuperClassName())) {
+                return;
+            }
+            hints.reflection()
+                    .registerType(
+                            TypeReference.of(metadata.getClassName()),
+                            type -> type.withMethod("values", List.of(), ExecutableMode.INVOKE));
+        });
     }
 
     /**
@@ -241,8 +224,7 @@ public class NativeHints implements RuntimeHintsRegistrar {
             }
             for (Parameter parameter : method.getParameters()) {
                 if (parameter.getType() != ToolContext.class) {
-                    binding.registerReflectionHints(
-                            hints.reflection(), parameter.getParameterizedType());
+                    binding.registerReflectionHints(hints.reflection(), parameter.getParameterizedType());
                 }
             }
         }
@@ -263,19 +245,15 @@ public class NativeHints implements RuntimeHintsRegistrar {
      * реализации, а аннотация — контракт Jackson, по которому этот метод и вызывается.
      */
     private void registerOpenAiAnySetters(RuntimeHints hints, @Nullable ClassLoader loader) {
-        forEachClass(
-                OPENAI_CLASSES,
-                loader,
-                reader -> {
-                    AnnotationMetadata metadata = reader.getAnnotationMetadata();
-                    if (!metadata.getAnnotatedMethods(JsonAnySetter.class.getName()).isEmpty()) {
-                        registerAnySetters(hints, metadata.getClassName(), loader);
-                    }
-                });
+        forEachClass(OPENAI_CLASSES, loader, reader -> {
+            AnnotationMetadata metadata = reader.getAnnotationMetadata();
+            if (!metadata.getAnnotatedMethods(JsonAnySetter.class.getName()).isEmpty()) {
+                registerAnySetters(hints, metadata.getClassName(), loader);
+            }
+        });
     }
 
-    private void registerAnySetters(
-            RuntimeHints hints, String className, @Nullable ClassLoader loader) {
+    private void registerAnySetters(RuntimeHints hints, String className, @Nullable ClassLoader loader) {
         try {
             // getDeclaredMethods внутри try не случайно: он разрешает типы сигнатур, и на классе
             // из необязательной части SDK падает ровно так же, как загрузка самого класса.

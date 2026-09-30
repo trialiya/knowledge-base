@@ -19,8 +19,7 @@ class RegexOutlineParserTest {
 
     @Test
     void javaTypesMethodsAndConstructorsButNotControlFlow() {
-        String src =
-                """
+        String src = """
                 public final class Repo {
                     public Repo(Path root) {
                     }
@@ -47,8 +46,7 @@ class RegexOutlineParserTest {
         String line = "    int" + " ".repeat(5_000) + "x (" + " ".repeat(5_000) + ";\n";
 
         List<GitSymbol> symbols =
-                assertTimeoutPreemptively(
-                        Duration.ofSeconds(2), () -> parser.parse("java", line.repeat(20)));
+                assertTimeoutPreemptively(Duration.ofSeconds(2), () -> parser.parse("java", line.repeat(20)));
 
         assertEquals(List.of(), symbols);
     }
@@ -64,8 +62,7 @@ class RegexOutlineParserTest {
 
     @Test
     void pythonIndentedDefIsAMethod() {
-        String src =
-                """
+        String src = """
                 class A:
                     async def load(self):
                         pass
@@ -73,15 +70,12 @@ class RegexOutlineParserTest {
                 def main():
                     pass
                 """;
-        assertEquals(
-                List.of("class A", "method load", "function main"),
-                kindsAndNames(parser.parse("python", src)));
+        assertEquals(List.of("class A", "method load", "function main"), kindsAndNames(parser.parse("python", src)));
     }
 
     @Test
     void javascriptFunctionsClassesAndArrows() {
-        String src =
-                """
+        String src = """
                 export class Store {}
                 export async function* stream(a) {}
                 export const sum = (a: number, b: number): number => a + b;
@@ -94,8 +88,7 @@ class RegexOutlineParserTest {
 
     @Test
     void sqlObjectsWithTheirKind() {
-        String src =
-                """
+        String src = """
                 CREATE TABLE IF NOT EXISTS public.users (id bigint);
                 create or replace view active_users as select 1;
                 CREATE INDEX users_idx ON users (id);

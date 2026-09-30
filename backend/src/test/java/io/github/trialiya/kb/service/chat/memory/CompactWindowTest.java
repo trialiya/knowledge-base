@@ -162,17 +162,8 @@ class CompactWindowTest {
                 null);
     }
 
-    private static ChatMessageEntity row(
-            long position, MessageType type, String content, ChatMessageMeta meta) {
+    private static ChatMessageEntity row(long position, MessageType type, String content, ChatMessageMeta meta) {
         return new ChatMessageEntity(
-                position + 1,
-                CONV,
-                content,
-                type,
-                position,
-                false,
-                false,
-                LocalDateTime.now(),
-                meta);
+                position + 1, CONV, content, type, position, false, false, LocalDateTime.now(), meta);
     }
 }

@@ -71,8 +71,7 @@ class ConversationSlotsTest {
         slots.free(CONV, "run-1");
 
         assertThat(slots.claimedConversationCount()).isEqualTo(1);
-        assertThatThrownBy(() -> slots.take(CONV, "run-3"))
-                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> slots.take(CONV, "run-3")).isInstanceOf(ResponseStatusException.class);
     }
 
     /** {@code claim} держит чат занятым и для вкладок — они видят его прогоном, который нельзя. */

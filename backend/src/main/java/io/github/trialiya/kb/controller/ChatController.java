@@ -148,8 +148,7 @@ public class ChatController {
     /** Задать (или сбросить) модель чата. Пустое тело → возврат к дефолтной. */
     @PutMapping("/{conversationId}/model")
     public void updateChatModel(
-            @PathVariable final String conversationId,
-            @RequestBody(required = false) final String model) {
+            @PathVariable final String conversationId, @RequestBody(required = false) final String model) {
         getChatTopic(conversationId); // 404/403 + проверка владельца
         final String trimmed = model == null ? "" : model.trim();
         if (!trimmed.isEmpty() && !chatModelProperties.isAllowed(trimmed)) {
@@ -167,8 +166,7 @@ public class ChatController {
     /** Задать (или сбросить) режим чата. Пустое тело → «без режима». */
     @PutMapping("/{conversationId}/mode")
     public void updateChatMode(
-            @PathVariable final String conversationId,
-            @RequestBody(required = false) final String mode) {
+            @PathVariable final String conversationId, @RequestBody(required = false) final String mode) {
         getChatTopic(conversationId); // 404/403 + проверка владельца
         final String trimmed = mode == null ? "" : mode.trim();
         if (!trimmed.isEmpty() && !chatModeProperties.isAllowed(trimmed)) {
@@ -190,8 +188,7 @@ public class ChatController {
      * чатов). Объединяет оба вида совпадений по чату.
      */
     @GetMapping("/search")
-    public List<ChatSearchResult> searchChats(
-            @RequestParam String q, @RequestParam(defaultValue = "20") int limit) {
+    public List<ChatSearchResult> searchChats(@RequestParam String q, @RequestParam(defaultValue = "20") int limit) {
         int safe = Math.min(Math.max(limit, 1), 50);
         return chatSearchService.searchChats(getUser(), q, safe);
     }
@@ -202,8 +199,7 @@ public class ChatController {
      * чём говорит {@code truncated} в ответе.
      */
     @GetMapping("/search/grouped")
-    public ChatSearchGroups searchChatsGrouped(
-            @RequestParam String q, @RequestParam(defaultValue = "20") int limit) {
+    public ChatSearchGroups searchChatsGrouped(@RequestParam String q, @RequestParam(defaultValue = "20") int limit) {
         int safe = Math.min(Math.max(limit, 1), 50);
         return chatSearchService.searchChatsGrouped(getUser(), q, safe);
     }
@@ -219,24 +215,20 @@ public class ChatController {
     @GetMapping("/{conversationId}")
     public Chat getChat(
             @PathVariable final String conversationId,
-            @RequestParam(name = "includeMessages", defaultValue = "true")
-                    final boolean includeMessages) {
+            @RequestParam(name = "includeMessages", defaultValue = "true") final boolean includeMessages) {
         final ChatTopicEntity chatTopicEntity = getChatTopic(conversationId);
-        final @Nullable List<ChatMessage> messages =
-                includeMessages
-                        ? chatHistory.displayMessages(conversationId).stream()
-                                // Пустой текст обычно значит «служебный ряд, показывать нечего», но
-                                // у ряда события весь смысл в мете: выбросив его здесь, эта
-                                // проекция рассказывала бы историю без pull'а, который посреди
-                                // разговора сдвинул ветку, и без отката правок — а GET /messages
-                                // с ними.
-                                .filter(
-                                        a ->
-                                                (a.getText() != null && !a.getText().isBlank())
-                                                        || ChatHistoryService.isEventRow(a))
-                                .map(a -> toChatMessage(a, a.getInvocations()))
-                                .toList()
-                        : null;
+        final @Nullable List<ChatMessage> messages = includeMessages
+                ? chatHistory.displayMessages(conversationId).stream()
+                        // Пустой текст обычно значит «служебный ряд, показывать нечего», но
+                        // у ряда события весь смысл в мете: выбросив его здесь, эта
+                        // проекция рассказывала бы историю без pull'а, который посреди
+                        // разговора сдвинул ветку, и без отката правок — а GET /messages
+                        // с ними.
+                        .filter(a ->
+                                (a.getText() != null && !a.getText().isBlank()) || ChatHistoryService.isEventRow(a))
+                        .map(a -> toChatMessage(a, a.getInvocations()))
+                        .toList()
+                : null;
         return toChat(chatTopicEntity, messages);
     }
 
@@ -249,17 +241,14 @@ public class ChatController {
             @RequestParam(defaultValue = "20") int limit) {
 
         int safe = Math.min(Math.max(limit, 1), 100);
-        ChatHistoryService.Page page =
-                (beforeCreatedAt != null && beforeId != null)
-                        ? chatHistory.findPageBefore(
-                                conversationId, beforeCreatedAt, beforeId, safe)
-                        : chatHistory.findLatestPage(conversationId, safe);
+        ChatHistoryService.Page page = (beforeCreatedAt != null && beforeId != null)
+                ? chatHistory.findPageBefore(conversationId, beforeCreatedAt, beforeId, safe)
+                : chatHistory.findLatestPage(conversationId, safe);
 
         // invocationsForPage синтезирует меты из tool_data для сегментов без meta.invocations
         // (оборванные и написанные до этого поля прогоны) — проекции чата целиком это не нужно,
         // она отдаёт что записано.
-        List<@Nullable List<ToolInvocationMeta>> invocations =
-                toolCallService.invocationsForPage(page.messages());
+        List<@Nullable List<ToolInvocationMeta>> invocations = toolCallService.invocationsForPage(page.messages());
         List<ChatMessage> dtos = new ArrayList<>(page.messages().size());
         for (int i = 0; i < page.messages().size(); i++) {
             dtos.add(toChatMessage(page.messages().get(i), invocations.get(i)));
@@ -280,8 +269,7 @@ public class ChatController {
 
     /** Поиск сообщений внутри одного чата — для локального find-бара (Ctrl+F). */
     @GetMapping("/{conversationId}/messages/search")
-    public List<MessageSearchHit> searchMessages(
-            @PathVariable String conversationId, @RequestParam String q) {
+    public List<MessageSearchHit> searchMessages(@PathVariable String conversationId, @RequestParam String q) {
         getChatTopic(conversationId); // 404/403 + проверка владельца
         return chatSearchService.searchMessages(conversationId, q);
     }
@@ -308,8 +296,7 @@ public class ChatController {
 
     /** Sets (or creates) the chat's topic. Idempotent, hence PUT. */
     @PutMapping("/{conversationId}/topic")
-    public void updateChatTopic(
-            @PathVariable final String conversationId, @RequestBody final String topic) {
+    public void updateChatTopic(@PathVariable final String conversationId, @RequestBody final String topic) {
         chatTopicRepository
                 .findById(conversationId)
                 .ifPresentOrElse(
@@ -320,8 +307,7 @@ public class ChatController {
                             // Одной колонкой: название от ИИ пишется в фоне (AiTopicService),
                             // и строка, прочитанная здесь, пересохранённая целиком, стёрла бы
                             // записанное между чтением и записью.
-                            chatTopicRepository.updateUserTopic(
-                                    conversationId, topic, LocalDateTime.now(clock));
+                            chatTopicRepository.updateUserTopic(conversationId, topic, LocalDateTime.now(clock));
                             // Тем же событием, что и название от ИИ: остальные вкладки меняют
                             // заголовок сразу, а не при следующем открытии чата.
                             chatEventService.publish(
@@ -331,23 +317,21 @@ public class ChatController {
                                     null,
                                     new ChatTopicPayload(topic, chatTopicEntity.getAiTopic()));
                         },
-                        () ->
-                                chatTopicRepository.save(
-                                        new ChatTopicEntity(
-                                                conversationId,
-                                                getUser(),
-                                                topic,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                // overwritten by
-                                                // @CreatedDate/@LastModifiedDate auditing
-                                                // before insert
-                                                LocalDateTime.now(),
-                                                LocalDateTime.now(),
-                                                true)));
+                        () -> chatTopicRepository.save(new ChatTopicEntity(
+                                conversationId,
+                                getUser(),
+                                topic,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                // overwritten by
+                                // @CreatedDate/@LastModifiedDate auditing
+                                // before insert
+                                LocalDateTime.now(),
+                                LocalDateTime.now(),
+                                true)));
     }
 
     // ---------------------------------------------------------------------
@@ -380,15 +364,13 @@ public class ChatController {
         // за собой ни занятый чат, ни записанный вопрос.
         final List<ContextItem> contextItems =
                 retry ? List.of() : contextItemService.resolve(conversationId, body.contextItems());
-        final ChatRunService.StartedRun started =
-                chatRunService.start(
-                        conversationId,
-                        getUser(),
-                        retry ? null : body.text(),
-                        contextItems,
-                        runOptions.resolve(
-                                conversationId, body.model(), body.mode(), body.project()),
-                        body.clientMsgId());
+        final ChatRunService.StartedRun started = chatRunService.start(
+                conversationId,
+                getUser(),
+                retry ? null : body.text(),
+                contextItems,
+                runOptions.resolve(conversationId, body.model(), body.mode(), body.project()),
+                body.clientMsgId());
         return Map.of("runId", started.runId(), "messageId", started.userMessageId());
     }
 
@@ -423,8 +405,7 @@ public class ChatController {
         runOptions.validate(body.model(), body.mode(), body.project());
         // Приложенное проверяем ДО постановки в очередь — 404 на чужое вложение не должен
         // оставлять за собой принятое сообщение.
-        final List<ContextItem> contextItems =
-                contextItemService.resolve(conversationId, body.contextItems());
+        final List<ContextItem> contextItems = contextItemService.resolve(conversationId, body.contextItems());
         if (!chatRunService.isGenerating(conversationId, runId)) {
             throw new ResponseStatusException(CONFLICT, "This run is no longer generating");
         }
@@ -474,19 +455,18 @@ public class ChatController {
         // (см. CompactService). Читающим резолвом, а не общим с прогоном: тот приводит к своему
         // значению колонку проекта и вычисляет маркер смены, а сжатие чат никуда не переводит.
         final ChatRunService.RunOptions options = runOptions.current(conversationId);
-        final CompactService.StartedCompact started =
-                compactService.start(
-                        conversationId,
-                        body.text(),
-                        body.instructions(),
-                        body.keepLastRun(),
-                        new CompactService.CompactOptions(
-                                options.model(),
-                                options.weakModel(),
-                                options.project(),
-                                options.modeInstructions(),
-                                chatModelProperties.replayReasoning(options.model())),
-                        body.clientMsgId());
+        final CompactService.StartedCompact started = compactService.start(
+                conversationId,
+                body.text(),
+                body.instructions(),
+                body.keepLastRun(),
+                new CompactService.CompactOptions(
+                        options.model(),
+                        options.weakModel(),
+                        options.project(),
+                        options.modeInstructions(),
+                        chatModelProperties.replayReasoning(options.model())),
+                body.clientMsgId());
         // Строго после start: 409/422 не сохраняют сообщения, и поднимать за них чат в списке
         // не за что. Успех же дописал в чат обычную реплику — как и любая, она его освежает.
         chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
@@ -508,8 +488,7 @@ public class ChatController {
      * как и у стенда: разбирать причину и есть смысл прогона.
      */
     @PostMapping("/{conversationId}/script-runs")
-    public ScriptResult runScript(
-            @PathVariable final String conversationId, @RequestBody final ScriptRunRequest body) {
+    public ScriptResult runScript(@PathVariable final String conversationId, @RequestBody final ScriptRunRequest body) {
         if (!StringUtils.hasText(body.name())) {
             throw new ResponseStatusException(BAD_REQUEST, "Script name is empty");
         }
@@ -518,11 +497,7 @@ public class ChatController {
         getChatTopic(conversationId);
         try {
             final ScriptResult result =
-                    chatScriptRun.run(
-                            conversationId,
-                            body.name().strip(),
-                            body.args(),
-                            body.timeoutSeconds());
+                    chatScriptRun.run(conversationId, body.name().strip(), body.args(), body.timeoutSeconds());
             chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
             return result;
         } catch (IllegalArgumentException e) {
@@ -581,8 +556,7 @@ public class ChatController {
 
     /** Останавливает активный прогон. Идемпотентно: на неизвестный runId — просто no-op. */
     @PostMapping("/{conversationId}/runs/{runId}/stop")
-    public void stopRun(
-            @PathVariable final String conversationId, @PathVariable final String runId) {
+    public void stopRun(@PathVariable final String conversationId, @PathVariable final String runId) {
         verifyOwnerIfPresent(conversationId);
         chatRunService.stop(conversationId, runId);
     }
@@ -598,19 +572,18 @@ public class ChatController {
         verifyOwnerIfPresent(conversationId);
         return chatRunService
                 .activeRun(conversationId)
-                .<Map<String, Object>>map(
-                        active -> {
-                            final Map<String, Object> body = new LinkedHashMap<>();
-                            body.put("runId", active.runId());
-                            body.put("kind", active.kind().name());
-                            if (active.elapsedMs() != null) {
-                                body.put("elapsedMs", active.elapsedMs());
-                            }
-                            if (active.replayTruncated()) {
-                                body.put("replayTruncated", true);
-                            }
-                            return body;
-                        })
+                .<Map<String, Object>>map(active -> {
+                    final Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("runId", active.runId());
+                    body.put("kind", active.kind().name());
+                    if (active.elapsedMs() != null) {
+                        body.put("elapsedMs", active.elapsedMs());
+                    }
+                    if (active.replayTruncated()) {
+                        body.put("replayTruncated", true);
+                    }
+                    return body;
+                })
                 .orElseGet(Map::of);
     }
 
@@ -619,14 +592,10 @@ public class ChatController {
     // ---------------------------------------------------------------------
 
     private @NonNull ChatTopicEntity getChatTopic(String conversationId) {
-        final ChatTopicEntity chatTopicEntity =
-                chatTopicRepository
-                        .findById(conversationId)
-                        .orElseThrow(
-                                () ->
-                                        new ResponseStatusException(
-                                                NOT_FOUND,
-                                                "Not found conversation id " + conversationId));
+        final ChatTopicEntity chatTopicEntity = chatTopicRepository
+                .findById(conversationId)
+                .orElseThrow(
+                        () -> new ResponseStatusException(NOT_FOUND, "Not found conversation id " + conversationId));
         if (!chatTopicEntity.getUser().equals(getUser())) {
             throw new ResponseStatusException(FORBIDDEN, "Forbidden");
         }
@@ -637,14 +606,11 @@ public class ChatController {
      * Проверяет владельца, только если чат уже существует (для подписки/стопа без жёсткого 404).
      */
     private void verifyOwnerIfPresent(String conversationId) {
-        chatTopicRepository
-                .findById(conversationId)
-                .ifPresent(
-                        chatTopicEntity -> {
-                            if (!chatTopicEntity.getUser().equals(getUser())) {
-                                throw new ResponseStatusException(FORBIDDEN, "Forbidden");
-                            }
-                        });
+        chatTopicRepository.findById(conversationId).ifPresent(chatTopicEntity -> {
+            if (!chatTopicEntity.getUser().equals(getUser())) {
+                throw new ResponseStatusException(FORBIDDEN, "Forbidden");
+            }
+        });
     }
 
     private void checkChat(@Nonnull final String conversationId, boolean update) {
@@ -685,10 +651,7 @@ public class ChatController {
         // meta.toolCalls, чтобы не путать с другими сообщениями, у которых может появиться meta.
         if (isToolCalls(chatMessageEntity) && chatMessageEntity.getText() != null) {
             final int i = chatMessageEntity.getText().indexOf("\n{");
-            message =
-                    i > 0
-                            ? chatMessageEntity.getText().substring(0, i)
-                            : chatMessageEntity.getText();
+            message = i > 0 ? chatMessageEntity.getText().substring(0, i) : chatMessageEntity.getText();
         } else {
             message = chatMessageEntity.getText();
         }

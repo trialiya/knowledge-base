@@ -74,8 +74,7 @@ public class ToolCallEventPublisher {
                 // ChatHistoryService#repairDanglingToolCalls}), а протокольный ответ нужен
                 // модели и на скрытый вызов.
                 final int callIndex = scope.nextCallIndex();
-                final Map<Object, Object> arguments =
-                        RecordingToolCallback.parseToolInput(call.arguments());
+                final Map<Object, Object> arguments = RecordingToolCallback.parseToolInput(call.arguments());
                 scope.rememberCall(call.id(), callIndex, arguments);
                 // SKIP_TOOLS не показываем нигде: ни live, ни после перезагрузки (markRunResult
                 // их тоже вырезает).
@@ -118,9 +117,7 @@ public class ToolCallEventPublisher {
                 // статусы, — а после перезагрузки та же плашка краснела.
                 final ToolInvocation outcome = scope.completedCall(started.callIndex());
                 final ToolInvocation failure =
-                        outcome != null && ToolInvocationStatus.ERROR == outcome.status()
-                                ? outcome
-                                : null;
+                        outcome != null && ToolInvocationStatus.ERROR == outcome.status() ? outcome : null;
                 publish(
                         conversationId,
                         scope.runId(),
@@ -128,9 +125,7 @@ public class ToolCallEventPublisher {
                                 new ToolInvocationMeta(
                                         response.name(),
                                         started.arguments(),
-                                        failure != null
-                                                ? ToolInvocationStatus.ERROR
-                                                : ToolInvocationStatus.OK,
+                                        failure != null ? ToolInvocationStatus.ERROR : ToolInvocationStatus.OK,
                                         failure != null ? failure.error() : null,
                                         null,
                                         true,
@@ -141,8 +136,7 @@ public class ToolCallEventPublisher {
                                         failure != null
                                                 ? null
                                                 : Compact.truncate(
-                                                        response.responseData(),
-                                                        ToolCallService.RESULT_GIST_MAX),
+                                                        response.responseData(), ToolCallService.RESULT_GIST_MAX),
                                         response.id()),
                                 null));
             }

@@ -47,24 +47,18 @@ class RunOptionsResolverTest {
         final ChatModeService modeService = mock(ChatModeService.class);
         when(modeService.instructionsFor(any())).thenReturn("");
 
-        resolver =
-                new RunOptionsResolver(
-                        new ChatModelProperties(
-                                new ModelOption("gpt", "GPT", true, true, null, null, null, false),
-                                List.of()),
-                        new ChatModeProperties(List.of()),
-                        modeService,
-                        topicRepository,
-                        catalog());
+        resolver = new RunOptionsResolver(
+                new ChatModelProperties(new ModelOption("gpt", "GPT", true, true, null, null, null, false), List.of()),
+                new ChatModeProperties(List.of()),
+                modeService,
+                topicRepository,
+                catalog());
     }
 
     private static ProjectCatalog catalog() {
         return new ProjectCatalog(
                 new ProjectProperties(
-                        List.of(
-                                new ProjectOption(
-                                        "kb", "KB", "/srv/kb", false, false, null, null, null, null,
-                                        true))),
+                        List.of(new ProjectOption("kb", "KB", "/srv/kb", false, false, null, null, null, null, true))),
                 new GitProperties(null));
     }
 
@@ -182,19 +176,17 @@ class RunOptionsResolverTest {
 
     private void storedProject(@Nullable String project) {
         when(topicRepository.findById(CONV))
-                .thenReturn(
-                        Optional.of(
-                                new ChatTopicEntity(
-                                        CONV,
-                                        USER,
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        project,
-                                        LocalDateTime.now(),
-                                        LocalDateTime.now(),
-                                        false)));
+                .thenReturn(Optional.of(new ChatTopicEntity(
+                        CONV,
+                        USER,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        project,
+                        LocalDateTime.now(),
+                        LocalDateTime.now(),
+                        false)));
     }
 }

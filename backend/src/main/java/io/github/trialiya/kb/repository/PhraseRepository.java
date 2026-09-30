@@ -21,8 +21,7 @@ public interface PhraseRepository extends ListCrudRepository<PhraseEntity, Long>
      * Quick search by label (case-insensitive substring). Exact-label matches first, then shortest
      * labels, so the closest match bubbles up. {@code ILIKE} runs on both PostgreSQL and H2.
      */
-    @Query(
-            """
+    @Query("""
         SELECT * FROM phrase
         WHERE label ILIKE '%' || :q || '%'
         ORDER BY
@@ -45,18 +44,14 @@ public interface PhraseRepository extends ListCrudRepository<PhraseEntity, Long>
      * DocumentRepository.shiftWindowUp}.
      */
     @Modifying
-    @Query(
-            """
+    @Query("""
         UPDATE phrase
         SET position = position + 1
         WHERE category = :category
           AND position >= :newPos
           AND position < :oldPos
         """)
-    void shiftWindowUp(
-            @Param("category") String category,
-            @Param("newPos") int newPos,
-            @Param("oldPos") int oldPos);
+    void shiftWindowUp(@Param("category") String category, @Param("newPos") int newPos, @Param("oldPos") int oldPos);
 
     /**
      * Windowed shift for moving a phrase DOWN within its category: every sibling in {@code (oldPos,
@@ -66,8 +61,7 @@ public interface PhraseRepository extends ListCrudRepository<PhraseEntity, Long>
      * DocumentRepository.shiftWindowDown}.
      */
     @Modifying
-    @Query(
-            """
+    @Query("""
         UPDATE phrase
         SET position = position - 1
         WHERE category = :category
@@ -75,7 +69,5 @@ public interface PhraseRepository extends ListCrudRepository<PhraseEntity, Long>
           AND position <= :anchorPos
         """)
     void shiftWindowDown(
-            @Param("category") String category,
-            @Param("oldPos") int oldPos,
-            @Param("anchorPos") int anchorPos);
+            @Param("category") String category, @Param("oldPos") int oldPos, @Param("anchorPos") int anchorPos);
 }

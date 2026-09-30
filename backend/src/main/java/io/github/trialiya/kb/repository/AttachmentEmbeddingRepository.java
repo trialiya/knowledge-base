@@ -50,13 +50,11 @@ public class AttachmentEmbeddingRepository {
      *   <li>{@code description} = summary (AI-generated) or first N chars of content
      * </ul>
      */
-    public List<SemanticSearchResult> findSimilar(
-            float[] queryEmbedding, double threshold, int limit) {
+    public List<SemanticSearchResult> findSimilar(float[] queryEmbedding, double threshold, int limit) {
         String vectorLiteral = toVectorLiteral(queryEmbedding);
 
         // language=SQL
-        String sql =
-                """
+        String sql = """
                 SELECT
                     a.id                                       AS attachment_id,
                     a.file_name                                AS title,
@@ -79,14 +77,13 @@ public class AttachmentEmbeddingRepository {
                     ps.setDouble(3, threshold);
                     ps.setInt(4, limit);
                 },
-                (rs, rowNum) ->
-                        new SemanticSearchResult(
-                                rs.getLong("attachment_id"),
-                                rs.getString("title"),
-                                rs.getString("description"),
-                                // attachments.updated_at is NOT NULL
-                                rs.getTimestamp("updated_at").toLocalDateTime(),
-                                rs.getString("summary"),
-                                rs.getDouble("similarity")));
+                (rs, rowNum) -> new SemanticSearchResult(
+                        rs.getLong("attachment_id"),
+                        rs.getString("title"),
+                        rs.getString("description"),
+                        // attachments.updated_at is NOT NULL
+                        rs.getTimestamp("updated_at").toLocalDateTime(),
+                        rs.getString("summary"),
+                        rs.getDouble("similarity")));
     }
 }

@@ -52,13 +52,8 @@ public final class ScriptResultReader {
             throw noChat();
         }
         return store.valueJson(conversationId, id)
-                .orElseThrow(
-                        () ->
-                                new IllegalArgumentException(
-                                        "No kept result '"
-                                                + id
-                                                + "' in this chat. "
-                                                + available(store.list(conversationId))));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No kept result '" + id + "' in this chat. " + available(store.list(conversationId))));
     }
 
     List<StoredScriptResult> list() {

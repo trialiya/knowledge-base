@@ -27,13 +27,11 @@ public final class BackgroundCallOptions {
      * Клиент фонового запроса: модель чата с опциями из {@code properties} поверх её собственных.
      * Системный промпт, инструменты и прочее вызывающий дописывает сам.
      */
-    public static ChatClient.Builder clientBuilder(
-            OpenAiChatModel chatModel, BackgroundModelProperties properties) {
+    public static ChatClient.Builder clientBuilder(OpenAiChatModel chatModel, BackgroundModelProperties properties) {
         return ChatClient.builder(chatModel).defaultOptions(of(chatModel, properties));
     }
 
-    private static OpenAiChatOptions.Builder of(
-            OpenAiChatModel chatModel, BackgroundModelProperties properties) {
+    private static OpenAiChatOptions.Builder of(OpenAiChatModel chatModel, BackgroundModelProperties properties) {
         final OpenAiChatOptions.Builder options = chatModel.getOptions().mutate();
         final @Nullable String model = properties.model();
         final @Nullable String reasoningEffort = properties.reasoningEffort();
@@ -48,7 +46,8 @@ public final class BackgroundCallOptions {
             // Поверх extra-body модели, а не вместо него: остальные поля (маршрутизация, флаги
             // провайдера) фоновому запросу нужны так же, как запросу чата.
             final Map<String, Object> body = new HashMap<>();
-            final @Nullable Map<String, Object> configured = chatModel.getOptions().getExtraBody();
+            final @Nullable Map<String, Object> configured =
+                    chatModel.getOptions().getExtraBody();
             if (configured != null) {
                 body.putAll(configured);
             }

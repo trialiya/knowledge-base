@@ -93,14 +93,8 @@ class ReasoningStreamTest {
         common.setApiKey("sk-stub");
         common.setTimeout(Duration.ofSeconds(30));
         common.setMaxRetries(0);
-        chatModel =
-                ChatModelRegistry.buildDefaultModel(
-                        common,
-                        new OpenAiChatProperties(),
-                        ToolCallingManager.builder().build(),
-                        absent(),
-                        absent(),
-                        empty());
+        chatModel = ChatModelRegistry.buildDefaultModel(
+                common, new OpenAiChatProperties(), ToolCallingManager.builder().build(), absent(), absent(), empty());
     }
 
     @AfterEach
@@ -122,11 +116,10 @@ class ReasoningStreamTest {
                 .blockLast();
 
         // В память легли оба ответа модели — каждый со своим рассуждением, ровно один раз.
-        final List<AssistantMessage> answers =
-                history.stream()
-                        .filter(AssistantMessage.class::isInstance)
-                        .map(AssistantMessage.class::cast)
-                        .toList();
+        final List<AssistantMessage> answers = history.stream()
+                .filter(AssistantMessage.class::isInstance)
+                .map(AssistantMessage.class::cast)
+                .toList();
         assertThat(answers)
                 .extracting(m -> m.getMetadata().get(AssistantChatMessage.REASONING_CONTENT))
                 .containsExactly("Сначала посмотрю время.", "Готово.");
@@ -134,38 +127,33 @@ class ReasoningStreamTest {
 
         // Второй запрос вернул модели рассуждение её ответа с вызовом — как reasoning_content.
         assertThat(requests).hasSize(2);
-        final JsonNode toolCallAnswer =
-                Stream.of(new ObjectMapper().readTree(requests.get(1)).get("messages"))
-                        .flatMap(
-                                messages ->
-                                        Stream.iterate(0, i -> i + 1)
-                                                .limit(messages.size())
-                                                .map(messages::get))
-                        .filter(m -> m.has("tool_calls"))
-                        .findFirst()
-                        .orElseThrow();
-        assertThat(toolCallAnswer.get("reasoning_content").asText())
-                .isEqualTo("Сначала посмотрю время.");
+        final JsonNode toolCallAnswer = Stream.of(
+                        new ObjectMapper().readTree(requests.get(1)).get("messages"))
+                .flatMap(messages ->
+                        Stream.iterate(0, i -> i + 1).limit(messages.size()).map(messages::get))
+                .filter(m -> m.has("tool_calls"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(toolCallAnswer.get("reasoning_content").asText()).isEqualTo("Сначала посмотрю время.");
     }
 
     private org.springframework.ai.chat.client.ChatClient client() {
-        final ChatMemory memory =
-                new ChatMemory() {
-                    @Override
-                    public void add(String conversationId, List<Message> messages) {
-                        history.addAll(messages);
-                    }
+        final ChatMemory memory = new ChatMemory() {
+            @Override
+            public void add(String conversationId, List<Message> messages) {
+                history.addAll(messages);
+            }
 
-                    @Override
-                    public List<Message> get(String conversationId) {
-                        return List.copyOf(history);
-                    }
+            @Override
+            public List<Message> get(String conversationId) {
+                return List.copyOf(history);
+            }
 
-                    @Override
-                    public void clear(String conversationId) {
-                        history.clear();
-                    }
-                };
+            @Override
+            public void clear(String conversationId) {
+                history.clear();
+            }
+        };
         return new ChatConfig()
                 .chatClient(
                         chatModel,
@@ -190,8 +178,7 @@ class ReasoningStreamTest {
         final String request = new String(exchange.getRequestBody().readAllBytes(), UTF_8);
         requests.add(request);
         final byte[] response =
-                (request.contains("\"role\":\"tool\"") ? ANSWER_STREAM : TOOL_CALL_STREAM)
-                        .getBytes(UTF_8);
+                (request.contains("\"role\":\"tool\"") ? ANSWER_STREAM : TOOL_CALL_STREAM).getBytes(UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
         exchange.sendResponseHeaders(200, response.length);
         try (OutputStream out = exchange.getResponseBody()) {

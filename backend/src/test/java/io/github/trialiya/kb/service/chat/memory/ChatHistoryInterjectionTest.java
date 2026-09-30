@@ -36,13 +36,12 @@ class ChatHistoryInterjectionTest {
     private final ChatMessageRepository chatMessageRepository = mock(ChatMessageRepository.class);
     private final ContextItemService contextItemService = mock(ContextItemService.class);
 
-    private final ChatHistoryService service =
-            new ChatHistoryService(
-                    chatMessageRepository,
-                    contextItemService,
-                    new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
-                    new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
-                    ActiveProjectNotices.silent());
+    private final ChatHistoryService service = new ChatHistoryService(
+            chatMessageRepository,
+            contextItemService,
+            new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
+            new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
+            ActiveProjectNotices.silent());
 
     @Test
     void anInterjectionRowIsWrappedInItsNotice() {
@@ -81,11 +80,9 @@ class ChatHistoryInterjectionTest {
     @Test
     void aMidTurnDeliveryMarksTheRowAsInterjection() {
         givenAppendableHistory(4);
-        final List<ContextItem> items =
-                List.of(new ContextItem(ContextItemKind.ATTACHMENT, "7", "log.txt"));
+        final List<ContextItem> items = List.of(new ContextItem(ContextItemKind.ATTACHMENT, "7", "log.txt"));
 
-        final ChatMessageEntity saved =
-                service.saveDeliveredPending(CONV, "смотри лог", items, true);
+        final ChatMessageEntity saved = service.saveDeliveredPending(CONV, "смотри лог", items, true);
 
         assertThat(saved.getMeta()).isNotNull();
         assertThat(saved.getMeta().interjection()).isTrue();
@@ -103,8 +100,7 @@ class ChatHistoryInterjectionTest {
     void aPlainDeliveryIsAnOrdinaryQuestion() {
         givenAppendableHistory(4);
 
-        final ChatMessageEntity saved =
-                service.saveDeliveredPending(CONV, "смотри лог", List.of(), false);
+        final ChatMessageEntity saved = service.saveDeliveredPending(CONV, "смотри лог", List.of(), false);
 
         assertThat(saved.getMeta()).isNull();
         assertThat(saved.getPosition()).isEqualTo(5);
@@ -121,9 +117,8 @@ class ChatHistoryInterjectionTest {
     }
 
     private void givenStored(List<ChatMessageEntity> rows) {
-        when(chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                CONV))
+        when(chatMessageRepository.findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                        CONV))
                 .thenReturn(rows);
         when(contextItemService.renderAll(anyString(), anyList())).thenReturn(Map.of());
     }
@@ -142,17 +137,8 @@ class ChatHistoryInterjectionTest {
         return entity(position, text, null);
     }
 
-    private static ChatMessageEntity entity(
-            long position, String text, @Nullable ChatMessageMeta meta) {
+    private static ChatMessageEntity entity(long position, String text, @Nullable ChatMessageMeta meta) {
         return new ChatMessageEntity(
-                position + 1,
-                CONV,
-                text,
-                MessageType.USER,
-                position,
-                false,
-                false,
-                LocalDateTime.now(),
-                meta);
+                position + 1, CONV, text, MessageType.USER, position, false, false, LocalDateTime.now(), meta);
     }
 }

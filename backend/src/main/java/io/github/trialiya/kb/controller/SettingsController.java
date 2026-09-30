@@ -157,8 +157,7 @@ public class SettingsController {
         this.maxFileSize = maxFileSize;
         this.maxRequestSize = maxRequestSize;
         this.mcpToolRegistry = mcpToolRegistry.getIfAvailable();
-        this.mcpTransports =
-                mcpTransports(sseProperties, streamableHttpProperties, stdioProperties);
+        this.mcpTransports = mcpTransports(sseProperties, streamableHttpProperties, stdioProperties);
     }
 
     /** Full AI configuration snapshot consumed by the Settings panel. */
@@ -246,24 +245,19 @@ public class SettingsController {
      * MCP is switched off entirely.
      */
     private List<McpConnection> mcpConnections() {
-        Map<String, McpToolRegistry.ConnectionStatus> probed =
-                mcpToolRegistry == null
-                        ? Map.of()
-                        : mcpToolRegistry.statuses().stream()
-                                .collect(
-                                        Collectors.toMap(
-                                                McpToolRegistry.ConnectionStatus::name,
-                                                status -> status));
+        Map<String, McpToolRegistry.ConnectionStatus> probed = mcpToolRegistry == null
+                ? Map.of()
+                : mcpToolRegistry.statuses().stream()
+                        .collect(Collectors.toMap(McpToolRegistry.ConnectionStatus::name, status -> status));
         return mcpTransports.entrySet().stream()
-                .map(
-                        entry -> {
-                            McpToolRegistry.ConnectionStatus status = probed.get(entry.getKey());
-                            return new McpConnection(
-                                    entry.getKey(),
-                                    entry.getValue(),
-                                    status == null ? Status.PENDING : status.status(),
-                                    status == null ? 0 : status.toolCount());
-                        })
+                .map(entry -> {
+                    McpToolRegistry.ConnectionStatus status = probed.get(entry.getKey());
+                    return new McpConnection(
+                            entry.getKey(),
+                            entry.getValue(),
+                            status == null ? Status.PENDING : status.status(),
+                            status == null ? 0 : status.toolCount());
+                })
                 .toList();
     }
 
@@ -278,8 +272,7 @@ public class SettingsController {
             ObjectProvider<McpStdioClientProperties> stdioProperties) {
         Map<String, String> transports = new TreeMap<>();
         sseProperties.ifAvailable(p -> collect(transports, "sse", p.getConnections()));
-        streamableHttpProperties.ifAvailable(
-                p -> collect(transports, "streamable-http", p.getConnections()));
+        streamableHttpProperties.ifAvailable(p -> collect(transports, "streamable-http", p.getConnections()));
         // toServerParameters(), not getConnections(): stdio connections may also come from the
         // file named by spring.ai.mcp.client.stdio.servers-configuration, and that is the method
         // the transport autoconfiguration itself builds its clients from. Reading the map the
@@ -293,16 +286,8 @@ public class SettingsController {
      * (see {@code McpToolRegistry}), so the panel shows one row — but naming only one of the two
      * transports on it would be picking a winner at random.
      */
-    private static void collect(
-            Map<String, String> target, String transport, Map<String, ?> connections) {
-        connections
-                .keySet()
-                .forEach(
-                        name ->
-                                target.merge(
-                                        name,
-                                        transport,
-                                        (first, second) -> first + " + " + second));
+    private static void collect(Map<String, String> target, String transport, Map<String, ?> connections) {
+        connections.keySet().forEach(name -> target.merge(name, transport, (first, second) -> first + " + " + second));
     }
 
     public record AiConfigResponse(
@@ -314,8 +299,7 @@ public class SettingsController {
             ToolsSection tools,
             ScriptSection script) {}
 
-    public record ChatSection(
-            ModelOption defaultModel, List<ModelOption> models, ChatOptions options) {}
+    public record ChatSection(ModelOption defaultModel, List<ModelOption> models, ChatOptions options) {}
 
     /**
      * Core inference parameters from {@code spring.ai.openai.chat.options.*}, plus the limits that
@@ -334,23 +318,17 @@ public class SettingsController {
             int retryMaxAttempts,
             long sseTimeoutSeconds) {}
 
-    public record EmbeddingSection(
-            String model, int reindexBatchSize, ChunkerInfo chunker, CacheInfo cache) {}
+    public record EmbeddingSection(String model, int reindexBatchSize, ChunkerInfo chunker, CacheInfo cache) {}
 
     public record ChunkerInfo(int maxTokens, int overlapTokens) {}
 
     public record CacheInfo(boolean enabled, int ttlDays) {}
 
     public record SearchCodebaseSection(
-            boolean enabled,
-            String modelId,
-            int maxTokens,
-            int maxIterations,
-            List<String> allowedTools) {}
+            boolean enabled, String modelId, int maxTokens, int maxIterations, List<String> allowedTools) {}
 
     /** What the model may reach beyond the built-in read-only tools. */
-    public record ToolsSection(
-            List<ModeView> modes, GitToolsInfo git, McpInfo mcp, UploadLimits uploads) {}
+    public record ToolsSection(List<ModeView> modes, GitToolsInfo git, McpInfo mcp, UploadLimits uploads) {}
 
     public record GitToolsInfo(boolean editEnabled, boolean editActive) {}
 
@@ -365,11 +343,7 @@ public class SettingsController {
      * @param retryIntervalMs how often a connection that is not up is probed again, so the panel
      *     can say when a {@code DOWN} row is expected to change on its own
      */
-    public record McpInfo(
-            boolean enabled,
-            boolean active,
-            long retryIntervalMs,
-            List<McpConnection> connections) {}
+    public record McpInfo(boolean enabled, boolean active, long retryIntervalMs, List<McpConnection> connections) {}
 
     /**
      * @param status the last probe of this connection (see {@code McpToolRegistry})

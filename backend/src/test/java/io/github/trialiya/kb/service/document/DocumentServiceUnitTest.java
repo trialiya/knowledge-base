@@ -55,8 +55,11 @@ import org.springframework.web.server.ResponseStatusException;
 @Import({CommonConfig.class})
 class DocumentServiceUnitTest {
 
-    @Autowired private DocumentRepository repo;
-    @Autowired private DocumentHistoryRepository historyRepo;
+    @Autowired
+    private DocumentRepository repo;
+
+    @Autowired
+    private DocumentHistoryRepository historyRepo;
 
     private DocumentService service;
 
@@ -64,13 +67,8 @@ class DocumentServiceUnitTest {
     void setUp() {
         // move/moveToParent never touch summarisation, semantic search or search config —
         // mocks/null keep the test slice free of AI infrastructure.
-        service =
-                new DocumentService(
-                        repo,
-                        historyRepo,
-                        mock(DocumentSummaryService.class),
-                        mock(SemanticSearchService.class),
-                        null);
+        service = new DocumentService(
+                repo, historyRepo, mock(DocumentSummaryService.class), mock(SemanticSearchService.class), null);
     }
 
     // ── Fixture helpers ───────────────────────────────────────────────────────
@@ -87,36 +85,32 @@ class DocumentServiceUnitTest {
         return save(title, "document", parentId, position, true);
     }
 
-    private DocumentEntity save(
-            String title, String type, Long parentId, int position, boolean system) {
-        return repo.save(
-                new DocumentEntity(
-                        null,
-                        title,
-                        DocumentType.fromValue(type),
-                        parentId,
-                        null,
-                        LocalDateTime.now(),
-                        LocalDateTime.now(),
-                        position,
-                        system,
-                        0,
-                        null,
-                        null,
-                        1));
+    private DocumentEntity save(String title, String type, Long parentId, int position, boolean system) {
+        return repo.save(new DocumentEntity(
+                null,
+                title,
+                DocumentType.fromValue(type),
+                parentId,
+                null,
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                position,
+                system,
+                0,
+                null,
+                null,
+                1));
     }
 
     /** Sibling ids of a level in display order (position asc). */
     private List<Long> orderIn(Long parentId) {
-        List<DocumentEntity> list =
-                parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
+        List<DocumentEntity> list = parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
         return list.stream().map(DocumentEntity::getId).toList();
     }
 
     /** No two siblings of the level may share a position (the core windowed-shift invariant). */
     private void assertUniquePositions(Long parentId) {
-        List<DocumentEntity> list =
-                parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
+        List<DocumentEntity> list = parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
         Set<Integer> seen = new HashSet<>();
         for (DocumentEntity e : list) {
             assertThat(seen.add(e.getPosition()))
@@ -159,8 +153,7 @@ class DocumentServiceUnitTest {
             // [a b c d] → d after a → [a d b c]
             service.move(d.getId(), home.getId(), a.getId());
 
-            assertThat(orderIn(home.getId()))
-                    .containsExactly(a.getId(), d.getId(), b.getId(), c.getId());
+            assertThat(orderIn(home.getId())).containsExactly(a.getId(), d.getId(), b.getId(), c.getId());
             assertUniquePositions(home.getId());
         }
 
@@ -169,8 +162,7 @@ class DocumentServiceUnitTest {
             // [a b c d] → a after c → [b c a d]
             service.move(a.getId(), home.getId(), c.getId());
 
-            assertThat(orderIn(home.getId()))
-                    .containsExactly(b.getId(), c.getId(), a.getId(), d.getId());
+            assertThat(orderIn(home.getId())).containsExactly(b.getId(), c.getId(), a.getId(), d.getId());
             // the -1 window pulled the anchor one step up; the moved node took its old slot
             assertThat(positionOf(c.getId())).isEqualTo(positionOf(a.getId()) - 1);
             assertUniquePositions(home.getId());
@@ -181,8 +173,7 @@ class DocumentServiceUnitTest {
             // [a b c d] → c first → [c a b d]
             service.move(c.getId(), home.getId(), null);
 
-            assertThat(orderIn(home.getId()))
-                    .containsExactly(c.getId(), a.getId(), b.getId(), d.getId());
+            assertThat(orderIn(home.getId())).containsExactly(c.getId(), a.getId(), b.getId(), d.getId());
             assertUniquePositions(home.getId());
         }
 
@@ -192,8 +183,7 @@ class DocumentServiceUnitTest {
 
             service.move(a.getId(), home.getId(), null);
 
-            assertThat(orderIn(home.getId()))
-                    .containsExactly(a.getId(), b.getId(), c.getId(), d.getId());
+            assertThat(orderIn(home.getId())).containsExactly(a.getId(), b.getId(), c.getId(), d.getId());
             assertThat(versionOf(a.getId())).isEqualTo(versionBefore); // early return, no save
         }
 
@@ -204,8 +194,7 @@ class DocumentServiceUnitTest {
 
             service.move(b.getId(), home.getId(), a.getId());
 
-            assertThat(orderIn(home.getId()))
-                    .containsExactly(a.getId(), b.getId(), c.getId(), d.getId());
+            assertThat(orderIn(home.getId())).containsExactly(a.getId(), b.getId(), c.getId(), d.getId());
             assertThat(versionOf(b.getId())).isEqualTo(versionBefore);
         }
 
@@ -220,14 +209,12 @@ class DocumentServiceUnitTest {
 
             // up across a gap: c after a → [a c b d]
             service.move(c.getId(), home.getId(), a.getId());
-            assertThat(orderIn(home.getId()))
-                    .containsExactly(a.getId(), c.getId(), b.getId(), d.getId());
+            assertThat(orderIn(home.getId())).containsExactly(a.getId(), c.getId(), b.getId(), d.getId());
             assertUniquePositions(home.getId());
 
             // down across the level: a after d → [c b d a]
             service.move(a.getId(), home.getId(), d.getId());
-            assertThat(orderIn(home.getId()))
-                    .containsExactly(c.getId(), b.getId(), d.getId(), a.getId());
+            assertThat(orderIn(home.getId())).containsExactly(c.getId(), b.getId(), d.getId(), a.getId());
             assertUniquePositions(home.getId());
         }
 
@@ -349,10 +336,7 @@ class DocumentServiceUnitTest {
 
             assertThatThrownBy(() -> service.move(a.getId(), home.getId(), foreign.getId()))
                     .isInstanceOf(ResponseStatusException.class)
-                    .satisfies(
-                            t ->
-                                    assertThat(statusOf(t))
-                                            .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
+                    .satisfies(t -> assertThat(statusOf(t)).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
         }
 
         @Test
@@ -372,10 +356,7 @@ class DocumentServiceUnitTest {
 
             assertThatThrownBy(() -> service.move(moved.getId(), plain.getId(), null))
                     .isInstanceOf(ResponseStatusException.class)
-                    .satisfies(
-                            t ->
-                                    assertThat(statusOf(t))
-                                            .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
+                    .satisfies(t -> assertThat(statusOf(t)).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
         }
 
         @Test
@@ -521,7 +502,8 @@ class DocumentServiceUnitTest {
             withText("Гайд", null, "# Гайд\nставим Docker\n");
 
             assertThat(service.grepDocuments("Docker", true, 0, 50, null)).hasSize(1);
-            assertThat(service.grepDocuments("Docker|Podman", true, 0, 50, null)).hasSize(1);
+            assertThat(service.grepDocuments("Docker|Podman", true, 0, 50, null))
+                    .hasSize(1);
         }
 
         @Test

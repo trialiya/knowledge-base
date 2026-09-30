@@ -45,7 +45,8 @@ class ProjectStampBackfillTest {
 
     private static final String CONV = "conv-1";
 
-    @TempDir Path dumpDir;
+    @TempDir
+    Path dumpDir;
 
     private ChatMessageRepository messageRepo;
     private ChatTopicRepository topicRepo;
@@ -61,11 +62,10 @@ class ProjectStampBackfillTest {
         stateRepo = mock(BackfillStateRepository.class);
         summaryWriter = mock(SummaryWriter.class);
         // Замок мока сам ничего не выполняет, а проход всю работу делает внутри него.
-        doAnswer(
-                        call -> {
-                            call.getArgument(1, Runnable.class).run();
-                            return null;
-                        })
+        doAnswer(call -> {
+                    call.getArgument(1, Runnable.class).run();
+                    return null;
+                })
                 .when(summaryWriter)
                 .inConversation(any(), any());
         dump = ProjectStampDump.open(dumpDir, new ObjectMapper());
@@ -74,12 +74,7 @@ class ProjectStampBackfillTest {
 
     private ProjectStampBackfill backfillWith(@Nullable String dumpPath) {
         return new ProjectStampBackfill(
-                messageRepo,
-                topicRepo,
-                stateRepo,
-                summaryWriter,
-                new ObjectMapper(),
-                new BackfillProperties(dumpPath));
+                messageRepo, topicRepo, stateRepo, summaryWriter, new ObjectMapper(), new BackfillProperties(dumpPath));
     }
 
     @AfterEach
@@ -95,15 +90,7 @@ class ProjectStampBackfillTest {
     private static ChatMessageEntity row(
             long position, MessageType type, boolean summary, @Nullable ChatMessageMeta meta) {
         return new ChatMessageEntity(
-                position,
-                CONV,
-                "text",
-                type,
-                position,
-                summary,
-                summary,
-                LocalDateTime.now(),
-                meta);
+                position, CONV, "text", type, position, summary, summary, LocalDateTime.now(), meta);
     }
 
     private static ChatMessageEntity question(long position) {
@@ -119,11 +106,7 @@ class ProjectStampBackfillTest {
     }
 
     private static ChatMessageEntity legacySummary(long position, @Nullable String project) {
-        return row(
-                position,
-                MessageType.ASSISTANT,
-                true,
-                ChatMessageMeta.ofProject(project, List.of()));
+        return row(position, MessageType.ASSISTANT, true, ChatMessageMeta.ofProject(project, List.of()));
     }
 
     private void stored(ChatMessageEntity... rows) {
@@ -132,26 +115,23 @@ class ProjectStampBackfillTest {
 
     private void chatProject(@Nullable String project) {
         when(topicRepo.findById(CONV))
-                .thenReturn(
-                        Optional.of(
-                                new ChatTopicEntity(
-                                        CONV,
-                                        "admin",
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        project,
-                                        LocalDateTime.now(),
-                                        LocalDateTime.now(),
-                                        false)));
+                .thenReturn(Optional.of(new ChatTopicEntity(
+                        CONV,
+                        "admin",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        project,
+                        LocalDateTime.now(),
+                        LocalDateTime.now(),
+                        false)));
     }
 
     private List<ChatMessageEntity> saved() {
         @SuppressWarnings("unchecked")
-        final ArgumentCaptor<Iterable<ChatMessageEntity>> captor =
-                ArgumentCaptor.forClass(Iterable.class);
+        final ArgumentCaptor<Iterable<ChatMessageEntity>> captor = ArgumentCaptor.forClass(Iterable.class);
         org.mockito.Mockito.verify(messageRepo).saveAll(captor.capture());
         final List<ChatMessageEntity> rows = new ArrayList<>();
         captor.getValue().forEach(rows::add);
@@ -165,14 +145,11 @@ class ProjectStampBackfillTest {
         chatProject("billing");
 
         assertThat(backfill(CONV)).isEqualTo(1);
-        assertThat(saved())
-                .singleElement()
-                .satisfies(
-                        row -> {
-                            assertThat(row.getPosition()).isEqualTo(1);
-                            assertThat(row.getMeta().project()).isEqualTo("billing");
-                            assertThat(row.getMeta().projectSwitchFrom()).isNull();
-                        });
+        assertThat(saved()).singleElement().satisfies(row -> {
+            assertThat(row.getPosition()).isEqualTo(1);
+            assertThat(row.getMeta().project()).isEqualTo("billing");
+            assertThat(row.getMeta().projectSwitchFrom()).isNull();
+        });
     }
 
     /**
@@ -195,7 +172,11 @@ class ProjectStampBackfillTest {
     @Test
     void aChatAlreadyStampedIsLeftAlone() {
         stored(
-                row(1, MessageType.USER, false, ChatMessageMeta.builder().project("kb").build()),
+                row(
+                        1,
+                        MessageType.USER,
+                        false,
+                        ChatMessageMeta.builder().project("kb").build()),
                 question(2));
         chatProject("kb");
 
@@ -226,8 +207,7 @@ class ProjectStampBackfillTest {
 
         final List<ChatMessageEntity> saved = saved();
         assertThat(saved).hasSize(3);
-        assertThat(saved.get(1).getMeta().visitedProjects())
-                .containsExactly(new ProjectSpan("kb", 1, 40));
+        assertThat(saved.get(1).getMeta().visitedProjects()).containsExactly(new ProjectSpan("kb", 1, 40));
         assertThat(saved.get(2).getMeta().visitedProjects())
                 .containsExactly(new ProjectSpan("kb", 1, 49), new ProjectSpan("billing", 50, 80));
     }
@@ -265,13 +245,11 @@ class ProjectStampBackfillTest {
 
         backfill(CONV);
 
-        assertThat(saved().get(1).getMeta())
-                .satisfies(
-                        meta -> {
-                            assertThat(meta.visitedProjects()).isNotEmpty();
-                            assertThat(meta.runId()).isEqualTo("run-7");
-                            assertThat(meta.model()).isEqualTo("gpt-5");
-                        });
+        assertThat(saved().get(1).getMeta()).satisfies(meta -> {
+            assertThat(meta.visitedProjects()).isNotEmpty();
+            assertThat(meta.runId()).isEqualTo("run-7");
+            assertThat(meta.model()).isEqualTo("gpt-5");
+        });
     }
 
     // ── Снимок и обход целиком ───────────────────────────────────────────────
@@ -284,12 +262,10 @@ class ProjectStampBackfillTest {
     void theSnapshotHitsTheDiskBeforeTheRowsAreRewritten() throws IOException {
         stored(question(1), legacySummary(40, "kb"));
         chatProject("kb");
-        when(messageRepo.saveAll(any()))
-                .thenAnswer(
-                        call -> {
-                            assertThat(dumpFile()).hasLineCount(2);
-                            return List.of();
-                        });
+        when(messageRepo.saveAll(any())).thenAnswer(call -> {
+            assertThat(dumpFile()).hasLineCount(2);
+            return List.of();
+        });
 
         backfill(CONV);
 
@@ -327,9 +303,8 @@ class ProjectStampBackfillTest {
 
         backfill.backfillIfNeeded();
 
-        assertThat(saved())
-                .singleElement()
-                .satisfies(r -> assertThat(r.getPosition()).isEqualTo(1));
+        assertThat(saved()).singleElement().satisfies(r -> assertThat(r.getPosition())
+                .isEqualTo(1));
         verify(stateRepo, never()).save(any());
     }
 

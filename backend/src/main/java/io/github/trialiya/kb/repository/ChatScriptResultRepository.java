@@ -16,8 +16,7 @@ public interface ChatScriptResultRepository extends CrudRepository<ChatScriptRes
      * The chat's kept results without their values, oldest first — what a listing needs, and
      * nothing that could be a megabyte per row.
      */
-    @Query(
-            """
+    @Query("""
             SELECT id, conversation_id, seq, script, project, '' AS value_json, chars, created_at
             FROM chat_script_result
             WHERE conversation_id = :conversationId
@@ -25,15 +24,11 @@ public interface ChatScriptResultRepository extends CrudRepository<ChatScriptRes
             """)
     List<ChatScriptResultEntity> listWithoutValues(@Param("conversationId") String conversationId);
 
-    @Query(
-            "SELECT COALESCE(MAX(seq), 0) FROM chat_script_result"
-                    + " WHERE conversation_id = :conversationId")
+    @Query("SELECT COALESCE(MAX(seq), 0) FROM chat_script_result" + " WHERE conversation_id = :conversationId")
     int maxSeq(@Param("conversationId") String conversationId);
 
     /** Drops every result of the chat numbered at or below {@code seq}. */
     @Modifying
-    @Query(
-            "DELETE FROM chat_script_result"
-                    + " WHERE conversation_id = :conversationId AND seq <= :seq")
+    @Query("DELETE FROM chat_script_result" + " WHERE conversation_id = :conversationId AND seq <= :seq")
     int deleteUpTo(@Param("conversationId") String conversationId, @Param("seq") int seq);
 }

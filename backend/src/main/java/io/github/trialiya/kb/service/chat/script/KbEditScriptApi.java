@@ -37,10 +37,7 @@ public final class KbEditScriptApi extends KbScriptApi {
     private final ScriptSession session;
 
     public KbEditScriptApi(
-            GitService gitService,
-            DocumentService documentService,
-            ScriptSession session,
-            ScriptResultReader results) {
+            GitService gitService, DocumentService documentService, ScriptSession session, ScriptResultReader results) {
         super(gitService, documentService, session, results);
         this.gitService = gitService;
         this.session = session;
@@ -73,8 +70,7 @@ public final class KbEditScriptApi extends KbScriptApi {
             throw new IllegalArgumentException("oldString must not be empty: " + canonical);
         }
         if (oldString.equals(newString)) {
-            throw new IllegalArgumentException(
-                    "oldString and newString are identical: " + canonical);
+            throw new IllegalArgumentException("oldString and newString are identical: " + canonical);
         }
 
         String text = currentText(canonical, target);
@@ -82,20 +78,18 @@ public final class KbEditScriptApi extends KbScriptApi {
         String newLf = newString.replace("\r\n", "\n");
         int occurrences = countOccurrences(text, oldLf);
         if (occurrences == 0) {
-            throw new IllegalArgumentException(
-                    "oldString not found in "
-                            + canonical
-                            + ". Re-read the current content with kb.read and pass an exact,"
-                            + " character-for-character fragment including whitespace.");
+            throw new IllegalArgumentException("oldString not found in "
+                    + canonical
+                    + ". Re-read the current content with kb.read and pass an exact,"
+                    + " character-for-character fragment including whitespace.");
         }
         if (occurrences > 1 && !replaceAll) {
-            throw new IllegalArgumentException(
-                    "oldString occurs "
-                            + occurrences
-                            + " times in "
-                            + canonical
-                            + ". Extend it with surrounding lines to make it unique, or pass"
-                            + " replaceAll=true as the fourth argument.");
+            throw new IllegalArgumentException("oldString occurs "
+                    + occurrences
+                    + " times in "
+                    + canonical
+                    + ". Extend it with surrounding lines to make it unique, or pass"
+                    + " replaceAll=true as the fourth argument.");
         }
 
         String updated = replaceAll ? text.replace(oldLf, newLf) : replaceFirst(text, oldLf, newLf);
@@ -117,8 +111,7 @@ public final class KbEditScriptApi extends KbScriptApi {
                     "File already staged for writing in this run: " + canonical + ". Use kb.edit.");
         }
         if (gitService.exists(canonical)) {
-            throw new IllegalArgumentException(
-                    "File already exists: " + canonical + ". Use kb.edit to modify it.");
+            throw new IllegalArgumentException("File already exists: " + canonical + ". Use kb.edit to modify it.");
         }
         // Refused now rather than at apply time: a path createFile could never write (.git/, a
         // junk name, oversized content) does not become writable by waiting, and finding out
@@ -193,7 +186,9 @@ public final class KbEditScriptApi extends KbScriptApi {
      * every rule defined on what is on disk (tracked, binary) has nothing to say about it.
      */
     private boolean createdByThisRun(String canonical) {
-        return session.pending(canonical).filter(ScriptSession.PendingWrite::created).isPresent();
+        return session.pending(canonical)
+                .filter(ScriptSession.PendingWrite::created)
+                .isPresent();
     }
 
     /** Refuses a text file, naming the method that edits one — see {@link #writeBytes}. */
@@ -202,13 +197,12 @@ public final class KbEditScriptApi extends KbScriptApi {
         // An empty file sniffs as text and is neither: there is no content to replace unseen and
         // no diff to lose, so a placeholder committed empty can still be filled with bytes.
         if (!info.binary() && info.sizeBytes() > 0) {
-            throw new IllegalArgumentException(
-                    "Refusing to overwrite "
-                            + canonical
-                            + " with raw bytes: it is a text file, and replacing one whole leaves"
-                            + " the user a change with no diff to review. Change it with"
-                            + " kb.edit(path, oldString, newString), which has to match real"
-                            + " current content.");
+            throw new IllegalArgumentException("Refusing to overwrite "
+                    + canonical
+                    + " with raw bytes: it is a text file, and replacing one whole leaves"
+                    + " the user a change with no diff to review. Change it with"
+                    + " kb.edit(path, oldString, newString), which has to match real"
+                    + " current content.");
         }
     }
 
@@ -224,9 +218,7 @@ public final class KbEditScriptApi extends KbScriptApi {
         String canonical = canonical(path);
         if (session.pending(canonical).isPresent()) {
             throw new IllegalArgumentException(
-                    "File already staged for writing in this run: "
-                            + canonical
-                            + ". Use kb.writeBytes.");
+                    "File already staged for writing in this run: " + canonical + ". Use kb.writeBytes.");
         }
         if (gitService.exists(canonical)) {
             throw new IllegalArgumentException(
@@ -262,11 +254,10 @@ public final class KbEditScriptApi extends KbScriptApi {
                 return arrayToBytes(data, method);
             }
         }
-        throw new IllegalArgumentException(
-                method
-                        + ": content must be a base64 string or an array of byte values (0..255),"
-                        + " not "
-                        + (data == null ? "null" : data));
+        throw new IllegalArgumentException(method
+                + ": content must be a base64 string or an array of byte values (0..255),"
+                + " not "
+                + (data == null ? "null" : data));
     }
 
     private byte[] arrayToBytes(Value data, String method) {
@@ -276,12 +267,7 @@ public final class KbEditScriptApi extends KbScriptApi {
         // first.
         if (size > session.maxWriteBytes()) {
             throw new IllegalArgumentException(
-                    method
-                            + ": "
-                            + size
-                            + " bytes is more than one run may write ("
-                            + session.maxWriteBytes()
-                            + ").");
+                    method + ": " + size + " bytes is more than one run may write (" + session.maxWriteBytes() + ").");
         }
         byte[] bytes = new byte[(int) size];
         for (int i = 0; i < bytes.length; i++) {
@@ -289,12 +275,7 @@ public final class KbEditScriptApi extends KbScriptApi {
             int value = element.isNumber() && element.fitsInInt() ? element.asInt() : -1;
             if (value < 0 || value > 255) {
                 throw new IllegalArgumentException(
-                        method
-                                + ": element "
-                                + i
-                                + " is "
-                                + element
-                                + ", not a byte value (0..255).");
+                        method + ": element " + i + " is " + element + ", not a byte value (0..255).");
             }
             bytes[i] = (byte) value;
         }
@@ -319,11 +300,10 @@ public final class KbEditScriptApi extends KbScriptApi {
             // The staged bytes are this run's own doing, so there is nothing to re-read: the file
             // the script would be editing as text no longer exists in this run, not even on disk.
             case ScriptSession.BinaryWrite _ ->
-                    throw new IllegalArgumentException(
-                            "Cannot edit "
-                                    + path
-                                    + " as text: this run already wrote raw bytes to it. Rewrite"
-                                    + " it whole with kb.writeBytes.");
+                throw new IllegalArgumentException("Cannot edit "
+                        + path
+                        + " as text: this run already wrote raw bytes to it. Rewrite"
+                        + " it whole with kb.writeBytes.");
         };
     }
 
@@ -336,19 +316,17 @@ public final class KbEditScriptApi extends KbScriptApi {
         session.chargeScan(path);
         GitFileContent content = gitService.getFileContent(target);
         if (content.binary()) {
-            throw new IllegalArgumentException(
-                    "Cannot edit "
-                            + path
-                            + " as text: it is a binary file. Rewrite it whole with"
-                            + " kb.writeBytes(path, data).");
+            throw new IllegalArgumentException("Cannot edit "
+                    + path
+                    + " as text: it is a binary file. Rewrite it whole with"
+                    + " kb.writeBytes(path, data).");
         }
         if (content.truncated() || content.content() == null) {
-            throw new IllegalArgumentException(
-                    "File too large to edit: "
-                            + path
-                            + " ("
-                            + content.sizeBytes()
-                            + " bytes). Only files small enough to be read whole can be edited.");
+            throw new IllegalArgumentException("File too large to edit: "
+                    + path
+                    + " ("
+                    + content.sizeBytes()
+                    + " bytes). Only files small enough to be read whole can be edited.");
         }
         return content.content();
     }

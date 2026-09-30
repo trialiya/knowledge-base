@@ -27,17 +27,16 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class ProjectPromptServiceTest {
 
-    @TempDir Path root;
+    @TempDir
+    Path root;
 
     private final SkillService skills = org.mockito.Mockito.mock(SkillService.class);
 
-    private final SavedScriptCatalog savedScripts =
-            org.mockito.Mockito.mock(SavedScriptCatalog.class);
+    private final SavedScriptCatalog savedScripts = org.mockito.Mockito.mock(SavedScriptCatalog.class);
 
     private ProjectPromptService service(String... ids) throws IOException {
         List<ProjectOption> options = List.of(ids).stream().map(this::project).toList();
-        ProjectCatalog catalog =
-                new ProjectCatalog(new ProjectProperties(options), new GitProperties(null));
+        ProjectCatalog catalog = new ProjectCatalog(new ProjectProperties(options), new GitProperties(null));
         GitRegistry registry = TestProjects.registry(options);
         org.mockito.Mockito.when(skills.projectSkills(org.mockito.ArgumentMatchers.any()))
                 .thenReturn("");
@@ -54,9 +53,7 @@ class ProjectPromptServiceTest {
     @Test
     void theActiveProjectsSkillSectionIsPartOfTheBlock() throws IOException {
         ProjectPromptService service = service("kb", "billing");
-        org.mockito.Mockito.when(
-                        skills.projectSkills(
-                                org.mockito.ArgumentMatchers.argThat(p -> p.id().equals("kb"))))
+        org.mockito.Mockito.when(skills.projectSkills(org.mockito.ArgumentMatchers.argThat(p -> p.id().equals("kb"))))
                 .thenReturn("\n\nSkills this repository defines: `release`");
 
         String text = service.context("kb", List.of(span("kb", 1, 9)));
@@ -75,12 +72,14 @@ class ProjectPromptServiceTest {
         Path dir = root.resolve(id);
         try {
             java.nio.file.Files.createDirectories(dir);
-            new ProcessBuilder("git", "init", "-q").directory(dir.toFile()).start().waitFor();
+            new ProcessBuilder("git", "init", "-q")
+                    .directory(dir.toFile())
+                    .start()
+                    .waitFor();
         } catch (IOException | InterruptedException e) {
             throw new IllegalStateException(e);
         }
-        return new ProjectOption(
-                id, id.toUpperCase(), dir.toString(), false, false, null, null, null, null, true);
+        return new ProjectOption(id, id.toUpperCase(), dir.toString(), false, false, null, null, null, null, true);
     }
 
     @Test
@@ -109,9 +108,7 @@ class ProjectPromptServiceTest {
 
     @Test
     void aProjectTheChatWorkedOnEarlierIsMarkedAsSuch() throws IOException {
-        String text =
-                service("kb", "billing", "docs")
-                        .context("kb", List.of(span("kb", 1, 4), span("billing", 5, 9)));
+        String text = service("kb", "billing", "docs").context("kb", List.of(span("kb", 1, 4), span("billing", 5, 9)));
 
         assertThat(text).contains("`billing` — BILLING — this chat worked in it earlier");
         // Тот, где чат не был, перечислен без пометки — назвать его тоже можно.
@@ -120,14 +117,8 @@ class ProjectPromptServiceTest {
 
     @Test
     void theActiveProjectIsNeverOfferedTwice() throws IOException {
-        String text =
-                service("kb", "billing")
-                        .context(
-                                "kb",
-                                List.of(
-                                        span("kb", 1, 4),
-                                        span("billing", 5, 9),
-                                        span("kb", 10, 12)));
+        String text = service("kb", "billing")
+                .context("kb", List.of(span("kb", 1, 4), span("billing", 5, 9), span("kb", 10, 12)));
 
         // В таймлайне активный проект есть и должен быть — а вот называть его в аргументе
         // `project` незачем: инструменты и так читают его по умолчанию.
@@ -146,9 +137,7 @@ class ProjectPromptServiceTest {
      */
     @Test
     void anEarlierProjectThatIsNoLongerConfiguredIsNotOffered() throws IOException {
-        String text =
-                service("kb", "billing")
-                        .context("kb", List.of(span("gone", 1, 4), span("kb", 5, 9)));
+        String text = service("kb", "billing").context("kb", List.of(span("gone", 1, 4), span("kb", 5, 9)));
 
         assertThat(offered(text)).doesNotContain("`gone`");
     }
@@ -168,9 +157,7 @@ class ProjectPromptServiceTest {
 
     @Test
     void everyStretchIsListedWithItsMessageRange() throws IOException {
-        String text =
-                service("kb", "billing")
-                        .context("billing", List.of(span("kb", 1, 34), span("billing", 35, 92)));
+        String text = service("kb", "billing").context("billing", List.of(span("kb", 1, 34), span("billing", 35, 92)));
 
         assertThat(text).contains("Which messages belong where:");
         assertThat(text).contains("`kb` — KB — messages 1-34");
@@ -184,14 +171,8 @@ class ProjectPromptServiceTest {
      */
     @Test
     void returningToAProjectIsAThirdStretchNotADuplicate() throws IOException {
-        String text =
-                service("kb", "billing")
-                        .context(
-                                "kb",
-                                List.of(
-                                        span("kb", 1, 4),
-                                        span("billing", 5, 9),
-                                        span("kb", 10, 12)));
+        String text = service("kb", "billing")
+                .context("kb", List.of(span("kb", 1, 4), span("billing", 5, 9), span("kb", 10, 12)));
 
         assertThat(text)
                 .contains("`kb` — KB — messages 1-4")
@@ -210,10 +191,8 @@ class ProjectPromptServiceTest {
     void theOpenEndOfTheLastStretchNeverReachesTheText() throws IOException {
         ProjectPromptService service = service("kb", "billing");
 
-        String early =
-                service.context("billing", List.of(span("kb", 1, 34), span("billing", 35, 40)));
-        String later =
-                service.context("billing", List.of(span("kb", 1, 34), span("billing", 35, 210)));
+        String early = service.context("billing", List.of(span("kb", 1, 34), span("billing", 35, 40)));
+        String later = service.context("billing", List.of(span("kb", 1, 34), span("billing", 35, 210)));
 
         assertThat(later).isEqualTo(early);
     }
@@ -221,9 +200,7 @@ class ProjectPromptServiceTest {
     /** Отрезок в одно сообщение так и называется — «message 7», а не «messages 7-7». */
     @Test
     void aSingleMessageStretchIsNotWrittenAsARange() throws IOException {
-        String text =
-                service("kb", "billing")
-                        .context("billing", List.of(span("kb", 7, 7), span("billing", 8, 20)));
+        String text = service("kb", "billing").context("billing", List.of(span("kb", 7, 7), span("billing", 8, 20)));
 
         assertThat(text).contains("`kb` — KB — message 7\n");
     }
@@ -234,9 +211,7 @@ class ProjectPromptServiceTest {
      */
     @Test
     void aRetiredProjectStillOwnsItsStretch() throws IOException {
-        String text =
-                service("kb", "billing")
-                        .context("kb", List.of(span("gone", 1, 4), span("kb", 5, 9)));
+        String text = service("kb", "billing").context("kb", List.of(span("gone", 1, 4), span("kb", 5, 9)));
 
         assertThat(text).contains("`gone` — gone — messages 1-4");
     }

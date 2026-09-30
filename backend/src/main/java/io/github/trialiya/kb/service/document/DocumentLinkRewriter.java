@@ -67,8 +67,7 @@ public final class DocumentLinkRewriter {
      * shows for a commit, pasted in. Group 1 is the link text, group 2 the query; whether it names
      * a revision and no path is decided in {@link #flattenCommitLinks}.
      */
-    private static final Pattern COMMIT_LINK =
-            Pattern.compile("\\[([^\\]]+)]\\(/files/?\\?([^)#\\s]*)\\)");
+    private static final Pattern COMMIT_LINK = Pattern.compile("\\[([^\\]]+)]\\(/files/?\\?([^)#\\s]*)\\)");
 
     /** How many hash characters an export shows — git's own short form. */
     private static final int SHORT_HASH = 7;
@@ -89,14 +88,12 @@ public final class DocumentLinkRewriter {
      * @param sourceFile export-relative file the text is being written to
      * @param idToFile document id → export-relative file holding that document's body
      */
-    public static String toRelativeLinks(
-            String text, String sourceFile, Map<Long, String> idToFile) {
+    public static String toRelativeLinks(String text, String sourceFile, Map<Long, String> idToFile) {
         Matcher m = DOC_LINK.matcher(text);
         StringBuilder out = new StringBuilder();
         while (m.find()) {
             String target = idToFile.get(Long.parseLong(m.group(1)));
-            String replacement =
-                    target == null ? m.group(0) : "(" + relativize(sourceFile, target) + ")";
+            String replacement = target == null ? m.group(0) : "(" + relativize(sourceFile, target) + ")";
             m.appendReplacement(out, Matcher.quoteReplacement(replacement));
         }
         m.appendTail(out);
@@ -119,8 +116,7 @@ public final class DocumentLinkRewriter {
             String pathWithRev = withoutProject(m.group(2));
             Matcher rev = REV_QUERY.matcher(pathWithRev);
             boolean hasRev = rev.find();
-            String rawPath =
-                    hasRev ? withoutProject(pathWithRev.substring(0, rev.start())) : pathWithRev;
+            String rawPath = hasRev ? withoutProject(pathWithRev.substring(0, rev.start())) : pathWithRev;
             // The model writes paths unencoded, so a literal '+' is part of the file name — shield
             // it from URLDecoder's application/x-www-form-urlencoded '+'→space rule, while still
             // decoding any %xx escapes.
@@ -150,9 +146,7 @@ public final class DocumentLinkRewriter {
             } else {
                 String bare = label.replace("`", "").strip();
                 boolean labelIsHash =
-                        bare.length() >= 4
-                                && rev.toLowerCase(Locale.ROOT)
-                                        .startsWith(bare.toLowerCase(Locale.ROOT));
+                        bare.length() >= 4 && rev.toLowerCase(Locale.ROOT).startsWith(bare.toLowerCase(Locale.ROOT));
                 replacement = labelIsHash ? label : label + " (" + shortHash(rev) + ")";
             }
             m.appendReplacement(out, Matcher.quoteReplacement(replacement));

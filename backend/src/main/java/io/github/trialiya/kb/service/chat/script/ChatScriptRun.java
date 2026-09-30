@@ -61,33 +61,23 @@ public class ChatScriptRun {
      *     turns it into a 400, and nothing was run or recorded
      */
     public ScriptResult run(
-            String conversationId,
-            String name,
-            @Nullable Map<String, Object> args,
-            @Nullable Integer timeoutSeconds) {
+            String conversationId, String name, @Nullable Map<String, Object> args, @Nullable Integer timeoutSeconds) {
         // Before the claim, and before anything is resolved: with the sandbox off there is no run
         // to hold the chat for. 409 rather than 404 — the command exists, the deployment turned
         // off what it needs, and that is the same answer the settings bench gives.
         if (!properties.enabled()) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "Scripts are disabled (kb.script.enabled=false)");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Scripts are disabled (kb.script.enabled=false)");
         }
         final String token = claim.claimIdleAndOwned(conversationId);
         try {
             // The chat's own project, resolved the way an operation on this chat resolves it: the
             // selector in the UI is not asked, because the command belongs to the conversation.
             final String projectId = runOptions.current(conversationId).canonicalProject();
-            final ScriptRequest request =
-                    resolver.resolve(
-                                    projectId,
-                                    name,
-                                    args,
-                                    timeoutSeconds,
-                                    editPolicy.enabled(projectId),
-                                    null)
-                            // Kept like the model's own runs: the notice names the id, so the
-                            // model can pick the value up in a script without it being retyped.
-                            .withResults(ResultScope.keeping(conversationId));
+            final ScriptRequest request = resolver.resolve(
+                            projectId, name, args, timeoutSeconds, editPolicy.enabled(projectId), null)
+                    // Kept like the model's own runs: the notice names the id, so the
+                    // model can pick the value up in a script without it being retyped.
+                    .withResults(ResultScope.keeping(conversationId));
             log.info(
                     "/script in chat {}: '{}' ({}), args={}, project='{}', readOnly={}",
                     conversationId,

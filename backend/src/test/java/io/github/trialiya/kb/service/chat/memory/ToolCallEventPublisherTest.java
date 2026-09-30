@@ -52,13 +52,12 @@ class ToolCallEventPublisherTest {
         final ChatMessageRepository messageRepo = mock(ChatMessageRepository.class);
         events = mock(ChatEventService.class);
         runs = new RunRegistry();
-        history =
-                new ChatHistoryService(
-                        messageRepo,
-                        new ContextItemService(mock(AttachmentService.class)),
-                        new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
-                        new ToolCallEventPublisher(events, runs),
-                        ActiveProjectNotices.silent());
+        history = new ChatHistoryService(
+                messageRepo,
+                new ContextItemService(mock(AttachmentService.class)),
+                new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
+                new ToolCallEventPublisher(events, runs),
+                ActiveProjectNotices.silent());
         ToolCallTestSupport.echoSavedWithIds(messageRepo);
     }
 
@@ -71,13 +70,10 @@ class ToolCallEventPublisherTest {
     private List<ToolInvocationMeta> publishedMetas(String runId) {
         final ArgumentCaptor<Object> payloads = ArgumentCaptor.forClass(Object.class);
         verify(events, org.mockito.Mockito.atLeastOnce())
-                .publish(
-                        eq(CONV),
-                        eq(ChatEventType.TOOL_CALL),
-                        eq(runId),
-                        eq(null),
-                        payloads.capture());
-        return payloads.getAllValues().stream().map(p -> ((ToolCallMessage) p).toolCall()).toList();
+                .publish(eq(CONV), eq(ChatEventType.TOOL_CALL), eq(runId), eq(null), payloads.capture());
+        return payloads.getAllValues().stream()
+                .map(p -> ((ToolCallMessage) p).toolCall())
+                .toList();
     }
 
     @Test
@@ -89,17 +85,14 @@ class ToolCallEventPublisherTest {
                 List.of(
                         new UserMessage("hi"),
                         ToolCallTestSupport.assistantWithCalls(
-                                ToolCallTestSupport.call(
-                                        "id-0", "searchDocuments", "{\"q\": \"a\"}"),
+                                ToolCallTestSupport.call("id-0", "searchDocuments", "{\"q\": \"a\"}"),
                                 ToolCallTestSupport.call("id-1", "getCurrentDateTime", "{}")),
                         new ToolResponseMessage(
                                 List.<ToolResponseMessage.ToolResponse>of(
                                         new ToolResponseMessage.ToolResponse(
                                                 "id-0", "searchDocuments", "\"found 3 docs\""),
                                         new ToolResponseMessage.ToolResponse(
-                                                "id-1",
-                                                "getCurrentDateTime",
-                                                "\"2026-07-19T12:00\"")),
+                                                "id-1", "getCurrentDateTime", "\"2026-07-19T12:00\"")),
                                 Map.of()) {}));
 
         // SKIP_TOOLS (getCurrentDateTime) не публикуется вовсе — ни STARTED, ни OK,
@@ -132,22 +125,15 @@ class ToolCallEventPublisherTest {
                 CONV,
                 List.of(
                         ToolCallTestSupport.assistantWithCalls(
-                                ToolCallTestSupport.call(
-                                        "id-0", "searchDocuments", "{\"q\": \"a\"}")),
+                                ToolCallTestSupport.call("id-0", "searchDocuments", "{\"q\": \"a\"}")),
                         new ToolResponseMessage(
                                 List.<ToolResponseMessage.ToolResponse>of(
-                                        new ToolResponseMessage.ToolResponse(
-                                                "id-0", "searchDocuments", "\"found\"")),
+                                        new ToolResponseMessage.ToolResponse("id-0", "searchDocuments", "\"found\"")),
                                 Map.of()) {}));
 
         final ArgumentCaptor<Object> payloads = ArgumentCaptor.forClass(Object.class);
         verify(events, org.mockito.Mockito.atLeastOnce())
-                .publish(
-                        eq(CONV),
-                        eq(ChatEventType.TOOL_CALL),
-                        eq(RUN),
-                        eq(null),
-                        payloads.capture());
+                .publish(eq(CONV), eq(ChatEventType.TOOL_CALL), eq(RUN), eq(null), payloads.capture());
         assertThat(payloads.getAllValues())
                 .extracting(p -> ((ToolCallMessage) p).contextTokens())
                 .containsExactly(1040L, null);
@@ -160,29 +146,26 @@ class ToolCallEventPublisherTest {
         // результата (см. ChatConfig#toolExecutionExceptionProcessor), поэтому исход публикация
         // спрашивает у коллектора прогона.
         final ToolInvocationCollector collector = new ToolInvocationCollector();
-        collector.record(
-                new ToolInvocation(
-                        "editFile",
-                        Map.of(),
-                        ToolInvocationStatus.ERROR,
-                        "oldText not found",
-                        null,
-                        null,
-                        "{}",
-                        null,
-                        0,
-                        null));
+        collector.record(new ToolInvocation(
+                "editFile",
+                Map.of(),
+                ToolInvocationStatus.ERROR,
+                "oldText not found",
+                null,
+                null,
+                "{}",
+                null,
+                0,
+                null));
         runs.find(RUN).orElseThrow().attachCollector(collector);
 
         history.append(
                 CONV,
                 List.of(
-                        ToolCallTestSupport.assistantWithCalls(
-                                ToolCallTestSupport.call("id-0", "editFile", "{}")),
+                        ToolCallTestSupport.assistantWithCalls(ToolCallTestSupport.call("id-0", "editFile", "{}")),
                         new ToolResponseMessage(
                                 List.<ToolResponseMessage.ToolResponse>of(
-                                        new ToolResponseMessage.ToolResponse(
-                                                "id-0", "editFile", "oldText not found")),
+                                        new ToolResponseMessage.ToolResponse("id-0", "editFile", "oldText not found")),
                                 Map.of()) {}));
 
         final List<ToolInvocationMeta> metas = publishedMetas(RUN);
@@ -200,16 +183,14 @@ class ToolCallEventPublisherTest {
         // Первая итерация tool-цикла: два вызова — номера 0 и 1.
         history.append(
                 CONV,
-                List.of(
-                        ToolCallTestSupport.assistantWithCalls(
-                                ToolCallTestSupport.call("id-0", "getDocument", "{}"),
-                                ToolCallTestSupport.call("id-1", "getDocument", "{}"))));
+                List.of(ToolCallTestSupport.assistantWithCalls(
+                        ToolCallTestSupport.call("id-0", "getDocument", "{}"),
+                        ToolCallTestSupport.call("id-1", "getDocument", "{}"))));
         // Вторая итерация приходит отдельным append — счётчик продолжается, а не начинается заново.
         history.append(
                 CONV,
-                List.of(
-                        ToolCallTestSupport.assistantWithCalls(
-                                ToolCallTestSupport.call("id-2", "searchDocuments", "{}"))));
+                List.of(ToolCallTestSupport.assistantWithCalls(
+                        ToolCallTestSupport.call("id-2", "searchDocuments", "{}"))));
 
         final List<ToolInvocationMeta> metas = publishedMetas(RUN);
         assertThat(metas).extracting(ToolInvocationMeta::callIndex).containsExactly(0, 1, 2);
@@ -220,18 +201,15 @@ class ToolCallEventPublisherTest {
         generating(RUN);
         history.append(
                 CONV,
-                List.of(
-                        ToolCallTestSupport.assistantWithCalls(
-                                ToolCallTestSupport.call("id-0", "getDocument", "{}"))));
+                List.of(ToolCallTestSupport.assistantWithCalls(ToolCallTestSupport.call("id-0", "getDocument", "{}"))));
 
         // Повтор упавшего прогона: его сегменты остаются в истории, но счётчик вызовов —
         // это счётчик прогона, и коллектор нового прогона тоже начинает с нуля.
         generating("run-2");
         history.append(
                 CONV,
-                List.of(
-                        ToolCallTestSupport.assistantWithCalls(
-                                ToolCallTestSupport.call("id-1", "searchDocuments", "{}"))));
+                List.of(ToolCallTestSupport.assistantWithCalls(
+                        ToolCallTestSupport.call("id-1", "searchDocuments", "{}"))));
 
         assertThat(publishedMetas("run-2"))
                 .extracting(ToolInvocationMeta::callIndex)
@@ -249,9 +227,8 @@ class ToolCallEventPublisherTest {
 
         history.append(
                 CONV,
-                List.of(
-                        ToolCallTestSupport.assistantWithCalls(
-                                ToolCallTestSupport.call("id-0", "searchDocuments", "{}"))));
+                List.of(ToolCallTestSupport.assistantWithCalls(
+                        ToolCallTestSupport.call("id-0", "searchDocuments", "{}"))));
 
         verify(events, never()).publish(any(), any(), any(), any(), any());
     }

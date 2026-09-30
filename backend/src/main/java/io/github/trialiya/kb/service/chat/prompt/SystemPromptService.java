@@ -31,9 +31,7 @@ public class SystemPromptService {
     private final String extendedForStrongModel;
 
     public SystemPromptService(
-            SystemPromptProperties properties,
-            ScriptGuideService scriptGuide,
-            SkillService skillService) {
+            SystemPromptProperties properties, ScriptGuideService scriptGuide, SkillService skillService) {
         this.scriptGuide = scriptGuide;
         this.skillService = skillService;
         this.extendedForWeakModel = read(properties.extendedPrompt());
@@ -55,8 +53,7 @@ public class SystemPromptService {
      * @param project проект запроса; {@code null} — проект по умолчанию
      * @param modeInstructions инструкции режима чата ({@code ChatModeService})
      */
-    public Map<String, Object> placeholders(
-            boolean weakModel, @Nullable String project, String modeInstructions) {
+    public Map<String, Object> placeholders(boolean weakModel, @Nullable String project, String modeInstructions) {
         return Map.of(
                 "mode_instructions", modeInstructions,
                 "skill_catalogue", skillService.catalogue(project),

@@ -22,18 +22,31 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table(name = "chat_message")
 public class ChatMessageEntity implements Message, Persistable<Long> {
 
-    @Id private long id;
-    @NonNull private final String conversationId;
-    @NonNull private final String content;
-    @NonNull private final MessageType type;
+    @Id
+    private long id;
+
+    @NonNull
+    private final String conversationId;
+
+    @NonNull
+    private final String content;
+
+    @NonNull
+    private final MessageType type;
+
     private final long position;
     private final boolean summarized;
     private final boolean summary;
-    @NonNull private final LocalDateTime createdAt;
-    @Nullable private final ChatMessageMeta meta;
+
+    @NonNull
+    private final LocalDateTime createdAt;
+
+    @Nullable
+    private final ChatMessageMeta meta;
 
     /** Протокольные tool-данные (tool_calls / responses) — см. {@link ToolData}. */
-    @Nullable private final ToolData toolData;
+    @Nullable
+    private final ToolData toolData;
 
     /**
      * Рассуждение модели, написавшее этот ASSISTANT-ряд ({@code reasoning_content}), — то, что
@@ -41,7 +54,8 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
      * AssistantChatMessage#REASONING_CONTENT}). {@code null} — модель не рассуждала или ряд записан
      * не её ответом.
      */
-    @Nullable private final String reasoning;
+    @Nullable
+    private final String reasoning;
 
     @PersistenceCreator
     public ChatMessageEntity(
@@ -80,18 +94,7 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
             @NonNull LocalDateTime createdAt,
             @Nullable ChatMessageMeta meta,
             @Nullable ToolData toolData) {
-        this(
-                id,
-                conversationId,
-                content,
-                type,
-                position,
-                summarized,
-                summary,
-                createdAt,
-                meta,
-                toolData,
-                null);
+        this(id, conversationId, content, type, position, summarized, summary, createdAt, meta, toolData, null);
     }
 
     public ChatMessageEntity(
@@ -104,17 +107,7 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
             boolean summary,
             @NonNull LocalDateTime createdAt,
             @Nullable ChatMessageMeta meta) {
-        this(
-                id,
-                conversationId,
-                content,
-                type,
-                position,
-                summarized,
-                summary,
-                createdAt,
-                meta,
-                null);
+        this(id, conversationId, content, type, position, summarized, summary, createdAt, meta, null);
     }
 
     /** Копия с проставленными метаданными — для пост-обогащения сегментов прогона. */
@@ -145,17 +138,7 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
      */
     public ChatMessageEntity asSummarized() {
         return new ChatMessageEntity(
-                id,
-                conversationId,
-                content,
-                type,
-                position,
-                true,
-                summary,
-                createdAt,
-                meta,
-                toolData,
-                reasoning);
+                id, conversationId, content, type, position, true, summary, createdAt, meta, toolData, reasoning);
     }
 
     @Override

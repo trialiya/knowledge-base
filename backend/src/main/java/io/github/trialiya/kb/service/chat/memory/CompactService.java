@@ -227,10 +227,7 @@ public class CompactService {
          * накрывает всё сам, — так устроены и {@code /compact}, и автоматическое сжатие.
          */
         public CompactTarget(
-                CompactMeta.Kind kind,
-                long boundaryPosition,
-                LocalDateTime createdAt,
-                SpentRound spentRound) {
+                CompactMeta.Kind kind, long boundaryPosition, LocalDateTime createdAt, SpentRound spentRound) {
             this(kind, boundaryPosition, createdAt, createdAt, spentRound, null);
         }
     }
@@ -250,7 +247,8 @@ public class CompactService {
      */
     @FunctionalInterface
     public interface SpentRound {
-        @Nullable Long record(TokenUsage call, RunTokenUsage usage);
+        @Nullable
+        Long record(TokenUsage call, RunTokenUsage usage);
     }
 
     /**
@@ -288,9 +286,9 @@ public class CompactService {
             // Оборванный прошлый прогон мог оставить в хвосте assistant.tool_calls без TOOL-ответа
             // — такой диалог модель отвергает целиком, а здесь он уехал бы ей весь.
             chatHistory.repairDanglingToolCalls(conversationId);
-            if (CompactWindow.of(chatHistory.liveRows(conversationId), keepLastRun).isEmpty()) {
-                throw new ResponseStatusException(
-                        HttpStatus.UNPROCESSABLE_CONTENT, "Nothing to compact");
+            if (CompactWindow.of(chatHistory.liveRows(conversationId), keepLastRun)
+                    .isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, "Nothing to compact");
             }
             commandRow = chatHistory.saveCommandMessage(conversationId, text);
         } catch (RuntimeException e) {
@@ -314,15 +312,7 @@ public class CompactService {
                         null));
         events.publish(conversationId, COMPACT_STARTED, runId, null, null);
         try {
-            executor.execute(
-                    () ->
-                            run(
-                                    conversationId,
-                                    runId,
-                                    commandRow,
-                                    instructions,
-                                    keepLastRun,
-                                    options));
+            executor.execute(() -> run(conversationId, runId, commandRow, instructions, keepLastRun, options));
         } catch (RuntimeException e) {
             // COMPACT_STARTED уже ушёл всем вкладкам, и своя — та, что получит здесь ошибку —
             // уже под блокировкой. Снять её ответом на этот запрос нельзя: остальные вкладки
@@ -357,32 +347,25 @@ public class CompactService {
             boolean keepLastRun,
             CompactOptions options) {
         try {
-            summaryWriter.inConversation(
-                    conversationId,
-                    () -> {
-                        final CompactWindow window =
-                                CompactWindow.of(
-                                        chatHistory.liveRowsBefore(
-                                                conversationId, commandRow.getPosition()),
-                                        keepLastRun);
-                        if (window.isEmpty()) {
-                            // Пока команда ждала своей очереди, окно сжал кто-то другой.
-                            throw new IllegalStateException("Nothing left to compact");
-                        }
-                        final CompactPayload payload =
-                                compact(
-                                        conversationId,
-                                        // Промпт-вид — уже ПОСЛЕ деления и только у своей
-                                        // половины: блок активного проекта обязан сесть на ряд
-                                        // внутри того окна, которое уедет модели (см.
-                                        // CompactWindow).
-                                        chatHistory.promptRowsFor(
-                                                conversationId, window.compacted()),
-                                        commandTarget(commandRow, window),
-                                        instructions,
-                                        options);
-                        events.publish(conversationId, COMPACT_DONE, runId, null, payload);
-                    });
+            summaryWriter.inConversation(conversationId, () -> {
+                final CompactWindow window = CompactWindow.of(
+                        chatHistory.liveRowsBefore(conversationId, commandRow.getPosition()), keepLastRun);
+                if (window.isEmpty()) {
+                    // Пока команда ждала своей очереди, окно сжал кто-то другой.
+                    throw new IllegalStateException("Nothing left to compact");
+                }
+                final CompactPayload payload = compact(
+                        conversationId,
+                        // Промпт-вид — уже ПОСЛЕ деления и только у своей
+                        // половины: блок активного проекта обязан сесть на ряд
+                        // внутри того окна, которое уедет модели (см.
+                        // CompactWindow).
+                        chatHistory.promptRowsFor(conversationId, window.compacted()),
+                        commandTarget(commandRow, window),
+                        instructions,
+                        options);
+                events.publish(conversationId, COMPACT_DONE, runId, null, payload);
+            });
         } catch (Exception e) {
             failed(conversationId, runId, commandRow.getId(), e);
         } finally {
@@ -398,8 +381,7 @@ public class CompactService {
     private void failed(String conversationId, String runId, long commandId, Exception e) {
         log.error("[{}] Compaction failed: {}", conversationId, e.getMessage(), e);
         hideCommand(commandId);
-        final @Nullable CompactRoundFailed round =
-                e instanceof CompactRoundFailed failed ? failed : null;
+        final @Nullable CompactRoundFailed round = e instanceof CompactRoundFailed failed ? failed : null;
         events.publish(
                 conversationId,
                 COMPACT_ERROR,
@@ -427,9 +409,7 @@ public class CompactService {
      * ленты, — как и у всего, что заменила сводка.
      */
     private void hideCommand(long commandId) {
-        chatMessageRepository
-                .findById(commandId)
-                .ifPresent(row -> chatMessageRepository.save(row.asSummarized()));
+        chatMessageRepository.findById(commandId).ifPresent(row -> chatMessageRepository.save(row.asSummarized()));
     }
 
     /**
@@ -448,14 +428,14 @@ public class CompactService {
             CompactTarget target,
             @Nullable String instructions,
             CompactOptions options) {
-        final List<Message> history =
-                rows.stream().map(row -> row.toMessage(options.replayReasoning())).toList();
+        final List<Message> history = rows.stream()
+                .map(row -> row.toMessage(options.replayReasoning()))
+                .toList();
         final long startPosition = rows.getFirst().entity().getPosition();
         final long oldEndPosition = rows.getLast().entity().getPosition();
         final @Nullable String model = options.model();
         log.info(
-                "[{}] Compacting positions {}-{} ({}, boundary at {}): {} messages, ~{} chars,"
-                        + " model {}",
+                "[{}] Compacting positions {}-{} ({}, boundary at {}): {} messages, ~{} chars," + " model {}",
                 conversationId,
                 startPosition,
                 oldEndPosition,
@@ -465,36 +445,24 @@ public class CompactService {
                 rows.stream().mapToInt(row -> row.text().length()).sum(),
                 model == null ? "default" : model);
 
-        ChatClient.ChatClientRequestSpec spec =
-                ChatClient.builder(chatModelRegistry.forModel(model))
-                        .defaultSystem(sysPrompt)
-                        .defaultTools((Object[]) chatToolset.all())
-                        .build()
-                        .prompt()
-                        .system(
-                                sp ->
-                                        sp.params(
-                                                systemPrompts.placeholders(
-                                                        options.weakModel(),
-                                                        options.project(),
-                                                        options.modeInstructions())))
-                        .messages(history)
-                        .user(compactPrompt.instruction(conversationId, rows, instructions))
-                        .advisors(
-                                a ->
-                                        a.advisors(new MessageLoggingAdvisor())
-                                                // Чат запроса — только чтобы лог сжатия можно было
-                                                // положить рядом с логом прогона того же чата: без
-                                                // него обе строки подписаны «?», а сравнивают их
-                                                // ровно тогда, когда кэш промпта не сошёлся.
-                                                // Памяти на этом клиенте нет, подмешивать по этому
-                                                // параметру историю здесь некому.
-                                                .param(ChatMemory.CONVERSATION_ID, conversationId)
-                                                .param(
-                                                        ChatClientAttributes
-                                                                .TOOL_CALLING_ADVISOR_AUTO_REGISTER
-                                                                .getKey(),
-                                                        false));
+        ChatClient.ChatClientRequestSpec spec = ChatClient.builder(chatModelRegistry.forModel(model))
+                .defaultSystem(sysPrompt)
+                .defaultTools((Object[]) chatToolset.all())
+                .build()
+                .prompt()
+                .system(sp -> sp.params(
+                        systemPrompts.placeholders(options.weakModel(), options.project(), options.modeInstructions())))
+                .messages(history)
+                .user(compactPrompt.instruction(conversationId, rows, instructions))
+                .advisors(a -> a.advisors(new MessageLoggingAdvisor())
+                        // Чат запроса — только чтобы лог сжатия можно было
+                        // положить рядом с логом прогона того же чата: без
+                        // него обе строки подписаны «?», а сравнивают их
+                        // ровно тогда, когда кэш промпта не сошёлся.
+                        // Памяти на этом клиенте нет, подмешивать по этому
+                        // параметру историю здесь некому.
+                        .param(ChatMemory.CONVERSATION_ID, conversationId)
+                        .param(ChatClientAttributes.TOOL_CALLING_ADVISOR_AUTO_REGISTER.getKey(), false));
         if (model != null) {
             spec = spec.options(OpenAiChatOptions.builder().model(model));
         }
@@ -514,11 +482,7 @@ public class CompactService {
         // одной фразой был бы заменён весь контекст чата, и вернуть его уже неоткуда.
         // Исполнять вызов всё равно некому, так что раунд кончается здесь.
         if (calledTools(response)) {
-            throw spentRound(
-                    target,
-                    call,
-                    usage,
-                    "The model called a tool instead of writing the compaction");
+            throw spentRound(target, call, usage, "The model called a tool instead of writing the compaction");
         }
         if (content == null || content.isBlank()) {
             // Разметить окно сжатым, не сохранив сводку, значит стереть чат целиком. Сама команда
@@ -532,25 +496,11 @@ public class CompactService {
         // CompactTarget#boundaryPosition); у /compact-1 разметка до неё не дотягивается, и её
         // помечает отдельная пометка (detached). У автоматического сжатия лишнего ряда нет вовсе.
         final int messages =
-                rows.size()
-                        + (target.boundaryPosition() > oldEndPosition || target.detached() != null
-                                ? 1
-                                : 0);
-        final ChatMessageEntity notice =
-                requireNonNull(
-                        transactionTemplate.execute(
-                                s ->
-                                        writeNotice(
-                                                conversationId,
-                                                rows,
-                                                target,
-                                                startPosition,
-                                                messages,
-                                                content,
-                                                usage)));
+                rows.size() + (target.boundaryPosition() > oldEndPosition || target.detached() != null ? 1 : 0);
+        final ChatMessageEntity notice = requireNonNull(transactionTemplate.execute(
+                s -> writeNotice(conversationId, rows, target, startPosition, messages, content, usage)));
         log.info(
-                "[{}] Compaction finished: {} messages -> {} chars; input {} ({} from cache),"
-                        + " output {}",
+                "[{}] Compaction finished: {} messages -> {} chars; input {} ({} from cache)," + " output {}",
                 conversationId,
                 messages,
                 content.length(),
@@ -602,11 +552,10 @@ public class CompactService {
                         ProjectTrace.of(
                                 entities(rows, true),
                                 entities(rows, false),
-                                () ->
-                                        chatTopicRepository
-                                                .findById(conversationId)
-                                                .map(ChatTopicEntity::getProject)
-                                                .orElse(null),
+                                () -> chatTopicRepository
+                                        .findById(conversationId)
+                                        .map(ChatTopicEntity::getProject)
+                                        .orElse(null),
                                 target.boundaryPosition())),
                 new SummaryWriter.CompactStats(
                         target.kind(),
@@ -626,8 +575,7 @@ public class CompactService {
      * несостоявшемуся плашки нет — сводки он не написал, и историю трогать нельзя. Куда их деть
      * вместо этого, знает вызвавший, а не раунд (см. {@link SpentRound}).
      */
-    private CompactRoundFailed spentRound(
-            CompactTarget target, TokenUsage call, RunTokenUsage usage, String reason) {
+    private CompactRoundFailed spentRound(CompactTarget target, TokenUsage call, RunTokenUsage usage, String reason) {
         final @Nullable Long messageId = target.spentRound().record(call, usage);
         return new CompactRoundFailed(reason, messageId, usage.isEmpty() ? null : usage);
     }
@@ -681,10 +629,7 @@ public class CompactService {
             if (!usage.isEmpty()) {
                 final @Nullable ChatMessageMeta meta = commandRow.getMeta();
                 chatMessageRepository.save(
-                        commandRow.withMeta(
-                                meta == null
-                                        ? ChatMessageMeta.ofUsage(usage)
-                                        : meta.withUsage(usage)));
+                        commandRow.withMeta(meta == null ? ChatMessageMeta.ofUsage(usage) : meta.withUsage(usage)));
             }
             return commandRow.getId();
         };
@@ -754,14 +699,12 @@ public class CompactService {
         return chatMessageRepository
                 .findById(compact.summaryId())
                 .filter(summary -> summary.getConversationId().equals(conversationId))
-                .map(
-                        summary ->
-                                new CompactDetail(
-                                        notice.getId(),
-                                        compact.messages(),
-                                        compact.summaryChars(),
-                                        notice.getCreatedAt(),
-                                        CompactPrompt.unwrap(summary.getContent())));
+                .map(summary -> new CompactDetail(
+                        notice.getId(),
+                        compact.messages(),
+                        compact.summaryChars(),
+                        notice.getCreatedAt(),
+                        CompactPrompt.unwrap(summary.getContent())));
     }
 
     /**

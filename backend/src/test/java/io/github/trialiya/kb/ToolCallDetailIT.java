@@ -53,8 +53,11 @@ import org.springframework.context.annotation.Import;
 @Import({CommonConfig.class, JdbcConfig.class, PgVectorJdbcConfig.class})
 class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
 
-    @Autowired private ChatMessageRepository messageRepo;
-    @Autowired private ToolCallIndexRepository toolCallIndexRepo;
+    @Autowired
+    private ChatMessageRepository messageRepo;
+
+    @Autowired
+    private ToolCallIndexRepository toolCallIndexRepo;
 
     private ToolCallService toolCalls() {
         return new ToolCallService(messageRepo, toolCallIndexRepo);
@@ -66,35 +69,20 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                 new ContextItemService(mock(AttachmentService.class)),
                 toolCalls(),
                 new ToolCallEventPublisher(
-                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                        new RunRegistry()),
+                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))), new RunRegistry()),
                 ActiveProjectNotices.silent());
     }
 
     private long position = 0;
 
     private ChatMessageEntity save(
-            String conv,
-            MessageType type,
-            @Nullable ChatMessageMeta meta,
-            @Nullable ToolData toolData) {
-        return messageRepo.save(
-                new ChatMessageEntity(
-                        0,
-                        conv,
-                        "",
-                        type,
-                        ++position,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        meta,
-                        toolData));
+            String conv, MessageType type, @Nullable ChatMessageMeta meta, @Nullable ToolData toolData) {
+        return messageRepo.save(new ChatMessageEntity(
+                0, conv, "", type, ++position, false, false, LocalDateTime.now(), meta, toolData));
     }
 
     /** Строка {@code tool_call_index}, как её пишет {@link ToolCallService#index}. */
-    private void index(
-            String conv, String callId, long messageId, @Nullable Long responseMessageId) {
+    private void index(String conv, String callId, long messageId, @Nullable Long responseMessageId) {
         ToolCallIndexEntity row = new ToolCallIndexEntity();
         row.setConversationId(conv);
         row.setCallId(callId);
@@ -110,8 +98,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
             @Nullable Map<String, ?> resultMeta,
             int callIndex,
             String callId) {
-        return new ToolInvocationMeta(
-                name, Map.of(), status, error, resultMeta, true, callIndex, null, callId);
+        return new ToolInvocationMeta(name, Map.of(), status, error, resultMeta, true, callIndex, null, callId);
     }
 
     @Test
@@ -119,46 +106,28 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         String conv = UUID.randomUUID().toString();
         String runId = UUID.randomUUID().toString();
 
-        ChatMessageEntity segment =
-                save(
-                        conv,
-                        MessageType.ASSISTANT,
+        ChatMessageEntity segment = save(
+                conv,
+                MessageType.ASSISTANT,
+                null,
+                new ToolData(
+                        List.of(new ToolData.Call(
+                                "call_1", "function", "updateDocument", "{\"id\":7,\"body\":\"long\"}")),
+                        null));
+        ChatMessageEntity toolRow = save(
+                conv,
+                MessageType.TOOL,
+                null,
+                new ToolData(
                         null,
-                        new ToolData(
-                                List.of(
-                                        new ToolData.Call(
-                                                "call_1",
-                                                "function",
-                                                "updateDocument",
-                                                "{\"id\":7,\"body\":\"long\"}")),
-                                null));
-        ChatMessageEntity toolRow =
-                save(
-                        conv,
-                        MessageType.TOOL,
-                        null,
-                        new ToolData(
-                                null,
-                                List.of(
-                                        new ToolData.Response(
-                                                "call_1",
-                                                "updateDocument",
-                                                "the full, untruncated tool result text"))));
+                        List.of(new ToolData.Response(
+                                "call_1", "updateDocument", "the full, untruncated tool result text"))));
         index(conv, "call_1", segment.getId(), toolRow.getId());
-        messageRepo.save(
-                segment.withMeta(
-                        ChatMessageMeta.builder()
-                                .runId(runId)
-                                .invocations(
-                                        List.of(
-                                                meta(
-                                                        "updateDocument",
-                                                        ToolInvocationStatus.OK,
-                                                        null,
-                                                        Map.of("id", 7),
-                                                        0,
-                                                        "call_1")))
-                                .build()));
+        messageRepo.save(segment.withMeta(ChatMessageMeta.builder()
+                .runId(runId)
+                .invocations(
+                        List.of(meta("updateDocument", ToolInvocationStatus.OK, null, Map.of("id", 7), 0, "call_1")))
+                .build()));
 
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_1");
 
@@ -177,51 +146,32 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         String conv = UUID.randomUUID().toString();
         String runId = UUID.randomUUID().toString();
 
-        ChatMessageEntity segment =
-                save(
-                        conv,
-                        MessageType.ASSISTANT,
+        ChatMessageEntity segment = save(
+                conv,
+                MessageType.ASSISTANT,
+                null,
+                new ToolData(
+                        List.of(
+                                new ToolData.Call("call_0", "function", "first", "{\"n\":0}"),
+                                new ToolData.Call("call_1", "function", "second", "{\"n\":1}")),
+                        null));
+        ChatMessageEntity toolRow = save(
+                conv,
+                MessageType.TOOL,
+                null,
+                new ToolData(
                         null,
-                        new ToolData(
-                                List.of(
-                                        new ToolData.Call(
-                                                "call_0", "function", "first", "{\"n\":0}"),
-                                        new ToolData.Call(
-                                                "call_1", "function", "second", "{\"n\":1}")),
-                                null));
-        ChatMessageEntity toolRow =
-                save(
-                        conv,
-                        MessageType.TOOL,
-                        null,
-                        new ToolData(
-                                null,
-                                List.of(
-                                        new ToolData.Response("call_0", "first", "r0"),
-                                        new ToolData.Response("call_1", "second", "r1"))));
+                        List.of(
+                                new ToolData.Response("call_0", "first", "r0"),
+                                new ToolData.Response("call_1", "second", "r1"))));
         index(conv, "call_0", segment.getId(), toolRow.getId());
         index(conv, "call_1", segment.getId(), toolRow.getId());
-        messageRepo.save(
-                segment.withMeta(
-                        ChatMessageMeta.builder()
-                                .runId(runId)
-                                .invocations(
-                                        List.of(
-                                                meta(
-                                                        "first",
-                                                        ToolInvocationStatus.OK,
-                                                        null,
-                                                        null,
-                                                        0,
-                                                        "call_0"),
-                                                meta(
-                                                        "second",
-                                                        ToolInvocationStatus.OK,
-                                                        null,
-                                                        null,
-                                                        1,
-                                                        "call_1")))
-                                .build()));
+        messageRepo.save(segment.withMeta(ChatMessageMeta.builder()
+                .runId(runId)
+                .invocations(List.of(
+                        meta("first", ToolInvocationStatus.OK, null, null, 0, "call_0"),
+                        meta("second", ToolInvocationStatus.OK, null, null, 1, "call_1")))
+                .build()));
 
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_1");
 
@@ -237,54 +187,32 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         String runId = UUID.randomUUID().toString();
 
         // getCurrentDateTime — служебный (SKIP_TOOLS): в toolCalls он есть, в invocations — нет.
-        ChatMessageEntity segment =
-                save(
-                        conv,
-                        MessageType.ASSISTANT,
+        ChatMessageEntity segment = save(
+                conv,
+                MessageType.ASSISTANT,
+                null,
+                new ToolData(
+                        List.of(
+                                new ToolData.Call("call_skip", "function", "getCurrentDateTime", "{}"),
+                                new ToolData.Call("call_real", "function", "searchDocuments", "{\"q\":\"foo\"}")),
+                        null));
+        ChatMessageEntity toolRow = save(
+                conv,
+                MessageType.TOOL,
+                null,
+                new ToolData(
                         null,
-                        new ToolData(
-                                List.of(
-                                        new ToolData.Call(
-                                                "call_skip",
-                                                "function",
-                                                "getCurrentDateTime",
-                                                "{}"),
-                                        new ToolData.Call(
-                                                "call_real",
-                                                "function",
-                                                "searchDocuments",
-                                                "{\"q\":\"foo\"}")),
-                                null));
-        ChatMessageEntity toolRow =
-                save(
-                        conv,
-                        MessageType.TOOL,
-                        null,
-                        new ToolData(
-                                null,
-                                List.of(
-                                        new ToolData.Response(
-                                                "call_skip", "getCurrentDateTime", "now"),
-                                        new ToolData.Response(
-                                                "call_real", "searchDocuments", "search hits"))));
+                        List.of(
+                                new ToolData.Response("call_skip", "getCurrentDateTime", "now"),
+                                new ToolData.Response("call_real", "searchDocuments", "search hits"))));
         // Индекс наполняется по tool_data целиком (в т.ч. SKIP_TOOLS — фильтрация только в
         // UI-мете).
         index(conv, "call_skip", segment.getId(), toolRow.getId());
         index(conv, "call_real", segment.getId(), toolRow.getId());
-        messageRepo.save(
-                segment.withMeta(
-                        ChatMessageMeta.builder()
-                                .runId(runId)
-                                .invocations(
-                                        List.of(
-                                                meta(
-                                                        "searchDocuments",
-                                                        ToolInvocationStatus.OK,
-                                                        null,
-                                                        null,
-                                                        1,
-                                                        "call_real")))
-                                .build()));
+        messageRepo.save(segment.withMeta(ChatMessageMeta.builder()
+                .runId(runId)
+                .invocations(List.of(meta("searchDocuments", ToolInvocationStatus.OK, null, null, 1, "call_real")))
+                .build()));
 
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_real");
 
@@ -299,34 +227,17 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         String conv = UUID.randomUUID().toString();
         String runId = UUID.randomUUID().toString();
 
-        ChatMessageEntity segment =
-                save(
-                        conv,
-                        MessageType.ASSISTANT,
-                        null,
-                        new ToolData(
-                                List.of(
-                                        new ToolData.Call(
-                                                "call_err",
-                                                "function",
-                                                "searchCodebase",
-                                                "{\"q\":1}")),
-                                null));
+        ChatMessageEntity segment = save(
+                conv,
+                MessageType.ASSISTANT,
+                null,
+                new ToolData(List.of(new ToolData.Call("call_err", "function", "searchCodebase", "{\"q\":1}")), null));
         index(conv, "call_err", segment.getId(), null);
-        messageRepo.save(
-                segment.withMeta(
-                        ChatMessageMeta.builder()
-                                .runId(runId)
-                                .invocations(
-                                        List.of(
-                                                meta(
-                                                        "searchCodebase",
-                                                        ToolInvocationStatus.ERROR,
-                                                        "boom: index unavailable",
-                                                        null,
-                                                        0,
-                                                        "call_err")))
-                                .build()));
+        messageRepo.save(segment.withMeta(ChatMessageMeta.builder()
+                .runId(runId)
+                .invocations(List.of(meta(
+                        "searchCodebase", ToolInvocationStatus.ERROR, "boom: index unavailable", null, 0, "call_err")))
+                .build()));
 
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_err");
 
@@ -343,19 +254,13 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         // уже сейчас — ради аргументов, — и вызов не должен выглядеть завершённым.
         String conv = UUID.randomUUID().toString();
 
-        ChatMessageEntity segment =
-                save(
-                        conv,
-                        MessageType.ASSISTANT,
-                        null,
-                        new ToolData(
-                                List.of(
-                                        new ToolData.Call(
-                                                "call_running",
-                                                "function",
-                                                "searchCodebase",
-                                                "{\"q\":\"кэш\"}")),
-                                null));
+        ChatMessageEntity segment = save(
+                conv,
+                MessageType.ASSISTANT,
+                null,
+                new ToolData(
+                        List.of(new ToolData.Call("call_running", "function", "searchCodebase", "{\"q\":\"кэш\"}")),
+                        null));
         index(conv, "call_running", segment.getId(), null);
 
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_running");
@@ -378,19 +283,13 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     void repairedToolResponseIsIndexedAndEndsTheRunningState() {
         String conv = UUID.randomUUID().toString();
 
-        ChatMessageEntity segment =
-                save(
-                        conv,
-                        MessageType.ASSISTANT,
-                        null,
-                        new ToolData(
-                                List.of(
-                                        new ToolData.Call(
-                                                "call_stopped",
-                                                "function",
-                                                "searchCodebase",
-                                                "{\"q\":\"кэш\"}")),
-                                null));
+        ChatMessageEntity segment = save(
+                conv,
+                MessageType.ASSISTANT,
+                null,
+                new ToolData(
+                        List.of(new ToolData.Call("call_stopped", "function", "searchCodebase", "{\"q\":\"кэш\"}")),
+                        null));
         index(conv, "call_stopped", segment.getId(), null);
 
         assertThat(toolCalls().findToolCallDetail(conv, "call_stopped"))
@@ -412,11 +311,10 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         // (и с hasDetails=false) фронт не дал бы её открыть, хотя открывать уже что.
         assertThat(toolCalls().invocationsFor(segment, List.of(segment)))
                 .singleElement()
-                .satisfies(
-                        meta -> {
-                            assertThat(meta.callId()).isEqualTo("call_stopped");
-                            assertThat(meta.hasDetails()).isTrue();
-                        });
+                .satisfies(meta -> {
+                    assertThat(meta.callId()).isEqualTo("call_stopped");
+                    assertThat(meta.hasDetails()).isTrue();
+                });
     }
 
     /**
@@ -429,35 +327,19 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         String conv = UUID.randomUUID().toString();
         String runId = UUID.randomUUID().toString();
 
-        ChatMessageEntity segment =
-                save(
-                        conv,
-                        MessageType.ASSISTANT,
-                        ChatMessageMeta.builder()
-                                .runId(runId)
-                                .invocations(
-                                        List.of(
-                                                meta(
-                                                        "searchCodebase",
-                                                        ToolInvocationStatus.OK,
-                                                        null,
-                                                        null,
-                                                        0,
-                                                        "call_done")))
-                                .build(),
-                        new ToolData(
-                                List.of(
-                                        new ToolData.Call(
-                                                "call_done",
-                                                "function",
-                                                "searchCodebase",
-                                                "{\"q\":\"кэш\"}"),
-                                        new ToolData.Call(
-                                                "call_lost",
-                                                "function",
-                                                "runScript",
-                                                "{\"script\":\"1+1\"}")),
-                                null));
+        ChatMessageEntity segment = save(
+                conv,
+                MessageType.ASSISTANT,
+                ChatMessageMeta.builder()
+                        .runId(runId)
+                        .invocations(
+                                List.of(meta("searchCodebase", ToolInvocationStatus.OK, null, null, 0, "call_done")))
+                        .build(),
+                new ToolData(
+                        List.of(
+                                new ToolData.Call("call_done", "function", "searchCodebase", "{\"q\":\"кэш\"}"),
+                                new ToolData.Call("call_lost", "function", "runScript", "{\"script\":\"1+1\"}")),
+                        null));
         index(conv, "call_done", segment.getId(), null);
         index(conv, "call_lost", segment.getId(), null);
 
@@ -487,26 +369,16 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     void responseWithoutMetaIsUnknown() {
         String conv = UUID.randomUUID().toString();
 
-        ChatMessageEntity segment =
-                save(
-                        conv,
-                        MessageType.ASSISTANT,
-                        null,
-                        new ToolData(
-                                List.of(
-                                        new ToolData.Call(
-                                                "call_0", "function", "searchDocuments", "{}")),
-                                null));
-        ChatMessageEntity toolRow =
-                save(
-                        conv,
-                        MessageType.TOOL,
-                        null,
-                        new ToolData(
-                                null,
-                                List.of(
-                                        new ToolData.Response(
-                                                "call_0", "searchDocuments", "hits"))));
+        ChatMessageEntity segment = save(
+                conv,
+                MessageType.ASSISTANT,
+                null,
+                new ToolData(List.of(new ToolData.Call("call_0", "function", "searchDocuments", "{}")), null));
+        ChatMessageEntity toolRow = save(
+                conv,
+                MessageType.TOOL,
+                null,
+                new ToolData(null, List.of(new ToolData.Response("call_0", "searchDocuments", "hits"))));
         index(conv, "call_0", segment.getId(), toolRow.getId());
 
         Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_0");
@@ -523,29 +395,16 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         String conv = UUID.randomUUID().toString();
         String runId = UUID.randomUUID().toString();
 
-        ChatMessageEntity segment =
-                save(
-                        conv,
-                        MessageType.ASSISTANT,
-                        null,
-                        new ToolData(
-                                List.of(new ToolData.Call("call_0", "function", "first", "{}")),
-                                null));
+        ChatMessageEntity segment = save(
+                conv,
+                MessageType.ASSISTANT,
+                null,
+                new ToolData(List.of(new ToolData.Call("call_0", "function", "first", "{}")), null));
         index(conv, "call_0", segment.getId(), null);
-        messageRepo.save(
-                segment.withMeta(
-                        ChatMessageMeta.builder()
-                                .runId(runId)
-                                .invocations(
-                                        List.of(
-                                                meta(
-                                                        "first",
-                                                        ToolInvocationStatus.OK,
-                                                        null,
-                                                        null,
-                                                        0,
-                                                        "call_0")))
-                                .build()));
+        messageRepo.save(segment.withMeta(ChatMessageMeta.builder()
+                .runId(runId)
+                .invocations(List.of(meta("first", ToolInvocationStatus.OK, null, null, 0, "call_0")))
+                .build()));
 
         assertThat(toolCalls().findToolCallDetail(conv, "call_missing")).isEmpty();
         assertThat(toolCalls().findToolCallDetail(UUID.randomUUID().toString(), "call_0"))
@@ -560,21 +419,16 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     @Test
     void deletingConversationCascadesToolCallIndexRows() {
         String conv = UUID.randomUUID().toString();
-        ChatMessageEntity segment =
-                save(
-                        conv,
-                        MessageType.ASSISTANT,
-                        null,
-                        new ToolData(
-                                List.of(new ToolData.Call("call_0", "function", "first", "{}")),
-                                null));
-        ChatMessageEntity toolRow =
-                save(
-                        conv,
-                        MessageType.TOOL,
-                        null,
-                        new ToolData(
-                                null, List.of(new ToolData.Response("call_0", "first", "ok"))));
+        ChatMessageEntity segment = save(
+                conv,
+                MessageType.ASSISTANT,
+                null,
+                new ToolData(List.of(new ToolData.Call("call_0", "function", "first", "{}")), null));
+        ChatMessageEntity toolRow = save(
+                conv,
+                MessageType.TOOL,
+                null,
+                new ToolData(null, List.of(new ToolData.Response("call_0", "first", "ok"))));
         index(conv, "call_0", segment.getId(), toolRow.getId());
 
         assertThat(toolCallIndexRepo.findAllByConversationId(conv)).hasSize(1);
@@ -582,10 +436,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         history().delete(conv);
 
         assertThat(toolCallIndexRepo.findAllByConversationId(conv)).isEmpty();
-        assertThat(
-                        messageRepo
-                                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                        conv))
+        assertThat(messageRepo.findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(conv))
                 .isEmpty();
     }
 }

@@ -51,21 +51,14 @@ public record GitGrepResult(int total, boolean truncated, List<File> files) {
         Map<String, List<Line>> byPath = new LinkedHashMap<>();
         Set<String> untracked = new HashSet<>();
         for (GitGrepMatch match : matches) {
-            byPath.computeIfAbsent(match.path(), p -> new ArrayList<>())
-                    .add(new Line(match.matchLine(), match.text()));
+            byPath.computeIfAbsent(match.path(), p -> new ArrayList<>()).add(new Line(match.matchLine(), match.text()));
             if (!match.tracked()) {
                 untracked.add(match.path());
             }
         }
-        List<File> files =
-                byPath.entrySet().stream()
-                        .map(
-                                e ->
-                                        new File(
-                                                e.getKey(),
-                                                !untracked.contains(e.getKey()),
-                                                List.copyOf(e.getValue())))
-                        .toList();
+        List<File> files = byPath.entrySet().stream()
+                .map(e -> new File(e.getKey(), !untracked.contains(e.getKey()), List.copyOf(e.getValue())))
+                .toList();
         return new GitGrepResult(matches.size(), matches.size() >= limit, files);
     }
 }

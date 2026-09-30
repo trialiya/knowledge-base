@@ -21,7 +21,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitServiceRevertTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private GitService service;
 
@@ -43,8 +44,7 @@ class GitServiceRevertTest {
         service.editFile("src/App.java", "int x = 1;", "int x = 42;", false);
 
         final String back =
-                service.previewEdited(
-                        "src/App.java", List.of(new TextEdit("int x = 42;", "int x = 1;", false)));
+                service.previewEdited("src/App.java", List.of(new TextEdit("int x = 42;", "int x = 1;", false)));
 
         assertThat(back).isEqualTo("int x = 1;\nint y = 2;\n");
         // Именно preview: на диске всё ещё правка ассистента, пока её не запишут.
@@ -59,8 +59,7 @@ class GitServiceRevertTest {
         service.editFile("a.txt", "было", "стало", false);
 
         service.replaceTrackedFile(
-                "a.txt",
-                service.previewEdited("a.txt", List.of(new TextEdit("стало", "было", false))));
+                "a.txt", service.previewEdited("a.txt", List.of(new TextEdit("стало", "было", false))));
 
         assertThat(repoDir.resolve("a.txt")).hasContent("было\n");
         assertThat(service.getUncommittedChanges(false)).isEmpty();
@@ -77,10 +76,7 @@ class GitServiceRevertTest {
         service.editFile("a.txt", "было", "стало", false);
         writeFile("a.txt", "совсем другое\n");
 
-        assertThatThrownBy(
-                        () ->
-                                service.previewEdited(
-                                        "a.txt", List.of(new TextEdit("стало", "было", false))))
+        assertThatThrownBy(() -> service.previewEdited("a.txt", List.of(new TextEdit("стало", "было", false))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("oldString not found");
     }
@@ -121,13 +117,10 @@ class GitServiceRevertTest {
 
         // Ни файла, ни индекса проверка не трогает: он всё так же собран под коммит.
         assertThat(repoDir.resolve("src/New.java")).exists();
-        assertThat(service.getUncommittedChanges(false))
-                .singleElement()
-                .satisfies(
-                        entry -> {
-                            assertThat(entry.path()).isEqualTo("src/New.java");
-                            assertThat(entry.status()).isEqualTo("A");
-                        });
+        assertThat(service.getUncommittedChanges(false)).singleElement().satisfies(entry -> {
+            assertThat(entry.path()).isEqualTo("src/New.java");
+            assertThat(entry.status()).isEqualTo("A");
+        });
 
         // И проверяет она то же, что удаление: разошедшееся содержимое — отказ.
         assertThatThrownBy(() -> service.requireDeletable("src/New.java", "class Other {}"))
@@ -172,7 +165,8 @@ class GitServiceRevertTest {
             String[] command = new String[args.length + 1];
             command[0] = "git";
             System.arraycopy(args, 0, command, 1, args.length);
-            Process process = new ProcessBuilder(command).directory(repoDir.toFile()).start();
+            Process process =
+                    new ProcessBuilder(command).directory(repoDir.toFile()).start();
             if (process.waitFor() != 0) {
                 throw new IllegalStateException("git " + String.join(" ", args) + " failed");
             }

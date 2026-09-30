@@ -33,8 +33,7 @@ public class CompactPrompt {
     private final String compactorPrompt;
 
     public CompactPrompt(
-            ChatTopicRepository chatTopicRepository,
-            @Value("classpath:prompt/compactor.md") Resource compactorPrompt) {
+            ChatTopicRepository chatTopicRepository, @Value("classpath:prompt/compactor.md") Resource compactorPrompt) {
         this.chatTopicRepository = chatTopicRepository;
         // Читается один раз: руководство по сжатию — часть последнего сообщения запроса, и
         // перечитывать его с диска на каждый /compact незачем (так же поступает
@@ -67,8 +66,7 @@ public class CompactPrompt {
      * @param rows окно, которое уходит модели, — по нему считаются числа справки
      * @param instructions хвост команды в роли фокуса сжатия; пустой — без фокуса
      */
-    public String instruction(
-            String conversationId, List<PromptRow> rows, @Nullable String instructions) {
+    public String instruction(String conversationId, List<PromptRow> rows, @Nullable String instructions) {
         final @Nullable ChatTopicEntity chat =
                 chatTopicRepository.findById(conversationId).orElse(null);
         final StringBuilder prompt = new StringBuilder();
@@ -84,13 +82,13 @@ public class CompactPrompt {
         // единственным «разрешённым» пунктом, откуда следующее сжатие их уже не переносит.
         // Ряды событий (git-команда, откат, прогон скрипта) — USER-ряды без вопроса, у них
         // место в `## Artifacts`, и вопросами они не считаются.
-        final long summaries = rows.stream().filter(row -> row.entity().isSummary()).count();
-        final long questions =
-                rows.stream()
-                        .map(PromptRow::entity)
-                        .filter(row -> row.getMessageType() == MessageType.USER)
-                        .filter(row -> !ChatHistoryService.isEventRow(row))
-                        .count();
+        final long summaries =
+                rows.stream().filter(row -> row.entity().isSummary()).count();
+        final long questions = rows.stream()
+                .map(PromptRow::entity)
+                .filter(row -> row.getMessageType() == MessageType.USER)
+                .filter(row -> !ChatHistoryService.isEventRow(row))
+                .count();
         prompt.append("- Of them USER messages with a request: ").append(questions);
         if (summaries == 0) {
             prompt.append(" (`## User requests` must have exactly this many bullets)\n");
@@ -106,17 +104,14 @@ public class CompactPrompt {
                 .append(countOf(rows, MessageType.TOOL))
                 .append('\n');
         if (StringUtils.hasText(instructions)) {
-            prompt.append(
-                            """
+            prompt.append("""
 
                             The user asked to focus the compaction on the following. Give this \
                             material more detail than anything else and never let the focus cut a \
                             section short: everything else still has to survive, in full section \
                             format.
                             <focus>
-                            """)
-                    .append(instructions.strip())
-                    .append("\n</focus>\n");
+                            """).append(instructions.strip()).append("\n</focus>\n");
         }
         return prompt.toString();
     }
@@ -128,7 +123,9 @@ public class CompactPrompt {
     }
 
     private static long countOf(List<PromptRow> rows, MessageType type) {
-        return rows.stream().filter(row -> row.entity().getMessageType() == type).count();
+        return rows.stream()
+                .filter(row -> row.entity().getMessageType() == type)
+                .count();
     }
 
     /**
@@ -146,26 +143,18 @@ public class CompactPrompt {
      *     кончается ли разговор этой сводкой (см. {@link CompactMeta.Kind})
      */
     public static String wrap(String content, CompactMeta.Kind kind) {
-        final String requestedBy =
-                kind == CompactMeta.Kind.AUTO_COMPACT
-                        ? "automatically, at the model's context limit"
-                        : "requested by the user";
-        final String scope =
-                kind == CompactMeta.Kind.COMPACT
-                        ? "Treat this as authoritative context for the entire conversation so far:"
-                                + " the messages it covers are no longer in the context and cannot"
-                                + " be re-read."
-                        : "Treat this as authoritative context for everything it covers: those"
-                                + " messages are no longer in the context and cannot be re-read."
-                                + " The conversation continues in the messages below, which are"
-                                + " still there in full.";
-        return "Compacted conversation summary ("
-                + requestedBy
-                + "):\n"
-                + OPEN
-                + content
-                + CLOSE
-                + scope;
+        final String requestedBy = kind == CompactMeta.Kind.AUTO_COMPACT
+                ? "automatically, at the model's context limit"
+                : "requested by the user";
+        final String scope = kind == CompactMeta.Kind.COMPACT
+                ? "Treat this as authoritative context for the entire conversation so far:"
+                        + " the messages it covers are no longer in the context and cannot"
+                        + " be re-read."
+                : "Treat this as authoritative context for everything it covers: those"
+                        + " messages are no longer in the context and cannot be re-read."
+                        + " The conversation continues in the messages below, which are"
+                        + " still there in full.";
+        return "Compacted conversation summary (" + requestedBy + "):\n" + OPEN + content + CLOSE + scope;
     }
 
     /**

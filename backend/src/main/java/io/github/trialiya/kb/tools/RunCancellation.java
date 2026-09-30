@@ -31,9 +31,7 @@ public record RunCancellation(BooleanSupplier stopRequested) {
         if (context == null) {
             return none();
         }
-        return context.getContext().get(KEY) instanceof RunCancellation cancellation
-                ? cancellation
-                : none();
+        return context.getContext().get(KEY) instanceof RunCancellation cancellation ? cancellation : none();
     }
 
     public boolean isStopRequested() {

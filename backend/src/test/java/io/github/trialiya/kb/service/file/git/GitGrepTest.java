@@ -44,8 +44,7 @@ class GitGrepTest {
     void theUntrackedRootsAreArgumentsOfTheirOwnBehindTheSeparator() {
         List<String> args = GitGrep.args("needle", null, true, 2, List.of("notes"), null);
 
-        assertThat(args)
-                .containsSubsequence("--untracked", "--no-exclude-standard", "-E", "-C", "2");
+        assertThat(args).containsSubsequence("--untracked", "--no-exclude-standard", "-E", "-C", "2");
         assertThat(args).endsWith("-e", "needle", "--", "notes");
     }
 
@@ -94,8 +93,7 @@ class GitGrepTest {
      */
     @Test
     void aHyphenatedFileNameIsNotMistakenForALineNumber() {
-        List<String> lines =
-                List.of("2024-01-15-notes.md", "2:needle", "", "part-2", "5:needle", "7:needle");
+        List<String> lines = List.of("2024-01-15-notes.md", "2:needle", "", "part-2", "5:needle", "7:needle");
 
         assertThat(GitGrep.parse(lines, 0, 50))
                 .extracting(GitGrepMatch::path, GitGrepMatch::matchLine, GitGrepMatch::text)
@@ -111,18 +109,17 @@ class GitGrepTest {
      */
     @Test
     void contextLinesAreFoldedIntoOneBlockPerRunOfLines() {
-        List<String> lines =
-                List.of(
-                        "step-01-init.sh",
-                        "1-set -e",
-                        "2:needle",
-                        "--",
-                        "8-echo",
-                        "9:needle",
-                        "",
-                        "my-file.java",
-                        "3:needle",
-                        "4-}");
+        List<String> lines = List.of(
+                "step-01-init.sh",
+                "1-set -e",
+                "2:needle",
+                "--",
+                "8-echo",
+                "9:needle",
+                "",
+                "my-file.java",
+                "3:needle",
+                "4-}");
 
         assertThat(GitGrep.parse(lines, 1, 50))
                 .extracting(GitGrepMatch::path, GitGrepMatch::matchLine, GitGrepMatch::text)

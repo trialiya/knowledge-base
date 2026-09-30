@@ -36,11 +36,10 @@ public class SecurityConfig {
     @Bean
     public InMemoryUserDetailsManager userDetailsManager(
             SecurityProperties properties, PasswordEncoder passwordEncoder) {
-        UserDetails user =
-                User.withUsername(properties.username())
-                        .password(passwordEncoder.encode(properties.password()))
-                        .roles("USER")
-                        .build();
+        UserDetails user = User.withUsername(properties.username())
+                .password(passwordEncoder.encode(properties.password()))
+                .roles("USER")
+                .build();
         return new InMemoryUserDetailsManager(user);
     }
 
@@ -63,10 +62,7 @@ public class SecurityConfig {
     public SecurityFilterChain h2ConsoleSecurityFilterChain(HttpSecurity http) throws Exception {
         return http.securityMatcher(PathRequest.toH2Console())
                 .csrf(AbstractHttpConfigurer::disable)
-                .headers(
-                        headers ->
-                                headers.frameOptions(
-                                        HeadersConfigurer.FrameOptionsConfig::sameOrigin))
+                .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .build();
     }
@@ -75,14 +71,11 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(
-                        session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(
-                        auth ->
-                                auth.requestMatchers("/actuator/health", "/actuator/health/**")
-                                        .permitAll()
-                                        .anyRequest()
-                                        .authenticated())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/health", "/actuator/health/**")
+                        .permitAll()
+                        .anyRequest()
+                        .authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .build();
     }

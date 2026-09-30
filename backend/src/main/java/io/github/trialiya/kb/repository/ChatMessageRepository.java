@@ -14,17 +14,14 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
 
     int deleteChatMessageByConversationId(String conversationId);
 
-    List<ChatMessageEntity>
-            findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
-                    @Param("conversationId") String conversationId);
+    List<ChatMessageEntity> findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+            @Param("conversationId") String conversationId);
 
-    List<ChatMessageEntity>
-            findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                    @Param("conversationId") String conversationId);
+    List<ChatMessageEntity> findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+            @Param("conversationId") String conversationId);
 
     @Modifying
-    @Query(
-            """
+    @Query("""
            update chat_message
            set summarized = true
            where conversation_id = :conversationId and
@@ -36,8 +33,7 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
             @Param("endPosition") long endPosition);
 
     List<ChatMessageEntity> findChatMessagesByConversationIdAndPositionInOrderByCreatedAt(
-            @Param("conversationId") String conversationId,
-            @Param("positions") List<Long> positions);
+            @Param("conversationId") String conversationId, @Param("positions") List<Long> positions);
 
     Optional<ChatMessageEntity> findFirstByConversationIdOrderByPositionDesc(String conversationId);
 
@@ -48,8 +44,7 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
      * сообщений, а не история целиком — название чата ({@code AiTopicService}) собирает по ним окно
      * в пару тысяч символов, и тащить ради этого мегабайты ответов инструментов незачем.
      */
-    @Query(
-            """
+    @Query("""
     SELECT id, conversation_id, content, type, position, summarized, summary, created_at, meta,
            NULL AS tool_data, NULL AS reasoning
     FROM chat_message
@@ -58,8 +53,7 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     ORDER BY created_at DESC, id DESC
     LIMIT :limit
     """)
-    List<ChatMessageEntity> findLastTurns(
-            @Param("conversationId") String conversationId, @Param("limit") int limit);
+    List<ChatMessageEntity> findLastTurns(@Param("conversationId") String conversationId, @Param("limit") int limit);
 
     /**
      * Сколько ходов в чате — по нему название чата (см. {@code AiTopicService}) решает, пройдена ли
@@ -73,8 +67,7 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
      * ответом. Номер хода никому не показывается, он решает только, через сколько ответов чат
      * назовут заново, — а точный счёт стоил бы чтения истории после каждого ответа.
      */
-    @Query(
-            """
+    @Query("""
     SELECT COUNT(*) FROM chat_message
     WHERE conversation_id = :conversationId AND summary = false
       AND type = 'USER' AND content <> ''
@@ -96,8 +89,7 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     List<ChatMessageEntity> findTop20ByConversationIdOrderByPositionDesc(String conversationId);
 
     /** Максимальная позиция в чате, 0 для пустого — источник номера для нового ряда. */
-    @Query(
-            """
+    @Query("""
     SELECT COALESCE(MAX(position), 0) FROM chat_message
     WHERE conversation_id = :conversationId
     """)
@@ -109,22 +101,19 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
      * он остывает от последнего обращения к модели, чем бы то обращение ни было. Пустой чат ({@code
      * Optional.empty()}) паузой не считается — сжимать в нём нечего.
      */
-    @Query(
-            """
+    @Query("""
     SELECT MAX(created_at) FROM chat_message
     WHERE conversation_id = :conversationId
     """)
     Optional<LocalDateTime> lastCreatedAt(@Param("conversationId") String conversationId);
 
-    @Query(
-            """
+    @Query("""
     SELECT * FROM chat_message
     WHERE conversation_id = :conversationId AND summary = false
     ORDER BY created_at DESC, id DESC
     LIMIT :limit
     """)
-    List<ChatMessageEntity> findLatest(
-            @Param("conversationId") String conversationId, @Param("limit") int limit);
+    List<ChatMessageEntity> findLatest(@Param("conversationId") String conversationId, @Param("limit") int limit);
 
     /**
      * Ряды чата для счёта токенов — тип и мета, без содержимого (см. {@link ChatUsageRow}).
@@ -134,16 +123,14 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
      * потому что это одни и те же прогоны. Замер раунда сжатия при этом не теряется: он стоит на
      * плашке, а плашка сводкой не является.
      */
-    @Query(
-            """
+    @Query("""
     SELECT type, meta FROM chat_message
     WHERE conversation_id = :conversationId AND summary = false
     ORDER BY created_at, id
     """)
     List<ChatUsageRow> findUsageRows(@Param("conversationId") String conversationId);
 
-    @Query(
-            """
+    @Query("""
     SELECT * FROM chat_message
     WHERE conversation_id = :conversationId AND summary = false
       AND (created_at < :beforeCreatedAt
@@ -158,19 +145,16 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
             @Param("limit") int limit);
 
     /** Совпадения по тексту сообщения внутри чата, хронологически (для find-бара, Ctrl+F). */
-    @Query(
-            """
+    @Query("""
     SELECT * FROM chat_message
     WHERE conversation_id = :conversationId AND summary = false
       AND content ILIKE '%' || :q || '%'
     ORDER BY created_at ASC, id ASC
     """)
-    List<ChatMessageEntity> searchInConversation(
-            @Param("conversationId") String conversationId, @Param("q") String q);
+    List<ChatMessageEntity> searchInConversation(@Param("conversationId") String conversationId, @Param("q") String q);
 
     /** Совпадения по тексту сообщений среди всех чатов пользователя (поиск по чатам). */
-    @Query(
-            """
+    @Query("""
     SELECT cm.* FROM chat_message cm
     JOIN chat_topic ct ON ct.conversation_id = cm.conversation_id
     WHERE ct."user" = :user AND cm.summary = false
@@ -178,6 +162,5 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     ORDER BY cm.created_at DESC, cm.id DESC
     LIMIT :limit
     """)
-    List<ChatMessageEntity> searchForUser(
-            @Param("user") String user, @Param("q") String q, @Param("limit") int limit);
+    List<ChatMessageEntity> searchForUser(@Param("user") String user, @Param("q") String q, @Param("limit") int limit);
 }

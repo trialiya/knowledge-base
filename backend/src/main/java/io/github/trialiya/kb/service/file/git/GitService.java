@@ -157,8 +157,9 @@ public class GitService {
         this.paths = new RepoPaths(project.path());
         this.outlineService = outlineService;
         try {
-            this.repository =
-                    new FileRepositoryBuilder().setWorkTree(paths.root().toFile()).build();
+            this.repository = new FileRepositoryBuilder()
+                    .setWorkTree(paths.root().toFile())
+                    .build();
         } catch (IOException e) {
             throw new IllegalStateException("Failed to open Git repository at " + paths.root(), e);
         }
@@ -168,10 +169,7 @@ public class GitService {
         // registry's construction with an actionable error.
         if (!repository.getDirectory().isDirectory()) {
             throw new IllegalStateException(
-                    "Not a Git repository (no .git found) for project \""
-                            + project.id()
-                            + "\": "
-                            + paths.root());
+                    "Not a Git repository (no .git found) for project \"" + project.id() + "\": " + paths.root());
         }
         this.git = new Git(repository);
         this.visible = new VisibleFiles(project, paths, repository);
@@ -229,8 +227,7 @@ public class GitService {
 
     /** The working tree as the browser lists it: the index widened by {@code allow-globs}. */
     private RepoBrowse.Snapshot workingTree(VisibleFiles.Visible files) {
-        return new RepoBrowse.Snapshot(
-                files.paths(), files.tracked(), this::fileSize, this::fileExists);
+        return new RepoBrowse.Snapshot(files.paths(), files.tracked(), this::fileSize, this::fileExists);
     }
 
     // ── Opening a path in the file browser ───────────────────────────────────
@@ -249,10 +246,7 @@ public class GitService {
         String target = RepoPaths.normalizeDir(path);
         VisibleFiles.Visible files = visible.all();
         return RepoBrowse.browse(
-                workingTree(files),
-                target,
-                includeAncestors,
-                tracked -> getFileContent(target, null, null, tracked));
+                workingTree(files), target, includeAncestors, tracked -> getFileContent(target, null, null, tracked));
     }
 
     /**
@@ -267,8 +261,7 @@ public class GitService {
      * @param rev anything git reads as a commit — a full or short hash, a branch, a tag, {@code
      *     HEAD~2}
      */
-    public GitPathView browsePathAt(
-            @NonNull String rev, @Nullable String path, boolean includeAncestors) {
+    public GitPathView browsePathAt(@NonNull String rev, @Nullable String path, boolean includeAncestors) {
         String target = RepoPaths.normalizeDir(path);
         try (CommitFiles.Commit commit = CommitFiles.Commit.open(repository, rev.strip())) {
             CommitFiles.Entry entry = commit.entry(target);
@@ -277,28 +270,18 @@ public class GitService {
             // поддерева ради того же ответа стоил бы второго чтения. Корень остаётся каталогом
             // и пустым: сказать «такого пути нет» про корень коммита было бы неправдой.
             List<GitFileNode> nodes = listingAt(commit, entry, target);
-            boolean directory =
-                    entry.kind() == CommitFiles.Kind.DIRECTORY
-                            && (!nodes.isEmpty() || target.isEmpty());
-            List<GitTreeLevel> tree =
-                    includeAncestors
-                            ? RepoBrowse.ancestorDirs(target).stream()
-                                    .map(dir -> new GitTreeLevel(dir, listingAt(commit, dir)))
-                                    .toList()
-                            : List.of();
+            boolean directory = entry.kind() == CommitFiles.Kind.DIRECTORY && (!nodes.isEmpty() || target.isEmpty());
+            List<GitTreeLevel> tree = includeAncestors
+                    ? RepoBrowse.ancestorDirs(target).stream()
+                            .map(dir -> new GitTreeLevel(dir, listingAt(commit, dir)))
+                            .toList()
+                    : List.of();
             if (entry.kind() == CommitFiles.Kind.FILE) {
                 return new GitPathView(
-                        target,
-                        FileEntryType.FILE,
-                        contentAt(commit, entry, target),
-                        null,
-                        tree,
-                        commit.name(),
-                        true);
+                        target, FileEntryType.FILE, contentAt(commit, entry, target), null, tree, commit.name(), true);
             }
             if (directory) {
-                return new GitPathView(
-                        target, FileEntryType.DIRECTORY, null, nodes, tree, commit.name(), true);
+                return new GitPathView(target, FileEntryType.DIRECTORY, null, nodes, tree, commit.name(), true);
             }
             // Путь, которого в коммите нет, — missing, а не отказ: браузер так и рисует, а
             // предупреждать об «отслеживании» тут не о чем.
@@ -312,13 +295,13 @@ public class GitService {
     }
 
     /** Листинг каталога, который уже нашёл {@code entry}: дерево второй раз не читается. */
-    private static List<GitFileNode> listingAt(
-            CommitFiles.Commit commit, CommitFiles.Entry entry, String dir) {
+    private static List<GitFileNode> listingAt(CommitFiles.Commit commit, CommitFiles.Entry entry, String dir) {
         return ordered(commit.children(entry, dir));
     }
 
     private static List<GitFileNode> ordered(List<CommitFiles.Child> children) {
-        return RepoBrowse.ordered(children.stream().map(GitService::committedNode).toList());
+        return RepoBrowse.ordered(
+                children.stream().map(GitService::committedNode).toList());
     }
 
     /**
@@ -329,8 +312,7 @@ public class GitService {
      * имеют, а без них браузер показал бы одну ошибку вместо панели — и починить адрес было бы
      * негде. Что именно нечитаемо, видно по {@code file: null} у типа {@code FILE}.
      */
-    private static @Nullable GitFileContent contentAt(
-            CommitFiles.Commit commit, CommitFiles.Entry entry, String path) {
+    private static @Nullable GitFileContent contentAt(CommitFiles.Commit commit, CommitFiles.Entry entry, String path) {
         try {
             CommitFiles.Blob blob = commit.blob(entry, path);
             return FileViews.of(path, true, blob.commit(), blob.bytes(), blob.size(), null, null);
@@ -343,8 +325,7 @@ public class GitService {
     // ── Commit history ───────────────────────────────────────────────────────
 
     /** History from HEAD — {@link #getCommitLog(int, String, boolean, String)} of no revision. */
-    public List<GitCommit> getCommitLog(
-            int maxCount, @Nullable String filePath, boolean includeBody) {
+    public List<GitCommit> getCommitLog(int maxCount, @Nullable String filePath, boolean includeBody) {
         return getCommitLog(maxCount, filePath, includeBody, null);
     }
 
@@ -404,12 +385,10 @@ public class GitService {
             ObjectId head = repository.resolve(Constants.HEAD);
             if (head == null) return List.of();
             var log = git.log().setMaxCount(limit);
-            ObjectId upstream =
-                    status.upstream() == null ? null : repository.resolve(status.upstream());
+            ObjectId upstream = status.upstream() == null ? null : repository.resolve(status.upstream());
             if (upstream == null) {
                 log.add(head);
-                for (Ref remote :
-                        repository.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES)) {
+                for (Ref remote : repository.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES)) {
                     ObjectId id = remote.getObjectId();
                     if (id != null) log.not(id);
                 }
@@ -452,10 +431,7 @@ public class GitService {
     public List<GitCommit> searchCommitLog(
             @NonNull String query, int maxCount, @Nullable String filePath, boolean includeBody) {
         return CommitSearch.search(
-                        repository,
-                        query,
-                        maxCount,
-                        new CommitSearch.Scope(true, includeBody, null, filePath))
+                        repository, query, maxCount, new CommitSearch.Scope(true, includeBody, null, filePath))
                 .commits();
     }
 
@@ -466,10 +442,8 @@ public class GitService {
      *
      * @param rev optional — walk from this revision instead of HEAD
      */
-    public GitCommitSearchResult grepCommits(
-            @NonNull String query, int maxCount, @Nullable String rev) {
-        return CommitSearch.search(
-                repository, query, maxCount, new CommitSearch.Scope(true, true, rev, null));
+    public GitCommitSearchResult grepCommits(@NonNull String query, int maxCount, @Nullable String rev) {
+        return CommitSearch.search(repository, query, maxCount, new CommitSearch.Scope(true, true, rev, null));
     }
 
     // ── Diff for commit(s) ──────────────────────────────────────────────────
@@ -496,15 +470,11 @@ public class GitService {
      */
     public List<GitCommit> getCommitDiff(
             @NonNull String commitHashes, boolean includePatch, @Nullable String filePath) {
-        String spec =
-                (filePath == null || filePath.isBlank())
-                        ? null
-                        : RepoPaths.toForwardSlashes(filePath.strip());
-        List<String> hashes =
-                Arrays.stream(commitHashes.split(","))
-                        .map(String::strip)
-                        .filter(h -> !h.isEmpty())
-                        .toList();
+        String spec = (filePath == null || filePath.isBlank()) ? null : RepoPaths.toForwardSlashes(filePath.strip());
+        List<String> hashes = Arrays.stream(commitHashes.split(","))
+                .map(String::strip)
+                .filter(h -> !h.isEmpty())
+                .toList();
         // Сообщение целиком — только когда коммит назвали один. Тогда спрашивают «почему это
         // меняли», и тело рядом с диффом стоит дёшево; на списке из двадцати хешей оно вернуло бы
         // ровно те десятки тысяч токенов, ради которых в getCommitLog заведён флаг.
@@ -532,12 +502,8 @@ public class GitService {
      * @param rev anything git reads as a commit — a full or short hash, a branch, a tag, {@code
      *     HEAD~2}
      */
-    public GitCommit getCommit(
-            @NonNull String rev, boolean includePatch, @Nullable String filePath) {
-        String only =
-                (filePath == null || filePath.isBlank())
-                        ? null
-                        : RepoPaths.toForwardSlashes(filePath.strip());
+    public GitCommit getCommit(@NonNull String rev, boolean includePatch, @Nullable String filePath) {
+        String only = (filePath == null || filePath.isBlank()) ? null : RepoPaths.toForwardSlashes(filePath.strip());
         return diffForSingleCommit(rev.strip(), includePatch, null, true, only, true);
     }
 
@@ -556,15 +522,13 @@ public class GitService {
         try (RevWalk revWalk = new RevWalk(repository);
                 ObjectReader reader = repository.newObjectReader()) {
             RevCommit commit = revWalk.parseCommit(resolveCommitId(hash));
-            RevCommit parent =
-                    commit.getParentCount() > 0 ? revWalk.parseCommit(commit.getParent(0)) : null;
+            RevCommit parent = commit.getParentCount() > 0 ? revWalk.parseCommit(commit.getParent(0)) : null;
 
             // No parent (root commit) → diff against the empty tree, equivalent to `git diff-tree
             // --root`. Native git's diff-tree needs that flag explicitly and getCommitDiff never
             // passed it, so the very first commit of a repo used to come back with an empty files
             // list — fixed here, since it's the natural (and simpler) way to express it in JGit.
-            AbstractTreeIterator oldTree =
-                    parent == null ? new EmptyTreeIterator() : treeIterator(reader, parent);
+            AbstractTreeIterator oldTree = parent == null ? new EmptyTreeIterator() : treeIterator(reader, parent);
             AbstractTreeIterator newTree = treeIterator(reader, commit);
 
             List<GitDiffEntry> entries = new ArrayList<>();
@@ -603,8 +567,7 @@ public class GitService {
         return id;
     }
 
-    private static AbstractTreeIterator treeIterator(ObjectReader reader, RevCommit commit)
-            throws IOException {
+    private static AbstractTreeIterator treeIterator(ObjectReader reader, RevCommit commit) throws IOException {
         CanonicalTreeParser parser = new CanonicalTreeParser();
         parser.reset(reader, commit.getTree());
         return parser;
@@ -639,33 +602,25 @@ public class GitService {
         // выбрасывает попадания по пути вовсе.
         record Scored(String path, String name, int score, boolean byName) {}
         return allFiles.stream()
-                .map(
-                        path -> {
-                            String name = RepoPaths.fileName(path);
-                            int nameScore = fuzzyScore(q, name);
-                            boolean byName = nameScore >= 0;
-                            int score = byName ? nameScore : fuzzyScore(q, path);
-                            // Demote test files by ~30 % so production sources rank higher.
-                            if (score > 0 && isTestPath(path)) {
-                                score = score * 7 / 10;
-                            }
-                            return new Scored(path, name, score, byName);
-                        })
+                .map(path -> {
+                    String name = RepoPaths.fileName(path);
+                    int nameScore = fuzzyScore(q, name);
+                    boolean byName = nameScore >= 0;
+                    int score = byName ? nameScore : fuzzyScore(q, path);
+                    // Demote test files by ~30 % so production sources rank higher.
+                    if (score > 0 && isTestPath(path)) {
+                        score = score * 7 / 10;
+                    }
+                    return new Scored(path, name, score, byName);
+                })
                 .filter(s -> s.score() >= 0)
-                .sorted(
-                        Comparator.comparing(Scored::byName)
-                                .reversed()
-                                .thenComparing(Comparator.comparingInt(Scored::score).reversed())
-                                .thenComparingInt(s -> s.path().length()))
+                .sorted(Comparator.comparing(Scored::byName)
+                        .reversed()
+                        .thenComparing(Comparator.comparingInt(Scored::score).reversed())
+                        .thenComparingInt(s -> s.path().length()))
                 .limit(limit)
-                .map(
-                        s ->
-                                new GitFileNode(
-                                        s.path(),
-                                        s.name(),
-                                        FileEntryType.FILE,
-                                        fileSize(s.path()),
-                                        tracked.contains(s.path())))
+                .map(s -> new GitFileNode(
+                        s.path(), s.name(), FileEntryType.FILE, fileSize(s.path()), tracked.contains(s.path())))
                 .toList();
     }
 
@@ -694,13 +649,11 @@ public class GitService {
                     boundary = true;
                 } else {
                     char prev = text.charAt(ti - 1);
-                    boundary =
-                            prev == '-'
-                                    || prev == '_'
-                                    || prev == '/'
-                                    || prev == '.'
-                                    || (Character.isLowerCase(prev)
-                                            && Character.isUpperCase(text.charAt(ti)));
+                    boundary = prev == '-'
+                            || prev == '_'
+                            || prev == '/'
+                            || prev == '.'
+                            || (Character.isLowerCase(prev) && Character.isUpperCase(text.charAt(ti)));
                 }
                 run++;
                 score += 1 + run * 2 + (boundary ? 15 : 0);
@@ -727,8 +680,7 @@ public class GitService {
             int contextLines,
             int maxResults,
             boolean includeUntracked) {
-        return grep.grepContent(
-                pattern, pathGlob, regex, contextLines, maxResults, includeUntracked);
+        return grep.grepContent(pattern, pathGlob, regex, contextLines, maxResults, includeUntracked);
     }
 
     /**
@@ -818,8 +770,7 @@ public class GitService {
             @Nullable Integer toLine) {
         String normalized = normalizePath(filePath);
         CommitFiles.Blob blob = CommitFiles.read(repository, commitHash.strip(), normalized);
-        return FileViews.of(
-                normalized, true, blob.commit(), blob.bytes(), blob.size(), fromLine, toLine);
+        return FileViews.of(normalized, true, blob.commit(), blob.bytes(), blob.size(), fromLine, toLine);
     }
 
     /** Convenience overload: full file, no range. */
@@ -874,9 +825,7 @@ public class GitService {
         return new GitFileInfo(
                 normalized,
                 RepoFiles.sizeOf(normalized, absolute),
-                RepoFiles.isBinary(
-                        RepoFiles.readWindow(
-                                normalized, absolute, 0, RepoFiles.BINARY_SNIFF_BYTES)),
+                RepoFiles.isBinary(RepoFiles.readWindow(normalized, absolute, 0, RepoFiles.BINARY_SNIFF_BYTES)),
                 LanguageDetector.detect(normalized));
     }
 
@@ -899,27 +848,22 @@ public class GitService {
         long from = Math.min(Math.max(offset, 0), size);
         long want = length > 0 ? Math.min(length, size - from) : size - from;
         if (want > MAX_BYTE_WINDOW) {
-            throw new IllegalArgumentException(
-                    "Cannot read "
-                            + want
-                            + " bytes at once (max "
-                            + MAX_BYTE_WINDOW / 1024
-                            + " KB): "
-                            + normalized
-                            + ". Read the file in windows (offset, length).");
+            throw new IllegalArgumentException("Cannot read "
+                    + want
+                    + " bytes at once (max "
+                    + MAX_BYTE_WINDOW / 1024
+                    + " KB): "
+                    + normalized
+                    + ". Read the file in windows (offset, length).");
         }
         byte[] window = RepoFiles.readWindow(normalized, absolute, from, (int) want);
         // The binary flag describes the file, not the window: it is defined on the head of the
         // file, so unless this window already covers that head — a short window at offset 0 does
         // not — the head is read again to answer it. Otherwise a four-byte peek at a file whose
         // first NUL sits at byte 100 would come back "not binary".
-        boolean windowCoversHead =
-                from == 0 && want >= Math.min(size, RepoFiles.BINARY_SNIFF_BYTES);
+        boolean windowCoversHead = from == 0 && want >= Math.min(size, RepoFiles.BINARY_SNIFF_BYTES);
         byte[] head =
-                windowCoversHead
-                        ? window
-                        : RepoFiles.readWindow(
-                                normalized, absolute, 0, RepoFiles.BINARY_SNIFF_BYTES);
+                windowCoversHead ? window : RepoFiles.readWindow(normalized, absolute, 0, RepoFiles.BINARY_SNIFF_BYTES);
         return new GitFileBytes(normalized, window, from, size, RepoFiles.isBinary(head));
     }
 
@@ -956,21 +900,18 @@ public class GitService {
         String normalized = normalizePath(filePath);
         // Предел уходит внутрь чтения: размер объекта известен до того, как он поднят в память, и
         // отказать по уже прочитанным байтам значило бы заплатить ровно то, ради чего предел есть.
-        CommitFiles.Blob blob =
-                CommitFiles.read(repository, rev.strip(), normalized, MAX_RAW_FILE_SIZE);
-        return new GitFileBytes(
-                normalized, blob.bytes(), 0, blob.size(), RepoFiles.isBinary(blob.bytes()));
+        CommitFiles.Blob blob = CommitFiles.read(repository, rev.strip(), normalized, MAX_RAW_FILE_SIZE);
+        return new GitFileBytes(normalized, blob.bytes(), 0, blob.size(), RepoFiles.isBinary(blob.bytes()));
     }
 
     private static void requireServableSize(String normalized, long size) {
         if (size > MAX_RAW_FILE_SIZE) {
-            throw new IllegalArgumentException(
-                    "File is too large to preview ("
-                            + size
-                            + " B, max "
-                            + MAX_RAW_FILE_SIZE / (1024 * 1024)
-                            + " MB): "
-                            + normalized);
+            throw new IllegalArgumentException("File is too large to preview ("
+                    + size
+                    + " B, max "
+                    + MAX_RAW_FILE_SIZE / (1024 * 1024)
+                    + " MB): "
+                    + normalized);
         }
     }
 
@@ -1217,10 +1158,7 @@ public class GitService {
      * @see GitWriter#editFile
      */
     public GitEditResult editFile(
-            @NonNull String filePath,
-            @NonNull String oldString,
-            @NonNull String newString,
-            boolean replaceAll) {
+            @NonNull String filePath, @NonNull String oldString, @NonNull String newString, boolean replaceAll) {
         return writer.editFile(filePath, oldString, newString, replaceAll);
     }
 
@@ -1366,14 +1304,11 @@ public class GitService {
      *
      * @param onlyPath a file path, or {@code null}/blank for the whole working tree
      */
-    public List<GitDiffEntry> getUncommittedChanges(
-            boolean includePatch, @Nullable String onlyPath) {
+    public List<GitDiffEntry> getUncommittedChanges(boolean includePatch, @Nullable String onlyPath) {
         return changes(
                 includePatch,
                 true,
-                onlyPath == null || onlyPath.isBlank()
-                        ? List.of()
-                        : List.of(Pathspec.exact(normalizePath(onlyPath))));
+                onlyPath == null || onlyPath.isBlank() ? List.of() : List.of(Pathspec.exact(normalizePath(onlyPath))));
     }
 
     /**
@@ -1389,8 +1324,7 @@ public class GitService {
      * @param pathFilters paths, directories or globs to keep; empty for the whole working tree
      * @throws IllegalArgumentException if a filter is not a spellable repo-relative path
      */
-    public List<GitDiffEntry> getUncommittedChanges(
-            boolean includePatch, List<String> pathFilters) {
+    public List<GitDiffEntry> getUncommittedChanges(boolean includePatch, List<String> pathFilters) {
         return getUncommittedChanges(includePatch, true, pathFilters);
     }
 
@@ -1417,18 +1351,13 @@ public class GitService {
                         .map(filter -> filter == null ? "" : filter.strip())
                         // "." and "./" name the repo root, which normalizePath refuses and which
                         // means here what an omitted filter means: the whole working tree.
-                        .filter(
-                                filter ->
-                                        !filter.isEmpty()
-                                                && !filter.equals(".")
-                                                && !filter.equals("./"))
+                        .filter(filter -> !filter.isEmpty() && !filter.equals(".") && !filter.equals("./"))
                         .map(filter -> Pathspec.of(normalizePath(filter)))
                         .filter(Objects::nonNull)
                         .toList());
     }
 
-    private List<GitDiffEntry> changes(
-            boolean includePatch, boolean includeUntracked, List<Pathspec> wanted) {
+    private List<GitDiffEntry> changes(boolean includePatch, boolean includeUntracked, List<Pathspec> wanted) {
         Status status = status(wanted);
 
         Set<String> changedPaths = new LinkedHashSet<>();
@@ -1456,11 +1385,10 @@ public class GitService {
                     // содержимое кандидатов, а пар среди одних правок не бывает. Незакрытый
                     // конфликт слияния тут заодно с ними: чем он окажется в сравнении с HEAD,
                     // по набору из status не видно.
-                    formatter.setDetectRenames(
-                            !status.getAdded().isEmpty()
-                                    || !status.getRemoved().isEmpty()
-                                    || !status.getMissing().isEmpty()
-                                    || !status.getConflicting().isEmpty());
+                    formatter.setDetectRenames(!status.getAdded().isEmpty()
+                            || !status.getRemoved().isEmpty()
+                            || !status.getMissing().isEmpty()
+                            || !status.getConflicting().isEmpty());
                     formatter.setPathFilter(PathFilterGroup.createFromStrings(changedPaths));
 
                     for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
@@ -1468,8 +1396,7 @@ public class GitService {
                         // rename detection needs both sides, and narrowing the path filter would
                         // report a renamed file as an unrelated add. Both sides are matched so
                         // that a rename opens under either of its names.
-                        if (!admits(wanted, entry.getNewPath())
-                                && !admits(wanted, entry.getOldPath())) continue;
+                        if (!admits(wanted, entry.getNewPath()) && !admits(wanted, entry.getOldPath())) continue;
                         // Мусорный путь отсеивается до разбора: собрать его патч, чтобы тут же
                         // его выбросить, — работа целиком впустую.
                         if (RepoPaths.isJunkFile(
@@ -1549,8 +1476,7 @@ public class GitService {
      * call is the common one, and it must not depend on any spec matching.
      */
     private static boolean admits(List<Pathspec> filters, @Nullable String path) {
-        return filters.isEmpty()
-                || (path != null && filters.stream().anyMatch(filter -> filter.matches(path)));
+        return filters.isEmpty() || (path != null && filters.stream().anyMatch(filter -> filter.matches(path)));
     }
 
     /**
@@ -1565,10 +1491,7 @@ public class GitService {
             // symlink out of the repository, and the change list must not be the one place that
             // follows it.
             Path absolute = paths.confine(path);
-            content =
-                    Files.size(absolute) > RepoFiles.MAX_FILE_SIZE
-                            ? null
-                            : Files.readAllBytes(absolute);
+            content = Files.size(absolute) > RepoFiles.MAX_FILE_SIZE ? null : Files.readAllBytes(absolute);
         } catch (IOException | IllegalArgumentException e) {
             log.warn("Cannot read untracked file {} for the change list", path, e);
             content = null;
@@ -1650,10 +1573,7 @@ public class GitService {
     }
 
     static GitCommit toGitCommit(
-            RevCommit commit,
-            @Nullable List<GitDiffEntry> files,
-            ObjectReader reader,
-            boolean includeBody)
+            RevCommit commit, @Nullable List<GitDiffEntry> files, ObjectReader reader, boolean includeBody)
             throws IOException {
         return toGitCommit(commit, files, reader, includeBody, false);
     }
@@ -1678,7 +1598,9 @@ public class GitService {
                 includeBody ? messageBody(commit) : null,
                 files,
                 includeParents
-                        ? Arrays.stream(commit.getParents()).map(RevCommit::getName).toList()
+                        ? Arrays.stream(commit.getParents())
+                                .map(RevCommit::getName)
+                                .toList()
                         : null);
     }
 
@@ -1707,10 +1629,7 @@ public class GitService {
      * misclassified an append-only edit to an *existing* file as "added".
      */
     private static GitDiffEntry toGitDiffEntry(
-            DiffEntry entry,
-            DiffFormatter formatter,
-            boolean includePatch,
-            ByteArrayOutputStream patchOut)
+            DiffEntry entry, DiffFormatter formatter, boolean includePatch, ByteArrayOutputStream patchOut)
             throws IOException {
         @Nullable String oldPath = normalizedDiffPath(entry.getOldPath());
         @Nullable String newPath = normalizedDiffPath(entry.getNewPath());
@@ -1742,17 +1661,14 @@ public class GitService {
 
         // Обрезается патч целиком, а уже потом делится: лимит считает строки того, что собрал
         // formatter, и шапка занимает место наравне с ними, где бы её потом ни показали.
-        Diffs.Parts parts =
-                includePatch
-                        ? Diffs.split(Diffs.truncate(formatted(entry, formatter, patchOut)))
-                        : new Diffs.Parts(null, null);
-        return new GitDiffEntry(
-                status, path, reportedOldPath, add, del, parts.header(), parts.body());
+        Diffs.Parts parts = includePatch
+                ? Diffs.split(Diffs.truncate(formatted(entry, formatter, patchOut)))
+                : new Diffs.Parts(null, null);
+        return new GitDiffEntry(status, path, reportedOldPath, add, del, parts.header(), parts.body());
     }
 
     /** One entry's unified diff as text; the buffer is the formatter's own, hence the reset. */
-    private static String formatted(
-            DiffEntry entry, DiffFormatter formatter, ByteArrayOutputStream patchOut)
+    private static String formatted(DiffEntry entry, DiffFormatter formatter, ByteArrayOutputStream patchOut)
             throws IOException {
         patchOut.reset();
         formatter.format(entry);
@@ -1761,9 +1677,7 @@ public class GitService {
 
     /** The path {@link #toGitDiffEntry} files an entry under: the old one only for a deletion. */
     private static String reportedPath(DiffEntry entry) {
-        return entry.getChangeType() == DiffEntry.ChangeType.DELETE
-                ? entry.getOldPath()
-                : entry.getNewPath();
+        return entry.getChangeType() == DiffEntry.ChangeType.DELETE ? entry.getOldPath() : entry.getNewPath();
     }
 
     private static @Nullable String normalizedDiffPath(String path) {

@@ -119,12 +119,8 @@ public class DocumentController {
      * <pre>GET /api/documents/download?meta=false</pre>
      */
     @GetMapping("/download")
-    public ResponseEntity<StreamingResponseBody> downloadAll(
-            @RequestParam(defaultValue = "false") boolean meta) {
-        return attachment(
-                zipOf(sink -> documentExportService.streamAll(meta, sink)),
-                ARCHIVE_NAME,
-                "application/zip");
+    public ResponseEntity<StreamingResponseBody> downloadAll(@RequestParam(defaultValue = "false") boolean meta) {
+        return attachment(zipOf(sink -> documentExportService.streamAll(meta, sink)), ARCHIVE_NAME, "application/zip");
     }
 
     /**
@@ -147,14 +143,11 @@ public class DocumentController {
         String filename = documentExportService.downloadName(row);
 
         if (!row.isFolder()) {
-            byte[] markdown =
-                    documentExportService.renderSingleDocument(id).getBytes(StandardCharsets.UTF_8);
+            byte[] markdown = documentExportService.renderSingleDocument(id).getBytes(StandardCharsets.UTF_8);
             return attachment(out -> out.write(markdown), filename, "text/markdown");
         }
         return attachment(
-                zipOf(sink -> documentExportService.streamSubtree(id, meta, sink)),
-                filename,
-                "application/zip");
+                zipOf(sink -> documentExportService.streamSubtree(id, meta, sink)), filename, "application/zip");
     }
 
     /**
@@ -181,8 +174,9 @@ public class DocumentController {
 
     private static ResponseEntity<StreamingResponseBody> attachment(
             StreamingResponseBody body, String filename, String contentType) {
-        ContentDisposition disposition =
-                ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build();
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(filename, StandardCharsets.UTF_8)
+                .build();
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .contentType(MediaType.parseMediaType(contentType))
@@ -201,8 +195,7 @@ public class DocumentController {
     }
 
     @PutMapping("/{id}")
-    public Document updateDocument(
-            @PathVariable long id, @RequestBody UpdateDocumentRequest request) {
+    public Document updateDocument(@PathVariable long id, @RequestBody UpdateDocumentRequest request) {
         return service.update(id, request);
     }
 
@@ -312,8 +305,7 @@ public class DocumentController {
      * @param limit max results to return (default 10, max 20)
      */
     @GetMapping("/search-by-name")
-    public List<DocumentNode> searchByName(
-            @RequestParam String name, @RequestParam(defaultValue = "10") int limit) {
+    public List<DocumentNode> searchByName(@RequestParam String name, @RequestParam(defaultValue = "10") int limit) {
         if (name == null || name.isBlank()) return List.of();
         return service.findByName(name).stream().limit(Math.min(limit, 20)).toList();
     }
@@ -346,8 +338,7 @@ public class DocumentController {
      */
     @PostMapping(value = "/admin/export/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter exportStream(@RequestParam(defaultValue = "true") boolean meta) {
-        return syncJobRunner.run(
-                "export", sink -> new ExportResponse(documentExportService.exportAll(meta, sink)));
+        return syncJobRunner.run("export", sink -> new ExportResponse(documentExportService.exportAll(meta, sink)));
     }
 
     /**

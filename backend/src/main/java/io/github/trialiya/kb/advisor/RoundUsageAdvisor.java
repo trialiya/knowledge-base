@@ -25,8 +25,7 @@ import org.springframework.core.Ordered;
  */
 public class RoundUsageAdvisor implements CallAdvisor {
 
-    private final AtomicReference<RunTokenUsage.Tally> tally =
-            new AtomicReference<>(RunTokenUsage.Tally.EMPTY);
+    private final AtomicReference<RunTokenUsage.Tally> tally = new AtomicReference<>(RunTokenUsage.Tally.EMPTY);
 
     @Override
     public String getName() {
@@ -41,8 +40,7 @@ public class RoundUsageAdvisor implements CallAdvisor {
     @Override
     public ChatClientResponse adviseCall(ChatClientRequest request, CallAdvisorChain chain) {
         final ChatClientResponse response = chain.nextCall(request);
-        final TokenUsage measured =
-                TokenUsage.of(response == null ? null : response.chatResponse());
+        final TokenUsage measured = TokenUsage.of(response == null ? null : response.chatResponse());
         tally.updateAndGet(accumulated -> accumulated.with(measured));
         return response;
     }

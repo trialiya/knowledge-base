@@ -35,9 +35,7 @@ public class ScriptEditPolicy {
         if (scriptProperties.enabled()) {
             log.info(
                     "Script edits {}",
-                    enabled()
-                            ? "enabled (kb.edit/kb.create/kb.writeBytes/kb.createBytes)"
-                            : "disabled");
+                    enabled() ? "enabled (kb.edit/kb.create/kb.writeBytes/kb.createBytes)" : "disabled");
         }
     }
 

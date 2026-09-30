@@ -77,11 +77,10 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
             baseUrl = ConfigValues.trimToNull(baseUrl);
             apiKey = ConfigValues.trimToNull(apiKey);
             if (baseUrl != null && apiKey == null) {
-                throw new IllegalArgumentException(
-                        "kb.chat model \""
-                                + id
-                                + "\": base-url is set, so api-key must be set too — a model on its"
-                                + " own host cannot borrow the default host's token");
+                throw new IllegalArgumentException("kb.chat model \""
+                        + id
+                        + "\": base-url is set, so api-key must be set too — a model on its"
+                        + " own host cannot borrow the default host's token");
             }
         }
 
@@ -118,9 +117,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
     }
 
     public boolean isAllowed(@Nullable String id) {
-        return id != null
-                && (id.equals(defaultModel.id())
-                        || models.stream().anyMatch(m -> id.equals(m.id())));
+        return id != null && (id.equals(defaultModel.id()) || models.stream().anyMatch(m -> id.equals(m.id())));
     }
 
     /**

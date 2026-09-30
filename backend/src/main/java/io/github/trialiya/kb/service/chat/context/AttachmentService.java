@@ -59,20 +59,18 @@ public class AttachmentService implements DisposableBean {
     private static final int PROMPT_MAX_CHARS = 12_000;
     private static final String DEFAULT_CONTENT_TYPE = "text/plain";
     private static final String DEFAULT_FILE_NAME = "unnamed";
-    private static final java.util.Set<String> KNOWN_TEXT_MIME_TYPES =
-            java.util.Set.of(
-                    "application/json",
-                    "application/xml",
-                    "application/yaml",
-                    "application/x-yaml",
-                    "application/octet-stream",
-                    "application/javascript",
-                    "application/typescript",
-                    "application/sql",
-                    "application/x-sh",
-                    "application/xhtml+xml");
-    private static final String SUMMARIZE_PROMPT =
-            """
+    private static final java.util.Set<String> KNOWN_TEXT_MIME_TYPES = java.util.Set.of(
+            "application/json",
+            "application/xml",
+            "application/yaml",
+            "application/x-yaml",
+            "application/octet-stream",
+            "application/javascript",
+            "application/typescript",
+            "application/sql",
+            "application/x-sh",
+            "application/xhtml+xml");
+    private static final String SUMMARIZE_PROMPT = """
         Создай краткое описание содержимого файла "{fileName}".
         Описание должно быть информативным: тип контента, основные темы, \
         ключевые сущности, структура. 2-4 предложения.
@@ -157,14 +155,8 @@ public class AttachmentService implements DisposableBean {
             @Nonnull String fileName,
             @Nullable String contentType,
             @Nonnull String content) {
-        return persistAttachment(
-                AttachmentOwnerType.CHAT,
-                null,
-                conversationId,
-                fileName,
-                contentType,
-                content,
-                (long) content.getBytes(StandardCharsets.UTF_8).length);
+        return persistAttachment(AttachmentOwnerType.CHAT, null, conversationId, fileName, contentType, content, (long)
+                content.getBytes(StandardCharsets.UTF_8).length);
     }
 
     /**
@@ -195,11 +187,7 @@ public class AttachmentService implements DisposableBean {
         copy.setUpdatedAt(now);
 
         AttachmentEntity saved = attachmentRepo.save(copy);
-        log.info(
-                "Copied attachment id={} -> new id={} for document={}",
-                attachmentId,
-                saved.getId(),
-                targetDocumentId);
+        log.info("Copied attachment id={} -> new id={} for document={}", attachmentId, saved.getId(), targetDocumentId);
 
         indexAsync(Objects.requireNonNull(saved.getId()));
 
@@ -209,7 +197,9 @@ public class AttachmentService implements DisposableBean {
     // ── Retrieval ─────────────────────────────────────────────────────────────
 
     public List<Attachment> findByDocument(Long documentId) {
-        return attachmentRepo.findByDocumentId(documentId).stream().map(this::toDto).toList();
+        return attachmentRepo.findByDocumentId(documentId).stream()
+                .map(this::toDto)
+                .toList();
     }
 
     public List<Attachment> findByConversation(String conversationId) {
@@ -274,22 +264,18 @@ public class AttachmentService implements DisposableBean {
         AttachmentEntity entity = findOrThrow(id);
         if (entity.getContent() == null || entity.getContent().isBlank()) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Attachment has no text content to summarize");
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Attachment has no text content to summarize");
         }
 
         String truncated = truncateForPrompt(entity.getContent(), PROMPT_MAX_CHARS);
 
-        String summaryText =
-                chatClient
-                        .prompt()
-                        .user(
-                                u ->
-                                        u.text(SUMMARIZE_PROMPT)
-                                                .param("fileName", entity.getFileName())
-                                                .param("content", truncated))
-                        .call()
-                        .content();
+        String summaryText = chatClient
+                .prompt()
+                .user(u -> u.text(SUMMARIZE_PROMPT)
+                        .param("fileName", entity.getFileName())
+                        .param("content", truncated))
+                .call()
+                .content();
 
         entity.setSummary(summaryText);
         entity.setUpdatedAt(OffsetDateTime.now());
@@ -344,8 +330,7 @@ public class AttachmentService implements DisposableBean {
         try (InputStream is = file.getInputStream()) {
             content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read uploaded file", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read uploaded file", e);
         }
         return persistAttachment(
                 ownerType,
@@ -407,26 +392,18 @@ public class AttachmentService implements DisposableBean {
      * @param attachmentId the attachment to index
      */
     private void indexAsync(Long attachmentId) {
-        indexingExecutor.submit(
-                () -> {
-                    try {
-                        AttachmentEntity entity =
-                                attachmentRepo
-                                        .findById(attachmentId)
-                                        .orElseThrow(
-                                                () ->
-                                                        new IllegalStateException(
-                                                                "Attachment not found for indexing: "
-                                                                        + attachmentId));
-                        doIndex(entity);
-                        log.debug("Async indexing completed for attachment id={}", attachmentId);
-                    } catch (Exception ex) {
-                        log.warn(
-                                "Async embedding index failed for attachment id={}: {}",
-                                attachmentId,
-                                ex.getMessage());
-                    }
-                });
+        indexingExecutor.submit(() -> {
+            try {
+                AttachmentEntity entity = attachmentRepo
+                        .findById(attachmentId)
+                        .orElseThrow(
+                                () -> new IllegalStateException("Attachment not found for indexing: " + attachmentId));
+                doIndex(entity);
+                log.debug("Async indexing completed for attachment id={}", attachmentId);
+            } catch (Exception ex) {
+                log.warn("Async embedding index failed for attachment id={}: {}", attachmentId, ex.getMessage());
+            }
+        });
     }
 
     /**
@@ -440,15 +417,13 @@ public class AttachmentService implements DisposableBean {
             return;
         }
         Long attachmentId = Objects.requireNonNull(entity.getId());
-        AttachmentEmbeddingEntity emb =
-                embeddingRepo
-                        .findByAttachmentId(attachmentId)
-                        .orElseGet(
-                                () -> {
-                                    AttachmentEmbeddingEntity e = new AttachmentEmbeddingEntity();
-                                    e.setAttachmentId(attachmentId);
-                                    return e;
-                                });
+        AttachmentEmbeddingEntity emb = embeddingRepo
+                .findByAttachmentId(attachmentId)
+                .orElseGet(() -> {
+                    AttachmentEmbeddingEntity e = new AttachmentEmbeddingEntity();
+                    e.setAttachmentId(attachmentId);
+                    return e;
+                });
 
         emb.setEmbedding(resp.getResult().getOutput());
         emb.setModel(embeddingService.getModelName());
@@ -494,10 +469,7 @@ public class AttachmentService implements DisposableBean {
     private AttachmentEntity findOrThrow(Long id) {
         return attachmentRepo
                 .findById(id)
-                .orElseThrow(
-                        () ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND, "Attachment not found: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Attachment not found: " + id));
     }
 
     private Attachment toDto(AttachmentEntity e) {

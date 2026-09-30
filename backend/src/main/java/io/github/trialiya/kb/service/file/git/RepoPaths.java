@@ -36,18 +36,15 @@ final class RepoPaths {
      * apostrophe occur in real repositories, and a path reaches git as one argument of a process or
      * as a literal JGit path filter — never as a shell word or a pathspec.
      */
-    private static final Pattern REFUSED_CHARACTER =
-            Pattern.compile("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\"\u27E6\u27E7]");
+    private static final Pattern REFUSED_CHARACTER = Pattern.compile("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\"\u27E6\u27E7]");
 
     /** File names to always exclude from results (OS/IDE junk). */
-    private static final Set<String> IGNORED_FILES =
-            Set.of(".DS_Store", "Thumbs.db", "desktop.ini", ".directory");
+    private static final Set<String> IGNORED_FILES = Set.of(".DS_Store", "Thumbs.db", "desktop.ini", ".directory");
 
     /** File extensions to always exclude from results. */
-    private static final Set<String> IGNORED_EXTENSIONS =
-            Set.of(
-                    ".class", ".jar", ".war", ".ear", ".o", ".so", ".dylib", ".dll", ".exe", ".pyc",
-                    ".pyo", ".swp", ".swo", ".bak", ".tmp", ".orig");
+    private static final Set<String> IGNORED_EXTENSIONS = Set.of(
+            ".class", ".jar", ".war", ".ear", ".o", ".so", ".dylib", ".dll", ".exe", ".pyc", ".pyo", ".swp", ".swo",
+            ".bak", ".tmp", ".orig");
 
     private final Path root;
 
@@ -112,8 +109,7 @@ final class RepoPaths {
                 continue;
             }
             if (!real.startsWith(realRoot)) {
-                throw new IllegalArgumentException(
-                        "Path escapes the repository via a symlink: " + normalized);
+                throw new IllegalArgumentException("Path escapes the repository via a symlink: " + normalized);
             }
             return absolute;
         }
@@ -236,8 +232,7 @@ final class RepoPaths {
             return true;
         }
         int dot = name.lastIndexOf('.');
-        return dot >= 0
-                && IGNORED_EXTENSIONS.contains(name.substring(dot).toLowerCase(Locale.ROOT));
+        return dot >= 0 && IGNORED_EXTENSIONS.contains(name.substring(dot).toLowerCase(Locale.ROOT));
     }
 
     /** Index of the first {@code *} or {@code ?} in a glob, or {@code -1} when it has none. */

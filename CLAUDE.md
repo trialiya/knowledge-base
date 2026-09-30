@@ -64,7 +64,7 @@ The wrapper deliberately does not cover:
 ```bash
 ./gradlew :backend:bootRun     # dev backend on :8080 (run/run.sh h2 runs the JAR)
 ./gradlew :frontend:yarnServe  # Vite dev server on :3000, proxies /api to :8080
-./gradlew spotlessApply        # format the backend (AOSP) and the Markdown docs
+./gradlew spotlessApply        # format the backend (Palantir) and the Markdown docs
 ```
 
 `*IT` suites use Testcontainers and need Docker; `*Test` (unit) suites don't.
@@ -123,7 +123,7 @@ new test is in `.claude/rules/backend-data.md`.
   the invariant, the trap.
 - **Keep files focused — measured in lines of code.** Comments and blank lines
   don't count (`grep -cvE '^\s*(//|/?\*|$)' <file>` is the honest number; on
-  the backend Javadoc plus AOSP formatting make raw `wc -l` about 60% bigger
+  on the backend Javadoc and imports make raw `wc -l` well bigger
   than the code it holds). A frontend file nearing **~300** code lines — or
   holding 2+ exported components — and a backend Java file nearing **~500**
   are due for a split. Existing offenders are handled by "migrate on touch"

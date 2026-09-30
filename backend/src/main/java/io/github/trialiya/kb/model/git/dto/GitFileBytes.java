@@ -14,5 +14,4 @@ package io.github.trialiya.kb.model.git.dto;
  * @param sizeBytes размер всего файла, а не окна
  * @param binary true если файл бинарный (эвристика по NUL-байту, как у git)
  */
-public record GitFileBytes(
-        String path, byte[] bytes, long offset, long sizeBytes, boolean binary) {}
+public record GitFileBytes(String path, byte[] bytes, long offset, long sizeBytes, boolean binary) {}

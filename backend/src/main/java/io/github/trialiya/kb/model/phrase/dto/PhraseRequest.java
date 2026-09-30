@@ -9,4 +9,7 @@ import org.jspecify.annotations.Nullable;
  * — it is toggled via its own endpoint.
  */
 public record PhraseRequest(
-        String category, String label, String text, @Nullable Boolean enabled) {}
+        String category,
+        String label,
+        String text,
+        @Nullable Boolean enabled) {}

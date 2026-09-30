@@ -7,8 +7,7 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 
-public interface ChatPendingMessageRepository
-        extends CrudRepository<ChatPendingMessageEntity, Long> {
+public interface ChatPendingMessageRepository extends CrudRepository<ChatPendingMessageEntity, Long> {
 
     /** Очередь чата в порядке отправки — id монотонен, отдельной позиции строкам не нужно. */
     List<ChatPendingMessageEntity> findByConversationIdOrderByIdAsc(String conversationId);

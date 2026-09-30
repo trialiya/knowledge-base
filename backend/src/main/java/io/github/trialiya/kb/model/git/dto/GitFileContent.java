@@ -45,17 +45,14 @@ public record GitFileContent(
 
     @Override
     public String getFormattedResponse() {
-        String head =
-                Compact.tag("file:" + path)
-                        .add("at", commit == null ? null : commit.substring(0, 7))
-                        .add("lang", language)
-                        .add("untracked", tracked ? null : "1")
-                        .add("lines", lineCount)
-                        .add("range", fromLine == null ? null : fromLine + "-" + toLine)
-                        .add("truncated", truncated ? "1" : null)
-                        .done();
-        return binary
-                ? head + " (binary, " + sizeBytes + "B)"
-                : head + "\n" + truncate(content, 40);
+        String head = Compact.tag("file:" + path)
+                .add("at", commit == null ? null : commit.substring(0, 7))
+                .add("lang", language)
+                .add("untracked", tracked ? null : "1")
+                .add("lines", lineCount)
+                .add("range", fromLine == null ? null : fromLine + "-" + toLine)
+                .add("truncated", truncated ? "1" : null)
+                .done();
+        return binary ? head + " (binary, " + sizeBytes + "B)" : head + "\n" + truncate(content, 40);
     }
 }

@@ -43,25 +43,14 @@ class DocumentFunctionUpdateGuardTest {
     @BeforeEach
     void setUp() {
         documentService = mock(DocumentService.class);
-        function =
-                new DocumentFunction(
-                        documentService, mock(AttachmentService.class), EarlierToolResults.NONE);
+        function = new DocumentFunction(documentService, mock(AttachmentService.class), EarlierToolResults.NONE);
         collector = new ToolInvocationCollector();
         context = new ToolContext(Map.of(ToolInvocationCollector.KEY, collector));
 
         Document updated = mock(Document.class);
         when(updated.toDocumentShort())
                 .thenReturn(
-                        new DocumentShort(
-                                DOC_ID,
-                                "title",
-                                "document",
-                                null,
-                                1,
-                                1,
-                                LocalDateTime.now(),
-                                false,
-                                null));
+                        new DocumentShort(DOC_ID, "title", "document", null, 1, 1, LocalDateTime.now(), false, null));
         when(documentService.update(anyLong(), any())).thenReturn(updated);
     }
 
@@ -122,17 +111,16 @@ class DocumentFunctionUpdateGuardTest {
     }
 
     private void recordGetDocument(Object documentIdArg, ToolInvocationStatus status) {
-        collector.record(
-                new ToolInvocation(
-                        "getDocument",
-                        Map.of("documentId", documentIdArg),
-                        status,
-                        null,
-                        null,
-                        null,
-                        "{}",
-                        null,
-                        collector.nextCallIndex(),
-                        null));
+        collector.record(new ToolInvocation(
+                "getDocument",
+                Map.of("documentId", documentIdArg),
+                status,
+                null,
+                null,
+                null,
+                "{}",
+                null,
+                collector.nextCallIndex(),
+                null));
     }
 }

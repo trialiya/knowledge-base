@@ -41,19 +41,17 @@ import org.springframework.ai.chat.messages.MessageType;
 class PromptRowSourceOfTruthTest {
 
     private static final String CONV = "conv-1";
-    private static final String INVENTORY =
-            "\n\n<attached-context>\n- attachment id=1\n</attached-context>";
+    private static final String INVENTORY = "\n\n<attached-context>\n- attachment id=1\n</attached-context>";
 
     private final ChatMessageRepository chatMessageRepository = mock(ChatMessageRepository.class);
     private final ContextItemService contextItemService = mock(ContextItemService.class);
 
-    private final ChatHistoryService service =
-            new ChatHistoryService(
-                    chatMessageRepository,
-                    contextItemService,
-                    new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
-                    new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
-                    ActiveProjectNotices.silent());
+    private final ChatHistoryService service = new ChatHistoryService(
+            chatMessageRepository,
+            contextItemService,
+            new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
+            new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
+            ActiveProjectNotices.silent());
 
     /** Текст строки — content плюс опись; у сообщений без вложений он равен content. */
     @Test
@@ -94,11 +92,7 @@ class PromptRowSourceOfTruthTest {
      */
     @Test
     void theInventoryIsResolvedOncePerWindowNotOncePerMessage() {
-        givenStored(
-                List.of(
-                        question(0, "первый", true),
-                        question(1, "второй", true),
-                        question(2, "третий", true)));
+        givenStored(List.of(question(0, "первый", true), question(1, "второй", true), question(2, "третий", true)));
 
         service.promptRows(CONV);
 
@@ -135,8 +129,7 @@ class PromptRowSourceOfTruthTest {
      */
     private ChatHistoryService withNotice(long anchor) {
         final ActiveProjectNotice notice = mock(ActiveProjectNotice.class);
-        when(notice.place(anyString(), anyList()))
-                .thenReturn(new ActiveProjectNotice.Placement(anchor, BLOCK));
+        when(notice.place(anyString(), anyList())).thenReturn(new ActiveProjectNotice.Placement(anchor, BLOCK));
         return new ChatHistoryService(
                 chatMessageRepository,
                 contextItemService,
@@ -151,11 +144,10 @@ class PromptRowSourceOfTruthTest {
      */
     @Test
     void theActiveProjectBlockStandsOnTheAnchoredRowOnly() {
-        givenStored(
-                List.of(
-                        question(0, "первый", false),
-                        row(1, "ответ", MessageType.ASSISTANT, false),
-                        question(2, "второй", false)));
+        givenStored(List.of(
+                question(0, "первый", false),
+                row(1, "ответ", MessageType.ASSISTANT, false),
+                question(2, "второй", false)));
 
         final List<PromptRow> rows = withNotice(2).promptRows(CONV);
 
@@ -180,19 +172,17 @@ class PromptRowSourceOfTruthTest {
     /** Ряд git-команды несёт только её: блок туда не попадает даже последним рядом окна. */
     @Test
     void aGitEventRowStaysBareEvenAsTheLastRow() {
-        final ChatMessageEntity git =
-                new ChatMessageEntity(
-                        1,
-                        CONV,
-                        "",
-                        MessageType.USER,
-                        1,
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        ChatMessageMeta.ofGitEvent(
-                                new io.github.trialiya.kb.model.chat.entity.GitEventMeta(
-                                        "pull", "kb", true, "ok", "main")));
+        final ChatMessageEntity git = new ChatMessageEntity(
+                1,
+                CONV,
+                "",
+                MessageType.USER,
+                1,
+                false,
+                false,
+                LocalDateTime.now(),
+                ChatMessageMeta.ofGitEvent(
+                        new io.github.trialiya.kb.model.chat.entity.GitEventMeta("pull", "kb", true, "ok", "main")));
         givenStored(List.of(git));
 
         assertThat(withNotice(1).promptRows(CONV).getFirst().text())
@@ -201,25 +191,20 @@ class PromptRowSourceOfTruthTest {
     }
 
     private void givenStored(List<ChatMessageEntity> rows) {
-        when(chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                CONV))
+        when(chatMessageRepository.findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                        CONV))
                 .thenReturn(rows);
         when(contextItemService.renderAll(anyString(), anyList()))
-                .thenReturn(
-                        rows.stream()
-                                .filter(row -> !row.getContextItems().isEmpty())
-                                .collect(
-                                        Collectors.toMap(
-                                                ChatMessageEntity::getId, row -> INVENTORY)));
+                .thenReturn(rows.stream()
+                        .filter(row -> !row.getContextItems().isEmpty())
+                        .collect(Collectors.toMap(ChatMessageEntity::getId, row -> INVENTORY)));
     }
 
     private static ChatMessageEntity question(long position, String text, boolean withAttachment) {
         return row(position, text, MessageType.USER, withAttachment);
     }
 
-    private static ChatMessageEntity row(
-            long position, String text, MessageType type, boolean withAttachment) {
+    private static ChatMessageEntity row(long position, String text, MessageType type, boolean withAttachment) {
         return new ChatMessageEntity(
                 position + 1,
                 CONV,
@@ -231,9 +216,7 @@ class PromptRowSourceOfTruthTest {
                 LocalDateTime.now(),
                 withAttachment
                         ? ChatMessageMeta.ofContextItems(
-                                List.of(
-                                        new ContextItem(
-                                                ContextItemKind.ATTACHMENT, "1", "spec.md")))
+                                List.of(new ContextItem(ContextItemKind.ATTACHMENT, "1", "spec.md")))
                         : null);
     }
 }

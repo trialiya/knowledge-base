@@ -50,9 +50,7 @@ public class SavedScriptFunction {
     /** Asked before the run, so a script declared to write is refused where nothing can. */
     private final ScriptEditPolicy editPolicy;
 
-    @Tool(
-            description =
-                    """
+    @Tool(description = """
                     Runs a script somebody already wrote, with arguments — use it instead of writing the \
                     same script yourself. Two things it runs: a script this repository saved under a name \
                     (the names, what each does and which arguments it takes are listed in the \
@@ -63,39 +61,36 @@ public class SavedScriptFunction {
                     (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET), source (which script ran, its path and the \
                     arguments it got), and resultId (the whole value kept for a later script's \
                     kb.result(id) and for saveScriptResult).
-                    """,
-            resultConverter = CompactToolResultConverter.class)
+                    """, resultConverter = CompactToolResultConverter.class)
     public ScriptResult runSavedScript(
             ToolContext context,
             @ToolParam(
-                            description =
-                                    "Script name from the <active-project> list, or "
-                                            + "\"attachment:<id>\" for a JavaScript attachment.")
+                            description = "Script name from the <active-project> list, or "
+                                    + "\"attachment:<id>\" for a JavaScript attachment.")
                     String name,
             @ToolParam(
-                            description =
-                                    "Arguments as an object, e.g. {\"area\": \"frontend/src\"}. "
-                                            + "Omit for a script that declares none.",
+                            description = "Arguments as an object, e.g. {\"area\": \"frontend/src\"}. "
+                                    + "Omit for a script that declares none.",
                             required = false)
-                    @Nullable Map<String, Object> args,
+                    @Nullable
+                    Map<String, Object> args,
             @ToolParam(
-                            description =
-                                    "Time limit in seconds. Omit to use the script's own budget "
-                                            + "or the deployment default; larger values are"
-                                            + " cut to the deployment ceiling.",
+                            description = "Time limit in seconds. Omit to use the script's own budget "
+                                    + "or the deployment default; larger values are"
+                                    + " cut to the deployment ceiling.",
                             required = false)
-                    @Nullable Integer timeoutSeconds) {
+                    @Nullable
+                    Integer timeoutSeconds) {
         final String scriptName = requireText(name, "name");
         final String projectId = ProjectContext.from(context);
-        final ScriptRequest request =
-                resolver.resolve(
-                                projectId,
-                                scriptName,
-                                args,
-                                timeoutSeconds,
-                                editPolicy.enabled(projectId),
-                                ToolInvocationCollector.from(context))
-                        .withResults(ResultScope.keeping(conversationId(context)));
+        final ScriptRequest request = resolver.resolve(
+                        projectId,
+                        scriptName,
+                        args,
+                        timeoutSeconds,
+                        editPolicy.enabled(projectId),
+                        ToolInvocationCollector.from(context))
+                .withResults(ResultScope.keeping(conversationId(context)));
         log.debug(
                 "runSavedScript called: '{}' ({}), args={}, project='{}', readOnly={}",
                 scriptName,

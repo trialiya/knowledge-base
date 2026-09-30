@@ -20,8 +20,7 @@ public final class ToolInvocationCollector {
      * Инструменты, у которых аргумент {@code filePath} означает, что модель осознанно смотрела
      * именно в этот файл. См. {@link #hasSeenFile}.
      */
-    private static final Set<String> PATH_ARG_READ_TOOLS =
-            Set.of("getFileContent", "getFileOutline", "editFile");
+    private static final Set<String> PATH_ARG_READ_TOOLS = Set.of("getFileContent", "getFileOutline", "editFile");
 
     private final List<ToolInvocation> invocations = new CopyOnWriteArrayList<>();
     private final AtomicInteger callIndex = new AtomicInteger(0);
@@ -32,15 +31,15 @@ public final class ToolInvocationCollector {
      * бы на совсем другой вызов этого.
      */
     private final String runTag =
-            Integer.toString(
-                    ThreadLocalRandom.current().nextInt(36 * 36 * 36, 36 * 36 * 36 * 36), 36);
+            Integer.toString(ThreadLocalRandom.current().nextInt(36 * 36 * 36, 36 * 36 * 36 * 36), 36);
 
     /**
      * Хук на каждую запись — надёжная граница «инструмент пошёл» для владельца прогона (сброс
      * буфера сегмента в ChatRunService). Live-события TOOL_CALL отсюда не шлются — их публикует
      * ToolCallEventPublisher при сохранении сегмента.
      */
-    @Nullable private final Runnable onRecord;
+    @Nullable
+    private final Runnable onRecord;
 
     public ToolInvocationCollector() {
         this(null);
@@ -55,9 +54,7 @@ public final class ToolInvocationCollector {
         if (context == null) {
             return null;
         }
-        return context.getContext().get(KEY) instanceof ToolInvocationCollector collector
-                ? collector
-                : null;
+        return context.getContext().get(KEY) instanceof ToolInvocationCollector collector ? collector : null;
     }
 
     /**

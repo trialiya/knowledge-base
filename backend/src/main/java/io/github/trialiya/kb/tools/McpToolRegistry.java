@@ -151,14 +151,13 @@ public class McpToolRegistry {
             ObjectProvider<McpToolFilter> toolFilter,
             ObjectProvider<McpToolNamePrefixGenerator> prefixGenerator,
             ObjectProvider<ToolContextToMcpMetaConverter> metaConverter) {
-        this(
-                sources(
-                        syncClients.getIfAvailable(List::of),
-                        asyncClients.getIfAvailable(List::of),
-                        commonProperties.getIfAvailable(McpClientCommonProperties::new).getName(),
-                        toolFilter.getIfUnique(),
-                        prefixGenerator.getIfUnique(),
-                        metaConverter.getIfUnique()));
+        this(sources(
+                syncClients.getIfAvailable(List::of),
+                asyncClients.getIfAvailable(List::of),
+                commonProperties.getIfAvailable(McpClientCommonProperties::new).getName(),
+                toolFilter.getIfUnique(),
+                prefixGenerator.getIfUnique(),
+                metaConverter.getIfUnique()));
     }
 
     McpToolRegistry(Map<String, ToolSource> sources) {
@@ -342,26 +341,21 @@ public class McpToolRegistry {
         List<ConnectionStatus> statuses = new ArrayList<>();
         Set<String> names = new HashSet<>();
         Set<String> dropped = new HashSet<>();
-        sources.keySet()
-                .forEach(
-                        name -> {
-                            Connection connection = connections.getOrDefault(name, pending());
-                            for (ToolCallback tool : connection.tools()) {
-                                String toolName = tool.getToolDefinition().name();
-                                if (names.add(toolName)) {
-                                    callbacks.add(published(tool, name, connection.status()));
-                                } else {
-                                    dropped.add(toolName + " (" + name + ")");
-                                }
-                            }
-                            statuses.add(
-                                    new ConnectionStatus(
-                                            name, connection.status(), connection.tools().size()));
-                        });
+        sources.keySet().forEach(name -> {
+            Connection connection = connections.getOrDefault(name, pending());
+            for (ToolCallback tool : connection.tools()) {
+                String toolName = tool.getToolDefinition().name();
+                if (names.add(toolName)) {
+                    callbacks.add(published(tool, name, connection.status()));
+                } else {
+                    dropped.add(toolName + " (" + name + ")");
+                }
+            }
+            statuses.add(new ConnectionStatus(
+                    name, connection.status(), connection.tools().size()));
+        });
         if (!dropped.isEmpty() && !dropped.equals(shadowed)) {
-            log.warn(
-                    "MCP tools left out, their names are taken by a connection listed earlier: {}",
-                    dropped);
+            log.warn("MCP tools left out, their names are taken by a connection listed earlier: {}", dropped);
         }
         shadowed = Set.copyOf(dropped);
         return new Snapshot(List.copyOf(callbacks), List.copyOf(statuses));
@@ -373,8 +367,7 @@ public class McpToolRegistry {
      * cannot make sense of.
      */
     private static ToolCallback published(ToolCallback tool, String connection, Status status) {
-        return new RecordingToolCallback(
-                status == Status.UP ? tool : new UnavailableToolCallback(tool, connection));
+        return new RecordingToolCallback(status == Status.UP ? tool : new UnavailableToolCallback(tool, connection));
     }
 
     private static Connection pending() {
@@ -409,9 +402,7 @@ public class McpToolRegistry {
             @Nullable ToolContextToMcpMetaConverter metaConverter) {
         Map<String, ToolSource> sources = new LinkedHashMap<>();
         McpToolNamePrefixGenerator names =
-                prefixGenerator == null
-                                || prefixGenerator.getClass()
-                                        == DefaultMcpToolNamePrefixGenerator.class
+                prefixGenerator == null || prefixGenerator.getClass() == DefaultMcpToolNamePrefixGenerator.class
                         ? STABLE_NAMES
                         : prefixGenerator;
         for (McpSyncClient client : syncClients) {
@@ -421,11 +412,7 @@ public class McpToolRegistry {
             builder.toolNamePrefixGenerator(names);
             apply(metaConverter, builder::toolContextToMcpMetaConverter);
             SyncMcpToolCallbackProvider provider = builder.build();
-            add(
-                    sources,
-                    connectionName(clientName, client.getClientInfo().name()),
-                    provider,
-                    client::isInitialized);
+            add(sources, connectionName(clientName, client.getClientInfo().name()), provider, client::isInitialized);
         }
         for (McpAsyncClient client : asyncClients) {
             AsyncMcpToolCallbackProvider.Builder builder =
@@ -437,11 +424,7 @@ public class McpToolRegistry {
             // The async provider answers the same call the sync one does, blocking on the reply
             // inside: the probe already runs on a virtual thread, so there is nothing here to
             // make non-blocking, and the request timeout is the client's either way.
-            add(
-                    sources,
-                    connectionName(clientName, client.getClientInfo().name()),
-                    provider,
-                    client::isInitialized);
+            add(sources, connectionName(clientName, client.getClientInfo().name()), provider, client::isInitialized);
         }
         return Collections.unmodifiableMap(sources);
     }
@@ -453,46 +436,33 @@ public class McpToolRegistry {
     }
 
     private static void add(
-            Map<String, ToolSource> sources,
-            String name,
-            ToolCallbackProvider provider,
-            BooleanSupplier hasSession) {
-        ToolSource source =
-                () -> {
-                    boolean hadSession = hasSession.getAsBoolean();
-                    try {
-                        return read(provider);
-                    } catch (RuntimeException e) {
-                        // A server restarted since the last probe answers the old session id with
-                        // «unknown session»: the client drops the session, but fails the request
-                        // that learned it. Asking again opens a fresh one, so a restart costs no
-                        // round. Only a session this very call lost is worth it — a server that is
-                        // simply down leaves the session in place, and a second attempt would
-                        // double its timeout for nothing.
-                        if (!hadSession || hasSession.getAsBoolean()) {
-                            throw e;
-                        }
-                        log.info(
-                                "MCP connection '{}' lost its session, opening a new one: {}",
-                                name,
-                                e.toString());
-                        return read(provider);
-                    }
-                };
+            Map<String, ToolSource> sources, String name, ToolCallbackProvider provider, BooleanSupplier hasSession) {
+        ToolSource source = () -> {
+            boolean hadSession = hasSession.getAsBoolean();
+            try {
+                return read(provider);
+            } catch (RuntimeException e) {
+                // A server restarted since the last probe answers the old session id with
+                // «unknown session»: the client drops the session, but fails the request
+                // that learned it. Asking again opens a fresh one, so a restart costs no
+                // round. Only a session this very call lost is worth it — a server that is
+                // simply down leaves the session in place, and a second attempt would
+                // double its timeout for nothing.
+                if (!hadSession || hasSession.getAsBoolean()) {
+                    throw e;
+                }
+                log.info("MCP connection '{}' lost its session, opening a new one: {}", name, e.toString());
+                return read(provider);
+            }
+        };
         // Two transports may carry the same connection name — a misconfiguration, but not one
         // that should cost a server its tools: the name then stands for both, and either of
         // them failing takes the pair down.
-        sources.merge(
-                name,
-                source,
-                (existing, added) -> {
-                    log.warn(
-                            "Two MCP connections are named '{}' — they are probed and reported as"
-                                    + " one",
-                            name);
-                    return () ->
-                            Stream.concat(existing.list().stream(), added.list().stream()).toList();
-                });
+        sources.merge(name, source, (existing, added) -> {
+            log.warn("Two MCP connections are named '{}' — they are probed and reported as" + " one", name);
+            return () -> Stream.concat(existing.list().stream(), added.list().stream())
+                    .toList();
+        });
     }
 
     /**

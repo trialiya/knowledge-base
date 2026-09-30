@@ -115,8 +115,7 @@ class RunRegistryTest {
         final RunScope scope = open(RUN, CONV);
         scope.rememberCall("call-0", 3, Map.of("q", "a"));
 
-        assertThat(scope.startedCall("call-0"))
-                .isEqualTo(new RunScope.StartedCall(3, Map.of("q", "a")));
+        assertThat(scope.startedCall("call-0")).isEqualTo(new RunScope.StartedCall(3, Map.of("q", "a")));
         assertThat(scope.startedCall("call-9")).isNull();
     }
 

@@ -33,12 +33,11 @@ public record ScriptResultProperties(
      */
     public ScriptResultProperties {
         if (maxChars <= 0 || keepPerChat <= 0) {
-            throw new IllegalArgumentException(
-                    "kb.script.results.max-chars and keep-per-chat must be positive, got "
-                            + maxChars
-                            + " and "
-                            + keepPerChat
-                            + "; to keep nothing, set kb.script.results.enabled=false");
+            throw new IllegalArgumentException("kb.script.results.max-chars and keep-per-chat must be positive, got "
+                    + maxChars
+                    + " and "
+                    + keepPerChat
+                    + "; to keep nothing, set kb.script.results.enabled=false");
         }
     }
 

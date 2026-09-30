@@ -21,9 +21,7 @@ class ScriptManifestReaderTest {
 
     @Test
     void readsEveryFieldOfAnEntry() {
-        List<SavedScript> scripts =
-                ScriptManifestReader.parse(
-                        """
+        List<SavedScript> scripts = ScriptManifestReader.parse("""
                         scripts:
                           - name: locale-diff
                             file: frontend/scripts/locale-diff.js
@@ -37,30 +35,20 @@ class ScriptManifestReaderTest {
                             desc: Put this year in headers
                             write: true
                             timeout: 25s
-                        """,
-                        WHERE);
+                        """, WHERE);
 
-        assertThat(scripts)
-                .extracting(SavedScript::name)
-                .containsExactly("locale-diff", "bump-copyright");
+        assertThat(scripts).extracting(SavedScript::name).containsExactly("locale-diff", "bump-copyright");
         SavedScript first = scripts.getFirst();
         assertThat(first.file()).isEqualTo("frontend/scripts/locale-diff.js");
         assertThat(first.desc()).isEqualTo("Keys in en and not in ru");
         assertThat(first.write()).isFalse();
         assertThat(first.timeout()).isNull();
         assertThat(first.params())
-                .extracting(
-                        ScriptParam::name,
-                        ScriptParam::type,
-                        ScriptParam::required,
-                        ScriptParam::defaultValue)
+                .extracting(ScriptParam::name, ScriptParam::type, ScriptParam::required, ScriptParam::defaultValue)
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple(
-                                "area", ScriptParam.Type.STRING, false, null),
-                        org.assertj.core.groups.Tuple.tuple(
-                                "limit", ScriptParam.Type.NUMBER, false, 50),
-                        org.assertj.core.groups.Tuple.tuple(
-                                "since", ScriptParam.Type.STRING, true, null));
+                        org.assertj.core.groups.Tuple.tuple("area", ScriptParam.Type.STRING, false, null),
+                        org.assertj.core.groups.Tuple.tuple("limit", ScriptParam.Type.NUMBER, false, 50),
+                        org.assertj.core.groups.Tuple.tuple("since", ScriptParam.Type.STRING, true, null));
         assertThat(scripts.get(1).write()).isTrue();
         assertThat(scripts.get(1).timeout()).isEqualTo(Duration.ofSeconds(25));
     }
@@ -70,9 +58,7 @@ class ScriptManifestReaderTest {
      */
     @Test
     void aBadEntryCostsOnlyItself() {
-        List<SavedScript> scripts =
-                ScriptManifestReader.parse(
-                        """
+        List<SavedScript> scripts = ScriptManifestReader.parse("""
                         scripts:
                           - name: fine
                             file: a.js
@@ -92,8 +78,7 @@ class ScriptManifestReaderTest {
                           - name: also-fine
                             file: f.js
                             desc: Works too
-                        """,
-                        WHERE);
+                        """, WHERE);
 
         assertThat(scripts).extracting(SavedScript::name).containsExactly("fine", "also-fine");
     }
@@ -104,17 +89,14 @@ class ScriptManifestReaderTest {
      */
     @Test
     void aRequiredParamWithADefaultIsTheEntrysError() {
-        List<SavedScript> scripts =
-                ScriptManifestReader.parse(
-                        """
+        List<SavedScript> scripts = ScriptManifestReader.parse("""
                         scripts:
                           - name: contradictory
                             file: a.js
                             desc: Both at once
                             params:
                               - { name: since, required: true, default: 2020-01-01 }
-                        """,
-                        WHERE);
+                        """, WHERE);
 
         assertThat(scripts).isEmpty();
     }
@@ -122,15 +104,12 @@ class ScriptManifestReaderTest {
     /** A name is a name, and {@code attachment:} is how an attachment will be addressed. */
     @Test
     void aNameCannotLookLikeAnAttachmentReference() {
-        List<SavedScript> scripts =
-                ScriptManifestReader.parse(
-                        """
+        List<SavedScript> scripts = ScriptManifestReader.parse("""
                         scripts:
                           - name: 'attachment:12'
                             file: a.js
                             desc: Not a script name
-                        """,
-                        WHERE);
+                        """, WHERE);
 
         assertThat(scripts).isEmpty();
     }
@@ -148,7 +127,8 @@ class ScriptManifestReaderTest {
     /** The manifest is repository content: it must not be able to name Java classes to build. */
     @Test
     void yamlTagsCannotConstructObjects() {
-        assertThat(ScriptManifestReader.parse("!!java.io.File [/etc/passwd]", WHERE)).isEmpty();
+        assertThat(ScriptManifestReader.parse("!!java.io.File [/etc/passwd]", WHERE))
+                .isEmpty();
     }
 
     /**
@@ -158,14 +138,11 @@ class ScriptManifestReaderTest {
      */
     @Test
     void abareTimeoutNumberIsSeconds() {
-        List<SavedScript> scripts =
-                ScriptManifestReader.parse(
-                        """
+        List<SavedScript> scripts = ScriptManifestReader.parse("""
                         scripts:
                           - { name: a, file: a.js, desc: Bare number, timeout: 30 }
                           - { name: b, file: b.js, desc: With a unit, timeout: 500ms }
-                        """,
-                        WHERE);
+                        """, WHERE);
 
         assertThat(scripts)
                 .extracting(SavedScript::timeout)
@@ -178,25 +155,19 @@ class ScriptManifestReaderTest {
      */
     @Test
     void aDefaultThatDoesNotFitItsTypeIsTheEntrysError() {
-        assertThat(
-                        ScriptManifestReader.parse(
-                                """
+        assertThat(ScriptManifestReader.parse("""
                                 scripts:
                                   - name: a
                                     file: a.js
                                     desc: Bad default
                                     params:
                                       - { name: limit, type: number, default: soon }
-                                """,
-                                WHERE))
-                .isEmpty();
+                                """, WHERE)).isEmpty();
     }
 
     @Test
     void aBadTimeoutOrWriteFlagIsTheEntrysError() {
-        assertThat(
-                        ScriptManifestReader.parse(
-                                """
+        assertThat(ScriptManifestReader.parse("""
                                 scripts:
                                   - name: a
                                     file: a.js
@@ -206,8 +177,6 @@ class ScriptManifestReaderTest {
                                     file: b.js
                                     desc: Bad write flag
                                     write: yes-please
-                                """,
-                                WHERE))
-                .isEmpty();
+                                """, WHERE)).isEmpty();
     }
 }

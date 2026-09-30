@@ -90,24 +90,20 @@ public class ChatSearchService {
         }
         Hits hits = collect(user, pattern);
         return hits.topics().stream()
-                .map(
-                        topic -> {
-                            String id = topic.getConversationId();
-                            List<ChatMessageEntity> messages =
-                                    hits.messagesByConversation().getOrDefault(id, List.of());
-                            // От новых к старым: первое и есть самое свежее.
-                            ChatMessageEntity latest =
-                                    messages.isEmpty() ? null : messages.getFirst();
-                            return new ChatSearchResult(
-                                    id,
-                                    topic.getDisplayTopic(),
-                                    topic.getUpdatedAt(),
-                                    hits.titleMatchIds().contains(id),
-                                    messages.size(),
-                                    latest != null
-                                            ? buildSnippet(latest.getContent(), pattern)
-                                            : null);
-                        })
+                .map(topic -> {
+                    String id = topic.getConversationId();
+                    List<ChatMessageEntity> messages =
+                            hits.messagesByConversation().getOrDefault(id, List.of());
+                    // От новых к старым: первое и есть самое свежее.
+                    ChatMessageEntity latest = messages.isEmpty() ? null : messages.getFirst();
+                    return new ChatSearchResult(
+                            id,
+                            topic.getDisplayTopic(),
+                            topic.getUpdatedAt(),
+                            hits.titleMatchIds().contains(id),
+                            messages.size(),
+                            latest != null ? buildSnippet(latest.getContent(), pattern) : null);
+                })
                 .limit(limit)
                 .toList();
     }
@@ -123,42 +119,32 @@ public class ChatSearchService {
             return new ChatSearchGroups(0, false, List.of());
         }
         Hits hits = collect(user, pattern);
-        List<ChatSearchGroups.Group> groups =
-                hits.topics().stream()
-                        .limit(limit)
-                        .map(
-                                topic -> {
-                                    String id = topic.getConversationId();
-                                    List<ChatSearchGroups.Message> messages =
-                                            hits
-                                                    .messagesByConversation()
-                                                    .getOrDefault(id, List.of())
-                                                    .reversed()
-                                                    .stream()
-                                                    .map(e -> message(e, pattern))
-                                                    .toList();
-                                    return new ChatSearchGroups.Group(
-                                            id,
-                                            topic.getDisplayTopic(),
-                                            topic.getUpdatedAt(),
-                                            hits.titleMatchIds().contains(id),
-                                            messages);
-                                })
-                        .toList();
-        int total =
-                groups.stream()
-                        .flatMap(g -> g.messages().stream())
-                        .mapToInt(m -> m.fragments().size())
-                        .sum();
+        List<ChatSearchGroups.Group> groups = hits.topics().stream()
+                .limit(limit)
+                .map(topic -> {
+                    String id = topic.getConversationId();
+                    List<ChatSearchGroups.Message> messages =
+                            hits.messagesByConversation().getOrDefault(id, List.of()).reversed().stream()
+                                    .map(e -> message(e, pattern))
+                                    .toList();
+                    return new ChatSearchGroups.Group(
+                            id,
+                            topic.getDisplayTopic(),
+                            topic.getUpdatedAt(),
+                            hits.titleMatchIds().contains(id),
+                            messages);
+                })
+                .toList();
+        int total = groups.stream()
+                .flatMap(g -> g.messages().stream())
+                .mapToInt(m -> m.fragments().size())
+                .sum();
         return new ChatSearchGroups(total, hits.scanCapped(), groups);
     }
 
     private static ChatSearchGroups.Message message(ChatMessageEntity e, String pattern) {
         return new ChatSearchGroups.Message(
-                e.getId(),
-                e.getType().name(),
-                e.getCreatedAt(),
-                fragments(e.getContent(), pattern));
+                e.getId(), e.getType().name(), e.getCreatedAt(), fragments(e.getContent(), pattern));
     }
 
     /**
@@ -219,8 +205,7 @@ public class ChatSearchService {
             topicsById.put(t.getConversationId(), t);
         }
 
-        List<ChatMessageEntity> rawHits =
-                chatMessageRepository.searchForUser(user, pattern, MESSAGE_SEARCH_SCAN_LIMIT);
+        List<ChatMessageEntity> rawHits = chatMessageRepository.searchForUser(user, pattern, MESSAGE_SEARCH_SCAN_LIMIT);
         // rawHits идёт от новых к старым — списки по чату наследуют этот порядок.
         Map<String, List<ChatMessageEntity>> messagesByConversation = new LinkedHashMap<>();
         for (ChatMessageEntity e : rawHits) {
@@ -232,37 +217,25 @@ public class ChatSearchService {
                     .add(e);
         }
 
-        List<String> missingTopics =
-                messagesByConversation.keySet().stream()
-                        .filter(id -> !topicsById.containsKey(id))
-                        .toList();
+        List<String> missingTopics = messagesByConversation.keySet().stream()
+                .filter(id -> !topicsById.containsKey(id))
+                .toList();
         if (!missingTopics.isEmpty()) {
             // Безопасно без повторной фильтрации по user: эти id уже пришли из
             // searchForUser(user, ...), т.е. и так принадлежат этому пользователю.
-            chatTopicRepository
-                    .findAllById(missingTopics)
-                    .forEach(t -> topicsById.put(t.getConversationId(), t));
+            chatTopicRepository.findAllById(missingTopics).forEach(t -> topicsById.put(t.getConversationId(), t));
         }
 
         Set<String> allIds = new LinkedHashSet<>(titleMatchIds);
         allIds.addAll(messagesByConversation.keySet());
-        List<ChatTopicEntity> topics =
-                allIds.stream()
-                        .map(topicsById::get)
-                        .filter(Objects::nonNull)
-                        .sorted(
-                                Comparator.comparing(
-                                                (ChatTopicEntity t) ->
-                                                        t.getUpdatedAt() != null
-                                                                ? t.getUpdatedAt()
-                                                                : LocalDateTime.MIN)
-                                        .reversed())
-                        .toList();
-        return new Hits(
-                topics,
-                titleMatchIds,
-                messagesByConversation,
-                rawHits.size() >= MESSAGE_SEARCH_SCAN_LIMIT);
+        List<ChatTopicEntity> topics = allIds.stream()
+                .map(topicsById::get)
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(
+                                (ChatTopicEntity t) -> t.getUpdatedAt() != null ? t.getUpdatedAt() : LocalDateTime.MIN)
+                        .reversed())
+                .toList();
+        return new Hits(topics, titleMatchIds, messagesByConversation, rawHits.size() >= MESSAGE_SEARCH_SCAN_LIMIT);
     }
 
     /**

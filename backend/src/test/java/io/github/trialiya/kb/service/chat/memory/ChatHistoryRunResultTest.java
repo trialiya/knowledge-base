@@ -43,8 +43,7 @@ class ChatHistoryRunResultTest {
     private static final String CONV = "conv-1";
     private static final String RUN = "run-1";
     private static final String MODEL = "gpt-5";
-    private static final RunTokenUsage USAGE =
-            new RunTokenUsage(12_400, 11_400, 700, 320, 31_000, 0, 0, 31_320, 3);
+    private static final RunTokenUsage USAGE = new RunTokenUsage(12_400, 11_400, 700, 320, 31_000, 0, 0, 31_320, 3);
 
     private ChatMessageRepository messageRepo;
     private ChatHistoryService history;
@@ -52,19 +51,16 @@ class ChatHistoryRunResultTest {
     @BeforeEach
     void setUp() {
         messageRepo = mock(ChatMessageRepository.class);
-        history =
-                new ChatHistoryService(
-                        messageRepo,
-                        new ContextItemService(mock(AttachmentService.class)),
-                        new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
-                        new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
-                        ActiveProjectNotices.silent());
+        history = new ChatHistoryService(
+                messageRepo,
+                new ContextItemService(mock(AttachmentService.class)),
+                new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
+                new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
+                ActiveProjectNotices.silent());
     }
 
-    private static ChatMessageEntity row(
-            long id, MessageType type, @Nullable ChatMessageMeta meta) {
-        return new ChatMessageEntity(
-                id, CONV, "text", type, id, false, false, LocalDateTime.now(), meta);
+    private static ChatMessageEntity row(long id, MessageType type, @Nullable ChatMessageMeta meta) {
+        return new ChatMessageEntity(id, CONV, "text", type, id, false, false, LocalDateTime.now(), meta);
     }
 
     /**
@@ -86,22 +82,11 @@ class ChatHistoryRunResultTest {
 
     private static ToolInvocation invocation(String tool) {
         return new ToolInvocation(
-                tool,
-                Map.of(),
-                ToolInvocationStatus.OK,
-                null,
-                null,
-                "gist",
-                "{}",
-                "результат",
-                0,
-                null);
+                tool, Map.of(), ToolInvocationStatus.OK, null, null, "gist", "{}", "результат", 0, null);
     }
 
     private void history(ChatMessageEntity... rows) {
-        when(messageRepo
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                CONV))
+        when(messageRepo.findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(CONV))
                 .thenReturn(List.of(rows));
     }
 
@@ -111,8 +96,7 @@ class ChatHistoryRunResultTest {
 
     private List<ChatMessageEntity> saved() {
         @SuppressWarnings("unchecked")
-        final ArgumentCaptor<Iterable<ChatMessageEntity>> captor =
-                ArgumentCaptor.forClass(Iterable.class);
+        final ArgumentCaptor<Iterable<ChatMessageEntity>> captor = ArgumentCaptor.forClass(Iterable.class);
         verify(messageRepo).saveAll(captor.capture());
         final List<ChatMessageEntity> rows = new ArrayList<>();
         captor.getValue().forEach(rows::add);
@@ -133,13 +117,11 @@ class ChatHistoryRunResultTest {
         // Ответ прошлого хода мог быть написан другой моделью — его не трогаем; TOOL-ряд
         // никто не «писал», подписи под ним нет.
         assertThat(saved()).extracting(ChatMessageEntity::getId).containsExactly(3L, 5L);
-        assertThat(saved())
-                .allSatisfy(
-                        row -> {
-                            assertThat(row.getMeta()).isNotNull();
-                            assertThat(row.getMeta().model()).isEqualTo(MODEL);
-                            assertThat(row.getMeta().runId()).isEqualTo(RUN);
-                        });
+        assertThat(saved()).allSatisfy(row -> {
+            assertThat(row.getMeta()).isNotNull();
+            assertThat(row.getMeta().model()).isEqualTo(MODEL);
+            assertThat(row.getMeta().runId()).isEqualTo(RUN);
+        });
     }
 
     /**
@@ -154,14 +136,8 @@ class ChatHistoryRunResultTest {
                 segment(2, "call-0", "searchDocuments"),
                 row(3, MessageType.ASSISTANT, null));
 
-        final List<ToolInvocationMeta> written =
-                history.markRunResult(
-                        CONV,
-                        RUN,
-                        MODEL,
-                        RunTokenUsage.EMPTY,
-                        List.of(),
-                        List.of(invocation("searchDocuments")));
+        final List<ToolInvocationMeta> written = history.markRunResult(
+                CONV, RUN, MODEL, RunTokenUsage.EMPTY, List.of(), List.of(invocation("searchDocuments")));
 
         assertThat(written).extracting(ToolInvocationMeta::name).containsExactly("searchDocuments");
         final ChatMessageEntity segment = saved().getFirst();
@@ -180,31 +156,16 @@ class ChatHistoryRunResultTest {
     void cutsServiceToolsOutOfThePlaques() {
         history(row(1, MessageType.USER, null), segment(2, "call-0", "getUserName"));
 
-        assertThat(
-                        history.markRunResult(
-                                CONV,
-                                RUN,
-                                MODEL,
-                                RunTokenUsage.EMPTY,
-                                List.of(),
-                                List.of(invocation("getUserName"))))
+        assertThat(history.markRunResult(
+                        CONV, RUN, MODEL, RunTokenUsage.EMPTY, List.of(), List.of(invocation("getUserName"))))
                 .isEmpty();
         assertThat(saved().getFirst().getMeta().invocations()).isEmpty();
     }
 
     @Test
     void keepsToolInvocationsAlreadyWrittenByThisRun() {
-        final ToolInvocationMeta invocation =
-                new ToolInvocationMeta(
-                        "searchDocuments",
-                        Map.of(),
-                        ToolInvocationStatus.OK,
-                        null,
-                        null,
-                        true,
-                        0,
-                        null,
-                        "call-0");
+        final ToolInvocationMeta invocation = new ToolInvocationMeta(
+                "searchDocuments", Map.of(), ToolInvocationStatus.OK, null, null, true, 0, null, "call-0");
         history(
                 row(1, MessageType.USER, null),
                 row(
@@ -285,12 +246,9 @@ class ChatHistoryRunResultTest {
                 segment(2, "call-0", "searchDocuments"),
                 row(3, MessageType.ASSISTANT, null));
 
-        history.markRunResult(
-                CONV, RUN, MODEL, USAGE, List.of(call(1000, 40), call(1300, 90)), List.of());
+        history.markRunResult(CONV, RUN, MODEL, USAGE, List.of(call(1000, 40), call(1300, 90)), List.of());
 
-        assertThat(saved())
-                .extracting(r -> r.getMeta().contextTokens())
-                .containsExactly(1040L, 1390L);
+        assertThat(saved()).extracting(r -> r.getMeta().contextTokens()).containsExactly(1040L, 1390L);
         assertThat(saved()).extracting(r -> r.getMeta().usage()).containsExactly(null, USAGE);
     }
 
@@ -306,16 +264,9 @@ class ChatHistoryRunResultTest {
                 segment(3, "call-1", "searchDocuments"));
 
         history.markRunResult(
-                CONV,
-                RUN,
-                MODEL,
-                USAGE,
-                List.of(call(1000, 40), TokenUsage.EMPTY, TokenUsage.EMPTY),
-                List.of());
+                CONV, RUN, MODEL, USAGE, List.of(call(1000, 40), TokenUsage.EMPTY, TokenUsage.EMPTY), List.of());
 
-        assertThat(saved())
-                .extracting(r -> r.getMeta().contextTokens())
-                .containsExactly(1040L, null);
+        assertThat(saved()).extracting(r -> r.getMeta().contextTokens()).containsExactly(1040L, null);
     }
 
     /**
@@ -331,9 +282,7 @@ class ChatHistoryRunResultTest {
 
         history.markRunResult(CONV, RUN, MODEL, USAGE, List.of(call(1000, 40)), List.of());
 
-        assertThat(saved())
-                .extracting(r -> r.getMeta().contextTokens())
-                .containsExactly(null, null);
+        assertThat(saved()).extracting(r -> r.getMeta().contextTokens()).containsExactly(null, null);
     }
 
     private static TokenUsage call(long prompt, long completion) {

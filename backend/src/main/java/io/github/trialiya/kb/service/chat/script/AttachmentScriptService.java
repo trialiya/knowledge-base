@@ -40,11 +40,7 @@ public class AttachmentScriptService {
     private static final Set<String> SCRIPT_EXTENSIONS = Set.of(".js", ".mjs", ".cjs");
 
     private static final Set<String> SCRIPT_TYPES =
-            Set.of(
-                    "text/javascript",
-                    "application/javascript",
-                    "application/x-javascript",
-                    "text/x-javascript");
+            Set.of("text/javascript", "application/javascript", "application/x-javascript", "text/x-javascript");
 
     private final AttachmentService attachments;
     private final ScriptProperties properties;
@@ -98,28 +94,25 @@ public class AttachmentScriptService {
         requireScriptFile(attachment);
         String text = attachments.getContent(id);
         if (text.isBlank()) {
-            throw new IllegalArgumentException(
-                    "Attachment " + id + " (" + attachment.fileName() + ") is empty.");
+            throw new IllegalArgumentException("Attachment " + id + " (" + attachment.fileName() + ") is empty.");
         }
         long size = text.getBytes(StandardCharsets.UTF_8).length;
         if (size > SavedScriptCatalog.MAX_BYTES) {
-            throw new IllegalArgumentException(
-                    "Attachment "
-                            + id
-                            + " is too large to run ("
-                            + size
-                            + " bytes, the limit is "
-                            + SavedScriptCatalog.MAX_BYTES
-                            + ").");
+            throw new IllegalArgumentException("Attachment "
+                    + id
+                    + " is too large to run ("
+                    + size
+                    + " bytes, the limit is "
+                    + SavedScriptCatalog.MAX_BYTES
+                    + ").");
         }
         log.info("Running attachment {} as a script: {}", id, attachment.fileName());
-        ScriptRunSource report =
-                new ScriptRunSource(
-                        ScriptRunSource.Kind.ATTACHMENT,
-                        PREFIX + id,
-                        attachment.fileName(),
-                        SavedScriptCatalog.sha(text),
-                        args);
+        ScriptRunSource report = new ScriptRunSource(
+                ScriptRunSource.Kind.ATTACHMENT,
+                PREFIX + id,
+                attachment.fileName(),
+                SavedScriptCatalog.sha(text),
+                args);
         return new ScriptSource(text, attachment.fileName(), report);
     }
 
@@ -145,17 +138,16 @@ public class AttachmentScriptService {
     private static void requireScriptFile(Attachment attachment) {
         String fileName = attachment.fileName().toLowerCase(Locale.ROOT);
         boolean named = SCRIPT_EXTENSIONS.stream().anyMatch(fileName::endsWith);
-        boolean typed =
-                SCRIPT_TYPES.contains(attachment.contentType().toLowerCase(Locale.ROOT).strip());
+        boolean typed = SCRIPT_TYPES.contains(
+                attachment.contentType().toLowerCase(Locale.ROOT).strip());
         if (!named && !typed) {
-            throw new IllegalArgumentException(
-                    "Attachment "
-                            + attachment.id()
-                            + " is not a script: \""
-                            + attachment.fileName()
-                            + "\" ("
-                            + attachment.contentType()
-                            + "). Only JavaScript attachments run — .js, .mjs or .cjs.");
+            throw new IllegalArgumentException("Attachment "
+                    + attachment.id()
+                    + " is not a script: \""
+                    + attachment.fileName()
+                    + "\" ("
+                    + attachment.contentType()
+                    + "). Only JavaScript attachments run — .js, .mjs or .cjs.");
         }
     }
 }

@@ -14,7 +14,8 @@ import org.springframework.ai.chat.messages.ToolResponseMessage;
  * целиком на следующих итерациях цикла.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ToolData(@Nullable List<Call> toolCalls, @Nullable List<Response> responses) {
+public record ToolData(
+        @Nullable List<Call> toolCalls, @Nullable List<Response> responses) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Call(String id, String type, String name, String arguments) {}
@@ -42,10 +43,7 @@ public record ToolData(@Nullable List<Call> toolCalls, @Nullable List<Response> 
         return toolCalls == null
                 ? List.of()
                 : toolCalls.stream()
-                        .map(
-                                c ->
-                                        new AssistantMessage.ToolCall(
-                                                c.id(), c.type(), c.name(), c.arguments()))
+                        .map(c -> new AssistantMessage.ToolCall(c.id(), c.type(), c.name(), c.arguments()))
                         .toList();
     }
 
@@ -53,10 +51,7 @@ public record ToolData(@Nullable List<Call> toolCalls, @Nullable List<Response> 
         return responses == null
                 ? List.of()
                 : responses.stream()
-                        .map(
-                                r ->
-                                        new ToolResponseMessage.ToolResponse(
-                                                r.id(), r.name(), r.responseData()))
+                        .map(r -> new ToolResponseMessage.ToolResponse(r.id(), r.name(), r.responseData()))
                         .toList();
     }
 }

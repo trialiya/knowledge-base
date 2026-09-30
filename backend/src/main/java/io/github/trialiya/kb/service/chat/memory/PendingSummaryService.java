@@ -97,24 +97,21 @@ public class PendingSummaryService {
      * @param stats числа для будущей плашки; {@code kind} у припаркованной сводки всегда {@link
      *     CompactMeta.Kind#SUMMARIZE} — команду пользователя ждать незачем, её применяют сразу
      */
-    public void park(
-            String conversationId, SummaryWriter.SummaryRow row, SummaryWriter.CompactStats stats) {
-        repository.save(
-                new ChatPendingSummaryEntity(
-                        0L,
-                        conversationId,
-                        row.startPosition(),
-                        row.endPosition(),
-                        row.position(),
-                        row.createdAt(),
-                        row.text(),
-                        stats.messages(),
-                        stats.summaryChars(),
-                        parkedMeta(row.trace(), stats.usage()),
-                        LocalDateTime.now(clock)));
+    public void park(String conversationId, SummaryWriter.SummaryRow row, SummaryWriter.CompactStats stats) {
+        repository.save(new ChatPendingSummaryEntity(
+                0L,
+                conversationId,
+                row.startPosition(),
+                row.endPosition(),
+                row.position(),
+                row.createdAt(),
+                row.text(),
+                stats.messages(),
+                stats.summaryChars(),
+                parkedMeta(row.trace(), stats.usage()),
+                LocalDateTime.now(clock)));
         log.info(
-                "[{}] Summary parked: positions {}-{}, {} messages — waiting for a pause or the"
-                        + " context limit",
+                "[{}] Summary parked: positions {}-{}, {} messages — waiting for a pause or the" + " context limit",
                 conversationId,
                 row.startPosition(),
                 row.endPosition(),
@@ -135,10 +132,9 @@ public class PendingSummaryService {
     private void applyIfQueued(String conversationId) {
         apply(
                 conversationId,
-                parked ->
-                        parked.size() >= properties.applyAtQueue()
-                                ? "the queue reached " + parked.size() + " summaries"
-                                : null);
+                parked -> parked.size() >= properties.applyAtQueue()
+                        ? "the queue reached " + parked.size() + " summaries"
+                        : null);
     }
 
     /**
@@ -147,18 +143,16 @@ public class PendingSummaryService {
      * отвечает про последний обмен репликами. Не бросает — см. {@link #apply}.
      */
     public void applyIfPaused(String conversationId) {
-        apply(
-                conversationId,
-                parked -> {
-                    final Optional<LocalDateTime> last = chatMessages.lastCreatedAt(conversationId);
-                    if (last.isEmpty()) {
-                        return null;
-                    }
-                    final Duration idle = Duration.between(last.get(), LocalDateTime.now(clock));
-                    return idle.compareTo(properties.applyAfter()) >= 0
-                            ? "the chat has been idle for " + idle.toSeconds() + "s"
-                            : null;
-                });
+        apply(conversationId, parked -> {
+            final Optional<LocalDateTime> last = chatMessages.lastCreatedAt(conversationId);
+            if (last.isEmpty()) {
+                return null;
+            }
+            final Duration idle = Duration.between(last.get(), LocalDateTime.now(clock));
+            return idle.compareTo(properties.applyAfter()) >= 0
+                    ? "the chat has been idle for " + idle.toSeconds() + "s"
+                    : null;
+        });
     }
 
     /**
@@ -170,22 +164,16 @@ public class PendingSummaryService {
      * @param modelContextTokens окно модели, на которой шёл прогон; {@code null} — окно этой модели
      *     не названо в конфигурации, и порога у чата нет вовсе
      */
-    public void applyIfOversized(
-            String conversationId, long contextTokens, @Nullable Integer modelContextTokens) {
+    public void applyIfOversized(String conversationId, long contextTokens, @Nullable Integer modelContextTokens) {
         if (contextTokens <= 0 || modelContextTokens == null) {
             return;
         }
         final long limit = Math.round(modelContextTokens * properties.applyAtRatio());
         apply(
                 conversationId,
-                parked ->
-                        contextTokens >= limit
-                                ? "the context reached "
-                                        + contextTokens
-                                        + " of "
-                                        + limit
-                                        + " tokens"
-                                : null);
+                parked -> contextTokens >= limit
+                        ? "the context reached " + contextTokens + " of " + limit + " tokens"
+                        : null);
     }
 
     /**
@@ -203,14 +191,12 @@ public class PendingSummaryService {
             return null;
         }
         repository.deleteByConversationId(conversationId);
-        final RunTokenUsage carried =
-                RunTokenUsage.spentTogether(
-                        parked.stream()
-                                .map(ChatPendingSummaryEntity::getMeta)
-                                .filter(Objects::nonNull)
-                                .map(ChatMessageMeta::usage)
-                                .filter(Objects::nonNull)
-                                .toList());
+        final RunTokenUsage carried = RunTokenUsage.spentTogether(parked.stream()
+                .map(ChatPendingSummaryEntity::getMeta)
+                .filter(Objects::nonNull)
+                .map(ChatMessageMeta::usage)
+                .filter(Objects::nonNull)
+                .toList());
         log.info(
                 "[{}] Parked summaries discarded ({}) — the context was compacted; {}",
                 conversationId,
@@ -248,32 +234,20 @@ public class PendingSummaryService {
                 return;
             }
             final boolean ran =
-                    summaryWriter.tryInConversation(
-                            conversationId, () -> write(conversationId, parked, reason));
+                    summaryWriter.tryInConversation(conversationId, () -> write(conversationId, parked, reason));
             if (!ran) {
-                log.debug(
-                        "[{}] Skipping summary apply — a compaction round holds the chat",
-                        conversationId);
+                log.debug("[{}] Skipping summary apply — a compaction round holds the chat", conversationId);
             }
         } catch (Exception e) {
-            log.error(
-                    "[{}] Applying the parked summary failed: {}",
-                    conversationId,
-                    e.getMessage(),
-                    e);
+            log.error("[{}] Applying the parked summary failed: {}", conversationId, e.getMessage(), e);
         }
     }
 
-    private void write(
-            String conversationId, List<ChatPendingSummaryEntity> parked, String reason) {
-        final List<ChatMessageEntity> notices =
-                requireNonNull(
-                        transactionTemplate.execute(
-                                s ->
-                                        parked.stream()
-                                                .map(one -> claimAndWrite(conversationId, one))
-                                                .filter(Objects::nonNull)
-                                                .toList()));
+    private void write(String conversationId, List<ChatPendingSummaryEntity> parked, String reason) {
+        final List<ChatMessageEntity> notices = requireNonNull(transactionTemplate.execute(s -> parked.stream()
+                .map(one -> claimAndWrite(conversationId, one))
+                .filter(Objects::nonNull)
+                .toList()));
         if (notices.isEmpty()) {
             return;
         }
@@ -289,13 +263,7 @@ public class PendingSummaryService {
         // поэтому вкладке мало «допиши в конец», место она ищет сама, по времени плашки (см.
         // chatEventReducer). Публикуем после коммита: вкладка на событие ходит за деталями.
         notices.forEach(
-                notice ->
-                        events.publish(
-                                conversationId,
-                                COMPACT_APPLIED,
-                                null,
-                                null,
-                                CompactPayload.of(notice)));
+                notice -> events.publish(conversationId, COMPACT_APPLIED, null, null, CompactPayload.of(notice)));
     }
 
     /**
@@ -311,8 +279,7 @@ public class PendingSummaryService {
      *
      * @return {@code null} — строку забрал кто-то другой, и применять нечего
      */
-    private @Nullable ChatMessageEntity claimAndWrite(
-            String conversationId, ChatPendingSummaryEntity parked) {
+    private @Nullable ChatMessageEntity claimAndWrite(String conversationId, ChatPendingSummaryEntity parked) {
         if (repository.claim(parked.getId()) == 0) {
             return null;
         }
@@ -346,8 +313,7 @@ public class PendingSummaryService {
      * в момент парковки — позже не из чего: сжатый кусок к тому времени всё ещё живой, но раунд,
      * который его читал и оплатил, давно кончился.
      */
-    private static @Nullable ChatMessageMeta parkedMeta(
-            ProjectTrace trace, @Nullable RunTokenUsage usage) {
+    private static @Nullable ChatMessageMeta parkedMeta(ProjectTrace trace, @Nullable RunTokenUsage usage) {
         final boolean noTrace = trace.lastProject() == null && trace.spans().isEmpty();
         if (noTrace) {
             return usage == null ? null : ChatMessageMeta.ofUsage(usage);
@@ -359,6 +325,7 @@ public class PendingSummaryService {
     /** Повод применить очередь или {@code null}, если его ещё нет. */
     @FunctionalInterface
     private interface DueCheck {
-        @Nullable String reason(List<ChatPendingSummaryEntity> parked);
+        @Nullable
+        String reason(List<ChatPendingSummaryEntity> parked);
     }
 }

@@ -18,10 +18,16 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("documents")
 public class DocumentEntity {
 
-    @Id @Nullable private Long id;
+    @Id
+    @Nullable
+    private Long id;
+
     private String title;
     private DocumentType type;
-    @Nullable private Long parentId;
+
+    @Nullable
+    private Long parentId;
+
     private String description;
 
     /**
@@ -30,7 +36,8 @@ public class DocumentEntity {
      * rewrite it. Seeded from the oldest {@code document_history} snapshot for rows that predate
      * the column (see {@code V2026.07.27_00__documents_created_at.sql}).
      */
-    @InsertOnlyProperty private LocalDateTime createdAt;
+    @InsertOnlyProperty
+    private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
 
@@ -57,7 +64,8 @@ public class DocumentEntity {
      * org.springframework.dao.OptimisticLockingFailureException}, which the controller layer maps
      * to HTTP 409 Conflict.
      */
-    @Version private int version;
+    @Version
+    private int version;
 
     // ── Summary ───────────────────────────────────────────────────────────────
 
@@ -65,7 +73,8 @@ public class DocumentEntity {
      * AI-generated summary of the document description. {@code null} until the user explicitly
      * triggers summarisation via {@code POST /api/documents/{id}/summarize}.
      */
-    @Nullable private String summary;
+    @Nullable
+    private String summary;
 
     /**
      * The value of {@link #descriptionVersion} at the time {@link #summary} was last generated.
@@ -73,7 +82,8 @@ public class DocumentEntity {
      *
      * <p>Stale check: {@code summarySourceVersion < descriptionVersion}.
      */
-    @Nullable private Integer summarySourceVersion;
+    @Nullable
+    private Integer summarySourceVersion;
 
     /**
      * Incremented <em>only</em> when {@link #description} actually changes. Intentionally separate

@@ -28,9 +28,7 @@ class TokenUsageTest {
     @Test
     void aRunningTotalKeepsTheLastChunk() {
         final TokenUsage merged =
-                TokenUsage.EMPTY
-                        .merge(new TokenUsage(100, 5, 105, 0, 0))
-                        .merge(new TokenUsage(100, 20, 120, 0, 0));
+                TokenUsage.EMPTY.merge(new TokenUsage(100, 5, 105, 0, 0)).merge(new TokenUsage(100, 20, 120, 0, 0));
 
         assertThat(merged).isEqualTo(new TokenUsage(100, 20, 120, 0, 0));
     }
@@ -39,9 +37,7 @@ class TokenUsageTest {
     @Test
     void promptAndCompletionSplitAcrossChunksAddUp() {
         final TokenUsage merged =
-                TokenUsage.EMPTY
-                        .merge(new TokenUsage(100, 0, 100, 0, 0))
-                        .merge(new TokenUsage(0, 20, 20, 0, 0));
+                TokenUsage.EMPTY.merge(new TokenUsage(100, 0, 100, 0, 0)).merge(new TokenUsage(0, 20, 20, 0, 0));
 
         assertThat(merged).isEqualTo(new TokenUsage(100, 20, 120, 0, 0));
     }
@@ -56,8 +52,7 @@ class TokenUsageTest {
 
     @Test
     void iterationsAddUp() {
-        final TokenUsage total =
-                new TokenUsage(100, 20, 120, 10, 5).plus(new TokenUsage(300, 40, 340, 90, 0));
+        final TokenUsage total = new TokenUsage(100, 20, 120, 10, 5).plus(new TokenUsage(300, 40, 340, 90, 0));
 
         assertThat(total).isEqualTo(new TokenUsage(400, 60, 460, 100, 5));
     }
@@ -67,9 +62,7 @@ class TokenUsageTest {
     void mergeInsideAnIterationAndSumBetweenThem() {
         final TokenUsage first = TokenUsage.EMPTY.merge(new TokenUsage(100, 10, 110, 0, 0));
         final TokenUsage second =
-                TokenUsage.EMPTY
-                        .merge(new TokenUsage(400, 5, 405, 0, 0))
-                        .merge(new TokenUsage(400, 30, 430, 0, 0));
+                TokenUsage.EMPTY.merge(new TokenUsage(400, 5, 405, 0, 0)).merge(new TokenUsage(400, 30, 430, 0, 0));
 
         assertThat(first.plus(second)).isEqualTo(new TokenUsage(500, 40, 540, 0, 0));
     }

@@ -35,11 +35,7 @@ import org.springframework.ai.chat.model.ChatResponse;
  * @param cacheWriteTokens записано в кэш промпта
  */
 public record TokenUsage(
-        long promptTokens,
-        long completionTokens,
-        long totalTokens,
-        long cacheReadTokens,
-        long cacheWriteTokens) {
+        long promptTokens, long completionTokens, long totalTokens, long cacheReadTokens, long cacheWriteTokens) {
 
     public static final TokenUsage EMPTY = new TokenUsage(0, 0, 0, 0, 0);
 
@@ -123,7 +119,6 @@ public record TokenUsage(
         final long parts = promptTokens + completionTokens;
         return totalTokens >= parts
                 ? this
-                : new TokenUsage(
-                        promptTokens, completionTokens, parts, cacheReadTokens, cacheWriteTokens);
+                : new TokenUsage(promptTokens, completionTokens, parts, cacheReadTokens, cacheWriteTokens);
     }
 }

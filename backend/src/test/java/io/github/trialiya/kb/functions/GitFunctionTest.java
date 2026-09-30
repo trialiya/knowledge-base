@@ -55,40 +55,17 @@ class GitFunctionTest {
         function = new GitFunction(gitRegistry);
         billing = mock(GitService.class);
         when(billing.project())
-                .thenReturn(
-                        new Project(
-                                "billing",
-                                "Billing",
-                                Path.of("/repo"),
-                                false,
-                                false,
-                                null,
-                                null,
-                                null,
-                                false,
-                                false));
+                .thenReturn(new Project(
+                        "billing", "Billing", Path.of("/repo"), false, false, null, null, null, false, false));
         when(billing.getFileContent(anyString(), any(), any()))
-                .thenReturn(
-                        new GitFileContent(
-                                "pom.xml",
-                                true,
-                                null,
-                                "<project/>",
-                                false,
-                                10,
-                                "xml",
-                                1,
-                                false,
-                                null,
-                                null));
-        when(billing.grepContent(
-                        anyString(), any(), anyBoolean(), anyInt(), anyInt(), anyBoolean()))
+                .thenReturn(new GitFileContent(
+                        "pom.xml", true, null, "<project/>", false, 10, "xml", 1, false, null, null));
+        when(billing.grepContent(anyString(), any(), anyBoolean(), anyInt(), anyInt(), anyBoolean()))
                 .thenReturn(List.of(new GitGrepMatch("pom.xml", 1, "<project/>")));
         when(billing.getFileTree(any()))
                 .thenReturn(List.of(new GitFileNode("src", "src", FileEntryType.DIRECTORY, null)));
         when(billing.searchFiles(anyString(), anyInt()))
-                .thenReturn(
-                        List.of(new GitFileNode("pom.xml", "pom.xml", FileEntryType.FILE, 10L)));
+                .thenReturn(List.of(new GitFileNode("pom.xml", "pom.xml", FileEntryType.FILE, 10L)));
         when(billing.getFileOutline(anyString()))
                 .thenReturn(new GitFileOutline("Foo.java", true, "java", 10, "regex", List.of()));
         when(billing.getCommitLog(anyInt(), any(), anyBoolean())).thenReturn(List.of(commit()));
@@ -99,16 +76,7 @@ class GitFunctionTest {
     }
 
     private static GitCommit commit() {
-        return new GitCommit(
-                "abc1234def",
-                "abc1234",
-                "Test",
-                "t@e.st",
-                OffsetDateTime.now(),
-                "init",
-                null,
-                null,
-                null);
+        return new GitCommit("abc1234def", "abc1234", "Test", "t@e.st", OffsetDateTime.now(), "init", null, null, null);
     }
 
     @Test
@@ -142,8 +110,7 @@ class GitFunctionTest {
     void theResponseEchoesWhichProjectActuallyAnswered() {
         ToolContext context = new ToolContext(Map.of());
 
-        ToolResult<GitFileContent> result =
-                function.getFileContent(context, "pom.xml", null, null, null, "billing");
+        ToolResult<GitFileContent> result = function.getFileContent(context, "pom.xml", null, null, null, "billing");
 
         assertThat(result.project()).isEqualTo("billing");
         assertThat(result.result().path()).isEqualTo("pom.xml");
@@ -170,15 +137,13 @@ class GitFunctionTest {
     void everyReadToolAnswersWithTheProjectItActuallyRead() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
-        assertThat(
-                        List.of(
-                                function.getFileTree(context, null, "billing"),
-                                function.searchFiles(context, "pom", null, "billing"),
-                                function.getFileOutline(context, "Foo.java", "billing"),
-                                function.getCommitLog(context, null, null, null, null, "billing"),
-                                function.getCommitDiff(context, "abc1234", null, null, "billing"),
-                                function.getUncommittedChanges(
-                                        context, null, null, null, "billing")))
+        assertThat(List.of(
+                        function.getFileTree(context, null, "billing"),
+                        function.searchFiles(context, "pom", null, "billing"),
+                        function.getFileOutline(context, "Foo.java", "billing"),
+                        function.getCommitLog(context, null, null, null, null, "billing"),
+                        function.getCommitDiff(context, "abc1234", null, null, "billing"),
+                        function.getUncommittedChanges(context, null, null, null, "billing")))
                 .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"))
                 .allSatisfy(r -> assertThat(r.result()).isNotNull());
 
@@ -193,19 +158,12 @@ class GitFunctionTest {
     void theItemsInsideCarryNoProjectOfTheirOwn() {
         ToolContext context = new ToolContext(Map.of());
 
-        ToolResult<List<GitCommit>> log =
-                function.getCommitLog(context, null, null, null, null, "billing");
+        ToolResult<List<GitCommit>> log = function.getCommitLog(context, null, null, null, null, "billing");
 
         assertThat(log.project()).isEqualTo("billing");
-        assertThat(log.result())
-                .isNotEmpty()
-                .allSatisfy(
-                        c ->
-                                assertThat(c)
-                                        .hasNoNullFieldsOrPropertiesExcept(
-                                                "files", "body", "parents"));
-        assertThat(GitCommit.class.getRecordComponents())
-                .noneMatch(component -> "project".equals(component.getName()));
+        assertThat(log.result()).isNotEmpty().allSatisfy(c -> assertThat(c)
+                .hasNoNullFieldsOrPropertiesExcept("files", "body", "parents"));
+        assertThat(GitCommit.class.getRecordComponents()).noneMatch(component -> "project".equals(component.getName()));
     }
 
     /**
@@ -232,19 +190,8 @@ class GitFunctionTest {
     void theCommitArgumentSwitchesTheReadFromTheWorkingTreeToThatCommitsTree() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
         when(billing.getFileContentAt(anyString(), anyString(), any(), any()))
-                .thenReturn(
-                        new GitFileContent(
-                                "pom.xml",
-                                true,
-                                "abc1234def",
-                                "<project/>",
-                                false,
-                                10,
-                                "xml",
-                                1,
-                                false,
-                                null,
-                                null));
+                .thenReturn(new GitFileContent(
+                        "pom.xml", true, "abc1234def", "<project/>", false, 10, "xml", 1, false, null, null));
 
         function.getFileContent(context, "pom.xml", 1, 5, "abc1234", null);
         verify(billing).getFileContentAt("abc1234", "pom.xml", 1, 5);

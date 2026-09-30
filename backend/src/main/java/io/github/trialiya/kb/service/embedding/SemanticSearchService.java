@@ -121,8 +121,7 @@ public class SemanticSearchService {
         }
         DocumentEntity doc = found.get();
 
-        EmbeddingResponse response =
-                embeddingService.embedDocument(doc.getTitle(), doc.getDescription());
+        EmbeddingResponse response = embeddingService.embedDocument(doc.getTitle(), doc.getDescription());
         if (response.getResults().isEmpty()) {
             return;
         }
@@ -174,10 +173,7 @@ public class SemanticSearchService {
         List<DocumentEntity> all = new ArrayList<>();
         documentRepo.findAll().forEach(all::add);
         // Fetched rows always have an id.
-        all.forEach(
-                doc ->
-                        taskRepo.enqueueIfAbsent(
-                                EmbeddingEntityType.DOCUMENT, Objects.requireNonNull(doc.getId())));
+        all.forEach(doc -> taskRepo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, Objects.requireNonNull(doc.getId())));
         return all.size();
     }
 
@@ -186,10 +182,7 @@ public class SemanticSearchService {
         attachmentRepo.findAll().forEach(all::add);
         // Fetched rows always have an id.
         all.forEach(
-                att ->
-                        taskRepo.enqueueIfAbsent(
-                                EmbeddingEntityType.ATTACHMENT,
-                                Objects.requireNonNull(att.getId())));
+                att -> taskRepo.enqueueIfAbsent(EmbeddingEntityType.ATTACHMENT, Objects.requireNonNull(att.getId())));
         return all.size();
     }
 
@@ -219,10 +212,8 @@ public class SemanticSearchService {
         }
         float[] queryVector = embeddingService.embed(query).getResult().getOutput();
 
-        List<SemanticSearchResult> docResults =
-                embeddingRepo.findSimilar(queryVector, threshold, limit);
-        List<SemanticSearchResult> attResults =
-                attachmentEmbeddingRepo.findSimilar(queryVector, threshold, limit);
+        List<SemanticSearchResult> docResults = embeddingRepo.findSimilar(queryVector, threshold, limit);
+        List<SemanticSearchResult> attResults = attachmentEmbeddingRepo.findSimilar(queryVector, threshold, limit);
 
         List<SemanticSearchResult> merged = new ArrayList<>(docResults.size() + attResults.size());
         merged.addAll(docResults);
@@ -237,15 +228,13 @@ public class SemanticSearchService {
     // Runs in autocommit on a worker thread by design: the find+save pair needs no atomicity
     // (upsert is idempotent, last writer wins) and must not hold a connection during AI calls.
     private void upsertDocumentEmbedding(Long documentId, float[] vector) {
-        DocumentEmbeddingEntity entity =
-                embeddingRepo
-                        .findByDocumentId(documentId)
-                        .orElseGet(
-                                () -> {
-                                    DocumentEmbeddingEntity e = new DocumentEmbeddingEntity();
-                                    e.setDocumentId(documentId);
-                                    return e;
-                                });
+        DocumentEmbeddingEntity entity = embeddingRepo
+                .findByDocumentId(documentId)
+                .orElseGet(() -> {
+                    DocumentEmbeddingEntity e = new DocumentEmbeddingEntity();
+                    e.setDocumentId(documentId);
+                    return e;
+                });
         entity.setEmbedding(vector);
         entity.setUpdatedAt(OffsetDateTime.now());
         entity.setModel(embeddingService.getModelName());
@@ -253,15 +242,13 @@ public class SemanticSearchService {
     }
 
     private void upsertAttachmentEmbedding(Long attachmentId, float[] vector) {
-        AttachmentEmbeddingEntity entity =
-                attachmentEmbeddingRepo
-                        .findByAttachmentId(attachmentId)
-                        .orElseGet(
-                                () -> {
-                                    AttachmentEmbeddingEntity e = new AttachmentEmbeddingEntity();
-                                    e.setAttachmentId(attachmentId);
-                                    return e;
-                                });
+        AttachmentEmbeddingEntity entity = attachmentEmbeddingRepo
+                .findByAttachmentId(attachmentId)
+                .orElseGet(() -> {
+                    AttachmentEmbeddingEntity e = new AttachmentEmbeddingEntity();
+                    e.setAttachmentId(attachmentId);
+                    return e;
+                });
         entity.setEmbedding(vector);
         entity.setUpdatedAt(OffsetDateTime.now());
         entity.setModel(embeddingService.getModelName());

@@ -48,38 +48,30 @@ class ChatHistoryReasoningTest {
         messageRepo = mock(ChatMessageRepository.class);
         events = mock(ChatEventService.class);
         runs = new RunRegistry();
-        history =
-                new ChatHistoryService(
-                        messageRepo,
-                        new ContextItemService(mock(AttachmentService.class)),
-                        new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
-                        new ToolCallEventPublisher(events, runs),
-                        ActiveProjectNotices.silent());
+        history = new ChatHistoryService(
+                messageRepo,
+                new ContextItemService(mock(AttachmentService.class)),
+                new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
+                new ToolCallEventPublisher(events, runs),
+                ActiveProjectNotices.silent());
         ToolCallTestSupport.echoSavedWithIds(messageRepo);
     }
 
     @Test
     void appendKeepsTheReasoningTheAnswerCameWith() {
-        final AssistantMessage answer =
-                AssistantMessage.builder()
-                        .content("Ответ.")
-                        .properties(
-                                Map.of(
-                                        AssistantChatMessage.REASONING_CONTENT,
-                                        "Сначала история файла."))
-                        .build();
+        final AssistantMessage answer = AssistantMessage.builder()
+                .content("Ответ.")
+                .properties(Map.of(AssistantChatMessage.REASONING_CONTENT, "Сначала история файла."))
+                .build();
 
         history.append(CONV, List.of(answer));
 
         @SuppressWarnings("unchecked")
-        final ArgumentCaptor<Iterable<ChatMessageEntity>> rows =
-                ArgumentCaptor.forClass(Iterable.class);
+        final ArgumentCaptor<Iterable<ChatMessageEntity>> rows = ArgumentCaptor.forClass(Iterable.class);
         verify(messageRepo).saveAll(rows.capture());
         final List<ChatMessageEntity> saved = new ArrayList<>();
         rows.getValue().forEach(saved::add);
-        assertThat(saved)
-                .extracting(ChatMessageEntity::getReasoning)
-                .containsExactly("Сначала история файла.");
+        assertThat(saved).extracting(ChatMessageEntity::getReasoning).containsExactly("Сначала история файла.");
     }
 
     @Test
@@ -96,53 +88,38 @@ class ChatHistoryReasoningTest {
         storedAnswerWithReasoning();
         final ChatHistoryMemory memory = new ChatHistoryMemory(history, events, runs, models());
 
-        assertThat(memory.get(CONV).getLast().getMetadata())
-                .doesNotContainKey(AssistantChatMessage.REASONING_CONTENT);
+        assertThat(memory.get(CONV).getLast().getMetadata()).doesNotContainKey(AssistantChatMessage.REASONING_CONTENT);
     }
 
     private @org.jspecify.annotations.Nullable Object reasoningSentTo(String model) {
         runs.open(RUN + model, CONV, "admin", model);
         when(events.activeRunId(CONV)).thenReturn(Optional.of(RUN + model));
-        final List<Message> prompt =
-                new ChatHistoryMemory(history, events, runs, models()).get(CONV);
+        final List<Message> prompt = new ChatHistoryMemory(history, events, runs, models()).get(CONV);
         return prompt.getLast().getMetadata().get(AssistantChatMessage.REASONING_CONTENT);
     }
 
     private void storedAnswerWithReasoning() {
-        when(messageRepo
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                CONV))
-                .thenReturn(
-                        List.of(
-                                new ChatMessageEntity(
-                                        1,
-                                        CONV,
-                                        "вопрос",
-                                        MessageType.USER,
-                                        1,
-                                        false,
-                                        false,
-                                        LocalDateTime.now(),
-                                        null),
-                                new ChatMessageEntity(
-                                        2,
-                                        CONV,
-                                        "Ответ.",
-                                        MessageType.ASSISTANT,
-                                        2,
-                                        false,
-                                        false,
-                                        LocalDateTime.now(),
-                                        null,
-                                        null,
-                                        "Сначала история файла.")));
+        when(messageRepo.findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(CONV))
+                .thenReturn(List.of(
+                        new ChatMessageEntity(
+                                1, CONV, "вопрос", MessageType.USER, 1, false, false, LocalDateTime.now(), null),
+                        new ChatMessageEntity(
+                                2,
+                                CONV,
+                                "Ответ.",
+                                MessageType.ASSISTANT,
+                                2,
+                                false,
+                                false,
+                                LocalDateTime.now(),
+                                null,
+                                null,
+                                "Сначала история файла.")));
     }
 
     private static ChatModelProperties models() {
         return new ChatModelProperties(
                 new ModelOption("gpt-5", "GPT", false, true, null, null, null, false),
-                List.of(
-                        new ModelOption(
-                                "deepseek", "DeepSeek", false, true, null, null, null, true)));
+                List.of(new ModelOption("deepseek", "DeepSeek", false, true, null, null, null, true)));
     }
 }

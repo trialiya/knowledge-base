@@ -44,8 +44,7 @@ public final class RunScope {
     private final AtomicReference<Disposable> disposable = new AtomicReference<>();
     private final AtomicBoolean stopRequested = new AtomicBoolean();
     private final AtomicBoolean persisted = new AtomicBoolean();
-    private final AtomicReference<RunTokenUsage.Tally> tally =
-            new AtomicReference<>(RunTokenUsage.Tally.EMPTY);
+    private final AtomicReference<RunTokenUsage.Tally> tally = new AtomicReference<>(RunTokenUsage.Tally.EMPTY);
 
     /**
      * Замеры обращений к модели по порядку — по одному на обращение, неизмеренные тоже: по индексу
@@ -62,8 +61,7 @@ public final class RunScope {
      * (см. {@link #completedCall}). Пустой до подписки на стрим и у прогона, который вовсе не дошёл
      * до инструментов.
      */
-    private final AtomicReference<@Nullable ToolInvocationCollector> collector =
-            new AtomicReference<>();
+    private final AtomicReference<@Nullable ToolInvocationCollector> collector = new AtomicReference<>();
 
     RunScope(String runId, String conversationId, String user, String model) {
         this.runId = runId;

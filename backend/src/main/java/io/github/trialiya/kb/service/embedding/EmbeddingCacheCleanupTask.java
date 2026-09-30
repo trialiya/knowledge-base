@@ -42,8 +42,7 @@ public class EmbeddingCacheCleanupTask {
     private final EmbeddingCacheRepository cacheRepo;
     private final int ttlDays;
 
-    public EmbeddingCacheCleanupTask(
-            EmbeddingCacheRepository cacheRepo, EmbeddingConfiguration embeddingConfig) {
+    public EmbeddingCacheCleanupTask(EmbeddingCacheRepository cacheRepo, EmbeddingConfiguration embeddingConfig) {
         this.cacheRepo = cacheRepo;
         this.ttlDays = embeddingConfig.cache().ttlDays();
     }
@@ -63,10 +62,7 @@ public class EmbeddingCacheCleanupTask {
     @Transactional
     public void evictStaleEntries() {
         OffsetDateTime cutoff = OffsetDateTime.now().minusDays(ttlDays);
-        log.info(
-                "Embedding cache cleanup started — deleting rows with last_used_at < {} (ttl={}d)",
-                cutoff,
-                ttlDays);
+        log.info("Embedding cache cleanup started — deleting rows with last_used_at < {} (ttl={}d)", cutoff, ttlDays);
 
         int deleted = cacheRepo.deleteByLastUsedAtBefore(cutoff);
         long remaining = cacheRepo.countAll();

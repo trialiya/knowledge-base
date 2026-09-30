@@ -20,8 +20,7 @@ public record SystemPromptProperties(Resource prompt, Resource extendedPrompt) {
 
     private static final Resource DEFAULT_PROMPT = new ClassPathResource("prompt/sys.md");
 
-    private static final Resource DEFAULT_EXTENDED_PROMPT =
-            new ClassPathResource("prompt/sys-extended.md");
+    private static final Resource DEFAULT_EXTENDED_PROMPT = new ClassPathResource("prompt/sys-extended.md");
 
     public SystemPromptProperties(@Nullable Resource prompt, @Nullable Resource extendedPrompt) {
         this.prompt = prompt != null ? prompt : DEFAULT_PROMPT;

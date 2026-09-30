@@ -42,13 +42,11 @@ class InterjectionAdvisorTest {
         final Message interjection = new UserMessage("и добавь тесты");
         when(pendingMessages.flushMidTurn("conv-1", "run-1")).thenReturn(List.of(interjection));
         when(chain.nextStream(any())).thenReturn(Flux.empty());
-        final ChatClientRequest request =
-                request(List.of(new SystemMessage("sys"), toolResponse()), "conv-1", "run-1");
+        final ChatClientRequest request = request(List.of(new SystemMessage("sys"), toolResponse()), "conv-1", "run-1");
 
         advisor.adviseStream(request, chain).blockLast();
 
-        final ArgumentCaptor<ChatClientRequest> forwarded =
-                ArgumentCaptor.forClass(ChatClientRequest.class);
+        final ArgumentCaptor<ChatClientRequest> forwarded = ArgumentCaptor.forClass(ChatClientRequest.class);
         verify(chain).nextStream(forwarded.capture());
         final List<Message> instructions = forwarded.getValue().prompt().getInstructions();
         assertThat(instructions).hasSize(3);
@@ -61,13 +59,11 @@ class InterjectionAdvisorTest {
     void anEmptyQueueLeavesTheRequestUntouched() {
         when(pendingMessages.flushMidTurn(anyString(), anyString())).thenReturn(List.of());
         when(chain.nextStream(any())).thenReturn(Flux.empty());
-        final ChatClientRequest request =
-                request(List.of(new SystemMessage("sys")), "conv-1", "run-1");
+        final ChatClientRequest request = request(List.of(new SystemMessage("sys")), "conv-1", "run-1");
 
         advisor.adviseStream(request, chain).blockLast();
 
-        final ArgumentCaptor<ChatClientRequest> forwarded =
-                ArgumentCaptor.forClass(ChatClientRequest.class);
+        final ArgumentCaptor<ChatClientRequest> forwarded = ArgumentCaptor.forClass(ChatClientRequest.class);
         verify(chain).nextStream(forwarded.capture());
         assertThat(forwarded.getValue()).isSameAs(request);
     }
@@ -92,23 +88,15 @@ class InterjectionAdvisorTest {
                 .isLessThan(Ordered.LOWEST_PRECEDENCE);
     }
 
-    private static ChatClientRequest request(
-            List<Message> instructions, String conversationId, String runId) {
+    private static ChatClientRequest request(List<Message> instructions, String conversationId, String runId) {
         return new ChatClientRequest(
                 new Prompt(instructions),
-                Map.of(
-                        ChatMemory.CONVERSATION_ID,
-                        conversationId,
-                        AdvisorParams.RUN_ID_PARAM,
-                        runId));
+                Map.of(ChatMemory.CONVERSATION_ID, conversationId, AdvisorParams.RUN_ID_PARAM, runId));
     }
 
     private static ToolResponseMessage toolResponse() {
         return ToolResponseMessage.builder()
-                .responses(
-                        List.of(
-                                new ToolResponseMessage.ToolResponse(
-                                        "call-1", "search", "результат")))
+                .responses(List.of(new ToolResponseMessage.ToolResponse("call-1", "search", "результат")))
                 .build();
     }
 }

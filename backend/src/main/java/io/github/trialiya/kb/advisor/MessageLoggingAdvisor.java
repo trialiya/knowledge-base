@@ -93,8 +93,7 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
     }
 
     @Override
-    public Flux<ChatClientResponse> adviseStream(
-            ChatClientRequest request, StreamAdvisorChain chain) {
+    public Flux<ChatClientResponse> adviseStream(ChatClientRequest request, StreamAdvisorChain chain) {
         logRequest(request);
         return chain.nextStream(request);
     }
@@ -133,9 +132,7 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
             chars += message(out, prefix, i + 1, messages.get(i));
         }
         return out.append(
-                        String.format(
-                                "  total %3d messages %8d chars (tool schemas included)",
-                                messages.size(), chars))
+                        String.format("  total %3d messages %8d chars (tool schemas included)", messages.size(), chars))
                 .toString();
     }
 
@@ -152,19 +149,15 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
         final StringBuilder each = new StringBuilder();
         for (ToolCallback callback : callbacks) {
             final ToolDefinition definition = callback.getToolDefinition();
-            chars +=
-                    prefix.add(definition.name())
-                            + prefix.add(definition.description())
-                            + prefix.add(definition.inputSchema());
+            chars += prefix.add(definition.name())
+                    + prefix.add(definition.description())
+                    + prefix.add(definition.inputSchema());
             if (log.isTraceEnabled()) {
                 final Prefix own = new Prefix();
-                final long size =
-                        own.add(definition.name())
-                                + own.add(definition.description())
-                                + own.add(definition.inputSchema());
-                each.append(
-                        String.format(
-                                "      %-28s %8d chars, hash %s%n", definition.name(), size, own));
+                final long size = own.add(definition.name())
+                        + own.add(definition.description())
+                        + own.add(definition.inputSchema());
+                each.append(String.format("      %-28s %8d chars, hash %s%n", definition.name(), size, own));
             }
         }
         out.append(String.format("  tools %3d schemas %8d chars", callbacks.size(), chars))
@@ -206,19 +199,15 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
         }
         final Prefix hash = new Prefix();
         final StringBuilder shown = new StringBuilder();
-        fields.forEach(
-                (name, value) -> {
-                    if (value == null) {
-                        return;
-                    }
-                    final String text = name + "=" + value;
-                    hash.add(text + ";");
-                    shown.append(shown.isEmpty() ? "" : ", ")
-                            .append(
-                                    text.length() <= PARAM_PREVIEW
-                                            ? text
-                                            : text.substring(0, PARAM_PREVIEW) + "…");
-                });
+        fields.forEach((name, value) -> {
+            if (value == null) {
+                return;
+            }
+            final String text = name + "=" + value;
+            hash.add(text + ";");
+            shown.append(shown.isEmpty() ? "" : ", ")
+                    .append(text.length() <= PARAM_PREVIEW ? text : text.substring(0, PARAM_PREVIEW) + "…");
+        });
         out.append("  params hash ").append(hash).append("  ").append(shown).append('\n');
     }
 
@@ -249,8 +238,7 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
         // такая же часть префикса, как текст: разное рассуждение у одного и того же ответа рвёт
         // кэш, и лог, его не считающий, показал бы совпавшие хэши ровно в месте обрыва.
         final long reasoningChars =
-                message.getMetadata().get(AssistantChatMessage.REASONING_CONTENT)
-                                instanceof String reasoning
+                message.getMetadata().get(AssistantChatMessage.REASONING_CONTENT) instanceof String reasoning
                         ? prefix.add(reasoning)
                         : 0;
         final long textChars = prefix.add(text);

@@ -36,9 +36,7 @@ class OutlineServiceTest {
     }
 
     private static OutlineResult outline(@Nullable List<GitSymbol> fromTreeSitter) {
-        return new OutlineService(
-                        answering("tree-sitter", fromTreeSitter),
-                        answering("regex", List.of(FROM_REGEX)))
+        return new OutlineService(answering("tree-sitter", fromTreeSitter), answering("regex", List.of(FROM_REGEX)))
                 .outline("javascript", "x");
     }
 

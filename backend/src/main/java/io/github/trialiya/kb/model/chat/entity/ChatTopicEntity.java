@@ -13,17 +13,37 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table(name = "chat_topic")
 public class ChatTopicEntity implements Persistable<String> {
 
-    @Id private final String conversationId;
+    @Id
+    private final String conversationId;
+
     private final String user;
-    @Nullable private final String userTopic;
-    @Nullable private final String aiTopic;
-    @Nullable private final Integer aiTopicTurn;
-    @Nullable private final String model;
-    @Nullable private final String mode;
-    @Nullable private final String project;
-    @CreatedDate private final LocalDateTime createdAt;
-    @LastModifiedDate private final LocalDateTime updatedAt;
-    @Transient private final boolean isNew;
+
+    @Nullable
+    private final String userTopic;
+
+    @Nullable
+    private final String aiTopic;
+
+    @Nullable
+    private final Integer aiTopicTurn;
+
+    @Nullable
+    private final String model;
+
+    @Nullable
+    private final String mode;
+
+    @Nullable
+    private final String project;
+
+    @CreatedDate
+    private final LocalDateTime createdAt;
+
+    @LastModifiedDate
+    private final LocalDateTime updatedAt;
+
+    @Transient
+    private final boolean isNew;
 
     /** Канонический конструктор. */
     public ChatTopicEntity(
@@ -64,18 +84,7 @@ public class ChatTopicEntity implements Persistable<String> {
             @Nullable String project,
             LocalDateTime createdAt,
             LocalDateTime updatedAt) {
-        this(
-                conversationId,
-                user,
-                userTopic,
-                aiTopic,
-                aiTopicTurn,
-                model,
-                mode,
-                project,
-                createdAt,
-                updatedAt,
-                false);
+        this(conversationId, user, userTopic, aiTopic, aiTopicTurn, model, mode, project, createdAt, updatedAt, false);
     }
 
     public ChatTopicEntity(

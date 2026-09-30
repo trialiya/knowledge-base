@@ -42,9 +42,11 @@ public class TextChunker {
     /** Default overlap between adjacent chunks in tokens. */
     public static final int DEFAULT_OVERLAP_TOKENS = 64;
 
-    @Builder.Default private final int maxTokens = DEFAULT_MAX_TOKENS;
+    @Builder.Default
+    private final int maxTokens = DEFAULT_MAX_TOKENS;
 
-    @Builder.Default private final int overlapTokens = DEFAULT_OVERLAP_TOKENS;
+    @Builder.Default
+    private final int overlapTokens = DEFAULT_OVERLAP_TOKENS;
 
     // ── Singleton with defaults ───────────────────────────────────────────────
 
@@ -149,9 +151,7 @@ public class TextChunker {
 
         for (String unit : units) {
             boolean fits =
-                    current.isEmpty()
-                            ? unit.length() <= maxChars
-                            : current.length() + 1 + unit.length() <= maxChars;
+                    current.isEmpty() ? unit.length() <= maxChars : current.length() + 1 + unit.length() <= maxChars;
 
             if (!fits && !current.isEmpty()) {
                 String finished = current.toString().strip();

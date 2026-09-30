@@ -75,34 +75,24 @@ class ChatRunQueuedDeliveryTest {
         slots = new ConversationSlots(events);
         when(runOptions.resolve(anyString(), any(), any(), any())).thenReturn(options());
         when(pendingMessages.flushPlain(anyString())).thenReturn(Flushed.NOTHING);
-        runService =
-                new ChatRunService(
-                        new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
-                        new ChatToolset(List.of(), List.of()),
-                        mock(ChatMemory.class),
-                        chatHistory,
-                        mock(SummarizeService.class),
-                        mock(AiTopicService.class),
-                        mock(PendingSummaryService.class),
-                        mock(AutoCompactService.class),
-                        new ChatModelProperties(
-                                new ModelOption(
-                                        "default-model",
-                                        "Default",
-                                        true,
-                                        true,
-                                        null,
-                                        null,
-                                        null,
-                                        false),
-                                List.of()),
-                        events,
-                        mock(SystemPromptService.class),
-                        pendingMessages,
-                        runOptions,
-                        runs,
-                        slots,
-                        never);
+        runService = new ChatRunService(
+                new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
+                new ChatToolset(List.of(), List.of()),
+                mock(ChatMemory.class),
+                chatHistory,
+                mock(SummarizeService.class),
+                mock(AiTopicService.class),
+                mock(PendingSummaryService.class),
+                mock(AutoCompactService.class),
+                new ChatModelProperties(
+                        new ModelOption("default-model", "Default", true, true, null, null, null, false), List.of()),
+                events,
+                mock(SystemPromptService.class),
+                pendingMessages,
+                runOptions,
+                runs,
+                slots,
+                never);
     }
 
     /**
@@ -115,15 +105,13 @@ class ChatRunQueuedDeliveryTest {
      */
     @Test
     void aMessageAcceptedAsTheRunEndedIsDeliveredButNotAnswered() {
-        when(pendingMessages.flushPlain(CONV))
-                .thenReturn(flushed(new PendingOptions("gpt-5", "review", "kb")));
+        when(pendingMessages.flushPlain(CONV)).thenReturn(flushed(new PendingOptions("gpt-5", "review", "kb")));
 
         runService.deliverIfNobodyGenerates(CONV);
 
         verify(pendingMessages).flushPlain(CONV);
         verify(runOptions, never()).resolve(anyString(), any(), any(), any());
-        verify(chatHistory, never())
-                .saveUserMessage(anyString(), anyString(), anyList(), any(), any());
+        verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any(), any());
         assertThat(runs.size()).isZero();
     }
 
@@ -237,8 +225,7 @@ class ChatRunQueuedDeliveryTest {
     }
 
     private static ChatMessageEntity userRow() {
-        return new ChatMessageEntity(
-                42L, CONV, "вопрос", MessageType.USER, 1, false, false, LocalDateTime.now(), null);
+        return new ChatMessageEntity(42L, CONV, "вопрос", MessageType.USER, 1, false, false, LocalDateTime.now(), null);
     }
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */

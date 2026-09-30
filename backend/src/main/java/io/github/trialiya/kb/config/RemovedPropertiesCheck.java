@@ -26,13 +26,12 @@ public class RemovedPropertiesCheck {
      * kb.projects[0].edit-enabled} reads by default, and relaxed binding would make every such
      * deployment fail to start.
      */
-    private static final Map<String, String> REMOVED =
-            Map.of(
-                    "kb.script.deny-globs",
-                    "script visibility now follows the tracked-files rule; keep secrets out"
-                            + " of the repository or in .gitignore",
-                    "kb.script.allow-globs",
-                    "use kb.projects[].allow-globs to admit untracked files per project");
+    private static final Map<String, String> REMOVED = Map.of(
+            "kb.script.deny-globs",
+            "script visibility now follows the tracked-files rule; keep secrets out"
+                    + " of the repository or in .gitignore",
+            "kb.script.allow-globs",
+            "use kb.projects[].allow-globs to admit untracked files per project");
 
     private final Environment environment;
 
@@ -43,22 +42,19 @@ public class RemovedPropertiesCheck {
     @PostConstruct
     void verify() {
         Map<String, String> found = new LinkedHashMap<>();
-        REMOVED.forEach(
-                (key, replacement) -> {
-                    // A non-empty YAML list binds as key[0], key[1], … — the bare key alone is
-                    // only ever present when the value came from an environment variable.
-                    if (environment.containsProperty(key)
-                            || environment.containsProperty(key + "[0]")) {
-                        found.put(key, replacement);
-                    }
-                });
+        REMOVED.forEach((key, replacement) -> {
+            // A non-empty YAML list binds as key[0], key[1], … — the bare key alone is
+            // only ever present when the value came from an environment variable.
+            if (environment.containsProperty(key) || environment.containsProperty(key + "[0]")) {
+                found.put(key, replacement);
+            }
+        });
         if (found.isEmpty()) {
             return;
         }
-        throw new IllegalStateException(
-                "Configuration sets properties that no longer exist: "
-                        + found.entrySet().stream()
-                                .map(e -> e.getKey() + " (" + e.getValue() + ")")
-                                .collect(Collectors.joining("; ")));
+        throw new IllegalStateException("Configuration sets properties that no longer exist: "
+                + found.entrySet().stream()
+                        .map(e -> e.getKey() + " (" + e.getValue() + ")")
+                        .collect(Collectors.joining("; ")));
     }
 }

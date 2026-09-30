@@ -15,8 +15,7 @@ class RecordingToolCallbackTest {
 
     @Test
     void keepsValidJsonAsIs() {
-        assertThat(RecordingToolCallback.sanitizeArguments("{\"q\": \"a\"}"))
-                .isEqualTo("{\"q\": \"a\"}");
+        assertThat(RecordingToolCallback.sanitizeArguments("{\"q\": \"a\"}")).isEqualTo("{\"q\": \"a\"}");
     }
 
     @Test

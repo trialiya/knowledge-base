@@ -18,12 +18,8 @@ class ChatModeServiceTest {
 
     @Test
     void loadsInstructionsFromResources() {
-        ChatModeService service =
-                new ChatModeService(
-                        new ChatModeProperties(
-                                List.of(
-                                        mode("developer", res("Инструкции разработчика")),
-                                        mode("tester", res("Инструкции тестировщика")))));
+        ChatModeService service = new ChatModeService(new ChatModeProperties(List.of(
+                mode("developer", res("Инструкции разработчика")), mode("tester", res("Инструкции тестировщика")))));
 
         assertThat(service.instructionsFor("developer")).isEqualTo("Инструкции разработчика");
         assertThat(service.instructionsFor("tester")).isEqualTo("Инструкции тестировщика");
@@ -31,9 +27,7 @@ class ChatModeServiceTest {
 
     @Test
     void returnsEmptyForNullOrUnknownMode() {
-        ChatModeService service =
-                new ChatModeService(
-                        new ChatModeProperties(List.of(mode("developer", res("текст")))));
+        ChatModeService service = new ChatModeService(new ChatModeProperties(List.of(mode("developer", res("текст")))));
 
         assertThat(service.instructionsFor(null)).isEmpty();
         assertThat(service.instructionsFor("unknown")).isEmpty();
@@ -41,19 +35,10 @@ class ChatModeServiceTest {
 
     @Test
     void bundledModePromptsAreReadableAndNonEmpty() {
-        ChatModeService service =
-                new ChatModeService(
-                        new ChatModeProperties(
-                                List.of(
-                                        mode(
-                                                "analytic",
-                                                new ClassPathResource("prompt/mode-analytic.md")),
-                                        mode(
-                                                "developer",
-                                                new ClassPathResource("prompt/mode-developer.md")),
-                                        mode(
-                                                "tester",
-                                                new ClassPathResource("prompt/mode-tester.md")))));
+        ChatModeService service = new ChatModeService(new ChatModeProperties(List.of(
+                mode("analytic", new ClassPathResource("prompt/mode-analytic.md")),
+                mode("developer", new ClassPathResource("prompt/mode-developer.md")),
+                mode("tester", new ClassPathResource("prompt/mode-tester.md")))));
 
         assertThat(service.instructionsFor("analytic")).contains("analyst");
         assertThat(service.instructionsFor("developer")).contains("developer");

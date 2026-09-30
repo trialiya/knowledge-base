@@ -40,8 +40,7 @@ public class ChatUsageService {
     private final ChatMessageRepository chatMessageRepository;
     private final ObjectMapper objectMapper;
 
-    public ChatUsageService(
-            ChatMessageRepository chatMessageRepository, ObjectMapper objectMapper) {
+    public ChatUsageService(ChatMessageRepository chatMessageRepository, ObjectMapper objectMapper) {
         this.chatMessageRepository = chatMessageRepository;
         this.objectMapper = objectMapper;
     }
@@ -59,7 +58,8 @@ public class ChatUsageService {
             }
             // Деньги сводок, которые сжатие выбросило вместе с их куском истории: своего ряда у
             // них не осталось, а заплачено было (см. CompactMeta#carried).
-            final RunTokenUsage carried = meta.compact() == null ? null : meta.compact().carried();
+            final RunTokenUsage carried =
+                    meta.compact() == null ? null : meta.compact().carried();
             if (carried != null && !carried.isEmpty()) {
                 spent.add(carried);
             }

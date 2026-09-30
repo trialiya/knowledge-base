@@ -21,8 +21,7 @@ class SearchAgentResultTest {
     @Test
     void modelPayloadExposesReportButHidesCostAndDuration() {
         SearchAgentResult result =
-                new SearchAgentResult(
-                        "billing", "найдено в Foo.java:10", true, 2, 1234L, "gpt-5-mini", USAGE);
+                new SearchAgentResult("billing", "найдено в Foo.java:10", true, 2, 1234L, "gpt-5-mini", USAGE);
 
         String json = new DefaultToolCallResultConverter().convert(result, SearchAgentResult.class);
 
@@ -42,8 +41,7 @@ class SearchAgentResultTest {
     @Test
     void invocationLogCarriesMetaAndGist() {
         SearchAgentResult result =
-                new SearchAgentResult(
-                        "billing", "a".repeat(300), false, 3, 1234L, "gpt-5-mini", USAGE);
+                new SearchAgentResult("billing", "a".repeat(300), false, 3, 1234L, "gpt-5-mini", USAGE);
 
         assertThat(result.getResultMeta())
                 .containsEntry("project", "billing")
@@ -66,8 +64,7 @@ class SearchAgentResultTest {
     @Test
     void anUnmeasuredRunCarriesNoUsageKey() {
         SearchAgentResult result =
-                new SearchAgentResult(
-                        "billing", "отчёт", true, 1, 10L, "gpt-5-mini", RunTokenUsage.EMPTY);
+                new SearchAgentResult("billing", "отчёт", true, 1, 10L, "gpt-5-mini", RunTokenUsage.EMPTY);
 
         assertThat(result.getResultMeta()).containsEntry("model", "gpt-5-mini");
         assertThat(result.getResultMeta()).doesNotContainKey("usage");

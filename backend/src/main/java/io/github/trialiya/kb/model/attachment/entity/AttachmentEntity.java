@@ -29,16 +29,20 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("attachments")
 public class AttachmentEntity {
 
-    @Id @Nullable private Long id;
+    @Id
+    @Nullable
+    private Long id;
 
     /** Discriminator: {@link AttachmentOwnerType#DOCUMENT} or {@link AttachmentOwnerType#CHAT}. */
     private AttachmentOwnerType ownerType;
 
     /** FK → documents.id (non-null when ownerType = 'document'). */
-    @Nullable private Long documentId;
+    @Nullable
+    private Long documentId;
 
     /** FK → chat_topic.conversation_id (non-null when ownerType = 'chat'). */
-    @Nullable private String conversationId;
+    @Nullable
+    private String conversationId;
 
     // ── File metadata ────────────────────────────────────────────────────────
 
@@ -54,10 +58,12 @@ public class AttachmentEntity {
     // ── Content ──────────────────────────────────────────────────────────────
 
     /** Raw text content (for text-based files). */
-    @Nullable private String content;
+    @Nullable
+    private String content;
 
     /** AI-generated summary / description. */
-    @Nullable private String summary;
+    @Nullable
+    private String summary;
 
     // ── Source ────────────────────────────────────────────────────────────────
 
@@ -65,7 +71,8 @@ public class AttachmentEntity {
      * URL of the external source this attachment was fetched from (JIRA, Confluence, etc.). Null
      * for user-uploaded files.
      */
-    @Nullable private String sourceUrl;
+    @Nullable
+    private String sourceUrl;
 
     // ── Timestamps ───────────────────────────────────────────────────────────
 

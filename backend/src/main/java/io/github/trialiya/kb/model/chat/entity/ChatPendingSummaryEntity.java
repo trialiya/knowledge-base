@@ -20,17 +20,30 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table(name = "chat_pending_summary")
 public class ChatPendingSummaryEntity implements Persistable<Long> {
 
-    @Id private long id;
-    @NonNull private final String conversationId;
+    @Id
+    private long id;
+
+    @NonNull
+    private final String conversationId;
+
     private final long startPosition;
     private final long endPosition;
     private final long summaryPosition;
-    @NonNull private final LocalDateTime summaryCreatedAt;
-    @NonNull private final String text;
+
+    @NonNull
+    private final LocalDateTime summaryCreatedAt;
+
+    @NonNull
+    private final String text;
+
     private final int messages;
     private final int summaryChars;
-    @Nullable private final ChatMessageMeta meta;
-    @NonNull private final LocalDateTime createdAt;
+
+    @Nullable
+    private final ChatMessageMeta meta;
+
+    @NonNull
+    private final LocalDateTime createdAt;
 
     public ChatPendingSummaryEntity(
             long id,

@@ -48,7 +48,8 @@ class DocumentExportServiceTest {
 
     private DocumentRepository repo;
 
-    @TempDir Path exportDir;
+    @TempDir
+    Path exportDir;
 
     private DocumentExportService service;
 
@@ -64,32 +65,18 @@ class DocumentExportServiceTest {
     /** A node plus its body — the two halves the export fetches separately. */
     private record Node(DocumentTreeRow row, String description) {}
 
-    private static Node doc(
-            long id, String title, Long parentId, int position, String description) {
+    private static Node doc(long id, String title, Long parentId, int position, String description) {
         return node(id, title, parentId, position, description, DocumentType.DOCUMENT);
     }
 
-    private static Node folder(
-            long id, String title, Long parentId, int position, String description) {
+    private static Node folder(long id, String title, Long parentId, int position, String description) {
         return node(id, title, parentId, position, description, DocumentType.FOLDER);
     }
 
     private static Node node(
-            long id,
-            String title,
-            Long parentId,
-            int position,
-            String description,
-            DocumentType type) {
+            long id, String title, Long parentId, int position, String description, DocumentType type) {
         return new Node(
-                new DocumentTreeRow(
-                        id,
-                        parentId,
-                        title,
-                        type,
-                        position,
-                        false,
-                        LocalDateTime.of(2026, 6, 14, 12, 0)),
+                new DocumentTreeRow(id, parentId, title, type, position, false, LocalDateTime.of(2026, 6, 14, 12, 0)),
                 description);
     }
 
@@ -105,26 +92,19 @@ class DocumentExportServiceTest {
         for (Node node : nodes) {
             rows.put(node.row().id(), node.row());
             bodies.put(node.row().id(), node.description());
-            byParent.computeIfAbsent(node.row().parentId(), k -> new ArrayList<>()).add(node.row());
+            byParent.computeIfAbsent(node.row().parentId(), k -> new ArrayList<>())
+                    .add(node.row());
         }
         byParent.values()
-                .forEach(
-                        level ->
-                                level.sort(
-                                        Comparator.comparingInt(DocumentTreeRow::position)
-                                                .thenComparing(DocumentTreeRow::title)));
+                .forEach(level -> level.sort(
+                        Comparator.comparingInt(DocumentTreeRow::position).thenComparing(DocumentTreeRow::title)));
 
         when(repo.findTreeRowsByParent(any()))
-                .thenAnswer(
-                        invocation -> byParent.getOrDefault(invocation.getArgument(0), List.of()));
+                .thenAnswer(invocation -> byParent.getOrDefault(invocation.getArgument(0), List.of()));
         when(repo.findTreeRowById(anyLong()))
-                .thenAnswer(
-                        invocation ->
-                                Optional.ofNullable(rows.get(invocation.<Long>getArgument(0))));
+                .thenAnswer(invocation -> Optional.ofNullable(rows.get(invocation.<Long>getArgument(0))));
         when(repo.findDescriptionById(anyLong()))
-                .thenAnswer(
-                        invocation ->
-                                Optional.ofNullable(bodies.get(invocation.<Long>getArgument(0))));
+                .thenAnswer(invocation -> Optional.ofNullable(bodies.get(invocation.<Long>getArgument(0))));
     }
 
     private String read(String relativePath) throws Exception {
@@ -138,12 +118,11 @@ class DocumentExportServiceTest {
 
         @Test
         void writesFolderAndDocumentFilesWithMeta() {
-            stubTree(
-                    List.of(
-                            folder(1, "Docs", null, 0, "Folder body"),
-                            doc(2, "Intro", 1L, 0, "Intro body"),
-                            doc(3, "API", 1L, 1, "API body"),
-                            doc(4, "Root Doc", null, 1, "Top body")));
+            stubTree(List.of(
+                    folder(1, "Docs", null, 0, "Folder body"),
+                    doc(2, "Intro", 1L, 0, "Intro body"),
+                    doc(3, "API", 1L, 1, "API body"),
+                    doc(4, "Root Doc", null, 1, "Top body")));
 
             service.exportAll(true);
 
@@ -162,10 +141,7 @@ class DocumentExportServiceTest {
 
         @Test
         void omitsSidecarYamlWhenMetaDisabled() {
-            stubTree(
-                    List.of(
-                            folder(1, "Docs", null, 0, "Folder body"),
-                            doc(2, "Intro", 1L, 0, "b")));
+            stubTree(List.of(folder(1, "Docs", null, 0, "Folder body"), doc(2, "Intro", 1L, 0, "b")));
 
             service.exportAll(false);
 
@@ -178,10 +154,7 @@ class DocumentExportServiceTest {
 
         @Test
         void rootIndexListsChildrenInPositionOrder() throws Exception {
-            stubTree(
-                    List.of(
-                            folder(1, "Docs", null, 0, ""),
-                            doc(4, "Root Doc", null, 1, "Top body")));
+            stubTree(List.of(folder(1, "Docs", null, 0, ""), doc(4, "Root Doc", null, 1, "Top body")));
 
             service.exportAll(true);
 
@@ -207,10 +180,7 @@ class DocumentExportServiceTest {
 
         @Test
         void disambiguatesSiblingsThatNormaliseToTheSameName() {
-            stubTree(
-                    List.of(
-                            doc(1, "Intro!", null, 0, "first"),
-                            doc(2, "Intro?", null, 1, "second")));
+            stubTree(List.of(doc(1, "Intro!", null, 0, "first"), doc(2, "Intro?", null, 1, "second")));
 
             service.exportAll(false);
 
@@ -226,27 +196,23 @@ class DocumentExportServiceTest {
 
         @Test
         void rewritesInternalDocLinkToRelativePath() throws Exception {
-            stubTree(
-                    List.of(
-                            folder(1, "Docs", null, 0, ""),
-                            doc(2, "Intro", 1L, 0, "See [API doc](/?doc=3) for details."),
-                            doc(3, "API", 1L, 1, "API body")));
+            stubTree(List.of(
+                    folder(1, "Docs", null, 0, ""),
+                    doc(2, "Intro", 1L, 0, "See [API doc](/?doc=3) for details."),
+                    doc(3, "API", 1L, 1, "API body")));
 
             service.exportAll(true);
 
             // intro.md and api.md are siblings, so the rewritten link is just the file name.
-            assertThat(read("docs/intro.md"))
-                    .contains("[API doc](api.md)")
-                    .doesNotContain("/?doc=3");
+            assertThat(read("docs/intro.md")).contains("[API doc](api.md)").doesNotContain("/?doc=3");
         }
 
         @Test
         void rewritesCrossFolderLinkToRelativePath() throws Exception {
-            stubTree(
-                    List.of(
-                            folder(1, "Docs", null, 0, ""),
-                            doc(2, "Intro", 1L, 0, "Jump to [top](/?doc=4)."),
-                            doc(4, "Root Doc", null, 1, "Top body")));
+            stubTree(List.of(
+                    folder(1, "Docs", null, 0, ""),
+                    doc(2, "Intro", 1L, 0, "Jump to [top](/?doc=4)."),
+                    doc(4, "Root Doc", null, 1, "Top body")));
 
             service.exportAll(true);
 
@@ -265,10 +231,9 @@ class DocumentExportServiceTest {
 
         @Test
         void rewritesLinkPointingToFolderContent() throws Exception {
-            stubTree(
-                    List.of(
-                            folder(1, "Docs", null, 0, "Folder body"),
-                            doc(4, "Root Doc", null, 1, "Go to [folder](/?doc=1).")));
+            stubTree(List.of(
+                    folder(1, "Docs", null, 0, "Folder body"),
+                    doc(4, "Root Doc", null, 1, "Go to [folder](/?doc=1).")));
 
             service.exportAll(true);
 
@@ -278,14 +243,7 @@ class DocumentExportServiceTest {
 
         @Test
         void flattensRepoFileLinks() throws Exception {
-            stubTree(
-                    List.of(
-                            doc(
-                                    2,
-                                    "Intro",
-                                    null,
-                                    0,
-                                    "See [Git.java](/files?path=backend/Git.java#L1-L10).")));
+            stubTree(List.of(doc(2, "Intro", null, 0, "See [Git.java](/files?path=backend/Git.java#L1-L10).")));
 
             service.exportAll(false);
 
@@ -300,16 +258,14 @@ class DocumentExportServiceTest {
 
         @Test
         void emitsTheFolderItselfAndItsChildrenUnderTheFolderName() {
-            stubTree(
-                    List.of(
-                            folder(1, "Docs", null, 0, "Folder body"),
-                            doc(2, "Intro", 1L, 0, "Intro body"),
-                            doc(4, "Root Doc", null, 1, "outside the subtree")));
+            stubTree(List.of(
+                    folder(1, "Docs", null, 0, "Folder body"),
+                    doc(2, "Intro", 1L, 0, "Intro body"),
+                    doc(4, "Root Doc", null, 1, "outside the subtree")));
 
             Map<String, String> entries = collectSubtree(1L, false);
 
-            assertThat(entries)
-                    .containsOnlyKeys("docs/.content.md", "docs/.index.md", "docs/intro.md");
+            assertThat(entries).containsOnlyKeys("docs/.content.md", "docs/.index.md", "docs/intro.md");
             assertThat(entries.get("docs/.content.md")).isEqualTo("Folder body\n");
             assertThat(entries.get("docs/.index.md")).isEqualTo("- [Intro](intro.md)\n");
         }
@@ -319,17 +275,15 @@ class DocumentExportServiceTest {
             stubTree(List.of(folder(1, "Docs", null, 0, ""), doc(2, "Intro", 1L, 0, "body")));
 
             assertThat(collectSubtree(1L, true)).containsKeys("docs/.meta.yaml", "docs/intro.yaml");
-            assertThat(collectSubtree(1L, false))
-                    .doesNotContainKeys("docs/.meta.yaml", "docs/intro.yaml");
+            assertThat(collectSubtree(1L, false)).doesNotContainKeys("docs/.meta.yaml", "docs/intro.yaml");
         }
 
         @Test
         void keepsLinksThatLeaveTheSubtreeAsAppLinks() {
-            stubTree(
-                    List.of(
-                            folder(1, "Docs", null, 0, ""),
-                            doc(2, "Intro", 1L, 0, "Out: [top](/?doc=4)"),
-                            doc(4, "Root Doc", null, 1, "Top body")));
+            stubTree(List.of(
+                    folder(1, "Docs", null, 0, ""),
+                    doc(2, "Intro", 1L, 0, "Out: [top](/?doc=4)"),
+                    doc(4, "Root Doc", null, 1, "Top body")));
 
             assertThat(collectSubtree(1L, false).get("docs/intro.md")).contains("[top](/?doc=4)");
         }
@@ -338,9 +292,8 @@ class DocumentExportServiceTest {
         void refusesToStreamADocument() {
             stubTree(List.of(doc(2, "Intro", null, 0, "body")));
 
-            assertThat(
-                            org.junit.jupiter.api.Assertions.assertThrows(
-                                    ResponseStatusException.class, () -> collectSubtree(2L, false)))
+            assertThat(org.junit.jupiter.api.Assertions.assertThrows(
+                            ResponseStatusException.class, () -> collectSubtree(2L, false)))
                     .hasMessageContaining("folder");
         }
 
@@ -370,11 +323,10 @@ class DocumentExportServiceTest {
 
         @Test
         void producesTheSameFilesTheFolderExportWouldWrite() throws Exception {
-            stubTree(
-                    List.of(
-                            folder(1, "Docs", null, 0, "Folder body"),
-                            doc(2, "Intro", 1L, 0, "Intro body"),
-                            doc(4, "Root Doc", null, 1, "Root body")));
+            stubTree(List.of(
+                    folder(1, "Docs", null, 0, "Folder body"),
+                    doc(2, "Intro", 1L, 0, "Intro body"),
+                    doc(4, "Root Doc", null, 1, "Root body")));
 
             Map<String, String> archive = collectAll(true);
             service.exportAll(true);
@@ -394,8 +346,7 @@ class DocumentExportServiceTest {
             stubTree(List.of(folder(1, "Docs", null, 0, ""), doc(2, "Intro", 1L, 0, "body")));
 
             assertThat(collectAll(false))
-                    .containsOnlyKeys(
-                            "docs/.content.md", "docs/.index.md", "docs/intro.md", ".index.md");
+                    .containsOnlyKeys("docs/.content.md", "docs/.index.md", "docs/intro.md", ".index.md");
         }
 
         @Test
@@ -449,11 +400,8 @@ class DocumentExportServiceTest {
 
     @Test
     void reportsOneProgressEventPerNode() {
-        stubTree(
-                List.of(
-                        folder(1, "Docs", null, 0, ""),
-                        doc(2, "Intro", 1L, 0, "body"),
-                        doc(4, "Root Doc", null, 1, "body")));
+        stubTree(List.of(
+                folder(1, "Docs", null, 0, ""), doc(2, "Intro", 1L, 0, "body"), doc(4, "Root Doc", null, 1, "body")));
 
         List<String> paths = new ArrayList<>();
         service.exportAll(false, event -> paths.add(Objects.requireNonNull(event.path())));

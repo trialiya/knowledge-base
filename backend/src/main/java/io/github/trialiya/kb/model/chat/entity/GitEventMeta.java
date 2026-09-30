@@ -43,12 +43,7 @@ public record GitEventMeta(
     }
 
     /** A command that created no commit — every one but a successful {@code commit}. */
-    public GitEventMeta(
-            String command,
-            @Nullable String project,
-            boolean ok,
-            String output,
-            @Nullable String branch) {
+    public GitEventMeta(String command, @Nullable String project, boolean ok, String output, @Nullable String branch) {
         this(command, project, ok, output, branch, null);
     }
 }

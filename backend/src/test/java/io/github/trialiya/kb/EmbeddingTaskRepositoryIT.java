@@ -26,24 +26,21 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @DataJdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({
-    CommonConfig.class,
-    JdbcConfig.class,
-    PgVectorJdbcConfig.class,
-    EmbeddingTaskRepository.class
-})
+@Import({CommonConfig.class, JdbcConfig.class, PgVectorJdbcConfig.class, EmbeddingTaskRepository.class})
 class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
-    @Autowired private EmbeddingTaskRepository repo;
-    @Autowired private JdbcTemplate jdbc;
+    @Autowired
+    private EmbeddingTaskRepository repo;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     // ── Постановка в очередь ─────────────────────────────────────────────────
 
     @Test
     void enqueueIsIdempotentWhilePending() {
         repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 101L);
-        repo.enqueueIfAbsent(
-                EmbeddingEntityType.DOCUMENT, 101L); // ON CONFLICT DO NOTHING, не исключение
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 101L); // ON CONFLICT DO NOTHING, не исключение
 
         assertThat(countByStatus("document", 101L, "pending")).isEqualTo(1);
     }
@@ -72,10 +69,9 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
         assertThat(first).hasSize(2);
 
         // Остальные три остаются pending с нетронутыми attempts — ничего не superseded.
-        assertThat(
-                        jdbc.queryForObject(
-                                "SELECT COUNT(*) FROM embedding_tasks WHERE status = 'pending' AND attempts = 0",
-                                Integer.class))
+        assertThat(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM embedding_tasks WHERE status = 'pending' AND attempts = 0",
+                        Integer.class))
                 .isEqualTo(3);
 
         List<EmbeddingTaskEntity> second = repo.claimPending(10, 0);
@@ -93,8 +89,7 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
         repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 301L);
         repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 302L);
         // Внутри одной транзакции NOW() не меняется — состариваем первую строку явно.
-        jdbc.update(
-                "UPDATE embedding_tasks SET created_at = NOW() - interval '1 minute' WHERE entity_id = 301");
+        jdbc.update("UPDATE embedding_tasks SET created_at = NOW() - interval '1 minute' WHERE entity_id = 301");
 
         List<EmbeddingTaskEntity> claimed = repo.claimPending(1, 0);
 
@@ -110,8 +105,7 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
     void claimSkipsEntityAlreadyStarting() {
         repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 303L);
         repo.claimPending(10, 0);
-        repo.enqueueIfAbsent(
-                EmbeddingEntityType.DOCUMENT, 303L); // новая pending, пока старая в обработке
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 303L); // новая pending, пока старая в обработке
 
         // Пока по сущности есть starting-задача, её новая pending-строка не выдаётся.
         assertThat(repo.claimPending(10, 0)).isEmpty();
@@ -182,11 +176,8 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
         repo.releaseClaim(task.getId(), task.getClaimToken());
 
         assertThat(statusOf(task.getId())).isEqualTo("pending");
-        assertThat(
-                        jdbc.queryForObject(
-                                "SELECT attempts FROM embedding_tasks WHERE id = ?",
-                                Integer.class,
-                                task.getId()))
+        assertThat(jdbc.queryForObject(
+                        "SELECT attempts FROM embedding_tasks WHERE id = ?", Integer.class, task.getId()))
                 .isZero();
     }
 
@@ -231,18 +222,13 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
         EmbeddingTaskEntity done = repo.claimPending(1, 0).getFirst();
         long stillPending = done.getEntityId() == 312L ? 313L : 312L;
         repo.markDone(done.getId(), done.getClaimToken());
-        jdbc.update(
-                "UPDATE embedding_tasks SET updated_at = NOW() - interval '30 days' WHERE id = ?",
-                done.getId());
+        jdbc.update("UPDATE embedding_tasks SET updated_at = NOW() - interval '30 days' WHERE id = ?", done.getId());
 
         int deleted = repo.cleanupCompleted(7);
 
         assertThat(deleted).isEqualTo(1);
-        assertThat(
-                        jdbc.queryForObject(
-                                "SELECT COUNT(*) FROM embedding_tasks WHERE id = ?",
-                                Integer.class,
-                                done.getId()))
+        assertThat(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM embedding_tasks WHERE id = ?", Integer.class, done.getId()))
                 .isZero();
         assertThat(countByStatus("document", stillPending, "pending")).isEqualTo(1);
     }
@@ -250,24 +236,21 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private int countByStatus(String entityType, Long entityId, String status) {
-        Integer count =
-                jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM embedding_tasks WHERE entity_type = ? AND entity_id = ? AND status = ?",
-                        Integer.class,
-                        entityType,
-                        entityId,
-                        status);
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM embedding_tasks WHERE entity_type = ? AND entity_id = ? AND status = ?",
+                Integer.class,
+                entityType,
+                entityId,
+                status);
         return count == null ? 0 : count;
     }
 
     private String statusOf(Long id) {
-        return jdbc.queryForObject(
-                "SELECT status FROM embedding_tasks WHERE id = ?", String.class, id);
+        return jdbc.queryForObject("SELECT status FROM embedding_tasks WHERE id = ?", String.class, id);
     }
 
     private UUID claimTokenOf(Long id) {
-        return jdbc.queryForObject(
-                "SELECT claim_token FROM embedding_tasks WHERE id = ?", UUID.class, id);
+        return jdbc.queryForObject("SELECT claim_token FROM embedding_tasks WHERE id = ?", UUID.class, id);
     }
 
     private static Long idOfEntity(List<EmbeddingTaskEntity> tasks, long entityId) {

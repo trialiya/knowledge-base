@@ -24,10 +24,9 @@ public record SearchResult(
 
     @Override
     public String getFormattedResponse() {
-        String parents =
-                parentList == null
-                        ? null
-                        : parentList.stream().map(SearchResult.Parent::title).collect(joining("/"));
+        String parents = parentList == null
+                ? null
+                : parentList.stream().map(SearchResult.Parent::title).collect(joining("/"));
         return Compact.tag("doc:" + id)
                 .add("title", title)
                 .add("in", parents)

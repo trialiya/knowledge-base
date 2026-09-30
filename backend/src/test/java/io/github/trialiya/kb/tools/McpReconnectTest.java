@@ -54,7 +54,8 @@ class McpReconnectTest {
     private static final String CONNECTION = "jira";
     private static final String TOOL = "issue";
 
-    @TempDir Path tomcatDir;
+    @TempDir
+    Path tomcatDir;
 
     private final AtomicInteger probes = new AtomicInteger();
     private int port;
@@ -66,36 +67,26 @@ class McpReconnectTest {
     @BeforeEach
     void setUp() {
         port = freePort();
-        client =
-                McpClient.sync(
-                                HttpClientStreamableHttpTransport.builder(
-                                                "http://localhost:" + port)
-                                        .endpoint("/mcp")
-                                        .connectTimeout(Duration.ofSeconds(2))
-                                        .build())
-                        .clientInfo(
-                                McpSchema.Implementation.builder(
-                                                CLIENT_NAME + " - " + CONNECTION, "1")
-                                        .build())
-                        .requestTimeout(Duration.ofSeconds(5))
-                        .initializationTimeout(Duration.ofSeconds(5))
-                        .build();
+        client = McpClient.sync(HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
+                        .endpoint("/mcp")
+                        .connectTimeout(Duration.ofSeconds(2))
+                        .build())
+                .clientInfo(McpSchema.Implementation.builder(CLIENT_NAME + " - " + CONNECTION, "1")
+                        .build())
+                .requestTimeout(Duration.ofSeconds(5))
+                .initializationTimeout(Duration.ofSeconds(5))
+                .build();
         // The real per-connection source, counted: a failed probe leaves the status where it was
         // (DOWN stays DOWN), so the status alone cannot say that a round has finished.
-        ToolSource source =
-                McpToolRegistry.sources(List.of(client), List.of(), CLIENT_NAME, null, null, null)
-                        .get(CONNECTION);
-        registry =
-                new McpToolRegistry(
-                        Map.of(
-                                CONNECTION,
-                                () -> {
-                                    try {
-                                        return source.list();
-                                    } finally {
-                                        probes.incrementAndGet();
-                                    }
-                                }));
+        ToolSource source = McpToolRegistry.sources(List.of(client), List.of(), CLIENT_NAME, null, null, null)
+                .get(CONNECTION);
+        registry = new McpToolRegistry(Map.of(CONNECTION, () -> {
+            try {
+                return source.list();
+            } finally {
+                probes.incrementAndGet();
+            }
+        }));
     }
 
     @AfterEach
@@ -157,9 +148,8 @@ class McpReconnectTest {
      */
     private void awaitRound(int count, ConnectionStatus expected) {
         Awaitility.await().atMost(Duration.ofSeconds(15)).until(() -> probes.get() >= count);
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(5))
-                .untilAsserted(() -> assertThat(registry.statuses()).containsExactly(expected));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(registry.statuses())
+                .containsExactly(expected));
     }
 
     private String callTool() {
@@ -181,26 +171,22 @@ class McpReconnectTest {
 
     /** A fresh server every time — nothing of a stopped one's sessions survives into the next. */
     private void startServer() {
-        HttpServletStreamableServerTransportProvider transport =
-                HttpServletStreamableServerTransportProvider.builder().mcpEndpoint("/mcp").build();
-        McpSyncServer mcp =
-                McpServer.sync(transport)
-                        .serverInfo("test-server", "1")
-                        .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build())
-                        .tools(
-                                SyncToolSpecification.builder()
-                                        .tool(
-                                                McpSchema.Tool.builder(
-                                                                TOOL, Map.of("type", "object"))
-                                                        .description("Looks an issue up")
-                                                        .build())
-                                        .callHandler(
-                                                (exchange, request) ->
-                                                        McpSchema.CallToolResult.builder()
-                                                                .addTextContent("answered")
-                                                                .build())
-                                        .build())
-                        .build();
+        HttpServletStreamableServerTransportProvider transport = HttpServletStreamableServerTransportProvider.builder()
+                .mcpEndpoint("/mcp")
+                .build();
+        McpSyncServer mcp = McpServer.sync(transport)
+                .serverInfo("test-server", "1")
+                .capabilities(
+                        McpSchema.ServerCapabilities.builder().tools(false).build())
+                .tools(SyncToolSpecification.builder()
+                        .tool(McpSchema.Tool.builder(TOOL, Map.of("type", "object"))
+                                .description("Looks an issue up")
+                                .build())
+                        .callHandler((exchange, request) -> McpSchema.CallToolResult.builder()
+                                .addTextContent("answered")
+                                .build())
+                        .build())
+                .build();
         Tomcat tomcat = new Tomcat();
         tomcat.setBaseDir(tomcatDir.toString());
         tomcat.setPort(port);

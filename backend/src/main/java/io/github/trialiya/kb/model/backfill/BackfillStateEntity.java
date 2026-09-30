@@ -27,9 +27,13 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("backfill_state")
 public class BackfillStateEntity implements Persistable<String> {
 
-    @Id private final String name;
+    @Id
+    private final String name;
+
     private final LocalDateTime doneAt;
-    @Transient private final boolean isNew;
+
+    @Transient
+    private final boolean isNew;
 
     /** Канонический конструктор. */
     public BackfillStateEntity(String name, LocalDateTime doneAt, boolean isNew) {

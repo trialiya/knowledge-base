@@ -19,8 +19,7 @@ import java.util.Map;
  * @param args the arguments it ran with, after defaults and coercion — what the script saw, not
  *     what the caller typed
  */
-public record ScriptRunSource(
-        Kind kind, String name, String path, String sha, Map<String, Object> args) {
+public record ScriptRunSource(Kind kind, String name, String path, String sha, Map<String, Object> args) {
 
     public ScriptRunSource {
         args = args == null ? Map.of() : new LinkedHashMap<>(args);

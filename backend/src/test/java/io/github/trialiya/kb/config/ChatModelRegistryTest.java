@@ -32,21 +32,11 @@ class ChatModelRegistryTest {
     @Test
     void onlyModelsWithTheirOwnEndpointGetAConnectionOfTheirOwn() {
         OpenAiChatModel defaultConnection = mock(OpenAiChatModel.class);
-        ChatModelRegistry registry =
-                build(
-                        defaultConnection,
-                        new ModelOption("shared", "Shared", true, true, null, null, null, false),
-                        new ModelOption(
-                                "remote",
-                                "Remote",
-                                false,
-                                true,
-                                null,
-                                "https://llm.example/v1",
-                                "sk-r",
-                                false),
-                        new ModelOption(
-                                "own-key", "Own key", false, true, null, null, "sk-k", false));
+        ChatModelRegistry registry = build(
+                defaultConnection,
+                new ModelOption("shared", "Shared", true, true, null, null, null, false),
+                new ModelOption("remote", "Remote", false, true, null, "https://llm.example/v1", "sk-r", false),
+                new ModelOption("own-key", "Own key", false, true, null, null, "sk-k", false));
 
         assertThat(registry.ownEndpointModelIds()).containsExactlyInAnyOrder("remote", "own-key");
         // Никакого переопределения на прогон — дефолтное соединение.
@@ -66,9 +56,7 @@ class ChatModelRegistryTest {
     void withoutSuchModelsThereIsOnlyTheDefaultConnection() {
         OpenAiChatModel defaultConnection = mock(OpenAiChatModel.class);
         ChatModelRegistry registry =
-                build(
-                        defaultConnection,
-                        new ModelOption("shared", "Shared", true, true, null, null, null, false));
+                build(defaultConnection, new ModelOption("shared", "Shared", true, true, null, null, null, false));
 
         assertThat(registry.ownEndpointModelIds()).isEmpty();
         assertThat(registry.forModel("shared")).isSameAs(defaultConnection);
@@ -80,18 +68,9 @@ class ChatModelRegistryTest {
         // (см. ChatModelProperties). Прогон без явной модели идёт на неё же, иначе соединение
         // работало бы только когда пользователь выбрал модель в списке руками.
         OpenAiChatModel defaultConnection = mock(OpenAiChatModel.class);
-        ChatModelRegistry registry =
-                build(
-                        defaultConnection,
-                        new ModelOption(
-                                "default-model",
-                                "Default",
-                                true,
-                                true,
-                                null,
-                                "https://llm.example/v1",
-                                "sk-d",
-                                false));
+        ChatModelRegistry registry = build(
+                defaultConnection,
+                new ModelOption("default-model", "Default", true, true, null, "https://llm.example/v1", "sk-d", false));
 
         assertThat(registry.forModel(null)).isNotSameAs(defaultConnection);
         assertThat(registry.forModel(null)).isSameAs(registry.forModel("default-model"));
@@ -110,43 +89,30 @@ class ChatModelRegistryTest {
         common.setTimeout(Duration.ofMinutes(10));
         OpenAiChatProperties chat = new OpenAiChatProperties();
 
-        OpenAiChatModel shared =
-                ChatModelRegistry.buildDefaultModel(
-                        common, chat, mock(ToolCallingManager.class), absent(), absent(), empty());
-        ChatModelRegistry registry =
-                ChatModelRegistry.build(
-                        shared,
-                        new ChatModelProperties(
-                                DEFAULT_MODEL,
-                                List.of(
-                                        new ModelOption(
-                                                "remote",
-                                                "Remote",
-                                                false,
-                                                true,
-                                                null,
-                                                "https://llm.example/v1",
-                                                "sk-r",
-                                                false))),
-                        common,
-                        chat,
-                        mock(ToolCallingManager.class),
-                        absent(),
-                        absent(),
-                        empty());
+        OpenAiChatModel shared = ChatModelRegistry.buildDefaultModel(
+                common, chat, mock(ToolCallingManager.class), absent(), absent(), empty());
+        ChatModelRegistry registry = ChatModelRegistry.build(
+                shared,
+                new ChatModelProperties(
+                        DEFAULT_MODEL,
+                        List.of(new ModelOption(
+                                "remote", "Remote", false, true, null, "https://llm.example/v1", "sk-r", false))),
+                common,
+                chat,
+                mock(ToolCallingManager.class),
+                absent(),
+                absent(),
+                empty());
 
         assertThat(shared.getOptions().getTimeout())
                 .isEqualTo(Duration.ofMinutes(10))
                 .isNotEqualTo(AbstractOpenAiProperties.DEFAULT_TIMEOUT);
-        assertThat(registry.forModel("remote").getOptions().getTimeout())
-                .isEqualTo(Duration.ofMinutes(10));
+        assertThat(registry.forModel("remote").getOptions().getTimeout()).isEqualTo(Duration.ofMinutes(10));
         // Ловушка, ради которой это закреплено тестом: незаданный дедлайн — не «как у клиента».
-        assertThat(chat.toOptions().getTimeout())
-                .isEqualTo(AbstractOpenAiProperties.DEFAULT_TIMEOUT);
+        assertThat(chat.toOptions().getTimeout()).isEqualTo(AbstractOpenAiProperties.DEFAULT_TIMEOUT);
     }
 
-    private static ChatModelRegistry build(
-            OpenAiChatModel defaultConnection, ModelOption... models) {
+    private static ChatModelRegistry build(OpenAiChatModel defaultConnection, ModelOption... models) {
         OpenAiCommonProperties common = new OpenAiCommonProperties();
         common.setBaseUrl("https://default.example");
         common.setApiKey("sk-default");

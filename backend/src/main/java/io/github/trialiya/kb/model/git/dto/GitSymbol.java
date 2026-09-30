@@ -19,14 +19,7 @@ public record GitSymbol(String kind, String name, String signature, int startLin
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
     @Override
     public String getFormattedResponse() {
-        return kind
-                + " "
-                + name
-                + " L"
-                + startLine
-                + "-"
-                + endLine
-                + (signature == null ? "" : "  " + signature);
+        return kind + " " + name + " L" + startLine + "-" + endLine + (signature == null ? "" : "  " + signature);
     }
 
     @Override

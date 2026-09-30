@@ -42,8 +42,7 @@ class ScriptResultFunctionTest {
 
         function.saveScriptResult(context, "r1", "todo.csv");
 
-        verify(attachments)
-                .createFromText(CHAT, "todo.csv", "text/csv", "path,count\nsrc/App.java,3\n");
+        verify(attachments).createFromText(CHAT, "todo.csv", "text/csv", "path,count\nsrc/App.java,3\n");
     }
 
     @Test
@@ -54,11 +53,7 @@ class ScriptResultFunctionTest {
 
         final ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
         verify(attachments)
-                .createFromText(
-                        eq(CHAT),
-                        eq("script-result-r1.json"),
-                        eq("application/json"),
-                        content.capture());
+                .createFromText(eq(CHAT), eq("script-result-r1.json"), eq("application/json"), content.capture());
         assertThat(content.getValue()).contains("\"n\" : 3").contains("\n");
     }
 

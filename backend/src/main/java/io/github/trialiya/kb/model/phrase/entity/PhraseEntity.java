@@ -25,27 +25,16 @@ public record PhraseEntity(
 
     /** Copy with the enabled flag flipped/set. */
     public PhraseEntity withEnabled(boolean en) {
-        return new PhraseEntity(
-                id, category, label, text, position, en, favorite, createdAt, Instant.now());
+        return new PhraseEntity(id, category, label, text, position, en, favorite, createdAt, Instant.now());
     }
 
     /** Copy at a new position within the same category. */
     public PhraseEntity withPosition(int newPosition) {
-        return new PhraseEntity(
-                id,
-                category,
-                label,
-                text,
-                newPosition,
-                enabled,
-                favorite,
-                createdAt,
-                Instant.now());
+        return new PhraseEntity(id, category, label, text, newPosition, enabled, favorite, createdAt, Instant.now());
     }
 
     /** Copy with the favourite flag flipped/set. */
     public PhraseEntity withFavorite(boolean fav) {
-        return new PhraseEntity(
-                id, category, label, text, position, enabled, fav, createdAt, Instant.now());
+        return new PhraseEntity(id, category, label, text, position, enabled, fav, createdAt, Instant.now());
     }
 }

@@ -31,7 +31,9 @@ public class ChatRuntimeMonitor {
     private final RunRegistry runs;
     private final ConversationSlots slots;
     private final long intervalMs;
-    @Nullable private ScheduledExecutorService scheduler;
+
+    @Nullable
+    private ScheduledExecutorService scheduler;
 
     public ChatRuntimeMonitor(
             ChatEventService chatEventService,
@@ -50,15 +52,12 @@ public class ChatRuntimeMonitor {
             log.info("Chat runtime monitor disabled (kb.chat.monitor-interval-ms={})", intervalMs);
             return;
         }
-        scheduler =
-                Executors.newSingleThreadScheduledExecutor(
-                        runnable -> {
-                            final Thread thread = new Thread(runnable, "chat-runtime-monitor");
-                            thread.setDaemon(true);
-                            return thread;
-                        });
-        scheduler.scheduleWithFixedDelay(
-                this::logSizes, intervalMs, intervalMs, TimeUnit.MILLISECONDS);
+        scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            final Thread thread = new Thread(runnable, "chat-runtime-monitor");
+            thread.setDaemon(true);
+            return thread;
+        });
+        scheduler.scheduleWithFixedDelay(this::logSizes, intervalMs, intervalMs, TimeUnit.MILLISECONDS);
     }
 
     private void logSizes() {

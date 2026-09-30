@@ -70,19 +70,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
         if (ex.getStatusCode().is4xxClientError()) {
             // getMessage() уже начинается со статуса — в строку идёт только причина.
-            log.warn(
-                    "{}: {}",
-                    ex.getStatusCode(),
-                    Objects.requireNonNullElseGet(ex.getReason(), ex::getMessage));
+            log.warn("{}: {}", ex.getStatusCode(), Objects.requireNonNullElseGet(ex.getReason(), ex::getMessage));
         } else {
             log.error(ex.getMessage(), ex);
         }
-        ErrorResponse error =
-                new ErrorResponse(
-                        Objects.requireNonNullElse(
-                                HttpStatus.resolve(ex.getStatusCode().value()),
-                                HttpStatus.INTERNAL_SERVER_ERROR),
-                        ex.getMessage());
+        ErrorResponse error = new ErrorResponse(
+                Objects.requireNonNullElse(
+                        HttpStatus.resolve(ex.getStatusCode().value()), HttpStatus.INTERNAL_SERVER_ERROR),
+                ex.getMessage());
         return new ResponseEntity<>(error, ex.getStatusCode());
     }
 
@@ -90,11 +85,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex) {
         log.error(ex.getMessage(), ex);
         ErrorResponse error =
-                new ErrorResponse(
-                        HttpStatus.INTERNAL_SERVER_ERROR,
-                        "An unexpected error occurred: " + ex.getMessage());
+                new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred: " + ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    private record ErrorResponse(HttpStatus status, @Nullable String message) {}
+    private record ErrorResponse(
+            HttpStatus status, @Nullable String message) {}
 }

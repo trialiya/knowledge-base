@@ -11,8 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface ToolCallIndexRepository extends CrudRepository<ToolCallIndexEntity, Long> {
 
-    Optional<ToolCallIndexEntity> findByConversationIdAndCallId(
-            String conversationId, String callId);
+    Optional<ToolCallIndexEntity> findByConversationIdAndCallId(String conversationId, String callId);
 
     List<ToolCallIndexEntity> findAllByConversationId(String conversationId);
 
@@ -23,14 +22,12 @@ public interface ToolCallIndexRepository extends CrudRepository<ToolCallIndexEnt
      * call the index never saw has no way to be looked up, and a clickable badge would only answer
      * 404.
      */
-    @Query(
-            """
+    @Query("""
             select call_id from tool_call_index
              where conversation_id = :conversationId and call_id in (:callIds)
             """)
     List<String> findIndexedCallIds(
-            @Param("conversationId") String conversationId,
-            @Param("callIds") Collection<String> callIds);
+            @Param("conversationId") String conversationId, @Param("callIds") Collection<String> callIds);
 
     /**
      * Links a call's TOOL response row once it lands. The {@code IS NULL OR <>} guard makes the
@@ -38,8 +35,7 @@ public interface ToolCallIndexRepository extends CrudRepository<ToolCallIndexEnt
      * rows, not 1).
      */
     @Modifying
-    @Query(
-            """
+    @Query("""
             update tool_call_index
                set response_message_id = :responseMessageId
              where conversation_id = :conversationId and call_id = :callId

@@ -7,15 +7,13 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 
-public interface ChatPendingSummaryRepository
-        extends CrudRepository<ChatPendingSummaryEntity, Long> {
+public interface ChatPendingSummaryRepository extends CrudRepository<ChatPendingSummaryEntity, Long> {
 
     /**
      * Очередь неприменённых сводок чата, в порядке сжатых ими кусков — в том же порядке они и
      * применяются: каждая следующая описывает то, что накопилось за предыдущей.
      */
-    List<ChatPendingSummaryEntity> findByConversationIdOrderByStartPositionAsc(
-            String conversationId);
+    List<ChatPendingSummaryEntity> findByConversationIdOrderByStartPositionAsc(String conversationId);
 
     /**
      * Заявка на применение — claim-through-delete, как у очереди сообщений: применяет тот, чей

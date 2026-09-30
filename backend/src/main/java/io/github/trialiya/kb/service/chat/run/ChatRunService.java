@@ -81,12 +81,10 @@ public class ChatRunService {
 
     private static final String ERROR_MARKER = "[error]";
 
-    public static final String _UNKNOWN_FINISH_REASON =
-            ChatCompletion.Choice.FinishReason.Value._UNKNOWN.name();
+    public static final String _UNKNOWN_FINISH_REASON = ChatCompletion.Choice.FinishReason.Value._UNKNOWN.name();
 
     /** finishReason чанка-границы tool-цикла (Spring AI отдаёт его в верхнем регистре). */
-    private static final String TOOL_CALLS_FINISH_REASON =
-            ChatCompletion.Choice.FinishReason.Value.TOOL_CALLS.name();
+    private static final String TOOL_CALLS_FINISH_REASON = ChatCompletion.Choice.FinishReason.Value.TOOL_CALLS.name();
 
     /** Шаг опроса реестра прогонов в {@link #awaitQuiescence}. */
     private static final long QUIESCENCE_POLL_MS = 25;
@@ -196,31 +194,27 @@ public class ChatRunService {
             // Строго до записи вопроса — пауза меряется от последнего ряда чата, и записанный
             // вопрос обнулил бы её сам.
             pendingSummaries.applyIfPaused(conversationId);
-            userRow =
-                    userMessage != null
-                            ? chatHistory.saveUserMessage(
-                                    conversationId,
-                                    userMessage,
-                                    contextItems,
-                                    options.canonicalProject(),
-                                    options.projectSwitch())
-                            // Повтор: вопрос уже в истории, ходом остаётся он же. Проверку делаем
-                            // ПОСЛЕ ремонта хвоста — достроенный TOOL-ответ как раз и означает,
-                            // что модель уже начала отвечать, и повторять этот ход нельзя.
-                            // Проект при повторе выбирают заново, поэтому маркер смены может
-                            // появиться и здесь — на том же вопросе.
-                            : retried(
-                                    chatHistory
-                                            .unansweredUserMessage(conversationId)
-                                            .orElseThrow(
-                                                    () ->
-                                                            new ResponseStatusException(
-                                                                    HttpStatus
-                                                                            .UNPROCESSABLE_CONTENT,
-                                                                    "Nothing to retry: the last"
-                                                                            + " message is not an"
-                                                                            + " unanswered question")),
-                                    options);
+            userRow = userMessage != null
+                    ? chatHistory.saveUserMessage(
+                            conversationId,
+                            userMessage,
+                            contextItems,
+                            options.canonicalProject(),
+                            options.projectSwitch())
+                    // Повтор: вопрос уже в истории, ходом остаётся он же. Проверку делаем
+                    // ПОСЛЕ ремонта хвоста — достроенный TOOL-ответ как раз и означает,
+                    // что модель уже начала отвечать, и повторять этот ход нельзя.
+                    // Проект при повторе выбирают заново, поэтому маркер смены может
+                    // появиться и здесь — на том же вопросе.
+                    : retried(
+                            chatHistory
+                                    .unansweredUserMessage(conversationId)
+                                    .orElseThrow(() -> new ResponseStatusException(
+                                            HttpStatus.UNPROCESSABLE_CONTENT,
+                                            "Nothing to retry: the last"
+                                                    + " message is not an"
+                                                    + " unanswered question")),
+                            options);
         } catch (RuntimeException e) {
             // Заявку на чат не удерживаем: генерация так и не началась.
             slots.free(conversationId, runId);
@@ -230,8 +224,7 @@ public class ChatRunService {
         // нумерация вызовов, подписка на стрим, — живёт ровно столько же, сколько она. С учёта её
         // снимает терминальная обработка (см. onTerminal), а не cleanup: реестр прогон обязан
         // покинуть ДО доставки очереди.
-        final RunScope scope =
-                runs.open(runId, conversationId, user, chatClients.resolveModelId(options.model()));
+        final RunScope scope = runs.open(runId, conversationId, user, chatClients.resolveModelId(options.model()));
         events.startRun(conversationId, runId);
         // executor — DelegatingSecurityContextExecutorService: проставит SecurityContext текущего
         // пользователя на worker-поток. Операторы Reactor-стрима исполняются на ДРУГИХ потоках,
@@ -380,31 +373,18 @@ public class ChatRunService {
      */
     public Optional<ActiveRun> activeRun(String conversationId) {
         final boolean replayTruncated = events.replayTruncated(conversationId);
-        return slots.activeRun(conversationId)
-                .map(
-                        runId ->
-                                runs.find(runId)
-                                        .map(
-                                                scope ->
-                                                        new ActiveRun(
-                                                                runId,
-                                                                ActiveRun.Kind.GENERATION,
-                                                                scope.elapsedMs(),
-                                                                replayTruncated))
-                                        .orElseGet(
-                                                () ->
-                                                        new ActiveRun(
-                                                                runId,
-                                                                kindOutsideRegistry(
-                                                                        conversationId, runId),
-                                                                // Области прогона нет —
-                                                                // длительность
-                                                                // помнит сама заявка. Операции это
-                                                                // единственный источник, и таймер
-                                                                // сжатия живёт им.
-                                                                slots.elapsedMs(
-                                                                        conversationId, runId),
-                                                                replayTruncated)));
+        return slots.activeRun(conversationId).map(runId -> runs.find(runId)
+                .map(scope -> new ActiveRun(runId, ActiveRun.Kind.GENERATION, scope.elapsedMs(), replayTruncated))
+                .orElseGet(() -> new ActiveRun(
+                        runId,
+                        kindOutsideRegistry(conversationId, runId),
+                        // Области прогона нет —
+                        // длительность
+                        // помнит сама заявка. Операции это
+                        // единственный источник, и таймер
+                        // сжатия живёт им.
+                        slots.elapsedMs(conversationId, runId),
+                        replayTruncated)));
     }
 
     /**
@@ -415,9 +395,7 @@ public class ChatRunService {
      * ближайшего события потока — поэтому вид спрашиваем у заявки, которая помнит, кто её взял.
      */
     private ActiveRun.Kind kindOutsideRegistry(String conversationId, String runId) {
-        return slots.holdsGeneration(conversationId, runId)
-                ? ActiveRun.Kind.GENERATION
-                : ActiveRun.Kind.OPERATION;
+        return slots.holdsGeneration(conversationId, runId) ? ActiveRun.Kind.GENERATION : ActiveRun.Kind.OPERATION;
     }
 
     /**
@@ -435,11 +413,7 @@ public class ChatRunService {
         return runs.find(runId).filter(scope -> scope.conversationId().equals(conversationId));
     }
 
-    private void run(
-            RunScope scope,
-            ChatMessageEntity userRow,
-            RunOptions options,
-            @Nullable String clientMsgId) {
+    private void run(RunScope scope, ChatMessageEntity userRow, RunOptions options, @Nullable String clientMsgId) {
         final String resolvedModel = options.model();
         final boolean weakModel = options.weakModel();
         final String conversationId = scope.conversationId();
@@ -453,8 +427,7 @@ public class ChatRunService {
         // finishReason=TOOL_CALLS (агрегированный tool-чанк с ним ToolCallingAdvisor
         // отфильтровывает из потока и до onNext он не доходит). Сами live-события TOOL_CALL
         // публикует ToolCallEventPublisher при сохранении tool-данных сегмента.
-        final ToolInvocationCollector toolCollector =
-                new ToolInvocationCollector(() -> buffer.setLength(0));
+        final ToolInvocationCollector toolCollector = new ToolInvocationCollector(() -> buffer.setLength(0));
         // Публикация live-событий спрашивает у коллектора исход вызова: в сохранённых tool_data
         // провалившийся вызов выглядит как обычный (см. RunScope#completedCall).
         scope.attachCollector(toolCollector);
@@ -477,8 +450,7 @@ public class ChatRunService {
                         null));
         // Модель едет в RUN_STARTED, а не доезжает только после перезагрузки: пузырь помечают все
         // вкладки, включая те, где эту модель не выбирали.
-        events.publish(
-                conversationId, RUN_STARTED, runId, clientMsgId, Map.of("model", scope.model()));
+        events.publish(conversationId, RUN_STARTED, runId, clientMsgId, Map.of("model", scope.model()));
 
         try {
             // Последняя проверка перед промптом: окно у предела модели сжимается прямо здесь, и
@@ -499,39 +471,30 @@ public class ChatRunService {
                     scope::addCall);
             // The client, not just the model option, follows the resolved model: an entry of
             // kb.chat.models with its own base-url/api-key is served by a connection of its own.
-            ChatClient.ChatClientRequestSpec spec =
-                    chatClients
-                            .forModel(resolvedModel)
-                            .prompt()
-                            .system(
-                                    sp ->
-                                            sp.params(
-                                                    systemPromptService.placeholders(
-                                                            weakModel,
-                                                            options.project(),
-                                                            options.modeInstructions())))
-                            // Своего .user(...) здесь намеренно нет: вопрос уже сохранён в
-                            // истории (см. ChatHistoryService.saveUserMessage), и его подмешает
-                            // advisor памяти. Передать его ещё и сюда — значит сохранить вторым
-                            // рядом; см. PrePersistedUserMessageTest.
-                            // Инструменты MCP — здесь, а не в дефолтах клиента: клиент собран один
-                            // раз на старте, а подключения к внешним серверам поднимаются в фоне и
-                            // могут менять список инструментов по ходу работы (см.
-                            // McpToolRegistry).
-                            // Встроенные инструменты уже в дефолтах клиента, request-level список к
-                            // ним добавляется, а не заменяет их.
-                            .tools((Object[]) chatToolset.mcp().toArray(ToolCallback[]::new))
-                            .toolContext(
-                                    ChatUtils.context(conversationId)
-                                            .user(scope.user())
-                                            .project(options.project())
-                                            .collector(toolCollector)
-                                            .cancellation(new RunCancellation(scope::stopRequested))
-                                            .build())
-                            .advisors(
-                                    a ->
-                                            a.param(ChatMemory.CONVERSATION_ID, conversationId)
-                                                    .param(RUN_ID_PARAM, runId));
+            ChatClient.ChatClientRequestSpec spec = chatClients
+                    .forModel(resolvedModel)
+                    .prompt()
+                    .system(sp -> sp.params(
+                            systemPromptService.placeholders(weakModel, options.project(), options.modeInstructions())))
+                    // Своего .user(...) здесь намеренно нет: вопрос уже сохранён в
+                    // истории (см. ChatHistoryService.saveUserMessage), и его подмешает
+                    // advisor памяти. Передать его ещё и сюда — значит сохранить вторым
+                    // рядом; см. PrePersistedUserMessageTest.
+                    // Инструменты MCP — здесь, а не в дефолтах клиента: клиент собран один
+                    // раз на старте, а подключения к внешним серверам поднимаются в фоне и
+                    // могут менять список инструментов по ходу работы (см.
+                    // McpToolRegistry).
+                    // Встроенные инструменты уже в дефолтах клиента, request-level список к
+                    // ним добавляется, а не заменяет их.
+                    .tools((Object[]) chatToolset.mcp().toArray(ToolCallback[]::new))
+                    .toolContext(ChatUtils.context(conversationId)
+                            .user(scope.user())
+                            .project(options.project())
+                            .collector(toolCollector)
+                            .cancellation(new RunCancellation(scope::stopRequested))
+                            .build())
+                    .advisors(a ->
+                            a.param(ChatMemory.CONVERSATION_ID, conversationId).param(RUN_ID_PARAM, runId));
             // streamUsage — это stream_options.include_usage: без него OpenAI-совместимый
             // эндпоинт в стриме не присылает usage вовсе, и считать прогону будет нечего
             // (см. TokenUsageAdvisor). Опции ставим и без выбранной модели: на дефолтной прогон
@@ -544,28 +507,19 @@ public class ChatRunService {
             }
             spec = spec.options(chatOptions);
 
-            final Disposable disposable =
-                    spec.stream()
-                            .chatResponse()
-                            .doFinally(
-                                    signal ->
-                                            onTerminal(
-                                                    scope,
-                                                    buffer,
-                                                    reasoning.get(),
-                                                    toolCollector,
-                                                    signal))
-                            .subscribe(
-                                    response -> onNext(buffer, reasoning, liveSink, response),
-                                    error -> log.error("Stream error {}", conversationId, error),
-                                    () -> onComplete(scope, toolCollector, liveSink));
+            final Disposable disposable = spec.stream()
+                    .chatResponse()
+                    .doFinally(signal -> onTerminal(scope, buffer, reasoning.get(), toolCollector, signal))
+                    .subscribe(
+                            response -> onNext(buffer, reasoning, liveSink, response),
+                            error -> log.error("Stream error {}", conversationId, error),
+                            () -> onComplete(scope, toolCollector, liveSink));
             // Остановку могли запросить, пока задача ещё не подписалась на стрим, — attach
             // закрывает это окно (см. RunScope.cancel).
             scope.attach(disposable);
         } catch (Exception e) {
             log.error("Failed to run {}", conversationId, e);
-            events.publish(
-                    conversationId, RUN_ERROR, runId, null, Map.of("message", "start failed"));
+            events.publish(conversationId, RUN_ERROR, runId, null, Map.of("message", "start failed"));
             abort(scope);
         }
     }
@@ -583,15 +537,14 @@ public class ChatRunService {
 
         CallReasoning next(ChatResponse response) {
             final String id = response.getMetadata().getId();
-            final String total =
-                    response.getResult() != null
-                                    && response.getResult()
-                                                    .getOutput()
-                                                    .getMetadata()
-                                                    .get(AssistantChatMessage.REASONING_CONTENT)
-                                            instanceof String running
-                            ? running
-                            : "";
+            final String total = response.getResult() != null
+                            && response.getResult()
+                                            .getOutput()
+                                            .getMetadata()
+                                            .get(AssistantChatMessage.REASONING_CONTENT)
+                                    instanceof String running
+                    ? running
+                    : "";
             if (Objects.equals(id, callId)) {
                 return total.isEmpty() ? this : new CallReasoning(id, total);
             }
@@ -607,19 +560,17 @@ public class ChatRunService {
         if (response != null) {
             reasoning.updateAndGet(current -> current.next(response));
         }
-        final String chunk =
-                Optional.ofNullable(response)
-                        .map(ChatResponse::getResult)
-                        .map(Generation::getOutput)
-                        .map(AbstractMessage::getText)
-                        .orElse("");
-        final String finishReason =
-                Optional.ofNullable(response)
-                        .map(ChatResponse::getResult)
-                        .map(Generation::getMetadata)
-                        .map(ChatGenerationMetadata::getFinishReason)
-                        .filter(Predicate.not(_UNKNOWN_FINISH_REASON::equals))
-                        .orElse(null);
+        final String chunk = Optional.ofNullable(response)
+                .map(ChatResponse::getResult)
+                .map(Generation::getOutput)
+                .map(AbstractMessage::getText)
+                .orElse("");
+        final String finishReason = Optional.ofNullable(response)
+                .map(ChatResponse::getResult)
+                .map(Generation::getMetadata)
+                .map(ChatGenerationMetadata::getFinishReason)
+                .filter(Predicate.not(_UNKNOWN_FINISH_REASON::equals))
+                .orElse(null);
         if (!chunk.isEmpty()) {
             buffer.append(chunk);
         }
@@ -632,22 +583,20 @@ public class ChatRunService {
         liveSink.accept(new StreamMessage(chunk, finishReason));
     }
 
-    private void onComplete(
-            RunScope scope, ToolInvocationCollector toolCollector, Consumer<Object> liveSink) {
+    private void onComplete(RunScope scope, ToolInvocationCollector toolCollector, Consumer<Object> liveSink) {
         // Результат не читаем намеренно: за успешно завершившимся прогоном частичного сохранения
         // уже не будет, и заявка нужна только чтобы его не сделал опоздавший терминальный сигнал.
         scope.claimPersist();
         // Персист сначала, затем live-событие с уже персистнутыми metas (callId в них есть только
         // после записи — она же вырезает SKIP_TOOLS, так что после перезагрузки они не покажутся, а
         // тут — так же, одним и тем же списком).
-        final List<ToolInvocationMeta> metas =
-                chatHistory.markRunResult(
-                        scope.conversationId(),
-                        scope.runId(),
-                        scope.model(),
-                        scope.usage(),
-                        scope.calls(),
-                        toolCollector.completedSnapshot());
+        final List<ToolInvocationMeta> metas = chatHistory.markRunResult(
+                scope.conversationId(),
+                scope.runId(),
+                scope.model(),
+                scope.usage(),
+                scope.calls(),
+                toolCollector.completedSnapshot());
         liveSink.accept(new ToolCallsMessage(metas));
         events.publish(scope.conversationId(), RUN_DONE, scope.runId(), null, null);
         summarizeService.trySummarize(scope.conversationId());
@@ -670,12 +619,7 @@ public class ChatRunService {
             events.publish(scope.conversationId(), RUN_STOPPED, scope.runId(), null, null);
         } else if (signal == SignalType.ON_ERROR) {
             persistPartial(scope, buffer, reasoning.text(), toolCollector, ERROR_MARKER);
-            events.publish(
-                    scope.conversationId(),
-                    RUN_ERROR,
-                    scope.runId(),
-                    null,
-                    Map.of("message", "stream error"));
+            events.publish(scope.conversationId(), RUN_ERROR, scope.runId(), null, Map.of("message", "stream error"));
         }
         // Прогон перестаёт считаться генерирующим ДО доставки очереди. Приём сообщения сверяется
         // именно с этим (см. {@link #isGenerating} и {@code ChatController#queueMessage}), и
@@ -698,9 +642,7 @@ public class ChatRunService {
             // руках `contextTokens` только что законченного прогона — единственное честное
             // «сколько сейчас занимает история».
             pendingSummaries.applyIfOversized(
-                    scope.conversationId(),
-                    scope.usage().contextTokens(),
-                    chatModels.contextTokens(scope.model()));
+                    scope.conversationId(), scope.usage().contextTokens(), chatModels.contextTokens(scope.model()));
             // Доставка ДО cleanup ещё и по второй причине: лог событий прогона живёт ровно
             // столько, сколько сам прогон (ConversationHub чистит его в endRun), а опубликованное
             // после закрытия не переживёт переподключения вкладки и вдобавок подняло бы хаб,
@@ -790,8 +732,7 @@ public class ChatRunService {
                     flushed.user(),
                     null,
                     List.of(),
-                    runOptions.resolve(
-                            conversationId, queued.model(), queued.mode(), queued.project()),
+                    runOptions.resolve(conversationId, queued.model(), queued.mode(), queued.project()),
                     null);
         } catch (RuntimeException e) {
             // Чат мог занять другая вкладка между cleanup и этим стартом (409) — вопрос уже в
@@ -857,9 +798,7 @@ public class ChatRunService {
             if (!partial.isBlank()) {
                 // Помечаем сохранённый ответ как оборванный — чтобы после reload было видно,
                 // что генерацию остановили/она упала, а не получился полный ответ.
-                chatMemory.add(
-                        conversationId,
-                        partialAnswer(conversationId, partial + "\n\n" + marker, reasoning));
+                chatMemory.add(conversationId, partialAnswer(conversationId, partial + "\n\n" + marker, reasoning));
                 log.info("Saved partial reply for {} ({} chars)", conversationId, partial.length());
             } else if (chatHistory.unansweredUserMessage(conversationId).isEmpty()) {
                 // Текста нет, но прогон успел поработать инструментами: одна метка отдельным
@@ -878,14 +817,13 @@ public class ChatRunService {
         // и модели. Оборванный ответ тоже кем-то написан, и именно на нём вопрос «какая модель это
         // выдала» задают чаще всего.
         try {
-            final List<ToolInvocationMeta> metas =
-                    chatHistory.markRunResult(
-                            conversationId,
-                            scope.runId(),
-                            scope.model(),
-                            scope.usage(),
-                            markerOnly ? withMarkerRow(scope.calls()) : scope.calls(),
-                            toolCollector.completedSnapshot());
+            final List<ToolInvocationMeta> metas = chatHistory.markRunResult(
+                    conversationId,
+                    scope.runId(),
+                    scope.model(),
+                    scope.usage(),
+                    markerOnly ? withMarkerRow(scope.calls()) : scope.calls(),
+                    toolCollector.completedSnapshot());
             // Тот же финальный список, что уходит вкладкам за успешным прогоном (см. onComplete):
             // живые TOOL_CALL-события несут только имя и аргументы, а блоки «изменённые файлы» и
             // «изменённые документы» строятся по resultMeta, которая есть лишь здесь. Без этой
@@ -893,12 +831,7 @@ public class ChatRunService {
             // Строго ДО терминального события: RUN_STOPPED/RUN_ERROR снимают у вкладки метку
             // прогона, а событие TOOL_CALLS не от живого прогона она отбрасывает.
             if (!metas.isEmpty()) {
-                events.publish(
-                        conversationId,
-                        TOOL_CALLS,
-                        scope.runId(),
-                        null,
-                        new ToolCallsMessage(metas));
+                events.publish(conversationId, TOOL_CALLS, scope.runId(), null, new ToolCallsMessage(metas));
             }
         } catch (Exception e) {
             log.warn("Failed to attach run meta for {}", conversationId, e);
@@ -911,9 +844,8 @@ public class ChatRunService {
      * инструментов, а оборвалась их работа, — его ряд advisor памяти записал целиком.
      */
     private AssistantMessage partialAnswer(String conversationId, String text, String reasoning) {
-        final boolean alreadyStored =
-                chatHistory.lastAnswerRows(conversationId).stream()
-                        .anyMatch(row -> reasoning.equals(row.getReasoning()));
+        final boolean alreadyStored = chatHistory.lastAnswerRows(conversationId).stream()
+                .anyMatch(row -> reasoning.equals(row.getReasoning()));
         return reasoning.isEmpty() || alreadyStored
                 ? new AssistantMessage(text)
                 : AssistantMessage.builder()

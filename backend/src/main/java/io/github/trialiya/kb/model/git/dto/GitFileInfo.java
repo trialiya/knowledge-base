@@ -14,4 +14,8 @@ import org.jspecify.annotations.Nullable;
  * @param binary true если файл бинарный (эвристика по NUL-байту, как у git)
  * @param language язык программирования по расширению, либо null если не определён
  */
-public record GitFileInfo(String path, long sizeBytes, boolean binary, @Nullable String language) {}
+public record GitFileInfo(
+        String path,
+        long sizeBytes,
+        boolean binary,
+        @Nullable String language) {}

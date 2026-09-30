@@ -52,14 +52,6 @@ public record Document(
 
     public DocumentShort toDocumentShort() {
         return new DocumentShort(
-                id,
-                title,
-                type,
-                parentId,
-                version,
-                descriptionVersion,
-                updatedAt,
-                summaryStale,
-                summarySourceVersion);
+                id, title, type, parentId, version, descriptionVersion, updatedAt, summaryStale, summarySourceVersion);
     }
 }

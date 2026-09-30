@@ -90,10 +90,7 @@ public class EmbeddingTaskScheduler {
     public void recoverAndCleanup() {
         int recovered = taskRepo.resetStuck(stuckTimeoutMinutes, maxAttempts);
         if (recovered > 0) {
-            log.warn(
-                    "Recovered {} stuck embedding task(s) (timeout={}m)",
-                    recovered,
-                    stuckTimeoutMinutes);
+            log.warn("Recovered {} stuck embedding task(s) (timeout={}m)", recovered, stuckTimeoutMinutes);
         }
         int deleted = taskRepo.cleanupCompleted(cleanupRetentionDays);
         if (deleted > 0) {
@@ -112,10 +109,7 @@ public class EmbeddingTaskScheduler {
                 case DOCUMENT -> searchService.indexDocumentById(task.getEntityId());
                 case ATTACHMENT -> searchService.indexAttachmentById(task.getEntityId());
                 default ->
-                        log.warn(
-                                "Unknown entity type in embedding task id={}: {}",
-                                task.getId(),
-                                task.getEntityType());
+                    log.warn("Unknown entity type in embedding task id={}: {}", task.getId(), task.getEntityType());
             }
             taskRepo.markDone(task.getId(), task.getClaimToken());
             log.debug(

@@ -49,12 +49,12 @@ class SecurityConfigTest {
     @TestPropertySource(properties = "spring.h2.console.enabled=true")
     class ConsoleEnabled {
 
-        @Autowired private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
         @Test
         void h2ConsoleAllowsSameOriginFraming() throws Exception {
-            mockMvc.perform(get("/h2-console/"))
-                    .andExpect(header().string("X-Frame-Options", "SAMEORIGIN"));
+            mockMvc.perform(get("/h2-console/")).andExpect(header().string("X-Frame-Options", "SAMEORIGIN"));
         }
 
         @Test
@@ -71,7 +71,8 @@ class SecurityConfigTest {
     @EnableConfigurationProperties(SecurityProperties.class)
     class ConsoleDisabled {
 
-        @Autowired private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
         /**
          * Без {@code spring.h2.console.enabled=true} условный бин цепочки не создаётся — приложение

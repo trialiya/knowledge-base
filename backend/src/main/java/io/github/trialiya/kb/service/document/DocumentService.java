@@ -92,16 +92,13 @@ public class DocumentService {
     public List<DocumentNode> getTree() {
         List<DocumentEntity> roots = repo.findRoots();
         Map<Long, List<DocumentEntity>> byParent = new HashMap<>();
-        repo.findAll()
-                .forEach(
-                        e -> {
-                            if (e.getParentId() != null) {
-                                byParent.computeIfAbsent(e.getParentId(), k -> new ArrayList<>())
-                                        .add(e);
-                            }
-                        });
-        byParent.values()
-                .forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
+        repo.findAll().forEach(e -> {
+            if (e.getParentId() != null) {
+                byParent.computeIfAbsent(e.getParentId(), k -> new ArrayList<>())
+                        .add(e);
+            }
+        });
+        byParent.values().forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
 
         return roots.stream().map(r -> buildNode(r, byParent)).collect(Collectors.toList());
     }
@@ -115,9 +112,7 @@ public class DocumentService {
      * @return list of matching nodes (up to 20), never null
      */
     public List<DocumentNode> findByName(String name) {
-        return repo.findByTitleContaining(name).stream()
-                .map(this::toStubNode)
-                .collect(Collectors.toList());
+        return repo.findByTitleContaining(name).stream().map(this::toStubNode).collect(Collectors.toList());
     }
 
     @Nullable
@@ -140,9 +135,7 @@ public class DocumentService {
      */
     public PagedChildren getChildrenPaged(@Nullable Long parentId, Pageable pageable) {
         Page<DocumentEntity> page =
-                parentId == null
-                        ? repo.findByParentIdIsNull(pageable)
-                        : repo.findByParentId(parentId, pageable);
+                parentId == null ? repo.findByParentIdIsNull(pageable) : repo.findByParentId(parentId, pageable);
         Page<DocumentNode> mapped = page.map(this::toStubNode);
         return PagedChildren.from(mapped);
     }
@@ -152,8 +145,7 @@ public class DocumentService {
      * tools, reorder, etc.).
      */
     public List<DocumentNode> getChildren(@Nullable Long parentId) {
-        List<DocumentEntity> items =
-                parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
+        List<DocumentEntity> items = parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
         return items.stream().map(this::toStubNode).collect(Collectors.toList());
     }
 
@@ -164,51 +156,46 @@ public class DocumentService {
     public List<DocumentSkeletonNode> getTreeSkeleton() {
         Set<Long> parentIds = repo.findAllParentIds();
         return StreamSupport.stream(repo.findAll().spliterator(), false)
-                .map(
-                        e ->
-                                new DocumentSkeletonNode(
-                                        Objects.requireNonNull(e.getId()),
-                                        e.getTitle(),
-                                        e.getType().getValue(),
-                                        e.getParentId(),
-                                        e.getVersion(),
-                                        e.getDescriptionVersion(),
-                                        parentIds.contains(e.getId()),
-                                        e.isSystem()))
+                .map(e -> new DocumentSkeletonNode(
+                        Objects.requireNonNull(e.getId()),
+                        e.getTitle(),
+                        e.getType().getValue(),
+                        e.getParentId(),
+                        e.getVersion(),
+                        e.getDescriptionVersion(),
+                        parentIds.contains(e.getId()),
+                        e.isSystem()))
                 .collect(Collectors.toList());
     }
 
     /** Full shallow node: entity + its direct children (used by getById). */
     private DocumentNode toShallowNode(DocumentEntity e) {
-        List<DocumentNode> children =
-                repo.findByParentId(Objects.requireNonNull(e.getId())).stream()
-                        .map(
-                                c ->
-                                        new DocumentNode(
-                                                Objects.requireNonNull(c.getId()),
-                                                c.getTitle(),
-                                                c.getType().getValue(),
-                                                c.getParentId(),
-                                                c.getVersion(),
-                                                "",
-                                                c.getDescriptionVersion(),
-                                                // description/updatedAt/createdAt all
-                                                // deliberately omitted here — this is a stub
-                                                // entry (no consumer reads dates off it; the
-                                                // paginated children list from toStubNode()
-                                                // carries the real metadata), so keep it
-                                                // uniformly sparse rather than half-filled.
-                                                null,
-                                                null,
-                                                Collections.emptyList(),
-                                                repo.hasChildren(Objects.requireNonNull(c.getId())),
-                                                c.isSystem(),
-                                                // children in the list carry their own summary
-                                                // state so the UI can show badges in the tree
-                                                c.getSummary(),
-                                                c.isSummaryStale(),
-                                                c.getSummarySourceVersion()))
-                        .collect(Collectors.toList());
+        List<DocumentNode> children = repo.findByParentId(Objects.requireNonNull(e.getId())).stream()
+                .map(c -> new DocumentNode(
+                        Objects.requireNonNull(c.getId()),
+                        c.getTitle(),
+                        c.getType().getValue(),
+                        c.getParentId(),
+                        c.getVersion(),
+                        "",
+                        c.getDescriptionVersion(),
+                        // description/updatedAt/createdAt all
+                        // deliberately omitted here — this is a stub
+                        // entry (no consumer reads dates off it; the
+                        // paginated children list from toStubNode()
+                        // carries the real metadata), so keep it
+                        // uniformly sparse rather than half-filled.
+                        null,
+                        null,
+                        Collections.emptyList(),
+                        repo.hasChildren(Objects.requireNonNull(c.getId())),
+                        c.isSystem(),
+                        // children in the list carry their own summary
+                        // state so the UI can show badges in the tree
+                        c.getSummary(),
+                        c.isSummaryStale(),
+                        c.getSummarySourceVersion()))
+                .collect(Collectors.toList());
         return new DocumentNode(
                 Objects.requireNonNull(e.getId()),
                 e.getTitle(),
@@ -255,10 +242,9 @@ public class DocumentService {
     }
 
     private DocumentNode buildNode(DocumentEntity e, Map<Long, List<DocumentEntity>> byParent) {
-        List<DocumentNode> children =
-                byParent.getOrDefault(e.getId(), Collections.emptyList()).stream()
-                        .map(child -> buildNode(child, byParent))
-                        .collect(Collectors.toList());
+        List<DocumentNode> children = byParent.getOrDefault(e.getId(), Collections.emptyList()).stream()
+                .map(child -> buildNode(child, byParent))
+                .collect(Collectors.toList());
         boolean hc = !children.isEmpty() || repo.hasChildren(Objects.requireNonNull(e.getId()));
         return new DocumentNode(
                 Objects.requireNonNull(e.getId()),
@@ -287,21 +273,20 @@ public class DocumentService {
         int nextPos = nextSiblingPosition(req.getParentId());
 
         LocalDateTime now = LocalDateTime.now();
-        DocumentEntity entity =
-                new DocumentEntity(
-                        null,
-                        req.getTitle(),
-                        type,
-                        req.getParentId(),
-                        Objects.requireNonNullElse(req.getDescription(), ""),
-                        now, // createdAt — set once, never updated afterwards
-                        now,
-                        nextPos,
-                        false, // новые узлы никогда не системные
-                        0, // version — Spring Data JDBC проставит 1 при INSERT
-                        null, // summary — ещё не генерировалось
-                        null, // summarySourceVersion
-                        1); // descriptionVersion starts at 1
+        DocumentEntity entity = new DocumentEntity(
+                null,
+                req.getTitle(),
+                type,
+                req.getParentId(),
+                Objects.requireNonNullElse(req.getDescription(), ""),
+                now, // createdAt — set once, never updated afterwards
+                now,
+                nextPos,
+                false, // новые узлы никогда не системные
+                0, // version — Spring Data JDBC проставит 1 при INSERT
+                null, // summary — ещё не генерировалось
+                null, // summarySourceVersion
+                1); // descriptionVersion starts at 1
         DocumentEntity saved = repo.save(entity);
 
         historyRepo.save(snapshotOf(saved));
@@ -341,8 +326,7 @@ public class DocumentService {
         // ── 1. Apply title change ─────────────────────────────────────────────
         if (existing.isSystem()) {
             if (req.getTitle() != null && !req.getTitle().equals(existing.getTitle())) {
-                throw new ResponseStatusException(
-                        HttpStatus.FORBIDDEN, "Cannot rename a system document");
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot rename a system document");
             }
         } else {
             if (req.getTitle() != null && !req.getTitle().isBlank()) {
@@ -352,8 +336,7 @@ public class DocumentService {
 
         // ── 2. Apply description change & track descriptionVersion ────────────
         if (req.getDescription() != null) {
-            boolean descriptionChanged =
-                    !Objects.equals(existing.getDescription(), req.getDescription());
+            boolean descriptionChanged = !Objects.equals(existing.getDescription(), req.getDescription());
             existing.setDescription(req.getDescription());
             if (descriptionChanged) {
                 // Incrementing descriptionVersion is the sole mechanism that marks the
@@ -371,9 +354,7 @@ public class DocumentService {
             saved = repo.save(existing);
         } catch (OptimisticLockingFailureException ex) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Document was modified by another request. Please reload and try again.",
-                    ex);
+                    HttpStatus.CONFLICT, "Document was modified by another request. Please reload and try again.", ex);
         }
 
         // ── 4. Persist snapshot of current state (always, as before) ──────────
@@ -405,8 +386,7 @@ public class DocumentService {
      *     lock conflict
      */
     @Transactional
-    public Document patchDescription(
-            long id, int expectedDescriptionVersion, UnaryOperator<String> patch) {
+    public Document patchDescription(long id, int expectedDescriptionVersion, UnaryOperator<String> patch) {
         return applyPatch(id, expectedDescriptionVersion, patch);
     }
 
@@ -430,11 +410,9 @@ public class DocumentService {
         return applyPatch(id, null, patch);
     }
 
-    private Document applyPatch(
-            long id, @Nullable Integer expectedDescriptionVersion, UnaryOperator<String> patch) {
+    private Document applyPatch(long id, @Nullable Integer expectedDescriptionVersion, UnaryOperator<String> patch) {
         DocumentEntity existing = findOrThrow(id);
-        if (expectedDescriptionVersion != null
-                && existing.getDescriptionVersion() != expectedDescriptionVersion) {
+        if (expectedDescriptionVersion != null && existing.getDescriptionVersion() != expectedDescriptionVersion) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Document content has changed (current descriptionVersion="
@@ -490,23 +468,18 @@ public class DocumentService {
     public void delete(long id) {
         DocumentEntity entity = findOrThrow(id);
         if (entity.isSystem()) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN, "Cannot delete a system document");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot delete a system document");
         }
         List<Long> ids = repo.findDescendantIds(id);
         // document_history rows are removed automatically via ON DELETE CASCADE
         repo.deleteAllById(ids);
-        ids.forEach(
-                docId -> {
-                    try {
-                        semanticSearchService.deleteIndex(docId);
-                    } catch (Exception ex) {
-                        log.warn(
-                                "Could not remove embedding for document id={}: {}",
-                                docId,
-                                ex.getMessage());
-                    }
-                });
+        ids.forEach(docId -> {
+            try {
+                semanticSearchService.deleteIndex(docId);
+            } catch (Exception ex) {
+                log.warn("Could not remove embedding for document id={}: {}", docId, ex.getMessage());
+            }
+        });
     }
 
     // ── Move  ────────────────────────────────────────────────────────
@@ -548,12 +521,10 @@ public class DocumentService {
         DocumentEntity node = findOrThrow(id);
 
         if (node.isSystem()) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN, "Cannot move a system document");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot move a system document");
         }
         if (afterId != null && afterId == id) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "afterId must not be the node itself");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "afterId must not be the node itself");
         }
 
         validateTargetParent(id, targetParentId);
@@ -565,16 +536,11 @@ public class DocumentService {
         if (afterId == null) {
             anchorPos = repo.findMinPosition(targetParentId);
         } else {
-            DocumentEntity after =
-                    repo.findById(afterId)
-                            .orElseThrow(
-                                    () ->
-                                            new ResponseStatusException(
-                                                    HttpStatus.NOT_FOUND, "afterId not found"));
+            DocumentEntity after = repo.findById(afterId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "afterId not found"));
             if (!Objects.equals(after.getParentId(), targetParentId)) {
                 throw new ResponseStatusException(
-                        HttpStatus.UNPROCESSABLE_CONTENT,
-                        "afterId is not a child of the target parent");
+                        HttpStatus.UNPROCESSABLE_CONTENT, "afterId is not a child of the target parent");
             }
             anchorPos = after.getPosition();
         }
@@ -620,9 +586,7 @@ public class DocumentService {
             return toDto(repo.save(node));
         } catch (OptimisticLockingFailureException ex) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Document was modified by another request. Please reload and try again.",
-                    ex);
+                    HttpStatus.CONFLICT, "Document was modified by another request. Please reload and try again.", ex);
         }
     }
 
@@ -634,21 +598,15 @@ public class DocumentService {
     private void validateTargetParent(long id, @Nullable Long targetParentId) {
         if (targetParentId == null) return;
 
-        DocumentEntity targetFolder =
-                repo.findById(targetParentId)
-                        .orElseThrow(
-                                () ->
-                                        new ResponseStatusException(
-                                                HttpStatus.NOT_FOUND, "Target parent not found"));
+        DocumentEntity targetFolder = repo.findById(targetParentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target parent not found"));
         if (targetFolder.getType() != DocumentType.FOLDER) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT, "Target must be a folder");
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, "Target must be a folder");
         }
 
         // Cycle check: targetParentId must not be the node itself or any of its descendants
         if (targetParentId.equals(id)) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "Cannot move a folder into itself");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot move a folder into itself");
         }
         List<Long> descendants = repo.findDescendantIds(id);
         if (descendants.contains(targetParentId)) {
@@ -713,25 +671,18 @@ public class DocumentService {
      * @return match blocks ordered by document, then by position in it; empty when nothing matched
      */
     public List<DocumentGrepMatch> grepDocuments(
-            String pattern,
-            boolean regex,
-            int contextLines,
-            int maxResults,
-            @Nullable Long documentId) {
+            String pattern, boolean regex, int contextLines, int maxResults, @Nullable Long documentId) {
         int ctx = Math.clamp(contextLines, 0, DocumentGrep.MAX_CONTEXT_LINES);
         int limit = Math.clamp(maxResults, 1, MAX_GREP_RESULTS);
         Pattern compiled = DocumentGrep.compile(pattern, regex);
 
         String literal = literalOf(pattern, regex);
         List<DocumentTreeRow> rows =
-                literal == null
-                        ? repo.findRowsWithDescription()
-                        : repo.findRowsWithDescriptionContaining(literal);
+                literal == null ? repo.findRowsWithDescription() : repo.findRowsWithDescriptionContaining(literal);
         if (documentId != null) {
             Set<Long> subtree = Set.copyOf(repo.findDescendantIds(documentId));
             if (subtree.isEmpty()) {
-                throw new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Document id=" + documentId + " not found");
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document id=" + documentId + " not found");
             }
             rows = rows.stream().filter(row -> subtree.contains(row.id())).toList();
         }
@@ -743,13 +694,7 @@ public class DocumentService {
             }
             String description = repo.findDescriptionById(row.id()).orElse("");
             matches.addAll(
-                    DocumentGrep.matches(
-                            row.id(),
-                            row.title(),
-                            description,
-                            compiled,
-                            ctx,
-                            limit - matches.size()));
+                    DocumentGrep.matches(row.id(), row.title(), description, compiled, ctx, limit - matches.size()));
         }
         log.info(
                 "grepDocuments: pattern='{}' regex={} ctx={} documentId={} — {} block(s) over {}"
@@ -792,15 +737,12 @@ public class DocumentService {
     /** Keyword hits without breadcrumbs — shared building block for {@link #hybridSearch}. */
     private List<RawSearchResult> keywordHits(String q) {
         return repo.search(q).stream()
-                .map(
-                        e ->
-                                new RawSearchResult(
-                                        Objects.requireNonNull(e.getId()),
-                                        e.getTitle(),
-                                        generateSnippet(
-                                                e.getDescription(), q.toLowerCase(Locale.ROOT)),
-                                        e.getUpdatedAt(),
-                                        e.getSummary()))
+                .map(e -> new RawSearchResult(
+                        Objects.requireNonNull(e.getId()),
+                        e.getTitle(),
+                        generateSnippet(e.getDescription(), q.toLowerCase(Locale.ROOT)),
+                        e.getUpdatedAt(),
+                        e.getSummary()))
                 .collect(Collectors.toList());
     }
 
@@ -814,24 +756,18 @@ public class DocumentService {
      * @param threshold cosine-similarity cutoff (0–1); pass {@code null} for default
      * @param limit max results; pass {@code null} for default
      */
-    public List<SearchResult> semanticSearch(
-            String q, @Nullable Double threshold, @Nullable Integer limit) {
+    public List<SearchResult> semanticSearch(String q, @Nullable Double threshold, @Nullable Integer limit) {
         double t = threshold != null ? threshold : searchConfig.semantic().threshold();
         int l = limit != null ? limit : searchConfig.semantic().limit();
 
-        List<RawSearchResult> hits =
-                semanticSearchService.search(q, t, l).stream()
-                        .map(
-                                r ->
-                                        new RawSearchResult(
-                                                r.id(),
-                                                r.title(),
-                                                generateSnippet(
-                                                        r.description(),
-                                                        q.toLowerCase(Locale.ROOT)),
-                                                r.updatedAt(),
-                                                r.summary()))
-                        .collect(Collectors.toList());
+        List<RawSearchResult> hits = semanticSearchService.search(q, t, l).stream()
+                .map(r -> new RawSearchResult(
+                        r.id(),
+                        r.title(),
+                        generateSnippet(r.description(), q.toLowerCase(Locale.ROOT)),
+                        r.updatedAt(),
+                        r.summary()))
+                .collect(Collectors.toList());
         return attachParents(hits);
     }
 
@@ -892,29 +828,24 @@ public class DocumentService {
         for (SemanticSearchResult sr : semResults) {
             snippets.computeIfAbsent(
                     sr.id(),
-                    id ->
-                            new RawSearchResult(
-                                    id,
-                                    sr.title(),
-                                    generateSnippet(sr.description(), q.toLowerCase(Locale.ROOT)),
-                                    sr.updatedAt(),
-                                    sr.summary()));
+                    id -> new RawSearchResult(
+                            id,
+                            sr.title(),
+                            generateSnippet(sr.description(), q.toLowerCase(Locale.ROOT)),
+                            sr.updatedAt(),
+                            sr.summary()));
         }
 
         // ── 4. Combine scores & sort ──────────────────────────────────────────
-        List<RawSearchResult> top =
-                snippets.keySet().stream()
-                        .map(
-                                id -> {
-                                    double score =
-                                            kw * kwScores.getOrDefault(id, 0.0)
-                                                    + sem * semScores.getOrDefault(id, 0.0);
-                                    return Map.entry(score, snippets.get(id));
-                                })
-                        .sorted(Map.Entry.<Double, RawSearchResult>comparingByKey().reversed())
-                        .limit(lim)
-                        .map(Map.Entry::getValue)
-                        .collect(Collectors.toList());
+        List<RawSearchResult> top = snippets.keySet().stream()
+                .map(id -> {
+                    double score = kw * kwScores.getOrDefault(id, 0.0) + sem * semScores.getOrDefault(id, 0.0);
+                    return Map.entry(score, snippets.get(id));
+                })
+                .sorted(Map.Entry.<Double, RawSearchResult>comparingByKey().reversed())
+                .limit(lim)
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList());
 
         // Resolve breadcrumbs once, only for the results we actually return.
         return attachParents(top);
@@ -934,23 +865,20 @@ public class DocumentService {
         final Map<Long, List<SearchResult.Parent>> ancestors = repo.findAncestorsByIds(ids);
 
         return results.stream()
-                .map(
-                        r ->
-                                new SearchResult(
-                                        r.id(),
-                                        r.title(),
-                                        r.snippet(),
-                                        r.updatedAt(),
-                                        r.summary(),
-                                        ancestors.getOrDefault(r.id(), List.of())))
+                .map(r -> new SearchResult(
+                        r.id(),
+                        r.title(),
+                        r.snippet(),
+                        r.updatedAt(),
+                        r.summary(),
+                        ancestors.getOrDefault(r.id(), List.of())))
                 .collect(Collectors.toList());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private DocumentEntity findOrThrow(long id) {
-        return repo.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return repo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
     /**
@@ -1004,12 +932,7 @@ public class DocumentService {
 
     private DocumentHistoryShort toHistoryShortDto(DocumentHistoryShortResult e) {
         return new DocumentHistoryShort(
-                e.documentId(),
-                e.version(),
-                e.descriptionVersion(),
-                e.title(),
-                e.type(),
-                e.updatedAt());
+                e.documentId(), e.version(), e.descriptionVersion(), e.title(), e.type(), e.updatedAt());
     }
 
     private String generateSnippet(@Nullable String content, String query) {
@@ -1018,9 +941,7 @@ public class DocumentService {
         if (idx == -1) return content.substring(0, Math.min(150, content.length())) + "...";
         int start = Math.max(0, idx - 50);
         int end = Math.min(content.length(), idx + 100);
-        return (start > 0 ? "..." : "")
-                + content.substring(start, end)
-                + (end < content.length() ? "..." : "");
+        return (start > 0 ? "..." : "") + content.substring(start, end) + (end < content.length() ? "..." : "");
     }
 
     private void tryIndex(Long id, String title, String description) {

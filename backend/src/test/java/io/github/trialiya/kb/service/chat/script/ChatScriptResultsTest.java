@@ -40,7 +40,8 @@ class ChatScriptResultsTest {
     /** The fixture's second chat, which keeps nothing. */
     private static final String EMPTY_CHAT = "e2a7f4c1-3b8d-4f6e-9a21-5c0d7b8e9f13";
 
-    @Autowired private ChatScriptResultRepository repository;
+    @Autowired
+    private ChatScriptResultRepository repository;
 
     private ChatScriptResults results(ScriptResultProperties properties) {
         return new ChatScriptResults(repository, properties);
@@ -66,8 +67,7 @@ class ChatScriptResultsTest {
         assertThat(results.keep(EMPTY_CHAT, null, "default", "1").id()).isEqualTo("r1");
         // The other chat's r1 is a different result.
         assertThat(results.valueJson(EMPTY_CHAT, "r1")).contains("1");
-        assertThat(results.valueJson(CHAT, "r1"))
-                .contains("{\"file\":\"backend/build.gradle\",\"commits\":42}");
+        assertThat(results.valueJson(CHAT, "r1")).contains("{\"file\":\"backend/build.gradle\",\"commits\":42}");
     }
 
     @Test
@@ -87,8 +87,7 @@ class ChatScriptResultsTest {
     void aValueOverTheCeilingIsNotKeptAndTheLogIsToldWhy() {
         ChatScriptResults results = results(new ScriptResultProperties(true, 10, 50));
 
-        ScriptResultStore.Kept kept =
-                results.keep(CHAT, null, "default", "\"" + "x".repeat(20) + "\"");
+        ScriptResultStore.Kept kept = results.keep(CHAT, null, "default", "\"" + "x".repeat(20) + "\"");
 
         assertThat(kept.id()).isNull();
         assertThat(kept.note()).contains("max-chars=10");
@@ -112,9 +111,7 @@ class ChatScriptResultsTest {
         results.keep(CHAT, null, "default", "2");
         results.keep(CHAT, null, "default", "3");
 
-        assertThat(results.list(CHAT))
-                .extracting(StoredScriptResult::id)
-                .containsExactly("r2", "r3");
+        assertThat(results.list(CHAT)).extracting(StoredScriptResult::id).containsExactly("r2", "r3");
         assertThat(results.valueJson(CHAT, "r1")).isEmpty();
     }
 
@@ -141,7 +138,6 @@ class ChatScriptResultsTest {
         assertThatThrownBy(() -> new ScriptResultProperties(true, 1000, 0))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("enabled=false");
-        assertThatThrownBy(() -> new ScriptResultProperties(true, -1, 10))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ScriptResultProperties(true, -1, 10)).isInstanceOf(IllegalArgumentException.class);
     }
 }

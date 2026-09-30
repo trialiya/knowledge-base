@@ -44,41 +44,33 @@ public class ScriptResultFunction {
     private final ScriptResultStore store;
     private final AttachmentService attachmentService;
 
-    @Tool(
-            description =
-                    """
+    @Tool(description = """
                     Saves the value a script of this chat returned as a chat attachment, by its \
                     resultId (from runScript / runSavedScript, or a <script-run> notice) — the whole \
                     value, even where you saw it truncated. A string value is saved as-is (return a \
                     CSV or Markdown string from the script to get that file), anything else as \
                     indented JSON. Use it instead of createAttachment with the value retyped. \
                     Returns the attachment.
-                    """,
-            resultConverter = CompactToolResultConverter.class)
+                    """, resultConverter = CompactToolResultConverter.class)
     public Attachment saveScriptResult(
             ToolContext context,
             @ToolParam(description = "The result's id, e.g. \"r3\".") String resultId,
             @ToolParam(
-                            description =
-                                    "Attachment file name, e.g. \"todo-report.csv\". Omit for "
-                                            + "script-result-<id>.json (or .txt for a string).",
+                            description = "Attachment file name, e.g. \"todo-report.csv\". Omit for "
+                                    + "script-result-<id>.json (or .txt for a string).",
                             required = false)
-                    @Nullable String fileName) {
+                    @Nullable
+                    String fileName) {
         final String id = ScriptResultReader.canonical(requireText(resultId, "resultId"));
         final String chat = conversationId(context);
-        final String json = ScriptResultReader.of(store, ResultScope.readOnly(chat)).valueJson(id);
+        final String json =
+                ScriptResultReader.of(store, ResultScope.readOnly(chat)).valueJson(id);
         final JsonNode value = parse(json);
         final String content = value.isTextual() ? value.textValue() : pretty(value);
-        final String name =
-                fileName == null || fileName.isBlank()
-                        ? "script-result-" + id + (value.isTextual() ? ".txt" : ".json")
-                        : fileName.strip();
-        log.debug(
-                "[{}] saveScriptResult called: resultId={}, fileName={}, {} chars",
-                chat,
-                id,
-                name,
-                content.length());
+        final String name = fileName == null || fileName.isBlank()
+                ? "script-result-" + id + (value.isTextual() ? ".txt" : ".json")
+                : fileName.strip();
+        log.debug("[{}] saveScriptResult called: resultId={}, fileName={}, {} chars", chat, id, name, content.length());
         return attachmentService.createFromText(chat, name, contentType(name, value), content);
     }
 

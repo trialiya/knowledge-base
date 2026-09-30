@@ -42,7 +42,8 @@ public class ToolCatalogService {
 
     public ToolCatalogService(ChatToolset toolset) {
         this.toolset = toolset;
-        this.builtin = toolset.builtin().stream().map(cb -> toInfo(cb, "builtin")).toList();
+        this.builtin =
+                toolset.builtin().stream().map(cb -> toInfo(cb, "builtin")).toList();
     }
 
     /** All tools available to the chat model right now, sorted by name. */
@@ -55,11 +56,7 @@ public class ToolCatalogService {
     private static ToolInfo toInfo(ToolCallback callback, String origin) {
         ToolDefinition definition = callback.getToolDefinition();
         return new ToolInfo(
-                definition.name(),
-                definition.description(),
-                origin,
-                available(callback),
-                parameters(definition));
+                definition.name(), definition.description(), origin, available(callback), parameters(definition));
     }
 
     /**
@@ -68,10 +65,7 @@ public class ToolCatalogService {
      * the two it is, because «есть в списке» and «сработает» stop meaning the same thing here.
      */
     private static boolean available(ToolCallback callback) {
-        ToolCallback unwrapped =
-                callback instanceof RecordingToolCallback recording
-                        ? recording.delegate()
-                        : callback;
+        ToolCallback unwrapped = callback instanceof RecordingToolCallback recording ? recording.delegate() : callback;
         return !(unwrapped instanceof UnavailableToolCallback);
     }
 
@@ -94,15 +88,12 @@ public class ToolCatalogService {
         List<ToolParamInfo> params = new ArrayList<>();
         schema.path("properties")
                 .properties()
-                .forEach(
-                        entry ->
-                                params.add(
-                                        new ToolParamInfo(
-                                                entry.getKey(),
-                                                type(entry.getValue()),
-                                                text(entry.getValue().path("description")),
-                                                required.contains(entry.getKey()),
-                                                values(entry.getValue()))));
+                .forEach(entry -> params.add(new ToolParamInfo(
+                        entry.getKey(),
+                        type(entry.getValue()),
+                        text(entry.getValue().path("description")),
+                        required.contains(entry.getKey()),
+                        values(entry.getValue()))));
         return List.copyOf(params);
     }
 
@@ -144,19 +135,11 @@ public class ToolCatalogService {
      *     — with an error
      */
     public record ToolInfo(
-            String name,
-            String description,
-            String origin,
-            boolean available,
-            List<ToolParamInfo> params) {}
+            String name, String description, String origin, boolean available, List<ToolParamInfo> params) {}
 
     /**
      * @param values allowed values of an enum argument, empty when the argument is not one
      */
     public record ToolParamInfo(
-            String name,
-            String type,
-            @Nullable String description,
-            boolean required,
-            List<String> values) {}
+            String name, String type, @Nullable String description, boolean required, List<String> values) {}
 }

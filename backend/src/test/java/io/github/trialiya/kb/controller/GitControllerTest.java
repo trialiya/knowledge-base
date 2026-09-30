@@ -49,8 +49,7 @@ class GitControllerTest {
         when(git.getFileContent("gone.md", null, null))
                 .thenThrow(new IllegalArgumentException("File not found: gone.md"));
 
-        mockMvc.perform(get("/api/git/files/content").param("path", "gone.md"))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/git/files/content").param("path", "gone.md")).andExpect(status().isBadRequest());
     }
 
     /** Ревизия приходит из поля ввода, и опечатка в ней — такая же ошибка запроса. */
@@ -59,10 +58,7 @@ class GitControllerTest {
         when(git.getFileContentAt("nosuchtag", "README.md", null, null))
                 .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag"));
 
-        mockMvc.perform(
-                        get("/api/git/files/content")
-                                .param("path", "README.md")
-                                .param("rev", "nosuchtag"))
+        mockMvc.perform(get("/api/git/files/content").param("path", "README.md").param("rev", "nosuchtag"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -70,14 +66,13 @@ class GitControllerTest {
     @Test
     void anOutlineIsReadFromTheRevisionWhenOneIsNamed() throws Exception {
         when(git.getFileOutlineAt("v1", "README.md"))
-                .thenReturn(
-                        new GitFileOutline(
-                                "README.md",
-                                true,
-                                "markdown",
-                                2,
-                                "markdown",
-                                List.of(new GitSymbol("h1", "Title", "Title", 1, 2))));
+                .thenReturn(new GitFileOutline(
+                        "README.md",
+                        true,
+                        "markdown",
+                        2,
+                        "markdown",
+                        List.of(new GitSymbol("h1", "Title", "Title", 1, 2))));
 
         mockMvc.perform(get("/api/git/files/outline").param("path", "README.md").param("rev", "v1"))
                 .andExpect(status().isOk())
@@ -98,8 +93,7 @@ class GitControllerTest {
     /** Коммит без ревизии не назван вовсе: «рабочее дерево» у этого запроса не ответ. */
     @Test
     void aCommitWithoutRevisionIsABadRequest() throws Exception {
-        mockMvc.perform(get("/api/git/commit").param("rev", " "))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/git/commit").param("rev", " ")).andExpect(status().isBadRequest());
     }
 
     @Test
@@ -107,8 +101,7 @@ class GitControllerTest {
         when(git.getCommit("nosuchtag", false, null))
                 .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag"));
 
-        mockMvc.perform(get("/api/git/commit").param("rev", "nosuchtag"))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/git/commit").param("rev", "nosuchtag")).andExpect(status().isBadRequest());
     }
 
     /** Поиск коммитов со страницы поиска: ревизия из её фильтра, опечатка в ней — 400. */
@@ -117,11 +110,10 @@ class GitControllerTest {
         when(git.grepCommits("fix", 50, "nosuchtag"))
                 .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag"));
 
-        mockMvc.perform(
-                        get("/api/git/commits/grep")
-                                .param("q", "fix")
-                                .param("limit", "50")
-                                .param("rev", "nosuchtag"))
+        mockMvc.perform(get("/api/git/commits/grep")
+                        .param("q", "fix")
+                        .param("limit", "50")
+                        .param("rev", "nosuchtag"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -141,8 +133,7 @@ class GitControllerTest {
                 .andExpect(content().contentType("image/svg+xml"))
                 .andExpect(content().bytes(bytes))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
-                .andExpect(
-                        header().string("Content-Security-Policy", "default-src 'none'; sandbox"));
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; sandbox"));
     }
 
     /**
@@ -158,11 +149,9 @@ class GitControllerTest {
     /** Слишком большой файл — отказ запроса, а не куча памяти: см. GitService.getRawFile. */
     @Test
     void anImageTooLargeToServeIsABadRequest() throws Exception {
-        when(git.getRawFile("huge.png"))
-                .thenThrow(new IllegalArgumentException("File is too large to preview"));
+        when(git.getRawFile("huge.png")).thenThrow(new IllegalArgumentException("File is too large to preview"));
 
-        mockMvc.perform(get("/api/git/files/raw").param("path", "huge.png"))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/git/files/raw").param("path", "huge.png")).andExpect(status().isBadRequest());
     }
 
     /** Список изменений сужают тем же путём, что и открывают файл, — и ошибаются в нём так же. */
@@ -171,7 +160,6 @@ class GitControllerTest {
         when(git.getUncommittedChanges(false, "docs/ab.md"))
                 .thenThrow(new IllegalArgumentException("Path contains unsupported characters"));
 
-        mockMvc.perform(get("/api/git/status").param("path", "docs/ab.md"))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/git/status").param("path", "docs/ab.md")).andExpect(status().isBadRequest());
     }
 }

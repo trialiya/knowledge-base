@@ -26,7 +26,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitCommandsTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private GitService service;
 
@@ -173,8 +174,7 @@ class GitCommandsTest {
         GitCommandResult result = service.commit("only the readme", List.of("README.md"));
 
         assertThat(result.output()).startsWith("Committed ");
-        assertThat(service.getCommitLog(1, null, false).getFirst().message())
-                .isEqualTo("only the readme");
+        assertThat(service.getCommitLog(1, null, false).getFirst().message()).isEqualTo("only the readme");
         // Файлы остались на месте и по-прежнему незакоммичены — их коммит впереди.
         assertThat(service.branchStatus().dirty()).isTrue();
         assertThat(changedPaths()).containsExactlyInAnyOrder("staged.txt", "other.txt");
@@ -325,15 +325,13 @@ class GitCommandsTest {
     void discardingAnUntrackedFileIsRefusedRatherThanDeletingIt() {
         write("scratch.txt", "mine\n");
 
-        assertThatThrownBy(() -> service.discard("scratch.txt"))
-                .isInstanceOf(GitCommandFailedException.class);
+        assertThatThrownBy(() -> service.discard("scratch.txt")).isInstanceOf(GitCommandFailedException.class);
         assertThat(repoDir.resolve("scratch.txt")).exists();
     }
 
     @Test
     void aPathThatLeavesTheRepositoryIsRefused() {
-        assertThatThrownBy(() -> service.discard("../outside.txt"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.discard("../outside.txt")).isInstanceOf(IllegalArgumentException.class);
     }
 
     /**
@@ -491,17 +489,14 @@ class GitCommandsTest {
             String[] command = new String[args.length + 1];
             command[0] = "git";
             System.arraycopy(args, 0, command, 1, args.length);
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(dir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(dir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (requireSuccess && exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

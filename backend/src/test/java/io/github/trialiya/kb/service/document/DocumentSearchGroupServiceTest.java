@@ -38,27 +38,22 @@ class DocumentSearchGroupServiceTest {
     }
 
     private static SearchResult ranked(long id, String title, String snippet) {
-        return new SearchResult(
-                id, title, snippet, AT, null, List.of(new SearchResult.Parent(1, "Корень")));
+        return new SearchResult(id, title, snippet, AT, null, List.of(new SearchResult.Parent(1, "Корень")));
     }
 
     @Test
     void everyMatchingLineOfTheBodyBecomesAFragmentWithItsSection() {
         when(documents.search("docker")).thenReturn(List.of(ranked(7, "Гайд", "…")));
-        when(repo.findDescriptionById(7))
-                .thenReturn(Optional.of("# Гайд\nпро Docker\n## Установка\nставим docker\n"));
+        when(repo.findDescriptionById(7)).thenReturn(Optional.of("# Гайд\nпро Docker\n## Установка\nставим docker\n"));
 
         DocumentSearchGroups groups = service.search("docker", "keyword");
 
         assertThat(groups.total()).isEqualTo(2);
         DocumentSearchGroups.Group group = groups.documents().getFirst();
         assertThat(group.id()).isEqualTo(7);
-        assertThat(group.parentList())
-                .extracting(SearchResult.Parent::title)
-                .containsExactly("Корень");
+        assertThat(group.parentList()).extracting(SearchResult.Parent::title).containsExactly("Корень");
         assertThat(group.fragments())
-                .extracting(
-                        DocumentSearchGroups.Fragment::line, DocumentSearchGroups.Fragment::text)
+                .extracting(DocumentSearchGroups.Fragment::line, DocumentSearchGroups.Fragment::text)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(2, "про Docker"),
                         org.assertj.core.groups.Tuple.tuple(4, "ставим docker"));
@@ -76,8 +71,7 @@ class DocumentSearchGroupServiceTest {
 
         assertThat(groups.total()).isEqualTo(1);
         assertThat(groups.documents().getFirst().fragments())
-                .containsExactly(
-                        new DocumentSearchGroups.Fragment(null, null, "Гайд по контейнеризации"));
+                .containsExactly(new DocumentSearchGroups.Fragment(null, null, "Гайд по контейнеризации"));
     }
 
     @Test
@@ -90,12 +84,10 @@ class DocumentSearchGroupServiceTest {
 
     @Test
     void fragmentsPerDocumentAreCapped() {
-        String body =
-                IntStream.range(0, DocumentSearchGroupService.FRAGMENTS_PER_DOCUMENT + 5)
-                        .mapToObj(i -> "needle " + i)
-                        .collect(Collectors.joining("\n"));
-        when(documents.hybridSearch("needle", null, null, null, null))
-                .thenReturn(List.of(ranked(1, "T", "…")));
+        String body = IntStream.range(0, DocumentSearchGroupService.FRAGMENTS_PER_DOCUMENT + 5)
+                .mapToObj(i -> "needle " + i)
+                .collect(Collectors.joining("\n"));
+        when(documents.hybridSearch("needle", null, null, null, null)).thenReturn(List.of(ranked(1, "T", "…")));
         when(repo.findDescriptionById(1)).thenReturn(Optional.of(body));
 
         DocumentSearchGroups groups = service.search("needle", "hybrid");
@@ -108,8 +100,7 @@ class DocumentSearchGroupServiceTest {
     void anUnknownModeFallsBackToKeyword() {
         when(documents.search(anyString())).thenReturn(List.of());
 
-        assertThat(service.search("q", "whatever"))
-                .isEqualTo(new DocumentSearchGroups(0, List.of()));
+        assertThat(service.search("q", "whatever")).isEqualTo(new DocumentSearchGroups(0, List.of()));
         verify(documents).search("q");
         verifyNoMoreInteractions(documents);
     }

@@ -124,10 +124,7 @@ public class RunOptionsResolver {
      * сообщений): без этой проверки опечатка в модели обернулась бы не отказом на запросе, а
      * сообщением, которое приняли и на которое потом молча не ответили.
      */
-    public void validate(
-            final @Nullable String model,
-            final @Nullable String mode,
-            final @Nullable String project) {
+    public void validate(final @Nullable String model, final @Nullable String mode, final @Nullable String project) {
         if (StringUtils.hasText(model) && !chatModelProperties.isAllowed(model)) {
             throw new ResponseStatusException(BAD_REQUEST, "Unknown model: " + model);
         }
@@ -146,15 +143,12 @@ public class RunOptionsResolver {
      * @param stored строка чата, если её уже прочитали; пустая — параметр запроса всё решает сам
      */
     public @Nullable String resolveModel(
-            final String conversationId,
-            final Optional<ChatTopicEntity> stored,
-            final @Nullable String requested) {
+            final String conversationId, final Optional<ChatTopicEntity> stored, final @Nullable String requested) {
         if (StringUtils.hasText(requested)) {
             if (!chatModelProperties.isAllowed(requested)) {
                 throw new ResponseStatusException(BAD_REQUEST, "Unknown model: " + requested);
             }
-            chatTopicRepository.updateModel(
-                    conversationId, requested); // запоминаем как «последнюю»
+            chatTopicRepository.updateModel(conversationId, requested); // запоминаем как «последнюю»
             return requested;
         }
         return stored.map(ChatTopicEntity::getModel)
@@ -169,9 +163,7 @@ public class RunOptionsResolver {
      * #resolveModel}.
      */
     private @Nullable String resolveMode(
-            final String conversationId,
-            final Optional<ChatTopicEntity> stored,
-            final @Nullable String requested) {
+            final String conversationId, final Optional<ChatTopicEntity> stored, final @Nullable String requested) {
         if (StringUtils.hasText(requested)) {
             if (!chatModeProperties.isAllowed(requested)) {
                 throw new ResponseStatusException(BAD_REQUEST, "Unknown mode: " + requested);
@@ -198,8 +190,7 @@ public class RunOptionsResolver {
      * сравнение с прежним значением колонки (см. {@link #projectSwitch}) и есть детекция настоящей
      * смены проекта.
      */
-    private @Nullable String resolveProject(
-            final Optional<ChatTopicEntity> stored, final @Nullable String requested) {
+    private @Nullable String resolveProject(final Optional<ChatTopicEntity> stored, final @Nullable String requested) {
         if (StringUtils.hasText(requested)) {
             if (!projectCatalog.isAllowed(requested)) {
                 throw new ResponseStatusException(BAD_REQUEST, "Unknown project: " + requested);
@@ -218,13 +209,11 @@ public class RunOptionsResolver {
      * Проект, выбывший из конфигурации, канонизировать не во что — его id сравнивается как есть, и
      * переезд с него на дефолтный тоже смена: история-то читана в другом репозитории.
      */
-    private @Nullable ProjectSwitch projectSwitch(
-            @Nullable final String previous, @Nullable final String resolved) {
+    private @Nullable ProjectSwitch projectSwitch(@Nullable final String previous, @Nullable final String resolved) {
         final String to = projectCatalog.require(resolved).id();
-        final String from =
-                previous == null
-                        ? projectCatalog.defaultProject().id()
-                        : projectCatalog.find(previous).map(Project::id).orElse(previous);
+        final String from = previous == null
+                ? projectCatalog.defaultProject().id()
+                : projectCatalog.find(previous).map(Project::id).orElse(previous);
         return to.equals(from) ? null : new ProjectSwitch(from, to);
     }
 }

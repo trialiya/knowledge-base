@@ -43,14 +43,7 @@ class ScheduledScriptServiceTest {
         givenResolvedRequest();
         when(runner.run(any(ScriptRequest.class), any())).thenReturn(result(null));
         ScheduledScriptService service =
-                service(
-                        new Schedule(
-                                "nightly",
-                                "kb",
-                                "report",
-                                Map.of("area", "docs"),
-                                "0 0 3 * * *",
-                                20));
+                service(new Schedule("nightly", "kb", "report", Map.of("area", "docs"), "0 0 3 * * *", 20));
 
         service.register();
 
@@ -60,14 +53,11 @@ class ScheduledScriptServiceTest {
 
         // Никто не смотрит — значит писать нельзя: ни диффа, ни сообщения, к которому его отнести.
         verify(resolver).resolve(eq("kb"), eq("report"), any(), eq(20), eq(false), eq(null));
-        assertThat(service.statuses())
-                .singleElement()
-                .satisfies(
-                        status -> {
-                            assertThat(status.name()).isEqualTo("nightly");
-                            assertThat(status.lastRun()).isNotNull();
-                            assertThat(status.lastRun().ok()).isTrue();
-                        });
+        assertThat(service.statuses()).singleElement().satisfies(status -> {
+            assertThat(status.name()).isEqualTo("nightly");
+            assertThat(status.lastRun()).isNotNull();
+            assertThat(status.lastRun().ok()).isTrue();
+        });
     }
 
     /** Упавший скрипт — обычный исход, и расписание после него живёт дальше. */
@@ -109,47 +99,24 @@ class ScheduledScriptServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("cron");
 
-        assertThatThrownBy(
-                        () ->
-                                service(
-                                                new Schedule(
-                                                        null,
-                                                        null,
-                                                        "attachment:12",
-                                                        Map.of(),
-                                                        "0 0 3 * * *",
-                                                        null))
-                                        .register())
+        assertThatThrownBy(() -> service(new Schedule(null, null, "attachment:12", Map.of(), "0 0 3 * * *", null))
+                        .register())
                 .hasMessageContaining("not to a clock");
 
-        assertThatThrownBy(
-                        () -> service(schedule("0 0 3 * * *"), schedule("0 0 4 * * *")).register())
+        assertThatThrownBy(() -> service(schedule("0 0 3 * * *"), schedule("0 0 4 * * *"))
+                        .register())
                 .hasMessageContaining("duplicate name");
 
-        assertThatThrownBy(
-                        () ->
-                                service(
-                                                new Schedule(
-                                                        null,
-                                                        "kbb",
-                                                        "report",
-                                                        Map.of(),
-                                                        "0 0 3 * * *",
-                                                        null))
-                                        .register())
+        assertThatThrownBy(() -> service(new Schedule(null, "kbb", "report", Map.of(), "0 0 3 * * *", null))
+                        .register())
                 .hasMessageContaining("unknown project \"kbb\"");
     }
 
     /** Расписание без песочницы — опечатка в конфигурации, а не молчаливо мёртвая задача. */
     @Test
     void schedulesWithoutTheSandboxFailTheStart() {
-        ScheduledScriptService service =
-                new ScheduledScriptService(
-                        properties(false, List.of(schedule("0 0 3 * * *"))),
-                        resolver,
-                        runner,
-                        projects,
-                        taskScheduler);
+        ScheduledScriptService service = new ScheduledScriptService(
+                properties(false, List.of(schedule("0 0 3 * * *"))), resolver, runner, projects, taskScheduler);
 
         assertThatThrownBy(service::register).hasMessageContaining("kb.script.enabled=false");
     }
@@ -171,15 +138,14 @@ class ScheduledScriptServiceTest {
 
     private void givenResolvedRequest() {
         when(resolver.resolve(any(), any(), any(), any(), anyBoolean(), any()))
-                .thenReturn(
-                        new ScriptRequest(
-                                new ScriptSource("return 1;", "tools/report.js", null),
-                                ScriptArgs.none(),
-                                null,
-                                true,
-                                null,
-                                "kb",
-                                null));
+                .thenReturn(new ScriptRequest(
+                        new ScriptSource("return 1;", "tools/report.js", null),
+                        ScriptArgs.none(),
+                        null,
+                        true,
+                        null,
+                        "kb",
+                        null));
     }
 
     private static Schedule schedule(String cron) {
@@ -193,8 +159,7 @@ class ScheduledScriptServiceTest {
 
     private static ScriptProperties properties(boolean enabled, List<Schedule> schedules) {
         return new ScriptProperties(
-                enabled, true, true, false, null, null, null, null, schedules, null, null, null,
-                null);
+                enabled, true, true, false, null, null, null, null, schedules, null, null, null, null);
     }
 
     private static ScriptResult result(ScriptError error) {

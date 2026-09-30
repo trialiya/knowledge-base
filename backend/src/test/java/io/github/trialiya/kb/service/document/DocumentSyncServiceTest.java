@@ -54,7 +54,8 @@ import org.springframework.web.server.ResponseStatusException;
  */
 class DocumentSyncServiceTest {
 
-    @TempDir Path exportDir;
+    @TempDir
+    Path exportDir;
 
     private FakeTree db;
     private DocumentSyncService sync;
@@ -175,8 +176,7 @@ class DocumentSyncServiceTest {
             DocumentsConfiguration missing =
                     new DocumentsConfiguration(exportDir.resolve("nope").toString(), true);
             DocumentSyncService service =
-                    new DocumentSyncService(
-                            new DocumentTreeReader(db.repo()), export, db.documents(), missing);
+                    new DocumentSyncService(new DocumentTreeReader(db.repo()), export, db.documents(), missing);
 
             assertThatThrownBy(() -> service.diff(null, e -> {}))
                     .isInstanceOf(ResponseStatusException.class)
@@ -248,14 +248,12 @@ class DocumentSyncServiceTest {
             Files.writeString(exportDir.resolve("docs/alpha.md"), "see [beta](beta.md)\n");
             Files.writeString(exportDir.resolve("docs/beta.md"), "the target\n");
 
-            ImportSummary summary =
-                    apply(new ImportRequest(null, List.of("docs/alpha", "docs/beta"), false));
+            ImportSummary summary = apply(new ImportRequest(null, List.of("docs/alpha", "docs/beta"), false));
 
             long betaId = db.idOfTitle("beta");
             assertThat(summary.created()).isEqualTo(2);
             assertThat(summary.relinked()).isEqualTo(1);
-            assertThat(db.description(db.idOfTitle("alpha")))
-                    .contains("[beta](/?doc=" + betaId + ")");
+            assertThat(db.description(db.idOfTitle("alpha"))).contains("[beta](/?doc=" + betaId + ")");
         }
 
         @Test
@@ -341,8 +339,7 @@ class DocumentSyncServiceTest {
             Files.writeString(exportDir.resolve("docs/two.md"), "2\n");
 
             List<SyncEvent> events = new ArrayList<>();
-            sync.apply(
-                    new ImportRequest(null, List.of("docs/one", "docs/two"), false), events::add);
+            sync.apply(new ImportRequest(null, List.of("docs/one", "docs/two"), false), events::add);
 
             assertThat(events).extracting(SyncEvent::path).containsExactly("docs/one", "docs/two");
         }
@@ -366,14 +363,11 @@ class DocumentSyncServiceTest {
             Files.writeString(exportDir.resolve("docs/fresh.md"), "brand new\n");
 
             List<SyncEvent> events =
-                    applyCollecting(
-                            new ImportRequest(null, List.of("docs/intro", "docs/fresh"), false));
+                    applyCollecting(new ImportRequest(null, List.of("docs/intro", "docs/fresh"), false));
 
             assertThat(events)
                     .extracting(SyncEvent::path, SyncEvent::action)
-                    .containsExactly(
-                            tuple("docs/intro", SyncAction.UPDATED),
-                            tuple("docs/fresh", SyncAction.CREATED));
+                    .containsExactly(tuple("docs/intro", SyncAction.UPDATED), tuple("docs/fresh", SyncAction.CREATED));
         }
 
         @Test
@@ -384,8 +378,7 @@ class DocumentSyncServiceTest {
             Files.writeString(exportDir.resolve("docs/beta.md"), "the target\n");
 
             List<SyncEvent> events =
-                    applyCollecting(
-                            new ImportRequest(null, List.of("docs/alpha", "docs/beta"), false));
+                    applyCollecting(new ImportRequest(null, List.of("docs/alpha", "docs/beta"), false));
 
             // alpha is written twice on purpose — the log should say so rather than hide the
             // rewrite behind the create.
@@ -403,8 +396,7 @@ class DocumentSyncServiceTest {
             export.exportAll(false);
             Files.delete(exportDir.resolve("docs/api.md"));
 
-            List<SyncEvent> events =
-                    applyCollecting(new ImportRequest(null, List.of("docs/api"), true));
+            List<SyncEvent> events = applyCollecting(new ImportRequest(null, List.of("docs/api"), true));
 
             assertThat(events)
                     .extracting(SyncEvent::path, SyncEvent::action)
@@ -420,17 +412,13 @@ class DocumentSyncServiceTest {
             Files.createDirectories(exportDir.resolve("docs/intro"));
             Files.writeString(exportDir.resolve("docs/intro/.content.md"), "now a folder\n");
 
-            List<SyncEvent> events =
-                    applyCollecting(new ImportRequest(null, List.of("docs/intro"), false));
+            List<SyncEvent> events = applyCollecting(new ImportRequest(null, List.of("docs/intro"), false));
 
-            assertThat(events)
-                    .singleElement()
-                    .satisfies(
-                            event -> {
-                                assertThat(event.action()).isEqualTo(SyncAction.FAILED);
-                                assertThat(event.path()).isEqualTo("docs/intro");
-                                assertThat(event.message()).isEqualTo("type changed on disk");
-                            });
+            assertThat(events).singleElement().satisfies(event -> {
+                assertThat(event.action()).isEqualTo(SyncAction.FAILED);
+                assertThat(event.path()).isEqualTo("docs/intro");
+                assertThat(event.message()).isEqualTo("type changed on disk");
+            });
         }
 
         /** The export walks the same tree but does one thing to every node — nothing to name. */
@@ -482,15 +470,10 @@ class DocumentSyncServiceTest {
         return entries.stream()
                 .filter(e -> e.path().equals(path))
                 .findFirst()
-                .orElseThrow(
-                        () ->
-                                new AssertionError(
-                                        "no entry for "
-                                                + path
-                                                + " in "
-                                                + entries.stream()
-                                                        .map(SyncEntry::path)
-                                                        .collect(Collectors.joining(", "))));
+                .orElseThrow(() -> new AssertionError("no entry for "
+                        + path
+                        + " in "
+                        + entries.stream().map(SyncEntry::path).collect(Collectors.joining(", "))));
     }
 
     private static SyncStatus statusOf(List<SyncEntry> entries, String path) {
@@ -520,23 +503,14 @@ class DocumentSyncServiceTest {
         private long nextId = 100;
 
         FakeTree() {
-            when(repo.findTreeRowsByParent(any()))
-                    .thenAnswer(invocation -> childrenOf(invocation.getArgument(0)));
+            when(repo.findTreeRowsByParent(any())).thenAnswer(invocation -> childrenOf(invocation.getArgument(0)));
             when(repo.findTreeRowById(anyLong()))
-                    .thenAnswer(
-                            invocation ->
-                                    Optional.ofNullable(rows.get(invocation.<Long>getArgument(0))));
+                    .thenAnswer(invocation -> Optional.ofNullable(rows.get(invocation.<Long>getArgument(0))));
             when(repo.findDescriptionById(anyLong()))
-                    .thenAnswer(
-                            invocation ->
-                                    Optional.ofNullable(
-                                            bodies.get(invocation.<Long>getArgument(0))));
-            when(documents.create(any()))
-                    .thenAnswer(invocation -> create(invocation.getArgument(0)));
+                    .thenAnswer(invocation -> Optional.ofNullable(bodies.get(invocation.<Long>getArgument(0))));
+            when(documents.create(any())).thenAnswer(invocation -> create(invocation.getArgument(0)));
             when(documents.update(anyLong(), any()))
-                    .thenAnswer(
-                            invocation ->
-                                    update(invocation.getArgument(0), invocation.getArgument(1)));
+                    .thenAnswer(invocation -> update(invocation.getArgument(0), invocation.getArgument(1)));
             org.mockito.Mockito.doAnswer(invocation -> remove(invocation.getArgument(0)))
                     .when(documents)
                     .delete(anyLong());
@@ -550,26 +524,15 @@ class DocumentSyncServiceTest {
             return documents;
         }
 
-        void add(
-                long id,
-                String title,
-                Long parentId,
-                int position,
-                DocumentType type,
-                String body) {
-            rows.put(
-                    id,
-                    new DocumentTreeRow(
-                            id, parentId, title, type, position, false, LocalDateTime.now()));
+        void add(long id, String title, Long parentId, int position, DocumentType type, String body) {
+            rows.put(id, new DocumentTreeRow(id, parentId, title, type, position, false, LocalDateTime.now()));
             bodies.put(id, body);
         }
 
         private List<DocumentTreeRow> childrenOf(Long parentId) {
             return rows.values().stream()
                     .filter(r -> java.util.Objects.equals(r.parentId(), parentId))
-                    .sorted(
-                            Comparator.comparingInt(DocumentTreeRow::position)
-                                    .thenComparing(DocumentTreeRow::title))
+                    .sorted(Comparator.comparingInt(DocumentTreeRow::position).thenComparing(DocumentTreeRow::title))
                     .toList();
         }
 

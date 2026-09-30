@@ -43,8 +43,7 @@ public class EmbeddingTaskRepository {
     @Transactional
     public List<EmbeddingTaskEntity> claimPending(int batchSize, int retryBackoffSeconds) {
         UUID claimToken = UUID.randomUUID();
-        return jdbc.query(
-                """
+        return jdbc.query("""
                 UPDATE embedding_tasks
                    SET status      = 'starting',
                        updated_at  = NOW(),
@@ -66,11 +65,7 @@ public class EmbeddingTaskRepository {
                           FOR UPDATE SKIP LOCKED
                        )
                 RETURNING id, entity_type, entity_id, status, attempts, created_at, updated_at, claim_token
-                """,
-                TASK_ROW_MAPPER,
-                claimToken,
-                retryBackoffSeconds,
-                batchSize);
+                """, TASK_ROW_MAPPER, claimToken, retryBackoffSeconds, batchSize);
     }
 
     /**
@@ -79,12 +74,11 @@ public class EmbeddingTaskRepository {
      * was already handed to someone else.
      */
     public boolean isMyClaimValid(Long id, UUID claimToken) {
-        Integer count =
-                jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM embedding_tasks WHERE id = ? AND claim_token = ? AND status = 'starting'",
-                        Integer.class,
-                        id,
-                        claimToken);
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM embedding_tasks WHERE id = ? AND claim_token = ? AND status = 'starting'",
+                Integer.class,
+                id,
+                claimToken);
         return count != null && count > 0;
     }
 
@@ -118,8 +112,7 @@ public class EmbeddingTaskRepository {
      * embedding_tasks_pending_unique} index.
      */
     public void resetToPending(Long id, UUID claimToken) {
-        jdbc.update(
-                """
+        jdbc.update("""
                 UPDATE embedding_tasks t
                    SET status = CASE WHEN EXISTS (
                                     SELECT 1 FROM embedding_tasks p
@@ -130,9 +123,7 @@ public class EmbeddingTaskRepository {
                        updated_at  = NOW(),
                        claim_token = NULL
                  WHERE t.id = ? AND t.claim_token = ? AND t.status = 'starting'
-                """,
-                id,
-                claimToken);
+                """, id, claimToken);
     }
 
     /**
@@ -141,8 +132,7 @@ public class EmbeddingTaskRepository {
      * #claimPending}, since nothing was actually attempted.
      */
     public void releaseClaim(Long id, UUID claimToken) {
-        jdbc.update(
-                """
+        jdbc.update("""
                 UPDATE embedding_tasks t
                    SET status = CASE WHEN EXISTS (
                                     SELECT 1 FROM embedding_tasks p
@@ -154,9 +144,7 @@ public class EmbeddingTaskRepository {
                        updated_at  = NOW(),
                        claim_token = NULL
                  WHERE t.id = ? AND t.claim_token = ? AND t.status = 'starting'
-                """,
-                id,
-                claimToken);
+                """, id, claimToken);
     }
 
     /**
@@ -169,9 +157,7 @@ public class EmbeddingTaskRepository {
      */
     @Transactional
     public int resetStuck(int stuckMinutes, int maxAttempts) {
-        int reset =
-                jdbc.update(
-                        """
+        int reset = jdbc.update("""
                 UPDATE embedding_tasks t
                    SET status = CASE WHEN EXISTS (
                                     SELECT 1 FROM embedding_tasks p
@@ -184,20 +170,14 @@ public class EmbeddingTaskRepository {
                  WHERE t.status = 'starting'
                    AND t.updated_at < NOW() - ? * interval '1 minute'
                    AND t.attempts < ?
-                """,
-                        stuckMinutes,
-                        maxAttempts);
-        int failed =
-                jdbc.update(
-                        """
+                """, stuckMinutes, maxAttempts);
+        int failed = jdbc.update("""
                 UPDATE embedding_tasks
                    SET status = 'failed', updated_at = NOW()
                  WHERE status = 'starting'
                    AND updated_at < NOW() - ? * interval '1 minute'
                    AND attempts >= ?
-                """,
-                        stuckMinutes,
-                        maxAttempts);
+                """, stuckMinutes, maxAttempts);
         return reset + failed;
     }
 
@@ -208,13 +188,11 @@ public class EmbeddingTaskRepository {
      */
     @Transactional
     public int cleanupCompleted(int retentionDays) {
-        return jdbc.update(
-                """
+        return jdbc.update("""
                 DELETE FROM embedding_tasks
                  WHERE status IN ('done', 'failed', 'superseded')
                    AND updated_at < NOW() - ? * interval '1 day'
-                """,
-                retentionDays);
+                """, retentionDays);
     }
 
     /**
@@ -224,33 +202,29 @@ public class EmbeddingTaskRepository {
      * transaction.
      */
     public void enqueueIfAbsent(EmbeddingEntityType entityType, Long entityId) {
-        jdbc.update(
-                """
+        jdbc.update("""
                 INSERT INTO embedding_tasks (entity_type, entity_id, status, attempts, created_at, updated_at)
                 VALUES (?, ?, 'pending', 0, NOW(), NOW())
                 ON CONFLICT (entity_type, entity_id) WHERE status = 'pending' DO NOTHING
-                """,
-                entityType.getValue(),
-                entityId);
+                """, entityType.getValue(), entityId);
     }
 
-    private static final RowMapper<EmbeddingTaskEntity> TASK_ROW_MAPPER =
-            (rs, rowNum) -> {
-                EmbeddingTaskEntity e = new EmbeddingTaskEntity();
-                e.setId(rs.getLong("id"));
-                e.setEntityType(EmbeddingEntityType.fromValue(rs.getString("entity_type")));
-                e.setEntityId(rs.getLong("entity_id"));
-                e.setStatus(EmbeddingTaskStatus.fromValue(rs.getString("status")));
-                e.setAttempts(rs.getInt("attempts"));
-                Timestamp created = rs.getTimestamp("created_at");
-                if (created != null) {
-                    e.setCreatedAt(created.toInstant().atOffset(ZoneOffset.UTC));
-                }
-                Timestamp updated = rs.getTimestamp("updated_at");
-                if (updated != null) {
-                    e.setUpdatedAt(updated.toInstant().atOffset(ZoneOffset.UTC));
-                }
-                e.setClaimToken((UUID) rs.getObject("claim_token"));
-                return e;
-            };
+    private static final RowMapper<EmbeddingTaskEntity> TASK_ROW_MAPPER = (rs, rowNum) -> {
+        EmbeddingTaskEntity e = new EmbeddingTaskEntity();
+        e.setId(rs.getLong("id"));
+        e.setEntityType(EmbeddingEntityType.fromValue(rs.getString("entity_type")));
+        e.setEntityId(rs.getLong("entity_id"));
+        e.setStatus(EmbeddingTaskStatus.fromValue(rs.getString("status")));
+        e.setAttempts(rs.getInt("attempts"));
+        Timestamp created = rs.getTimestamp("created_at");
+        if (created != null) {
+            e.setCreatedAt(created.toInstant().atOffset(ZoneOffset.UTC));
+        }
+        Timestamp updated = rs.getTimestamp("updated_at");
+        if (updated != null) {
+            e.setUpdatedAt(updated.toInstant().atOffset(ZoneOffset.UTC));
+        }
+        e.setClaimToken((UUID) rs.getObject("claim_token"));
+        return e;
+    };
 }

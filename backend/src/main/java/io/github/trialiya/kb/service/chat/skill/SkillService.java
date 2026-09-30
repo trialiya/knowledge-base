@@ -67,20 +67,19 @@ public class SkillService {
      * Все встроенные навыки, какие бывают. Тексты лежат отдельными файлами, здесь — только имя,
      * триггер для каталога и условие доступности; текст в конструкторе читается один раз.
      */
-    private static final List<SkillDefinition> CATALOGUE =
-            List.of(
-                    new SkillDefinition(
-                            "script-writing",
-                            "before writing a non-trivial `runScript`: script vs single tools, how"
-                                    + " to structure one, worked examples for repo-wide tasks",
-                            "prompt/skills/script-writing.md",
-                            false),
-                    new SkillDefinition(
-                            "script-editing",
-                            "before a `runScript` that writes files: worked examples and pitfalls"
-                                    + " for `kb.edit` / `kb.create` / `kb.writeBytes`",
-                            "prompt/skills/script-editing.md",
-                            true));
+    private static final List<SkillDefinition> CATALOGUE = List.of(
+            new SkillDefinition(
+                    "script-writing",
+                    "before writing a non-trivial `runScript`: script vs single tools, how"
+                            + " to structure one, worked examples for repo-wide tasks",
+                    "prompt/skills/script-writing.md",
+                    false),
+            new SkillDefinition(
+                    "script-editing",
+                    "before a `runScript` that writes files: worked examples and pitfalls"
+                            + " for `kb.edit` / `kb.create` / `kb.writeBytes`",
+                    "prompt/skills/script-editing.md",
+                    true));
 
     /**
      * Потолок текста проектного навыка, в байтах файла. Встроенные навыки — порядка десяти
@@ -98,10 +97,7 @@ public class SkillService {
     /** Есть ли проектные навыки хоть у одного проекта — константа старта, как и весь каталог. */
     private final boolean anyProjectSkills;
 
-    public SkillService(
-            ScriptProperties scriptProperties,
-            ScriptEditPolicy editPolicy,
-            ProjectCatalog projects) {
+    public SkillService(ScriptProperties scriptProperties, ScriptEditPolicy editPolicy, ProjectCatalog projects) {
         this.editPolicy = editPolicy;
         this.projects = projects;
         // Сегодня каждый встроенный навык — про runScript, поэтому без самого инструмента их нет:
@@ -109,8 +105,8 @@ public class SkillService {
         // попытки.
         this.skills =
                 scriptProperties.enabled() ? CATALOGUE.stream().map(Skill::of).toList() : List.of();
-        this.anyProjectSkills =
-                projects.projects().stream().anyMatch(project -> !project.skills().isEmpty());
+        this.anyProjectSkills = projects.projects().stream()
+                .anyMatch(project -> !project.skills().isEmpty());
         requireNoBuiltInCollisions(projects.projects());
     }
 
@@ -125,12 +121,11 @@ public class SkillService {
         for (Project project : configured) {
             for (ProjectSkill skill : project.skills()) {
                 if (CATALOGUE.stream().anyMatch(d -> d.name().equals(skill.name()))) {
-                    throw new IllegalStateException(
-                            "kb.projects["
-                                    + project.id()
-                                    + "].skills: \""
-                                    + skill.name()
-                                    + "\" is a built-in skill's name — rename the project skill");
+                    throw new IllegalStateException("kb.projects["
+                            + project.id()
+                            + "].skills: \""
+                            + skill.name()
+                            + "\" is a built-in skill's name — rename the project skill");
                 }
             }
         }
@@ -163,9 +158,7 @@ public class SkillService {
         if (!anySkills()) {
             return "";
         }
-        StringBuilder text =
-                new StringBuilder(
-                        """
+        StringBuilder text = new StringBuilder("""
                         ## Skills
                         A skill is an instruction file loaded on demand: call `readSkill` with its \
                         name and follow what it returns. Load a skill the moment its trigger \
@@ -178,8 +171,7 @@ public class SkillService {
             }
         }
         if (anyProjectSkills) {
-            text.append(
-                    """
+            text.append("""
                     \n
                     The active repository may define skills of its own: if it does, they are \
                     listed in the `<active-project>` block next to the current question, and \
@@ -187,8 +179,7 @@ public class SkillService {
                     stays the active project — after a project switch they are no longer \
                     available.""");
         }
-        text.append(
-                """
+        text.append("""
                 \n
                 A loaded skill lives in the context only as a tool result. If the conversation was \
                 summarized and the summary says a skill was loaded, its text is gone — call \
@@ -208,9 +199,8 @@ public class SkillService {
             return "";
         }
         StringBuilder text =
-                new StringBuilder(
-                        "\n\nSkills this repository defines — load with `readSkill` the moment the"
-                                + " trigger matches (see \"Skills\" in the system prompt):");
+                new StringBuilder("\n\nSkills this repository defines — load with `readSkill` the moment the"
+                        + " trigger matches (see \"Skills\" in the system prompt):");
         for (ProjectSkill skill : project.skills()) {
             text.append("\n- `").append(skill.name()).append("` — ").append(skill.trigger());
         }
@@ -228,28 +218,22 @@ public class SkillService {
      *     доступные, и оно же — ответ инструмента модели
      */
     public SkillContent read(String name, @Nullable String projectId) {
-        Skill builtIn = skills.stream().filter(s -> s.name().equals(name)).findFirst().orElse(null);
+        Skill builtIn =
+                skills.stream().filter(s -> s.name().equals(name)).findFirst().orElse(null);
         if (builtIn != null) {
             if (builtIn.needsScriptEdit() && !editPolicy.enabled(projectId)) {
-                throw new IllegalArgumentException(
-                        "Skill '"
-                                + name
-                                + "' is not available: scripts cannot write files in this project. "
-                                + availableList(projectId));
+                throw new IllegalArgumentException("Skill '"
+                        + name
+                        + "' is not available: scripts cannot write files in this project. "
+                        + availableList(projectId));
             }
             return new SkillContent(builtIn.name(), builtIn.content());
         }
-        ProjectSkill projectSkill =
-                activeProject(projectId).skills().stream()
-                        .filter(skill -> skill.name().equals(name))
-                        .findFirst()
-                        .orElseThrow(
-                                () ->
-                                        new IllegalArgumentException(
-                                                "Unknown skill '"
-                                                        + name
-                                                        + "'. "
-                                                        + availableList(projectId)));
+        ProjectSkill projectSkill = activeProject(projectId).skills().stream()
+                .filter(skill -> skill.name().equals(name))
+                .findFirst()
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Unknown skill '" + name + "'. " + availableList(projectId)));
         return new SkillContent(name, readProjectFile(activeProject(projectId), projectSkill));
     }
 
@@ -288,14 +272,13 @@ public class SkillService {
             requireInsideTree(project, skill);
             long size = Files.size(file);
             if (size > MAX_PROJECT_SKILL_BYTES) {
-                throw new IllegalArgumentException(
-                        "Skill '"
-                                + skill.name()
-                                + "' is too large to load ("
-                                + size
-                                + " bytes, the limit is "
-                                + MAX_PROJECT_SKILL_BYTES
-                                + ") — tell the user its file needs splitting");
+                throw new IllegalArgumentException("Skill '"
+                        + skill.name()
+                        + "' is too large to load ("
+                        + size
+                        + " bytes, the limit is "
+                        + MAX_PROJECT_SKILL_BYTES
+                        + ") — tell the user its file needs splitting");
             }
             return Files.readString(file, StandardCharsets.UTF_8).strip();
         } catch (NoSuchFileException e) {
@@ -330,11 +313,10 @@ public class SkillService {
     private static void requireInsideTree(Project project, ProjectSkill skill) throws IOException {
         Path real = skill.file().toRealPath();
         if (!real.startsWith(project.path().toRealPath())) {
-            throw new IllegalArgumentException(
-                    "Skill '"
-                            + skill.name()
-                            + "' is not loadable: its file leaves the project tree through a"
-                            + " symlink");
+            throw new IllegalArgumentException("Skill '"
+                    + skill.name()
+                    + "' is not loadable: its file leaves the project tree through a"
+                    + " symlink");
         }
     }
 
@@ -348,11 +330,10 @@ public class SkillService {
     }
 
     private String availableList(@Nullable String projectId) {
-        List<String> available =
-                Stream.concat(
-                                availableFor(projectId).stream().map(Skill::name),
-                                activeProject(projectId).skills().stream().map(ProjectSkill::name))
-                        .toList();
+        List<String> available = Stream.concat(
+                        availableFor(projectId).stream().map(Skill::name),
+                        activeProject(projectId).skills().stream().map(ProjectSkill::name))
+                .toList();
         if (available.isEmpty()) {
             return "No skills are available.";
         }
@@ -373,8 +354,7 @@ public class SkillService {
      * @param needsScriptEdit навык описывает пишущие скрипты и виден только там, где им можно
      *     писать
      */
-    private record SkillDefinition(
-            String name, String trigger, String resource, boolean needsScriptEdit) {}
+    private record SkillDefinition(String name, String trigger, String resource, boolean needsScriptEdit) {}
 
     /** Встроенный навык с прочитанным текстом. */
     private record Skill(String name, String trigger, String content, boolean needsScriptEdit) {

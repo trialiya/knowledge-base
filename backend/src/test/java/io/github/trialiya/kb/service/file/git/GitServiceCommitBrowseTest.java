@@ -28,7 +28,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitServiceCommitBrowseTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
     private GitService service;
 
@@ -69,11 +70,10 @@ class GitServiceCommitBrowseTest {
         assertThat(view.file().content()).isEqualTo("first\n");
         assertThat(view.commit()).isEqualTo(first);
 
-        GitFileNode inRoot =
-                view.tree().getFirst().nodes().stream()
-                        .filter(n -> "README.md".equals(n.path()))
-                        .findFirst()
-                        .orElseThrow();
+        GitFileNode inRoot = view.tree().getFirst().nodes().stream()
+                .filter(n -> "README.md".equals(n.path()))
+                .findFirst()
+                .orElseThrow();
         assertThat(inRoot.size()).isEqualTo("first\n".length());
     }
 
@@ -101,8 +101,7 @@ class GitServiceCommitBrowseTest {
 
         assertThat(view.tracked()).isTrue();
         assertThat(view.tree()).extracting("path").containsExactly("", "src", "src/util");
-        assertThat(view.tree())
-                .allSatisfy(level -> assertThat(level.nodes()).allMatch(GitFileNode::tracked));
+        assertThat(view.tree()).allSatisfy(level -> assertThat(level.nodes()).allMatch(GitFileNode::tracked));
     }
 
     /** Каталог отвечает листингом, файл — содержимым: та же развилка, что у рабочего дерева. */
@@ -179,8 +178,7 @@ class GitServiceCommitBrowseTest {
 
         assertThatThrownBy(() -> service.getCommitLog(1, null, false, treeHash))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.getFileTreeAt(treeHash, ""))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.getFileTreeAt(treeHash, "")).isInstanceOf(IllegalArgumentException.class);
     }
 
     /** История пути от ревизии: коммиты, сделанные после неё, в ответ не попадают. */
@@ -247,8 +245,7 @@ class GitServiceCommitBrowseTest {
 
         assertThat(names(service.getFileTreeAt(head(), ""))).doesNotContain("qu\"ote.md", "odd");
         assertThat(names(service.getFileTreeAt(head(), "odd"))).isEmpty();
-        assertThat(names(service.browsePathAt(head(), "", false).nodes()))
-                .doesNotContain("qu\"ote.md", "odd");
+        assertThat(names(service.browsePathAt(head(), "", false).nodes())).doesNotContain("qu\"ote.md", "odd");
         assertThat(names(service.getFileTree(""))).doesNotContain("qu\"ote.md", "odd");
     }
 
@@ -258,11 +255,10 @@ class GitServiceCommitBrowseTest {
         String first = head();
         write("README.md", "a much longer line than the committed one\n");
 
-        GitFileNode node =
-                service.getFileTreeAt(first, "").stream()
-                        .filter(n -> "README.md".equals(n.path()))
-                        .findFirst()
-                        .orElseThrow();
+        GitFileNode node = service.getFileTreeAt(first, "").stream()
+                .filter(n -> "README.md".equals(n.path()))
+                .findFirst()
+                .orElseThrow();
 
         assertThat(node.size()).isEqualTo("first\n".length());
         assertThat(node.type()).isEqualTo(FileEntryType.FILE);
@@ -341,16 +337,13 @@ class GitServiceCommitBrowseTest {
             var command = new java.util.ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             if (process.waitFor() != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

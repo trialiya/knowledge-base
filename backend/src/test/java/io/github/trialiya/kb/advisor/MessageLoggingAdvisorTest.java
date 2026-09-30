@@ -77,14 +77,8 @@ class MessageLoggingAdvisorTest {
                 .build()
                 .prompt()
                 .user("question")
-                .advisors(
-                        a ->
-                                a.advisors(new MessageLoggingAdvisor())
-                                        .param(
-                                                ChatClientAttributes
-                                                        .TOOL_CALLING_ADVISOR_AUTO_REGISTER
-                                                        .getKey(),
-                                                false))
+                .advisors(a -> a.advisors(new MessageLoggingAdvisor())
+                        .param(ChatClientAttributes.TOOL_CALLING_ADVISOR_AUTO_REGISTER.getKey(), false))
                 .call()
                 .chatResponse();
 
@@ -203,9 +197,7 @@ class MessageLoggingAdvisorTest {
                         new AssistantMessage(
                                 "смотрю",
                                 Map.of(),
-                                List.of(
-                                        new AssistantMessage.ToolCall(
-                                                "c1", "function", "grep", arguments)),
+                                List.of(new AssistantMessage.ToolCall("c1", "function", "grep", arguments)),
                                 List.of()) {},
                         new ToolResponseMessage(
                                 List.<ToolResponseMessage.ToolResponse>of(
@@ -219,9 +211,7 @@ class MessageLoggingAdvisorTest {
                 .contains("ASSISTANT")
                 .contains("grep(c1, " + arguments.length() + " chars)")
                 .contains(String.valueOf("смотрю".length() + arguments.length()) + " chars");
-        assertThat(lines.get(4))
-                .contains("TOOL")
-                .contains("grep(c1, " + result.length() + " chars)");
+        assertThat(lines.get(4)).contains("TOOL").contains("grep(c1, " + result.length() + " chars)");
     }
 
     /**
@@ -247,8 +237,7 @@ class MessageLoggingAdvisorTest {
                         new UserMessage("q"),
                         AssistantMessage.builder()
                                 .content("ответ")
-                                .properties(
-                                        Map.of(AssistantChatMessage.REASONING_CONTENT, reasoning))
+                                .properties(Map.of(AssistantChatMessage.REASONING_CONTENT, reasoning))
                                 .build())
                 .user("ещё")
                 .call()
@@ -261,9 +250,7 @@ class MessageLoggingAdvisorTest {
         ask("x".repeat(10_000));
 
         final String line = lines(0).get(5);
-        assertThat(line)
-                .contains("10000 chars")
-                .contains("x".repeat(MessageLoggingAdvisor.PREVIEW));
+        assertThat(line).contains("10000 chars").contains("x".repeat(MessageLoggingAdvisor.PREVIEW));
         assertThat(line).doesNotContain("x".repeat(MessageLoggingAdvisor.PREVIEW + 1));
     }
 
@@ -293,14 +280,8 @@ class MessageLoggingAdvisorTest {
 
     private void askWithTool() {
         ChatClient.builder(model())
-                .defaultAdvisors(
-                        a ->
-                                a.advisors(new MessageLoggingAdvisor())
-                                        .param(
-                                                ChatClientAttributes
-                                                        .TOOL_CALLING_ADVISOR_AUTO_REGISTER
-                                                        .getKey(),
-                                                false))
+                .defaultAdvisors(a -> a.advisors(new MessageLoggingAdvisor())
+                        .param(ChatClientAttributes.TOOL_CALLING_ADVISOR_AUTO_REGISTER.getKey(), false))
                 .build()
                 .prompt()
                 .tools(new EchoTool())
@@ -347,8 +328,7 @@ class MessageLoggingAdvisorTest {
     /** Модель-заглушка: адвайзер только наблюдает, ответ ему безразличен. */
     private static ChatModel model() {
         final ChatModel model = mock(ChatModel.class);
-        final ChatResponse response =
-                new ChatResponse(List.of(new Generation(new AssistantMessage("answer"))));
+        final ChatResponse response = new ChatResponse(List.of(new Generation(new AssistantMessage("answer"))));
         when(model.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
         when(model.call(any(Prompt.class))).thenReturn(response);
         when(model.stream(any(Prompt.class))).thenReturn(Flux.just(response));

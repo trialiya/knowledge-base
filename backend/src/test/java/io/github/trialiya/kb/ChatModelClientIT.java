@@ -67,30 +67,26 @@ import org.springframework.context.annotation.Import;
 @Import({CommonConfig.class, JdbcConfig.class, PgVectorJdbcConfig.class})
 class ChatModelClientIT extends AbstractPostgresIntegrationTest {
 
-    @Autowired private ChatMessageRepository messageRepo;
-    @Autowired private ToolCallIndexRepository toolCallIndexRepo;
+    @Autowired
+    private ChatMessageRepository messageRepo;
+
+    @Autowired
+    private ToolCallIndexRepository toolCallIndexRepo;
 
     @Test
     void selectedModelReachesModelLayerAndReplyIsPersisted() {
         String conversationId = UUID.randomUUID().toString();
 
         // ── настоящая память поверх Postgres ────────────────────────────────
-        ChatHistoryService history =
-                new ChatHistoryService(
-                        messageRepo,
-                        new ContextItemService(mock(AttachmentService.class)),
-                        new ToolCallService(messageRepo, toolCallIndexRepo),
-                        new ToolCallEventPublisher(
-                                new ChatEventService(
-                                        new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                                new RunRegistry()),
-                        ActiveProjectNotices.silent());
-        ChatMemory chatMemory =
-                new ChatHistoryMemory(
-                        history,
-                        mock(ChatEventService.class),
-                        new RunRegistry(),
-                        mock(ChatModelProperties.class));
+        ChatHistoryService history = new ChatHistoryService(
+                messageRepo,
+                new ContextItemService(mock(AttachmentService.class)),
+                new ToolCallService(messageRepo, toolCallIndexRepo),
+                new ToolCallEventPublisher(
+                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))), new RunRegistry()),
+                ActiveProjectNotices.silent());
+        ChatMemory chatMemory = new ChatHistoryMemory(
+                history, mock(ChatEventService.class), new RunRegistry(), mock(ChatModelProperties.class));
 
         // ── модель-заглушка ────────────────────────────────────────────────
         ChatModel chatModel = mock(ChatModel.class);
@@ -98,24 +94,20 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
         // getOptions() в DefaultChatClientUtils, поэтому мокаем оба геттера опций.
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
         when(chatModel.call(any(Prompt.class)))
-                .thenReturn(
-                        new ChatResponse(
-                                List.of(new Generation(new AssistantMessage("Привет, человек!")))));
+                .thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage("Привет, человек!")))));
 
-        ChatClient chatClient =
-                ChatClient.builder(chatModel)
-                        .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-                        .build();
+        ChatClient chatClient = ChatClient.builder(chatModel)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .build();
 
         // ── вызов с явным выбором модели ────────────────────────────────────
-        String reply =
-                chatClient
-                        .prompt()
-                        .user("Привет, модель")
-                        .options(OpenAiChatOptions.builder().model("gpt-test"))
-                        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                        .call()
-                        .content();
+        String reply = chatClient
+                .prompt()
+                .user("Привет, модель")
+                .options(OpenAiChatOptions.builder().model("gpt-test"))
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .call()
+                .content();
 
         assertThat(reply).isEqualTo("Привет, человек!");
 

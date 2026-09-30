@@ -25,8 +25,7 @@ class TreeSitterOutlineParserTest {
     void setUp() {
         parser = new TreeSitterOutlineParser();
         Assumptions.assumeTrue(
-                parser.supports("java"),
-                "tree-sitter native library unavailable on this platform; skipping");
+                parser.supports("java"), "tree-sitter native library unavailable on this platform; skipping");
     }
 
     private static Stream<GitSymbol> find(List<GitSymbol> symbols, String name) {
@@ -39,8 +38,7 @@ class TreeSitterOutlineParserTest {
 
     @Test
     void methodWithMultilineParamsAndCyrillicAnnotation() {
-        String src =
-                """
+        String src = """
                 package com.example;
 
                 import java.util.List;
@@ -72,8 +70,7 @@ class TreeSitterOutlineParserTest {
 
     @Test
     void methodWithMultipleParams() {
-        String src =
-                """
+        String src = """
                 public class A {
                     @Tool(description = "История")
                     public List<GitCommit> getCommitLog(
@@ -84,16 +81,14 @@ class TreeSitterOutlineParserTest {
                 }
                 """;
 
-        GitSymbol m = find(parser.parse("java", src), "getCommitLog").findFirst().orElseThrow();
-        assertEquals(
-                "public List<GitCommit> getCommitLog(Integer maxCount, String filePath)",
-                m.signature());
+        GitSymbol m =
+                find(parser.parse("java", src), "getCommitLog").findFirst().orElseThrow();
+        assertEquals("public List<GitCommit> getCommitLog(Integer maxCount, String filePath)", m.signature());
     }
 
     @Test
     void noArgMethodHasEmptyParens() {
-        String src =
-                """
+        String src = """
                 public class A {
                     private int count() { return 0; }
                 }
@@ -104,27 +99,22 @@ class TreeSitterOutlineParserTest {
 
     @Test
     void constructorHasNoReturnType() {
-        String src =
-                """
+        String src = """
                 public class GitService {
                     public GitService(String projectPath, OutlineService outlineService) {
                     }
                 }
                 """;
-        GitSymbol c =
-                find(parser.parse("java", src), "GitService")
-                        .filter(s -> s.kind().equals("constructor"))
-                        .findFirst()
-                        .orElseThrow();
-        assertEquals(
-                "public GitService(String projectPath, OutlineService outlineService)",
-                c.signature());
+        GitSymbol c = find(parser.parse("java", src), "GitService")
+                .filter(s -> s.kind().equals("constructor"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("public GitService(String projectPath, OutlineService outlineService)", c.signature());
     }
 
     @Test
     void keywordInsideAnnotationStringDoesNotLeak() {
-        String src =
-                """
+        String src = """
                 public class A {
                     @Tool(description = "use the public API here")
                     private void foo() {}
@@ -137,8 +127,7 @@ class TreeSitterOutlineParserTest {
 
     @Test
     void startLinePointsAtDeclarationNotAnnotation() {
-        String src =
-                """
+        String src = """
                 public class A {
 
                     @Tool(description = "x")
@@ -154,8 +143,7 @@ class TreeSitterOutlineParserTest {
     /** {@code def} прямо в теле класса — метод; вложенная в функцию — её код, не структура. */
     @Test
     void pythonDefInAClassIsAMethodAndNestedDefsAreNotListed() {
-        String src =
-                """
+        String src = """
                 class Animal:
                     @property
                     def speak(self) -> str:
@@ -179,8 +167,7 @@ class TreeSitterOutlineParserTest {
     /** Компоненты React — стрелочные функции в модульных const, с разметкой JSX внутри. */
     @Test
     void jsxComponentsHeldInConstsAreFunctions() {
-        String src =
-                """
+        String src = """
                 import { useState } from 'react';
 
                 const Row = ({ label }) => <li>{label}</li>;
@@ -213,8 +200,7 @@ class TreeSitterOutlineParserTest {
     /** Модульный объект функций (api-клиент) и поле класса со стрелочной функцией — методы. */
     @Test
     void functionsInModuleObjectsAndClassFieldsAreMethods() {
-        String src =
-                """
+        String src = """
                 const api = {
                   load: (id) => fetch(id),
                   save(doc) { return doc; },
@@ -242,8 +228,7 @@ class TreeSitterOutlineParserTest {
 
     @Test
     void typescriptArrowFunctionKeepsItsTypes() {
-        String src =
-                """
+        String src = """
                 export const sum = (a: number, b: number): number => {
                   return a + b;
                 };
@@ -257,8 +242,7 @@ class TreeSitterOutlineParserTest {
     /** Декоратор — не часть сигнатуры: у TS он дочерний узел класса и метода. */
     @Test
     void typescriptDecoratorsStayOutOfTheSignature() {
-        String src =
-                """
+        String src = """
                 @Injectable({ providedIn: 'root' })
                 export class Store {
                   @Input()
@@ -267,7 +251,8 @@ class TreeSitterOutlineParserTest {
                 """;
         List<GitSymbol> symbols = parser.parse("typescript", src);
 
-        assertEquals("class Store", find(symbols, "Store").findFirst().orElseThrow().signature());
+        assertEquals(
+                "class Store", find(symbols, "Store").findFirst().orElseThrow().signature());
         GitSymbol load = find(symbols, "load").findFirst().orElseThrow();
         assertEquals("load(id: string): void", load.signature());
         assertEquals(4, load.startLine());
@@ -279,8 +264,7 @@ class TreeSitterOutlineParserTest {
      */
     @Test
     void nothingInsideAFunctionBodyIsListed() {
-        String js =
-                """
+        String js = """
                 export function Comp() {
                   function handle() {}
                   return useMemo(() => ({ render() {} }), []);
@@ -290,8 +274,7 @@ class TreeSitterOutlineParserTest {
                 """;
         assertEquals(List.of("Comp", "mounted"), names(parser.parse("javascript", js)));
 
-        String java =
-                """
+        String java = """
                 class A {
                     void run() {
                         new Thread(new Runnable() { public void run() {} }).start();
@@ -304,8 +287,7 @@ class TreeSitterOutlineParserTest {
 
     @Test
     void typescriptAbstractClassesEnumsAndTypeAliasesAreListed() {
-        String src =
-                """
+        String src = """
                 export abstract class Base {
                   abstract run(): void;
                 }
@@ -323,8 +305,7 @@ class TreeSitterOutlineParserTest {
 
     @Test
     void javaSignaturesKeepTypeParametersAndThrows() {
-        String src =
-                """
+        String src = """
                 public @interface Marker {}
                 record Range(int from, int to) {
                     Range {

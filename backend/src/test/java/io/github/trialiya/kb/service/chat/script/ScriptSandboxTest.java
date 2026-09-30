@@ -42,9 +42,11 @@ import org.springframework.util.unit.DataSize;
  */
 class ScriptSandboxTest {
 
-    @TempDir Path repoDir;
+    @TempDir
+    Path repoDir;
 
-    @TempDir Path outsideDir;
+    @TempDir
+    Path outsideDir;
 
     private ScriptRunner runner;
 
@@ -66,8 +68,7 @@ class ScriptSandboxTest {
         return newRunner(properties, null);
     }
 
-    private ScriptRunner newRunner(
-            ScriptProperties properties, @Nullable DocumentService documentService) {
+    private ScriptRunner newRunner(ScriptProperties properties, @Nullable DocumentService documentService) {
         GitRegistry gitRegistry = TestProjects.registry(repoDir, false);
         return new ScriptRunner(
                 gitRegistry,
@@ -91,11 +92,8 @@ class ScriptSandboxTest {
      */
     @Test
     void theEngineItselfRefusesWhenScriptsAreSwitchedOff() {
-        ScriptRunner disabled =
-                newRunner(
-                        new ScriptProperties(
-                                false, true, true, false, null, null, null, null, null, null, null,
-                                null, null));
+        ScriptRunner disabled = newRunner(
+                new ScriptProperties(false, true, true, false, null, null, null, null, null, null, null, null, null));
 
         assertThatThrownBy(() -> disabled.run("return 1;", null, RunCancellation.none()))
                 .isInstanceOf(IllegalStateException.class)
@@ -108,12 +106,11 @@ class ScriptSandboxTest {
     void cannotReachHostClasses() {
         // GraalJS always defines the `Java` namespace object; what makes it harmless is that host
         // class lookup is denied, so nothing reachable through it can produce a host class.
-        List<String> attempts =
-                List.of(
-                        "Java.type('java.io.File')",
-                        "Java.type('java.lang.Runtime')",
-                        "Java.type('java.nio.file.Files')",
-                        "Java.addToClasspath('/tmp')");
+        List<String> attempts = List.of(
+                "Java.type('java.io.File')",
+                "Java.type('java.lang.Runtime')",
+                "Java.type('java.nio.file.Files')",
+                "Java.addToClasspath('/tmp')");
         for (String attempt : attempts) {
             assertThat(run("return String(" + attempt + ");").error())
                     .describedAs("%s must fail", attempt)
@@ -125,14 +122,7 @@ class ScriptSandboxTest {
 
     @Test
     void hasNoFilesystemNetworkOrModuleApis() {
-        List<String> absent =
-                List.of(
-                        "require",
-                        "fetch",
-                        "XMLHttpRequest",
-                        "Worker",
-                        "importScripts",
-                        "Polyglot");
+        List<String> absent = List.of("require", "fetch", "XMLHttpRequest", "Worker", "importScripts", "Polyglot");
         for (String name : absent) {
             assertThat(run("return typeof " + name + ";").value())
                     .describedAs("%s must not exist in the sandbox", name)
@@ -179,9 +169,8 @@ class ScriptSandboxTest {
         assertThat(run("return kb.read('./docs/readme.md');").value()).isEqualTo("hello\nworld\n");
         assertThat(run("return kb.read('docs//readme.md');").value()).isEqualTo("hello\nworld\n");
         // And it is booked once, under one name, however it was asked for.
-        assertThat(
-                        run("kb.read('./docs/readme.md'); kb.read('docs/readme.md'); return 1;")
-                                .filesRead())
+        assertThat(run("kb.read('./docs/readme.md'); kb.read('docs/readme.md'); return 1;")
+                        .filesRead())
                 .containsExactly("docs/readme.md");
     }
 
@@ -191,13 +180,9 @@ class ScriptSandboxTest {
     void stopsAScriptThatReadsTooManyFiles() {
         runner = newRunner(withLimits(limits -> limits.withMaxFilesRead(1)));
 
-        ScriptResult result =
-                run("var p = kb.files(); for (var i = 0; i < p.length; i++) { kb.read(p[i]); }");
+        ScriptResult result = run("var p = kb.files(); for (var i = 0; i < p.length; i++) { kb.read(p[i]); }");
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(result.error()).isNotNull().extracting(ScriptError::kind).isEqualTo(ScriptError.Kind.BUDGET);
         assertThat(result.error().message()).contains("maxFilesRead");
     }
 
@@ -207,10 +192,7 @@ class ScriptSandboxTest {
 
         ScriptResult result = run("for (var i = 0; i < 1000; i++) { kb.log(i); } return 'done';");
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(result.error()).isNotNull().extracting(ScriptError::kind).isEqualTo(ScriptError.Kind.BUDGET);
         assertThat(result.error().message()).contains("maxCalls");
     }
 
@@ -225,22 +207,15 @@ class ScriptSandboxTest {
      */
     @Test
     void repeatedIdenticalReadsDoNotSpendTheCallOrByteBudget() {
-        runner =
-                newRunner(
-                        withLimits(
-                                limits ->
-                                        limits.withMaxCalls(10)
-                                                .withMaxBytesRead(DataSize.ofBytes(100))));
+        runner = newRunner(withLimits(limits -> limits.withMaxCalls(10).withMaxBytesRead(DataSize.ofBytes(100))));
 
-        ScriptResult result =
-                run(
-                        "var names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];"
-                                + "var hits = 0;"
-                                + "for (var i = 0; i < names.length; i++) {"
-                                + "  var text = kb.read('src/App.java');"
-                                + "  if (text.indexOf(names[i]) >= 0) { hits++; }"
-                                + "}"
-                                + "return hits;");
+        ScriptResult result = run("var names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];"
+                + "var hits = 0;"
+                + "for (var i = 0; i < names.length; i++) {"
+                + "  var text = kb.read('src/App.java');"
+                + "  if (text.indexOf(names[i]) >= 0) { hits++; }"
+                + "}"
+                + "return hits;");
 
         assertThat(result.error()).isNull();
         // One real read charged; the other seven names' reads were answered from the cache.
@@ -253,11 +228,9 @@ class ScriptSandboxTest {
      */
     @Test
     void differentArgumentsToTheSameCallAreNotTreatedAsTheSameCall() {
-        ScriptResult result =
-                run(
-                        "var whole = kb.read('src/App.java');"
-                                + "var head = kb.read('src/App.java', 1, 1);"
-                                + "return { whole: whole.length, head: head };");
+        ScriptResult result = run("var whole = kb.read('src/App.java');"
+                + "var head = kb.read('src/App.java', 1, 1);"
+                + "return { whole: whole.length, head: head };");
 
         assertThat(result.error()).isNull();
         assertThat(result.stats().calls()).isEqualTo(2);
@@ -276,12 +249,10 @@ class ScriptSandboxTest {
         write(repoDir.resolve("a.txt"), "aaa\n");
         commitAll();
 
-        ScriptResult result =
-                run(
-                        "var first = kb.files('*.txt');"
-                                + "first.sort(function (a, b) { return b < a ? -1 : 1; });"
-                                + "var second = kb.files('*.txt');"
-                                + "return { first: first, second: second };");
+        ScriptResult result = run("var first = kb.files('*.txt');"
+                + "first.sort(function (a, b) { return b < a ? -1 : 1; });"
+                + "var second = kb.files('*.txt');"
+                + "return { first: first, second: second };");
 
         assertThat(result.error()).isNull();
         Map<?, ?> value = (Map<?, ?>) result.value();
@@ -300,14 +271,9 @@ class ScriptSandboxTest {
         // {max: i + 1} varies the call's own arguments, so each iteration is a genuinely new call
         // rather than one the run's cache (see ScriptSession.call) would answer for free.
         ScriptResult result =
-                run(
-                        "for (var i = 0; i < 100; i++) { kb.grep('class', { max: i + 1 }); } return"
-                                + " 'done';");
+                run("for (var i = 0; i < 100; i++) { kb.grep('class', { max: i + 1 }); } return" + " 'done';");
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(result.error()).isNotNull().extracting(ScriptError::kind).isEqualTo(ScriptError.Kind.BUDGET);
         assertThat(result.error().message()).contains("maxBytesRead");
         // Charged as bytes, not as files — a match line is not the file it came from.
         assertThat(result.stats().filesRead()).isZero();
@@ -323,31 +289,16 @@ class ScriptSandboxTest {
     void documentSearchResultsCountAgainstTheByteBudget() {
         DocumentService documents = mock(DocumentService.class);
         when(documents.hybridSearch(any(), any(), any(), any(), any()))
-                .thenReturn(
-                        List.of(
-                                new SearchResult(
-                                        1L,
-                                        "Экспорт документов",
-                                        "x".repeat(200),
-                                        LocalDateTime.now(),
-                                        null,
-                                        null)));
-        runner =
-                newRunner(
-                        withLimits(limits -> limits.withMaxBytesRead(DataSize.ofBytes(40))),
-                        documents);
+                .thenReturn(List.of(
+                        new SearchResult(1L, "Экспорт документов", "x".repeat(200), LocalDateTime.now(), null, null)));
+        runner = newRunner(withLimits(limits -> limits.withMaxBytesRead(DataSize.ofBytes(40))), documents);
 
         // Varying the limit argument is what keeps each iteration a genuinely new call — see
         // ScriptSession.call — rather than the run's cache answering repeats for free.
         ScriptResult result =
-                run(
-                        "for (var i = 0; i < 100; i++) { kb.searchDocs('экспорт', i + 1); } return"
-                                + " 'done';");
+                run("for (var i = 0; i < 100; i++) { kb.searchDocs('экспорт', i + 1); } return" + " 'done';");
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(result.error()).isNotNull().extracting(ScriptError::kind).isEqualTo(ScriptError.Kind.BUDGET);
         assertThat(result.error().message()).contains("maxBytesRead");
         // Charged as bytes, not as files — a snippet is not a file of the repository.
         assertThat(result.stats().filesRead()).isZero();
@@ -358,8 +309,7 @@ class ScriptSandboxTest {
     void truncatesResultsOverTheResultBudgetWithAWarningInsteadOfFailing() {
         runner = newRunner(withLimits(limits -> limits.withMaxResultChars(64)));
 
-        ScriptResult result =
-                run("var s = ''; for (var i = 0; i < 500; i++) { s += 'x'; } return s;");
+        ScriptResult result = run("var s = ''; for (var i = 0; i < 500; i++) { s += 'x'; } return s;");
 
         assertThat(result.error()).isNull();
         assertThat(result.value()).asInstanceOf(STRING).hasSize(64);
@@ -370,9 +320,7 @@ class ScriptSandboxTest {
     void aBudgetErrorIsCatchableSoAScriptCanReturnPartialResults() {
         runner = newRunner(withLimits(limits -> limits.withMaxFilesRead(1)));
 
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         var read = 0;
                         var paths = kb.files();
                         try {
@@ -396,9 +344,7 @@ class ScriptSandboxTest {
      */
     @Test
     void loadScriptEvaluatesARepositoryFileAsAModule() {
-        write(
-                repoDir.resolve("lib/util.js"),
-                "module.exports = { twice: function (x) { return x * 2; } };\n");
+        write(repoDir.resolve("lib/util.js"), "module.exports = { twice: function (x) { return x * 2; } };\n");
         commitAll();
 
         assertThat(run("return loadScript('lib/util.js').twice(21);").value()).isEqualTo(42);
@@ -417,12 +363,8 @@ class ScriptSandboxTest {
     /** Два модуля, загружающие друг друга, получают недособранный exports, а не бесконечность. */
     @Test
     void mutuallyLoadingModulesDoNotRecurseForever() {
-        write(
-                repoDir.resolve("lib/a.js"),
-                "exports.name = 'a';\nexports.b = loadScript('lib/b.js').name;\n");
-        write(
-                repoDir.resolve("lib/b.js"),
-                "exports.name = 'b';\nexports.a = loadScript('lib/a.js').name;\n");
+        write(repoDir.resolve("lib/a.js"), "exports.name = 'a';\nexports.b = loadScript('lib/b.js').name;\n");
+        write(repoDir.resolve("lib/b.js"), "exports.name = 'b';\nexports.a = loadScript('lib/a.js').name;\n");
         commitAll();
 
         ScriptResult result = run("var a = loadScript('lib/a.js'); return [a.name, a.b];");
@@ -465,10 +407,7 @@ class ScriptSandboxTest {
     void reportsSyntaxErrorsWithTheLineTheModelWrote() {
         ScriptResult result = run("var a = 1;\nvar b = ;\nreturn a;");
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.SYNTAX);
+        assertThat(result.error()).isNotNull().extracting(ScriptError::kind).isEqualTo(ScriptError.Kind.SYNTAX);
         assertThat(result.error().line()).isEqualTo(2);
     }
 
@@ -476,41 +415,33 @@ class ScriptSandboxTest {
     void reportsRuntimeErrorsWithoutLosingWhatTheScriptAlreadyLogged() {
         ScriptResult result = run("kb.log('before the throw');\nthrow new Error('boom');");
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.RUNTIME);
+        assertThat(result.error()).isNotNull().extracting(ScriptError::kind).isEqualTo(ScriptError.Kind.RUNTIME);
         assertThat(result.error().message()).contains("boom");
         assertThat(result.log()).containsExactly("before the throw");
     }
 
     @Test
     void stopsAnInfiniteLoopAtTheTimeout() {
-        runner =
-                newRunner(
-                        new ScriptProperties(
-                                true,
-                                false,
-                                true,
-                                false,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                Duration.ofSeconds(1),
-                                Duration.ofSeconds(2),
-                                Duration.ofMillis(20),
-                                null));
+        runner = newRunner(new ScriptProperties(
+                true,
+                false,
+                true,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(2),
+                Duration.ofMillis(20),
+                null));
 
         long start = System.nanoTime();
         ScriptResult result = run("while (true) {}");
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.TIMEOUT);
+        assertThat(result.error()).isNotNull().extracting(ScriptError::kind).isEqualTo(ScriptError.Kind.TIMEOUT);
         assertThat(elapsedMs).isLessThan(10_000);
     }
 
@@ -550,9 +481,7 @@ class ScriptSandboxTest {
 
     @Test
     void grepReturnsPlainJsObjectsAScriptCanIterate() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         var hits = kb.grep('void run', { glob: '**/*.java' });
                         return hits.map(function (h) { return h.path + ':' + h.line; });
                         """);
@@ -563,8 +492,7 @@ class ScriptSandboxTest {
 
     @Test
     void outlineExposesSymbolsWithTheirLineRanges() {
-        ScriptResult result =
-                run("return kb.outline('src/App.java').map(function (s) { return s.name; });");
+        ScriptResult result = run("return kb.outline('src/App.java').map(function (s) { return s.name; });");
 
         assertThat(result.error()).isNull();
         assertThat((List<Object>) result.value()).contains("App");
@@ -595,9 +523,7 @@ class ScriptSandboxTest {
      */
     @Test
     void readsTheBytesOfABinaryFile() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         var bytes = kb.readBytes('static/logo.png');
                         return { length: bytes.length, head: bytes.slice(0, 4) };
                         """);
@@ -631,9 +557,7 @@ class ScriptSandboxTest {
 
     @Test
     void statAnswersWhetherAFileIsBinaryWithoutReadingIt() {
-        ScriptResult result =
-                run(
-                        """
+        ScriptResult result = run("""
                         return {
                           png: kb.stat('static/logo.png').binary,
                           java: kb.stat('src/App.java').binary,
@@ -643,8 +567,7 @@ class ScriptSandboxTest {
                         """);
 
         assertThat(result.error()).isNull();
-        assertThat(result.value())
-                .isEqualTo(Map.of("png", true, "java", false, "size", PNG.length, "lang", "java"));
+        assertThat(result.value()).isEqualTo(Map.of("png", true, "java", false, "size", PNG.length, "lang", "java"));
         // Metadata is not content: nothing was read, so nothing was charged as read either.
         assertThat(result.stats().filesRead()).isZero();
         assertThat(result.stats().bytesRead()).isZero();
@@ -686,8 +609,7 @@ class ScriptSandboxTest {
     void hashingCountsAgainstTheFileBudget() {
         runner = newRunner(withLimits(limits -> limits.withMaxFilesRead(1)));
 
-        ScriptResult result =
-                run("kb.hash('static/logo.png'); kb.hash('src/App.java'); return 'ok';");
+        ScriptResult result = run("kb.hash('static/logo.png'); kb.hash('src/App.java'); return 'ok';");
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.BUDGET);
@@ -735,12 +657,11 @@ class ScriptSandboxTest {
     void binaryFilesObeyTheSameTrackedFilesRuleAsTextOnes() {
         writeBytes(repoDir.resolve("hidden.png"), PNG);
 
-        for (String call :
-                List.of(
-                        "kb.readBytes('hidden.png')",
-                        "kb.readBase64('hidden.png')",
-                        "kb.stat('hidden.png')",
-                        "kb.hash('hidden.png')")) {
+        for (String call : List.of(
+                "kb.readBytes('hidden.png')",
+                "kb.readBase64('hidden.png')",
+                "kb.stat('hidden.png')",
+                "kb.hash('hidden.png')")) {
             ScriptError denied = run("return " + call + ";").error();
             assertThat(denied).as(call).isNotNull();
             assertThat(denied.message()).as(call).contains("File not found");
@@ -763,9 +684,7 @@ class ScriptSandboxTest {
     // ── helpers ─────────────────────────────────────────────────────────────
 
     /** A PNG header followed by NUL bytes — sniffs binary exactly as git's own heuristic does. */
-    private static final byte[] PNG = {
-        (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13
-    };
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13};
 
     private static String sha256(byte[] bytes) {
         try {
@@ -784,8 +703,7 @@ class ScriptSandboxTest {
         return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'";
     }
 
-    private static ScriptProperties withLimits(
-            java.util.function.UnaryOperator<LimitsBuilder> tune) {
+    private static ScriptProperties withLimits(java.util.function.UnaryOperator<LimitsBuilder> tune) {
         return new ScriptProperties(
                 true,
                 false,
@@ -831,13 +749,7 @@ class ScriptSandboxTest {
 
         ScriptProperties.Limits build() {
             return new ScriptProperties.Limits(
-                    maxFilesRead,
-                    maxBytesRead,
-                    maxCalls,
-                    20_000,
-                    maxResultChars,
-                    20,
-                    DataSize.ofKilobytes(256));
+                    maxFilesRead, maxBytesRead, maxCalls, 20_000, maxResultChars, 20, DataSize.ofKilobytes(256));
         }
     }
 
@@ -869,17 +781,14 @@ class ScriptSandboxTest {
             var command = new ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
-            Process process =
-                    new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
-                            .redirectErrorStream(true)
-                            .start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command)
+                    .directory(repoDir.toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
             if (exit != 0) {
-                throw new IllegalStateException(
-                        "git " + String.join(" ", args) + " failed: " + output);
+                throw new IllegalStateException("git " + String.join(" ", args) + " failed: " + output);
             }
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();

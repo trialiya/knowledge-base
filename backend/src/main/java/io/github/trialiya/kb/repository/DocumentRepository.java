@@ -24,8 +24,7 @@ public interface DocumentRepository
     List<DocumentEntity> findRoots();
 
     /** Children of a given parent ordered by their explicit position. */
-    @Query(
-            "SELECT * FROM documents WHERE parent_id = :parentId ORDER BY position, type DESC, title")
+    @Query("SELECT * FROM documents WHERE parent_id = :parentId ORDER BY position, type DESC, title")
     List<DocumentEntity> findByParentId(@Param("parentId") Long parentId);
 
     /**
@@ -42,8 +41,7 @@ public interface DocumentRepository
      * <p>Ordering matches {@link #findByParentId(Long)} so a walk and a UI listing agree on sibling
      * order.
      */
-    @Query(
-            """
+    @Query("""
         SELECT id, parent_id, title, type, position, is_system, updated_at
         FROM documents
         WHERE parent_id IS NOT DISTINCT FROM :parentId
@@ -52,8 +50,7 @@ public interface DocumentRepository
     List<DocumentTreeRow> findTreeRowsByParent(@Param("parentId") @Nullable Long parentId);
 
     /** A single node's structural row, without its body. */
-    @Query(
-            """
+    @Query("""
         SELECT id, parent_id, title, type, position, is_system, updated_at
         FROM documents
         WHERE id = :id
@@ -69,8 +66,7 @@ public interface DocumentRepository
      * one query and nothing else. Ordering is by id, which is stable and cheap; a grep reports
      * where matches are, not which of them matters most.
      */
-    @Query(
-            """
+    @Query("""
         SELECT id, parent_id, title, type, position, is_system, updated_at
         FROM documents
         WHERE description IS NOT NULL AND description <> ''
@@ -99,8 +95,7 @@ public interface DocumentRepository
     }
 
     /** Backing query for {@link #findRowsWithDescriptionContaining(String)}. */
-    @Query(
-            """
+    @Query("""
         SELECT id, parent_id, title, type, position, is_system, updated_at
         FROM documents
         WHERE description ILIKE '%' || :q || '%' ESCAPE '\\'
@@ -121,8 +116,7 @@ public interface DocumentRepository
      * to {@code max + 1}. Replaces loading the whole level just to take a maximum, which turned a
      * bulk insert of N siblings into N level-wide queries.
      */
-    @Query(
-            """
+    @Query("""
         SELECT COALESCE(MAX(position), -1)
         FROM documents
         WHERE parent_id IS NOT DISTINCT FROM :parentId
@@ -136,8 +130,7 @@ public interface DocumentRepository
     Page<DocumentEntity> findByParentIdIsNull(Pageable pageable);
 
     /** Full-text search across title and description. */
-    @Query(
-            """
+    @Query("""
         SELECT * FROM documents
         WHERE (title ILIKE '%' || :q || '%'
                OR summary ILIKE '%' || :q || '%'
@@ -153,8 +146,7 @@ public interface DocumentRepository
      * <p>The explicit CTE column list {@code descendants(id)} is required by H2 for recursive
      * queries and is valid standard SQL, so the same query runs on both PostgreSQL and H2.
      */
-    @Query(
-            """
+    @Query("""
         WITH RECURSIVE descendants(id) AS (
             SELECT id FROM documents WHERE id = :rootId
             UNION ALL
@@ -178,8 +170,7 @@ public interface DocumentRepository
      * Search by title only (case-insensitive substring match). Returns exact-title matches first,
      * then partial matches, ordered by title length so the closest match bubbles up.
      */
-    @Query(
-            """
+    @Query("""
         SELECT * FROM documents
         WHERE title ILIKE '%' || :name || '%'
         ORDER BY
@@ -208,8 +199,7 @@ public interface DocumentRepository
      * @param id the document id to find ancestors for
      * @return list of ancestor IDs, root first; empty for root-level nodes
      */
-    @Query(
-            """
+    @Query("""
     WITH RECURSIVE ancestors(parent_id, depth) AS (
         SELECT parent_id, 1 AS depth
         FROM documents
@@ -242,8 +232,7 @@ public interface DocumentRepository
      * root level (parent_id IS NULL).
      */
     @Modifying
-    @Query(
-            """
+    @Query("""
         UPDATE documents
         SET position = position + 1
         WHERE parent_id IS NOT DISTINCT FROM :parentId
@@ -256,8 +245,7 @@ public interface DocumentRepository
             @Param("movedId") long movedId);
 
     /** Smallest position in a level (0 when the level is empty) — used to insert first. */
-    @Query(
-            "SELECT COALESCE(MIN(position), 0) FROM documents WHERE parent_id IS NOT DISTINCT FROM :parentId")
+    @Query("SELECT COALESCE(MIN(position), 0) FROM documents WHERE parent_id IS NOT DISTINCT FROM :parentId")
     int findMinPosition(@Param("parentId") @Nullable Long parentId);
 
     /**
@@ -268,8 +256,7 @@ public interface DocumentRepository
      * are real neighbour positions, not ordinal indexes).
      */
     @Modifying
-    @Query(
-            """
+    @Query("""
         UPDATE documents
         SET position = position + 1
         WHERE parent_id IS NOT DISTINCT FROM :parentId
@@ -277,9 +264,7 @@ public interface DocumentRepository
           AND position < :oldPos
         """)
     void shiftWindowUp(
-            @Param("parentId") @Nullable Long parentId,
-            @Param("newPos") int newPos,
-            @Param("oldPos") int oldPos);
+            @Param("parentId") @Nullable Long parentId, @Param("newPos") int newPos, @Param("oldPos") int oldPos);
 
     /**
      * Windowed shift for moving a node DOWN within its own level: every sibling in {@code (oldPos,
@@ -288,8 +273,7 @@ public interface DocumentRepository
      * the vacated {@code oldPos} slot; the moved node is outside the window.
      */
     @Modifying
-    @Query(
-            """
+    @Query("""
         UPDATE documents
         SET position = position - 1
         WHERE parent_id IS NOT DISTINCT FROM :parentId
@@ -297,7 +281,5 @@ public interface DocumentRepository
           AND position <= :anchorPos
         """)
     void shiftWindowDown(
-            @Param("parentId") @Nullable Long parentId,
-            @Param("oldPos") int oldPos,
-            @Param("anchorPos") int anchorPos);
+            @Param("parentId") @Nullable Long parentId, @Param("oldPos") int oldPos, @Param("anchorPos") int anchorPos);
 }

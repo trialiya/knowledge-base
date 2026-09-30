@@ -84,8 +84,7 @@ final class GitWriter {
         // createFile is the only way to restore it; the staging below refreshes the index entry.
         Path absolute = paths.resolve(normalized);
         if (Files.exists(absolute)) {
-            throw new IllegalArgumentException(
-                    "File already exists: " + normalized + ". Use editFile to modify it.");
+            throw new IllegalArgumentException("File already exists: " + normalized + ". Use editFile to modify it.");
         }
 
         try {
@@ -109,8 +108,7 @@ final class GitWriter {
         }
         if (!visible.isTracked(normalized)) {
             deleteQuietly(absolute);
-            throw new IllegalArgumentException(
-                    "Path is ignored by .gitignore and cannot be created: " + normalized);
+            throw new IllegalArgumentException("Path is ignored by .gitignore and cannot be created: " + normalized);
         }
 
         log.info("createFile: '{}' created and staged ({} bytes)", normalized, content.length);
@@ -136,23 +134,19 @@ final class GitWriter {
      *     Diffs#MAX_DIFF_LINES} lines)
      */
     GitEditResult editFile(
-            @NonNull String filePath,
-            @NonNull String oldString,
-            @NonNull String newString,
-            boolean replaceAll) {
+            @NonNull String filePath, @NonNull String oldString, @NonNull String newString, boolean replaceAll) {
         // Before the read: a fragment that could not edit anything is an argument error, and
         // saying so must not depend on whether the file opens.
         ExactEdit.requireUsableFragment(oldString, newString);
 
         Editable file = readEditable(filePath);
-        ExactEdit.Result edit =
-                ExactEdit.replace(
-                        file.text(),
-                        oldString.replace("\r\n", "\n"),
-                        newString.replace("\r\n", "\n"),
-                        replaceAll,
-                        file.path(),
-                        "getFileContent");
+        ExactEdit.Result edit = ExactEdit.replace(
+                file.text(),
+                oldString.replace("\r\n", "\n"),
+                newString.replace("\r\n", "\n"),
+                replaceAll,
+                file.path(),
+                "getFileContent");
 
         log.info("editFile: '{}' — {} occurrence(s) replaced", file.path(), edit.occurrences());
         return writeUpdatedText(file, edit.text());
@@ -192,16 +186,15 @@ final class GitWriter {
         stageIfTracked(normalized, resolved.tracked());
 
         log.info("wrote '{}' ({} → {} bytes)", normalized, before, content.length);
-        String diff =
-                "Binary files a/"
-                        + normalized
-                        + " and b/"
-                        + normalized
-                        + " differ ("
-                        + before
-                        + " → "
-                        + content.length
-                        + " bytes)";
+        String diff = "Binary files a/"
+                + normalized
+                + " and b/"
+                + normalized
+                + " differ ("
+                + before
+                + " → "
+                + content.length
+                + " bytes)";
         return new GitEditResult("edit", normalized, 0, 0, 0, diff);
     }
 
@@ -229,18 +222,11 @@ final class GitWriter {
         }
         if (bytes.length > RepoFiles.MAX_FILE_SIZE) {
             throw new IllegalArgumentException(
-                    "File too large to edit (max "
-                            + RepoFiles.MAX_FILE_SIZE / 1024
-                            + " KB): "
-                            + normalized);
+                    "File too large to edit (max " + RepoFiles.MAX_FILE_SIZE / 1024 + " KB): " + normalized);
         }
         String original = new String(bytes, StandardCharsets.UTF_8);
         boolean crlf = original.contains("\r\n");
-        return new Editable(
-                normalized,
-                crlf ? original.replace("\r\n", "\n") : original,
-                crlf,
-                resolved.tracked());
+        return new Editable(normalized, crlf ? original.replace("\r\n", "\n") : original, crlf, resolved.tracked());
     }
 
     /** Shared tail of the two edit paths: diff, atomic write, stage, report. */
@@ -252,8 +238,7 @@ final class GitWriter {
 
         int lines = updated.isEmpty() ? 0 : updated.split("\n", -1).length;
         log.info("wrote '{}' (+{}/-{})", path, stats.additions(), stats.deletions());
-        return new GitEditResult(
-                "edit", path, stats.additions(), stats.deletions(), lines, stats.diff());
+        return new GitEditResult("edit", path, stats.additions(), stats.deletions(), lines, stats.diff());
     }
 
     // ── Undoing ─────────────────────────────────────────────────────────────
@@ -275,15 +260,14 @@ final class GitWriter {
         Editable file = readEditable(filePath);
         String text = file.text();
         for (TextEdit edit : edits) {
-            text =
-                    ExactEdit.replace(
-                                    text,
-                                    edit.oldString().replace("\r\n", "\n"),
-                                    edit.newString().replace("\r\n", "\n"),
-                                    edit.replaceAll(),
-                                    file.path(),
-                                    "getFileContent")
-                            .text();
+            text = ExactEdit.replace(
+                            text,
+                            edit.oldString().replace("\r\n", "\n"),
+                            edit.newString().replace("\r\n", "\n"),
+                            edit.replaceAll(),
+                            file.path(),
+                            "getFileContent")
+                    .text();
         }
         return text;
     }
@@ -314,11 +298,10 @@ final class GitWriter {
                     "Cannot delete " + normalized + ": it is committed. Use git to remove it.");
         }
         if (!readEditable(normalized).text().equals(expectedContent.replace("\r\n", "\n"))) {
-            throw new IllegalArgumentException(
-                    "Cannot delete "
-                            + normalized
-                            + ": it has changed since it was created, and deleting it would take"
-                            + " those changes with it.");
+            throw new IllegalArgumentException("Cannot delete "
+                    + normalized
+                    + ": it has changed since it was created, and deleting it would take"
+                    + " those changes with it.");
         }
     }
 
@@ -377,10 +360,9 @@ final class GitWriter {
         // outside git for good. The refusal depends only on the path, so it belongs here, where a
         // script's third kb.create fails before the first two have reached disk.
         if (!visible.isTracked(normalized) && visible.matchesAllowGlobs(normalized)) {
-            throw new IllegalArgumentException(
-                    "Cannot create files under the project's allow-globs: "
-                            + normalized
-                            + ". Files there can be read and edited, not created.");
+            throw new IllegalArgumentException("Cannot create files under the project's allow-globs: "
+                    + normalized
+                    + ". Files there can be read and edited, not created.");
         }
         return normalized;
     }
@@ -455,10 +437,7 @@ final class GitWriter {
         String normalized = validateWritablePath(filePath);
         if (content.length > RepoFiles.MAX_FILE_SIZE) {
             throw new IllegalArgumentException(
-                    "Content too large (max "
-                            + RepoFiles.MAX_FILE_SIZE / 1024
-                            + " KB): "
-                            + normalized);
+                    "Content too large (max " + RepoFiles.MAX_FILE_SIZE / 1024 + " KB): " + normalized);
         }
         return normalized;
     }
@@ -541,11 +520,7 @@ final class GitWriter {
                 // Non-POSIX filesystem (e.g. Windows) — permissions are not inode-bound there.
             }
             try {
-                Files.move(
-                        tmp,
-                        target,
-                        StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE);
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             }

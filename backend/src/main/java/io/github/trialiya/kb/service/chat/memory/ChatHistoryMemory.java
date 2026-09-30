@@ -47,11 +47,10 @@ public class ChatHistoryMemory implements ChatMemory {
      */
     @Override
     public List<Message> get(String conversationId) {
-        final boolean replayReasoning =
-                events.activeRunId(conversationId)
-                        .flatMap(runs::find)
-                        .map(scope -> models.replayReasoning(scope.model()))
-                        .orElse(false);
+        final boolean replayReasoning = events.activeRunId(conversationId)
+                .flatMap(runs::find)
+                .map(scope -> models.replayReasoning(scope.model()))
+                .orElse(false);
         return history.promptMessages(conversationId, replayReasoning);
     }
 

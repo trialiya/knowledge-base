@@ -16,8 +16,7 @@ class DocumentGrepTest {
 
     private static final long DOC_ID = 7L;
     private static final String TITLE = "Гайд";
-    private static final String MD =
-            """
+    private static final String MD = """
             # Гайд
             вступление про Docker
             ## Установка
@@ -28,8 +27,7 @@ class DocumentGrepTest {
             """;
 
     private static List<DocumentGrepMatch> grep(String pattern, boolean regex, int ctx, int limit) {
-        return DocumentGrep.matches(
-                DOC_ID, TITLE, MD, DocumentGrep.compile(pattern, regex), ctx, limit);
+        return DocumentGrep.matches(DOC_ID, TITLE, MD, DocumentGrep.compile(pattern, regex), ctx, limit);
     }
 
     @Test
@@ -69,9 +67,7 @@ class DocumentGrepTest {
         // fragment; the markup is git grep's own: ":N:" for a match, "-N-" for context.
         assertThat(matches).hasSize(1);
         assertThat(matches.getFirst().matchLine()).isEqualTo(2);
-        assertThat(matches.getFirst().text())
-                .isEqualTo(
-                        """
+        assertThat(matches.getFirst().text()).isEqualTo("""
                         -1-# Гайд
                         :2:вступление про Docker
                         -3-## Установка
@@ -104,13 +100,7 @@ class DocumentGrepTest {
     @Test
     void documentWithoutSectionsStillMatches() {
         List<DocumentGrepMatch> matches =
-                DocumentGrep.matches(
-                        DOC_ID,
-                        TITLE,
-                        "просто текст\n",
-                        DocumentGrep.compile("текст", false),
-                        0,
-                        5);
+                DocumentGrep.matches(DOC_ID, TITLE, "просто текст\n", DocumentGrep.compile("текст", false), 0, 5);
 
         assertThat(matches).hasSize(1);
         assertThat(matches.getFirst().sectionPath()).isEqualTo("_preamble");

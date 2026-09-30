@@ -35,11 +35,7 @@ public record DocumentGrepMatch(
 
     @Override
     public String getFormattedResponse() {
-        return "doc:"
-                + documentId
-                + (sectionPath == null ? "" : " > " + sectionPath)
-                + ":"
-                + matchLine;
+        return "doc:" + documentId + (sectionPath == null ? "" : " > " + sectionPath) + ":" + matchLine;
     }
 
     @Override

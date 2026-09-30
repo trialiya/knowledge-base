@@ -102,14 +102,16 @@ public final class ChatMessageMetaToJsonConverter {
     private static List<ContextItem> contextItemsOf(@Nullable List<ContextItemJson> raw) {
         return raw == null
                 ? List.of()
-                : raw.stream().map(ContextItemJson::toItem).flatMap(Optional::stream).toList();
+                : raw.stream()
+                        .map(ContextItemJson::toItem)
+                        .flatMap(Optional::stream)
+                        .toList();
     }
 
     @ReadingConverter
     public static class Reader implements Converter<String, ChatMessageMeta> {
 
-        private static final TypeReference<List<ToolInvocationMeta>> LIST_TYPE =
-                new TypeReference<>() {};
+        private static final TypeReference<List<ToolInvocationMeta>> LIST_TYPE = new TypeReference<>() {};
 
         private final ObjectMapper objectMapper;
 
@@ -141,8 +143,7 @@ public final class ChatMessageMetaToJsonConverter {
                         .interjection(Boolean.TRUE.equals(json.interjection()))
                         .usage(json.usage())
                         .contextTokens(json.contextTokens())
-                        .visitedProjects(
-                                json.visitedProjects() == null ? List.of() : json.visitedProjects())
+                        .visitedProjects(json.visitedProjects() == null ? List.of() : json.visitedProjects())
                         .fileRevert(json.fileRevert())
                         .scriptEvent(json.scriptEvent())
                         .command(Boolean.TRUE.equals(json.command()))
@@ -167,13 +168,11 @@ public final class ChatMessageMetaToJsonConverter {
      */
     public static class Hints implements RuntimeHintsRegistrar {
 
-        private final BindingReflectionHintsRegistrar binding =
-                new BindingReflectionHintsRegistrar();
+        private final BindingReflectionHintsRegistrar binding = new BindingReflectionHintsRegistrar();
 
         @Override
         public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
-            binding.registerReflectionHints(
-                    hints.reflection(), MetaJson.class, ContextItemJson.class);
+            binding.registerReflectionHints(hints.reflection(), MetaJson.class, ContextItemJson.class);
         }
     }
 
@@ -189,40 +188,31 @@ public final class ChatMessageMetaToJsonConverter {
         @Override
         public String convert(ChatMessageMeta source) {
             try {
-                return objectMapper.writeValueAsString(
-                        new MetaJson(
-                                source.runId(),
-                                source.toolCalls(),
-                                source.invocations(),
-                                source.contextItems().stream()
-                                        .map(
-                                                i ->
-                                                        new ContextItemJson(
-                                                                i.kind().name(),
-                                                                i.ref(),
-                                                                i.label(),
-                                                                i.payload()))
-                                        .toList(),
-                                source.project(),
-                                source.projectSwitchFrom(),
-                                source.model(),
-                                source.compact(),
-                                source.gitEvent(),
-                                // false не выписывается: флаг несут единицы рядов, а колонка —
-                                // каждый ряд каждого чата (см. javadoc проекции).
-                                source.interjection() ? Boolean.TRUE : null,
-                                source.usage(),
-                                source.contextTokens(),
-                                // Пустой список — не выписывается по той же причине, что и false
-                                // выше: спаны несут только строки-сводки, а колонка есть у каждого
-                                // ряда каждого чата.
-                                source.visitedProjects().isEmpty()
-                                        ? null
-                                        : source.visitedProjects(),
-                                source.fileRevert(),
-                                source.scriptEvent(),
-                                // false не выписывается — см. interjection выше.
-                                source.command() ? Boolean.TRUE : null));
+                return objectMapper.writeValueAsString(new MetaJson(
+                        source.runId(),
+                        source.toolCalls(),
+                        source.invocations(),
+                        source.contextItems().stream()
+                                .map(i -> new ContextItemJson(i.kind().name(), i.ref(), i.label(), i.payload()))
+                                .toList(),
+                        source.project(),
+                        source.projectSwitchFrom(),
+                        source.model(),
+                        source.compact(),
+                        source.gitEvent(),
+                        // false не выписывается: флаг несут единицы рядов, а колонка —
+                        // каждый ряд каждого чата (см. javadoc проекции).
+                        source.interjection() ? Boolean.TRUE : null,
+                        source.usage(),
+                        source.contextTokens(),
+                        // Пустой список — не выписывается по той же причине, что и false
+                        // выше: спаны несут только строки-сводки, а колонка есть у каждого
+                        // ряда каждого чата.
+                        source.visitedProjects().isEmpty() ? null : source.visitedProjects(),
+                        source.fileRevert(),
+                        source.scriptEvent(),
+                        // false не выписывается — см. interjection выше.
+                        source.command() ? Boolean.TRUE : null));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

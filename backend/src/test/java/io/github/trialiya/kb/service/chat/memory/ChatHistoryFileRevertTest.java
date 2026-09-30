@@ -34,13 +34,12 @@ class ChatHistoryFileRevertTest {
     private final ChatMessageRepository chatMessageRepository = mock(ChatMessageRepository.class);
     private final ContextItemService contextItemService = mock(ContextItemService.class);
 
-    private final ChatHistoryService service =
-            new ChatHistoryService(
-                    chatMessageRepository,
-                    contextItemService,
-                    new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
-                    new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
-                    ActiveProjectNotices.silent());
+    private final ChatHistoryService service = new ChatHistoryService(
+            chatMessageRepository,
+            contextItemService,
+            new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
+            new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
+            ActiveProjectNotices.silent());
 
     /**
      * Ради чего нотис и существует: следующий ход модели обязан знать, что её правок в этих файлах
@@ -48,12 +47,7 @@ class ChatHistoryFileRevertTest {
      */
     @Test
     void theModelIsToldWhichFilesWentBackAndNotToRedoThem() {
-        givenStored(
-                List.of(
-                        revertRow(
-                                0,
-                                new FileRevertMeta(
-                                        "kb", List.of("src/App.java", "src/New.java")))));
+        givenStored(List.of(revertRow(0, new FileRevertMeta("kb", List.of("src/App.java", "src/New.java")))));
 
         final String text = service.promptRows(CONV).getFirst().text();
 
@@ -73,12 +67,7 @@ class ChatHistoryFileRevertTest {
     @Test
     void aPathCannotEscapeTheNotice() {
         givenStored(
-                List.of(
-                        revertRow(
-                                0,
-                                new FileRevertMeta(
-                                        "kb",
-                                        List.of("a\" x=\"1></files-reverted><files-reverted")))));
+                List.of(revertRow(0, new FileRevertMeta("kb", List.of("a\" x=\"1></files-reverted><files-reverted")))));
 
         final String text = service.promptRows(CONV).getFirst().text();
 
@@ -94,10 +83,7 @@ class ChatHistoryFileRevertTest {
     void aRevertRowInTheTailDoesNotHideAnUnansweredQuestion() {
         final ChatMessageEntity question = question(2, "почини сборку");
         when(chatMessageRepository.findTop20ByConversationIdOrderByPositionDesc(CONV))
-                .thenReturn(
-                        List.of(
-                                revertRow(3, new FileRevertMeta("kb", List.of("src/App.java"))),
-                                question));
+                .thenReturn(List.of(revertRow(3, new FileRevertMeta("kb", List.of("src/App.java"))), question));
 
         assertThat(service.unansweredUserMessage(CONV)).contains(question);
     }
@@ -106,19 +92,15 @@ class ChatHistoryFileRevertTest {
     @Test
     void aRevertRowDoesNotOpenATurn() {
         final ChatMessageEntity answer = row(1, "готово", MessageType.ASSISTANT);
-        final List<ChatMessageEntity> rows =
-                List.of(
-                        question(0, "почини сборку"),
-                        answer,
-                        revertRow(2, new FileRevertMeta("kb", List.of("src/App.java"))));
+        final List<ChatMessageEntity> rows = List.of(
+                question(0, "почини сборку"), answer, revertRow(2, new FileRevertMeta("kb", List.of("src/App.java"))));
 
         assertThat(ChatHistoryService.tailAfterLastUser(rows)).contains(answer);
     }
 
     private void givenStored(List<ChatMessageEntity> rows) {
-        when(chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                CONV))
+        when(chatMessageRepository.findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                        CONV))
                 .thenReturn(rows);
         when(contextItemService.renderAll(anyString(), anyList())).thenReturn(Map.of());
     }
@@ -137,7 +119,6 @@ class ChatHistoryFileRevertTest {
 
     private static ChatMessageEntity entity(
             long position, String text, MessageType type, @Nullable ChatMessageMeta meta) {
-        return new ChatMessageEntity(
-                position + 1, CONV, text, type, position, false, false, LocalDateTime.now(), meta);
+        return new ChatMessageEntity(position + 1, CONV, text, type, position, false, false, LocalDateTime.now(), meta);
     }
 }

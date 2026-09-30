@@ -25,8 +25,4 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "kb.search.subagent")
 public record SubAgentConfig(
-        boolean enabled,
-        String modelId,
-        int maxTokens,
-        int maxIterations,
-        Set<String> allowedTools) {}
+        boolean enabled, String modelId, int maxTokens, int maxIterations, Set<String> allowedTools) {}

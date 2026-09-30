@@ -30,15 +30,13 @@ class ScriptArgsTest {
 
     @Test
     void appliesDefaultsAndKeepsDeclaredOrder() {
-        ScriptArgs.Bound bound =
-                ScriptArgs.bind(
-                        script(
-                                param("area", ScriptParam.Type.STRING, false, null),
-                                param("limit", ScriptParam.Type.NUMBER, false, 50)),
-                        Map.of("area", "frontend/src"));
+        ScriptArgs.Bound bound = ScriptArgs.bind(
+                script(
+                        param("area", ScriptParam.Type.STRING, false, null),
+                        param("limit", ScriptParam.Type.NUMBER, false, 50)),
+                Map.of("area", "frontend/src"));
 
-        assertThat(bound.values())
-                .containsExactly(Map.entry("area", "frontend/src"), Map.entry("limit", 50));
+        assertThat(bound.values()).containsExactly(Map.entry("area", "frontend/src"), Map.entry("limit", 50));
         assertThat(bound.notes()).isEmpty();
     }
 
@@ -48,9 +46,7 @@ class ScriptArgsTest {
         Map<String, Object> given = new HashMap<>();
         given.put("area", null);
 
-        ScriptArgs.Bound bound =
-                ScriptArgs.bind(
-                        script(param("area", ScriptParam.Type.STRING, false, "docs")), given);
+        ScriptArgs.Bound bound = ScriptArgs.bind(script(param("area", ScriptParam.Type.STRING, false, "docs")), given);
 
         assertThat(bound.values()).hasSize(1).containsEntry("area", null);
         assertThat(bound.json()).isEqualTo("{\"area\":null}");
@@ -58,11 +54,7 @@ class ScriptArgsTest {
 
     @Test
     void refusesAMissingRequiredArgumentNamingIt() {
-        assertThatThrownBy(
-                        () ->
-                                ScriptArgs.bind(
-                                        script(param("since", ScriptParam.Type.STRING, true, null)),
-                                        Map.of()))
+        assertThatThrownBy(() -> ScriptArgs.bind(script(param("since", ScriptParam.Type.STRING, true, null)), Map.of()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("since")
                 .hasMessageContaining("declares");
@@ -71,49 +63,32 @@ class ScriptArgsTest {
     /** A model flagged weak quotes everything; an extra round-trip over that buys nothing. */
     @Test
     void convertsAQuotedNumberOrBoolean() {
-        ScriptArgs.Bound bound =
-                ScriptArgs.bind(
-                        script(
-                                param("limit", ScriptParam.Type.NUMBER, false, null),
-                                param("dry", ScriptParam.Type.BOOLEAN, false, null)),
-                        Map.of("limit", "50", "dry", "TRUE"));
+        ScriptArgs.Bound bound = ScriptArgs.bind(
+                script(
+                        param("limit", ScriptParam.Type.NUMBER, false, null),
+                        param("dry", ScriptParam.Type.BOOLEAN, false, null)),
+                Map.of("limit", "50", "dry", "TRUE"));
 
         assertThat(bound.values()).containsExactly(Map.entry("limit", 50L), Map.entry("dry", true));
     }
 
     @Test
     void refusesAValueThatIsNotTheDeclaredShape() {
-        assertThatThrownBy(
-                        () ->
-                                ScriptArgs.bind(
-                                        script(
-                                                param(
-                                                        "limit",
-                                                        ScriptParam.Type.NUMBER,
-                                                        false,
-                                                        null)),
-                                        Map.of("limit", "soon")))
+        assertThatThrownBy(() -> ScriptArgs.bind(
+                        script(param("limit", ScriptParam.Type.NUMBER, false, null)), Map.of("limit", "soon")))
                 .hasMessageContaining("must be a number");
-        assertThatThrownBy(
-                        () ->
-                                ScriptArgs.bind(
-                                        script(param("paths", ScriptParam.Type.ARRAY, false, null)),
-                                        Map.of("paths", "a.js")))
+        assertThatThrownBy(() -> ScriptArgs.bind(
+                        script(param("paths", ScriptParam.Type.ARRAY, false, null)), Map.of("paths", "a.js")))
                 .hasMessageContaining("must be an array");
-        assertThatThrownBy(
-                        () ->
-                                ScriptArgs.bind(
-                                        script(param("area", ScriptParam.Type.STRING, false, null)),
-                                        Map.of("area", List.of("a", "b"))))
+        assertThatThrownBy(() -> ScriptArgs.bind(
+                        script(param("area", ScriptParam.Type.STRING, false, null)), Map.of("area", List.of("a", "b"))))
                 .hasMessageContaining("must be a string");
     }
 
     @Test
     void passesAnUndeclaredArgumentThroughWithANote() {
         ScriptArgs.Bound bound =
-                ScriptArgs.bind(
-                        script(param("area", ScriptParam.Type.STRING, false, null)),
-                        Map.of("are", "typo"));
+                ScriptArgs.bind(script(param("area", ScriptParam.Type.STRING, false, null)), Map.of("are", "typo"));
 
         assertThat(bound.values()).containsEntry("are", "typo");
         assertThat(bound.notes())
@@ -131,11 +106,7 @@ class ScriptArgsTest {
         Map<String, Object> given = new HashMap<>();
         given.put("since", null);
 
-        assertThatThrownBy(
-                        () ->
-                                ScriptArgs.bind(
-                                        script(param("since", ScriptParam.Type.STRING, true, null)),
-                                        given))
+        assertThatThrownBy(() -> ScriptArgs.bind(script(param("since", ScriptParam.Type.STRING, true, null)), given))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("since");
     }
@@ -143,21 +114,18 @@ class ScriptArgsTest {
     /** What the sandbox parses is this text, so it has to survive the trip unchanged. */
     @Test
     void serializesValuesAsJsonTheGuestCanParse() {
-        ScriptArgs.Bound bound =
-                ScriptArgs.bind(
-                        script(param("area", ScriptParam.Type.STRING, false, null)),
-                        Map.of("area", "док" + LINE_SEPARATOR + "и"));
+        ScriptArgs.Bound bound = ScriptArgs.bind(
+                script(param("area", ScriptParam.Type.STRING, false, null)),
+                Map.of("area", "док" + LINE_SEPARATOR + "и"));
 
         assertThat(bound.json()).isEqualTo("{\"area\":\"док" + LINE_SEPARATOR + "и\"}");
     }
 
     @Test
     void refusesArgumentsTooLargeToBeParameters() {
-        assertThatThrownBy(
-                        () ->
-                                ScriptArgs.bind(
-                                        script(param("blob", ScriptParam.Type.STRING, false, null)),
-                                        Map.of("blob", "x".repeat(ScriptArgs.MAX_ARGS_CHARS + 1))))
+        assertThatThrownBy(() -> ScriptArgs.bind(
+                        script(param("blob", ScriptParam.Type.STRING, false, null)),
+                        Map.of("blob", "x".repeat(ScriptArgs.MAX_ARGS_CHARS + 1))))
                 .hasMessageContaining("too large");
     }
 
@@ -171,8 +139,7 @@ class ScriptArgsTest {
         return new SavedScript("sample", "a.js", "A sample", List.of(params), false, null);
     }
 
-    private static ScriptParam param(
-            String name, ScriptParam.Type type, boolean required, @Nullable Object fallback) {
+    private static ScriptParam param(String name, ScriptParam.Type type, boolean required, @Nullable Object fallback) {
         return new ScriptParam(name, "", type, required, fallback);
     }
 }

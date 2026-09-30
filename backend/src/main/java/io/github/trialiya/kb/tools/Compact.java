@@ -9,9 +9,7 @@ public final class Compact {
     public static String truncate(@Nullable String s, int max) {
         if (s == null) return null;
         String text = s.strip();
-        return text.length() <= max
-                ? text
-                : text.substring(0, max) + "…(+" + (text.length() - max) + ")";
+        return text.length() <= max ? text : text.substring(0, max) + "…(+" + (text.length() - max) + ")";
     }
 
     /**

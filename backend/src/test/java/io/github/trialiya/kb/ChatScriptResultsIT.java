@@ -34,8 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ChatScriptResultsIT extends AbstractPostgresIntegrationTest {
 
-    @Autowired private ChatScriptResultRepository repository;
-    @Autowired private ChatTopicRepository topics;
+    @Autowired
+    private ChatScriptResultRepository repository;
+
+    @Autowired
+    private ChatTopicRepository topics;
 
     private final String chat = "script-results-" + UUID.randomUUID();
     private ChatScriptResults results;
@@ -64,7 +67,8 @@ class ChatScriptResultsIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void aChatWithNoRowIsRefusedAndNothingAfterItIsHurt() {
-        assertThat(results.keep("no-such-chat-" + UUID.randomUUID(), null, "kb", "1").id())
+        assertThat(results.keep("no-such-chat-" + UUID.randomUUID(), null, "kb", "1")
+                        .id())
                 .isNull();
 
         assertThat(results.keep(chat, null, "kb", "1").id()).isEqualTo("r1");

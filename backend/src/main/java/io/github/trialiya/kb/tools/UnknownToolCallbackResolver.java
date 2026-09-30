@@ -84,13 +84,12 @@ public class UnknownToolCallbackResolver implements ToolCallbackResolver {
             log.warn("Model called a tool it does not have: '{}'", displayName());
             throw new ToolExecutionException(
                     getToolDefinition(),
-                    new IllegalArgumentException(
-                            "There is no tool named '"
-                                    + displayName()
-                                    + "', and nothing was executed. The tools listed with this"
-                                    + " request are the only ones that exist — call one of them by"
-                                    + " its exact name, or answer without a tool. Do not retry"
-                                    + " this name."));
+                    new IllegalArgumentException("There is no tool named '"
+                            + displayName()
+                            + "', and nothing was executed. The tools listed with this"
+                            + " request are the only ones that exist — call one of them by"
+                            + " its exact name, or answer without a tool. Do not retry"
+                            + " this name."));
         }
     }
 }

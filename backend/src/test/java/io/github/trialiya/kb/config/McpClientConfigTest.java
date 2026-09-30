@@ -36,10 +36,8 @@ class McpClientConfigTest {
 
     @Test
     void aHeaderNamedAuthorizationOverridesTheBearerToken() {
-        McpProperties properties =
-                properties(
-                        Map.of(CONNECTION, "bearer-token"),
-                        Map.of(CONNECTION, Map.of("Authorization", "Custom scheme-value")));
+        McpProperties properties = properties(
+                Map.of(CONNECTION, "bearer-token"), Map.of(CONNECTION, Map.of("Authorization", "Custom scheme-value")));
 
         assertThat(headerOf(properties, "Authorization")).contains("Custom scheme-value");
     }
@@ -47,9 +45,7 @@ class McpClientConfigTest {
     @Test
     void aBlankBearerTokenIsTreatedAsNotConfigured() {
         McpProperties properties =
-                properties(
-                        Map.of(CONNECTION, "  "),
-                        Map.of(CONNECTION, Map.of("X-Atlassian-Cloud-Id", "cloud-id")));
+                properties(Map.of(CONNECTION, "  "), Map.of(CONNECTION, Map.of("X-Atlassian-Cloud-Id", "cloud-id")));
 
         assertThat(headerOf(properties, "Authorization")).isEmpty();
         assertThat(headerOf(properties, "X-Atlassian-Cloud-Id")).contains("cloud-id");
@@ -57,8 +53,7 @@ class McpClientConfigTest {
 
     @Test
     void aBlankCustomHeaderValueIsOmittedRatherThanSentEmpty() {
-        McpProperties properties =
-                properties(Map.of(), Map.of(CONNECTION, Map.of("X-Atlassian-Cloud-Id", "")));
+        McpProperties properties = properties(Map.of(), Map.of(CONNECTION, Map.of("X-Atlassian-Cloud-Id", "")));
 
         assertThat(McpClientConfig.authRequest(properties, CONNECTION)).isEmpty();
     }
@@ -70,10 +65,8 @@ class McpClientConfigTest {
      */
     @Test
     void aHeaderValueLeftEmptyInYamlIsOmittedInsteadOfFailingStartup() {
-        McpProperties properties =
-                properties(
-                        Map.of(CONNECTION, "secret-token"),
-                        Map.of(CONNECTION, singletonMap("X-Atlassian-Cloud-Id", null)));
+        McpProperties properties = properties(
+                Map.of(CONNECTION, "secret-token"), Map.of(CONNECTION, singletonMap("X-Atlassian-Cloud-Id", null)));
 
         assertThat(headerOf(properties, "X-Atlassian-Cloud-Id")).isEmpty();
         assertThat(headerOf(properties, "Authorization")).contains("Bearer secret-token");
@@ -100,7 +93,8 @@ class McpClientConfigTest {
 
     private static Optional<String> headerOf(McpProperties properties, String headerName) {
         return McpClientConfig.authRequest(properties, CONNECTION)
-                .map(builder -> builder.uri(URI.create("https://example.invalid")).build())
+                .map(builder ->
+                        builder.uri(URI.create("https://example.invalid")).build())
                 .map(HttpRequest::headers)
                 .map(headers -> headers.firstValue(headerName))
                 .orElseGet(Optional::empty);

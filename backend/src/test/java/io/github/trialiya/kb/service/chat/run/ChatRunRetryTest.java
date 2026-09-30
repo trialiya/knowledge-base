@@ -73,51 +73,38 @@ class ChatRunRetryTest {
         runs = new RunRegistry();
         slots = new ConversationSlots(events);
         pendingMessages = mock(PendingMessageService.class);
-        runService =
-                new ChatRunService(
-                        new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
-                        new ChatToolset(List.of(), List.of()),
-                        mock(ChatMemory.class),
-                        chatHistory,
-                        mock(SummarizeService.class),
-                        mock(AiTopicService.class),
-                        mock(PendingSummaryService.class),
-                        mock(AutoCompactService.class),
-                        new ChatModelProperties(
-                                new ModelOption(
-                                        "default-model",
-                                        "Default",
-                                        true,
-                                        true,
-                                        null,
-                                        null,
-                                        null,
-                                        false),
-                                List.of()),
-                        events,
-                        mock(SystemPromptService.class),
-                        pendingMessages,
-                        mock(RunOptionsResolver.class),
-                        runs,
-                        slots,
-                        never);
+        runService = new ChatRunService(
+                new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
+                new ChatToolset(List.of(), List.of()),
+                mock(ChatMemory.class),
+                chatHistory,
+                mock(SummarizeService.class),
+                mock(AiTopicService.class),
+                mock(PendingSummaryService.class),
+                mock(AutoCompactService.class),
+                new ChatModelProperties(
+                        new ModelOption("default-model", "Default", true, true, null, null, null, false), List.of()),
+                events,
+                mock(SystemPromptService.class),
+                pendingMessages,
+                mock(RunOptionsResolver.class),
+                runs,
+                slots,
+                never);
     }
 
     private static ChatMessageEntity userRow(long id) {
-        return new ChatMessageEntity(
-                id, CONV, QUESTION, MessageType.USER, 1, false, false, LocalDateTime.now(), null);
+        return new ChatMessageEntity(id, CONV, QUESTION, MessageType.USER, 1, false, false, LocalDateTime.now(), null);
     }
 
     @Test
     void retryReusesTheUnansweredQuestionInsteadOfSavingItAgain() {
         when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow(42L)));
 
-        final ChatRunService.StartedRun started =
-                runService.start(CONV, USER, null, List.of(), options(), null);
+        final ChatRunService.StartedRun started = runService.start(CONV, USER, null, List.of(), options(), null);
 
         assertThat(started.userMessageId()).isEqualTo(42L);
-        verify(chatHistory, never())
-                .saveUserMessage(anyString(), anyString(), anyList(), any(), any());
+        verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any(), any());
     }
 
     /** Модель успела начать ответ — повторять нечего: 422, и заявка на чат не удерживается. */
@@ -153,11 +140,9 @@ class ChatRunRetryTest {
     /** Обычная отправка режим повтора не задевает: вопрос по-прежнему пишется до прогона. */
     @Test
     void ordinarySendStillPersistsTheQuestion() {
-        when(chatHistory.saveUserMessage(CONV, QUESTION, List.of(), "kb", null))
-                .thenReturn(userRow(7L));
+        when(chatHistory.saveUserMessage(CONV, QUESTION, List.of(), "kb", null)).thenReturn(userRow(7L));
 
-        final ChatRunService.StartedRun started =
-                runService.start(CONV, USER, QUESTION, List.of(), options(), "msg-1");
+        final ChatRunService.StartedRun started = runService.start(CONV, USER, QUESTION, List.of(), options(), "msg-1");
 
         assertThat(started.userMessageId()).isEqualTo(7L);
         verify(chatHistory, never()).unansweredUserMessage(anyString());
