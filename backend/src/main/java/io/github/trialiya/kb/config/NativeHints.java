@@ -12,6 +12,7 @@ import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.functions.ScriptResultFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
 import io.github.trialiya.kb.functions.SkillFunction;
+import io.github.trialiya.kb.model.tool.ModelView;
 import io.github.trialiya.kb.service.chat.script.KbEditScriptApi;
 import io.github.trialiya.kb.service.chat.script.KbScriptApi;
 import java.io.IOException;
@@ -213,6 +214,9 @@ public class NativeHints implements RuntimeHintsRegistrar {
      * ({@code ToolResult<T>} бесполезен без своего {@code T}) и вложенные записи. {@code
      * ToolContext} пропускаем: он приходит от Spring AI, в схему инструмента не входит и через JSON
      * не проходит.
+     *
+     * <p>У результата, который отвечает модели своим видом ({@link ModelView}), сериализуется ещё и
+     * вид — тип, объявленный возвращаемым у его {@code forModel()}: в сигнатуре инструмента его нет.
      */
     private void registerToolSignatures(RuntimeHints hints, Class<?> holder) {
         for (Method method : holder.getDeclaredMethods()) {
@@ -221,12 +225,25 @@ public class NativeHints implements RuntimeHintsRegistrar {
             }
             if (method.getReturnType() != void.class) {
                 binding.registerReflectionHints(hints.reflection(), method.getGenericReturnType());
+                registerModelView(hints, method.getReturnType());
             }
             for (Parameter parameter : method.getParameters()) {
                 if (parameter.getType() != ToolContext.class) {
                     binding.registerReflectionHints(hints.reflection(), parameter.getParameterizedType());
                 }
             }
+        }
+    }
+
+    private void registerModelView(RuntimeHints hints, Class<?> result) {
+        if (!ModelView.class.isAssignableFrom(result)) {
+            return;
+        }
+        try {
+            binding.registerReflectionHints(
+                    hints.reflection(), result.getMethod("forModel").getGenericReturnType());
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException(result + " implements ModelView without forModel()", e);
         }
     }
 

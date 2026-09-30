@@ -167,7 +167,8 @@ public final class ToolInvocationCollector {
     /**
      * По результату целиком, а не по тексту, который получила модель: у {@code runScript} модели
      * уходит лишь начало {@code filesRead} (см. {@code ScriptResult#forModel}), но прочитал скрипт
-     * все файлы списка.
+     * все файлы списка. Засчитывается при этом и путь из части значения, которую модели урезал {@code
+     * resultLimit}, — в духе того же снисходительного правила, что и выше.
      */
     private static boolean mentionsFile(ToolInvocation invocation, String path) {
         final String text = invocation.wholeResultText();

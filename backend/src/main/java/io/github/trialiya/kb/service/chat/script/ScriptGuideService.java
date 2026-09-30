@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.chat.script;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.ScriptResultProperties;
+import io.github.trialiya.kb.model.script.ScriptResult;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -174,6 +175,7 @@ public class ScriptGuideService {
                 Map.entry("max_calls", String.valueOf(limits.maxCalls())),
                 Map.entry("max_log_chars", String.valueOf(limits.maxLogChars())),
                 Map.entry("max_result_chars", String.valueOf(limits.maxResultChars())),
+                Map.entry("model_path_limit", String.valueOf(ScriptResult.MODEL_PATH_LIMIT)),
                 Map.entry("max_edited_files", String.valueOf(limits.maxEditedFiles())),
                 Map.entry("max_edited_bytes", humanBytes(limits.maxEditedBytes())),
                 Map.entry("timeout", properties.timeout().toSeconds() + " с"),

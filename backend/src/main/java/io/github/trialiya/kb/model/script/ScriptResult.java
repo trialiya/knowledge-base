@@ -37,9 +37,9 @@ import org.jspecify.annotations.Nullable;
  * @param filesRead paths the run touched, in first-read order — feeds the file chips in the UI
  * @param edits files the run created or modified, with a unified diff each; always empty for a
  *     failed run, which writes nothing at all
- * @param resultLimit how many elements of {@code value} the model asked to be shown ({@code
- *     resultLimit} of the call, see {@link ResultLimit}); null — the whole value. Not part of the
- *     result: only {@link #forModel} reads it
+ * @param shown what the model is shown in place of {@code value} when the call's {@code
+ *     resultLimit} cut it; null — the model gets {@code value} as it is. Not part of the result:
+ *     only {@link #forModel} reads it
  */
 public record ScriptResult(
         String project,
@@ -51,7 +51,7 @@ public record ScriptResult(
         @Nullable ScriptError error,
         List<String> filesRead,
         List<GitEditResult> edits,
-        @Nullable @JsonIgnore Integer resultLimit)
+        @Nullable @JsonIgnore Shown shown)
         implements ProjectScoped, ToolCallResponseItem, ToolCallResultMetaProvider, ModelView {
 
     /** Paths listed in the UI meta; a script may legitimately touch far more than fits a plaque. */
@@ -62,9 +62,9 @@ public record ScriptResult(
      * detail view shows it whole; to the model a long list is context spent on nothing, and the
      * count is in {@code stats} anyway.
      */
-    static final int MODEL_PATH_LIMIT = 5;
+    public static final int MODEL_PATH_LIMIT = 5;
 
-    /** A result shown to the model whole, save for {@code filesRead}. */
+    /** A result whose value the model is shown as it is. */
     public ScriptResult(
             String project,
             @Nullable String resultId,
@@ -79,38 +79,20 @@ public record ScriptResult(
     }
 
     /**
-     * The same result, its value shown to the model cut to {@code limit} elements; a non-positive
-     * limit shows the value whole.
-     */
-    public ScriptResult withResultLimit(int limit) {
-        return new ScriptResult(
-                project, resultId, source, value, log, stats, error, filesRead, edits, limit > 0 ? limit : null);
-    }
-
-    /**
      * The fields of the result in the same order, with {@code filesRead} cut to {@link
      * #MODEL_PATH_LIMIT} paths ({@code filesReadMore} says how many were left out) and, when the
-     * model passed {@code resultLimit}, {@code value} cut by {@link ResultLimit} ({@code truncated}
-     * says what was cut and where the whole value is).
+     * call's {@code resultLimit} cut the value, {@link #shown} in its place ({@code truncated} says
+     * what was cut and where the whole value is).
      */
     @Override
-    public Object forModel() {
-        Object shown = value;
-        Truncated truncated = null;
-        if (resultLimit != null) {
-            ResultLimit.Trimmed trimmed = ResultLimit.apply(value, resultLimit);
-            if (!trimmed.cut().isEmpty()) {
-                shown = trimmed.value();
-                truncated = Truncated.of(resultLimit, trimmed.cut(), resultId);
-            }
-        }
+    public ForModel forModel() {
         int more = filesRead.size() - MODEL_PATH_LIMIT;
         return new ForModel(
                 project,
                 resultId,
                 source,
-                shown,
-                truncated,
+                shown != null ? shown.value() : value,
+                shown != null ? shown.truncated() : null,
                 log,
                 stats,
                 error,
@@ -119,8 +101,12 @@ public record ScriptResult(
                 edits);
     }
 
-    /** What the model reads: {@link ScriptResult}'s own fields, plus the two notes on what was cut. */
-    record ForModel(
+    /**
+     * What the model reads: {@link ScriptResult}'s own fields, plus the two notes on what was cut.
+     * Public and named as {@link #forModel}'s return type so the native image registers it with
+     * the tool's signature (see {@code NativeHints}).
+     */
+    public record ForModel(
             String project,
 
             @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -145,13 +131,21 @@ public record ScriptResult(
             List<GitEditResult> edits) {}
 
     /**
+     * The value as the call's {@code resultLimit} left it for the model.
+     *
+     * @param value the cut value, then bounded by {@code max-result-chars} like any other
+     * @param truncated what was cut
+     */
+    public record Shown(@Nullable Object value, Truncated truncated) {}
+
+    /**
      * @param limit the {@code resultLimit} the value was cut to
      * @param cut the JSON path of every cut part → how many elements it had
      * @param note where the rest is, in words — the model reads this, not the Javadoc
      */
-    record Truncated(int limit, Map<String, Integer> cut, String note) {
+    public record Truncated(int limit, Map<String, Integer> cut, String note) {
 
-        static Truncated of(int limit, Map<String, Integer> cut, @Nullable String resultId) {
+        public static Truncated of(int limit, Map<String, Integer> cut, @Nullable String resultId) {
             return new Truncated(
                     limit,
                     cut,

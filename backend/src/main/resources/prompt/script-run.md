@@ -7,7 +7,7 @@
 - Exactly one object: `kb`, plus `loadScript(path)` for repo files (below). No `require`, `import`, `fetch`, `setTimeout`, `java.*`, `Java.type`, file APIs. Attempts error as `RUNTIME`, not bypasses.
 - No state between runs—each starts fresh.
 - Debug output: `kb.log(...)`—appears in `log` field.
-- Response: `value` (return), `log`, `stats`, `filesRead` (first 5 paths; `filesReadMore` counts the rest—the total is `stats.filesRead`), `error`.
+- Response: `value` (return), `log`, `stats`, `filesRead` (first {{model_path_limit}} paths; `filesReadMore` counts the rest—the total is `stats.filesRead`), `error`.
 
 ### kb reference
 | Call | Returns | Notes |

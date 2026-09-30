@@ -1,4 +1,4 @@
-package io.github.trialiya.kb.model.script;
+package io.github.trialiya.kb.service.chat.script;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -8,12 +8,14 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Cuts a script's returned value down to the first {@code limit} elements for the model's copy —
- * the {@code resultLimit} argument of {@code runScript} / {@code runSavedScript}.
+ * the {@code resultLimit} argument of {@code runScript} / {@code runSavedScript}. Runs on the whole
+ * parsed value, before {@code max-result-chars} cuts the text (see {@link ScriptResultKeeper}): a
+ * character cut first would leave a fragment that is no longer JSON, and nothing left to count.
  *
  * <p>An element is an array item or a line of a string. Inside an object the arrays and strings it
  * holds are cut the same way, down to {@link #OBJECT_DEPTH} levels of nesting; deeper, and inside
- * array items, nothing is touched. The value keeps its shape and stays valid JSON — a character
- * cut would leave the model a fragment it can neither parse nor trust.
+ * array items, nothing is touched. The value keeps its shape and stays valid JSON. Lines of a cut
+ * string are joined back with {@code \n}.
  */
 final class ResultLimit {
 
