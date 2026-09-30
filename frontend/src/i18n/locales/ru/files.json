@@ -155,6 +155,10 @@
     "revision": "Ревизия",
     "author": "Автор",
     "date": "Дата",
+    "parents_one": "Родитель",
+    "parents_few": "Родители",
+    "parents_many": "Родители",
+    "parents_other": "Родители",
     "message": "Название",
     "body": "Описание",
     "files": "Файлы",
@@ -163,6 +167,8 @@
     "filesSummary_many": "{{count}} файлов · +{{additions}} −{{deletions}}",
     "filesSummary_other": "{{count}} файла · +{{additions}} −{{deletions}}",
     "showChanges": "Показать изменённые файлы",
+    "copyLink": "Копировать ссылку",
+    "linkCopied": "Ссылка скопирована",
     "loadError": "Не удалось загрузить коммит"
   },
   "outline": {

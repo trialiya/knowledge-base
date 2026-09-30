@@ -83,7 +83,14 @@ class ChatMessageMetaRoundTripTest {
                                 512,
                                 CompactMeta.Kind.SUMMARIZE,
                                 new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 61_900, 2)))
-                .gitEvent(new GitEventMeta("pull", "billing", true, "Fast-forward", "main"))
+                .gitEvent(
+                        new GitEventMeta(
+                                "commit",
+                                "billing",
+                                true,
+                                "Committed 0123456",
+                                "main",
+                                "0123456789abcdef0123456789abcdef01234567"))
                 .interjection(true)
                 .usage(
                         new RunTokenUsage(

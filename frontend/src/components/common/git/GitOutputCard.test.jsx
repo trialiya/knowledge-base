@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GitOutputCard from './GitOutputCard';
+import { commitUrl } from '@/navigation/urlScheme';
 
 const event = (over = {}) => ({
   command: 'pull',
@@ -57,5 +58,19 @@ describe('GitOutputCard', () => {
     render(<GitOutputCard event={event({ output: '   ' })} />);
 
     expect(screen.queryByRole('button', { name: 'gitOutput.copy' })).not.toBeInTheDocument();
+  });
+
+  /** Коммит, созданный командой, открывается с карточки — полным хешем в своём проекте. */
+  test('a commit the command created is a link to it', () => {
+    const hash = '0123456789abcdef0123456789abcdef01234567';
+    render(<GitOutputCard event={event({ command: 'commit', output: 'Committed 0123456', commit: hash })} />);
+
+    expect(screen.getByRole('link', { name: '0123456' })).toHaveAttribute('href', commitUrl(hash, 'kb'));
+  });
+
+  test('a command that created no commit has no link', () => {
+    render(<GitOutputCard event={event()} />);
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 });

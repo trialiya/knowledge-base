@@ -1,5 +1,6 @@
 import { createNavStore } from './navStore';
 import { readPanelState, savePanelState } from './panelState';
+import { commitUrl } from './urlScheme';
 
 /** Текущий адрес в том же виде, в каком его строит стор. */
 const url = () => window.location.pathname + window.location.search;
@@ -338,5 +339,33 @@ describe('удалённый документ', () => {
     s.switchView('chat');
     s.switchView('knowledge');
     expect(s.nav().docId).toBe('5');
+  });
+});
+
+describe('переход к коммиту', () => {
+  const hash = '0123456789abcdef0123456789abcdef01234567';
+
+  it('одна запись истории: снимок, изменения слева, вкладка «Коммит» — тот же адрес, что у ссылки', () => {
+    go('/chat/7');
+    const s = mount();
+    s.openFilePath('', 'kb', { rev: hash, changes: true, right: 'commit' });
+    expect(url()).toBe(commitUrl(hash, 'kb'));
+    expect(s.nav()).toMatchObject({ view: 'files', fileRev: hash, fileChanges: true, rightTab: 'commit' });
+    back('/chat/7');
+    expect(s.nav().view).toBe('chat');
+  });
+
+  it('без right раскладка раздела остаётся той, что была', () => {
+    savePanelState('files', { leftCollapsed: false, rightTab: 'info' });
+    const s = mount();
+    s.openFilePath('a.md', undefined, { rev: hash });
+    expect(s.nav().rightTab).toBe('info');
+  });
+
+  it('адрес коммита читается обратно без изменений', () => {
+    go(commitUrl(hash));
+    const s = mount();
+    expect(url()).toBe(commitUrl(hash));
+    expect(s.nav()).toMatchObject({ view: 'files', filePath: '', fileRev: hash, rightTab: 'commit' });
   });
 });

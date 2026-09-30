@@ -31,6 +31,19 @@ describe('detectRecordList — что попадает в «Обзор»', () =>
     expect(records[0].fields.map((f) => f.key)).toContain('hash');
   });
 
+  it('getCommitLog: хеш записи ведёт к коммиту в репозитории, который ответил', () => {
+    const [wrapped] = detect(JSON.stringify({ project: 'other', result: [commit()] }));
+    expect(wrapped.commit).toEqual({ rev: '8547d567e4c524805f74b0a523be2a8ec3892c1e', project: 'other' });
+
+    const [legacy] = detect(JSON.stringify([commit({ project: 'kb' })]));
+    expect(legacy.commit.project).toBe('kb');
+  });
+
+  it('запись без пары hash + shortHash — не коммит', () => {
+    const [doc] = detect(JSON.stringify([{ id: 1, title: 'Doc', hash: 'not-a-hash', shortHash: 'x' }]));
+    expect(doc.commit).toBeNull();
+  });
+
   // Записи с путём этот вид разбирает, но в реестре их забирает `tree`: путь —
   // это иерархия, и показывать её деревом лучше. Разбор оставлен рабочим:
   // сузится `tree` — форма без переписывания вернётся сюда.

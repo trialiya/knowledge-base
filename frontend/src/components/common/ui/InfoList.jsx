@@ -16,7 +16,7 @@ import './infoList.css';
  * «—» в панели быть не должно.
  *
  * props:
- *   rows — [{ label, value, mono, block, pre }]
+ *   rows — [{ label, value, mono, block, pre, copy }]
  *          mono  — моноширинное значение (хеш, путь, id)
  *          block — значение под меткой и по левому краю: только для связного
  *                  текста в несколько строк (сообщение коммита), где выключка
@@ -25,6 +25,8 @@ import './infoList.css';
  *                  остаётся справа
  *          pre   — сохранить переносы строк значения (тело коммита: там абзацы,
  *                  списки и отступы несут смысл). Только вместе с block
+ *          copy  — текст для кнопки копирования, когда значение — узел (хеш,
+ *                  ставший ссылкой на коммит): копируется текст, а не разметка
  *   note — узел под списком (предупреждение/пояснение), необязателен
  *   title — заголовок над списком: нужен там, где на вкладке стоит второй
  *           список со своим смыслом (счёт суб-агента в чате) и без подписи
@@ -33,7 +35,8 @@ import './infoList.css';
  * У строки с текстовым значением есть кнопка копирования: большинство значений
  * здесь (id, хеш, путь) для того и нужны, чтобы вставить их куда-то ещё, а
  * выделить их мышью трудно — это не текст, а вёрстка списка. У значения-узла
- * кнопки нет: копировать в буфер нечего, в него ушло бы «[object Object]».
+ * кнопки нет — копировать в буфер нечего, в него ушло бы «[object Object]», —
+ * если строка сама не назвала текст в `copy`.
  */
 const InfoList = ({ rows, note, title }) => {
   const { t } = useTranslation();
@@ -46,7 +49,8 @@ const InfoList = ({ rows, note, title }) => {
       <dl className="info-list__list">
         {visible.map((row) => {
           const copied = copiedLabel === row.label;
-          const copyable = typeof row.value === 'string' || typeof row.value === 'number';
+          const copyText =
+            row.copy ?? (typeof row.value === 'string' || typeof row.value === 'number' ? String(row.value) : null);
           return (
             <div className={`info-list__row${row.block ? ' info-list__row--block' : ''}`} key={row.label}>
               <dt className="info-list__label">{row.label}</dt>
@@ -54,11 +58,11 @@ const InfoList = ({ rows, note, title }) => {
                 <span className={`info-list__value-text${row.pre ? ' info-list__value-text--pre' : ''}`}>
                   {row.value}
                 </span>
-                {copyable && (
+                {copyText != null && (
                   <button
                     type="button"
                     className={`icon-btn info-list__copy-btn${copied ? ' icon-btn--done' : ''}`}
-                    onClick={() => copy(String(row.value), row.label)}
+                    onClick={() => copy(copyText, row.label)}
                     title={copied ? t('copied') : t('copy')}
                     aria-label={`${copied ? t('copied') : t('copy')}: ${row.label}`}
                   >

@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PushDialog from './PushDialog';
 import gitApi from '@/api/gitApi';
+import { commitUrl } from '@/navigation/urlScheme';
 
 vi.mock('@/api/gitApi', () => ({ default: { getOutgoing: vi.fn() } }));
 
@@ -41,6 +42,15 @@ describe('PushDialog', () => {
     const items = screen.getAllByRole('listitem');
     expect(items).toHaveLength(2);
     expect(items[0]).toHaveTextContent('second');
+  });
+
+  /** Хеш уходящего коммита открывает его — в новой вкладке, из-под окна не уводя. */
+  test('each outgoing commit links to itself in a new tab', async () => {
+    render(<PushDialog git={git()} onClose={vi.fn()} />);
+
+    const link = await screen.findByRole('link', { name: 'aaaaaaa' });
+    expect(link).toHaveAttribute('href', commitUrl('aaaaaaa1', 'kb'));
+    expect(link).toHaveAttribute('target', '_blank');
   });
 
   test('pushing closes the dialog only when git accepted it', async () => {

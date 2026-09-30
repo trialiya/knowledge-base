@@ -20,10 +20,11 @@ import org.springframework.stereotype.Service;
  * том числе к сообщениям, прочитанным в другом репозитории. В сообщении блок стоит там, где
  * начинает действовать, — и всё, что выше него, читано в другом репозитории.
  *
- * <p>Модель обязана знать проект не «для сведения»: ссылку на файл пишет она, а `/files?path=…` без
- * проекта означает дефолтный. Не назвав проект, мы получили бы ссылки, которые в другом репозитории
- * откроют файл с тем же путём — ошибку, которую никто не заметит. Поэтому здесь же выдаётся готовый
- * кусок ссылки, а не предложение вывести его самостоятельно.
+ * <p>Модель обязана знать проект не «для сведения»: ссылки на файл и на коммит пишет она, а
+ * `/files?…` без проекта означает дефолтный. Не назвав проект, мы получили бы ссылки, которые в
+ * другом репозитории откроют файл с тем же путём (или не найдут коммит) — ошибку, которую никто не
+ * заметит. Поэтому здесь же выдаются готовые куски обеих ссылок, а не предложение вывести их
+ * самостоятельно.
  *
  * <p>Правила кросс-проектного чтения — что аргумент {@code project} есть у каждого читающего
  * инструмента, что id берётся из эха ответа, что правки остаются в активном проекте — статичны и
@@ -85,9 +86,10 @@ public class ProjectPromptService {
         return """
         ### Active project
         Files, commits and scripts in this chat read the **%s** repository — project id `%s`.
-        Every repo-file link must carry it: `[filename](/files?path=PATH&project=%s)`.\
+        Every repo-file link must carry it: `[filename](/files?path=PATH&project=%s)`; so must \
+        every commit link: `[shortHash](/files?rev=HASH&project=%s)`.\
         """
-                        .formatted(project.label(), project.id(), project.id())
+                        .formatted(project.label(), project.id(), project.id(), project.id())
                 + allowGlobs(project, gitRegistry.editsAllowed(project.id()))
                 + skills.projectSkills(project)
                 + savedScripts.projectScripts(project)

@@ -26,12 +26,14 @@ class GitCommitJsonTest {
                         null,
                         List.of(
                                 new GitDiffEntry("M", "a.js", null, 1, 0, null, null),
-                                new GitDiffEntry("R", "b.js", "old/b.js", 2, 1, "h", "@@")));
+                                new GitDiffEntry("R", "b.js", "old/b.js", 2, 1, "h", "@@")),
+                        null);
 
         String json = converter.convert(commit, GitCommit.class);
 
         assertThat(json)
                 .doesNotContain("\"body\"")
+                .doesNotContain("\"parents\"")
                 .doesNotContain("null")
                 .contains("{\"status\":\"M\",\"path\":\"a.js\",\"additions\":1,\"deletions\":0}")
                 .contains("\"oldPath\":\"old/b.js\"")

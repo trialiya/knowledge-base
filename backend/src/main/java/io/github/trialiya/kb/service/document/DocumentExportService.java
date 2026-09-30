@@ -339,7 +339,8 @@ public class DocumentExportService {
             return "";
         }
         String text = DocumentLinkRewriter.toRelativeLinks(description.trim(), ownFile, idToFile);
-        return DocumentLinkRewriter.flattenFileLinks(text) + "\n";
+        return DocumentLinkRewriter.flattenCommitLinks(DocumentLinkRewriter.flattenFileLinks(text))
+                + "\n";
     }
 
     /**

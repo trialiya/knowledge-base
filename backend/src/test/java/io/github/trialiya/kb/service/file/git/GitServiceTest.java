@@ -544,6 +544,25 @@ class GitServiceTest {
     }
 
     /**
+     * The Commit tab leads back through the parents, so the browser's view of a commit names them —
+     * a root commit none; the model's diff does not, where they would only cost tokens.
+     */
+    @Test
+    void getCommitNamesTheParentsButTheToolsDiffDoesNot() {
+        writeFile("a.txt", "a\n");
+        commitAll("root");
+        writeFile("a.txt", "b\n");
+        commitAll("child");
+
+        GitCommit root = service.getCommit("HEAD~1", false, null);
+        assertThat(root.parents()).isEmpty();
+        assertThat(service.getCommit("HEAD", false, null).parents()).containsExactly(root.hash());
+        assertThat(service.getCommitDiff("HEAD", false).getFirst().parents()).isNull();
+        assertThat(service.getCommitLog(5, null, false))
+                .allSatisfy(c -> assertThat(c.parents()).isNull());
+    }
+
+    /**
      * A renamed file opened in the browser by its new name is still a rename: the path picks the
      * entry after rename detection instead of hiding the file's old side from it.
      */

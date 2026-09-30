@@ -30,6 +30,9 @@ import org.jspecify.annotations.Nullable;
  * @param body остальная часть сообщения — всё после первой пустой строки; {@code null}, если тела
  *     нет или его не запрашивали
  * @param files список затронутых файлов (только если запрошены изменения)
+ * @param parents полные SHA родителей — только у коммита, описанного целиком для панели файлов
+ *     ({@code GET /api/git/commit}): вкладка «Коммит» ведёт по ним к предыдущему коммиту. В истории
+ *     и в ответах инструментов их нет — модели они ничего не дают, а стоят по 40 знаков на коммит
  */
 public record GitCommit(
         String hash,
@@ -39,7 +42,8 @@ public record GitCommit(
         OffsetDateTime date,
         String message,
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String body,
-        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) List<GitDiffEntry> files)
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) List<GitDiffEntry> files,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) List<String> parents)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override

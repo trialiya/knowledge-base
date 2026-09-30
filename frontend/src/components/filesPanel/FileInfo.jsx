@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import InfoList from '@/components/common/ui/InfoList';
 import useLastCommit from './useLastCommit';
+import CommitHashLink from '@/components/common/git/CommitHashLink';
 import { formatFileSize, formatDateTime } from '@/utils/formatting';
 
 /**
@@ -65,7 +66,18 @@ const FileInfo = ({ content, loading, path = '', project, rev = '' }) => {
         : formatDateTime(commit?.date, i18n.language),
     },
     { label: t('info.author'), value: commit?.author },
-    { label: t('info.commit'), value: commit?.shortHash, mono: true },
+    // Хеш ведёт к самому коммиту — снимку с его изменёнными файлами: «кто и зачем
+    // это менял» — следующий вопрос после «кто менял последним».
+    {
+      label: t('info.commit'),
+      value: commit && (
+        <CommitHashLink rev={commit.hash} project={project}>
+          {commit.shortHash}
+        </CommitHashLink>
+      ),
+      copy: commit?.shortHash,
+      mono: true,
+    },
     { label: t('info.commitMessage'), value: commit?.message, block: true },
     // Тело есть не у каждого коммита — пустую строку InfoList отбросит сам.
     { label: t('info.commitBody'), value: commit?.body, block: true, pre: true },

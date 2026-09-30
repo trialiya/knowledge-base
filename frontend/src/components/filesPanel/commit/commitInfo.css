@@ -1,3 +1,13 @@
 .commit-info__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-top: 0.9rem;
+}
+
+/* Два родителя у слияния — через пробел, как их печатает git. */
+.commit-info__parents {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
 }

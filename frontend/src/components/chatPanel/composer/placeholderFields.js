@@ -57,7 +57,9 @@ export const PLACEHOLDER_FIELDS = {
       title: item.message,
       subtitle: `${item.shortHash} · ${item.author}`,
     }),
-    toValue: (item, project) => makeCommitToken(item.shortHash, item.message, project),
+    // Полный хеш: чип разворачивается в ссылку на коммит, а короткий хеш однажды
+    // перестаёт быть однозначным. Подпись чипа всё равно короткая (fileChipEditorDom).
+    toValue: (item, project) => makeCommitToken(item.hash, item.message, project),
   },
 };
 
