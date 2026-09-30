@@ -13,6 +13,40 @@ An entry ends with the number of the pull request it came from — the
 reasoning behind a change lives there, not here. Sections released before
 this rule was adopted carry no such numbers.
 
+## [1.1.0] — 2026-09-30
+
+The second feature release. Everything from `1.1.0-RC1` through `1.1.0-RC3`
+is in it, plus what was merged after the last candidate: file search by name
+and a fix to repeated context compaction. Nothing here asks anything of an
+upgrade from `1.1.0-RC3`. Coming from `1.0.0`, read the Upgrading sections of
+the three candidates below, or [`UPDATING.md`](UPDATING.md) — `replay-reasoning`
+in particular is now on by default and must be switched off for an endpoint
+that rejects `reasoning_content`.
+
+### Added
+
+- Search finds files by name, not only by content. A file whose name or path
+  contains the query is listed even when its text does not; a file the query
+  names exactly comes first, content matches follow (marked "name matches"
+  when the name matched too), and name-only hits come last with no lines.
+  Name search covers the working tree and plain-text queries — with a
+  revision, a regular expression or a path mask the search stays on content
+  (#467).
+
+### Changed
+
+- A long matching line in search results wraps instead of scrolling
+  sideways, so the match is no longer hidden behind a scrollbar (#467).
+
+### Fixed
+
+- Compacting a chat that already holds a summary (`/compact-1` after
+  `/compact`, or a second automatic compaction) no longer loses the earlier
+  user requests: the instruction counted the old summary's requests against
+  the number of new questions, and the model squeezed them into one bullet
+  that the next compaction dropped. Git commands, reverts and script runs
+  left in the history are not counted as requests either (#470).
+
 ## [1.1.0-RC3] — 2026-09-28
 
 The third candidate for 1.1.0. It keeps the prompt cache intact where the
@@ -544,6 +578,7 @@ a deployment that was already running from `main` before this release.
   meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
+[1.1.0]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0
 [1.1.0-RC3]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC3
 [1.1.0-RC2]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC2
 [1.1.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC1
