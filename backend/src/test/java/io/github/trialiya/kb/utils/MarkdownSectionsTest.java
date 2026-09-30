@@ -125,9 +125,7 @@ class MarkdownSectionsTest {
         void fenceOpenedDeepInNestedListItemHidesItsContent() {
             String md = "# A\n- a\n  - b\n    - ```sh\n      # comment\n      ```\n# B\n";
 
-            assertThat(MarkdownSections.parse(md))
-                    .extracting(Section::path)
-                    .containsExactly("A", "B");
+            assertThat(MarkdownSections.parse(md)).extracting(Section::path).containsExactly("A", "B");
         }
 
         @Test
