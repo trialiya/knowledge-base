@@ -15,6 +15,7 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientAttributes;
@@ -42,6 +43,10 @@ import reactor.core.publisher.Flux;
  * лога не было. Диагностика, которая молчит именно на том пути, ради которого её включают, хуже
  * отсутствующей: она отвечает «в запросе всё в порядке» на вопрос, который никто не задал.
  */
+// Логгер адвайзера один на JVM, а этот класс поднимает ему уровень и вешает свой appender:
+// запрос, который в это же время строит CompactService из соседнего класса, попал бы в захват.
+// Замок делят все классы, чьи запросы проходят через MessageLoggingAdvisor.
+@ResourceLock("message-logging-advisor-log")
 class MessageLoggingAdvisorTest {
 
     private Logger logger;

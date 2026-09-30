@@ -77,9 +77,31 @@ public class CompactPrompt {
         append(prompt, "Project", chat == null ? null : chat.getProject());
         append(prompt, "Assistant mode", chat == null ? null : chat.getMode());
         prompt.append("- Messages above: ").append(rows.size()).append('\n');
-        prompt.append("- Of them USER messages: ")
-                .append(countOf(rows, MessageType.USER))
-                .append(" (`## User requests` must have exactly this many bullets)\n");
+        // Числа, за которыми модель сверяет `## User requests`. Прошлые сводки считаются
+        // отдельно и их пункты идут СВЕРХ числа живых вопросов: посчитанные одной строкой, они
+        // расходились бы с правилом «перенести пункт в пункт» из compactor.md, и модель
+        // выходила бы из противоречия сама — например, ужимая прежние запросы в скобки под
+        // единственным «разрешённым» пунктом, откуда следующее сжатие их уже не переносит.
+        // Ряды событий (git-команда, откат, прогон скрипта) — USER-ряды без вопроса, у них
+        // место в `## Artifacts`, и вопросами они не считаются.
+        final long summaries = rows.stream().filter(row -> row.entity().isSummary()).count();
+        final long questions =
+                rows.stream()
+                        .map(PromptRow::entity)
+                        .filter(row -> row.getMessageType() == MessageType.USER)
+                        .filter(row -> !ChatHistoryService.isEventRow(row))
+                        .count();
+        prompt.append("- Of them USER messages with a request: ").append(questions);
+        if (summaries == 0) {
+            prompt.append(" (`## User requests` must have exactly this many bullets)\n");
+        } else {
+            prompt.append(" (`## User requests` must have exactly this many bullets for them, ON")
+                    .append(" TOP OF every bullet carried over from the earlier summaries)\n");
+            prompt.append("- Of them earlier summary messages: ")
+                    .append(summaries)
+                    .append(" (carry their `## User requests` and `## Artifacts` over bullet for")
+                    .append(" bullet, never re-counted against the number above)\n");
+        }
         prompt.append("- Of them tool protocol messages: ")
                 .append(countOf(rows, MessageType.TOOL))
                 .append('\n');

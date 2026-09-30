@@ -47,6 +47,7 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
@@ -82,6 +83,8 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
  * цепочкой адвайзеров и памятью), сжатие — сам {@link CompactService}. Копии сборки в тесте не
  * доказывали бы ничего: разойтись могут именно они.
  */
+// Оба запроса теста логируются через MessageLoggingAdvisor — см. замок у MessageLoggingAdvisorTest.
+@ResourceLock("message-logging-advisor-log")
 class CompactPromptCacheTest {
 
     private static final String CONV = "conv-1";
