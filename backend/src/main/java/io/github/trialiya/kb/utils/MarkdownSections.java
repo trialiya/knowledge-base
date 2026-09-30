@@ -200,7 +200,9 @@ public final class MarkdownSections {
                 String marker = fence.group(3);
                 String rest = fence.group(4);
                 if (!inFence) {
-                    if (indent <= 3 && opensFence(marker, rest)) {
+                    // A list marker means the line is a (possibly nested) list item, whose fence
+                    // may sit at any depth; a bare fence at 4+ spaces is an indented code block.
+                    if ((indent <= 3 || !listMarkers.isEmpty()) && opensFence(marker, rest)) {
                         inFence = true;
                         fenceChar = marker.charAt(0);
                         fenceLength = marker.length();
