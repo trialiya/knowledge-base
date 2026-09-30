@@ -77,7 +77,7 @@ final class ScriptResultKeeper {
                                 + ": read it in a later script with kb.result('"
                                 + resultId
                                 + "'), or save it to a file with saveScriptResult."));
-        return new Delivered(parse(json.substring(0, max)), resultId, shown);
+        return new Delivered(parse(json.substring(0, max)), resultId, null);
     }
 
     /**
