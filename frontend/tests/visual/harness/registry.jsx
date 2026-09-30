@@ -40,6 +40,7 @@ import SearchScopeList from '@/components/searchPanel/SearchScopeList';
 import SearchFilters from '@/components/searchPanel/SearchFilters';
 import ResultList from '@/components/searchPanel/results/ResultList';
 import FileResults from '@/components/searchPanel/results/FileResults';
+import CommitResults from '@/components/searchPanel/results/CommitResults';
 import DocResults from '@/components/searchPanel/results/DocResults';
 import ChatResults from '@/components/searchPanel/results/ChatResults';
 import SystemInfo from '@/components/adminPanel/SystemInfo';
@@ -227,11 +228,11 @@ const LiveToolCalls = ({ calls, next }) => {
 };
 
 /** Ни одна категория не ищет: у кейса про фильтры счётчики должны быть видны. */
-const NOTHING_PENDING = { files: false, docs: false, chats: false };
+const NOTHING_PENDING = { files: false, commits: false, docs: false, chats: false };
 
 /**
  * Левая панель поиска целиком: категории со счётчиками и наборы фильтров всех
- * трёх категорий подряд. В приложении виден набор ровно одной — кейс про то,
+ * категорий подряд. В приложении виден набор ровно одной — кейс про то,
  * чем они различаются, и стенд единственный, где их видно рядом.
  */
 const SearchSidebar = ({ counts, pending = NOTHING_PENDING, filters }) => (
@@ -244,14 +245,15 @@ const SearchSidebar = ({ counts, pending = NOTHING_PENDING, filters }) => (
 );
 
 /**
- * Три формы карточки результата разом. Обёртка одна на все три: `.search-results`
- * — растягивающаяся колонка со своей прокруткой, и три такие рядом поделили бы
- * высоту центра на трети.
+ * Все формы карточки результата разом. Обёртка одна на все: `.search-results`
+ * — растягивающаяся колонка со своей прокруткой, и несколько таких рядом
+ * поделили бы высоту центра между собой.
  */
-const ResultCards = ({ query, files, docs, chats }) => (
+const ResultCards = ({ query, files, commits, docs, chats }) => (
   <div className="search-results">
     <div className="search-results__list">
       <FileResults result={files.data} query={query} regex={false} rev="" project="" onOpenFile={noop} />
+      <CommitResults result={commits.data} query={query} project="" />
       <DocResults result={docs.data} query={query} onOpenDoc={noop} />
       <ChatResults result={chats.data} query={query} onOpenChat={noop} />
     </div>
@@ -705,12 +707,21 @@ const LIGHT = [
   { id: 'searchResults.js#scopePanel', frame: 'leftBody', render: (p) => <SearchSidebar {...p} /> },
   // Без тёмного двойника: те же карточки, что в resultCards@expanded, чья тёмная
   // тема показывает и свёрнутые строки, и все остальные; отличается только кнопка «ещё N».
-  { id: 'searchResults.js#resultCards', frame: 'center', dark: false, render: (p) => <ResultCards {...p} /> },
+  // Кадр выше экрана: четыре формы карточек подряд в 900px не помещаются, и
+  // обрезанная снизу карточка чата не попала бы в эталон вовсе.
+  {
+    id: 'searchResults.js#resultCards',
+    frame: 'center',
+    dark: false,
+    viewport: [1440, 1250],
+    render: (p) => <ResultCards {...p} />,
+  },
   // «Ещё N» раскрыто: строки сверх пятой видно только так, а свернувшая их
   // карточка — то, как выдача выглядит по умолчанию.
   {
     id: 'searchResults.js#resultCards@expanded',
     frame: 'center',
+    viewport: [1440, 1350],
     steps: [{ click: '.search-group__more' }],
     render: (p) => <ResultCards {...p} />,
   },
