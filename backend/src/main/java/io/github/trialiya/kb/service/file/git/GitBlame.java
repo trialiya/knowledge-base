@@ -92,7 +92,9 @@ final class GitBlame {
      * value} per line; every line of the file follows its own header, prefixed by a tab. The count
      * is present on the first header of a hunk only, and the headers of the hunk's remaining lines
      * are skipped over here: a hunk is one record, not one per line. {@code filename} — the path as
-     * of that commit — comes with the commit's fields, once per commit.
+     * of that commit — comes with the commit's fields on its first hunk, and again on every hunk
+     * of a commit blame reached under more than one name (a merge across a rename), so it is
+     * taken per hunk where printed and from the commit's first appearance otherwise.
      *
      * @throws IllegalStateException if the output does not have that shape — git changed it, or the
      *     run was cut short
@@ -100,6 +102,8 @@ final class GitBlame {
     static List<GitFileBlame.Hunk> parse(List<String> lines) {
         Map<String, Meta> metas = new HashMap<>();
         List<GitFileBlame.Hunk> hunks = new ArrayList<>();
+        // The path printed for each hunk, by hunk index; null where git printed none.
+        List<@Nullable String> hunkPaths = new ArrayList<>();
         @Nullable Meta current = null;
         for (String line : lines) {
             var header = HEADER.matcher(line);
@@ -107,6 +111,7 @@ final class GitBlame {
                 String sha = header.group(1);
                 if (header.group(4) != null) {
                     hunks.add(bare(sha, Integer.parseInt(header.group(3)), Integer.parseInt(header.group(4))));
+                    hunkPaths.add(null);
                 }
                 current = metas.computeIfAbsent(sha, s -> new Meta());
                 continue;
@@ -117,16 +122,22 @@ final class GitBlame {
             if (current == null) {
                 throw new IllegalStateException("git blame output starts without a header: " + line);
             }
+            if (line.startsWith(FILENAME) && !hunks.isEmpty()) {
+                hunkPaths.set(hunks.size() - 1, line.substring(FILENAME.length()));
+            }
             current.take(line);
         }
         List<GitFileBlame.Hunk> result = new ArrayList<>(hunks.size());
-        for (GitFileBlame.Hunk open : hunks) {
+        for (int i = 0; i < hunks.size(); i++) {
+            GitFileBlame.Hunk open = hunks.get(i);
             String hash = open.hash();
             Meta meta = hash == null ? null : metas.get(hash);
-            result.add(meta == null ? open : meta.fill(open));
+            result.add(meta == null ? open : meta.fill(open, hunkPaths.get(i)));
         }
         return List.copyOf(result);
     }
+
+    private static final String FILENAME = "filename ";
 
     /** A hunk as its header names it, before the commit's fields are known. */
     private static GitFileBlame.Hunk bare(String sha, int fromLine, int count) {
@@ -153,14 +164,20 @@ final class GitBlame {
                 case "author-time" -> time = Long.parseLong(value);
                 case "author-tz" -> tz = value;
                 case "summary" -> summary = value;
-                case "filename" -> path = value;
+                // The fallback for hunks without a filename of their own is the commit's first
+                // one; a later one belongs to the hunk it was printed on (see parse).
+                case "filename" -> path = path == null ? value : path;
                 default -> {
                     // committer-*, previous, boundary: nothing the column shows.
                 }
             }
         }
 
-        GitFileBlame.Hunk fill(GitFileBlame.Hunk open) {
+        /**
+         * @param hunkPath the path git printed on this very hunk, or {@code null} to use the one
+         *     printed on the commit's first appearance
+         */
+        GitFileBlame.Hunk fill(GitFileBlame.Hunk open, @Nullable String hunkPath) {
             String hash = open.hash();
             if (hash == null) {
                 return open;
@@ -174,7 +191,7 @@ final class GitBlame {
                     email,
                     date(),
                     summary,
-                    path);
+                    hunkPath == null ? path : hunkPath);
         }
 
         /** The author's moment in the author's own offset; an offset git printed oddly falls back to UTC. */

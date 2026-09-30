@@ -131,6 +131,40 @@ class GitBlameTest {
         });
     }
 
+    /**
+     * Коммит, к которому blame пришёл под двумя именами (слияние через переименование), получает
+     * {@code filename} на каждом ханке — и каждый ханк оставляет свой, а не последний увиденный.
+     */
+    @Test
+    void aHunkWithItsOwnFilenameKeepsItOverTheCommitsFirstOne() {
+        List<String> out = List.of(
+                A + " 1 1 1",
+                "author Alice",
+                "author-mail <alice@example.com>",
+                "author-time 1700000000",
+                "author-tz +0000",
+                "summary first",
+                "filename left.txt",
+                "\tone",
+                B + " 1 2 1",
+                "author Bob",
+                "author-mail <bob@example.com>",
+                "author-time 1700000000",
+                "author-tz +0000",
+                "summary second",
+                "filename f.txt",
+                "\ttwo",
+                A + " 2 3 1",
+                "filename right.txt",
+                "\tthree",
+                A + " 3 4 1",
+                "\tfour");
+
+        assertThat(GitBlame.parse(out))
+                .extracting(GitFileBlame.Hunk::path)
+                .containsExactly("left.txt", "f.txt", "right.txt", "left.txt");
+    }
+
     @Test
     void anEmptyFileHasNoHunks() {
         assertThat(GitBlame.parse(List.of())).isEmpty();
