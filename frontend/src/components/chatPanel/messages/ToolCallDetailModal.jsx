@@ -34,7 +34,7 @@ const POLL_MAX_MS = 15000;
 const ERROR_RETRIES = 3;
 
 /**
- * Переключатель состояний одной секции: «Обзор | JSON», «Полный | Для модели».
+ * Переключатель состояний одной секции: вид ответа (MODES) или его версия (VERSIONS).
  * `keyPrefix` — ключи i18n подписи (`<prefix>.<value>`) и подсказки
  * (`<prefix>.<value>Hint`, если она есть).
  *
@@ -42,7 +42,7 @@ const ERROR_RETRIES = 3;
  * требуют `tabpanel` с `aria-controls` и стрелок вместо Tab, а здесь два
  * состояния одной секции.
  */
-const ModeSwitch = ({ values, mode, onChange, label, keyPrefix }) => {
+const SegmentSwitch = ({ values, value: current, onChange, label, keyPrefix }) => {
   const { t } = useTranslation('chat');
   return (
     <div className="tool-call-detail__modes" role="group" aria-label={label}>
@@ -50,8 +50,8 @@ const ModeSwitch = ({ values, mode, onChange, label, keyPrefix }) => {
         <button
           key={value}
           type="button"
-          aria-pressed={mode === value}
-          className={`tool-call-detail__mode${mode === value ? ' tool-call-detail__mode--active' : ''}`}
+          aria-pressed={current === value}
+          className={`tool-call-detail__mode${current === value ? ' tool-call-detail__mode--active' : ''}`}
           title={t(`${keyPrefix}.${value}Hint`, { defaultValue: '' }) || undefined}
           onClick={() => onChange(value)}
         >
@@ -229,9 +229,9 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.arguments')}</div>
               {args && (
-                <ModeSwitch
+                <SegmentSwitch
                   values={MODES}
-                  mode={argsMode}
+                  value={argsMode}
                   onChange={setArgsMode}
                   label={t('toolCall.detail.arguments')}
                   keyPrefix="toolCall.detail.mode"
@@ -250,18 +250,18 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.result')}</div>
               {trimmed && (
-                <ModeSwitch
+                <SegmentSwitch
                   values={VERSIONS}
-                  mode={version}
+                  value={version}
                   onChange={setVersion}
                   label={t('toolCall.detail.versionLabel')}
                   keyPrefix="toolCall.detail.version"
                 />
               )}
               {view && (
-                <ModeSwitch
+                <SegmentSwitch
                   values={MODES}
-                  mode={mode}
+                  value={mode}
                   onChange={setMode}
                   label={t('toolCall.detail.result')}
                   keyPrefix="toolCall.detail.mode"

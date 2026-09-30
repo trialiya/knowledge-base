@@ -119,8 +119,9 @@
 
 .tool-call-detail__section-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
 }
 
 /* Подпись секции — заголовок, а не сноска: она делит модалку пополам, и
@@ -138,7 +139,7 @@
   color: var(--kb-text-error);
 }
 
-/* ── Переключатель «Обзор | JSON» ── */
+/* ── Переключатели секции: вид ответа и его версия ── */
 
 .tool-call-detail__modes {
   display: flex;

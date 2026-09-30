@@ -138,7 +138,14 @@ const ScriptRunView = ({ data }) => {
       {data.filesRead.length > 0 && (
         <Panel
           label={t('toolCall.detail.script.filesRead')}
-          count={t('toolCall.detail.script.pathCount', { count: data.filesRead.length })}
+          count={
+            data.filesReadMore > 0
+              ? t('toolCall.detail.script.pathCountShown', {
+                  count: data.filesRead.length,
+                  total: data.filesRead.length + data.filesReadMore,
+                })
+              : t('toolCall.detail.script.pathCount', { count: data.filesRead.length })
+          }
           defaultOpen={false}
         >
           <ul className="tool-script__paths">

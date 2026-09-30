@@ -233,10 +233,11 @@
           "PROJECT": "Project script",
           "ATTACHMENT": "Attachment script"
         },
-        "filesReadMore_one": "{{count}} more file not shown to the model",
-        "filesReadMore_other": "{{count}} more files not shown to the model",
-        "truncated_one": "The model was shown the first {{count}} element of each array and string (resultLimit)",
-        "truncated_other": "The model was shown the first {{count}} elements of each array and string (resultLimit)"
+        "filesReadMore_one": "{{count}} more file was not shown to the model",
+        "filesReadMore_other": "{{count}} more files were not shown to the model",
+        "truncated_one": "Value trimmed for the model (resultLimit): at most {{count}} item per array, line per text",
+        "truncated_other": "Value trimmed for the model (resultLimit): at most {{count}} items per array, lines per text",
+        "pathCountShown": "files: {{count}} of {{total}}"
       },
       "args": {
         "chars": "{{count}} chars",

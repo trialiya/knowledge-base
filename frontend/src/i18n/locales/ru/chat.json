@@ -128,7 +128,7 @@
         "full": "Полный ответ",
         "model": "Что видела модель",
         "fullHint": "Всё, что вернул инструмент",
-        "modelHint": "Ровно то, что получила модель: ей ушла урезанная версия"
+        "modelHint": "Ровно то, что получила модель: ей досталась урезанная версия"
       },
       "versionLabel": "Версия ответа",
       "showAll": "Показать ещё {{count}} строк",
@@ -233,14 +233,15 @@
           "PROJECT": "Скрипт проекта",
           "ATTACHMENT": "Скрипт из вложения"
         },
-        "filesReadMore_one": "Ещё {{count}} файл модели не показан",
-        "filesReadMore_few": "Ещё {{count}} файла модели не показаны",
-        "filesReadMore_many": "Ещё {{count}} файлов модели не показаны",
-        "filesReadMore_other": "Ещё {{count}} файла модели не показаны",
-        "truncated_one": "Модели показан {{count}} элемент каждого массива и строки (resultLimit)",
-        "truncated_few": "Модели показаны первые {{count}} элемента каждого массива и строки (resultLimit)",
-        "truncated_many": "Модели показаны первые {{count}} элементов каждого массива и строки (resultLimit)",
-        "truncated_other": "Модели показаны первые {{count}} элемента каждого массива и строки (resultLimit)"
+        "filesReadMore_one": "Модели не показан ещё {{count}} файл",
+        "filesReadMore_few": "Модели не показаны ещё {{count}} файла",
+        "filesReadMore_many": "Модели не показаны ещё {{count}} файлов",
+        "filesReadMore_other": "Модели не показаны ещё {{count}} файла",
+        "truncated_one": "Значение урезано для модели (resultLimit): не больше {{count}} элемента в массиве и строки в тексте",
+        "truncated_few": "Значение урезано для модели (resultLimit): не больше {{count}} элементов в массиве и строк в тексте",
+        "truncated_many": "Значение урезано для модели (resultLimit): не больше {{count}} элементов в массиве и строк в тексте",
+        "truncated_other": "Значение урезано для модели (resultLimit): не больше {{count}} элемента в массиве и строки в тексте",
+        "pathCountShown": "файлов: {{count}} из {{total}}"
       },
       "args": {
         "chars": "символов: {{count}}",

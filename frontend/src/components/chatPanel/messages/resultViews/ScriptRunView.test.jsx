@@ -4,8 +4,8 @@ import { detectScriptRun } from './scriptRun';
 import { parseResult } from './registry';
 import ScriptRunView from './ScriptRunView';
 
-// Здесь проверяется не разбор (он в scriptRun.test.js), а то, что показ лога
-// переживает сворачивание секции над ним.
+// Здесь проверяется не разбор (он в scriptRun.test.js), а показ: лог, шапка
+// запущенного скрипта, плитки и пометки версии, которую видела модель.
 
 const LOG_CAP = 200;
 
@@ -110,9 +110,12 @@ describe('ScriptRunView', () => {
 
     render(<ScriptRunView data={data} />);
 
-    // Пометка над значением видна сразу, над путями — в свёрнутой секции файлов.
-    expect(document.querySelectorAll('.tool-script__note')).toHaveLength(1);
-    await userEvent.click(document.querySelector('.tool-script__panel-head'));
-    expect(document.querySelectorAll('.tool-script__note')).toHaveLength(2);
+    // Пометка над значением видна сразу; счётчик секции файлов говорит «5 из 12»,
+    // а пометка о скрытых путях — внутри неё.
+    expect(screen.getByText(/at most 2 items per array/)).toBeInTheDocument();
+    const files = screen.getByRole('button', { name: /5 of 12/ });
+    expect(screen.queryByText(/7 more files/)).not.toBeInTheDocument();
+    await userEvent.click(files);
+    expect(screen.getByText(/7 more files/)).toBeInTheDocument();
   });
 });
