@@ -102,6 +102,23 @@ class ScriptResultSharingTest {
         assertThat(shown.value()).isEqualTo(List.of(Map.of("i", 0), Map.of("i", 1), Map.of("i", 2)));
         assertThat(shown.truncated().cut()).isEqualTo(Map.of("$", 100));
         assertThat(shown.truncated().note()).contains("kb.result('r1')");
+        // The model's copy is clean, so no warning says otherwise.
+        assertThat(big.log()).noneSatisfy(line -> assertThat(line).contains("Result truncated"));
+    }
+
+    @Test
+    void aCutValueStillOverTheCharacterCapIsCutByCharactersToo() {
+        runner = newRunner(withLimits(new ScriptProperties.Limits(0, null, 0, 0, 50, 0, null)));
+
+        ScriptResult big = runner.run(
+                request(ResultScope.keeping(CHAT), "return Array.from({length: 10}, () => 'x'.repeat(40));")
+                        .withResultLimit(3),
+                RunCancellation.none());
+
+        assertThat(big.forModel().value()).isInstanceOf(String.class);
+        assertThat((String) big.forModel().value()).hasSize(50);
+        assertThat(big.forModel().truncated().cut()).isEqualTo(Map.of("$", 10));
+        assertThat(big.log()).anySatisfy(line -> assertThat(line).contains("even cut to resultLimit=3"));
     }
 
     @Test

@@ -32,7 +32,7 @@ final class ScriptResultKeeper {
     }
 
     /**
-     * The returned value, as the model gets it.
+     * What the run delivers: the result's value, and the model's copy where it differs.
      *
      * @param value the copy the result carries — parsed JSON, or the raw text when truncation broke
      *     it; what the model gets unless {@code shown} is set, and what the call's detail view shows
@@ -51,10 +51,17 @@ final class ScriptResultKeeper {
             return new Delivered(null, null, null);
         }
         String resultId = keep(json, request, project, session);
-        ScriptResult.Shown shown = shown(json, request.resultLimit(), resultId);
         int max = properties.limits().maxResultChars();
+        // Parsed whole only when the limit needs the tree; otherwise only what the model is shown.
+        Object whole = request.resultLimit() > 0 || json.length() <= max ? parse(json) : null;
+        ScriptResult.Shown shown = shown(whole, request.resultLimit(), resultId, session);
         if (json.length() <= max) {
-            return new Delivered(parse(json), resultId, shown);
+            return new Delivered(whole, resultId, shown);
+        }
+        if (shown != null) {
+            // The model got the first elements as clean JSON; the character cut below is only the
+            // detail view's copy, and a warning about it would contradict the value in front of it.
+            return new Delivered(parse(json.substring(0, max)), resultId, shown);
         }
         session.log("Result truncated: maxResultChars="
                 + max
@@ -77,19 +84,31 @@ final class ScriptResultKeeper {
      * the JSON before there was anything left to count. Null when there is no limit or nothing was
      * longer than it.
      */
-    private ScriptResult.@Nullable Shown shown(String json, int limit, @Nullable String resultId) {
+    private ScriptResult.@Nullable Shown shown(
+            @Nullable Object whole, int limit, @Nullable String resultId, ScriptSession session) {
         if (limit <= 0) {
             return null;
         }
-        ResultLimit.Trimmed trimmed = ResultLimit.apply(parse(json), limit);
+        ResultLimit.Trimmed trimmed = ResultLimit.apply(whole, limit);
         if (trimmed.cut().isEmpty()) {
             return null;
         }
         ScriptResult.Truncated truncated = ScriptResult.Truncated.of(limit, trimmed.cut(), resultId);
         String text = toJson(trimmed.value());
         int max = properties.limits().maxResultChars();
-        return new ScriptResult.Shown(
-                text.length() <= max ? trimmed.value() : parse(text.substring(0, max)), truncated);
+        if (text.length() <= max) {
+            return new ScriptResult.Shown(trimmed.value(), truncated);
+        }
+        session.log("Result truncated: even cut to resultLimit="
+                + limit
+                + " the value is "
+                + text.length()
+                + " characters, over maxResultChars="
+                + max
+                + " — you see its first "
+                + max
+                + ". Pass a smaller resultLimit, or return fewer fields per item.");
+        return new ScriptResult.Shown(parse(text.substring(0, max)), truncated);
     }
 
     private static String toJson(@Nullable Object value) {

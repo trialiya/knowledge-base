@@ -153,6 +153,18 @@ class SavedScriptFunctionTest {
      * instead of silently becoming the object's prototype — which an object literal in the source
      * would have made it.
      */
+    /** {@code resultLimit} reaches the run: the model's copy is cut, the result's own value is not. */
+    @Test
+    void resultLimitCutsWhatTheModelIsShown() {
+        ScriptResult result = function(false)
+                .runSavedScript(context, "echo", Map.of("area", "docs", "extra", "x", "more", "y"), null, 1);
+
+        assertThat(result.error()).isNull();
+        assertThat(((Map<?, ?>) result.value()).get("keys")).asList().hasSize(3);
+        assertThat(((Map<?, ?>) result.forModel().value()).get("keys")).asList().hasSize(1);
+        assertThat(result.forModel().truncated().cut()).isEqualTo(Map.of("$.keys", 3));
+    }
+
     @Test
     void argumentsArriveAsPassed() {
         ScriptResult result = function(false)

@@ -2,6 +2,7 @@ package io.github.trialiya.kb.functions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,6 +62,18 @@ class ScriptFunctionTest {
         function.runScript(context, "return 1;", null, "billing", null);
 
         assertThat(ran().projectId()).isEqualTo("billing");
+    }
+
+    @Test
+    void resultLimitReachesTheRunAndANonPositiveOneMeansWhole() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
+
+        function.runScript(context, "return 1;", null, null, 3);
+        assertThat(ran().resultLimit()).isEqualTo(3);
+
+        clearInvocations(runner);
+        function.runScript(context, "return 1;", null, null, -2);
+        assertThat(ran().resultLimit()).isZero();
     }
 
     @Test

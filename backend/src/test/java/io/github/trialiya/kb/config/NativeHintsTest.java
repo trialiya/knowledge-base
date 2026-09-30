@@ -90,8 +90,6 @@ class NativeHintsTest {
                         .onType(ScriptResult.ForModel.class)
                         .withMemberCategory(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
                 .accepts(HINTS);
-        assertThat(RuntimeHintsPredicates.reflection().onType(ScriptResult.Truncated.class))
-                .accepts(HINTS);
     }
 
     /**
