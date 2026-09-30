@@ -62,7 +62,7 @@
   },
   "truncated": {
     "files": "Not every match is shown: the file search stopped at its limit. Refine the query or narrow the path.",
-    "commits": "Not every commit is shown: the search returns the first 50 matches and scans at most the latest 2000 commits. Refine the query or pick a revision.",
+    "commits": "Not every commit is shown: the search returns the first 50 matches and scans at most the latest 20,000 commits. Refine the query or pick a revision.",
     "docs": "Not every match is shown.",
     "chats": "Not every message is shown: the search scans only the most recent matches. Refine the query."
   },
