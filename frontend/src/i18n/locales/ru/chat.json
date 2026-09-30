@@ -124,6 +124,13 @@
         "overview": "Обзор",
         "json": "JSON"
       },
+      "version": {
+        "full": "Полный ответ",
+        "model": "Что видела модель",
+        "fullHint": "Всё, что вернул инструмент",
+        "modelHint": "Ровно то, что получила модель: ей ушла урезанная версия"
+      },
+      "versionLabel": "Версия ответа",
       "showAll": "Показать ещё {{count}} строк",
       "fact": {
         "project": "проект",
@@ -225,7 +232,15 @@
         "source": {
           "PROJECT": "Скрипт проекта",
           "ATTACHMENT": "Скрипт из вложения"
-        }
+        },
+        "filesReadMore_one": "Ещё {{count}} файл модели не показан",
+        "filesReadMore_few": "Ещё {{count}} файла модели не показаны",
+        "filesReadMore_many": "Ещё {{count}} файлов модели не показаны",
+        "filesReadMore_other": "Ещё {{count}} файла модели не показаны",
+        "truncated_one": "Модели показан {{count}} элемент каждого массива и строки (resultLimit)",
+        "truncated_few": "Модели показаны первые {{count}} элемента каждого массива и строки (resultLimit)",
+        "truncated_many": "Модели показаны первые {{count}} элементов каждого массива и строки (resultLimit)",
+        "truncated_other": "Модели показаны первые {{count}} элемента каждого массива и строки (resultLimit)"
       },
       "args": {
         "chars": "символов: {{count}}",

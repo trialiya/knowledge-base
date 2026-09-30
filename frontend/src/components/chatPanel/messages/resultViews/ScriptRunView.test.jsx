@@ -91,4 +91,28 @@ describe('ScriptRunView', () => {
     const tile = screen.getByText('r3').closest('.tool-script__stat');
     expect(tile.getAttribute('title')).toContain("kb.result('r3')");
   });
+
+  it('версия для модели помечает, что ей ушло не целиком', async () => {
+    const data = detectScriptRun(
+      parseResult(
+        JSON.stringify({
+          stats: { filesRead: 12, calls: 5 },
+          log: [],
+          error: null,
+          value: [1, 2],
+          truncated: { limit: 2, cut: { $: 300 }, note: '…' },
+          filesRead: ['a.md', 'b.md', 'c.md', 'd.md', 'e.md'],
+          filesReadMore: 7,
+          edits: [],
+        }),
+      ),
+    );
+
+    render(<ScriptRunView data={data} />);
+
+    // Пометка над значением видна сразу, над путями — в свёрнутой секции файлов.
+    expect(document.querySelectorAll('.tool-script__note')).toHaveLength(1);
+    await userEvent.click(document.querySelector('.tool-script__panel-head'));
+    expect(document.querySelectorAll('.tool-script__note')).toHaveLength(2);
+  });
 });

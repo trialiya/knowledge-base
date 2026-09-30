@@ -58,7 +58,7 @@ class ScriptFunctionTest {
     void explicitProjectArgumentOverridesTheChatsOwnProject() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
-        function.runScript(context, "return 1;", null, "billing");
+        function.runScript(context, "return 1;", null, "billing", null);
 
         assertThat(ran().projectId()).isEqualTo("billing");
     }
@@ -67,7 +67,7 @@ class ScriptFunctionTest {
     void omittedProjectArgumentFallsBackToTheChatsOwnProject() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
-        function.runScript(context, "return 1;", null, null);
+        function.runScript(context, "return 1;", null, null, null);
 
         assertThat(ran().projectId()).isEqualTo("kb");
     }
@@ -76,7 +76,7 @@ class ScriptFunctionTest {
     void blankProjectArgumentIsTreatedAsOmitted() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
-        function.runScript(context, "return 1;", null, "  ");
+        function.runScript(context, "return 1;", null, "  ", null);
 
         assertThat(ran().projectId()).isEqualTo("kb");
     }
@@ -85,7 +85,7 @@ class ScriptFunctionTest {
     void namingAnotherProjectBuysReadingNeverWriting() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
-        function.runScript(context, "kb.edit(...)", null, "billing");
+        function.runScript(context, "kb.edit(...)", null, "billing", null);
 
         // forceReadOnly=true: the repository the user chose for this chat is the only one a run
         // may write to, so the argument cannot be a way around that choice.
@@ -98,7 +98,7 @@ class ScriptFunctionTest {
     void runningOnTheChatsOwnProjectKeepsWritesAvailable() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
-        function.runScript(context, "kb.edit(...)", null, null);
+        function.runScript(context, "kb.edit(...)", null, null, null);
 
         assertThat(ran())
                 .extracting(ScriptRequest::forceReadOnly, ScriptRequest::projectId)
@@ -109,7 +109,7 @@ class ScriptFunctionTest {
     void namingTheChatsOwnProjectExplicitlyIsNotAnOverride() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
-        function.runScript(context, "kb.edit(...)", null, "kb");
+        function.runScript(context, "kb.edit(...)", null, "kb", null);
 
         assertThat(ran())
                 .extracting(ScriptRequest::forceReadOnly, ScriptRequest::projectId)
@@ -120,7 +120,7 @@ class ScriptFunctionTest {
     void theSubAgentsCopyStaysReadOnlyEvenOnItsOwnProject() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
-        ScriptFunction.readOnly(runner, gitRegistry).runScript(context, "kb.edit(...)", null, null);
+        ScriptFunction.readOnly(runner, gitRegistry).runScript(context, "kb.edit(...)", null, null, null);
 
         assertThat(ran())
                 .extracting(ScriptRequest::forceReadOnly, ScriptRequest::projectId)
@@ -133,7 +133,7 @@ class ScriptFunctionTest {
         // the system prompt names, so the model may well name it back. That is not a switch away.
         ToolContext context = new ToolContext(Map.of());
 
-        function.runScript(context, "kb.edit(...)", null, "kb");
+        function.runScript(context, "kb.edit(...)", null, "kb", null);
 
         assertThat(ran())
                 .extracting(ScriptRequest::forceReadOnly, ScriptRequest::projectId)
@@ -144,7 +144,7 @@ class ScriptFunctionTest {
     void theResultEchoesWhichProjectActuallyRan() {
         ToolContext context = new ToolContext(Map.of());
 
-        ScriptResult result = function.runScript(context, "return 1;", null, "billing");
+        ScriptResult result = function.runScript(context, "return 1;", null, "billing", null);
 
         assertThat(result.project()).isEqualTo("billing");
         assertThat(result.getFormattedResponse()).contains("billing");
@@ -154,7 +154,7 @@ class ScriptFunctionTest {
     void theChatsCopyKeepsItsResultInTheChat() {
         ToolContext context = new ToolContext(Map.of(ChatMemory.CONVERSATION_ID, "chat-1"));
 
-        function.runScript(context, "return 1;", null, null);
+        function.runScript(context, "return 1;", null, null, null);
 
         assertThat(ran().results()).isEqualTo(ResultScope.keeping("chat-1"));
     }
@@ -163,7 +163,7 @@ class ScriptFunctionTest {
     void theSubAgentsCopyReadsTheChatsResultsButKeepsNone() {
         ToolContext context = new ToolContext(Map.of(ChatMemory.CONVERSATION_ID, "chat-1"));
 
-        ScriptFunction.readOnly(runner, gitRegistry).runScript(context, "return 1;", null, null);
+        ScriptFunction.readOnly(runner, gitRegistry).runScript(context, "return 1;", null, null, null);
 
         assertThat(ran().results()).isEqualTo(ResultScope.readOnly("chat-1"));
     }

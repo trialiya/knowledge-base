@@ -201,10 +201,20 @@ public class ChatHistoryService {
      */
     @Transactional
     public void append(String conversationId, List<Message> messages) {
+        append(conversationId, messages, null);
+    }
+
+    /**
+     * @param scope идущий прогон, записавший эти сообщения: у него коллектор помнит результат
+     *     вызова целиком там, где модели ушёл урезанный вид ({@code ModelView}), — он ложится в
+     *     {@code ToolData.Response#fullData}. {@code null} — прогона нет, ответы пишутся как есть
+     */
+    @Transactional
+    public void append(String conversationId, List<Message> messages, @Nullable RunScope scope) {
         final AtomicLong position = new AtomicLong(lastPosition(conversationId));
         final List<ChatMessageEntity> newRows = messages.stream()
                 .filter(message -> !(message instanceof IMessage))
-                .map(message -> new Pending(message, toolDataOf(message)))
+                .map(message -> new Pending(message, toolDataOf(message, scope)))
                 .filter(p -> Strings.isNotBlank(p.message().getText()) || p.hasToolData())
                 .map(p -> new ChatMessageEntity(
                         0,
@@ -417,7 +427,8 @@ public class ChatHistoryService {
                     final List<ToolData.Call> calls = Objects.requireNonNull(
                             Objects.requireNonNull(last.getToolData()).toolCalls());
                     final List<ToolData.Response> responses = calls.stream()
-                            .map(c -> new ToolData.Response(c.id(), c.name(), responseText(scope, c.id())))
+                            .map(c -> new ToolData.Response(c.id(), c.name(), responseText(scope, c.id()))
+                                    .withFullData(fullText(scope, c.id())))
                             .toList();
                     log.info(
                             "Repairing dangling tool_calls tail for {} ({} synthetic responses)",
@@ -458,6 +469,19 @@ public class ChatHistoryService {
         return outcome.resultText() != null
                 ? outcome.resultText()
                 : Objects.requireNonNullElse(outcome.error(), NO_RESULT);
+    }
+
+    /**
+     * Результат вызова целиком, если модели ушёл его урезанный вид (см. {@code ModelView}); {@code
+     * null} — модель получила его как есть, либо прогон этот вызов не помнит.
+     */
+    private static @Nullable String fullText(@Nullable RunScope scope, String callId) {
+        if (scope == null) {
+            return null;
+        }
+        final RunScope.StartedCall started = scope.startedCall(callId);
+        final ToolInvocation outcome = started == null ? null : scope.completedCall(started.callIndex());
+        return outcome == null ? null : outcome.fullResultText();
     }
 
     /**
@@ -628,15 +652,30 @@ public class ChatHistoryService {
     }
 
     /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */
-    private static @Nullable ToolData toolDataOf(Message message) {
+    private static @Nullable ToolData toolDataOf(Message message, @Nullable RunScope scope) {
         if (message instanceof AssistantMessage assistantMessage && assistantMessage.hasToolCalls()) {
             return sanitizeToolCallArguments(ToolData.from(assistantMessage));
         }
         if (message instanceof ToolResponseMessage toolResponseMessage
                 && !toolResponseMessage.getResponses().isEmpty()) {
-            return ToolData.from(toolResponseMessage);
+            return withFullData(ToolData.from(toolResponseMessage), scope);
         }
         return null;
+    }
+
+    /**
+     * Дописывает к ответам результат целиком там, где модели ушёл урезанный вид: сообщение Spring
+     * AI несёт только текст для модели, целиком результат помнит коллектор прогона.
+     */
+    private static ToolData withFullData(ToolData toolData, @Nullable RunScope scope) {
+        if (scope == null || toolData.responses() == null) {
+            return toolData;
+        }
+        return new ToolData(
+                null,
+                toolData.responses().stream()
+                        .map(response -> response.withFullData(fullText(scope, response.id())))
+                        .toList());
     }
 
     /**

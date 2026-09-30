@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ToolCallDetailModal from './ToolCallDetailModal';
 import chatApi from '@/api/chatApi';
 
@@ -20,12 +20,13 @@ vi.mock('@/api/chatApi', () => ({
 
 const tc = { name: 'searchCodebase', status: 'STARTED', callId: 'call_1' };
 
-const detail = (status, resultText) => ({
+const detail = (status, resultText, fullResultText = null) => ({
   name: 'searchCodebase',
   argumentsRaw: '{"q":"кэш"}',
   status,
   error: null,
   resultText,
+  fullResultText,
   resultMeta: null,
   createdAt: '2026-08-23T10:00:00',
 });
@@ -134,5 +135,31 @@ describe('ToolCallDetailModal', () => {
 
     await waitFor(() => expect(screen.getByText('toolCall.detail.result')).toBeInTheDocument());
     expect(screen.queryByText(/costModel/)).not.toBeInTheDocument();
+  });
+
+  // Две версии ответа есть, только когда модели ушёл урезанный: по умолчанию — целиком.
+  it('урезанный для модели ответ открывается целиком, а переключатель показывает то, что видела модель', async () => {
+    chatApi.getToolCallDetails.mockResolvedValue(detail('OK', '"коротко"', '"целиком"'));
+
+    open({ ...tc, status: 'OK' });
+
+    expect(await screen.findByText(/целиком/)).toBeInTheDocument();
+    expect(screen.queryByText(/коротко/)).not.toBeInTheDocument();
+    expect(screen.getByText('toolCall.detail.version.full')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByText('toolCall.detail.version.model'));
+
+    expect(screen.getByText(/коротко/)).toBeInTheDocument();
+    expect(screen.queryByText(/целиком/)).not.toBeInTheDocument();
+    expect(screen.getByText('toolCall.detail.version.model')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('ответ, который модель получила целиком, переключателя версий не несёт', async () => {
+    chatApi.getToolCallDetails.mockResolvedValue(detail('OK', '"нашлось"'));
+
+    open({ ...tc, status: 'OK' });
+
+    expect(await screen.findByText(/нашлось/)).toBeInTheDocument();
+    expect(screen.queryByText('toolCall.detail.version.full')).not.toBeInTheDocument();
   });
 });

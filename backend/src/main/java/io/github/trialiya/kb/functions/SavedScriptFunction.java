@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
@@ -57,7 +58,7 @@ public class SavedScriptFunction {
                     <active-project> block; no other name runs), and a JavaScript attachment, named \
                     "attachment:<id>" with the id from getChatAttachments / getDocumentAttachments — an \
                     attachment runs read-only unless this deployment lets attachments write. Same sandbox, budgets and result shape as runScript. \
-                    Returns: value (script result), log, stats, filesRead, edits, error \
+                    Returns: value (script result), log, stats, filesRead (first 5 paths; filesReadMore counts the rest), edits, error \
                     (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET), source (which script ran, its path and the \
                     arguments it got), and resultId (the whole value kept for a later script's \
                     kb.result(id) and for saveScriptResult).
@@ -80,7 +81,16 @@ public class SavedScriptFunction {
                                     + " cut to the deployment ceiling.",
                             required = false)
                     @Nullable
-                    Integer timeoutSeconds) {
+                    Integer timeoutSeconds,
+            @ToolParam(
+                            description = "Optional: show you only the first N elements of the returned value — "
+                                    + "N array items, N lines of a string, and inside a returned object N "
+                                    + "items/lines of each array or string it holds. The whole value is still "
+                                    + "kept (resultId) for kb.result(id) in a later script; the response's "
+                                    + "\"truncated\" field says what was cut. Omit to get the value whole.",
+                            required = false)
+                    @Nullable
+                    Integer resultLimit) {
         final String scriptName = requireText(name, "name");
         final String projectId = ProjectContext.from(context);
         final ScriptRequest request = resolver.resolve(
@@ -100,6 +110,6 @@ public class SavedScriptFunction {
                 request.forceReadOnly());
         ScriptResult result = scriptRunner.run(request, RunCancellation.from(context));
         log.debug("runSavedScript finished: {}", result.getFormattedResponse());
-        return result;
+        return result.withResultLimit(positiveOrDefault(resultLimit, 0));
     }
 }

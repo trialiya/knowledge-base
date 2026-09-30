@@ -124,6 +124,13 @@
         "overview": "Overview",
         "json": "JSON"
       },
+      "version": {
+        "full": "Full response",
+        "model": "What the model saw",
+        "fullHint": "Everything the tool returned",
+        "modelHint": "Exactly what the model received: it got a trimmed version"
+      },
+      "versionLabel": "Response version",
       "showAll": "Show {{count}} more lines",
       "fact": {
         "project": "project",
@@ -225,7 +232,11 @@
         "source": {
           "PROJECT": "Project script",
           "ATTACHMENT": "Attachment script"
-        }
+        },
+        "filesReadMore_one": "{{count}} more file not shown to the model",
+        "filesReadMore_other": "{{count}} more files not shown to the model",
+        "truncated_one": "The model was shown the first {{count}} element of each array and string (resultLimit)",
+        "truncated_other": "The model was shown the first {{count}} elements of each array and string (resultLimit)"
       },
       "args": {
         "chars": "{{count}} chars",

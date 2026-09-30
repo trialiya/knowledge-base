@@ -74,7 +74,7 @@ public class ScriptFunction {
                     Use for many-file iteration with tallying/joining/edits; for single searches, reads, \
                     or edits use grepContent / getFileContent / editFile. Full kb reference and limits in \
                     system prompt section "Scripts (runScript)". Returns: value (script result), log, stats, \
-                    filesRead, edits (file diffs), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET with fix hint), \
+                    filesRead (first 5 paths; filesReadMore counts the rest), edits (file diffs), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET with fix hint), \
                     resultId (the whole value kept for a later script's kb.result(id) and for \
                     saveScriptResult).
                     """, resultConverter = CompactToolResultConverter.class)
@@ -99,7 +99,16 @@ public class ScriptFunction {
                                     + "actually ran — check it, don't assume.",
                             required = false)
                     @Nullable
-                    String project) {
+                    String project,
+            @ToolParam(
+                            description = "Optional: show you only the first N elements of the returned value — "
+                                    + "N array items, N lines of a string, and inside a returned object N "
+                                    + "items/lines of each array or string it holds. The whole value is still "
+                                    + "kept (resultId) for kb.result(id) in a later script; the response's "
+                                    + "\"truncated\" field says what was cut. Omit to get the value whole.",
+                            required = false)
+                    @Nullable
+                    Integer resultLimit) {
         requireText(script, "script");
         final int timeout = positiveOrDefault(timeoutSeconds, 10);
         final String projectId = ProjectContext.resolve(context, project);
@@ -127,6 +136,6 @@ public class ScriptFunction {
                         forceReadOnly ? ResultScope.readOnly(chat) : ResultScope.keeping(chat)),
                 RunCancellation.from(context));
         log.debug("runScript finished: {}", result.getFormattedResponse());
-        return result;
+        return result.withResultLimit(positiveOrDefault(resultLimit, 0));
     }
 }

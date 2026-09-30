@@ -145,15 +145,15 @@ public class ToolCallService {
             return Optional.empty();
         }
         final ChatMessageEntity responseRow = responseMessageId != null ? byId.get(responseMessageId) : null;
-        final String resultText = responseRow != null
+        final ToolData.Response response = responseRow != null
                         && responseRow.getToolData() != null
                         && responseRow.getToolData().responses() != null
                 ? responseRow.getToolData().responses().stream()
                         .filter(r -> callId.equals(r.id()))
-                        .map(ToolData.Response::responseData)
                         .findFirst()
                         .orElse(null)
                 : null;
+        final String resultText = response != null ? response.responseData() : null;
         return Optional.of(new ToolCallDetail(
                 // call==null && invocation==null already returned above, so if
                 // invocation is null here, call is not.
@@ -173,6 +173,7 @@ public class ToolCallService {
                         : resultText != null ? ToolInvocationStatus.UNKNOWN : ToolInvocationStatus.STARTED,
                 invocation != null ? invocation.error() : null,
                 resultText,
+                response != null ? response.fullData() : null,
                 invocation != null ? invocation.resultMeta() : null,
                 segment.getCreatedAt()));
     }
