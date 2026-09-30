@@ -65,6 +65,8 @@ class ResultLimitTest {
         ResultLimit.Trimmed trimmed = ResultLimit.apply(Map.of("a.b", List.of(1, 2, 3)), 1);
 
         assertThat(trimmed.cut()).isEqualTo(Map.of("$[\"a.b\"]", 3));
+        assertThat(ResultLimit.apply(Map.of("a\"b\\c", List.of(1, 2)), 1).cut())
+                .isEqualTo(Map.of("$[\"a\\\"b\\\\c\"]", 2));
     }
 
     @Test

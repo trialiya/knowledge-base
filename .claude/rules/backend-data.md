@@ -21,8 +21,8 @@ both — read its javadoc for the why before writing a new `@Tool`.
 
 ## Tool-call storage
 
-- **Protocol tool data has no table of its own.** Protocol tool data — the assistant's calls and
-  the TOOL responses — lives in `chat_message.tool_data` (JSON; see `ToolData`,
+- **Protocol tool data has no table of its own.** The assistant's calls and
+  the TOOL responses live in `chat_message.tool_data` (JSON; see `ToolData`,
   `ToolDataToJsonConverter`), alongside the message it belongs to. UI-only
   metadata (names, argument gists, the statuses shown in chat) lives in the
   message `meta` as `ToolInvocationMeta`/`ToolInvocation`. Never mix the two:

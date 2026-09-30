@@ -581,11 +581,7 @@ const LIGHT = [
     ...toolCallCase(['scriptRunTrimmedCall', [1440, 1100]]),
     id: 'toolCallDetail.js#scriptRunTrimmedCall@model',
     steps: [
-      // Шапка результата: подпись, версии, режимы — версии вторым ребёнком.
-      {
-        click:
-          'section.tool-call-detail__section:nth-of-type(2) .tool-call-detail__section-head > .tool-call-detail__modes:nth-child(2) button:nth-child(2)',
-      },
+      { click: '.tool-call-detail__modes button:has-text("Что видела модель")' },
       // Секция файлов — последняя в виде скрипта (правок у прогона нет).
       { click: '.tool-script > section.tool-script__panel:last-of-type > .tool-script__panel-head' },
       { unhover: true },
