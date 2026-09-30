@@ -107,6 +107,7 @@ class GitFunctionTest {
                 OffsetDateTime.now(),
                 "init",
                 null,
+                null,
                 null);
     }
 
@@ -198,7 +199,11 @@ class GitFunctionTest {
         assertThat(log.project()).isEqualTo("billing");
         assertThat(log.result())
                 .isNotEmpty()
-                .allSatisfy(c -> assertThat(c).hasNoNullFieldsOrPropertiesExcept("files", "body"));
+                .allSatisfy(
+                        c ->
+                                assertThat(c)
+                                        .hasNoNullFieldsOrPropertiesExcept(
+                                                "files", "body", "parents"));
         assertThat(GitCommit.class.getRecordComponents())
                 .noneMatch(component -> "project".equals(component.getName()));
     }

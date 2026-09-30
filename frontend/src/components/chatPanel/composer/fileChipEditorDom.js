@@ -11,6 +11,7 @@ import {
   chipLabel,
   TOKEN_RE,
 } from './fileChips';
+import shortRev from '@/components/common/git/shortRev';
 
 // ── Сериализация DOM ⇄ плоская строка с токенами ───────────────────────────────
 
@@ -96,8 +97,10 @@ export function makeChipEl(token, project) {
       token,
       modifiers: ' file-chip--commit',
       icon: '🔖',
-      label: chipLabel(commitParsed.project, project, hash),
-      title: chipLabel(commitParsed.project, project, subject ? `${hash} — ${subject}` : hash),
+      // В подписи — короткий хеш, как его пишет git; в токене — полный, чтобы
+      // ссылка, в которую чип развернётся, не стала однажды неоднозначной.
+      label: chipLabel(commitParsed.project, project, shortRev(hash)),
+      title: chipLabel(commitParsed.project, project, subject ? `${shortRev(hash)} — ${subject}` : shortRev(hash)),
     });
   }
 

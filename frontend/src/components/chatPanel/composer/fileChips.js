@@ -3,7 +3,7 @@
 //   ⟦file@PROJECT:PATH⟧            — весь файл (раскрывается в fenced-блок при отправке)
 //   ⟦file@PROJECT:PATH#FROM-TO⟧    — диапазон строк (1-based включительно)
 //   ⟦ref@PROJECT:PATH⟧             — только ссылка (раскрывается в `PATH`)
-//   ⟦commit@PROJECT:HASH:SUBJECT⟧  — коммит (раскрывается в хэш + тему, без запроса)
+//   ⟦commit@PROJECT:HASH:SUBJECT⟧  — коммит (раскрывается в ссылку на коммит + тему, без запроса)
 //
 // Проект в токене — потому что путь `backend/pom.xml` есть в каждом репозитории, а
 // хэш коммита — ровно в одном: без имени проекта чип означал бы «тот репозиторий,
@@ -23,6 +23,8 @@ import documentsApi from '@/api/documentsApi';
 // i18n-инстанс напрямую: модуль не компонент, useTranslation здесь недоступен.
 // Строки уходят в текст отправляемого сообщения и следуют языку интерфейса.
 import i18n from '@/i18n/index';
+import { commitLinkTarget } from '@/components/common/preview/docLinkParsing';
+import shortRev from '@/components/common/git/shortRev';
 export { baseName } from '@/components/common/ui/utils';
 
 const OPEN = '⟦'; // ⟦
@@ -192,7 +194,7 @@ function fenceFor(content) {
  * Развернуть все токены в строке:
  *  ⟦file@P:PATH⟧            → fenced code block с содержимым
  *  ⟦ref@P:PATH⟧             → `PATH`
- *  ⟦commit@P:HASH:SUBJECT⟧  → `HASH` + тема
+ *  ⟦commit@P:HASH:SUBJECT⟧  → ссылка на коммит + тема
  *
  * `project` — репозиторий чата: им разрешаются токены, которые проект не назвали
  * (старая форма из сохранённых черновиков). Названный проект берётся из самого
@@ -211,7 +213,16 @@ export async function expandTokensForSend(text, project) {
     tokens.map(async (m) => {
       const commitParsed = parseCommitToken(m[0]);
       if (commitParsed) {
-        return i18n.t('chat:fileChips.commitRef', commitParsed) + foreign(commitParsed.project);
+        // Ссылкой, а не голым хешем: модель видит ту же форму, какой ей велено
+        // ссылаться на коммиты, а в ленте хеш становится кликабельным
+        // (UserMessageText). Токен без проекта — старая форма — живёт в проекте чата.
+        const link = `[\`${shortRev(commitParsed.hash)}\`](${commitLinkTarget(
+          commitParsed.hash,
+          commitParsed.project || project,
+        )})`;
+        return (
+          i18n.t('chat:fileChips.commitRef', { link, subject: commitParsed.subject }) + foreign(commitParsed.project)
+        );
       }
 
       const docRefParsed = parseDocRefToken(m[0]);

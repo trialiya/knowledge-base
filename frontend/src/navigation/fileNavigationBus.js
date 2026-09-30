@@ -1,14 +1,17 @@
+import { FILE_TAB } from '@/constants/fileTabs';
+
 /**
- * Module-level bridge letting deeply-nested components (DocLinkTooltip, mounted
- * both inside chat messages and inside KB markdown — several prop layers away
- * from App) trigger "open this path in the Files tab" navigation, without
+ * Module-level bridge letting deeply-nested components (the file and commit
+ * links of rendered markdown — FileLink, CommitLink — and CommitHashLink, mounted
+ * inside chat messages, KB markdown and panels, several prop layers away from
+ * App) trigger "open this path / commit in the Files tab" navigation, without
  * threading an onNavigateToFile prop through every intermediate component
  * (Message/ChatWindow, MarkdownEditor/DetailModals/...).
  *
  * App.js is still the sole owner of navigation state (see useAppNavigation) —
  * it just registers its `openFilePath` here on mount. Same pattern as
  * useDocPreview's module cache: a plain module-scoped singleton, not React
- * context, since the producer (App) and consumers (DocLinkTooltip instances)
+ * context, since the producer (App) and consumers (the link instances)
  * don't share a convenient common ancestor to pass a prop through.
  */
 let navigator = null;
@@ -34,7 +37,17 @@ export function registerFileNavigator(fn) {
  * @param options `{ changes: true }` — открыть левый блок в режиме «Изменения»:
  *   так уходят ссылки из вкладки «Репозиторий», которые ведут именно к
  *   незакоммиченному, а не к файлу в дереве. Не передан — режим не трогаем.
+ *   `{ rev }` — открыть файл в снимке этой ревизии (ссылка на файл в коммите).
  */
 export function navigateToFile(path, project, options) {
   navigator?.(path, project, options);
+}
+
+/**
+ * Открыть коммит так, как его показывает панель «Файлы»: снимок ревизии, слева —
+ * изменённые им файлы, справа — вкладка «Коммит». Тот же адрес строит
+ * urlScheme.commitUrl — для Ctrl+клика по ссылке.
+ */
+export function navigateToCommit(hash, project) {
+  navigator?.('', project, { rev: hash, changes: true, right: FILE_TAB.COMMIT });
 }

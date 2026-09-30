@@ -1,11 +1,14 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import FileInfo from './FileInfo';
 import gitApi from '@/api/gitApi';
+import { navigateToCommit } from '@/navigation/fileNavigationBus';
+import { commitUrl } from '@/navigation/urlScheme';
 
 // Тело сообщения — единственное поле коммита, за которым «Инфо» ходит отдельной
 // просьбой: без `body: true` сервер отдаёт его пустым, и строка исчезла бы молча.
 
 vi.mock('@/api/gitApi');
+vi.mock('@/navigation/fileNavigationBus', () => ({ navigateToCommit: vi.fn() }));
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -69,5 +72,21 @@ describe('FileInfo', () => {
 
     await screen.findByText('Починить перенос строк');
     expect(screen.queryByText('info.commitBody')).toBeNull();
+  });
+
+  test('хеш последнего коммита ведёт к самому коммиту, а копируется текстом', async () => {
+    gitApi.getCommits.mockResolvedValue([commit()]);
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+    show();
+
+    const link = await screen.findByRole('link', { name: 'abcdef12' });
+    expect(link).toHaveAttribute('href', commitUrl('abcdef1234567890', 'kb'));
+    fireEvent.click(link);
+    expect(navigateToCommit).toHaveBeenCalledWith('abcdef1234567890', 'kb');
+
+    fireEvent.click(screen.getByRole('button', { name: /info\.commit$/ }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('abcdef12'));
   });
 });

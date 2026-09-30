@@ -73,6 +73,13 @@
   font-family: var(--kb-font-mono);
   font-size: 0.75rem;
 }
+a.push-dialog__hash {
+  text-decoration: none;
+}
+a.push-dialog__hash:hover {
+  color: var(--kb-accent);
+  text-decoration: underline;
+}
 
 .push-dialog__message {
   flex: 1 1 auto;

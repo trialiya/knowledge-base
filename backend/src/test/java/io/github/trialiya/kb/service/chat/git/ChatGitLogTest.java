@@ -50,7 +50,7 @@ class ChatGitLogTest {
         when(chatHistory.appendGitEvent(anyString(), any()))
                 .thenThrow(new IllegalStateException("db down"));
 
-        log.record(CONV, "pull", "kb", true, "Fast-forward", "main");
+        log.record(CONV, "pull", "kb", true, "Fast-forward", "main", null);
 
         verify(chatEvents, never()).publish(anyString(), any(), any(), any(), any());
     }
@@ -77,7 +77,7 @@ class ChatGitLogTest {
                                 ChatMessageMeta.ofGitEvent(
                                         new GitEventMeta("pull", "kb", true, "", "main"))));
 
-        log.record(CONV, "pull", "kb", true, "Fast-forward", "main");
+        log.record(CONV, "pull", "kb", true, "Fast-forward", "main", null);
 
         verify(chatEvents).publish(anyString(), any(), any(), any(), any());
     }

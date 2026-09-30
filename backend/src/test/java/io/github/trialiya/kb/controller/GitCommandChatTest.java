@@ -24,6 +24,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -101,7 +102,21 @@ class GitCommandChatTest {
 
         controller.pull("kb", CHAT);
 
-        verify(chatGitLog).record(CHAT, "pull --ff-only", "kb", true, "Fast-forward", "main");
+        verify(chatGitLog).record(CHAT, "pull --ff-only", "kb", true, "Fast-forward", "main", null);
+    }
+
+    /** Созданный коммит называется в ряду полным хешем: по нему ряд ссылается на коммит. */
+    @Test
+    void aCommitIsRecordedWithTheCommitItCreated() {
+        String hash = "0123456789abcdef0123456789abcdef01234567";
+        when(git.commit("msg", List.of()))
+                .thenReturn(
+                        new GitCommandResult("commit", "Committed 0123456", AFTER)
+                                .withCommit(hash));
+
+        controller.commit("msg", new LinkedMultiValueMap<>(), "kb", CHAT);
+
+        verify(chatGitLog).record(CHAT, "commit", "kb", true, "Committed 0123456", "main", hash);
     }
 
     /**
@@ -119,7 +134,7 @@ class GitCommandChatTest {
                                 assertThat(e.getStatusCode())
                                         .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
 
-        verify(chatGitLog).record(CHAT, "push", "kb", false, "remote rejected", null);
+        verify(chatGitLog).record(CHAT, "push", "kb", false, "remote rejected", null, null);
     }
 
     /**
@@ -134,7 +149,7 @@ class GitCommandChatTest {
                 .isInstanceOf(ResponseStatusException.class);
 
         verify(chatGitLog, never())
-                .record(anyString(), anyString(), any(), anyBoolean(), anyString(), any());
+                .record(anyString(), anyString(), any(), anyBoolean(), anyString(), any(), any());
     }
 
     /** Неверный аргумент — ошибка вызывающего, а не событие репозитория. */
@@ -149,7 +164,7 @@ class GitCommandChatTest {
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
 
         verify(chatGitLog, never())
-                .record(anyString(), anyString(), any(), anyBoolean(), anyString(), any());
+                .record(anyString(), anyString(), any(), anyBoolean(), anyString(), any(), any());
     }
 
     /**
@@ -189,6 +204,6 @@ class GitCommandChatTest {
                 .isInstanceOf(ResponseStatusException.class);
 
         verify(chatGitLog)
-                .record(CHAT, "switch feature/x", "kb", false, "would be overwritten", null);
+                .record(CHAT, "switch feature/x", "kb", false, "would be overwritten", null, null);
     }
 }

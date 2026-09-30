@@ -269,7 +269,8 @@ public class GitCommandController {
                         project,
                         true,
                         result.output(),
-                        result.status().current());
+                        result.status().current(),
+                        result.commit());
             }
             return result;
         } catch (IllegalArgumentException e) {
@@ -283,7 +284,8 @@ public class GitCommandController {
             // reason again, and the model must not take the command for done. A busy repository
             // and a bad argument are not outcomes — nothing was attempted.
             if (chat != null) {
-                chatGitLog.record(chat, verb, project, false, String.valueOf(e.getMessage()), null);
+                chatGitLog.record(
+                        chat, verb, project, false, String.valueOf(e.getMessage()), null, null);
             }
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage(), e);
         } catch (IllegalStateException e) {

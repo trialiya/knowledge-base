@@ -41,6 +41,8 @@ public class ChatGitLog {
      * уже сдвинулся, и ответить на успешный pull ошибкой значило бы заставить панель нарисовать
      * состояние, которого больше нет. Потерянный ряд — потеря, но восстановимая: ветку и изменения
      * панель перечитает сама.
+     *
+     * @param commit полный хеш созданного коммита — только у успешного {@code commit}
      */
     public void record(
             String conversationId,
@@ -48,8 +50,9 @@ public class ChatGitLog {
             @Nullable String project,
             boolean ok,
             String output,
-            @Nullable String branch) {
-        final GitEventMeta event = new GitEventMeta(command, project, ok, output, branch);
+            @Nullable String branch,
+            @Nullable String commit) {
+        final GitEventMeta event = new GitEventMeta(command, project, ok, output, branch, commit);
         try {
             final ChatMessageEntity row = chatHistory.appendGitEvent(conversationId, event);
             chatEvents.publish(

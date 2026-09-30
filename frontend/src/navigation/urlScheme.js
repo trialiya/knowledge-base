@@ -1,3 +1,5 @@
+import { FILE_TAB } from '@/constants/fileTabs';
+
 /**
  * ──────────────────────────────────────────────────────────────────────────
  * urlScheme — построение канонических адресов приложения.
@@ -132,4 +134,22 @@ export function filesUrl(path, project, { rev, find, findRegex } = {}) {
   if (find && findRegex) p.set('re', '1');
   const qs = p.toString();
   return filesPath(path) + (qs ? `?${qs}` : '');
+}
+
+/**
+ * Адрес коммита: снимок ревизии, слева — файлы, которые коммит изменил, справа —
+ * вкладка «Коммит». Отдельного маршрута у коммита нет: всё, что о нём можно
+ * показать, панель «Файлы» уже показывает в снимке, и ссылка просто открывает
+ * снимок в этом виде.
+ *
+ * Порядок параметров — тот же, что пишет buildUrl (navUrl.js): адрес не
+ * переписывается канонизацией на старте, и Ctrl+клик открывает ровно его.
+ */
+export function commitUrl(hash, project) {
+  const p = new URLSearchParams();
+  if (project) p.set('project', project);
+  p.set('changes', '1');
+  p.set('rev', hash);
+  p.set('right', FILE_TAB.COMMIT);
+  return `/files?${p.toString()}`;
 }

@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.CommitCommand;
@@ -317,43 +318,50 @@ class GitCommands {
                     "HEAD is not on a branch — switch to one first, or the commit will be lost");
         }
         List<String> only = commitPaths(paths);
+        // Хеш созданного коммита — мимо вывода: вывод — слова для человека, а по хешу чат
+        // ссылается на коммит и называет его модели.
+        AtomicReference<String> created = new AtomicReference<>();
         return local(
-                "commit",
-                () -> {
-                    Set<String> staged = Set.of();
-                    try {
-                        staged = untrackedAmong(only);
-                        stageForCommit(only);
-                        // Never signed. Signing needs a key, and this application holds none of
-                        // the operator's — with commit.gpgsign on for the host user, JGit would
-                        // otherwise fail the commit outright ("No signer for ssh signatures")
-                        // instead of recording it. A deployment that wants signed history signs
-                        // on the host, where the key is.
-                        CommitCommand command =
-                                git.commit()
-                                        .setMessage(text)
-                                        // Без этого JGit молча записывает коммит без единого
-                                        // изменения: кнопка «закоммитить» на чистом дереве
-                                        // оставила бы в истории пустышку.
-                                        .setAllowEmpty(false)
-                                        .setSign(false);
-                        // Ровно выбранные пути, как `git commit -- <paths>`: правки ассистента
-                        // лежат в индексе, и коммит всего индекса унёс бы файлы, с которых
-                        // человек снял галочку в окне коммита.
-                        only.forEach(command::setOnly);
-                        RevCommit commit = command.call();
-                        return "Committed " + commit.abbreviate(ABBREV_LEN).name();
-                    } catch (EmptyCommitException e) {
-                        unstage(staged);
-                        throw new GitCommandFailedException("Nothing to commit", e);
-                    } catch (GitAPIException | JGitInternalException e) {
-                        // JGitInternalException — как отказ, а не как поломка: `setOnly` бросает
-                        // именно её на пути, которого git не знает, и 500 на выбранном файле
-                        // сказал бы пользователю меньше, чем сообщение самого JGit.
-                        unstage(staged);
-                        throw new GitCommandFailedException(message(e));
-                    }
-                });
+                        "commit",
+                        () -> {
+                            Set<String> staged = Set.of();
+                            try {
+                                staged = untrackedAmong(only);
+                                stageForCommit(only);
+                                // Never signed. Signing needs a key, and this application holds
+                                // none of the operator's — with commit.gpgsign on for the host
+                                // user, JGit would otherwise fail the commit outright ("No signer
+                                // for ssh signatures") instead of recording it. A deployment that
+                                // wants signed history signs on the host, where the key is.
+                                CommitCommand command =
+                                        git.commit()
+                                                .setMessage(text)
+                                                // Без этого JGit молча записывает коммит без
+                                                // единого изменения: кнопка «закоммитить» на
+                                                // чистом дереве оставила бы в истории пустышку.
+                                                .setAllowEmpty(false)
+                                                .setSign(false);
+                                // Ровно выбранные пути, как `git commit -- <paths>`: правки
+                                // ассистента лежат в индексе, и коммит всего индекса унёс бы
+                                // файлы, с которых человек снял галочку в окне коммита.
+                                only.forEach(command::setOnly);
+                                RevCommit commit = command.call();
+                                created.set(commit.getName());
+                                return "Committed " + commit.abbreviate(ABBREV_LEN).name();
+                            } catch (EmptyCommitException e) {
+                                unstage(staged);
+                                throw new GitCommandFailedException("Nothing to commit", e);
+                            } catch (GitAPIException | JGitInternalException e) {
+                                // JGitInternalException — как отказ, а не как поломка:
+                                // `setOnly` бросает именно её на пути, которого git не знает, и
+                                // 500 на выбранном файле сказал бы пользователю меньше, чем
+                                // сообщение самого JGit.
+                                unstage(staged);
+                                throw new GitCommandFailedException(message(e));
+                            }
+                        })
+                // local() выполняет команду до возврата, так что хеш к этому моменту записан.
+                .withCommit(created.get());
     }
 
     /**

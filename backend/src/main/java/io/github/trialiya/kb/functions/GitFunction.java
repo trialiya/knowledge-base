@@ -150,7 +150,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). Use getCommitDiff to see file changes.",
+                    "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
@@ -204,7 +204,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Changed files and diffs for one or more commits. A single hash also returns that commit's full message in \"body\". Files include status (A/M/D/R), path, additions, deletions, and optional unified diff.",
+                    "Changed files and diffs for one or more commits. A single hash also returns that commit's full message in \"body\". Files include status (A/M/D/R), path, additions, deletions, and optional unified diff. Link a commit as [shortHash](/files?rev=HASH&project=ID) with the full hash and the response's project field.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitDiff(
             ToolContext context,
@@ -353,7 +353,9 @@ public class GitFunction {
                             + "excerpt with truncated=true. When mentioning the file in your "
                             + "response, link it as [filename](/files?path=PATH&project=ID), where "
                             + "PATH is the path from the response and ID is the response's project "
-                            + "field; append #Lfrom-Lto for a line range. tracked=false marks a "
+                            + "field; append #Lfrom-Lto for a line range. Read with commit? Link "
+                            + "that version: [filename](/files?path=PATH&rev=HASH&project=ID), HASH "
+                            + "being the response's commit. tracked=false marks a "
                             + "file git does not track, served through the project's allow-globs.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<GitFileContent> getFileContent(

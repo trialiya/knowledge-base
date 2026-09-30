@@ -1,6 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import InfoList from '@/components/common/ui/InfoList';
 import { formatDateTime } from '@/utils/formatting';
+import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
+import { commitUrl } from '@/navigation/urlScheme';
+import CommitHashLink from '@/components/common/git/CommitHashLink';
+import shortRev from '@/components/common/git/shortRev';
 import './commitInfo.css';
 
 /**
@@ -13,15 +17,21 @@ import './commitInfo.css';
  * панели второй такой же список проигрывал бы первому. Отсюда — сводка и
  * переход к нему.
  *
+ * «Копировать ссылку» даёт адрес коммита, а не текущего экрана: открыт ли тут
+ * файл, какая вкладка слева — дело смотрящего, а ссылка должна вести к коммиту
+ * по полному хешу, даже когда снимок открыт по ветке, которая уйдёт вперёд.
+ *
  * `commit` — ответ useSnapshotCommit (GitCommit с `files`).
  */
-const CommitInfo = ({ rev, commit, loading, error, changesShown, onShowChanges }) => {
+const CommitInfo = ({ rev, project, commit, loading, error, changesShown, onShowChanges }) => {
   const { t, i18n } = useTranslation('files');
+  const [copied, copy] = useCopyFeedback();
 
   if (loading) return <p className="info-list__hint">{t('loading')}</p>;
   if (error || !commit) return <p className="info-list__hint">{t('commit.loadError')}</p>;
 
   const files = commit.files ?? [];
+  const parents = commit.parents ?? [];
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
 
@@ -32,6 +42,23 @@ const CommitInfo = ({ rev, commit, loading, error, changesShown, onShowChanges }
     { label: t('commit.revision'), value: commit.hash.startsWith(rev) ? null : rev, mono: true },
     { label: t('commit.author'), value: commit.email ? `${commit.author} <${commit.email}>` : commit.author },
     { label: t('commit.date'), value: formatDateTime(commit.date, i18n.language) },
+    // Родители — шаг назад по истории: снимок предыдущего коммита в том же виде.
+    // У первого коммита их нет, у слияния — два, и первый из них тот, с которым
+    // сравнивается список изменённых файлов.
+    parents.length > 0 && {
+      label: t('commit.parents', { count: parents.length }),
+      value: (
+        <span className="commit-info__parents">
+          {parents.map((parent) => (
+            <CommitHashLink key={parent} rev={parent} project={project}>
+              {shortRev(parent)}
+            </CommitHashLink>
+          ))}
+        </span>
+      ),
+      copy: parents.join(' '),
+      mono: true,
+    },
     { label: t('commit.message'), value: commit.message, block: true },
     { label: t('commit.body'), value: commit.body, block: true, pre: true },
     {
@@ -40,17 +67,24 @@ const CommitInfo = ({ rev, commit, loading, error, changesShown, onShowChanges }
     },
   ];
 
-  // Кнопка под списком, а не в `note` InfoList: та плашка — для предупреждений.
+  // Кнопки под списком, а не в `note` InfoList: та плашка — для предупреждений.
   return (
     <>
       <InfoList rows={rows} />
-      {files.length > 0 && !changesShown && (
-        <div className="commit-info__actions">
+      <div className="commit-info__actions">
+        {files.length > 0 && !changesShown && (
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => onShowChanges(true)}>
             {t('commit.showChanges')}
           </button>
-        </div>
-      )}
+        )}
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm"
+          onClick={() => copy(window.location.origin + commitUrl(commit.hash, project))}
+        >
+          {copied ? t('commit.linkCopied') : t('commit.copyLink')}
+        </button>
+      </div>
     </>
   );
 };

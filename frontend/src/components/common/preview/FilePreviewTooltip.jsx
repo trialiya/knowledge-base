@@ -2,9 +2,13 @@ import { useTranslation } from 'react-i18next';
 import PreviewTooltipShell from './PreviewTooltipShell';
 import { baseName } from '@/components/common/ui/utils';
 import { IconFileText, IconExpand } from '@/icons/index';
+import shortRev from '@/components/common/git/shortRev';
 
-/** Nested preview card for DocLinkTooltip's internal repo file-link branch. */
-function FilePreviewTooltip({ file, loading, error, pos, onMouseEnter, onMouseLeave, onOpen, onExpand, ref }) {
+/**
+ * Preview card for a repo file link (FileLink). `rev` — the revision the link names:
+ * shown next to the path, so a quote of an old version is not mistaken for today's file.
+ */
+function FilePreviewTooltip({ file, rev, loading, error, pos, onMouseEnter, onMouseLeave, onOpen, onExpand, ref }) {
   const { t } = useTranslation('knowledgeBase');
   const name = baseName(file?.path);
 
@@ -41,7 +45,7 @@ function FilePreviewTooltip({ file, loading, error, pos, onMouseEnter, onMouseLe
 
           <div className="doc-preview-tooltip__description">
             <p className="doc-preview-tooltip__description-text doc-preview-tooltip__description-text--mono">
-              {file.path}
+              {rev ? `${file.path} @ ${shortRev(rev)}` : file.path}
             </p>
           </div>
 

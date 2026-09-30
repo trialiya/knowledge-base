@@ -4,6 +4,7 @@ import gitApi from '@/api/gitApi';
 import FileView from '@/components/filesPanel/FileView';
 import ModalShell from '@/components/common/modal/ModalShell';
 import { IconX } from '@/icons/index';
+import shortRev from '@/components/common/git/shortRev';
 
 /**
  * Read-only file preview modal opened from a chat file link (`/files?path=...`) — shows the
@@ -15,25 +16,32 @@ import { IconX } from '@/icons/index';
  * props:
  *   path              — repo-relative file path
  *   fromLine, toLine  — optional 1-based inclusive line range (from a `#Lx-Ly` link anchor)
+ *   rev               — optional revision: the file as of that commit (a `&rev=` link)
  *   onClose           — () => void
  */
-const FilePreviewModal = ({ path, project, fromLine, toLine, onClose }) => {
+const FilePreviewModal = ({ path, project, rev = null, fromLine, toLine, onClose }) => {
   const { t } = useTranslation('files');
   // Ответ сервера; null — запрос ещё идёт. Отдельного `loading` нет: он выводится
   // из ответа, а сброс на смену файла делается в рендере, чтобы кадра с
   // содержимым предыдущего файла не было.
   const [answer, setAnswer] = useState(null); // { file, error } | null
 
-  const [req, setReq] = useState({ path, project, fromLine, toLine });
-  if (req.path !== path || req.project !== project || req.fromLine !== fromLine || req.toLine !== toLine) {
-    setReq({ path, project, fromLine, toLine });
+  const [req, setReq] = useState({ path, project, rev, fromLine, toLine });
+  if (
+    req.path !== path ||
+    req.project !== project ||
+    req.rev !== rev ||
+    req.fromLine !== fromLine ||
+    req.toLine !== toLine
+  ) {
+    setReq({ path, project, rev, fromLine, toLine });
     setAnswer(null);
   }
 
   useEffect(() => {
     let cancelled = false;
     gitApi
-      .getFileContent(path, { from: fromLine, to: toLine, project })
+      .getFileContent(path, { from: fromLine, to: toLine, rev: rev || undefined, project })
       .then((result) => {
         if (!cancelled) setAnswer({ file: result, error: false });
       })
@@ -43,7 +51,7 @@ const FilePreviewModal = ({ path, project, fromLine, toLine, onClose }) => {
     return () => {
       cancelled = true;
     };
-  }, [path, project, fromLine, toLine]);
+  }, [path, project, rev, fromLine, toLine]);
 
   const loading = answer === null;
   const file = answer?.file ?? null;
@@ -57,7 +65,7 @@ const FilePreviewModal = ({ path, project, fromLine, toLine, onClose }) => {
         <div className="file-preview-modal__title">
           <span className="file-preview-modal__name">{name}</span>
           <span className="file-preview-modal__path" title={path}>
-            {path}
+            {rev ? `${path} @ ${shortRev(rev)}` : path}
           </span>
         </div>
         <button className="fs-editor__close" title={t('preview.close')} onClick={onClose}>
@@ -67,7 +75,7 @@ const FilePreviewModal = ({ path, project, fromLine, toLine, onClose }) => {
       <div className="fs-editor__body file-preview-modal__body">
         {loading && <div className="file-preview-modal__msg">{t('tree.loading')}</div>}
         {!loading && error && <div className="file-preview-modal__msg">{t('file.loadError')}</div>}
-        {!loading && !error && file && <FileView file={file} path={path} project={project} />}
+        {!loading && !error && file && <FileView file={file} path={path} project={project} rev={rev || ''} />}
       </div>
     </ModalShell>
   );

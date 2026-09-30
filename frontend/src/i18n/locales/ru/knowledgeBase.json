@@ -111,6 +111,8 @@
     "folder": "Folder",
     "document": "Document",
     "file": "File",
+    "commit": "Коммит",
+    "commitNotFound": "Коммит не найден",
     "aiSummary": "AI Summary",
     "stale": "устарел",
     "noDescription": "Нет описания",

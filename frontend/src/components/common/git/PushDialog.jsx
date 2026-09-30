@@ -5,6 +5,7 @@ import '@/components/common/ui/buttons.css';
 import GitOutputCard from './GitOutputCard';
 import useOutgoingCommits from './useOutgoingCommits';
 import './pushDialog.css';
+import CommitHashLink from './CommitHashLink';
 
 /**
  * Окно push: что именно уедет из деплоя наружу.
@@ -73,7 +74,10 @@ const PushDialog = ({ git, onClose }) => {
         <ul className="push-dialog__commits">
           {commits.map((commit) => (
             <li key={commit.hash} className="push-dialog__commit" title={commit.message}>
-              <span className="push-dialog__hash">{commit.shortHash}</span>
+              {/* В новой вкладке: переход в приложении ушёл бы из-под окна. */}
+              <CommitHashLink className="push-dialog__hash" rev={commit.hash} project={git.project} newTab>
+                {commit.shortHash}
+              </CommitHashLink>
               <span className="push-dialog__message">{commit.message}</span>
               <span className="push-dialog__author">{commit.author}</span>
               <span className="push-dialog__date">{formatDateTime(commit.date, i18n.language)}</span>

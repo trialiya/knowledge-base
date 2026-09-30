@@ -59,6 +59,28 @@ class ChatHistoryGitEventTest {
                 .contains("preserve this notice verbatim");
     }
 
+    /** Коммит пользователя назван хешем: модели есть что прочитать и на что сослаться. */
+    @Test
+    void aCommitNamesTheCommitItCreated() {
+        String hash = "0123456789abcdef0123456789abcdef01234567";
+        givenStored(
+                List.of(
+                        gitRow(
+                                0,
+                                new GitEventMeta(
+                                        "commit", "kb", true, "Committed 0123456", "main", hash))));
+
+        assertThat(service.promptRows(CONV).getFirst().text()).contains("commit=\"" + hash + "\"");
+    }
+
+    @Test
+    void aCommandThatCreatedNoCommitNamesNone() {
+        givenStored(
+                List.of(gitRow(0, new GitEventMeta("pull", "kb", true, "Fast-forward", "main"))));
+
+        assertThat(service.promptRows(CONV).getFirst().text()).doesNotContain("commit=");
+    }
+
     /**
      * Отказ рассказывается наравне с успехом и говорит обратное: репозиторий там же, где был. Без
      * этой половины модель после отклонённого push считала бы ветку опубликованной.

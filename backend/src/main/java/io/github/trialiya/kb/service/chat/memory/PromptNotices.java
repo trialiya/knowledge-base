@@ -117,6 +117,9 @@ public final class PromptNotices {
                 + (event.branch() == null
                         ? ""
                         : " branch=\"" + PromptMarkup.inert(event.branch()) + "\"")
+                + (event.commit() == null
+                        ? ""
+                        : " commit=\"" + PromptMarkup.inert(event.commit()) + "\"")
                 + ">\n"
                 + "The user ran this git command on the project from this chat — not you, and not"
                 + " through any tool of yours. "
