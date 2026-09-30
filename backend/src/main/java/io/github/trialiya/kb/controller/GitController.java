@@ -13,7 +13,7 @@ import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
-import io.github.trialiya.kb.service.file.git.GitGrepTimeoutException;
+import io.github.trialiya.kb.service.file.git.GitReadTimeoutException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.service.file.git.PreviewMedia;
@@ -104,7 +104,7 @@ public class GitController {
                     ? git.grepContent(query, pathGlob, regex, 0, cap, untracked)
                     : git.grepContentAt(revision, query, pathGlob, regex, 0, cap));
             return GitGrepResult.group(matches, cap);
-        } catch (GitGrepTimeoutException e) {
+        } catch (GitReadTimeoutException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
         }
     }

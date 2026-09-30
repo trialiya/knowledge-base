@@ -205,7 +205,7 @@ Shell нет ни в одном случае: `ProcessBuilder` получает 
 — команда отказала: для subprocess это собственный вывод git без пересказа («Permission denied
 (publickey)», «couldn't find remote ref» — это и есть подсказка, что чинить), для JGit-команд —
 такая же короткая фраза от приложения («No such branch», «Nothing to commit»);
-`IllegalStateException` — команду не удалось запустить вовсе; `GitGrepTimeoutException` — поиск не
+`IllegalStateException` — команду не удалось запустить вовсе; `GitReadTimeoutException` — поиск не
 уложился в дедлайн (`503` на странице поиска; модели уходит само сообщение о таймауте, и сузить
 поиск — её решение); `GitBusyException` —
 репозиторий занят другой командой (§7).
