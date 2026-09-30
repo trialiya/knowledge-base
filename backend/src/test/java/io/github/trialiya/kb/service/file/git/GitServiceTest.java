@@ -900,6 +900,50 @@ class GitServiceTest {
         assertThat(service.searchCommits("Subject", 10)).hasSize(1);
     }
 
+    /** The search page asks for the description too: a hit there counts and the body comes back. */
+    @Test
+    void searchCommitsInBodyMatchesTheDescriptionAndReturnsIt() {
+        writeFile("a.txt", "a\n");
+        commitAll(
+                "Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
+        writeFile("b.txt", "b\n");
+        commitAll("Unrelated change");
+
+        assertThat(service.searchCommits("zzz", 10, true, null))
+                .singleElement()
+                .satisfies(
+                        c -> {
+                            assertThat(c.message()).isEqualTo("Subject line");
+                            assertThat(c.body()).isEqualTo("mentions ZZZ");
+                        });
+        // A subject hit is still a hit, and it carries its body along.
+        assertThat(service.searchCommits("unrelated", 10, true, null))
+                .extracting(GitCommit::message)
+                .containsExactly("Unrelated change");
+    }
+
+    @Test
+    void searchCommitsFromARevisionSkipsCommitsMadeAfterIt() {
+        writeFile("a.txt", "a\n");
+        commitAll("fix one");
+        String first = service.getCommitLog(1, null, false).get(0).hash();
+        writeFile("b.txt", "b\n");
+        commitAll("fix two");
+
+        assertThat(service.searchCommits("fix", 10, true, first))
+                .extracting(GitCommit::message)
+                .containsExactly("fix one");
+    }
+
+    @Test
+    void searchCommitsFromAnUnknownRevisionIsRefused() {
+        writeFile("a.txt", "a\n");
+        commitAll("Only commit");
+
+        assertThatThrownBy(() -> service.searchCommits("only", 10, true, "nosuchtag"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     /**
      * Имя не совпало — совпасть может путь: так берут файл с частым именем, назвав его каталог.
      * Слэш в запросе при этом не обязателен, буквы подряд читаются через границы сегментов.

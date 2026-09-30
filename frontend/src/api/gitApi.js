@@ -355,9 +355,16 @@ const gitApi = {
   /**
    * Поиск коммитов по префиксу хэша или подстроке сообщения (свежие первыми).
    * Возвращает те же GitCommit[], что и getCommits.
+   *
+   * Без `body` совпадение ищется только в заголовке — пикер другого не
+   * показывает. С `body: true` ищется и в описании, и оно приходит в `body`.
+   * `rev` — обходить историю от этой ревизии, а не от HEAD.
    */
-  searchCommits: (q, { limit = 10, project, signal } = {}) => {
-    const [qs, init] = opts(new URLSearchParams({ q, limit: String(limit) }), project, signal);
+  searchCommits: (q, { limit = 10, body = false, rev, project, signal } = {}) => {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    if (body) params.set('body', 'true');
+    if (rev) params.set('rev', rev);
+    const [qs, init] = opts(params, project, signal);
     return request(`/api/git/commits/search${qs}`, init);
   },
 };

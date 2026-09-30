@@ -1,13 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import { SEARCH_SCOPE } from '@/constants/searchScope';
 import FileResults from './FileResults';
+import CommitResults from './CommitResults';
 import DocResults from './DocResults';
 import ChatResults from './ChatResults';
 
 /** Отказ категории словами, по которым понятно, что чинить. */
 function errorMessage(t, error) {
   // 400 отдают ровно фильтры: битая регулярка, неизвестная ревизия, недопустимая
-  // маска пути. 503 — git grep не уложился в отведённое ему время.
+  // маска пути (у коммитов — только ревизия). 503 — git grep не уложился в отведённое ему время.
   if (error?.status === 400) return t('error.badFilter');
   if (error?.status === 503) return t('error.timeout');
   return t('error.generic');
@@ -15,11 +16,12 @@ function errorMessage(t, error) {
 
 /**
  * Сколько всего совпало и во скольких сущностях: у каждой категории свой ответ,
- * но вопрос один, поэтому счётчик в шапке считается тут, а не в трёх местах.
+ * но вопрос один, поэтому счётчик в шапке считается тут, а не в каждой.
  */
 function summarize(scope, data) {
   if (!data) return { total: 0, groups: 0 };
   if (scope === SEARCH_SCOPE.FILES) return { total: data.total, groups: data.files.length };
+  if (scope === SEARCH_SCOPE.COMMITS) return { total: data.total, groups: data.commits.length };
   if (scope === SEARCH_SCOPE.DOCS) return { total: data.total, groups: data.documents.length };
   return { total: data.total, groups: data.chats.length };
 }
@@ -110,6 +112,7 @@ const ResultList = ({ scope, query, loading, entry, regex, rev, project, onOpenF
                     onOpenFile={onOpenFile}
                   />
                 )}
+                {scope === SEARCH_SCOPE.COMMITS && <CommitResults result={data} query={query} project={project} />}
                 {scope === SEARCH_SCOPE.DOCS && <DocResults result={data} query={query} onOpenDoc={onOpenDoc} />}
                 {scope === SEARCH_SCOPE.CHATS && <ChatResults result={data} query={query} onOpenChat={onOpenChat} />}
               </div>

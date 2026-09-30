@@ -219,18 +219,27 @@ public class GitController {
     }
 
     /**
-     * Commit lookup for the phrase placeholder picker: matches a hash prefix or a substring of the
-     * commit message, newest first. History has no index for either, so matching is a bounded walk
-     * — see {@link GitService#searchCommits}.
+     * Commit lookup: matches a hash prefix or a substring of the commit message, newest first.
+     * History has no index for either, so matching is a bounded walk — see {@link
+     * GitService#searchCommits}.
+     *
+     * <p>The phrase placeholder picker matches the subject only, because its row shows nothing
+     * else. The search page passes {@code body=true}: the description is searched too and comes
+     * back with each commit, so the page can show the lines that matched. With {@code rev} the walk
+     * starts there instead of HEAD.
      */
     @GetMapping("/commits/search")
     public List<GitCommit> searchCommits(
             @RequestParam("q") String query,
             @RequestParam(name = "limit", defaultValue = "10") int limit,
+            @RequestParam(name = "body", defaultValue = "false") boolean body,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         String sanitized = query.strip();
         if (sanitized.isBlank()) return List.of();
-        return read(() -> git(project).searchCommits(sanitized, limit));
+        GitService git = git(project);
+        String at = revision(rev);
+        return read(() -> git.searchCommits(sanitized, limit, body, at));
     }
 
     /**

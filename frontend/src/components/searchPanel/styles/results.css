@@ -142,8 +142,8 @@
   white-space: nowrap;
 }
 
-/* Строка под шапкой: у файла это каталог, у документа — цепочка родителей, у
-   чата — одна плашка. Ряд, а не текст: файл ставит рядом с каталогом метку
+/* Строка под шапкой: у файла это каталог, у коммита — хеш и автор, у
+   документа — цепочка родителей, у чата — одна плашка. Ряд, а не текст: файл ставит рядом с каталогом метку
    «вне git», и промежуток перед ней должен быть тот же, что в такой же строке
    деталей вызова (`.tool-grep__head`), а не случайный пробел разметки. */
 .search-group__subtitle {
@@ -176,6 +176,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.search-group__hash {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Автор ужимается, как и каталог: длинное имя не выдавливает метку «по хешу». */
+.search-group__author {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .search-group__badge {

@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { navigateToCommit } from '@/navigation/fileNavigationBus';
 import ResultList from './ResultList';
+
+vi.mock('@/navigation/fileNavigationBus', () => ({ navigateToCommit: vi.fn() }));
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -321,4 +324,62 @@ test('документ со сниппетом ранжирования увод
 
   expect(screen.getByRole('link', { name: 'Смысл' })).toHaveAttribute('href', '/knowledge/doc/6');
   expect(screen.getAllByRole('link')).toHaveLength(1);
+});
+
+test('коммит: заголовок ведёт к коммиту, строки описания с запросом — внутри', async () => {
+  render(
+    <ResultList
+      scope="commits"
+      query="needle"
+      loading={false}
+      entry={{
+        data: {
+          total: 3,
+          truncated: false,
+          commits: [
+            {
+              hash: 'abc1234def',
+              shortHash: 'abc1234',
+              author: 'Ann',
+              date: '2026-09-01T10:00:00+03:00',
+              message: 'Find the needle',
+              subjectMatch: true,
+              hashMatch: false,
+              lines: [{ line: 3, text: 'the needle is in the body' }],
+            },
+            {
+              hash: 'needle99',
+              shortHash: 'needle9',
+              author: 'Bob',
+              date: '2026-08-01T10:00:00+03:00',
+              message: 'Unrelated',
+              subjectMatch: false,
+              hashMatch: true,
+              lines: [],
+            },
+          ],
+        },
+        error: null,
+      }}
+      regex={false}
+      rev="v1"
+      project="other"
+      onOpenFile={vi.fn()}
+      onOpenDoc={vi.fn()}
+      onOpenChat={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText('head.in.commits:2')).toBeInTheDocument();
+  const link = screen.getByRole('link', { name: 'Find the needle' });
+  // Ревизия фильтра в ссылку не уходит: коммит сам себе ревизия.
+  expect(link).toHaveAttribute('href', '/files?project=other&changes=1&rev=abc1234def&right=commit');
+  const row = document.querySelector('.search-group__row');
+  expect(row).toHaveTextContent('3the needle is in the body');
+  expect(row.querySelector('mark')).toHaveTextContent('needle');
+  // Найденный по хешу помечен — иначе непонятно, за что он в выдаче.
+  expect(screen.getAllByText('commits.hashMatched')).toHaveLength(1);
+
+  await userEvent.click(link);
+  expect(navigateToCommit).toHaveBeenCalledWith('abc1234def', 'other');
 });
