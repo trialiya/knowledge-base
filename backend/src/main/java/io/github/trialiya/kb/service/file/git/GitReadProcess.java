@@ -73,6 +73,25 @@ final class GitReadProcess {
         String said() {
             return String.join("\n", stderr);
         }
+
+        /**
+         * Refuses a run that git ended with a code above {@code maxOk}: logged with the command
+         * and what git said, thrown with the latter. A code the caller reads itself (grep's 128 for
+         * a bad pattern) is read before this. Only for a run that was not {@link #cut} — then the
+         * code says just that git was stopped, and what to do with the lines is the caller's call.
+         *
+         * @param maxOk the highest code that is an answer rather than a failure — 0 for most
+         *     commands, 1 for {@code git grep}, whose 1 means "no match"
+         * @throws IllegalStateException if git exited above {@code maxOk}
+         */
+        void requireExit(List<String> command, int maxOk) {
+            if (exit <= maxOk) {
+                return;
+            }
+            String said = said();
+            log.warn("Git command exited {}: {} → {}", exit, command, said);
+            throw new IllegalStateException(command.get(0) + " " + command.get(1) + " exited " + exit + ": " + said);
+        }
     }
 
     /**

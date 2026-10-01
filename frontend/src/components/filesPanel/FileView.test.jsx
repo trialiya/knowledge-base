@@ -196,7 +196,6 @@ describe('FileView', () => {
         fromLine: 1,
         lineCount: 2,
         hash,
-        shortHash: 'aaaaaaa',
         author: 'Alice',
         date: '2024-01-02T03:04:05Z',
         summary: 'first',

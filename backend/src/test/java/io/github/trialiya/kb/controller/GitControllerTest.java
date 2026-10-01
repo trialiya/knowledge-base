@@ -106,9 +106,7 @@ class GitControllerTest {
                                 1,
                                 2,
                                 hash,
-                                "aaaaaaa",
                                 "Alice",
-                                "alice@example.com",
                                 OffsetDateTime.parse("2024-01-02T03:04:05+03:00"),
                                 "first",
                                 "README.md",
@@ -117,7 +115,7 @@ class GitControllerTest {
         mockMvc.perform(get("/api/git/files/blame").param("path", "README.md").param("rev", "v1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.commit").value(hash))
-                .andExpect(jsonPath("$.hunks[0].shortHash").value("aaaaaaa"))
+                .andExpect(jsonPath("$.hunks[0].hash").value(hash))
                 .andExpect(jsonPath("$.hunks[0].lineCount").value(2));
     }
 
@@ -130,6 +128,15 @@ class GitControllerTest {
         mockMvc.perform(get("/api/git/files/blame").param("path", "new.txt")).andExpect(status().isBadRequest());
         mockMvc.perform(get("/api/git/files/blame").param("path", "slow.txt"))
                 .andExpect(status().isServiceUnavailable());
+    }
+
+    /** Поиск, который git не закончил в срок, — тот же 503, что у blame: оба идут через read(). */
+    @Test
+    void aGrepTimeoutIsUnavailable() throws Exception {
+        when(git.grepPage("slow", null, false, null, false, 200))
+                .thenThrow(new GitReadTimeoutException("git grep did not finish"));
+
+        mockMvc.perform(get("/api/git/grep").param("q", "slow")).andExpect(status().isServiceUnavailable());
     }
 
     /** Коммит без ревизии не назван вовсе: «рабочее дерево» у этого запроса не ответ. */

@@ -1,16 +1,13 @@
 package io.github.trialiya.kb.service.file.git;
 
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.revwalk.RevWalk;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -80,7 +77,7 @@ final class GitBlameRunner {
         }
         // A tracked file whose repository has no commit yet (a staged file on an unborn branch)
         // is git's `fatal: no such ref: HEAD` — the caller's situation, not a failure here.
-        if (resolve("HEAD") == null) {
+        if (CommitFiles.commitOrNull(repository, "HEAD") == null) {
             throw new IllegalArgumentException("Repository has no commits yet: " + normalized);
         }
         byte[] head = RepoFiles.readWindow(normalized, resolved.absolute(), 0, RepoFiles.BINARY_SNIFF_BYTES);
@@ -113,28 +110,17 @@ final class GitBlameRunner {
      * cannot be blamed for a line anyway, so leaving it out changes nothing in the answer.
      */
     private List<String> resolvable(List<String> revs) {
-        return revs.stream().filter(rev -> resolve(rev) != null).toList();
-    }
-
-    /**
-     * The commit {@code rev} names, or {@code null} when the repository holds no such commit.
-     * {@code resolve} alone is not that check: a full 40-hex hash it hands back as is, never
-     * having looked for the object — and git takes only a commit for {@code --ignore-rev}, so a
-     * tree or a blob under that hash counts as absent too.
-     */
-    private @Nullable ObjectId resolve(String rev) {
-        try (RevWalk walk = new RevWalk(repository)) {
-            ObjectId id = repository.resolve(rev);
-            if (id == null) {
-                return null;
-            }
-            walk.parseCommit(id);
-            return id;
-        } catch (IOException | RuntimeException e) {
-            // Missing, not a commit, an ambiguous abbreviation, an unreadable object: all absent.
-            log.debug("Cannot resolve {} as a commit in {}", rev, paths.root(), e);
-            return null;
-        }
+        return revs.stream()
+                .filter(rev -> {
+                    // Missing, not a commit, an ambiguous abbreviation, an unreadable object: all
+                    // absent — git takes only a commit for --ignore-rev.
+                    boolean known = CommitFiles.commitOrNull(repository, rev) != null;
+                    if (!known) {
+                        log.debug("Cannot resolve {} as a commit in {}", rev, paths.root());
+                    }
+                    return known;
+                })
+                .toList();
     }
 
     private GitFileBlame run(String normalized, List<String> ignored, @Nullable String commit) {
@@ -144,11 +130,7 @@ final class GitBlameRunner {
             log.warn("git blame filled {} lines: {}", MAX_OUTPUT_LINES, command);
             throw new IllegalStateException("git blame output too large for " + normalized);
         }
-        if (out.exit() != 0) {
-            String said = out.said();
-            log.warn("Git command exited {}: {} → {}", out.exit(), command, said);
-            throw new IllegalStateException("git blame exited " + out.exit() + ": " + said);
-        }
+        out.requireExit(command, 0);
         List<GitFileBlame.Hunk> hunks = GitBlame.parse(out.lines());
         int lineCount = hunks.stream().mapToInt(GitFileBlame.Hunk::lineCount).sum();
         return new GitFileBlame(normalized, commit, lineCount, hunks);

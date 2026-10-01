@@ -28,6 +28,14 @@ back" (the walk stops at 20 000 commits). The bundled UI is updated with it. A
 script or integration of your own that reads this endpoint must take the list
 from `commits`.
 
+### `GET /api/git/files/blame` hunks drop `shortHash` and `email`
+
+A blame hunk no longer carries the short hash or the author's email: the column
+never showed the email, and the short hash is the first seven characters of
+`hash`. The bundled UI is updated with it. A script or integration of your own
+that reads this endpoint should take `hash.slice(0, 7)` for the short form; the
+author's email is not returned any more.
+
 ### `kb.search.keyword.limit` is now applied
 
 The key was bound but never read: keyword search over documents always returned

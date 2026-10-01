@@ -67,7 +67,7 @@ describe('поиск в открытом файле', () => {
   test('колонка blame в счётчик не попадает', async () => {
     gitApi.getBlame.mockResolvedValue({
       path: 'a.js',
-      hunks: [{ fromLine: 1, lineCount: 3, hash: 'a'.repeat(40), shortHash: 'aaaaaaa', summary: 'fix needle' }],
+      hunks: [{ fromLine: 1, lineCount: 3, hash: 'a'.repeat(40), summary: 'fix needle' }],
     });
     renderFile({ find: 'needle', file: { ...FILE, tracked: true }, blame: true, onToggleBlame: () => {} });
 

@@ -104,7 +104,7 @@ const gitApi = {
 
   /**
    * Авторство строк — GitFileBlame { path, commit, lineCount, hunks: [{ fromLine,
-   * lineCount, hash, shortHash, author, email, date, summary }] }. Коммиты из
+   * lineCount, hash, author, date, summary, path, sourceLine }] }. Коммиты из
    * `.git-blame-ignore-revs` уже пропущены; у незакоммиченных строк рабочего
    * дерева все поля о коммите null. Неотслеживаемый или бинарный файл — 400,
    * не уложившийся в дедлайн blame — 503.

@@ -274,16 +274,13 @@ final class GitGrepRunner {
             }
             return new Lines(lines.subList(0, lastSeparator), true);
         }
-        if (out.exit() > 1) {
-            String said = out.said();
-            log.warn("Git command exited {}: {} → {}", out.exit(), command, said);
-            String badPattern = out.exit() == 128 ? patternComplaint(out.stderr()) : null;
-            if (badPattern != null) {
-                throw new IllegalArgumentException(badPattern);
-            }
-            throw new IllegalStateException("git grep exited " + out.exit() + ": " + said);
+        // A refused pattern is the caller's mistake, not git failing: 400 with git's own words.
+        String badPattern = out.exit() == 128 ? patternComplaint(out.stderr()) : null;
+        if (badPattern != null) {
+            throw new IllegalArgumentException(badPattern);
         }
         // Exit 1 is git grep's "no matches" — not an error, the output is simply empty.
+        out.requireExit(command, 1);
         return new Lines(lines, false);
     }
 

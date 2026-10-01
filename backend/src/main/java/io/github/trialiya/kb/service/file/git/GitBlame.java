@@ -22,9 +22,6 @@ final class GitBlame {
     /** The hash git gives lines no commit holds yet: an uncommitted edit in the working tree. */
     static final String UNCOMMITTED = "0".repeat(40);
 
-    /** Length of the short hash in a hunk — git's own default abbreviation. */
-    private static final int SHORT_HASH_LEN = 7;
-
     /**
      * What a line of {@code .git-blame-ignore-revs} may name: a hash, full or abbreviated. Git
      * itself refuses the whole run on a line it cannot resolve, so anything else — a comment, a
@@ -153,22 +150,12 @@ final class GitBlame {
     private static GitFileBlame.Hunk bare(String sha, int sourceLine, int fromLine, int count) {
         boolean uncommitted = UNCOMMITTED.equals(sha);
         return new GitFileBlame.Hunk(
-                fromLine,
-                count,
-                uncommitted ? null : sha,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                uncommitted ? null : sourceLine);
+                fromLine, count, uncommitted ? null : sha, null, null, null, null, uncommitted ? null : sourceLine);
     }
 
     /** One commit's fields, gathered off the {@code key value} lines that follow its first header. */
     private static final class Meta {
         private @Nullable String author;
-        private @Nullable String email;
         private @Nullable String summary;
         private @Nullable String path;
         private long time;
@@ -180,7 +167,6 @@ final class GitBlame {
             String value = space < 0 ? "" : line.substring(space + 1);
             switch (key) {
                 case "author" -> author = value;
-                case "author-mail" -> email = stripAngles(value);
                 case "author-time" -> time = Long.parseLong(value);
                 case "author-tz" -> tz = value;
                 case "summary" -> summary = value;
@@ -188,7 +174,7 @@ final class GitBlame {
                 // one; a later one belongs to the hunk it was printed on (see parse).
                 case "filename" -> path = path == null ? value : path;
                 default -> {
-                    // committer-*, previous, boundary: nothing the column shows.
+                    // author-mail, committer-*, previous, boundary: nothing the column shows.
                 }
             }
         }
@@ -206,9 +192,7 @@ final class GitBlame {
                     open.fromLine(),
                     open.lineCount(),
                     hash,
-                    hash.substring(0, SHORT_HASH_LEN),
                     author,
-                    email,
                     date(),
                     summary,
                     hunkPath == null ? path : hunkPath,
@@ -225,10 +209,6 @@ final class GitBlame {
             } catch (DateTimeException e) {
                 return Instant.ofEpochSecond(time).atOffset(ZoneOffset.UTC);
             }
-        }
-
-        private static String stripAngles(String mail) {
-            return mail.startsWith("<") && mail.endsWith(">") ? mail.substring(1, mail.length() - 1) : mail;
         }
     }
 }

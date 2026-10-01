@@ -29,10 +29,8 @@ public record GitFileBlame(String path, @Nullable String commit, int lineCount, 
      *
      * @param fromLine первая строка диапазона (1-based)
      * @param lineCount сколько строк в диапазоне
-     * @param hash полный хеш коммита
-     * @param shortHash короткий хеш для подписи
+     * @param hash полный хеш коммита; короткий для подписи клиент берёт из него сам
      * @param author имя автора
-     * @param email почта автора
      * @param date дата авторства
      * @param summary первая строка сообщения коммита
      * @param path путь файла в этом коммите — после переименования он отличается от текущего, и
@@ -45,9 +43,7 @@ public record GitFileBlame(String path, @Nullable String commit, int lineCount, 
             int fromLine,
             int lineCount,
             @Nullable String hash,
-            @Nullable String shortHash,
             @Nullable String author,
-            @Nullable String email,
             @Nullable OffsetDateTime date,
             @Nullable String summary,
             @Nullable String path,
