@@ -40,7 +40,8 @@ describe('ChatUsage', () => {
     expect(valueOf('usage.cacheHit')).toHaveTextContent('78');
     expect(valueOf('usage.total')).toHaveTextContent('82.2k');
     expect(screen.queryByText('usage.input')).toBeNull();
-    // Строк, на которые нечего ответить, нет: ноль на незаданный вопрос и блок суб-агента, которого не было.
+    // Строк, на которые нечего ответить, нет: ни нуля на незаданный вопрос, ни блока суб-агента,
+    // которого не было.
     expect(screen.queryByText('usage.reasoning')).toBeNull();
     expect(screen.queryByText('usage.subagentRuns')).toBeNull();
     expect(screen.queryByText('usage.subagentNote')).toBeNull();

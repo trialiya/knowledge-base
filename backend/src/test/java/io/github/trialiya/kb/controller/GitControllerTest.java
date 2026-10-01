@@ -19,6 +19,7 @@ import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,15 +54,14 @@ class GitControllerTest {
     }
 
     /**
-     * Каждое чтение идёт через {@code read()}, и названное клиентом, чего нет, — 400 на любом из них:
-     * отсутствующий файл, опечатка в ревизии (из поля ввода или фильтра поиска), язык без обзора,
-     * слишком большой для показа файл, путь с недопустимым символом.
+     * Каждое чтение идёт через {@code read()}: всё, что {@link GitService} отвергает {@link
+     * IllegalArgumentException} из-за запроса клиента, — 400 на любом эндпоинте.
      */
     @ParameterizedTest(name = "{0}")
     @MethodSource("refusedReads")
-    void whatTheClientNamedAndIsNotThereIsABadRequest(String what, Stub stub, MockHttpServletRequestBuilder request)
-            throws Exception {
-        stub.refuse(git);
+    void whatGitRefusesForTheRequestIsABadRequest(
+            String what, Consumer<GitService> stub, MockHttpServletRequestBuilder request) throws Exception {
+        stub.accept(git);
 
         mockMvc.perform(request).andExpect(status().isBadRequest());
     }
@@ -70,47 +70,43 @@ class GitControllerTest {
         return Stream.of(
                 Arguments.of(
                         "missing file",
-                        (Stub) git -> when(git.getFileContent(null, "gone.md", null, null))
+                        (Consumer<GitService>) g -> when(g.getFileContent(null, "gone.md", null, null))
                                 .thenThrow(new IllegalArgumentException("File not found: gone.md")),
                         get("/api/git/files/content").param("path", "gone.md")),
                 Arguments.of(
                         "unknown revision of a file",
-                        (Stub) git -> when(git.getFileContent("nosuchtag", "README.md", null, null))
+                        (Consumer<GitService>) g -> when(g.getFileContent("nosuchtag", "README.md", null, null))
                                 .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag")),
                         get("/api/git/files/content").param("path", "README.md").param("rev", "nosuchtag")),
                 Arguments.of(
                         "outline of an unsupported language",
-                        (Stub) git -> when(git.getFileOutline(null, "notes.txt"))
+                        (Consumer<GitService>) g -> when(g.getFileOutline(null, "notes.txt"))
                                 .thenThrow(new IllegalArgumentException("Unsupported language for outline")),
                         get("/api/git/files/outline").param("path", "notes.txt")),
                 Arguments.of(
                         "unknown commit",
-                        (Stub) git -> when(git.getCommit("nosuchtag", false, null))
+                        (Consumer<GitService>) g -> when(g.getCommit("nosuchtag", false, null))
                                 .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag")),
                         get("/api/git/commit").param("rev", "nosuchtag")),
                 Arguments.of(
                         "commit search from an unknown revision",
-                        (Stub) git -> when(git.grepCommits("fix", 50, "nosuchtag"))
+                        (Consumer<GitService>) g -> when(g.grepCommits("fix", 50, "nosuchtag"))
                                 .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag")),
                         get("/api/git/commits/grep")
                                 .param("q", "fix")
                                 .param("limit", "50")
                                 .param("rev", "nosuchtag")),
+                // Отказ, а не куча памяти: см. GitService.getRawFile.
                 Arguments.of(
                         "image too large to serve",
-                        (Stub) git -> when(git.getRawFile(null, "huge.png"))
+                        (Consumer<GitService>) g -> when(g.getRawFile(null, "huge.png"))
                                 .thenThrow(new IllegalArgumentException("File is too large to preview")),
                         get("/api/git/files/raw").param("path", "huge.png")),
                 Arguments.of(
                         "status narrowed to an impossible path",
-                        (Stub) git -> when(git.getUncommittedChanges(false, "docs/ab.md"))
+                        (Consumer<GitService>) g -> when(g.getUncommittedChanges(false, "docs/a\u0007b.md"))
                                 .thenThrow(new IllegalArgumentException("Path contains unsupported characters")),
-                        get("/api/git/status").param("path", "docs/ab.md")));
-    }
-
-    @FunctionalInterface
-    interface Stub {
-        void refuse(GitService git) throws Exception;
+                        get("/api/git/status").param("path", "docs/a\u0007b.md")));
     }
 
     /** Обзор с ревизией читает снимок, без неё — рабочее дерево. */

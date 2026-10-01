@@ -7,7 +7,8 @@ describe('detectTriggerInText', () => {
     expect(detectTriggerInText('email a/b/file path')).toBeNull();
   });
 
-  // The Russian synonyms are the same triggers, not rules of their own: whatever a command does, so does its synonym.
+  // The Russian synonyms are the same triggers, not rules of their own: whatever a command does,
+  // so does its synonym.
   it.each([
     ['/file', 'file'],
     ['/doc', 'doc'],

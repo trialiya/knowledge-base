@@ -652,12 +652,13 @@ class GitServiceTest {
     }
 
     /**
-     * Путь из Windows ({@code src\main\Foo.java}) значит то же, что и с прямыми слешами, в
-     * каждом чтении, которое его принимает: дереве, содержимом, истории и диффе коммита.
+     * Путь из Windows ({@code src\main\Foo.java}) значит то же, что с прямыми слешами: нормализация
+     * общая для чтений по пути.
      */
     @Test
     void windowsBackslashInAPathIsNormalizedToForwardSlash() {
         writeFile("src/main/Foo.java", "class Foo {}\n");
+        writeFile("src/main/Neighbour.java", "class Neighbour {}\n");
         commitAll("foo");
         writeFile("src/main/Other.java", "class Other {}\n");
         commitAll("other");
@@ -667,8 +668,11 @@ class GitServiceTest {
                 .hash();
 
         assertThat(service.getFileTree(null, "src\\main"))
-                .extracting(GitFileNode::path)
-                .containsExactlyInAnyOrder("src/main/Foo.java", "src/main/Other.java");
+                .extracting(GitFileNode::path, GitFileNode::name)
+                .containsExactly(
+                        tuple("src/main/Foo.java", "Foo.java"),
+                        tuple("src/main/Neighbour.java", "Neighbour.java"),
+                        tuple("src/main/Other.java", "Other.java"));
 
         var content = service.getFileContent("src\\main\\Foo.java");
         assertThat(content.path()).isEqualTo("src/main/Foo.java");
