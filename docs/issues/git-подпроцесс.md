@@ -8,20 +8,20 @@
 ## Что `exec` дублирует
 
 `GitCommands.exec` (`service/file/git/GitCommands.java:589-656`) против
-`GitReadProcess.run` (`GitReadProcess.java:87-176`):
+`GitReadProcess.run` (`GitReadProcess.java:89-178`):
 
 - старт процесса в корне репозитория и `IllegalStateException` при отказе
-  старта (`:590-591, :605-606` против `:104, :173-174`);
+  старта (`:590-591, :604-606` против `:105-106, :179-180`);
 - kill по дедлайну, но по-разному: `exec` читает в
   `CompletableFuture.supplyAsync` (общий ForkJoinPool, блокирующий ввод-вывод
   в нём) и ждёт `process.waitFor(TIMEOUT_SECONDS)`; `GitReadProcess` — watchdog
   на виртуальном потоке с `AtomicBoolean timedOut`;
-- обработка interrupt один в один (`:649-651` против `:170-172`);
+- обработка interrupt один в один (`:649-651` против `:177-178`);
 - ожидание дренажа после выхода: `OUTPUT_DRAIN_SECONDS = 5` через
   `reading.get` против `STDERR_DRAIN_WAIT = 1s` через `awaitDrain`;
 - два типа таймаут-исключения: `GitCommandFailedException` (ловит
   `GitCommandController.java:276`) и `GitReadTimeoutException extends
-  IllegalStateException` (ловит `GitController.java:108, :142`).
+  IllegalStateException` (ловит `GitController.java:103, :137`).
 
 Что у `exec` хуже: потолка строк нет. Длинный fetch/push целиком держится в
 `List<String>` и только потом режется до последних 4000 символов (`truncate`,
@@ -57,5 +57,5 @@ exit code и флаг таймаута». Поверх него:
 
 Других запусков подпроцессов в бэке нет: скрипты — in-process GraalJS с
 `allowCreateProcess(false)` (`ScriptRunner.java:402`). Дренаж stderr в
-`GitReadProcess.java:114` читает через `BufferedReader.readLine` (делит по
+`GitReadProcess.java:116` читает через `BufferedReader.readLine` (делит по
 голому `\r`) — для stderr это безвредно.
