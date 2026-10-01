@@ -1,12 +1,16 @@
 package io.github.trialiya.kb.service.file.git;
 
+import io.github.trialiya.kb.model.git.dto.FileEntryType;
+import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.project.Project;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.eclipse.jgit.dircache.DirCache;
@@ -252,5 +256,105 @@ final class VisibleFiles {
             }
         }
         return List.copyOf(roots);
+    }
+
+    /**
+     * Fuzzy-searches the visible files by name. {@code pattern} is matched as a <b>subsequence</b> of
+     * each file's name, so {@code "mgi"} matches {@code "MessageInput"}. Results are ranked by how
+     * well the characters align to word boundaries (start of name, camelCase humps, and {@code - _
+     * . /} separators) and by consecutive runs, so the most "intentional" match floats to the top.
+     * A pattern the name does not match is tried against the whole path ({@code "servicegit"} finds
+     * {@code service/file/git/…}); such a hit ranks below every name hit, whatever its score.
+     *
+     * @param pattern partial file name; blank returns an empty list
+     * @param maxResults capped at 50
+     */
+    List<GitFileNode> searchByName(String pattern, int maxResults) {
+        if (pattern.isBlank()) return List.of();
+        String q = pattern.strip().toLowerCase(Locale.ROOT);
+        int limit = Math.min(Math.max(maxResults, 1), 50);
+
+        Visible files = all();
+        List<String> allFiles = files.paths();
+        Set<String> tracked = files.tracked();
+
+        // byName отделяет попадания по имени от попаданий по пути: очки у них считаются одной
+        // мерой, но несравнимы между собой — путь длиннее имени и набирает больше просто потому,
+        // что в нём больше границ слов. Поэтому имя выигрывает у пути порядком сортировки, а не
+        // вычитанием из очков: любая такая скидка либо мала и не разделяет, либо велика и
+        // выбрасывает попадания по пути вовсе.
+        record Scored(String path, String name, int score, boolean byName) {}
+        return allFiles.stream()
+                .map(path -> {
+                    String name = RepoPaths.fileName(path);
+                    int nameScore = fuzzyScore(q, name);
+                    boolean byName = nameScore >= 0;
+                    int score = byName ? nameScore : fuzzyScore(q, path);
+                    // Demote test files by ~30 % so production sources rank higher.
+                    if (score > 0 && isTestPath(path)) {
+                        score = score * 7 / 10;
+                    }
+                    return new Scored(path, name, score, byName);
+                })
+                .filter(s -> s.score() >= 0)
+                .sorted(Comparator.comparing(Scored::byName)
+                        .reversed()
+                        .thenComparing(Comparator.comparingInt(Scored::score).reversed())
+                        .thenComparingInt(s -> s.path().length()))
+                .limit(limit)
+                .map(s -> new GitFileNode(
+                        s.path(), s.name(), FileEntryType.FILE, fileSize(s.path()), tracked.contains(s.path())))
+                .toList();
+    }
+
+    private static boolean isTestPath(String path) {
+        return path.startsWith("src/test/")
+                || path.contains("/src/test/")
+                || path.startsWith("test/")
+                || path.contains("/test/");
+    }
+
+    /**
+     * Subsequence fuzzy-match score of {@code query} (already lower-cased) against {@code text}
+     * (original case, for boundary detection). Returns {@code -1} when {@code query} is not a
+     * subsequence of {@code text}; otherwise a non-negative score where higher means a tighter,
+     * more boundary-aligned match.
+     */
+    private static int fuzzyScore(String query, String text) {
+        if (query.isEmpty()) return 0;
+        int score = 0;
+        int qi = 0;
+        int run = 0;
+        for (int ti = 0; ti < text.length() && qi < query.length(); ti++) {
+            if (Character.toLowerCase(text.charAt(ti)) == query.charAt(qi)) {
+                boolean boundary;
+                if (ti == 0) {
+                    boundary = true;
+                } else {
+                    char prev = text.charAt(ti - 1);
+                    boundary = prev == '-'
+                            || prev == '_'
+                            || prev == '/'
+                            || prev == '.'
+                            || (Character.isLowerCase(prev) && Character.isUpperCase(text.charAt(ti)));
+                }
+                run++;
+                score += 1 + run * 2 + (boundary ? 15 : 0);
+                qi++;
+            } else {
+                run = 0;
+            }
+        }
+        if (qi < query.length()) return -1; // not all query chars consumed
+        // Prefer shorter names (fewer unmatched leftover characters).
+        return Math.max(0, score - (text.length() - query.length()));
+    }
+
+    private long fileSize(String relativePath) {
+        try {
+            return Files.size(paths.resolve(relativePath));
+        } catch (IOException e) {
+            return -1;
+        }
     }
 }

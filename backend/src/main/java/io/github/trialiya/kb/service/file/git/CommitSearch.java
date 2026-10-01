@@ -104,7 +104,7 @@ final class CommitSearch {
                     return new GitCommitSearchResult(matches, true);
                 }
                 if (matches(commit, q, scope.inBody())) {
-                    matches.add(GitService.toGitCommit(commit, null, reader, scope.withBody()));
+                    matches.add(Diffs.toGitCommit(commit, null, reader, scope.withBody()));
                 }
             }
             return new GitCommitSearchResult(matches, false);

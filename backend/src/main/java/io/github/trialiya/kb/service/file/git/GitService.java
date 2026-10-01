@@ -30,14 +30,11 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
@@ -48,7 +45,6 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
-import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
@@ -56,10 +52,8 @@ import org.eclipse.jgit.errors.RevisionSyntaxException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
-import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.patch.FileHeader;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
@@ -116,19 +110,6 @@ public class GitService {
      * more, and the counter next to the branch keeps saying how many there really are.
      */
     private static final int MAX_OUTGOING = 100;
-
-    /**
-     * Minimum length for abbreviated commit hashes, matching native git's own default (grows
-     * automatically if ambiguous — see {@link
-     * ObjectReader#abbreviate(org.eclipse.jgit.lib.AnyObjectId, int)}).
-     */
-    private static final int ABBREV_LEN = 7;
-
-    /**
-     * Status letter for an admitted untracked file in {@link #getUncommittedChanges} — git's own
-     * {@code A/M/D/R/C} say what the index holds, and this one says the index holds nothing.
-     */
-    private static final String UNTRACKED_STATUS = "U";
 
     private final Project project;
 
@@ -358,7 +339,7 @@ public class GitService {
             }
             List<GitCommit> commits = new ArrayList<>();
             for (RevCommit commit : logCommand.call()) {
-                commits.add(toGitCommit(commit, null, reader, includeBody));
+                commits.add(Diffs.toGitCommit(commit, null, reader, includeBody));
             }
             return commits;
         } catch (NoHeadException e) {
@@ -403,7 +384,7 @@ public class GitService {
             }
             List<GitCommit> commits = new ArrayList<>();
             for (RevCommit commit : log.call()) {
-                commits.add(toGitCommit(commit, null, reader, false));
+                commits.add(Diffs.toGitCommit(commit, null, reader, false));
             }
             return commits;
         } catch (NoHeadException e) {
@@ -546,11 +527,11 @@ public class GitService {
                     formatter.setPathFilter(PathFilterGroup.createFromStrings(List.of(filePath)));
                 }
                 for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
-                    if (only != null && !only.equals(reportedPath(entry))) continue;
-                    entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
+                    if (only != null && !only.equals(Diffs.reportedPath(entry))) continue;
+                    entries.add(Diffs.toGitDiffEntry(entry, formatter, includePatch, patchOut));
                 }
             }
-            return toGitCommit(commit, entries, reader, includeBody, includeParents);
+            return Diffs.toGitCommit(commit, entries, reader, includeBody, includeParents);
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + hash, e);
         } catch (AmbiguousObjectException e) {
@@ -581,96 +562,9 @@ public class GitService {
 
     // ── File search ─────────────────────────────────────────────────────────
 
-    /**
-     * Fuzzy-searches tracked files by name. {@code pattern} is matched as a <b>subsequence</b> of
-     * each file's name, so {@code "mgi"} matches {@code "MessageInput"}. Results are ranked by how
-     * well the characters align to word boundaries (start of name, camelCase humps, and {@code - _
-     * . /} separators) and by consecutive runs, so the most "intentional" match floats to the top.
-     * A pattern the name does not match is tried against the whole path ({@code "servicegit"} finds
-     * {@code service/file/git/…}); such a hit ranks below every name hit, whatever its score.
-     *
-     * @param pattern partial file name; blank returns an empty list
-     * @param maxResults capped at 50
-     */
+    /** Fuzzy-searches the visible files by name; see {@link VisibleFiles#searchByName}. */
     public List<GitFileNode> searchFiles(@NonNull String pattern, int maxResults) {
-        if (pattern.isBlank()) return List.of();
-        String q = pattern.strip().toLowerCase(Locale.ROOT);
-        int limit = Math.min(Math.max(maxResults, 1), 50);
-
-        VisibleFiles.Visible files = visible.all();
-        List<String> allFiles = files.paths();
-        Set<String> tracked = files.tracked();
-
-        // byName отделяет попадания по имени от попаданий по пути: очки у них считаются одной
-        // мерой, но несравнимы между собой — путь длиннее имени и набирает больше просто потому,
-        // что в нём больше границ слов. Поэтому имя выигрывает у пути порядком сортировки, а не
-        // вычитанием из очков: любая такая скидка либо мала и не разделяет, либо велика и
-        // выбрасывает попадания по пути вовсе.
-        record Scored(String path, String name, int score, boolean byName) {}
-        return allFiles.stream()
-                .map(path -> {
-                    String name = RepoPaths.fileName(path);
-                    int nameScore = fuzzyScore(q, name);
-                    boolean byName = nameScore >= 0;
-                    int score = byName ? nameScore : fuzzyScore(q, path);
-                    // Demote test files by ~30 % so production sources rank higher.
-                    if (score > 0 && isTestPath(path)) {
-                        score = score * 7 / 10;
-                    }
-                    return new Scored(path, name, score, byName);
-                })
-                .filter(s -> s.score() >= 0)
-                .sorted(Comparator.comparing(Scored::byName)
-                        .reversed()
-                        .thenComparing(Comparator.comparingInt(Scored::score).reversed())
-                        .thenComparingInt(s -> s.path().length()))
-                .limit(limit)
-                .map(s -> new GitFileNode(
-                        s.path(), s.name(), FileEntryType.FILE, fileSize(s.path()), tracked.contains(s.path())))
-                .toList();
-    }
-
-    private static boolean isTestPath(String path) {
-        return path.startsWith("src/test/")
-                || path.contains("/src/test/")
-                || path.startsWith("test/")
-                || path.contains("/test/");
-    }
-
-    /**
-     * Subsequence fuzzy-match score of {@code query} (already lower-cased) against {@code text}
-     * (original case, for boundary detection). Returns {@code -1} when {@code query} is not a
-     * subsequence of {@code text}; otherwise a non-negative score where higher means a tighter,
-     * more boundary-aligned match.
-     */
-    private static int fuzzyScore(String query, String text) {
-        if (query.isEmpty()) return 0;
-        int score = 0;
-        int qi = 0;
-        int run = 0;
-        for (int ti = 0; ti < text.length() && qi < query.length(); ti++) {
-            if (Character.toLowerCase(text.charAt(ti)) == query.charAt(qi)) {
-                boolean boundary;
-                if (ti == 0) {
-                    boundary = true;
-                } else {
-                    char prev = text.charAt(ti - 1);
-                    boundary = prev == '-'
-                            || prev == '_'
-                            || prev == '/'
-                            || prev == '.'
-                            || (Character.isLowerCase(prev) && Character.isUpperCase(text.charAt(ti)));
-                }
-                run++;
-                score += 1 + run * 2 + (boundary ? 15 : 0);
-                qi++;
-            } else {
-                run = 0;
-            }
-        }
-        if (qi < query.length()) return -1; // not all query chars consumed
-        // Prefer shorter names (fewer unmatched leftover characters).
-        return Math.max(0, score - (text.length() - query.length()));
+        return visible.searchByName(pattern, maxResults);
     }
 
     // ── Content grep ────────────────────────────────────────────────────────
@@ -1424,7 +1318,7 @@ public class GitService {
                                 DiffEntry.ChangeType.DELETE == entry.getChangeType()
                                         ? entry.getOldPath()
                                         : entry.getNewPath())) continue;
-                        entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
+                        entries.add(Diffs.toGitDiffEntry(entry, formatter, includePatch, patchOut));
                     }
                 }
             } catch (IOException e) {
@@ -1501,9 +1395,8 @@ public class GitService {
     }
 
     /**
-     * An admitted untracked file as a whole-file {@code U}. There is no blob to diff against, so
-     * the counters come from the working-tree content itself, and a binary or oversized file
-     * reports zero lines and no patch rather than a number read off its bytes.
+     * An admitted untracked file as a whole-file {@code U}, see {@link Diffs#untracked}. An
+     * oversized or unreadable file goes in as {@code null} and is listed without lines or patch.
      */
     private GitDiffEntry untrackedDiffEntry(String path, boolean includePatch) {
         byte @Nullable [] content;
@@ -1517,56 +1410,7 @@ public class GitService {
             log.warn("Cannot read untracked file {} for the change list", path, e);
             content = null;
         }
-        if (content == null || RepoFiles.isBinary(content)) {
-            return new GitDiffEntry(UNTRACKED_STATUS, path, null, 0, 0, null, null);
-        }
-        // Список изменений считает строки у каждого допущенного файла, поэтому строки считаются
-        // по байтам: раскладывать в строки то, чего никто не покажет, — работа на весь размер
-        // файла ради одного числа.
-        int lineCount = countLines(content);
-        String patchHeader = null;
-        String patch = null;
-        if (includePatch) {
-            String text = new String(content, StandardCharsets.UTF_8);
-            // Финальный перевод строки закрывает последнюю строку, а не начинает новую: без этого
-            // файл из трёх строк показывал бы «+4» и лишний «+» в конце патча — не так, как те же
-            // три строки считает git у отслеживаемого файла.
-            String body = text.endsWith("\n") ? text.substring(0, text.length() - 1) : text;
-            // Пустой файл и файл из одного перевода строки — разное: во втором есть строка,
-            // пустая.
-            List<String> lines = text.isEmpty() ? List.of() : List.of(body.split("\n", -1));
-            // Шапка тут не отделяется, а собирается: у файла вне git нет ханков, зато имя его
-            // такие же метаданные, как и у остальных, и приходит оно тем же полем.
-            patchHeader = "+++ b/" + path;
-            StringBuilder sb = new StringBuilder();
-            lines.stream()
-                    .limit(Diffs.MAX_DIFF_LINES)
-                    .forEach(l -> sb.append('+').append(l).append('\n'));
-            if (lines.size() > Diffs.MAX_DIFF_LINES) {
-                sb.append("... (truncated)\n");
-            }
-            // Пустой файл: строк нет, и показывать в блоке кода нечего — одна шапка над пустым
-            // блоком читалась бы как сломанный патч.
-            patch = sb.isEmpty() ? null : sb.toString();
-        }
-        return new GitDiffEntry(UNTRACKED_STATUS, path, null, lineCount, 0, patchHeader, patch);
-    }
-
-    /**
-     * Сколько строк в этих байтах по счёту git: последний перевод строки закрывает строку, а не
-     * начинает новую, и у пустого файла строк нет.
-     */
-    private static int countLines(byte[] content) {
-        if (content.length == 0) {
-            return 0;
-        }
-        int lines = 0;
-        for (byte b : content) {
-            if (b == '\n') {
-                lines++;
-            }
-        }
-        return content[content.length - 1] == '\n' ? lines : lines + 1;
+        return Diffs.untracked(path, content, includePatch);
     }
 
     /** HEAD's tree, or an empty tree when the branch is unborn (no commits yet). */
@@ -1591,118 +1435,6 @@ public class GitService {
      */
     public List<String> listTrackedFiles() {
         return visible.paths();
-    }
-
-    static GitCommit toGitCommit(
-            RevCommit commit, @Nullable List<GitDiffEntry> files, ObjectReader reader, boolean includeBody)
-            throws IOException {
-        return toGitCommit(commit, files, reader, includeBody, false);
-    }
-
-    private static GitCommit toGitCommit(
-            RevCommit commit,
-            @Nullable List<GitDiffEntry> files,
-            ObjectReader reader,
-            boolean includeBody,
-            boolean includeParents)
-            throws IOException {
-        PersonIdent author = commit.getAuthorIdent();
-        OffsetDateTime date =
-                author.getWhenAsInstant().atZone(author.getZoneId()).toOffsetDateTime();
-        return new GitCommit(
-                commit.getName(),
-                reader.abbreviate(commit, ABBREV_LEN).name(),
-                author.getName(),
-                author.getEmailAddress(),
-                date,
-                commit.getShortMessage(),
-                includeBody ? messageBody(commit) : null,
-                files,
-                includeParents
-                        ? Arrays.stream(commit.getParents())
-                                .map(RevCommit::getName)
-                                .toList()
-                        : null);
-    }
-
-    /**
-     * Всё сообщение коммита после первой пустой строки, или {@code null}, если тела нет.
-     *
-     * <p>Режем по пустой строке, а не вычитанием {@link RevCommit#getShortMessage()} из полного
-     * текста: короткое сообщение JGit склеивает перенесённый subject в одну строку через пробел, и
-     * такой префикс в полном тексте уже не найдётся.
-     */
-    private static @Nullable String messageBody(RevCommit commit) {
-        String full = commit.getFullMessage().replace("\r\n", "\n");
-        int blankLine = full.indexOf("\n\n");
-        if (blankLine < 0) return null;
-        // Слева режем только переносы, а не пробелы: тело часто открывается блоком кода, и
-        // strip() снял бы отступ у одной первой строки, оставив остальные — вышел бы сломанный
-        // отступ вместо цитаты.
-        String body = full.substring(blankLine + 2).stripTrailing().replaceFirst("^\n+", "");
-        return body.isBlank() ? null : body;
-    }
-
-    /**
-     * Maps one JGit {@link DiffEntry} to the API's {@link GitDiffEntry}, using the change type JGit
-     * already computed (add/modify/delete/rename/copy) rather than inferring it from add/delete
-     * line counts — the previous numstat-based heuristic (add&gt;0 &amp;&amp; del==0 ⇒ "A")
-     * misclassified an append-only edit to an *existing* file as "added".
-     */
-    private static GitDiffEntry toGitDiffEntry(
-            DiffEntry entry, DiffFormatter formatter, boolean includePatch, ByteArrayOutputStream patchOut)
-            throws IOException {
-        @Nullable String oldPath = normalizedDiffPath(entry.getOldPath());
-        @Nullable String newPath = normalizedDiffPath(entry.getNewPath());
-
-        String status =
-                switch (entry.getChangeType()) {
-                    case ADD -> "A";
-                    case DELETE -> "D";
-                    case RENAME -> "R";
-                    case COPY -> "C";
-                    default -> "M";
-                };
-        // JGit only reports /dev/null (→ null, see normalizedDiffPath) for the side that doesn't
-        // exist: oldPath for ADD, newPath for DELETE/everything else — so whichever side `status`
-        // picks is always real.
-        String path = Objects.requireNonNull("D".equals(status) ? oldPath : newPath);
-        // Renames AND copies both carry a meaningful source path; everything else has none.
-        String reportedOldPath = "R".equals(status) || "C".equals(status) ? oldPath : null;
-
-        int add = 0;
-        int del = 0;
-        FileHeader header = formatter.toFileHeader(entry);
-        if (header.getPatchType() == FileHeader.PatchType.UNIFIED) {
-            for (Edit edit : header.toEditList()) {
-                add += edit.getEndB() - edit.getBeginB();
-                del += edit.getEndA() - edit.getBeginA();
-            }
-        }
-
-        // Обрезается патч целиком, а уже потом делится: лимит считает строки того, что собрал
-        // formatter, и шапка занимает место наравне с ними, где бы её потом ни показали.
-        Diffs.Parts parts = includePatch
-                ? Diffs.split(Diffs.truncate(formatted(entry, formatter, patchOut)))
-                : new Diffs.Parts(null, null);
-        return new GitDiffEntry(status, path, reportedOldPath, add, del, parts.header(), parts.body());
-    }
-
-    /** One entry's unified diff as text; the buffer is the formatter's own, hence the reset. */
-    private static String formatted(DiffEntry entry, DiffFormatter formatter, ByteArrayOutputStream patchOut)
-            throws IOException {
-        patchOut.reset();
-        formatter.format(entry);
-        return patchOut.toString(StandardCharsets.UTF_8);
-    }
-
-    /** The path {@link #toGitDiffEntry} files an entry under: the old one only for a deletion. */
-    private static String reportedPath(DiffEntry entry) {
-        return entry.getChangeType() == DiffEntry.ChangeType.DELETE ? entry.getOldPath() : entry.getNewPath();
-    }
-
-    private static @Nullable String normalizedDiffPath(String path) {
-        return DiffEntry.DEV_NULL.equals(path) ? null : path;
     }
 
     /**
