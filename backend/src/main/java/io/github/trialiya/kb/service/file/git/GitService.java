@@ -214,7 +214,7 @@ public class GitService {
 
     /** The working tree as the browser lists it: the index widened by {@code allow-globs}. */
     private RepoBrowse.Snapshot workingTree(VisibleFiles.Visible files) {
-        return new RepoBrowse.Snapshot(files.paths(), files.tracked(), this::fileSize, this::fileExists);
+        return new RepoBrowse.Snapshot(files.paths(), files.tracked(), visible::fileSize, this::fileExists);
     }
 
     // ── Opening a path in the file browser ───────────────────────────────────
@@ -1446,14 +1446,6 @@ public class GitService {
      */
     public static String normalizePath(@NonNull String filePath) {
         return RepoPaths.normalize(filePath);
-    }
-
-    private long fileSize(String relativePath) {
-        try {
-            return Files.size(paths.resolve(relativePath));
-        } catch (IOException e) {
-            return -1;
-        }
     }
 
     /**

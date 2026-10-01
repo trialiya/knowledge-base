@@ -156,8 +156,8 @@ final class Diffs {
     /**
      * Maps one JGit {@link DiffEntry} to the API's {@link GitDiffEntry}, using the change type JGit
      * already computed (add/modify/delete/rename/copy) rather than inferring it from add/delete
-     * line counts — the previous numstat-based heuristic (add&gt;0 &amp;&amp; del==0 ⇒ "A")
-     * misclassified an append-only edit to an *existing* file as "added".
+     * line counts: an append-only edit to an existing file adds lines and deletes none, and is
+     * still an {@code M}.
      */
     static GitDiffEntry toGitDiffEntry(
             DiffEntry entry, DiffFormatter formatter, boolean includePatch, ByteArrayOutputStream patchOut)
@@ -215,9 +215,9 @@ final class Diffs {
 
     /**
      * An admitted untracked file as a whole-file {@code U}. There is no blob to diff against, so
-     * the counters come from the working-tree content itself, and a binary or oversized file
-     * ({@code content == null}) reports zero lines and no patch rather than a number read off its
-     * bytes.
+     * the counters come from the working-tree content itself. A binary file, and one the caller
+     * could not or would not read ({@code content == null}), reports zero lines and no patch rather
+     * than a number read off its bytes.
      */
     static GitDiffEntry untracked(String path, byte @Nullable [] content, boolean includePatch) {
         if (content == null || RepoFiles.isBinary(content)) {

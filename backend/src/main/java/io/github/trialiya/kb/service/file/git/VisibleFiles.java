@@ -350,7 +350,8 @@ final class VisibleFiles {
         return Math.max(0, score - (text.length() - query.length()));
     }
 
-    private long fileSize(String relativePath) {
+    /** Size of a visible file for a listing, or {@code -1} when it cannot be read. */
+    long fileSize(String relativePath) {
         try {
             return Files.size(paths.resolve(relativePath));
         } catch (IOException e) {
