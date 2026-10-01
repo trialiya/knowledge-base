@@ -3,7 +3,6 @@ package io.github.trialiya.kb.service.document;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
-import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -26,7 +25,6 @@ import org.springframework.web.server.ResponseStatusException;
  * Unlike {@link AttachmentService}, the description is never truncated before being sent to the LLM
  * — document descriptions are short markdown texts, not uploaded files.
  */
-@Slf4j
 @Service
 public class DocumentSummaryService {
 
@@ -73,7 +71,6 @@ public class DocumentSummaryService {
                         .param("description", entity.getDescription()))
                 .call()
                 .content();
-        log.info("Summarised document id={} title='{}'", entity.getId(), entity.getTitle());
         return summaryText != null ? summaryText.trim() : null;
     }
 }

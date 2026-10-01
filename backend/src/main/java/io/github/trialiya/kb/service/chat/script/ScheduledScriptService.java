@@ -218,7 +218,11 @@ public class ScheduledScriptService {
                             result.error() == null ? null : String.valueOf(result.error()),
                             result.stats().elapsedMs()));
             if (result.error() == null) {
-                log.info("Scheduled script '{}' finished: {}", name, result.getFormattedResponse());
+                log.info(
+                        "Scheduled script '{}' finished in {} ms",
+                        name,
+                        result.stats().elapsedMs());
+                log.debug("Scheduled script '{}' result: {}", name, result.getFormattedResponse());
             } else {
                 log.warn("Scheduled script '{}' failed: {}", name, result.error());
             }

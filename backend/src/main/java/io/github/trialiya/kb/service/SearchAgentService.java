@@ -153,7 +153,7 @@ public class SearchAgentService {
         messages.add(new UserMessage(fullTask));
 
         Prompt prompt = new Prompt(messages, toolOptions);
-        log.info("[{}] search sub-agent start: task='{}'", conversationId, oneLine(task, 160));
+        log.debug("[{}] search sub-agent start: task='{}'", conversationId, oneLine(task, 160));
 
         ChatResponse response;
         try {
@@ -224,7 +224,7 @@ public class SearchAgentService {
         final RunTokenUsage spent = usage.get().view();
         log.info(
                 "[{}] search sub-agent done: project={}, complete={}, hops={}, {} ms, model={},"
-                        + " context={}, generated={}, billed={} over {} call(s), report='{}'",
+                        + " context={}, generated={}, billed={} over {} call(s)",
                 conversationId,
                 project,
                 complete,
@@ -234,8 +234,7 @@ public class SearchAgentService {
                 spent.contextTokens(),
                 spent.outputTokens(),
                 spent.promptTokens() + spent.outputTokens(),
-                spent.modelCalls(),
-                oneLine(report, 200));
+                spent.modelCalls());
         log.debug("[{}] search sub-agent report:\n{}", conversationId, report);
         return new SearchAgentResult(project, report, complete, hops, durationMs, config.modelId(), spent);
     }
