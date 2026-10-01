@@ -142,7 +142,7 @@ final class Diffs {
      * текста: короткое сообщение JGit склеивает перенесённый subject в одну строку через пробел, и
      * такой префикс в полном тексте уже не найдётся.
      */
-    private static @Nullable String messageBody(RevCommit commit) {
+    static @Nullable String messageBody(RevCommit commit) {
         String full = commit.getFullMessage().replace("\r\n", "\n");
         int blankLine = full.indexOf("\n\n");
         if (blankLine < 0) return null;

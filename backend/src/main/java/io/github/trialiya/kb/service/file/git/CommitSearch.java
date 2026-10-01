@@ -97,7 +97,8 @@ final class CommitSearch {
         Page<GitCommitMatch> page = walk(
                 repository,
                 commit -> matches(commit, q, true),
-                (commit, reader) -> matchOf(Diffs.toGitCommit(commit, null, reader, true), q),
+                (commit, reader) ->
+                        matchOf(Diffs.toGitCommit(commit, null, reader, false), Diffs.messageBody(commit), q),
                 maxCount,
                 new Scope(true, true, rev, null));
         return new GitCommitGrepResult(page.items(), page.truncated());
@@ -130,12 +131,11 @@ final class CommitSearch {
 
     /**
      * Где в коммите совпал запрос — тем же сравнением без учёта регистра, каким его нашли. Номер
-     * строки — в описании ({@link GitCommit#body()}), считая с 1.
+     * строки — в описании ({@code body}), считая с 1; само описание в ответ не идёт.
      */
-    private static GitCommitMatch matchOf(GitCommit commit, String lowerQuery) {
+    private static GitCommitMatch matchOf(GitCommit commit, @Nullable String body, String lowerQuery) {
         boolean subjectMatch = contains(commit.message(), lowerQuery);
         List<GitCommitMatch.Line> lines = new ArrayList<>();
-        String body = commit.body();
         if (body != null) {
             String[] split = body.split("\n", -1);
             for (int i = 0; i < split.length; i++) {
@@ -143,17 +143,7 @@ final class CommitSearch {
             }
         }
         boolean hashMatch = !subjectMatch && lines.isEmpty() && commit.hash().startsWith(lowerQuery);
-        GitCommit withoutBody = new GitCommit(
-                commit.hash(),
-                commit.shortHash(),
-                commit.author(),
-                commit.email(),
-                commit.date(),
-                commit.message(),
-                null,
-                commit.files(),
-                commit.parents());
-        return new GitCommitMatch(withoutBody, subjectMatch, hashMatch, List.copyOf(lines));
+        return new GitCommitMatch(commit, subjectMatch, hashMatch, List.copyOf(lines));
     }
 
     // ObjectReader принадлежит обходу и закрывается вместе с ним; закрыть его здесь значило бы
