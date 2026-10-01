@@ -16,6 +16,15 @@ import { useEffect, useEffectEvent, useState } from 'react';
  */
 export default function useKeyedRequest(key, request) {
   const [answer, setAnswer] = useState(null); // { key, value, error } | null
+  // Ответ живёт, пока не сменился ключ, — даже если ключ потом вернётся: A → B → A
+  // спрашивает A заново, и прежний ответ на A (или прежний отказ) не должен
+  // показываться как нынешний, пока не пришёл новый. Сброс — в рендере, а не в
+  // эффекте: иначе один кадр показал бы старый ответ.
+  const [prevKey, setPrevKey] = useState(key);
+  if (prevKey !== key) {
+    setPrevKey(key);
+    setAnswer(null);
+  }
   const start = useEffectEvent((signal) => request(signal));
 
   useEffect(() => {

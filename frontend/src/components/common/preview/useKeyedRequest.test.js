@@ -62,6 +62,30 @@ describe('useKeyedRequest', () => {
     expect(result.current.value).toBe('C');
   });
 
+  it('вернувшийся ключ спрашивает заново и прежний ответ на него не показывает', async () => {
+    const { request, calls } = deferred();
+    const { result, rerender } = renderHook((key) => useKeyedRequest(key, request), { initialProps: 'a' });
+
+    await act(async () => calls[0].resolve('A'));
+    rerender('b');
+    rerender('a');
+
+    expect(result.current).toEqual({ loading: true, value: null, error: null });
+    await act(async () => calls[2].resolve('A2'));
+    expect(result.current.value).toBe('A2');
+  });
+
+  it('выключить и снова включить — тоже заново: прежний отказ не висит', async () => {
+    const { request, calls } = deferred();
+    const { result, rerender } = renderHook((key) => useKeyedRequest(key, request), { initialProps: 'a' });
+
+    await act(async () => calls[0].reject(new Error('boom')));
+    rerender(null);
+    rerender('a');
+
+    expect(result.current).toEqual({ loading: true, value: null, error: null });
+  });
+
   it('размонтирование отменяет запрос', () => {
     const { request, calls } = deferred();
     const { unmount } = renderHook(() => useKeyedRequest('a', request));
