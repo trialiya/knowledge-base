@@ -154,6 +154,10 @@ public class GitController {
      * starts there instead of HEAD — the browser's revision mode asks for it, so the panel
      * describes a path by the history of the snapshot it shows.
      *
+     * <p>{@code truncated} here only says the page is full — more may follow — not that history
+     * really goes on: checking that walks on to one more commit, and along a path that can be the
+     * whole history, paid on every file the "Info" panel opens.
+     *
      * <p>{@code body} is opt-in because it scales with the page: one commit's message body is
      * nothing, twenty of them are the bulk of the response, and a caller that only prints subjects
      * would pay for it on every listing.
@@ -170,7 +174,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> git.getCommitLog(limit, path, body, at));
+        return read(() -> git.getCommitLog(limit, path, body, at, false));
     }
 
     /**

@@ -176,7 +176,7 @@ class GitServiceCommitBrowseTest {
     void aRevisionThatIsNotACommitIsRefused() {
         String treeHash = head() + "^{tree}";
 
-        assertThatThrownBy(() -> service.getCommitLog(1, null, false, treeHash))
+        assertThatThrownBy(() -> service.getCommitLog(1, null, false, treeHash, false))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.getFileTree(treeHash, "")).isInstanceOf(IllegalArgumentException.class);
     }
@@ -188,7 +188,7 @@ class GitServiceCommitBrowseTest {
         write("README.md", "second\n");
         commitAll("second");
 
-        assertThat(service.getCommitLog(10, "README.md", false, first).commits())
+        assertThat(service.getCommitLog(10, "README.md", false, first, false).commits())
                 .extracting(GitCommit::message)
                 .containsExactly("first");
         assertThat(service.getCommitLog(10, "README.md", false).commits())
@@ -199,7 +199,7 @@ class GitServiceCommitBrowseTest {
     /** Неизвестная ревизия отвергается и в истории — так же, как в обзоре дерева. */
     @Test
     void theHistoryOfAnUnknownRevisionIsRefused() {
-        assertThatThrownBy(() -> service.getCommitLog(1, null, false, "no-such-ref"))
+        assertThatThrownBy(() -> service.getCommitLog(1, null, false, "no-such-ref", false))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

@@ -25,9 +25,12 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Где искать и что отдавать, решает вызывающий ({@link Scope}). Пикер плейсхолдера показывает
  * строку на коммит — заголовок, и совпадение в теле, которого в строке не видно, читалось бы как
- * ошибочное. Страница поиска ищет и в теле и показывает его: иначе найденное в нём нечем показать.
+ * ошибочное. Страница поиска ищет и в теле, а получает не тело, а то, где совпало ({@link #grep}).
  * Модель ищет в теле, но получает его только по просьбе: тело идёт на тысячи символов, а чтобы
  * выбрать коммит, хватает заголовка.
+ *
+ * <p>Тем же обходом идёт и история без запроса ({@link #log}): листинг — поиск, где совпадает
+ * каждый коммит.
  */
 final class CommitSearch {
 
@@ -81,7 +84,8 @@ final class CommitSearch {
                 commit -> matches(commit, q, scope.inBody()),
                 (commit, reader) -> Diffs.toGitCommit(commit, null, reader, scope.withBody()),
                 maxCount,
-                scope);
+                scope,
+                true);
         return new GitCommitSearchResult(page.items(), page.truncated());
     }
 
@@ -100,23 +104,30 @@ final class CommitSearch {
                 (commit, reader) ->
                         matchOf(Diffs.toGitCommit(commit, null, reader, false), Diffs.messageBody(commit), q),
                 maxCount,
-                new Scope(true, true, rev, null));
+                new Scope(true, false, rev, null),
+                true);
         return new GitCommitGrepResult(page.items(), page.truncated());
     }
 
     /**
-     * История без запроса — каждый коммит обхода совпадение, — с тем же признаком обрезки: он
-     * поднят, когда за последним отданным коммитом есть ещё хотя бы один.
+     * История без запроса — каждый коммит обхода совпадение.
      *
      * @param maxCount сколько коммитов вернуть, не больше {@value #MAX_RESULTS}
+     * @param exact признак обрезки точный: обход ищет ещё один коммит за лимитом, и {@code true}
+     *     значит, что история продолжается. Без этого обход останавливается на лимите, и {@code
+     *     true} — только «выдача заполнила лимит, дальше могут быть ещё». Разница — в цене истории
+     *     по пути: следующий коммит, менявший файл, может лежать у самого корня, и поиск его — обход
+     *     всей истории ради одного флага, а «Инфо» файлового браузера просит коммит на каждый выбор
+     *     файла
      */
-    static GitCommitSearchResult log(Repository repository, int maxCount, Scope scope) {
+    static GitCommitSearchResult log(Repository repository, int maxCount, Scope scope, boolean exact) {
         Page<GitCommit> page = walk(
                 repository,
                 commit -> true,
                 (commit, reader) -> Diffs.toGitCommit(commit, null, reader, scope.withBody()),
                 maxCount,
-                scope);
+                scope,
+                exact);
         return new GitCommitSearchResult(page.items(), page.truncated());
     }
 
@@ -150,7 +161,12 @@ final class CommitSearch {
     // выдернуть читатель из-под обхода, который ещё идёт.
     @SuppressWarnings("PMD.CloseResource")
     private static <T> Page<T> walk(
-            Repository repository, Predicate<RevCommit> match, Found<T> found, int maxCount, Scope scope) {
+            Repository repository,
+            Predicate<RevCommit> match,
+            Found<T> found,
+            int maxCount,
+            Scope scope,
+            boolean exact) {
         int limit = Math.min(Math.max(maxCount, 1), MAX_RESULTS);
         String rev = scope.rev();
         ObjectId start = rev == null || rev.isBlank() ? null : CommitFiles.commitOf(repository, rev.strip());
@@ -175,6 +191,9 @@ final class CommitSearch {
                         return new Page<>(matches, true);
                     }
                     matches.add(found.of(commit, reader));
+                    if (!exact && matches.size() == limit) {
+                        return new Page<>(matches, true);
+                    }
                 }
             }
             return new Page<>(matches, false);

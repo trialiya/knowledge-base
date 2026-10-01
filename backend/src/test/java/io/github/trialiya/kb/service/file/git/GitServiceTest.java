@@ -225,6 +225,12 @@ class GitServiceTest {
 
         assertThat(service.getCommitLog(2, null, false).truncated()).isTrue();
         assertThat(service.getCommitLog(3, null, false).truncated()).isFalse();
+        // Без точности обход стоит на лимите: полная страница — «могут быть ещё», даже когда история
+        // на ней и кончилась; неполная — конец истории.
+        assertThat(service.getCommitLog(3, null, false, null, false).truncated())
+                .isTrue();
+        assertThat(service.getCommitLog(5, null, false, null, false).truncated())
+                .isFalse();
     }
 
     /**

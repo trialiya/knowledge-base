@@ -22,8 +22,8 @@ and commands involved — the reader is holding a deployment, not a diff.
 ### `GET /api/git/commits/search` answers `{commits, truncated}`
 
 The phrase placeholder picker's commit lookup returned a bare `GitCommit[]`; it
-now returns the same shape as `/api/git/commits/grep` — `{ "commits": [...],
-"truncated": bool }` — so a caller can tell "no such commit" from "not that far
+now returns `{ "commits": [...], "truncated": bool }` — the same shape as
+`/api/git/commits` — so a caller can tell "no such commit" from "not that far
 back" (the walk stops at 20 000 commits). The bundled UI is updated with it. A
 script or integration of your own that reads this endpoint must take the list
 from `commits`.
@@ -43,9 +43,9 @@ the matching lines from `lines`; the full description comes from
 ### `GET /api/git/commits` answers `{commits, truncated}`
 
 The history listing returned a bare `GitCommit[]`; it now returns the same shape
-as `/api/git/commits/search` and `/commits/grep` — `{ "commits": [...],
-"truncated": bool }` — so a caller can tell that history goes on past the last
-commit (a `limit` above 100 is still cut to 100, and now says so). The bundled
+as `/api/git/commits/search` — `{ "commits": [...], "truncated": bool }` — and
+`truncated: true` says the page is full, so more commits may follow (a `limit`
+above 100 is still cut to 100, and now says so). The bundled
 UI is updated with it. A script or integration of your own that reads this
 endpoint must take the list from `commits`.
 
