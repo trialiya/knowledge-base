@@ -220,6 +220,11 @@ public final class MarkdownSections {
         return out.append(markdown, from, markdown.length()).toString();
     }
 
+    /** Offsets {@code {start, end}} of the fenced code blocks, in document order. */
+    public static List<int[]> codeBlocks(String markdown) {
+        return scan(markdown).codeBlocks();
+    }
+
     /** The info string of a code block's opening line: its language, when it names one. */
     public static String fenceInfo(String codeBlock) {
         int newline = codeBlock.indexOf('\n');
