@@ -210,7 +210,8 @@ Panel open/closed state is **controlled state that lives in the URL**
   pattern, which new preview kinds should reuse too), `useKeyedRequest`
   (`common/preview/`) for one uncached fetch per key — the answer kept with the
   key that got it, the previous request aborted (`useFileContent`,
-  `useFileBlame`), `useNotice` (one notice
+  `useFileBlame`), `AppLink` (`common/ui/`) for a link to a place inside the
+  app — a real `href` for the browser's own clicks, `onNavigate` for a plain one, `useNotice` (one notice
   descriptor per section beats a boolean and a modal per reason), and
   `useCopyFeedback` for any copy-to-clipboard button (`writeText` plus the
   transient "copied" state and its timer), `useDismissable`

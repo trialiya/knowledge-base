@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { navigateToCommit } from '@/navigation/fileNavigationBus';
 import { commitUrl } from '@/navigation/urlScheme';
-import './commitHashLink.css';
 import AppLink from '@/components/common/ui/AppLink';
+import './commitHashLink.css';
 
 /**
  * Хеш коммита, который открывает сам коммит: снимок в «Файлах» с изменёнными

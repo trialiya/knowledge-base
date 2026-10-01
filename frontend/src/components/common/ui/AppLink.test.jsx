@@ -35,6 +35,16 @@ describe('AppLink', () => {
     },
   );
 
+  it('ref доходит до <a> — по нему карточка ссылки встаёт на место', () => {
+    const ref = { current: null };
+    render(
+      <AppLink ref={ref} href="/x" onNavigate={() => {}}>
+        x
+      </AppLink>,
+    );
+    expect(ref.current).toBe(screen.getByRole('link'));
+  });
+
   it('остальные пропсы — на ссылку, свой onClick заменяет переход', () => {
     const onNavigate = vi.fn();
     const onClick = vi.fn();
