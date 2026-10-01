@@ -17,6 +17,17 @@ feature that just works after the upgrade belongs there, not here.
 stops working as before, and what to do about it. Name the config keys, files
 and commands involved — the reader is holding a deployment, not a diff.
 
+## Unreleased
+
+### Scheduled script results are logged at DEBUG
+
+A scheduled script that finishes cleanly now writes one INFO line with its
+name and run time; the value it returned moved to DEBUG. A deployment that read
+script output from the application log at the default level no longer sees it.
+To get it back, set
+`logging.level.io.github.trialiya.kb.service.chat.script.ScheduledScriptService=DEBUG`.
+Failures are still logged at WARN with the error.
+
 ## 1.1.0
 
 Nothing beyond the candidates. From `1.1.0-RC3` the upgrade asks nothing.

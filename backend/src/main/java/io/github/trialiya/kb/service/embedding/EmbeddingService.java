@@ -248,7 +248,7 @@ public class EmbeddingService {
     // ── API call ──────────────────────────────────────────────────────────────
 
     private EmbeddingResponse callApi(List<String> texts) {
-        log.info("Calling embedding api: {} items", texts.size());
+        log.debug("Calling embedding api: {} items", texts.size());
         return embeddingModel.embedForResponse(texts);
     }
 

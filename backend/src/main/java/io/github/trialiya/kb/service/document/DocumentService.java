@@ -696,7 +696,7 @@ public class DocumentService {
             matches.addAll(
                     DocumentGrep.matches(row.id(), row.title(), description, compiled, ctx, limit - matches.size()));
         }
-        log.info(
+        log.debug(
                 "grepDocuments: pattern='{}' regex={} ctx={} documentId={} — {} block(s) over {}"
                         + " candidate document(s)",
                 Compact.oneLine(pattern, 100),
