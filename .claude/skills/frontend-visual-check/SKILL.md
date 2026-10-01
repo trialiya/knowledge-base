@@ -36,7 +36,8 @@ groups of «Настройки»); the opt-in list is
 `frontend/tests/visual/harness/registry.jsx`, and a fixture only becomes
 shootable once it is listed there. The two files are checked against each other
 by `tests/visual/registry.test.js`, so a registry entry no case describes — and
-a case reference to a fixture that does not exist — fails the frontend tests
+a case reference to a fixture that does not exist, and a fixture export that no
+case, registry entry or sibling export uses — fails the frontend tests
 rather than being noticed the day someone looks for the shot. Shots land in `harness/shots/` (git-ignored),
 one per case, and a case whose page logged a console error is reported `✗`.
 

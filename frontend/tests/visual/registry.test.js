@@ -145,7 +145,9 @@ describe('реестр кейсов', () => {
 
   // Обратная сторона сверки: экспорт, которого не называет ни кейс, ни стенд, не проверяет ничего —
   // и правят его вместе со всеми, как будто проверяет. Нужным считается и экспорт, который стенд
-  // берёт по имени, и тот, из которого собран другой экспорт того же модуля.
+  // берёт по имени (`<модуль>.<экспорт>` — стенд подключает модули как `* as <модуль>`), и тот, из
+  // которого собран другой экспорт того же модуля. Второе — эвристика по числу вхождений имени в модуле:
+  // упоминание в комментарии или одноимённый ключ тоже засчитываются, так что сирота может и проскочить.
   it('не держит фикстур, которых не называет ни кейс, ни стенд', () => {
     const named = new Set([...fixtureRefs().map(({ ref }) => fixtureOf(ref)), ...cases.map((c) => fixtureOf(c.id))]);
     const orphans = [];
@@ -153,7 +155,7 @@ describe('реестр кейсов', () => {
       const text = fixtureSources.get(module);
       for (const name of names) {
         if (named.has(`${module}#${name}`)) continue;
-        if (new RegExp(`\\.${name}\\b`).test(registrySource)) continue;
+        if (new RegExp(`\\b${module.replace(/\.js$/, '')}\\.${name}\\b`).test(registrySource)) continue;
         const uses = text.match(new RegExp(`\\b${name}\\b`, 'g'))?.length ?? 0;
         if (uses < 2) orphans.push(`${module}#${name}`);
       }
