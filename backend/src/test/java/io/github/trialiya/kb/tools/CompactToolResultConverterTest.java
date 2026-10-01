@@ -2,12 +2,14 @@ package io.github.trialiya.kb.tools;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.trialiya.kb.model.doc.dto.DocumentShort;
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.model.script.ScriptStats;
 import io.github.trialiya.kb.model.tool.ToolResult;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -67,6 +69,18 @@ class CompactToolResultConverterTest {
         String shown = converter.convert(run, null);
         assertThat(shown).doesNotContain("\"log\"", "\"edits\"", "\"error\"");
         assertThat(RecordingToolCallback.CURRENT_FULL_TEXT.get()).isNull();
+    }
+
+    @Test
+    void aDocumentWriteKeepsItsDatesForTheEditCardOnly() {
+        DocumentShort written =
+                new DocumentShort(7, "Doc", "document", null, 2, 3, LocalDateTime.of(2026, 10, 1, 12, 0), true, null);
+
+        String shown = converter.convert(written, null);
+
+        assertThat(shown)
+                .isEqualTo("{\"id\":7,\"title\":\"Doc\",\"type\":\"document\",\"version\":2,\"descriptionVersion\":3}");
+        assertThat(RecordingToolCallback.CURRENT_FULL_TEXT.get()).contains("\"updatedAt\"", "\"summaryStale\":true");
     }
 
     @Test

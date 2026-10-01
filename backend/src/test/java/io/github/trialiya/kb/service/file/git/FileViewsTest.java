@@ -47,7 +47,21 @@ class FileViewsTest {
         GitFileContent content = read(text, 1, 2);
 
         assertThat(content.toLine()).isEqualTo(1);
-        assertThat(content.content()).startsWith("yyy").endsWith("(line cut at " + RepoFiles.MAX_FILE_SIZE + " chars)");
+        assertThat(content.content()).startsWith("yyy").endsWith("(line cut at " + RepoFiles.MAX_FILE_SIZE + " bytes)");
+        assertThat(content.truncated()).isTrue();
+    }
+
+    @Test
+    void theLimitIsInBytesNotCharacters() {
+        // Кириллица — два байта на символ: 1000 строк по 512 символов — это мегабайт.
+        String line = "ж".repeat(511);
+        String text = IntStream.range(0, 1000).mapToObj(i -> line).collect(Collectors.joining("\n"));
+
+        GitFileContent content = read(text, 1, 1000);
+
+        assertThat(content.content().getBytes(StandardCharsets.UTF_8))
+                .hasSizeLessThanOrEqualTo((int) RepoFiles.MAX_FILE_SIZE);
+        assertThat(content.toLine()).isEqualTo((int) (RepoFiles.MAX_FILE_SIZE / 1024));
         assertThat(content.truncated()).isTrue();
     }
 

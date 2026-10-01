@@ -588,10 +588,12 @@ ID текущего чата.
 - **Поля только для интерфейса** помечены `@JsonView(ToolJson.UiOnly.class)`: модель их не
   получает, а REST пишет без представления и отдаёт их как прежде. Это `GitFileNode.name`
   (последний сегмент `path`), `GitCommit.email`, `GitFileOutline.parser`, даты и
-  `summaryStale` у `DocumentNode` / `DocumentShort`, `ownerType` и даты у `Attachment`.
+  `summaryStale` у `DocumentNode`, `ownerType` и даты у `Attachment`. Окно деталей вызова
+  показывает текст, который ушёл модели, поэтому в нём этих полей тоже нет.
 - **`ModelView`** — когда модели нужен другой ответ, чем окну деталей: `ScriptResult` (урезанные
-  `filesRead`, `resultLimit`) и `GitEditResult` (`editFile` без `diff` — правку модель только что
-  написала сама; блок изменённых файлов берёт diff из меты). Целиком такой ответ сохраняется в
+  `filesRead`, `resultLimit`), `GitEditResult` (`editFile` без `diff` — правку модель только что
+  написала сама; блок изменённых файлов берёт diff из меты) и `DocumentShort` (ответ инструментов
+  записи документов без `updatedAt` и `summaryStale`, которые показывает карточка правки). Целиком такой ответ сохраняется в
   `tool_call_full_result` — но только если вид что-то вырезал: вид, который лишь опустил пустые
   поля, второй копии не заводит.
 

@@ -1,10 +1,9 @@
 package io.github.trialiya.kb.model.doc.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonView;
+import io.github.trialiya.kb.model.tool.ModelView;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
-import io.github.trialiya.kb.model.tool.ToolJson;
 import io.github.trialiya.kb.tools.Compact;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -14,7 +13,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * Lightweight document DTO returned by create / update / move operations.
  *
- * <p>The model reads neither {@code updatedAt} nor {@code summaryStale} (see {@link ToolJson}); a
+ * <p>The model reads neither {@code updatedAt} nor {@code summaryStale}: it is answered with {@link
+ * #forModel}, and the whole DTO is kept for the call's detail view, whose edit card shows both. A
  * {@code parentId} of a root-level document and a missing {@code summarySourceVersion} are left out.
  *
  * @param summaryStale {@code true} when the description has changed since the last summarisation,
@@ -30,10 +30,35 @@ public record DocumentShort(
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Long parentId,
         int version,
         int descriptionVersion,
-        @JsonView(ToolJson.UiOnly.class) LocalDateTime updatedAt,
-        @JsonView(ToolJson.UiOnly.class) boolean summaryStale,
+        LocalDateTime updatedAt,
+        boolean summaryStale,
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer summarySourceVersion)
-        implements ToolCallResponseItem, ToolCallResultMetaProvider {
+        implements ToolCallResponseItem, ToolCallResultMetaProvider, ModelView {
+
+    @Override
+    public ForModel forModel() {
+        return new ForModel(id, title, type, parentId, version, descriptionVersion, summarySourceVersion);
+    }
+
+    /**
+     * What the model reads: the DTO without {@code updatedAt} and {@code summaryStale}. Public and
+     * named as {@link #forModel}'s return type so the native image registers it with the tool's
+     * signature (see {@code NativeHints}).
+     */
+    public record ForModel(
+            long id,
+            String title,
+            String type,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            Long parentId,
+
+            int version,
+            int descriptionVersion,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            Integer summarySourceVersion) {}
+
     @Override
     public String getFormattedResponse() {
         return Compact.tag("doc:" + id)

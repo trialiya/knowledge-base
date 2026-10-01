@@ -9,6 +9,10 @@ package io.github.trialiya.kb.model.tool;
  * this is a view and not {@code @JsonIgnore}: a file tree node's {@code name} is what the Files tree
  * prints, and only repeats the last segment of {@code path} to the model.
  *
+ * <p>The call's detail view shows the text the model got, so a {@code UiOnly} field is not there
+ * either — only REST has it. A field the detail view must show is a job for {@link ModelView}
+ * instead, which keeps the whole result for it.
+ *
  * <p>A property without {@code @JsonView} is in every view.
  */
 public final class ToolJson {
@@ -18,6 +22,6 @@ public final class ToolJson {
     /** The text the model reads. */
     public interface Model {}
 
-    /** For the UI only — REST and the call's detail view, never the model's text. */
+    /** For the UI only — REST, never the model's text. */
     public interface UiOnly {}
 }
