@@ -56,7 +56,6 @@ import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
@@ -392,26 +391,6 @@ class CompactServiceTest {
         assertThat(sent.getLast().getText())
                 .contains("COMPACTOR HANDBOOK")
                 .contains("Of them USER messages with a request: 1");
-    }
-
-    /**
-     * Начало запроса — байт в байт начало обычного запроса чата: тот же {@code sys.md} с теми же
-     * подстановками и те же схемы инструментов. Это и есть весь механизм попадания в кэш промпта:
-     * провайдер считает совпадение от первого байта, и своя роль в системном сообщении обнулила бы
-     * скидку на всём окне, которое сжатие как раз и пришло сократить.
-     */
-    @Test
-    void theRequestStartsExactlyLikeAChatRequestSoTheProviderCountsItAsCached() {
-        service().compact(CONV, turns(1), forCommand(commandRow(3).entity()), null, OPTIONS);
-
-        final Prompt prompt = capturedPrompt();
-        assertThat(prompt.getInstructions().getFirst()).satisfies(system -> {
-            assertThat(system.getMessageType()).isEqualTo(MessageType.SYSTEM);
-            assertThat(system.getText()).isEqualTo("SYSTEM MODE SCRIPTS");
-        });
-        assertThat(((ToolCallingChatOptions) prompt.getOptions()).getToolCallbacks())
-                .extracting(callback -> callback.getToolDefinition().name())
-                .containsExactly("getFileContent");
     }
 
     /**

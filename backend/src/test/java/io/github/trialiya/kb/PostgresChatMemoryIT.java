@@ -55,8 +55,8 @@ import org.springframework.context.annotation.Import;
  * {@link ChatHistoryService}, keyset-пагинация ({@code created_at, id}), поиск ({@link
  * ChatSearchService}) и работа с темами чата (выбранная модель, сортировка по {@code updated_at}).
  *
- * <p>Это «функционал чата» на уровне БД — без обращения к LLM. За проверку взаимодействия с моделью
- * отвечает {@code ChatModelClientIT}.
+ * <p>Это «функционал чата» на уровне БД — без обращения к LLM. Как память чата встречается с
+ * моделью (вопрос доходит до промпта и не дублируется), проверяет {@code PrePersistedUserMessageTest}.
  */
 @DataJdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
