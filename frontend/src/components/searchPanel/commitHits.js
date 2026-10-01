@@ -12,8 +12,9 @@
  * дальше по ней могли быть ещё совпадения — даже при пустой выдаче.
  *
  * @param result ответ gitApi.grepCommits — { commits: [{ commit, subjectMatch, hashMatch, lines }], truncated }
+ * @param limit  сколько коммитов просили — подписи обрезки (commitSearchNote) он нужен
  */
-export default function commitHits({ commits, truncated }) {
+export default function commitHits({ commits, truncated }, limit) {
   const found = commits.map(({ commit, subjectMatch, hashMatch, lines }) => ({
     ...commit,
     subjectMatch,
@@ -21,5 +22,5 @@ export default function commitHits({ commits, truncated }) {
     lines,
   }));
   const total = found.reduce((sum, c) => sum + Math.max(1, c.lines.length + (c.subjectMatch ? 1 : 0)), 0);
-  return { total, truncated, commits: found };
+  return { total, truncated, limit, commits: found };
 }

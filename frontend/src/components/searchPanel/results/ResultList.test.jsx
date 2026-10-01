@@ -383,3 +383,35 @@ test('коммит: заголовок ведёт к коммиту, строк�
   await userEvent.click(link);
   expect(navigateToCommit).toHaveBeenCalledWith('abc1234def', 'other');
 });
+
+/**
+ * Обрезанная выдача коммитов подписана так же, как в пикере плейсхолдера: заполненный лимит —
+ * уточнить запрос, выдача короче — старые коммиты не просмотрены.
+ */
+test.each([
+  [50, 'common:commitSearch.refine'],
+  [2, 'common:commitSearch.olderNotSearched'],
+])('у коммитов подпись обрезки различает лимит и историю (%i из 50)', (count, note) => {
+  const commits = Array.from({ length: count }, (_, i) => ({
+    hash: `${i}`.padStart(40, 'a'),
+    shortHash: `${i}`.padStart(7, 'a'),
+    author: 'Ann',
+    message: 'needle',
+    subjectMatch: true,
+    hashMatch: false,
+    lines: [],
+  }));
+  render(
+    <ResultList
+      scope="commits"
+      query="needle"
+      loading={false}
+      entry={{ data: { total: count, truncated: true, limit: 50, commits }, error: null }}
+      regex={false}
+      rev=""
+      project=""
+    />,
+  );
+
+  expect(screen.getByText(note)).toBeInTheDocument();
+});

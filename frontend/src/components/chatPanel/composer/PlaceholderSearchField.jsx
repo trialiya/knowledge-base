@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import useSearchDropdown from '@/components/common/search/useSearchDropdown';
 import highlightMatch from '@/components/common/search/highlightMatch';
+import commitSearchNote from '@/components/common/search/commitSearchNote';
 
 /**
  * Комбобокс для плейсхолдеров-указателей (file / document / commit).
@@ -123,6 +124,9 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
     onListKeyDown(e, choose);
   };
 
+  // Без `limit` у поиска «лимит заполнен» не отличить — тогда выдача считается неполной по истории.
+  const note = commitSearchNote({ count: results.length, limit: spec.limit ?? Infinity, truncated });
+
   return (
     <div className="phrase-fill__combo" ref={wrapRef}>
       <input
@@ -159,9 +163,7 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
           >
             {loading && <div className="phrase-fill__status">{t('phraseFill.searching')}</div>}
             {!loading && results.length === 0 && (
-              <div className="phrase-fill__status">
-                {t(truncated ? 'phraseFill.nothingFoundPartial' : 'phraseFill.nothingFound')}
-              </div>
+              <div className="phrase-fill__status">{t(note ?? 'phraseFill.nothingFound')}</div>
             )}
 
             <div className="phrase-fill__options" id={`${inputId}-list`} role="listbox" ref={listRef}>
@@ -191,13 +193,7 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
                 );
               })}
             </div>
-            {/* Полный список за собой ещё совпадения и прячет — уточнить запрос; неполный
-                обрезан пределом обхода, и уточнение до старой истории не дотянется. */}
-            {!loading && truncated && results.length > 0 && (
-              <div className="phrase-fill__status">
-                {t(results.length >= (spec.limit ?? Infinity) ? 'phraseFill.partial' : 'phraseFill.partialHistory')}
-              </div>
-            )}
+            {!loading && note && results.length > 0 && <div className="phrase-fill__status">{t(note)}</div>}
           </div>,
           document.body,
         )}
