@@ -611,7 +611,14 @@ class GitCommands {
         var reading = CompletableFuture.supplyAsync(() -> {
             try (var reader =
                     new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                return truncate(reader.lines().toList());
+                // Lines as git printed them — split on \n only, not on a bare \r (see
+                // GitReadProcess.readLine).
+                List<String> lines = new ArrayList<>();
+                String line;
+                while ((line = GitReadProcess.readLine(reader)) != null) {
+                    lines.add(line);
+                }
+                return truncate(lines);
             } catch (IOException e) {
                 log.warn("Cannot read the output of git {}", name, e);
                 return "";
