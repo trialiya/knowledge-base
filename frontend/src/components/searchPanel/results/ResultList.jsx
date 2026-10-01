@@ -16,10 +16,6 @@ function errorMessage(t, error) {
 }
 
 /**
- * Сколько всего совпало и во скольких сущностях: у каждой категории свой ответ,
- * но вопрос один, поэтому счётчик в шапке считается тут, а не в каждой.
- */
-/**
  * Подпись под обрезанной выдачей. У коммитов она различает «лимит заполнен —
  * уточните запрос» и «история досмотрена не вся» (commitSearchNote, как в пикере
  * плейсхолдера); у остальных категорий истории нет, и подпись своя на категорию.
@@ -29,6 +25,10 @@ function truncationNote(t, scope, data) {
   return t(commitSearchNote({ count: data.commits.length, limit: data.limit, truncated: true }));
 }
 
+/**
+ * Сколько всего совпало и во скольких сущностях: у каждой категории свой ответ,
+ * но вопрос один, поэтому счётчик в шапке считается тут, а не в каждой.
+ */
 function summarize(scope, data) {
   if (!data) return { total: 0, groups: 0 };
   if (scope === SEARCH_SCOPE.FILES) return { total: data.total, groups: data.files.length };
