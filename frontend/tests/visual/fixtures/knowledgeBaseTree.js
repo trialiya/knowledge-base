@@ -22,27 +22,3 @@ export const singleFolderTree = [
   },
 ];
 
-/** Та же папка, но раскрытая: два документа внутри. */
-export const singleFolderExpanded = [
-  {
-    id: 'folder-analysis',
-    title: 'анализ',
-    type: 'folder',
-    parentId: null,
-    hasChildren: true,
-    children: [
-      {
-        id: 'doc-changelog',
-        title: 'Хронология изменений backend/build.gradle',
-        type: 'document',
-        parentId: 'folder-analysis',
-      },
-      {
-        id: 'doc-links',
-        title: 'Пример: ссылки на файлы и документы',
-        type: 'document',
-        parentId: 'folder-analysis',
-      },
-    ],
-  },
-];

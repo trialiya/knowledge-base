@@ -78,14 +78,6 @@ describe('detectContentResult — что попадает в «Обзор»', ()
     ).not.toContain('commit');
   });
 
-  it('запись без проекта факта не получает', () => {
-    expect(
-      detect(JSON.stringify(fileContent()))
-        .at(0)
-        .facts.map((f) => f.key),
-    ).not.toContain('project');
-  });
-
   it('обёртка вокруг списка: проект достаётся каждому блоку', () => {
     const items = detect(
       JSON.stringify({

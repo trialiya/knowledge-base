@@ -34,11 +34,3 @@ export const dialogContent = {
   matches: 3,
 };
 
-/**
- * Текст под оверлеем — переписка чата, из которой модалка и открыта. Вхождений
- * запроса тут больше, чем в диалоге, и ни одно не должно попасть в счётчик.
- */
-export const pageBehind = {
-  chatTitle: 'История коммитов backend/build.gradle',
-  matches: 11,
-};

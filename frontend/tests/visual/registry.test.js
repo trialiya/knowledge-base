@@ -26,6 +26,15 @@ import { cases } from './harness/registry';
  */
 const HERE = dirname(fileURLToPath(import.meta.url));
 
+/** Исходники модулей фикстур: `<модуль>.js` → текст — по нему видно, кто из экспортов строит другие. */
+const fixtureSources = (() => {
+  const modules = import.meta.glob('./fixtures/*.js', { eager: true, query: '?raw', import: 'default' });
+  return new Map(Object.entries(modules).map(([path, text]) => [path.slice('./fixtures/'.length), text]));
+})();
+
+/** Исходник стенда: часть фикстур он берёт не по id записи, а прямо по имени (`chatFind.activeMid`). */
+const registrySource = Object.values(import.meta.glob('./harness/registry.jsx', { eager: true, query: '?raw', import: 'default' }))[0];
+
 /** Экспорты каждого модуля фикстур: `<модуль>.js` → набор имён. */
 const fixtureExports = (() => {
   const modules = import.meta.glob('./fixtures/*.js', { eager: true });
@@ -132,6 +141,24 @@ describe('реестр кейсов', () => {
     const lines = readFileSync(join(HERE, 'cases.yaml'), 'utf8').split('\n');
     const singular = lines.map((line, i) => ({ line: i + 1, text: line })).filter(({ text }) => /^\s*fixture:\s/.test(text));
     expect(singular.map(({ line, text }) => `cases.yaml:${line} — ${text.trim()}`)).toEqual([]);
+  });
+
+  // Обратная сторона сверки: экспорт, которого не называет ни кейс, ни стенд, не проверяет ничего —
+  // и правят его вместе со всеми, как будто проверяет. Нужным считается и экспорт, который стенд
+  // берёт по имени, и тот, из которого собран другой экспорт того же модуля.
+  it('не держит фикстур, которых не называет ни кейс, ни стенд', () => {
+    const named = new Set([...fixtureRefs().map(({ ref }) => fixtureOf(ref)), ...cases.map((c) => fixtureOf(c.id))]);
+    const orphans = [];
+    for (const [module, names] of fixtureExports) {
+      const text = fixtureSources.get(module);
+      for (const name of names) {
+        if (named.has(`${module}#${name}`)) continue;
+        if (new RegExp(`\\.${name}\\b`).test(registrySource)) continue;
+        const uses = text.match(new RegExp(`\\b${name}\\b`, 'g'))?.length ?? 0;
+        if (uses < 2) orphans.push(`${module}#${name}`);
+      }
+    }
+    expect(orphans).toEqual([]);
   });
 
   it('не ссылается на фикстуру, которой нет', () => {

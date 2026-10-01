@@ -15,15 +15,3 @@ export const singleDefaultProject = {
   defaultProject: 'default',
   projects: [{ id: 'default', label: 'Project', available: true }],
 };
-
-/**
- * Два проекта, один из которых не открылся: селектор помечает недоступный, а не
- * оставляет узнавать об этом по отказу вызова.
- */
-export const unavailableProject = {
-  defaultProject: 'default',
-  projects: [
-    { id: 'default', label: 'Project', available: true },
-    { id: 'docs', label: 'Docs', available: false },
-  ],
-};
