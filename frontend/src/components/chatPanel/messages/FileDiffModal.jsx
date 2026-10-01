@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { fetchContent } from '../composer/fileChips';
 import ModalShell from '@/components/common/modal/ModalShell';
+import { IconX } from '@/icons/index';
 import '@/components/common/ui/buttons.css';
 import { DiffLines, DiffStats } from './diffRender';
 import { filesUrl } from '@/navigation/urlScheme';
@@ -51,9 +52,9 @@ const FileDiffModal = ({ change, project, onClose }) => {
   const error = answer?.error ?? false;
 
   return (
-    <ModalShell onClose={onClose} className="fcd-modal">
-      <div className="fcd-header">
-        <span className="fcd-title" title={change.path}>
+    <ModalShell onClose={onClose} className="file-diff-modal">
+      <div className="file-diff-modal__header">
+        <span className="file-diff-modal__title" title={change.path}>
           {change.path} <DiffStats additions={change.additions} deletions={change.deletions} />
         </span>
         {isMd && (
@@ -67,27 +68,34 @@ const FileDiffModal = ({ change, project, onClose }) => {
             {mdView ? '{ }' : '👁'}
           </button>
         )}
-        <a className="fcd-open-link" href={filesUrl(change.path, project)} target="_blank" rel="noreferrer">
+        <a
+          className="file-diff-modal__open-link"
+          href={filesUrl(change.path, project)}
+          target="_blank"
+          rel="noreferrer"
+        >
           {t('fileChange.openFile')}
         </a>
-        <button className="fcd-close" onClick={onClose} title={t('common:close')} type="button">
-          ✕
+        <button type="button" className="icon-btn" onClick={onClose} title={t('common:close')}>
+          <IconX />
         </button>
       </div>
-      <div className="fcd-body">
+      <div className="file-diff-modal__body">
         {change.diffs.length === 0 ? (
           <>
-            {loading && <div className="fcd-empty">{t('loading')}</div>}
-            {!loading && error && <div className="fcd-empty">{t('fileChange.loadError')}</div>}
-            {!loading && !error && content?.binary && <div className="fcd-empty">{t('fileChips.binaryFile')}</div>}
+            {loading && <div className="file-diff-modal__empty">{t('loading')}</div>}
+            {!loading && error && <div className="file-diff-modal__empty">{t('fileChange.loadError')}</div>}
+            {!loading && !error && content?.binary && (
+              <div className="file-diff-modal__empty">{t('fileChips.binaryFile')}</div>
+            )}
             {!loading && !error && content && !content.binary && (
               <>
                 {mdView ? (
-                  <div className="fcd-md-preview">
+                  <div className="file-diff-modal__md-preview">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.content || ''}</ReactMarkdown>
                   </div>
                 ) : (
-                  <pre className="fcd-diff fcd-content">{content.content || ''}</pre>
+                  <pre className="file-diff-modal__diff file-diff-modal__content">{content.content || ''}</pre>
                 )}
               </>
             )}
@@ -96,7 +104,7 @@ const FileDiffModal = ({ change, project, onClose }) => {
           change.diffs.map((diff, i) => (
             // Индекс как key безопасен: список diff'ов иммутабелен в рамках открытой модалки.
 
-            <pre key={i} className="fcd-diff">
+            <pre key={i} className="file-diff-modal__diff">
               <DiffLines patch={diff} />
             </pre>
           ))

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import gitApi from '@/api/gitApi';
 import FileView from '@/components/filesPanel/FileView';
 import ModalShell from '@/components/common/modal/ModalShell';
+import '@/components/common/ui/buttons.css';
 import { IconX } from '@/icons/index';
 import shortRev from '@/components/common/git/shortRev';
 
@@ -68,7 +69,7 @@ const FilePreviewModal = ({ path, project, rev = null, fromLine, toLine, onClose
             {rev ? `${path} @ ${shortRev(rev)}` : path}
           </span>
         </div>
-        <button className="fs-editor__close" title={t('preview.close')} onClick={onClose}>
+        <button type="button" className="icon-btn" title={t('preview.close')} onClick={onClose}>
           <IconX />
         </button>
       </div>

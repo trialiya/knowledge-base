@@ -51,7 +51,7 @@ function FileChipPreview({ preview, project, onClose, onToggleRef }) {
         >
           {refOnly ? '📄' : '📎'}
         </button>
-        <button className="fs-editor__close" title={t('fileInput.closePreview')} onClick={onClose}>
+        <button type="button" className="icon-btn" title={t('fileInput.closePreview')} onClick={onClose}>
           <IconX />
         </button>
       </div>

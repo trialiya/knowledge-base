@@ -251,25 +251,6 @@
   text-overflow: ellipsis;
 }
 
-.fs-editor__close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: none;
-  background: none;
-  color: var(--kb-text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-}
-.fs-editor__close:hover {
-  background: var(--kb-accent-surface);
-  color: var(--kb-accent);
-}
-
 /* Тело модалки — растягиваем MarkdownEditor на всю высоту */
 .fs-editor__body {
   flex: 1;

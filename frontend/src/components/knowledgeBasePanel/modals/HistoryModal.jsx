@@ -238,7 +238,7 @@ const HistoryModal = ({
     <ModalShell onClose={onClose} variant="fullscreen">
       <div className="fs-editor__head">
         <span className="fs-editor__title">{t('history.title', { title: documentTitle })}</span>
-        <button className="fs-editor__close" title={t('history.close')} onClick={onClose}>
+        <button type="button" className="icon-btn" title={t('history.close')} onClick={onClose}>
           <IconX />
         </button>
       </div>

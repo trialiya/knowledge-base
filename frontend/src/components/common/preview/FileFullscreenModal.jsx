@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import ModalShell from '@/components/common/modal/ModalShell';
+import '@/components/common/ui/buttons.css';
 import FileView from '@/components/filesPanel/FileView';
 import { baseName } from '@/components/common/ui/utils';
 import { IconX } from '@/icons/index';
@@ -22,7 +23,7 @@ const FileFullscreenModal = ({ path, file, project, rev = null, loading, error, 
             {rev ? `${path} @ ${shortRev(rev)}` : path}
           </span>
         </div>
-        <button className="fs-editor__close" title={t('preview.close')} onClick={onClose}>
+        <button type="button" className="icon-btn" title={t('preview.close')} onClick={onClose}>
           <IconX />
         </button>
       </div>
