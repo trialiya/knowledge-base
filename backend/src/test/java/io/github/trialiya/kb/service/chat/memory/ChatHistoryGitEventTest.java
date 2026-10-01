@@ -45,7 +45,10 @@ class ChatHistoryGitEventTest {
             new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
             ActiveProjectNotices.silent());
 
-    /** Успешная команда: модель узнаёт, что дерево сдвинулось, и что прочитанное могло устареть. */
+    /**
+     * Успешная команда: модель узнаёт, что дерево сдвинулось, и что прочитанное могло устареть.
+     * Коммита pull не создавал — и не называет.
+     */
     @Test
     void aSucceededCommandTellsTheModelTheWorkingTreeMoved() {
         givenStored(List.of(gitRow(0, new GitEventMeta("pull", "kb", true, "Fast-forward", "main"))));
@@ -57,7 +60,8 @@ class ChatHistoryGitEventTest {
                 .contains("project=\"kb\"")
                 .contains("branch=\"main\"")
                 .contains("re-read with the tools")
-                .contains("preserve this notice verbatim");
+                .contains("preserve this notice verbatim")
+                .doesNotContain("commit=");
     }
 
     /** Коммит пользователя назван хешем: модели есть что прочитать и на что сослаться. */
@@ -67,13 +71,6 @@ class ChatHistoryGitEventTest {
         givenStored(List.of(gitRow(0, new GitEventMeta("commit", "kb", true, "Committed 0123456", "main", hash))));
 
         assertThat(service.promptRows(CONV).getFirst().text()).contains("commit=\"" + hash + "\"");
-    }
-
-    @Test
-    void aCommandThatCreatedNoCommitNamesNone() {
-        givenStored(List.of(gitRow(0, new GitEventMeta("pull", "kb", true, "Fast-forward", "main"))));
-
-        assertThat(service.promptRows(CONV).getFirst().text()).doesNotContain("commit=");
     }
 
     /**

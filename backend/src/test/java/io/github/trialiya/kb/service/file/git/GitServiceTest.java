@@ -651,53 +651,38 @@ class GitServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /**
+     * Путь из Windows ({@code src\main\Foo.java}) значит то же, что и с прямыми слешами, в
+     * каждом чтении, которое его принимает: дереве, содержимом, истории и диффе коммита.
+     */
     @Test
-    void windowsBackslashInSubPathIsNormalizedToForwardSlash() {
-        writeFile("src/main/Foo.java", "class Foo {}");
-        commitAll();
-
-        // Windows callers may pass "src\\main" — must be treated identically to "src/main".
-        List<GitFileNode> nodes = service.getFileTree(null, "src\\main");
-        assertThat(nodes).hasSize(1);
-        assertThat(nodes.get(0).name()).isEqualTo("Foo.java");
-        assertThat(nodes.get(0).path()).isEqualTo("src/main/Foo.java");
-    }
-
-    @Test
-    void windowsBackslashInFilePathIsNormalizedForGetFileContent() {
+    void windowsBackslashInAPathIsNormalizedToForwardSlash() {
         writeFile("src/main/Foo.java", "class Foo {}\n");
-        commitAll();
+        commitAll("foo");
+        writeFile("src/main/Other.java", "class Other {}\n");
+        commitAll("other");
+        String fooCommit = service.getCommitLog(10, "src/main/Foo.java", false)
+                .commits()
+                .get(0)
+                .hash();
 
-        // "src\\main\\Foo.java" must resolve to "src/main/Foo.java".
+        assertThat(service.getFileTree(null, "src\\main"))
+                .extracting(GitFileNode::path)
+                .containsExactlyInAnyOrder("src/main/Foo.java", "src/main/Other.java");
+
         var content = service.getFileContent("src\\main\\Foo.java");
         assertThat(content.path()).isEqualTo("src/main/Foo.java");
         assertThat(content.content()).contains("Foo");
-    }
 
-    @Test
-    void windowsBackslashInCommitLogFilePathIsNormalized() {
-        writeFile("src/main/Bar.java", "class Bar {}\n");
-        commitAll("bar");
-        writeFile("src/main/Other.java", "class Other {}\n");
-        commitAll("other");
+        // Фильтр, который перестал бы применяться, вернул бы оба коммита.
+        assertThat(service.getCommitLog(10, "src\\main\\Foo.java", false).commits())
+                .singleElement()
+                .satisfies(c -> assertThat(c.message()).isEqualTo("foo"));
 
-        // A backslash path must still find the commit that touched THAT file — a filter that
-        // stopped being applied would return both commits.
-        var log = service.getCommitLog(10, "src\\main\\Bar.java", false).commits();
-        assertThat(log).singleElement().satisfies(c -> assertThat(c.message()).isEqualTo("bar"));
-    }
-
-    @Test
-    void windowsBackslashInCommitDiffFilePathIsNormalized() {
-        writeFile("src/main/Baz.java", "class Baz {}\n");
-        commitAll();
-        String hash = service.getCommitLog(1, null, false).commits().get(0).hash();
-
-        // A backslash path must resolve to the same file the diff's PathFilter expects.
-        var diff = service.getCommitDiff(hash, false, "src\\main\\Baz.java");
-        assertThat(diff).hasSize(1);
-        assertThat(diff.get(0).files()).hasSize(1);
-        assertThat(diff.get(0).files().get(0).path()).isEqualTo("src/main/Baz.java");
+        var diff = service.getCommitDiff(fooCommit, false, "src\\main\\Foo.java");
+        assertThat(diff).singleElement().satisfies(commit -> assertThat(commit.files())
+                .extracting(GitDiffEntry::path)
+                .containsExactly("src/main/Foo.java"));
     }
 
     @Test

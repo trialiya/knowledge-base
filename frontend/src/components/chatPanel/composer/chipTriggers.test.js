@@ -7,23 +7,17 @@ describe('detectTriggerInText', () => {
     expect(detectTriggerInText('email a/b/file path')).toBeNull();
   });
 
-  it('detects a /file trigger at the start of the text', () => {
-    expect(detectTriggerInText('/file')).toEqual({ type: 'file', query: '', start: 0 });
-  });
-
-  it('detects a /doc trigger at the start of the text', () => {
-    expect(detectTriggerInText('/doc')).toEqual({ type: 'doc', query: '', start: 0 });
-  });
-
-  it('extracts the query following the command', () => {
-    expect(detectTriggerInText('/file src/App')).toEqual({ type: 'file', query: 'src/App', start: 0 });
-    expect(detectTriggerInText('/doc 42')).toEqual({ type: 'doc', query: '42', start: 0 });
-  });
-
-  it('reports the command start offset when preceded by text', () => {
-    const before = 'hello world /file utils';
-    const hit = detectTriggerInText(before);
-    expect(hit).toEqual({ type: 'file', query: 'utils', start: before.indexOf('/file') });
+  // The Russian synonyms are the same triggers, not rules of their own: whatever a command does, so does its synonym.
+  it.each([
+    ['/file', 'file'],
+    ['/doc', 'doc'],
+    ['/файл', 'file'],
+    ['/док', 'doc'],
+  ])('detects %s with its query and its offset', (command, type) => {
+    expect(detectTriggerInText(command)).toEqual({ type, query: '', start: 0 });
+    expect(detectTriggerInText(`${command} src/App`)).toEqual({ type, query: 'src/App', start: 0 });
+    const before = `hello world ${command} utils`;
+    expect(detectTriggerInText(before)).toEqual({ type, query: 'utils', start: before.indexOf(command) });
   });
 
   it('only triggers at the caret (end of string), not mid-text', () => {
@@ -34,18 +28,6 @@ describe('detectTriggerInText', () => {
   it('requires a word boundary before the command', () => {
     // No leading whitespace/start-of-string before /file → not a trigger.
     expect(detectTriggerInText('x/file')).toBeNull();
-  });
-
-  it('detects the /файл synonym for the file trigger', () => {
-    expect(detectTriggerInText('/файл')).toEqual({ type: 'file', query: '', start: 0 });
-    expect(detectTriggerInText('/файл src/App')).toEqual({ type: 'file', query: 'src/App', start: 0 });
-    const before = 'hello world /файл utils';
-    expect(detectTriggerInText(before)).toEqual({ type: 'file', query: 'utils', start: before.indexOf('/файл') });
-  });
-
-  it('detects the /док synonym for the doc trigger', () => {
-    expect(detectTriggerInText('/док')).toEqual({ type: 'doc', query: '', start: 0 });
-    expect(detectTriggerInText('/док 42')).toEqual({ type: 'doc', query: '42', start: 0 });
   });
 });
 

@@ -271,21 +271,6 @@ class CompactServiceTest {
     }
 
     /**
-     * Упавший раунд очередь не трогает: сжатия не было, отложенные сводки по-прежнему описывают
-     * живое начало истории, и выбросить их значит потерять и их текст, и их деньги разом.
-     */
-    @Test
-    void aRoundThatWroteNoSummaryLeavesTheQueueParked() {
-        answerWith("");
-
-        assertThatThrownBy(() -> service()
-                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS))
-                .isInstanceOf(IllegalStateException.class);
-
-        verify(pendingSummaries, never()).discard(anyString());
-    }
-
-    /**
      * Второй записанный ряд — видимая плашка «контекст сжат»: показывается ({@code summary =
      * false}), модели не едет ({@code summarized = true}) и знает, где лежит её сводка. Без неё
      * перезагруженная вкладка показала бы команду, за которой ничего не произошло.
@@ -559,7 +544,9 @@ class CompactServiceTest {
     /**
      * Пустой ответ модели — история обязана остаться нетронутой: разметка без сводки стирает чат.
      * Сама команда при этом уже сохранена отдельно (см. {@link #start} — здесь только сам раунд) и
-     * этот метод её не трогает.
+     * этот метод её не трогает. Очередь отложенных сводок тоже остаётся: сжатия не было, они
+     * по-прежнему описывают живое начало истории, и выбросить их значит потерять и их текст, и их
+     * деньги разом.
      */
     @Test
     void anEmptyModelAnswerLeavesTheHistoryUntouched() {
@@ -571,6 +558,7 @@ class CompactServiceTest {
 
         verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
         verify(repository, never()).save(any());
+        verify(pendingSummaries, never()).discard(anyString());
     }
 
     /**

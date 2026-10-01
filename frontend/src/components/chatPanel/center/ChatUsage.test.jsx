@@ -40,6 +40,10 @@ describe('ChatUsage', () => {
     expect(valueOf('usage.cacheHit')).toHaveTextContent('78');
     expect(valueOf('usage.total')).toHaveTextContent('82.2k');
     expect(screen.queryByText('usage.input')).toBeNull();
+    // Строк, на которые нечего ответить, нет: ноль на незаданный вопрос и блок суб-агента, которого не было.
+    expect(screen.queryByText('usage.reasoning')).toBeNull();
+    expect(screen.queryByText('usage.subagentRuns')).toBeNull();
+    expect(screen.queryByText('usage.subagentNote')).toBeNull();
   });
 
   // У модели с reasoning-токенами провайдер считает свой total больше суммы частей, и платит за
@@ -51,12 +55,6 @@ describe('ChatUsage', () => {
     expect(valueOf('usage.total')).toHaveTextContent('96.0k');
     // 96 000 − 81 100 − 1 100 = 13 800.
     expect(valueOf('usage.reasoning')).toHaveTextContent('13.8k');
-  });
-
-  test('без reasoning-токенов строки нет: ноль отвечал бы на незаданный вопрос', () => {
-    render(<ChatUsage {...usage(withCache)} />);
-
-    expect(screen.queryByText('usage.reasoning')).toBeNull();
   });
 
   // Эндпоинт чата может usage не отдавать, а эндпоинт суб-агента — отдавать: спрятать его деньги
@@ -121,12 +119,5 @@ describe('ChatUsage', () => {
     expect(valueOf('usage.subagentTotal')).toHaveTextContent('24.9k');
     expect(valueOf('usage.total')).toHaveTextContent('82.2k');
     expect(screen.getByText('usage.subagentNote')).toBeInTheDocument();
-  });
-
-  test('без суб-агента блока нет вовсе', () => {
-    render(<ChatUsage {...usage(withCache)} />);
-
-    expect(screen.queryByText('usage.subagentRuns')).toBeNull();
-    expect(screen.queryByText('usage.subagentNote')).toBeNull();
   });
 });

@@ -69,7 +69,8 @@ class GitCommandChatTest {
 
     /**
      * Допуск — до команды. Отказ занятого или чужого чата обязан оставить рабочее дерево
-     * нетронутым: иначе pull успевал бы пройти, а пользователь видел бы ошибку.
+     * нетронутым: иначе pull успевал бы пройти, а пользователь видел бы ошибку. Заявки отказ не
+     * оставил, так что и возвращать нечего.
      */
     @Test
     void aRefusedChatStopsTheCommandBeforeItRuns() {
@@ -81,6 +82,7 @@ class GitCommandChatTest {
                         .isEqualTo(HttpStatus.CONFLICT));
 
         verifyNoInteractions(git);
+        verify(chatActionClaim, never()).release(anyString(), anyString());
     }
 
     /** Успех записывается командой в том виде, в каком её выполнил git. */
@@ -157,17 +159,6 @@ class GitCommandChatTest {
         assertThatThrownBy(() -> controller.push("kb", CHAT)).isInstanceOf(ResponseStatusException.class);
 
         verify(chatActionClaim).release(CHAT, CLAIM);
-    }
-
-    /** Отказ в допуске заявки не оставил, возвращать нечего. */
-    @Test
-    void aRefusedChatHasNothingToFree() {
-        when(chatActionClaim.claimIdleAndOwned(CHAT))
-                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"));
-
-        assertThatThrownBy(() -> controller.pull("kb", CHAT)).isInstanceOf(ResponseStatusException.class);
-
-        verify(chatActionClaim, never()).release(anyString(), anyString());
     }
 
     /** Аргумент команды входит в её имя: «switch» без ветки не сказал бы модели ничего. */
