@@ -11,10 +11,6 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
-import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
-import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -73,7 +69,7 @@ final class CommitSearch {
      *     последним совпадением истории, — полная выдача: после него обход идёт дальше, до конца
      *     истории или до {@link #SCAN}, — та же цена, что у запроса без единого совпадения
      */
-    // ObjectReader принадлежит RevWalk и закрывается вместе с ним; закрыть его здесь значило бы
+    // ObjectReader принадлежит обходу и закрывается вместе с ним; закрыть его здесь значило бы
     // выдернуть читатель из-под обхода, который ещё идёт.
     @SuppressWarnings("PMD.CloseResource")
     static GitCommitSearchResult search(Repository repository, String query, int maxCount, Scope scope) {
@@ -82,23 +78,13 @@ final class CommitSearch {
         int limit = Math.min(Math.max(maxCount, 1), MAX_RESULTS);
         String rev = scope.rev();
         ObjectId start = rev == null || rev.isBlank() ? null : CommitFiles.commitOf(repository, rev.strip());
-        String path = scope.path();
-
-        // Обход строим сами, а не через git.log(): LogCommand отдаёт свой RevWalk как
-        // Iterable, и закрыть его уже нечем — а выходим мы отсюда почти всегда по break.
-        try (RevWalk walk = new RevWalk(repository)) {
+        try (CommitWalk walk = new CommitWalk(repository)) {
             if (start == null) start = repository.resolve(Constants.HEAD);
             // Коммитов в репозитории ещё нет — это пустая история, а не ошибка.
             if (start == null) return new GitCommitSearchResult(List.of(), false);
-            walk.markStart(walk.parseCommit(start));
-            if (path != null && !path.isBlank()) {
-                // То же, что делает LogCommand.addPath: коммит, не менявший путь, обход пропускает.
-                walk.setTreeFilter(AndTreeFilter.create(
-                        PathFilterGroup.createFromStrings(RepoPaths.toForwardSlashes(path.strip())),
-                        TreeFilter.ANY_DIFF));
-            }
+            walk.from(start).path(scope.path());
 
-            ObjectReader reader = walk.getObjectReader();
+            ObjectReader reader = walk.reader();
             List<GitCommit> matches = new ArrayList<>();
             int scanned = 0;
             for (RevCommit commit : walk) {

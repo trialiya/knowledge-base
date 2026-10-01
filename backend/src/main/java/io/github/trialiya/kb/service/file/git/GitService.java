@@ -43,7 +43,6 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.StatusCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
@@ -329,23 +328,19 @@ public class GitService {
     public List<GitCommit> getCommitLog(
             int maxCount, @Nullable String filePath, boolean includeBody, @Nullable String rev) {
         int limit = Math.min(Math.max(maxCount, 1), 100);
-        try (ObjectReader reader = repository.newObjectReader()) {
-            var logCommand = git.log().setMaxCount(limit);
-            if (rev != null && !rev.isBlank()) {
-                logCommand.add(CommitFiles.commitOf(repository, rev.strip()));
-            }
-            if (filePath != null && !filePath.isBlank()) {
-                logCommand.addPath(RepoPaths.toForwardSlashes(filePath.strip()));
-            }
+        ObjectId start = rev != null && !rev.isBlank() ? CommitFiles.commitOf(repository, rev.strip()) : null;
+        try (CommitWalk walk = new CommitWalk(repository)) {
+            if (start == null) start = repository.resolve(Constants.HEAD);
+            // Repository has no commits yet — an empty history, not an error.
+            if (start == null) return List.of();
+            walk.from(start).path(filePath);
             List<GitCommit> commits = new ArrayList<>();
-            for (RevCommit commit : logCommand.call()) {
-                commits.add(Diffs.toGitCommit(commit, null, reader, includeBody));
+            for (RevCommit commit : walk) {
+                if (commits.size() == limit) break;
+                commits.add(Diffs.toGitCommit(commit, null, walk.reader(), includeBody));
             }
             return commits;
-        } catch (NoHeadException e) {
-            // Repository has no commits yet — an empty history, not an error.
-            return List.of();
-        } catch (GitAPIException | IOException e) {
+        } catch (IOException e) {
             throw new IllegalStateException("Failed to read commit log", e);
         }
     }
@@ -368,28 +363,26 @@ public class GitService {
         // Neither has anything to publish: a detached HEAD is not a branch, an unborn one has no
         // commits. The dialog says that instead of showing an empty list it cannot explain.
         if (status.detached() || status.unborn()) return List.of();
-        try (ObjectReader reader = repository.newObjectReader()) {
+        try (CommitWalk walk = new CommitWalk(repository)) {
             ObjectId head = repository.resolve(Constants.HEAD);
             if (head == null) return List.of();
-            var log = git.log().setMaxCount(limit);
+            walk.from(head);
             ObjectId upstream = status.upstream() == null ? null : repository.resolve(status.upstream());
             if (upstream == null) {
-                log.add(head);
                 for (Ref remote : repository.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES)) {
                     ObjectId id = remote.getObjectId();
-                    if (id != null) log.not(id);
+                    if (id != null) walk.exclude(id);
                 }
             } else {
-                log.addRange(upstream, head);
+                walk.exclude(upstream);
             }
             List<GitCommit> commits = new ArrayList<>();
-            for (RevCommit commit : log.call()) {
-                commits.add(Diffs.toGitCommit(commit, null, reader, false));
+            for (RevCommit commit : walk) {
+                if (commits.size() == limit) break;
+                commits.add(Diffs.toGitCommit(commit, null, walk.reader(), false));
             }
             return commits;
-        } catch (NoHeadException e) {
-            return List.of();
-        } catch (GitAPIException | IOException e) {
+        } catch (IOException e) {
             throw new IllegalStateException("Failed to read outgoing commits", e);
         }
     }
