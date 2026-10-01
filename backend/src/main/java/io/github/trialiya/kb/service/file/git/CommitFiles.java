@@ -342,6 +342,19 @@ final class CommitFiles {
     }
 
     /**
+     * Коммит под ревизией или {@code null}, если такого коммита в репозитории нет — отказ {@link
+     * #commitOf} без причины, для того, кто отсутствие не объясняет, а пропускает (ревизии из
+     * {@code .git-blame-ignore-revs}).
+     */
+    static @Nullable ObjectId commitOrNull(Repository repository, String rev) {
+        try {
+            return commitOf(repository, rev);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return null;
+        }
+    }
+
+    /**
      * Блоб по уже найденному объекту.
      *
      * @param reader читатель объектов; закрывает его тот, кто открыл

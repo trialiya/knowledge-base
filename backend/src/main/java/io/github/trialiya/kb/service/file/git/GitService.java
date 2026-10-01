@@ -49,7 +49,6 @@ import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
-import org.eclipse.jgit.errors.RevisionSyntaxException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
@@ -511,7 +510,7 @@ public class GitService {
             boolean includeParents) {
         try (RevWalk revWalk = new RevWalk(repository);
                 ObjectReader reader = repository.newObjectReader()) {
-            RevCommit commit = revWalk.parseCommit(resolveCommitId(hash));
+            RevCommit commit = revWalk.parseCommit(CommitFiles.commitOf(repository, hash));
             RevCommit parent = commit.getParentCount() > 0 ? revWalk.parseCommit(commit.getParent(0)) : null;
 
             // No parent (root commit) → diff against the empty tree, equivalent to `git diff-tree
@@ -542,19 +541,6 @@ public class GitService {
         } catch (IOException e) {
             throw new IllegalStateException("Failed reading commit: " + hash, e);
         }
-    }
-
-    private ObjectId resolveCommitId(String hash) throws IOException {
-        ObjectId id;
-        try {
-            id = repository.resolve(hash);
-        } catch (RevisionSyntaxException e) {
-            throw new IllegalArgumentException("Invalid commit reference: " + hash, e);
-        }
-        if (id == null) {
-            throw new IllegalArgumentException("Commit not found: " + hash);
-        }
-        return id;
     }
 
     private static AbstractTreeIterator treeIterator(ObjectReader reader, RevCommit commit) throws IOException {
