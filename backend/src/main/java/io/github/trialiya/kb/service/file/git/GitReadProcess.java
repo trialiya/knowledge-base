@@ -200,10 +200,13 @@ final class GitReadProcess {
         } catch (IOException e) {
             throw new IllegalStateException("Git command failed: " + command, e);
         } finally {
-            // Whatever ended the run — an answer, an interrupt, a failed read — git does not
-            // outlive it: otherwise a cancelled chat run would leave it running until the watchdog's
-            // deadline. On the normal path it has exited already and this is a no-op.
+            // An interrupt in waitFor or a failed read leaves here with git still running, and the
+            // watchdog would let it run to the deadline; so git — and what it started (textconv,
+            // hooks), which may hold its pipes — goes now. On the normal path it has exited and
+            // this only closes its streams. An interrupt while the read above is blocked does not
+            // reach here early: that read is not interruptible, the watchdog's deadline bounds it.
             if (process != null) {
+                process.descendants().forEach(ProcessHandle::destroyForcibly);
                 process.destroyForcibly();
             }
             if (watchdog != null) {
