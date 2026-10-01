@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
@@ -69,6 +70,8 @@ class GitFunctionTest {
         when(billing.getFileOutline(anyString()))
                 .thenReturn(new GitFileOutline("Foo.java", true, "java", 10, "regex", List.of()));
         when(billing.getCommitLog(anyInt(), any(), anyBoolean())).thenReturn(List.of(commit()));
+        when(billing.searchCommitLog(anyString(), anyInt(), any(), anyBoolean()))
+                .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
         when(billing.getUncommittedChanges(anyBoolean(), anyBoolean(), anyList()))
                 .thenReturn(List.of(new GitDiffEntry("M", "pom.xml", null, 1, 0, null, null)));
@@ -259,5 +262,19 @@ class GitFunctionTest {
 
         function.getCommitLog(context, 5, "src", " ", true, null);
         verify(billing).getCommitLog(5, "src", true);
+    }
+
+    /**
+     * Обход истории ограничен, поэтому ответ на поиск говорит, дошёл ли он до конца, — а простое
+     * листание, у которого предел назван в параметре, этого поля не несёт вовсе.
+     */
+    @Test
+    void aSearchThroughMessagesSaysWhetherItWasCutShort() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+
+        assertThat(function.getCommitLog(context, 5, null, "retry", null, null).truncated())
+                .isTrue();
+        assertThat(function.getCommitLog(context, 5, null, null, null, null).truncated())
+                .isNull();
     }
 }

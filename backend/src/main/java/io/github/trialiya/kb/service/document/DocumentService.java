@@ -724,7 +724,12 @@ public class DocumentService {
     // ── Keyword search ────────────────────────────────────────────────────────
 
     public List<SearchResult> search(String q) {
-        return attachParents(keywordHits(q));
+        return search(q, null);
+    }
+
+    /** Keyword search; {@code limit} falls back to {@code kb.search.keyword.limit}. */
+    public List<SearchResult> search(String q, @Nullable Integer limit) {
+        return attachParents(keywordHits(q, limit));
     }
 
     private record RawSearchResult(
@@ -735,8 +740,9 @@ public class DocumentService {
             @Nullable String summary) {}
 
     /** Keyword hits without breadcrumbs — shared building block for {@link #hybridSearch}. */
-    private List<RawSearchResult> keywordHits(String q) {
-        return repo.search(q).stream()
+    private List<RawSearchResult> keywordHits(String q, @Nullable Integer limit) {
+        int l = limit != null ? Math.max(limit, 1) : searchConfig.keyword().limit();
+        return repo.search(q, l).stream()
                 .map(e -> new RawSearchResult(
                         Objects.requireNonNull(e.getId()),
                         e.getTitle(),
@@ -805,7 +811,7 @@ public class DocumentService {
         int lim = limit != null ? limit : cfg.limit();
 
         // ── 1. Keyword hits ───────────────────────────────────────────────────
-        List<RawSearchResult> kwResults = keywordHits(q);
+        List<RawSearchResult> kwResults = keywordHits(q, null);
         Map<Long, Double> kwScores = new LinkedHashMap<>();
         int kwSize = kwResults.size();
         for (int i = 0; i < kwSize; i++) {

@@ -129,16 +129,19 @@ public interface DocumentRepository
     /** Paginated root-level nodes (parentId IS NULL), sorted by position. */
     Page<DocumentEntity> findByParentIdIsNull(Pageable pageable);
 
-    /** Full-text search across title and description. */
+    /**
+     * Substring search across title, summary and description, newest first: {@code ILIKE} has no
+     * relevance to rank by, so the {@code limit} freshest matches win.
+     */
     @Query("""
         SELECT * FROM documents
         WHERE (title ILIKE '%' || :q || '%'
                OR summary ILIKE '%' || :q || '%'
                OR description ILIKE '%' || :q || '%')
         ORDER BY updated_at DESC
-        LIMIT 20
+        LIMIT :limit
         """)
-    List<DocumentEntity> search(@Param("q") String q);
+    List<DocumentEntity> search(@Param("q") String q, @Param("limit") int limit);
 
     /**
      * Recursively find all descendant IDs (used for cascade delete in Java).

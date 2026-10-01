@@ -414,12 +414,13 @@ public class GitService {
      *
      * @param filePath optional — only commits that touched this file or directory
      * @param includeBody fill {@link GitCommit#body()}; the description is searched either way
+     * @return the matches with {@code truncated}: the walk is bounded, and the model has to tell "no
+     *     such commit" from "not that far back"
      */
-    public List<GitCommit> searchCommitLog(
+    public GitCommitSearchResult searchCommitLog(
             @NonNull String query, int maxCount, @Nullable String filePath, boolean includeBody) {
         return CommitSearch.search(
-                        repository, query, maxCount, new CommitSearch.Scope(true, includeBody, null, filePath))
-                .commits();
+                repository, query, maxCount, new CommitSearch.Scope(true, includeBody, null, filePath));
     }
 
     /**

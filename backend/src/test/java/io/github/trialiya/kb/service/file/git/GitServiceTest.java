@@ -935,10 +935,10 @@ class GitServiceTest {
         writeFile("a.txt", "a\n");
         commitAll("Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
 
-        assertThat(service.searchCommitLog("zzz", 10, null, false))
+        assertThat(service.searchCommitLog("zzz", 10, null, false).commits())
                 .singleElement()
                 .satisfies(c -> assertThat(c.body()).isNull());
-        assertThat(service.searchCommitLog("zzz", 10, null, true))
+        assertThat(service.searchCommitLog("zzz", 10, null, true).commits())
                 .singleElement()
                 .satisfies(c -> assertThat(c.body()).isEqualTo("mentions ZZZ"));
     }
@@ -950,7 +950,7 @@ class GitServiceTest {
         writeFile("docs/b.txt", "b\n");
         commitAll("fix in docs");
 
-        assertThat(service.searchCommitLog("fix", 10, "src", false))
+        assertThat(service.searchCommitLog("fix", 10, "src", false).commits())
                 .extracting(GitCommit::message)
                 .containsExactly("fix in src");
     }
