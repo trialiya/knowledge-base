@@ -8,20 +8,20 @@
 ## Что `exec` дублирует
 
 `GitCommands.exec` (`service/file/git/GitCommands.java:589-656`) против
-`GitReadProcess.run` (`GitReadProcess.java:89-178`):
+`GitReadProcess.run` (`GitReadProcess.java:107-215`):
 
 - старт процесса в корне репозитория и `IllegalStateException` при отказе
-  старта (`:590-591, :604-606` против `:105-106, :179-180`);
+  старта (`:590-591, :604-606` против `:126, :199-201`);
 - kill по дедлайну, но по-разному: `exec` читает в
   `CompletableFuture.supplyAsync` (общий ForkJoinPool, блокирующий ввод-вывод
   в нём) и ждёт `process.waitFor(TIMEOUT_SECONDS)`; `GitReadProcess` — watchdog
   на виртуальном потоке с `AtomicBoolean timedOut`;
-- обработка interrupt один в один (`:649-651` против `:177-178`);
+- обработка interrupt один в один (`:649-651` против `:197-199`);
 - ожидание дренажа после выхода: `OUTPUT_DRAIN_SECONDS = 5` через
   `reading.get` против `STDERR_DRAIN_WAIT = 1s` через `awaitDrain`;
 - два типа таймаут-исключения: `GitCommandFailedException` (ловит
   `GitCommandController.java:276`) и `GitReadTimeoutException extends
-  IllegalStateException` (ловит `GitController.java:103, :137`).
+  IllegalStateException` (ловит `GitController.read()`, `:436-437`).
 
 Что у `exec` хуже: потолка строк нет. Длинный fetch/push целиком держится в
 `List<String>` и только потом режется до последних 4000 символов (`truncate`,
@@ -55,7 +55,17 @@ exit code и флаг таймаута». Поверх него:
 Заодно чтение уйдёт с общего пула, а два типа таймаут-исключений можно
 свести к одному с разным маппингом в контроллерах.
 
+## Мелочь после #496
+
+`finally` в `GitReadProcess.run` (`:202-211`) сначала убивает
+`process.descendants()`, потом сам `git` — порядок верный: после смерти git
+его дети переподчиняются и `descendants()` их уже не найдёт. На успешном пути
+git к этому моменту уже пожат `waitFor`, и `descendants()` перечисляет детей
+по PID родителя, не проверяя, что родитель всё тот же; окно повторного
+использования PID — микросекунды, но `if (process.isAlive())` перед обходом
+потомков закрывает его бесплатно.
+
 Других запусков подпроцессов в бэке нет: скрипты — in-process GraalJS с
 `allowCreateProcess(false)` (`ScriptRunner.java:402`). Дренаж stderr в
-`GitReadProcess.java:116` читает через `BufferedReader.readLine` (делит по
+`GitReadProcess.java:137` читает через `BufferedReader.readLine` (делит по
 голому `\r`) — для stderr это безвредно.
