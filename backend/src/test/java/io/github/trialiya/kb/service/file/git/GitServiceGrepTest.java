@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
+import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.support.TestProjects;
@@ -237,6 +238,32 @@ class GitServiceGrepTest {
         assertThat(service.grepContent("needle", null, false, 1, 3, false)).isEmpty();
         // Without context every line is a block of its own, so the same cut keeps what it read.
         assertThat(service.grepContent("needle", null, false, 0, 3, false)).hasSize(3);
+    }
+
+    /**
+     * The model's search says when its list is not the whole answer: a context run cut at the
+     * output ceiling comes back short — here empty — and only {@code truncated} tells that apart
+     * from "nothing else matches". A list exactly {@code maxResults} long that git finished is
+     * complete.
+     */
+    @Test
+    void theModelsSearchSaysWhenTheOutputCeilingCutItShort() {
+        String body = IntStream.range(0, GitGrepRunner.MAX_OUTPUT_LINES + 5_000)
+                .mapToObj(i -> "needle " + i)
+                .collect(Collectors.joining("\n", "", "\n"));
+        writeFile("big.txt", body);
+        writeFile("small.txt", "pin\npin\n");
+        commitAll("first");
+
+        GitGrepHits cut = service.grepHits("needle", null, false, 1, 50, false);
+        assertThat(cut.matches()).isEmpty();
+        assertThat(cut.truncated()).isTrue();
+
+        assertThat(service.grepHits("pin", null, false, 1, 2, false).truncated())
+                .isFalse();
+        GitGrepHits over = service.grepHits("pin", null, false, 0, 1, false);
+        assertThat(over.matches()).hasSize(1);
+        assertThat(over.truncated()).isTrue();
     }
 
     /**

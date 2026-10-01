@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.tool.ToolResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -506,7 +507,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Search file content for matching lines (case-insensitive). Returns path, line number, and text; a line over 500 characters is cut (read it with getFileContent).",
+                    "Search file content for matching lines (case-insensitive). Returns path, line number, and text; a line over 500 characters is cut (read it with getFileContent). \"truncated\": true means there are matches beyond these — more than maxResults, or with context lines the output hit its size ceiling first — so narrow the pattern or pathGlob before concluding anything is absent.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitGrepMatch>> grepContent(
             ToolContext context,
@@ -561,10 +562,11 @@ public class GitFunction {
                 untracked,
                 project);
         GitService git = git(context, project);
-        List<GitGrepMatch> matches = git.grepContent(pattern, pathGlob, useRegex, ctx, limit, untracked).stream()
+        GitGrepHits hits = git.grepHits(pattern, pathGlob, useRegex, ctx, limit, untracked);
+        List<GitGrepMatch> matches = hits.matches().stream()
                 .map(m -> new GitGrepMatch(m.path(), m.matchLine(), GrepLines.cap(m.text()), m.tracked()))
                 .toList();
-        log.debug("grepContent called: {} matches found", matches.size());
-        return answer(git, matches);
+        log.debug("grepContent called: {} matches found, truncated={}", matches.size(), hits.truncated());
+        return new ToolResult<>(git.project().id(), matches, hits.truncated());
     }
 }

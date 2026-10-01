@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.file.git;
 
+import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import java.time.Duration;
@@ -128,9 +129,32 @@ final class GitGrepRunner {
         Found found = rev == null
                 ? search(pattern, pathGlob, regex, 0, cap + 1, includeUntracked)
                 : searchAt(rev, pattern, pathGlob, regex, 0, cap + 1);
+        GitGrepHits hits = upTo(found, cap);
+        return GitGrepResult.group(hits.matches(), hits.truncated());
+    }
+
+    /**
+     * {@link #grepContent} that also says whether there is more than it returned — the model's
+     * search ({@code grepContent} tool). Asks for one block over the cap, as {@link #grepPage}
+     * does; with context a run can also stop at {@link #MAX_OUTPUT_LINES} long before the cap, and
+     * that is the case the flag exists for.
+     */
+    GitGrepHits grepHits(
+            @NonNull String pattern,
+            @Nullable String pathGlob,
+            boolean regex,
+            int contextLines,
+            int maxResults,
+            boolean includeUntracked) {
+        int cap = cap(maxResults);
+        return upTo(search(pattern, pathGlob, regex, contextLines, cap + 1, includeUntracked), cap);
+    }
+
+    /** {@code found} asked with one block over {@code cap}: the first {@code cap}, and whether there was more. */
+    private static GitGrepHits upTo(Found found, int cap) {
         List<GitGrepMatch> matches = found.matches();
-        boolean truncated = found.cut() || matches.size() > cap;
-        return GitGrepResult.group(matches.size() > cap ? matches.subList(0, cap) : matches, truncated);
+        boolean over = matches.size() > cap;
+        return new GitGrepHits(over ? matches.subList(0, cap) : matches, over || found.cut());
     }
 
     private static int cap(int maxResults) {

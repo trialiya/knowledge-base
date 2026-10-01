@@ -13,6 +13,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
@@ -597,6 +598,20 @@ public class GitService {
             int contextLines,
             int maxResults) {
         return grep.grepContentAt(rev, pattern, pathGlob, regex, contextLines, maxResults);
+    }
+
+    /**
+     * {@link #grepContent} that also says whether there is more than it returned; see {@link
+     * GitGrepRunner#grepHits}.
+     */
+    public GitGrepHits grepHits(
+            @NonNull String pattern,
+            @Nullable String pathGlob,
+            boolean regex,
+            int contextLines,
+            int maxResults,
+            boolean includeUntracked) {
+        return grep.grepHits(pattern, pathGlob, regex, contextLines, maxResults, includeUntracked);
     }
 
     /**

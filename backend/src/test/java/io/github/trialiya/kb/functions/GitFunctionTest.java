@@ -18,6 +18,7 @@ import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.tool.ToolResult;
@@ -61,8 +62,8 @@ class GitFunctionTest {
         when(billing.getFileContent(anyString(), any(), any()))
                 .thenReturn(new GitFileContent(
                         "pom.xml", true, null, "<project/>", false, 10, "xml", 1, false, null, null));
-        when(billing.grepContent(anyString(), any(), anyBoolean(), anyInt(), anyInt(), anyBoolean()))
-                .thenReturn(List.of(new GitGrepMatch("pom.xml", 1, "<project/>")));
+        when(billing.grepHits(anyString(), any(), anyBoolean(), anyInt(), anyInt(), anyBoolean()))
+                .thenReturn(new GitGrepHits(List.of(new GitGrepMatch("pom.xml", 1, "<project/>")), true));
         when(billing.getFileTree(any()))
                 .thenReturn(List.of(new GitFileNode("src", "src", FileEntryType.DIRECTORY, null)));
         when(billing.searchFiles(anyString(), anyInt()))
@@ -129,6 +130,7 @@ class GitFunctionTest {
         verify(gitRegistry).forProject("billing");
         assertThat(matches.project()).isEqualTo("billing");
         assertThat(matches.result()).isNotEmpty();
+        assertThat(matches.truncated()).isTrue();
     }
 
     /**
