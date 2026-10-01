@@ -34,7 +34,7 @@ describe('FileInfo', () => {
   afterEach(() => vi.resetAllMocks());
 
   test('просит историю вместе с телом сообщения', async () => {
-    gitApi.getCommits.mockResolvedValue([commit()]);
+    gitApi.getCommits.mockResolvedValue({ commits: [commit()], truncated: true });
 
     show();
 
@@ -47,7 +47,7 @@ describe('FileInfo', () => {
 
   test('показывает тело коммита, сохраняя его переносы строк', async () => {
     const body = 'Первый абзац.\n\n- пункт\n- ещё пункт';
-    gitApi.getCommits.mockResolvedValue([commit({ body })]);
+    gitApi.getCommits.mockResolvedValue({ commits: [commit({ body })], truncated: true });
 
     show();
 
@@ -57,7 +57,7 @@ describe('FileInfo', () => {
   });
 
   test('в снимке ревизии историю просит от неё, а не от HEAD', async () => {
-    gitApi.getCommits.mockResolvedValue([commit()]);
+    gitApi.getCommits.mockResolvedValue({ commits: [commit()], truncated: true });
 
     render(<FileInfo content={CONTENT} loading={false} path="src/App.jsx" project="kb" rev="v1.2" />);
 
@@ -66,7 +66,7 @@ describe('FileInfo', () => {
   });
 
   test('без тела строки для него нет', async () => {
-    gitApi.getCommits.mockResolvedValue([commit()]);
+    gitApi.getCommits.mockResolvedValue({ commits: [commit()], truncated: true });
 
     show();
 
@@ -75,7 +75,7 @@ describe('FileInfo', () => {
   });
 
   test('хеш последнего коммита ведёт к самому коммиту, а копируется текстом', async () => {
-    gitApi.getCommits.mockResolvedValue([commit()]);
+    gitApi.getCommits.mockResolvedValue({ commits: [commit()], truncated: true });
     const writeText = vi.fn().mockResolvedValue();
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 

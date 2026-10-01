@@ -202,7 +202,7 @@ class GitServiceCommitContentTest {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private String head() {
-        return service.getCommitLog(1, null, false).getFirst().hash();
+        return service.getCommitLog(1, null, false).commits().getFirst().hash();
     }
 
     private void write(String relativePath, String content) {

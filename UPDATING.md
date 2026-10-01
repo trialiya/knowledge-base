@@ -28,6 +28,15 @@ back" (the walk stops at 20 000 commits). The bundled UI is updated with it. A
 script or integration of your own that reads this endpoint must take the list
 from `commits`.
 
+### `GET /api/git/commits` answers `{commits, truncated}`
+
+The history listing returned a bare `GitCommit[]`; it now returns the same shape
+as `/api/git/commits/search` and `/commits/grep` — `{ "commits": [...],
+"truncated": bool }` — so a caller can tell that history goes on past the last
+commit (a `limit` above 100 is still cut to 100, and now says so). The bundled
+UI is updated with it. A script or integration of your own that reads this
+endpoint must take the list from `commits`.
+
 ### `GET /api/git/files/blame` hunks drop `shortHash` and `email`
 
 A blame hunk no longer carries the short hash or the author's email: the column

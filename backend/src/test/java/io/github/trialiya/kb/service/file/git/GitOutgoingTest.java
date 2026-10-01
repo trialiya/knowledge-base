@@ -61,6 +61,30 @@ class GitOutgoingTest {
         assertThat(service.branchStatus().ahead()).isEqualTo(outgoing.size());
     }
 
+    @Test
+    void theListStopsAtTheCountAsked() {
+        commit("second");
+        commit("third");
+
+        assertThat(service.getOutgoingCommits(1)).extracting(GitCommit::message).containsExactly("third");
+    }
+
+    /**
+     * Remote-ссылка может указывать на аннотированный тег, а не на коммит: исключается коммит под
+     * ним, и ответ не падает на объекте не того типа.
+     */
+    @Test
+    void aRemoteRefToAnAnnotatedTagIsReadAsItsCommit() {
+        git("tag", "-a", "v1", "-m", "release");
+        git("update-ref", "refs/remotes/origin/v1", "v1");
+        git("switch", "-q", "-c", "feature/y");
+        commit("after the tag");
+
+        assertThat(service.getOutgoingCommits(20))
+                .extracting(GitCommit::message)
+                .containsExactly("after the tag");
+    }
+
     /**
      * Ветку, созданную в панели, upstream ещё не отслеживает, и диапазон upstream..HEAD был бы пуст
      * — а push при этом опубликует настоящую работу. Показываем то, что он и отправит: коммиты,

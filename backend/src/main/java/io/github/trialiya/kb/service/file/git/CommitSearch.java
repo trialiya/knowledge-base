@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Predicate;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
@@ -62,22 +63,39 @@ final class CommitSearch {
     }
 
     /**
-     * @param query префикс хеша или подстрока сообщения, без учёта регистра
+     * @param query префикс хеша или подстрока сообщения, без учёта регистра; пустой — пустой ответ:
+     *     искать нечего (листинг без запроса — {@link #log})
      * @param maxCount сколько коммитов вернуть, не больше {@value #MAX_RESULTS}
      * @return совпадения и признак того, что за ними могут быть ещё: нашлось совпадение сверх
      *     лимита, или обход остановился на {@link #SCAN} раньше конца истории. Лимит, заполненный
      *     последним совпадением истории, — полная выдача: после него обход идёт дальше, до конца
      *     истории или до {@link #SCAN}, — та же цена, что у запроса без единого совпадения
      */
+    static GitCommitSearchResult search(Repository repository, String query, int maxCount, Scope scope) {
+        String q = query.strip().toLowerCase(Locale.ROOT);
+        if (q.isEmpty()) return new GitCommitSearchResult(List.of(), false);
+        return walk(repository, commit -> matches(commit, q, scope.inBody()), maxCount, scope);
+    }
+
+    /**
+     * История без запроса — каждый коммит обхода совпадение, — с тем же признаком обрезки: он
+     * поднят, когда за последним отданным коммитом есть ещё хотя бы один.
+     *
+     * @param maxCount сколько коммитов вернуть, не больше {@value #MAX_RESULTS}
+     */
+    static GitCommitSearchResult log(Repository repository, int maxCount, Scope scope) {
+        return walk(repository, commit -> true, maxCount, scope);
+    }
+
     // ObjectReader принадлежит обходу и закрывается вместе с ним; закрыть его здесь значило бы
     // выдернуть читатель из-под обхода, который ещё идёт.
     @SuppressWarnings("PMD.CloseResource")
-    static GitCommitSearchResult search(Repository repository, String query, int maxCount, Scope scope) {
-        if (query.isBlank()) return new GitCommitSearchResult(List.of(), false);
-        String q = query.strip().toLowerCase(Locale.ROOT);
+    private static GitCommitSearchResult walk(
+            Repository repository, Predicate<RevCommit> match, int maxCount, Scope scope) {
         int limit = Math.min(Math.max(maxCount, 1), MAX_RESULTS);
         String rev = scope.rev();
         ObjectId start = rev == null || rev.isBlank() ? null : CommitFiles.commitOf(repository, rev.strip());
+
         try (CommitWalk walk = new CommitWalk(repository)) {
             if (start == null) start = repository.resolve(Constants.HEAD);
             // Коммитов в репозитории ещё нет — это пустая история, а не ошибка.
@@ -91,7 +109,7 @@ final class CommitSearch {
                 if (++scanned > SCAN) {
                     return new GitCommitSearchResult(matches, true);
                 }
-                if (matches(commit, q, scope.inBody())) {
+                if (match.test(commit)) {
                     // Только совпадение сверх лимита говорит «есть ещё»: коммит, который просто
                     // лежит дальше по истории, может ни с чем не совпасть.
                     if (matches.size() == limit) {

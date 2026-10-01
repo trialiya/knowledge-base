@@ -311,12 +311,12 @@ public class GitService {
     // ── Commit history ───────────────────────────────────────────────────────
 
     /** History from HEAD — {@link #getCommitLog(int, String, boolean, String)} of no revision. */
-    public List<GitCommit> getCommitLog(int maxCount, @Nullable String filePath, boolean includeBody) {
+    public GitCommitSearchResult getCommitLog(int maxCount, @Nullable String filePath, boolean includeBody) {
         return getCommitLog(maxCount, filePath, includeBody, null);
     }
 
     /**
-     * Returns recent commit history.
+     * Recent commit history, newest first.
      *
      * @param maxCount max commits to return (default 20, capped at 100)
      * @param filePath optional — limit history to a specific file
@@ -324,25 +324,11 @@ public class GitService {
      * @param rev optional — walk from this revision instead of HEAD, so a browser showing a
      *     commit's snapshot describes its paths by the history of that snapshot: a commit made
      *     after {@code rev} did not touch what the snapshot holds
+     * @return the commits with {@code truncated}: true when history goes on past the last one
      */
-    public List<GitCommit> getCommitLog(
+    public GitCommitSearchResult getCommitLog(
             int maxCount, @Nullable String filePath, boolean includeBody, @Nullable String rev) {
-        int limit = Math.min(Math.max(maxCount, 1), 100);
-        ObjectId start = rev != null && !rev.isBlank() ? CommitFiles.commitOf(repository, rev.strip()) : null;
-        try (CommitWalk walk = new CommitWalk(repository)) {
-            if (start == null) start = repository.resolve(Constants.HEAD);
-            // Repository has no commits yet — an empty history, not an error.
-            if (start == null) return List.of();
-            walk.from(start).path(filePath);
-            List<GitCommit> commits = new ArrayList<>();
-            for (RevCommit commit : walk) {
-                if (commits.size() == limit) break;
-                commits.add(Diffs.toGitCommit(commit, null, walk.reader(), includeBody));
-            }
-            return commits;
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read commit log", e);
-        }
+        return CommitSearch.log(repository, maxCount, new CommitSearch.Scope(false, includeBody, rev, filePath));
     }
 
     /**

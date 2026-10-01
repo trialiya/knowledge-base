@@ -70,7 +70,8 @@ class GitFunctionTest {
                 .thenReturn(List.of(new GitFileNode("pom.xml", "pom.xml", FileEntryType.FILE, 10L)));
         when(billing.getFileOutline(anyString()))
                 .thenReturn(new GitFileOutline("Foo.java", true, "java", 10, "regex", List.of()));
-        when(billing.getCommitLog(anyInt(), any(), anyBoolean())).thenReturn(List.of(commit()));
+        when(billing.getCommitLog(anyInt(), any(), anyBoolean()))
+                .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
         when(billing.searchCommitLog(anyString(), anyInt(), any(), anyBoolean()))
                 .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
@@ -267,16 +268,16 @@ class GitFunctionTest {
     }
 
     /**
-     * Обход истории ограничен, поэтому ответ на поиск говорит, дошёл ли он до конца, — а простое
-     * листание, у которого предел назван в параметре, этого поля не несёт вовсе.
+     * И поиск, и простое листание говорят, дошли ли до конца: просьба о двухстах коммитах даёт сто,
+     * и без признака модель прочла бы сотый как самый старый.
      */
     @Test
-    void aSearchThroughMessagesSaysWhetherItWasCutShort() {
+    void bothSearchAndListingSayWhetherTheyWereCutShort() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
         assertThat(function.getCommitLog(context, 5, null, "retry", null, null).truncated())
                 .isTrue();
         assertThat(function.getCommitLog(context, 5, null, null, null, null).truncated())
-                .isNull();
+                .isTrue();
     }
 }

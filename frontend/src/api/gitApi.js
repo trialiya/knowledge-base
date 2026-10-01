@@ -332,8 +332,9 @@ const gitApi = {
 
   /**
    * История коммитов (свежие первыми), опционально по одному пути.
-   * path='' или omitted — история всего репозитория. Возвращает GitCommit[]
-   * { hash, shortHash, author, email, date, message, body }.
+   * path='' или omitted — история всего репозитория. Возвращает
+   * { commits: GitCommit[] { hash, shortHash, author, email, date, message, body },
+   * truncated } — `truncated`: за последним отданным коммитом история продолжается.
    *
    * `body` (текст сообщения ниже темы) приходит только с `body: true`: он есть
    * не у каждого коммита, зато у больших правок идёт на десятки строк, и в

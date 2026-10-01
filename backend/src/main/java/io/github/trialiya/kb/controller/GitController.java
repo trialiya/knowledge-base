@@ -158,7 +158,7 @@ public class GitController {
      * would pay for it on every listing.
      */
     @GetMapping("/commits")
-    public List<GitCommit> getCommits(
+    public GitCommitSearchResult getCommits(
             @RequestParam(name = "path", required = false) @Nullable String path,
             @RequestParam(name = "limit", defaultValue = "20") int limit,
             @RequestParam(name = "body", defaultValue = "false") boolean body,
