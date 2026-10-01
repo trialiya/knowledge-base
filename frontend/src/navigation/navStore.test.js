@@ -369,3 +369,39 @@ describe('переход к коммиту', () => {
     expect(s.nav()).toMatchObject({ view: 'files', filePath: '', fileRev: hash, rightTab: 'commit' });
   });
 });
+
+describe('возврат из снимка, открытого по ячейке blame', () => {
+  const hash = '0123456789abcdef0123456789abcdef01234567';
+  afterEach(() => vi.restoreAllMocks());
+
+  // Прокрутку внутреннего блока браузер на «Назад» не вернёт: место, с которого
+  // ушли, остаётся в адресе той записи — выделенными строками ханка.
+  it('строки ханка пишутся в запись, с которой ушли, а переход — одна новая запись', () => {
+    go('/files/a.js?blame=1');
+    const s = mount();
+    const replaced = vi.spyOn(window.history, 'replaceState');
+    const pushed = vi.spyOn(window.history, 'pushState');
+    const before = window.history.length;
+
+    s.openFilePath('old.js', undefined, { rev: hash, lines: '7-8', backLines: '3-4', right: 'commit' });
+
+    expect(replaced.mock.calls.map((c) => c[2])).toEqual(['/files/a.js?blame=1&lines=3-4']);
+    expect(pushed.mock.calls.map((c) => c[2])).toEqual([`/files/old.js?rev=${hash}&blame=1&lines=7-8&right=commit`]);
+    expect(replaced.mock.invocationCallOrder[0]).toBeLessThan(pushed.mock.invocationCallOrder[0]);
+    expect(window.history.length).toBe(before + 1);
+
+    back('/files/a.js?blame=1&lines=3-4');
+    expect(s.nav()).toMatchObject({ filePath: 'a.js', fileRev: '', fileLines: '3-4' });
+  });
+
+  // Метка — про место в «Файлах»; из другого раздела возвращаться не к чему.
+  it('вне «Файлов» текущую запись не трогает', () => {
+    go('/chat/7');
+    const s = mount();
+    const replaced = vi.spyOn(window.history, 'replaceState');
+
+    s.openFilePath('old.js', undefined, { rev: hash, backLines: '3-4' });
+
+    expect(replaced).not.toHaveBeenCalled();
+  });
+});
