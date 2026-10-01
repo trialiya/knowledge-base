@@ -39,7 +39,8 @@ export function registerFileNavigator(fn) {
  *   незакоммиченному, а не к файлу в дереве. Не передан — режим не трогаем.
  *   `{ rev }` — открыть файл в снимке этой ревизии (ссылка на файл в коммите).
  *   `{ lines }` — выделить строки (`42-45`) и прокрутить к ним: так ведёт ячейка
- *   blame к ханку в снимке его коммита.
+ *   blame к ханку в снимке его коммита; `{ backLines }` — строки открытого
+ *   сейчас файла, к которым вернёт «Назад» (см. navStore.openFilePath).
  */
 export function navigateToFile(path, project, options) {
   navigator?.(path, project, options);

@@ -246,7 +246,13 @@ describe('FileView', () => {
 
       await user.click(link);
 
-      expect(navigateToFile).toHaveBeenCalledWith('old.js', 'kb', { rev: hash, lines: '7-8', right: 'commit' });
+      // backLines — строки ханка в ЭТОМ файле: к ним вернёт «Назад»; в адрес ссылки они не идут.
+      expect(navigateToFile).toHaveBeenCalledWith('old.js', 'kb', {
+        rev: hash,
+        lines: '7-8',
+        backLines: '1-2',
+        right: 'commit',
+      });
     });
 
     // Номера строк усечённого файла не настоящие, у неотслеживаемого истории нет,

@@ -276,15 +276,26 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
      * @param project репозиторий пути; не передан — остаёмся в том, что открыт
      *   (клик по дереву не должен уводить в другой проект), а переход по ссылке из
      *   чата проект называет и панель переключает
-     * @param options `{ changes, rev, find, findRegex, lines, right }` — `changes`: каким
+     * @param options `{ changes, rev, find, findRegex, lines, backLines, right }` — `changes`: каким
      *   показать левый блок (ссылка из вкладки «Репозиторий» ведёт к
      *   незакоммиченному, ссылка на файл — в дерево; не передан — режим остаётся
      *   тем, что был); `find`: что подсветить в открытом файле — его приносит
      *   переход из поиска; `lines`: какие строки выделить (`42-45`, см.
-     *   urlScheme.formatLines) — его приносит клик по ячейке blame; `right`: вкладка правой панели — ссылка на коммит
+     *   urlScheme.formatLines) — его приносит клик по ячейке blame; `backLines`:
+     *   строки открытого сейчас файла, к которым вернёт «Назад» (ханк, по подписи
+     *   которого кликнули), — пишутся в ТЕКУЩУЮ запись истории на месте, до
+     *   перехода, так что запись по-прежнему одна; `right`: вкладка правой панели — ссылка на коммит
      *   открывает вкладку «Коммит» (не передан — раскладка раздела как была)
      */
     openFilePath(path, project, options) {
+      // Не переход, а пометка места, с которого уходят: прокрутку внутреннего
+      // блока браузер на «Назад» не восстановит, а выделение из адреса — да.
+      if (options?.backLines) {
+        const backLines = options.backLines;
+        replace((prev) =>
+          prev.view !== 'files' || prev.fileLines === backLines ? prev : { ...prev, fileLines: backLines },
+        );
+      }
       push((prev) => {
         const nextProject = project === undefined ? prev.fileProject : project || '';
         return {

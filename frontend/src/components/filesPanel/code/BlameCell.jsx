@@ -16,7 +16,9 @@ import { formatCompactDateTime, formatDateTime } from '@/utils/formatting';
  * номера — те, что были у файла в том коммите (`hunk.path`, `hunk.sourceLine`):
  * после переименования нынешнее имя там не найдётся, а строки, сдвинутые
  * позднейшими правками, стояли там на другом месте. Ханк без коммита —
- * незакоммиченная правка: вести некуда.
+ * незакоммиченная правка: вести некуда. Строки ханка в ЭТОМ файле переход
+ * пишет в текущую запись истории (`backLines`): «Назад» вернёт к ним, выделенным
+ * и прокрученным, а не к началу файла.
  *
  * `data-find-skip`: Ctrl+F в файле ищет по тексту, а не по описаниям коммитов.
  */
@@ -40,7 +42,7 @@ const BlameCell = ({ hunk, span, path, project }) => {
   const onClick = (e) => {
     if (isBrowserClick(e)) return;
     e.preventDefault();
-    navigateToFile(target, project, options);
+    navigateToFile(target, project, { ...options, backLines: formatLines(hunk.fromLine, hunk.lineCount) });
   };
   const byline = [hunk.author, hunk.shortHash, formatDateTime(hunk.date, i18n.language)].filter(Boolean).join(' · ');
   const title = [hunk.summary, byline].filter(Boolean).join('\n');
