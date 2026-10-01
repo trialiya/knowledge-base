@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Чтение файла из дерева коммита ({@code getFileContentAt}) — то, чем оно отличается от чтения с
+ * Чтение файла из дерева коммита ({@code getFileContent} с ревизией) — то, чем оно отличается от чтения с
  * диска: отвечает история, а не рабочее дерево.
  */
 class GitServiceCommitContentTest {

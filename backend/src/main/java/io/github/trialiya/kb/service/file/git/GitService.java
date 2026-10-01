@@ -198,7 +198,12 @@ public class GitService {
      * Returns visible files/directories under {@code subPath} (or repo root if null), directories
      * first then alphabetically (case-insensitive): the tracked files from the Git index, plus —
      * when the project configures {@code allow-globs} — the untracked files those globs admit (see
-     * {@link VisibleFiles#paths()}).
+     * {@link VisibleFiles#paths()}). With {@code rev} — the same listing of that commit's tree: no
+     * uncommitted change reaches it, and a file deleted since is still there.
+     *
+     * @param rev the commit to list; {@code null} or blank — the working tree. Anything git reads as
+     *     a commit: a full or short hash, a branch, a tag, {@code HEAD~2}
+     * @throws IllegalArgumentException if the revision is unknown or ambiguous
      */
     public List<GitFileNode> getFileTree(@Nullable String rev, @Nullable String subPath) {
         String at = snapshot(rev);
@@ -206,13 +211,7 @@ public class GitService {
         return RepoBrowse.tree(workingTree(visible.all()), RepoPaths.normalizeDir(subPath));
     }
 
-    /**
-     * The same listing of a commit's tree rather than the working tree: no uncommitted change
-     * reaches it, and a file deleted since is still there.
-     *
-     * @param rev anything git reads as a commit — a full or short hash, a branch, a tag, {@code
-     *     HEAD~2}
-     */
+    /** {@link #getFileTree} of a commit's tree. */
     private List<GitFileNode> getFileTreeAt(String rev, @Nullable String subPath) {
         try (CommitFiles.Commit commit = CommitFiles.Commit.open(repository, rev.strip())) {
             return listingAt(commit, RepoPaths.normalizeDir(subPath));
@@ -239,9 +238,14 @@ public class GitService {
      * the listings of every directory from the repo root down to the path's parent, so the tree can
      * be expanded to it without walking the levels one request at a time.
      *
+     * <p>With {@code rev} — the same view of that commit's tree, what the browser's revision mode
+     * renders; see {@link #browsePathAt}.
+     *
+     * @param rev the commit to read; {@code null} or blank — the working tree
      * @param path path relative to repo root; null or blank means the root itself
      * @param includeAncestors whether to include the ancestor listings; a caller that already has
      *     them cached passes false and gets only the path itself
+     * @throws IllegalArgumentException if the revision is unknown or ambiguous
      */
     public GitPathView browsePath(@Nullable String rev, @Nullable String path, boolean includeAncestors) {
         String at = snapshot(rev);
@@ -646,8 +650,9 @@ public class GitService {
     }
 
     /**
-     * The file as of a commit — {@code git show <rev>:<path>}. Reads the commit's tree, never the working copy, so an uncommitted
-     * edit on disk does not show through and a file deleted since that commit still reads.
+     * The file as of a commit — {@code git show <rev>:<path>}. Reads the commit's tree, never the
+     * working copy, so an uncommitted edit on disk does not show through and a file deleted since
+     * that commit still reads.
      *
      * <p>Serves whatever the commit holds, without the working-tree gate {@code getFileContent}
      * applies: a path in a commit is committed history by definition, and {@link #getCommitDiff}
@@ -690,7 +695,8 @@ public class GitService {
      * @param rev the commit to read; {@code null} or blank — the working tree
      * @param filePath path relative to repo root
      * @throws IllegalArgumentException if the file is binary or its language is not supported for
-     *     outlining ({@link OutlineService#supportedLanguages})
+     *     outlining ({@link OutlineService#supportedLanguages}), or — with {@code rev} — the revision
+     *     is unknown or holds no such file
      */
     public GitFileOutline getFileOutline(@Nullable String rev, @NonNull String filePath) {
         String at = snapshot(rev);
@@ -774,7 +780,8 @@ public class GitService {
      * <p>With {@code rev} — the file as of that commit; see {@link #committedRawFile}.
      *
      * @param rev the commit to read; {@code null} or blank — the working tree
-     * @throws IllegalArgumentException if the file is bigger than that limit
+     * @throws IllegalArgumentException if the file is bigger than that limit, or — with {@code rev}
+     *     — the revision is unknown or holds no such file
      */
     public GitFileBytes getRawFile(@Nullable String rev, @NonNull String filePath) {
         String at = snapshot(rev);
@@ -788,8 +795,8 @@ public class GitService {
     }
 
     /**
-     * The file as of a commit — {@code git show <rev>:<path>}, so a
-     * snapshot of a revision shows the picture that revision holds and not the one on disk.
+     * The file as of a commit — {@code git show <rev>:<path>}, so a snapshot of a revision shows the
+     * picture that revision holds and not the one on disk.
      *
      * @param rev any revision git resolves: a full or short hash, a branch, a tag, {@code HEAD~2}
      * @throws IllegalArgumentException if the revision is unknown, holds no such file, or the file
