@@ -4,6 +4,7 @@ import { chatUrl } from '@/navigation/urlScheme';
 import { highlightSubstring } from '@/components/common/search/highlightMatch';
 import ResultGroup from './ResultGroup';
 import RelativeTime from '@/components/common/ui/RelativeTime';
+import { formatCompactDateTime } from '@/utils/formatting';
 
 /** Автор сообщения: ключ перевода и значок на роль, которую отдаёт бэкенд. */
 const ROLE = {
@@ -35,7 +36,7 @@ const ROLE = {
  * карточки сообщения не называет — «открыть чат» значит открыть его на свежем.
  */
 const ChatResults = ({ result, query, onOpenChat }) => {
-  const { t } = useTranslation('search');
+  const { t, i18n } = useTranslation('search');
 
   return result.chats.map((chat) => {
     const find = chat.messages.length > 0 ? query : '';
@@ -52,7 +53,13 @@ const ChatResults = ({ result, query, onOpenChat }) => {
             <>
               <Icon size={11} />
               <span className="search-line__section">{t(key)}</span>
-              <RelativeTime className="search-line__time" value={message.createdAt} />
+              {/* Время сообщения — цифрами, с датой: сообщения одного чата идут днями,
+                  и относительное «18 июл.» у них совпало бы. Давность — у карточки чата. */}
+              {message.createdAt && (
+                <time className="search-line__time" dateTime={message.createdAt}>
+                  {formatCompactDateTime(message.createdAt, i18n.language)}
+                </time>
+              )}
             </>
           ),
         },

@@ -10,8 +10,9 @@ const RelativeTime = ({ value, className }) => {
   const { i18n } = useTranslation();
   const label = formatRelativeTime(value, i18n.language);
   if (!label) return null;
+  // Атрибут — машинный формат: строка из ответа может быть и не ISO, и Date.
   return (
-    <time className={className} dateTime={value} title={formatDateTime(value, i18n.language)}>
+    <time className={className} dateTime={new Date(value).toISOString()} title={formatDateTime(value, i18n.language)}>
       {label}
     </time>
   );
