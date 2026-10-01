@@ -39,7 +39,7 @@
   flex: 1;
   font-weight: 700;
   font-size: 0.9rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--kb-font-mono);
   color: var(--kb-text);
   min-width: 0;
   overflow: hidden;

@@ -13,7 +13,7 @@ import { formatDateTime } from '@/utils/formatting';
 /** Итог последнего прогона одной строкой: когда, чем кончился, сколько занял. */
 const lastRunText = (t, lastRun, language) => {
   if (!lastRun) return t('scripts.schedules.never');
-  const at = formatDateTime(lastRun.at, language);
+  const at = formatDateTime(lastRun.at, language) ?? '—';
   return lastRun.ok
     ? t('scripts.schedules.okAt', { at, ms: lastRun.elapsedMs })
     : t('scripts.schedules.failedAt', { at, error: lastRun.error ?? '' });
