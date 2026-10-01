@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.service.file.git;
 
+import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -39,6 +41,18 @@ final class GitGrepRunner {
      */
     static final int MAX_OUTPUT_LINES = 20_000;
 
+    /** Most match blocks one search hands out; {@code grepContent} names the same bound to the model. */
+    static final int MAX_RESULTS = 200;
+
+    /**
+     * What one search found, and whether a run stopped at its output ceiling before git was done —
+     * the matches past that point were never read, so their absence says nothing.
+     */
+    private record Found(List<GitGrepMatch> matches, boolean cut) {}
+
+    /** Output of one {@code git grep} run, and whether it was stopped before git had finished. */
+    private record Lines(List<String> lines, boolean cut) {}
+
     private final Repository repository;
     private final VisibleFiles visible;
     private final GitReadProcess git;
@@ -55,7 +69,8 @@ final class GitGrepRunner {
     }
 
     /**
-     * Searches the contents of tracked files for lines matching {@code pattern}.
+     * Searches the contents of tracked files for lines matching {@code pattern}, and says whether
+     * there is more than it returned.
      *
      * <p>Delegates to {@code git grep}, which searches only tracked files (honouring {@code
      * .gitignore}) and is orders of magnitude faster than scanning the filesystem. Binary files are
@@ -70,30 +85,71 @@ final class GitGrepRunner {
      * the caller sees grouped context rather than one record per raw line; the layout being read is
      * described in {@link GitGrep#parse}.
      *
+     * <p>One block over the cap is asked of git, so that exactly {@code maxResults} blocks read as
+     * complete and one more as cut. A run stopped at its output ceiling is cut whatever it holds:
+     * with context that happens long before the cap ({@link #MAX_OUTPUT_LINES}), and a short or
+     * empty list then means "not read", not "not there".
+     *
      * @param pattern literal string or regex to search for
      * @param pathGlob optional glob to restrict search to matching paths (e.g. {@code "*.java"},
      *     {@code "src/main/**"}); null means all tracked files
      * @param regex if true, treat {@code pattern} as an extended regex; otherwise literal
+     * @param rev optional — search the tree of this commit instead of the working tree: hash (full
+     *     or short), branch, tag or {@code HEAD~2}, resolved through JGit first so only a hash ever
+     *     reaches the command line. Untracked files have no place in a commit, so {@code
+     *     includeUntracked} is ignored with it
      * @param contextLines number of context lines before and after each match (like grep -C); 0
      *     means match line only; capped at 10
-     * @param maxResults maximum number of match blocks to return; capped at 200
+     * @param maxResults maximum number of match blocks to return; capped at {@value #MAX_RESULTS}
      * @param includeUntracked also search the untracked files this project's {@code allow-globs}
      *     admit; off by default, so a plain search answers about the committed codebase
-     * @return match blocks in order of appearance; with {@code includeUntracked} the two runs are
+     * @return match blocks in order of appearance, at most {@code maxResults}; with {@code includeUntracked} the two runs are
      *     merged and the whole list comes back ordered by path instead, so a file's blocks stay
      *     together rather than splitting around the seam between the runs — what the second run
      *     contributed is marked {@code tracked=false}. Empty if nothing matched
+     * @throws IllegalArgumentException if the revision is unknown or ambiguous, or the pattern is
+     *     not a valid regular expression
      */
-    List<GitGrepMatch> grepContent(
+    GitGrepHits grepHits(
             @NonNull String pattern,
             @Nullable String pathGlob,
             boolean regex,
+            @Nullable String rev,
             int contextLines,
             int maxResults,
             boolean includeUntracked) {
+        int cap = Math.clamp(maxResults, 1, MAX_RESULTS);
+        Found found = rev == null
+                ? search(pattern, pathGlob, regex, contextLines, cap + 1, includeUntracked)
+                : searchAt(rev, pattern, pathGlob, regex, contextLines, cap + 1);
+        List<GitGrepMatch> matches = found.matches();
+        boolean over = matches.size() > cap;
+        return new GitGrepHits(over ? matches.subList(0, cap) : matches, over || found.cut());
+    }
 
+    /**
+     * The search page's question: {@link #grepHits} without context, grouped by file.
+     */
+    GitGrepResult grepPage(
+            @NonNull String pattern,
+            @Nullable String pathGlob,
+            boolean regex,
+            @Nullable String rev,
+            boolean includeUntracked,
+            int maxResults) {
+        GitGrepHits hits = grepHits(pattern, pathGlob, regex, rev, 0, maxResults, includeUntracked);
+        return GitGrepResult.group(hits.matches(), hits.truncated());
+    }
+
+    /** The working-tree half of {@link #grepHits}, with the block limit already decided. */
+    private Found search(
+            String pattern,
+            @Nullable String pathGlob,
+            boolean regex,
+            int contextLines,
+            int limit,
+            boolean includeUntracked) {
         int ctx = Math.min(Math.max(contextLines, 0), 10);
-        int limit = Math.min(Math.max(maxResults, 1), 200);
 
         if (!regex && (pattern.contains(".*") || pattern.contains("|"))) {
             log.warn("grepContent: pattern '{}' looks like regex but regex=false — using literal match", pattern);
@@ -101,14 +157,13 @@ final class GitGrepRunner {
 
         String glob = pathGlob == null || pathGlob.isBlank() ? null : RepoPaths.toForwardSlashes(pathGlob.strip());
         long deadline = git.deadline();
-        List<GitGrepMatch> tracked = GitGrep.parse(
-                exec(GitGrep.args(pattern, glob, regex, ctx, null, null), ctx, outputLines(ctx, limit), deadline),
-                ctx,
-                limit);
+        Lines trackedRun =
+                exec(GitGrep.args(pattern, glob, regex, ctx, null, null), ctx, outputLines(ctx, limit), deadline);
+        List<GitGrepMatch> tracked = GitGrep.parse(trackedRun.lines(), ctx, limit);
         // No roots left to search is not "search everywhere": without a pathspec the untracked run
         // would sweep the whole working tree.
         if (!includeUntracked || visible.allowGlobRoots().isEmpty()) {
-            return tracked;
+            return new Found(tracked, trackedRun.cut());
         }
 
         // A second, separately bounded run: `--untracked` cannot be added to the one above without
@@ -118,14 +173,12 @@ final class GitGrepRunner {
         // keeps the walk the size of the named area.
         // Unbounded in blocks, since the filters below decide what counts, and bounded in lines
         // by the output ceiling alone, since the roots are a named area and not the repository.
-        List<GitGrepMatch> extra = GitGrep.parse(
-                exec(
-                        GitGrep.args(pattern, null, regex, ctx, visible.allowGlobRoots(), null),
-                        ctx,
-                        MAX_OUTPUT_LINES,
-                        deadline),
+        Lines extraRun = exec(
+                GitGrep.args(pattern, null, regex, ctx, visible.allowGlobRoots(), null),
                 ctx,
-                Integer.MAX_VALUE);
+                MAX_OUTPUT_LINES,
+                deadline);
+        List<GitGrepMatch> extra = GitGrep.parse(extraRun.lines(), ctx, Integer.MAX_VALUE);
         Set<String> trackedPaths = Set.copyOf(visible.trackedPaths());
         @Nullable Pathspec pathspec = Pathspec.of(glob);
         List<GitGrepMatch> merged = new ArrayList<>(tracked);
@@ -141,36 +194,22 @@ final class GitGrepRunner {
                 .forEach(merged::add);
         // Cut only once everything invisible is gone, or a large untracked area would spend the
         // whole cap on matches nobody gets to see.
-        return merged.stream()
+        List<GitGrepMatch> found = merged.stream()
                 .sorted(Comparator.comparing(GitGrepMatch::path))
                 .limit(limit)
                 .toList();
+        return new Found(found, trackedRun.cut() || extraRun.cut());
     }
 
-    /**
-     * {@link #grepContent} over the tree of a commit instead of the working tree: what the search
-     * page asks for with a revision chosen. Untracked files have no place in a commit, so there is
-     * no second run here.
-     *
-     * @param rev hash (full or short), branch, tag or {@code HEAD~2}; resolved through JGit first,
-     *     so only a hash ever reaches the command line
-     * @throws IllegalArgumentException if the revision is unknown or ambiguous, or the pattern is
-     *     not a valid regular expression
-     */
-    List<GitGrepMatch> grepContentAt(
-            @NonNull String rev,
-            @NonNull String pattern,
-            @Nullable String pathGlob,
-            boolean regex,
-            int contextLines,
-            int maxResults) {
+    /** The commit half of {@link #grepHits}, with the block limit already decided. */
+    private Found searchAt(
+            String rev, String pattern, @Nullable String pathGlob, boolean regex, int contextLines, int limit) {
         int ctx = Math.min(Math.max(contextLines, 0), 10);
-        int limit = Math.min(Math.max(maxResults, 1), 200);
         String commit = CommitFiles.commitOf(repository, rev.strip()).name();
         String glob = pathGlob == null || pathGlob.isBlank() ? null : RepoPaths.toForwardSlashes(pathGlob.strip());
-        List<String> lines = exec(
+        Lines run = exec(
                 GitGrep.args(pattern, glob, regex, ctx, null, commit), ctx, outputLines(ctx, limit), git.deadline());
-        return GitGrep.parse(GitGrep.withoutCommitPrefix(lines, commit), ctx, limit);
+        return new Found(GitGrep.parse(GitGrep.withoutCommitPrefix(run.lines(), commit), ctx, limit), run.cut());
     }
 
     /**
@@ -216,7 +255,7 @@ final class GitGrepRunner {
      * @throws GitReadTimeoutException if git did not answer by {@code deadline}
      * @throws IllegalStateException if git failed in any other way
      */
-    private List<String> exec(List<String> command, int ctx, int maxLines, long deadline) {
+    private Lines exec(List<String> command, int ctx, int maxLines, long deadline) {
         GitReadProcess.Output out = git.run(command, maxLines, deadline);
         List<String> lines = out.lines();
         if (out.cut()) {
@@ -226,14 +265,14 @@ final class GitGrepRunner {
             // the last boundary is where the last complete one ended, and a buffer without one
             // holds no complete block at all.
             if (ctx == 0) {
-                return lines;
+                return new Lines(lines, true);
             }
             int lastSeparator = lastBlockBoundary(lines);
             if (lastSeparator < 0) {
                 log.warn("Git command filled {} lines with one unfinished block: {}", maxLines, command);
-                return List.of();
+                return new Lines(List.of(), true);
             }
-            return lines.subList(0, lastSeparator);
+            return new Lines(lines.subList(0, lastSeparator), true);
         }
         if (out.exit() > 1) {
             String said = out.said();
@@ -245,7 +284,7 @@ final class GitGrepRunner {
             throw new IllegalStateException("git grep exited " + out.exit() + ": " + said);
         }
         // Exit 1 is git grep's "no matches" — not an error, the output is simply empty.
-        return lines;
+        return new Lines(lines, false);
     }
 
     /**

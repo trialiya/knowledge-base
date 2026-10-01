@@ -29,11 +29,23 @@ describe('parseResult', () => {
     expect(parseResult('{"result":"готово","project":"kb"}')).toMatchObject({ project: 'kb', parsed: 'готово' });
   });
 
+  it('ответ с пределом несёт третьим ключом булев `truncated` — и тоже распаковывается', () => {
+    expect(parseResult('{"project":"kb","result":[1],"truncated":true}')).toMatchObject({
+      project: 'kb',
+      truncated: true,
+      parsed: [1],
+    });
+    expect(parseResult('{"project":"kb","result":[1],"truncated":false}')).toMatchObject({ truncated: false });
+    expect(parseResult('{"project":"kb","result":[1]}')).toMatchObject({ truncated: false });
+  });
+
   it('посторонний объект с такими же именами полей остаётся целым', () => {
     const intact = (resultText, parsed) => expect(parseResult(resultText)).toMatchObject({ project: null, parsed });
 
     // Третье поле — значит, это ответ инструмента, а не обёртка.
     intact('{"project":"kb","result":"ok","status":"done"}', { project: 'kb', result: 'ok', status: 'done' });
+    // `truncated` признаётся только булевым: иначе это поле самого ответа.
+    intact('{"project":"kb","result":"ok","truncated":"yes"}', { project: 'kb', result: 'ok', truncated: 'yes' });
     intact('{"project":"kb"}', { project: 'kb' });
     intact('{"result":"ok","count":1}', { result: 'ok', count: 1 });
     // Пустой или нестроковый id репозитория обёрткой не считается.

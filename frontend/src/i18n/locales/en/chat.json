@@ -203,7 +203,8 @@
         "untracked": "untracked",
         "matches": "{{count}} matches",
         "files": "{{count}} files",
-        "documents": "{{count}} documents"
+        "documents": "{{count}} documents",
+        "truncated": "more not shown"
       },
       "script": {
         "stat": {

@@ -34,6 +34,9 @@ final class VisibleFiles {
      */
     private static final AntPathMatcher GLOB_MATCHER = new AntPathMatcher();
 
+    /** Cap on {@link #searchByName} hits; the {@code searchFiles} tool names the same bound. */
+    static final int MAX_NAME_MATCHES = 50;
+
     private final Project project;
     private final RepoPaths paths;
     private final Repository repository;
@@ -267,12 +270,12 @@ final class VisibleFiles {
      * {@code service/file/git/…}); such a hit ranks below every name hit, whatever its score.
      *
      * @param pattern partial file name; blank returns an empty list
-     * @param maxResults capped at 50
+     * @param maxResults capped at {@value #MAX_NAME_MATCHES}
      */
     List<GitFileNode> searchByName(String pattern, int maxResults) {
         if (pattern.isBlank()) return List.of();
         String q = pattern.strip().toLowerCase(Locale.ROOT);
-        int limit = Math.min(Math.max(maxResults, 1), 50);
+        int limit = Math.min(Math.max(maxResults, 1), MAX_NAME_MATCHES);
 
         Visible files = all();
         List<String> allFiles = files.paths();

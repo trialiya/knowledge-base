@@ -15,7 +15,7 @@ class GitGrepResultTest {
                 new GitGrepMatch("a.txt", 5, "needle two"),
                 new GitGrepMatch("b.txt", 2, "needle three"));
 
-        GitGrepResult result = GitGrepResult.group(matches, 200);
+        GitGrepResult result = GitGrepResult.group(matches, false);
 
         assertThat(result.total()).isEqualTo(3);
         assertThat(result.truncated()).isFalse();
@@ -25,14 +25,13 @@ class GitGrepResultTest {
                 .containsExactly(1, 5);
     }
 
-    /**
-     * Ровно {@code limit} совпадений — git мог остановиться на лимите, выдача считается обрезанной.
-     */
+    /** Обрезана ли выдача, по её размеру не узнать — это слово вызывающего, и оно передаётся как есть. */
     @Test
-    void hittingTheLimitMarksTheResultTruncated() {
+    void truncatedIsTheCallersWord() {
         List<GitGrepMatch> matches = List.of(new GitGrepMatch("a.txt", 1, "x"), new GitGrepMatch("a.txt", 2, "x"));
 
-        assertThat(GitGrepResult.group(matches, 2).truncated()).isTrue();
-        assertThat(GitGrepResult.group(List.of(), 2)).isEqualTo(new GitGrepResult(0, false, List.of()));
+        assertThat(GitGrepResult.group(matches, true).truncated()).isTrue();
+        assertThat(GitGrepResult.group(matches, false).truncated()).isFalse();
+        assertThat(GitGrepResult.group(List.of(), false)).isEqualTo(new GitGrepResult(0, false, List.of()));
     }
 }

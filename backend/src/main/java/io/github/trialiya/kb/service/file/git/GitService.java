@@ -13,7 +13,8 @@ import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
-import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.git.dto.GitGrepHits;
+import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
@@ -76,7 +77,7 @@ import org.jspecify.annotations.Nullable;
  * from ever sharing a repository handle.
  *
  * <p>All operations run against this project's repository via JGit, in-process — no {@code git}
- * subprocess, no argv, no output parsing — except {@link #grepContent} and {@link #getBlame},
+ * subprocess, no argv, no output parsing — except {@link #grepHits} and {@link #getBlame},
  * which shell out to {@code git grep} and {@code git blame} through {@link GitGrepRunner} and
  * {@link GitBlameRunner} (JGit has no grep, and its blame cannot skip {@code
  * .git-blame-ignore-revs}), and the user's network commands ({@link #fetch}, see {@code
@@ -414,12 +415,13 @@ public class GitService {
      *
      * @param filePath optional — only commits that touched this file or directory
      * @param includeBody fill {@link GitCommit#body()}; the description is searched either way
+     * @return the matches with {@code truncated}: the walk is bounded, and the model has to tell "no
+     *     such commit" from "not that far back"
      */
-    public List<GitCommit> searchCommitLog(
+    public GitCommitSearchResult searchCommitLog(
             @NonNull String query, int maxCount, @Nullable String filePath, boolean includeBody) {
         return CommitSearch.search(
-                        repository, query, maxCount, new CommitSearch.Scope(true, includeBody, null, filePath))
-                .commits();
+                repository, query, maxCount, new CommitSearch.Scope(true, includeBody, null, filePath));
     }
 
     /**
@@ -570,31 +572,32 @@ public class GitService {
     // ── Content grep ────────────────────────────────────────────────────────
 
     /**
-     * Searches the contents of tracked files for lines matching {@code pattern}; see {@link
-     * GitGrepRunner#grepContent}.
+     * Searches file contents for lines matching {@code pattern}, saying whether there is more than
+     * it returned; see {@link GitGrepRunner#grepHits}.
      */
-    public List<GitGrepMatch> grepContent(
+    public GitGrepHits grepHits(
             @NonNull String pattern,
             @Nullable String pathGlob,
             boolean regex,
+            @Nullable String rev,
             int contextLines,
             int maxResults,
             boolean includeUntracked) {
-        return grep.grepContent(pattern, pathGlob, regex, contextLines, maxResults, includeUntracked);
+        return grep.grepHits(pattern, pathGlob, regex, rev, contextLines, maxResults, includeUntracked);
     }
 
     /**
-     * {@link #grepContent} over the tree of a commit instead of the working tree; see {@link
-     * GitGrepRunner#grepContentAt}.
+     * The search page's content search, grouped by file and saying whether it was cut; see {@link
+     * GitGrepRunner#grepPage}.
      */
-    public List<GitGrepMatch> grepContentAt(
-            @NonNull String rev,
+    public GitGrepResult grepPage(
             @NonNull String pattern,
             @Nullable String pathGlob,
             boolean regex,
-            int contextLines,
+            @Nullable String rev,
+            boolean includeUntracked,
             int maxResults) {
-        return grep.grepContentAt(rev, pattern, pathGlob, regex, contextLines, maxResults);
+        return grep.grepPage(pattern, pathGlob, regex, rev, includeUntracked, maxResults);
     }
 
     // ── Line authorship ─────────────────────────────────────────────────────

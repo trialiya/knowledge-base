@@ -43,11 +43,11 @@ public record GitGrepResult(int total, boolean truncated, List<File> files) {
      * Группирует плоские блоки без контекста ({@code contextLines=0}: один блок — одна строка) по
      * файлу, сохраняя их порядок.
      *
-     * @param matches блоки, как их отдаёт {@code GitService.grepContent} с нулевым контекстом
-     * @param limit лимит, с которым их запрашивали: выдача ровно такого размера считается
-     *     обрезанной
+     * @param matches блоки, как их отдаёт {@code GitService.grepHits} с нулевым контекстом
+     * @param truncated решает вызывающий: по размеру выдачи его не узнать — ровно {@code limit}
+     *     совпадений бывает и полной выдачей (см. {@code GitService.grepPage})
      */
-    public static GitGrepResult group(List<GitGrepMatch> matches, int limit) {
+    public static GitGrepResult group(List<GitGrepMatch> matches, boolean truncated) {
         Map<String, List<Line>> byPath = new LinkedHashMap<>();
         Set<String> untracked = new HashSet<>();
         for (GitGrepMatch match : matches) {
@@ -59,6 +59,6 @@ public record GitGrepResult(int total, boolean truncated, List<File> files) {
         List<File> files = byPath.entrySet().stream()
                 .map(e -> new File(e.getKey(), !untracked.contains(e.getKey()), List.copyOf(e.getValue())))
                 .toList();
-        return new GitGrepResult(matches.size(), matches.size() >= limit, files);
+        return new GitGrepResult(matches.size(), truncated, files);
     }
 }

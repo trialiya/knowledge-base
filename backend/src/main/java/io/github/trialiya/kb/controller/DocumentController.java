@@ -274,7 +274,7 @@ public class DocumentController {
         return switch (mode.toLowerCase(Locale.ROOT)) {
             case "semantic" -> service.semanticSearch(q, threshold, limit);
             case "hybrid" -> service.hybridSearch(q, threshold, limit, kwWeight, semWeight);
-            default -> service.search(q);
+            default -> service.search(q, limit);
         };
     }
 

@@ -154,7 +154,7 @@ public class DocumentFunction {
 
         return switch (effectiveMode) {
             case "semantic" -> documentService.semanticSearch(query, threshold, limit);
-            case "keyword" -> documentService.search(query);
+            case "keyword" -> documentService.search(query, limit);
             default -> documentService.hybridSearch(query, threshold, limit, kwWeight, semWeight);
         };
     }
@@ -301,7 +301,8 @@ public class DocumentFunction {
      */
     @Tool(
             description = "Find document/folder by title (exact or partial match, case-insensitive, "
-                    + "exact matches first). Matches ONLY the title, not content.",
+                    + "exact matches first). Matches ONLY the title, not content. Returns at most 20: "
+                    + "with 20 results, more titles may match — make the name more specific.",
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentNameMatch> findDocumentsByName(
             @ToolParam(description = "Document/folder title (full or partial).") String name) {

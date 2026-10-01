@@ -176,7 +176,7 @@ public record ScriptProperties(
      * <p>Two former budgets are gone rather than retuned, because neither bounded anything. A
      * per-file ceiling was one line-range loop away from being circumvented, and {@code GitService}
      * already excerpts an oversized whole-file read on its own; a per-grep match ceiling could only
-     * ever be lowered, since {@code GitService.grepContent} caps every caller at 200, and lowering
+     * ever be lowered, since {@code GitService.grepHits} caps every caller at 200, and lowering
      * it turned one repository scan into several.
      *
      * <p>Any value left at zero/null falls back to the constant beside it.

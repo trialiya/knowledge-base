@@ -138,7 +138,7 @@ public class AttachmentFunction {
 
     @Tool(
             description =
-                    "Search attachments by file name, content, and description. Use when the user seeks information that may be in attached files.",
+                    "Search attachments by file name, content, and description. Use when the user seeks information that may be in attached files. Returns at most 20, most recently updated first: with 20 results, older matches may exist — narrow the query.",
             resultConverter = CompactToolResultConverter.class)
     public List<Attachment> searchAttachments(
             ToolContext context, @ToolParam(description = "Search query.") String query) {

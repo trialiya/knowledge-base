@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 import io.github.trialiya.kb.config.CommonConfig;
+import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
@@ -534,5 +535,35 @@ class DocumentServiceUnitTest {
 
             assertThat(service.grepDocuments("docker", false, 0, 2, null)).hasSize(2);
         }
+    }
+    /**
+     * Keyword search has no relevance to rank by: the freshest matches win, as many as the caller
+     * asked for, or {@code kb.search.keyword.limit} when it did not ask.
+     */
+    @Test
+    void keywordSearchTakesTheLimitAndFallsBackToTheConfiguredOne() {
+        DocumentService configured = new DocumentService(
+                repo,
+                historyRepo,
+                mock(DocumentSummaryService.class),
+                mock(SemanticSearchService.class),
+                new SearchConfiguration(new SearchConfiguration.KeywordConfig(2), null, null));
+        DocumentEntity box = folder("keyword-limit-box", null, 9_000);
+        for (int i = 0; i < 4; i++) {
+            doc("кейворд-предел " + i, box.getId(), i);
+        }
+
+        assertThat(configured.search("кейворд-предел")).hasSize(2);
+        assertThat(configured.search("кейворд-предел", 3)).hasSize(3);
+        // A zero or negative number from either source is held to one hit rather than reaching
+        // SQL, where Postgres refuses a negative LIMIT.
+        assertThat(configured.search("кейворд-предел", -5)).hasSize(1);
+        DocumentService misconfigured = new DocumentService(
+                repo,
+                historyRepo,
+                mock(DocumentSummaryService.class),
+                mock(SemanticSearchService.class),
+                new SearchConfiguration(new SearchConfiguration.KeywordConfig(0), null, null));
+        assertThat(misconfigured.search("кейворд-предел")).hasSize(1);
     }
 }

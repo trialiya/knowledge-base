@@ -166,7 +166,7 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
     void ilikeSearchMatchesTitle() {
         folder("Поиск-по-тексту уникальный-маркер", null, 101);
 
-        List<DocumentEntity> found = repo.search("УникАльный-маркер");
+        List<DocumentEntity> found = repo.search("УникАльный-маркер", 20);
 
         assertThat(found).extracting(DocumentEntity::getTitle).anyMatch(t -> t.contains("маркер"));
     }

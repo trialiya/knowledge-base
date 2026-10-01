@@ -13,10 +13,12 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.tool.ToolResult;
@@ -60,8 +62,8 @@ class GitFunctionTest {
         when(billing.getFileContent(anyString(), any(), any()))
                 .thenReturn(new GitFileContent(
                         "pom.xml", true, null, "<project/>", false, 10, "xml", 1, false, null, null));
-        when(billing.grepContent(anyString(), any(), anyBoolean(), anyInt(), anyInt(), anyBoolean()))
-                .thenReturn(List.of(new GitGrepMatch("pom.xml", 1, "<project/>")));
+        when(billing.grepHits(anyString(), any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean()))
+                .thenReturn(new GitGrepHits(List.of(new GitGrepMatch("pom.xml", 1, "<project/>")), true));
         when(billing.getFileTree(any()))
                 .thenReturn(List.of(new GitFileNode("src", "src", FileEntryType.DIRECTORY, null)));
         when(billing.searchFiles(anyString(), anyInt()))
@@ -69,6 +71,8 @@ class GitFunctionTest {
         when(billing.getFileOutline(anyString()))
                 .thenReturn(new GitFileOutline("Foo.java", true, "java", 10, "regex", List.of()));
         when(billing.getCommitLog(anyInt(), any(), anyBoolean())).thenReturn(List.of(commit()));
+        when(billing.searchCommitLog(anyString(), anyInt(), any(), anyBoolean()))
+                .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
         when(billing.getUncommittedChanges(anyBoolean(), anyBoolean(), anyList()))
                 .thenReturn(List.of(new GitDiffEntry("M", "pom.xml", null, 1, 0, null, null)));
@@ -126,6 +130,7 @@ class GitFunctionTest {
         verify(gitRegistry).forProject("billing");
         assertThat(matches.project()).isEqualTo("billing");
         assertThat(matches.result()).isNotEmpty();
+        assertThat(matches.truncated()).isTrue();
     }
 
     /**
@@ -259,5 +264,19 @@ class GitFunctionTest {
 
         function.getCommitLog(context, 5, "src", " ", true, null);
         verify(billing).getCommitLog(5, "src", true);
+    }
+
+    /**
+     * Обход истории ограничен, поэтому ответ на поиск говорит, дошёл ли он до конца, — а простое
+     * листание, у которого предел назван в параметре, этого поля не несёт вовсе.
+     */
+    @Test
+    void aSearchThroughMessagesSaysWhetherItWasCutShort() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+
+        assertThat(function.getCommitLog(context, 5, null, "retry", null, null).truncated())
+                .isTrue();
+        assertThat(function.getCommitLog(context, 5, null, null, null, null).truncated())
+                .isNull();
     }
 }

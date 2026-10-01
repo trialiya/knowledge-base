@@ -5,10 +5,12 @@ import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.tool.ToolResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -84,6 +86,11 @@ public class GitFunction {
         return new ToolResult<>(git.project().id(), payload);
     }
 
+    /** {@link #answer(GitService, Object)} of a bounded answer, saying whether it was cut. */
+    private static <T> ToolResult<T> answer(GitService git, T payload, boolean truncated) {
+        return new ToolResult<>(git.project().id(), payload, truncated);
+    }
+
     /**
      * Список путей из одного строкового аргумента: запятая — заявленный разделитель, перевод строки
      * принимается заодно, потому что модель, которой сказали «через запятую», всё равно иногда
@@ -157,7 +164,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Recent commit history (newest first). Commit: hash, shortHash, author, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set), so an empty result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
+                    "Recent commit history (newest first). Commit: hash, shortHash, author, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set); \"truncated\": true means it stopped at maxCount or at that bound before history ended, so an empty or short result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
@@ -201,11 +208,14 @@ public class GitFunction {
                 withBody,
                 project);
         GitService git = git(context, project);
-        List<GitCommit> commitLog = query == null || query.isBlank()
-                ? git.getCommitLog(limit, filePath, withBody)
-                : git.searchCommitLog(query.strip(), limit, filePath, withBody);
-        log.debug("getCommitLog called: commitLog={}", commitLog);
-        return answer(git, commitLog);
+        if (query == null || query.isBlank()) {
+            List<GitCommit> commitLog = git.getCommitLog(limit, filePath, withBody);
+            log.debug("getCommitLog called: commitLog={}", commitLog);
+            return answer(git, commitLog);
+        }
+        GitCommitSearchResult found = git.searchCommitLog(query.strip(), limit, filePath, withBody);
+        log.debug("getCommitLog called: found={}", found);
+        return answer(git, found.commits(), found.truncated());
     }
 
     // ── Commit diff ─────────────────────────────────────────────────────────
@@ -502,7 +512,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Search file content for matching lines (case-insensitive). Returns path, line number, and text; a line over 500 characters is cut (read it with getFileContent).",
+                    "Search file content for matching lines (case-insensitive). Returns path, line number, and text; a line over 500 characters is cut (read it with getFileContent). \"truncated\": true means there are matches beyond these — more than maxResults, or with context lines the output hit its size ceiling first — so narrow the pattern or pathGlob before concluding anything is absent.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitGrepMatch>> grepContent(
             ToolContext context,
@@ -557,10 +567,11 @@ public class GitFunction {
                 untracked,
                 project);
         GitService git = git(context, project);
-        List<GitGrepMatch> matches = git.grepContent(pattern, pathGlob, useRegex, ctx, limit, untracked).stream()
+        GitGrepHits hits = git.grepHits(pattern, pathGlob, useRegex, null, ctx, limit, untracked);
+        List<GitGrepMatch> matches = hits.matches().stream()
                 .map(m -> new GitGrepMatch(m.path(), m.matchLine(), GrepLines.cap(m.text()), m.tracked()))
                 .toList();
-        log.debug("grepContent called: {} matches found", matches.size());
-        return answer(git, matches);
+        log.debug("grepContent called: {} matches found, truncated={}", matches.size(), hits.truncated());
+        return answer(git, matches, hits.truncated());
     }
 }

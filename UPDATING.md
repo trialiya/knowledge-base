@@ -19,6 +19,16 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### `kb.search.keyword.limit` is now applied
+
+The key was bound but never read: keyword search over documents always returned
+the 20 most recently updated matches. It now sets that number for keyword search
+whenever the caller passes no `limit` (`GET /api/documents/search`,
+`/search/grouped`, the `searchDocuments` tool in `keyword` mode), and for the
+keyword half of hybrid search; a `limit` passed in keyword mode is now honoured
+too, held to 1..200 like the key. A deployment that left the key at the default sees no change; one that set
+it to another value gets that value from now on — check it before upgrading.
+
 ### Git and search REST responses leave out empty fields
 
 `GET /api/git/tree`, `/browse`, `/files/search`, `/files/content` and
