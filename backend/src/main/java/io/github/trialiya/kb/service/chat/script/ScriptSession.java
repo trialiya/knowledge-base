@@ -65,6 +65,20 @@ public final class ScriptSession {
     private final Set<String> filesTouched = new LinkedHashSet<>();
 
     private final List<String> log = new ArrayList<>();
+
+    /**
+     * Lines the backend adds to the log on its own — a call that answered with less than there is.
+     * Kept apart from {@link #log}: a script that spent the {@code kb.log} budget must not lose the
+     * one line saying its numbers are a lower bound. Bounded by count instead, since a loop of
+     * searches would otherwise repeat the same warning for every iteration.
+     */
+    private final List<String> notices = new ArrayList<>();
+
+    private int noticesDropped;
+
+    /** Notices kept verbatim; past this the rest are only counted. */
+    private static final int MAX_NOTICES = 5;
+
     private final long startNanos = System.nanoTime();
 
     /**
@@ -395,8 +409,26 @@ public final class ScriptSession {
         logChars += text.length();
     }
 
+    /** Adds a backend notice to the log; see {@link #notices}. */
+    public void notice(String text) {
+        if (notices.size() < MAX_NOTICES) {
+            notices.add(text);
+        } else {
+            noticesDropped++;
+        }
+    }
+
+    /** The {@code kb.log} lines, then the backend's notices. */
     public List<String> logLines() {
-        return List.copyOf(log);
+        if (notices.isEmpty()) {
+            return List.copyOf(log);
+        }
+        List<String> lines = new ArrayList<>(log);
+        lines.addAll(notices);
+        if (noticesDropped > 0) {
+            lines.add("…and " + noticesDropped + " more such notices");
+        }
+        return List.copyOf(lines);
     }
 
     public ScriptStats stats() {

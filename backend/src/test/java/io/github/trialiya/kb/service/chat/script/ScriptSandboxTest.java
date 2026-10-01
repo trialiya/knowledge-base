@@ -490,6 +490,34 @@ class ScriptSandboxTest {
         assertThat(result.value()).isEqualTo(List.of("src/App.java:2"));
     }
 
+    /**
+     * A cut search stays an array — scripts that read it keep working — and says so in the log: a
+     * count over it is a lower bound. The search is memoized, so asking twice warns once; a search
+     * that returned everything adds nothing, and the notice survives a spent {@code kb.log} budget.
+     */
+    @Test
+    void aCutGrepSaysSoInTheLogAndOnlyOnce() {
+        write(repoDir.resolve("many.txt"), "needle\n".repeat(5));
+        commitAll();
+        runner = newRunner(withLimits(limits -> limits.withMaxLogChars(10)));
+
+        ScriptResult result = run("""
+                        kb.log('x'.repeat(50));
+                        var cut = kb.grep('needle', { max: 3 });
+                        kb.grep('needle', { max: 3 });
+                        var whole = kb.grep('needle', { max: 5 });
+                        return [cut.length, whole.length];
+                        """);
+
+        assertThat(result.error()).isNull();
+        assertThat(result.value()).isEqualTo(List.of(3, 5));
+        assertThat(result.log())
+                .filteredOn(line -> line.startsWith("kb.grep("))
+                .singleElement()
+                .asString()
+                .contains("\"needle\"", "more matches than the 3 returned");
+    }
+
     @Test
     void outlineExposesSymbolsWithTheirLineRanges() {
         ScriptResult result = run("return kb.outline('src/App.java').map(function (s) { return s.name; });");
@@ -725,6 +753,7 @@ class ScriptSandboxTest {
         private int maxFilesRead = 2000;
         private int maxCalls = 2000;
         private int maxResultChars = 20_000;
+        private int maxLogChars = 20_000;
         private DataSize maxBytesRead = DataSize.ofMegabytes(32);
 
         LimitsBuilder withMaxFilesRead(int value) {
@@ -742,6 +771,11 @@ class ScriptSandboxTest {
             return this;
         }
 
+        LimitsBuilder withMaxLogChars(int value) {
+            this.maxLogChars = value;
+            return this;
+        }
+
         LimitsBuilder withMaxResultChars(int value) {
             this.maxResultChars = value;
             return this;
@@ -749,7 +783,7 @@ class ScriptSandboxTest {
 
         ScriptProperties.Limits build() {
             return new ScriptProperties.Limits(
-                    maxFilesRead, maxBytesRead, maxCalls, 20_000, maxResultChars, 20, DataSize.ofKilobytes(256));
+                    maxFilesRead, maxBytesRead, maxCalls, maxLogChars, maxResultChars, 20, DataSize.ofKilobytes(256));
         }
     }
 

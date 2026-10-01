@@ -6,6 +6,7 @@ import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.script.StoredScriptResult;
 import io.github.trialiya.kb.service.document.DocumentService;
@@ -363,7 +364,7 @@ public class KbScriptApi {
 
         List<Map<String, Object>> rows =
                 session.call(Arrays.<Object>asList("grep", pattern, glob, regex, context, max, untracked), () -> {
-                    List<GitGrepMatch> matches = gitService.grepContent(
+                    GitGrepHits hits = gitService.grepHits(
                             pattern,
                             glob,
                             regex != null && regex,
@@ -373,10 +374,18 @@ public class KbScriptApi {
                             // fewer, and asking for more is not an error.
                             max != null && max > 0 ? max : Integer.MAX_VALUE,
                             untracked != null && untracked);
+                    if (hits.truncated()) {
+                        // The array stays an array, so every script that reads it keeps working;
+                        // the cut is said once per distinct search (the call is memoized).
+                        session.notice("kb.grep(\"" + pattern + "\"): more matches than the "
+                                + hits.matches().size()
+                                + " returned — a count or an \"absent\" from it is a lower bound."
+                                + " Narrow it with a glob or a longer pattern.");
+                    }
 
                     List<Map<String, Object>> result = new ArrayList<>();
                     long bytes = 0;
-                    for (GitGrepMatch match : matches) {
+                    for (GitGrepMatch match : hits.matches()) {
                         Map<String, Object> row = new LinkedHashMap<>();
                         row.put("path", match.path());
                         row.put("line", match.matchLine());

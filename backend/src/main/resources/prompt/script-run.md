@@ -32,7 +32,7 @@
 
 `kb.grep` defaults to **literal substring**. Metacharacters (`|`, `.*`, `^`, `$`)? Pass `{regex: true}`. `context: 3` adds 3 lines around match.
 
-**Match count:** `kb.grep` caps at 200 silent. If you got exactly 200, more exist—narrow the query (glob, longer pattern), don't conclude from partial. `{max: N}` only shrinks.
+**Match count:** `kb.grep` returns at most 200; `{max: N}` only shrinks. When a search had more than it returned—or, with `context`, its output was cut sooner—the run's log ends with a `kb.grep("…"): more matches than N returned` line. Then the count is a lower bound: narrow the query (glob, longer pattern), don't conclude from partial. No such line—the array is everything.
 
 **Glob:** always use `**/` for any depth—`**/*.java`, not `*.java`. `*.java` matches only root.
 
