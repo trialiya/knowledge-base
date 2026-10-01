@@ -101,9 +101,10 @@ describe('PhraseFillModal', () => {
   });
 
   it('inserts a commit chip token carrying the full hash and subject', async () => {
-    gitApi.searchCommits.mockResolvedValue([
-      { hash: 'a1b2c3d4e5', shortHash: 'a1b2c3d', author: 'Тест', message: 'почини кэш' },
-    ]);
+    gitApi.searchCommits.mockResolvedValue({
+      commits: [{ hash: 'a1b2c3d4e5', shortHash: 'a1b2c3d', author: 'Тест', message: 'почини кэш' }],
+      truncated: false,
+    });
     const onSubmit = renderModal('Разбери {{Коммит:commit}}');
 
     await userEvent.type(screen.getByLabelText(/Коммит/), 'кэш');
@@ -112,6 +113,62 @@ describe('PhraseFillModal', () => {
     await submit();
 
     expect(onSubmit).toHaveBeenCalledWith('Разбери ⟦commit:a1b2c3d4e5:почини кэш⟧');
+  });
+
+  // Обход истории ограничен: список коммитов, за которым есть ещё, и пустой ответ
+  // недосмотренной истории говорят об этом, а не выдают себя за всё.
+  const commit = (i) => ({ hash: `h${i}`, shortHash: `s${i}`, author: 'Тест', message: `кэш ${i}` });
+
+  it('asks to refine the query when a full commit list hides more', async () => {
+    const commits = Array.from({ length: 10 }, (_, i) => commit(i));
+    gitApi.searchCommits.mockResolvedValue({ commits, truncated: true });
+    renderModal('Разбери {{Коммит:commit}}');
+
+    await userEvent.type(screen.getByLabelText(/Коммит/), 'кэш');
+
+    expect(await screen.findByText('phraseFill.partial')).toBeInTheDocument();
+  });
+
+  it('says older history was not searched when a short commit list is cut', async () => {
+    gitApi.searchCommits.mockResolvedValue({ commits: [commit(1)], truncated: true });
+    renderModal('Разбери {{Коммит:commit}}');
+
+    await userEvent.type(screen.getByLabelText(/Коммит/), 'кэш');
+
+    expect(await screen.findByText('phraseFill.partialHistory')).toBeInTheDocument();
+  });
+
+  it('says an empty commit search did not look through all of history', async () => {
+    gitApi.searchCommits.mockResolvedValue({ commits: [], truncated: true });
+    renderModal('Разбери {{Коммит:commit}}');
+
+    await userEvent.type(screen.getByLabelText(/Коммит/), 'кэш');
+
+    expect(await screen.findByText('phraseFill.nothingFoundPartial')).toBeInTheDocument();
+  });
+
+  // Признак — слово конкретного ответа: следующий полный ответ или ошибка его снимают.
+  it('drops the cut notice once a later answer is complete or fails', async () => {
+    gitApi.searchCommits.mockResolvedValueOnce({ commits: [], truncated: true });
+    renderModal('Разбери {{Коммит:commit}}');
+    const input = screen.getByLabelText(/Коммит/);
+
+    await userEvent.type(input, 'кэш');
+    await screen.findByText('phraseFill.nothingFoundPartial');
+
+    gitApi.searchCommits.mockResolvedValueOnce({ commits: [], truncated: false });
+    await userEvent.type(input, 'и');
+    await screen.findByText('phraseFill.nothingFound');
+    expect(screen.queryByText('phraseFill.nothingFoundPartial')).toBeNull();
+
+    gitApi.searchCommits.mockResolvedValueOnce({ commits: [], truncated: true });
+    await userEvent.type(input, 'р');
+    await screen.findByText('phraseFill.nothingFoundPartial');
+
+    gitApi.searchCommits.mockRejectedValueOnce(new Error('500'));
+    await userEvent.type(input, 'у');
+    await screen.findByText('phraseFill.nothingFound');
+    expect(screen.queryByText('phraseFill.nothingFoundPartial')).toBeNull();
   });
 
   // Регрессия: .modal-shell и колонка полей обрезают по overflow, поэтому

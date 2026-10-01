@@ -225,15 +225,16 @@ public class GitController {
     /**
      * Commit lookup for the phrase placeholder picker: matches a hash prefix or a substring of the
      * commit message, newest first. History has no index for either, so matching is a bounded walk
-     * — see {@link GitService#searchCommits}.
+     * — see {@link GitService#searchCommits} — and the answer says whether it reached the end, as
+     * {@code /commits/grep} does.
      */
     @GetMapping("/commits/search")
-    public List<GitCommit> searchCommits(
+    public GitCommitSearchResult searchCommits(
             @RequestParam("q") String query,
             @RequestParam(name = "limit", defaultValue = "10") int limit,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         String sanitized = query.strip();
-        if (sanitized.isBlank()) return List.of();
+        if (sanitized.isBlank()) return new GitCommitSearchResult(List.of(), false);
         return read(() -> git(project).searchCommits(sanitized, limit));
     }
 
@@ -242,8 +243,8 @@ public class GitController {
      * hash prefix), and each commit comes back with its description so the page can show the lines
      * that matched. With {@code rev} the walk starts there instead of HEAD.
      *
-     * <p>Unlike {@code /commits/search}, the answer says whether history was walked to its end: the
-     * walk is bounded, and an empty result from a bounded walk is not the same as "nothing there".
+     * <p>The answer says whether history was walked to its end: the walk is bounded, and an empty
+     * result from a bounded walk is not the same as "nothing there".
      */
     @GetMapping("/commits/grep")
     public GitCommitSearchResult grepCommits(

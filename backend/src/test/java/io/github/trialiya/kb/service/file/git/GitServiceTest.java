@@ -828,7 +828,7 @@ class GitServiceTest {
         writeFile("b.txt", "b\n");
         commitAll("Unrelated change");
 
-        assertThat(service.searchCommits("PLACEHOLD", 10))
+        assertThat(service.searchCommits("PLACEHOLD", 10).commits())
                 .extracting(GitCommit::message)
                 .containsExactly("Add parsing for placeholders");
     }
@@ -839,7 +839,7 @@ class GitServiceTest {
         commitAll("Only commit");
         String hash = service.getCommitLog(1, null, false).get(0).hash();
 
-        assertThat(service.searchCommits(hash.substring(0, 6).toUpperCase(), 10))
+        assertThat(service.searchCommits(hash.substring(0, 6).toUpperCase(), 10).commits())
                 .extracting(GitCommit::hash)
                 .containsExactly(hash);
     }
@@ -853,9 +853,25 @@ class GitServiceTest {
         writeFile("c.txt", "c\n");
         commitAll("fix three");
 
-        assertThat(service.searchCommits("fix", 2))
+        assertThat(service.searchCommits("fix", 2).commits())
                 .extracting(GitCommit::message)
                 .containsExactly("fix three", "fix two");
+    }
+
+    /**
+     * The picker is told when its list is not everything: a limit hit with history left is cut, a
+     * walk that reached the first commit is not — even with nothing found.
+     */
+    @Test
+    void searchCommitsSaysWhetherHistoryWasWalkedToItsEnd() {
+        writeFile("a.txt", "a\n");
+        commitAll("fix one");
+        writeFile("b.txt", "b\n");
+        commitAll("fix two");
+
+        assertThat(service.searchCommits("fix", 1).truncated()).isTrue();
+        assertThat(service.searchCommits("fix", 10).truncated()).isFalse();
+        assertThat(service.searchCommits("nothing-like-this", 10).truncated()).isFalse();
     }
 
     @Test
@@ -863,7 +879,7 @@ class GitServiceTest {
         writeFile("a.txt", "a\n");
         commitAll("Only commit");
 
-        assertThat(service.searchCommits("nothing-like-this", 10)).isEmpty();
+        assertThat(service.searchCommits("nothing-like-this", 10).commits()).isEmpty();
     }
 
     /** A hash prefix must not be confused with a body hit: the picker only shows the subject. */
@@ -872,8 +888,8 @@ class GitServiceTest {
         writeFile("a.txt", "a\n");
         commitAll("Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions zzz");
 
-        assertThat(service.searchCommits("zzz", 10)).isEmpty();
-        assertThat(service.searchCommits("Subject", 10)).hasSize(1);
+        assertThat(service.searchCommits("zzz", 10).commits()).isEmpty();
+        assertThat(service.searchCommits("Subject", 10).commits()).hasSize(1);
     }
 
     /** The search page asks for the description too: a hit there counts and the body comes back. */
@@ -910,8 +926,9 @@ class GitServiceTest {
     }
 
     /**
-     * Truncated means history was left unwalked: a full page with more commits behind it is, a walk
-     * that reached the root is not — even when it found exactly as many as asked for.
+     * Truncated means there may be more matches: one found past the limit says so, a walk that
+     * reached the root does not — even when it found exactly as many as asked for, and even when
+     * older commits that match nothing lie behind them.
      */
     @Test
     void grepCommitsSaysWhetherHistoryWasWalkedToItsEnd() {
@@ -919,8 +936,12 @@ class GitServiceTest {
         commitAll("fix one");
         writeFile("b.txt", "b\n");
         commitAll("fix two");
+        writeFile("c.txt", "c\n");
+        commitAll("unrelated");
 
         assertThat(service.grepCommits("fix", 1, null).truncated()).isTrue();
+        // A limit filled by the newest match, with only non-matching history after it, is whole.
+        assertThat(service.grepCommits("unrelated", 1, null).truncated()).isFalse();
         assertThat(service.grepCommits("fix", 2, null).truncated()).isFalse();
         assertThat(service.grepCommits("nothing-like-this", 2, null).truncated())
                 .isFalse();

@@ -31,6 +31,7 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
     open,
     query,
     results,
+    truncated,
     loading,
     idx,
     anchorRect,
@@ -158,7 +159,9 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
           >
             {loading && <div className="phrase-fill__status">{t('phraseFill.searching')}</div>}
             {!loading && results.length === 0 && (
-              <div className="phrase-fill__status">{t('phraseFill.nothingFound')}</div>
+              <div className="phrase-fill__status">
+                {t(truncated ? 'phraseFill.nothingFoundPartial' : 'phraseFill.nothingFound')}
+              </div>
             )}
 
             <div className="phrase-fill__options" id={`${inputId}-list`} role="listbox" ref={listRef}>
@@ -188,6 +191,13 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
                 );
               })}
             </div>
+            {/* Полный список за собой ещё совпадения и прячет — уточнить запрос; неполный
+                обрезан пределом обхода, и уточнение до старой истории не дотянется. */}
+            {!loading && truncated && results.length > 0 && (
+              <div className="phrase-fill__status">
+                {t(results.length >= (spec.limit ?? Infinity) ? 'phraseFill.partial' : 'phraseFill.partialHistory')}
+              </div>
+            )}
           </div>,
           document.body,
         )}

@@ -164,7 +164,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Recent commit history (newest first). Commit: hash, shortHash, author, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set); \"truncated\": true means it stopped at maxCount or at that bound before history ended, so an empty or short result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
+                    "Recent commit history (newest first). Commit: hash, shortHash, author, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set); \"truncated\": true means more matches may exist — one was found past maxCount, or the walk hit that bound before history ended — so an empty or short result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
