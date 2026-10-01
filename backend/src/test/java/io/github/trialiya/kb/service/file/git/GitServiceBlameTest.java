@@ -45,7 +45,7 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\ntwo changed\nthree\n");
         commitAll("second");
 
-        GitFileBlame blame = service.getBlame("f.txt");
+        GitFileBlame blame = service.getBlame(null, "f.txt");
 
         assertThat(blame.path()).isEqualTo("f.txt");
         assertThat(blame.commit()).isNull();
@@ -70,7 +70,7 @@ class GitServiceBlameTest {
         commitAll("inserted");
         writeFile("f.txt", "new 1\nnew 2\na\nb\nwip\n");
 
-        GitFileBlame blame = service.getBlame("f.txt");
+        GitFileBlame blame = service.getBlame(null, "f.txt");
 
         assertThat(blame.hunks())
                 .extracting(GitFileBlame.Hunk::summary, GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::sourceLine)
@@ -92,14 +92,14 @@ class GitServiceBlameTest {
         writeFile(GitBlameRunner.IGNORE_REVS_FILE, "# массовое переформатирование\n" + reformat + "\n");
         commitAll("ignore reformat");
 
-        GitFileBlame blame = service.getBlame("f.txt");
+        GitFileBlame blame = service.getBlame(null, "f.txt");
 
         assertThat(blame.hunks())
                 .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::lineCount, GitFileBlame.Hunk::summary)
                 .containsExactly(tuple(1, 2, "original"));
 
         // Снимок до появления игнор-файла его не знает — там переформатирование видно.
-        GitFileBlame before = service.getBlameAt("HEAD~1", "f.txt");
+        GitFileBlame before = service.getBlame("HEAD~1", "f.txt");
         assertThat(before.commit()).isEqualTo(reformat);
         assertThat(before.hunks()).extracting(GitFileBlame.Hunk::summary).containsExactly("reformat");
     }
@@ -116,7 +116,7 @@ class GitServiceBlameTest {
         writeFile("new.txt", "a\nX\nc\n");
         commitAll("renamed and changed");
 
-        GitFileBlame blame = service.getBlame("new.txt");
+        GitFileBlame blame = service.getBlame(null, "new.txt");
 
         assertThat(blame.hunks())
                 .extracting(GitFileBlame.Hunk::summary, GitFileBlame.Hunk::path)
@@ -131,7 +131,7 @@ class GitServiceBlameTest {
         commitAll("first");
         writeFile(GitBlameRunner.IGNORE_REVS_FILE, "0123456789abcdef0123456789abcdef01234567\n");
 
-        assertThat(service.getBlame("f.txt").hunks())
+        assertThat(service.getBlame(null, "f.txt").hunks())
                 .extracting(GitFileBlame.Hunk::summary)
                 .containsExactly("first");
     }
@@ -145,7 +145,7 @@ class GitServiceBlameTest {
         String blob = runGit("rev-parse", "HEAD:f.txt").strip();
         writeFile(GitBlameRunner.IGNORE_REVS_FILE, tree + "\n" + blob + "\n");
 
-        assertThat(service.getBlame("f.txt").hunks())
+        assertThat(service.getBlame(null, "f.txt").hunks())
                 .extracting(GitFileBlame.Hunk::summary)
                 .containsExactly("first");
     }
@@ -162,7 +162,7 @@ class GitServiceBlameTest {
         writeFile(path, "one\rtwo\nthree\n");
         commitAll("first");
 
-        GitFileBlame blame = service.getBlame(path);
+        GitFileBlame blame = service.getBlame(null, path);
 
         assertThat(blame.lineCount()).isEqualTo(2);
         assertThat(blame.hunks()).singleElement().satisfies(h -> {
@@ -178,7 +178,7 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\n");
         runGit("add", "-A");
 
-        assertThatThrownBy(() -> service.getBlame("f.txt"))
+        assertThatThrownBy(() -> service.getBlame(null, "f.txt"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("no commits");
     }
@@ -190,7 +190,7 @@ class GitServiceBlameTest {
         commitAll("first");
         writeFile("f.txt", "one\nnew\n");
 
-        GitFileBlame blame = service.getBlame("f.txt");
+        GitFileBlame blame = service.getBlame(null, "f.txt");
 
         assertThat(blame.hunks())
                 .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::hash)
@@ -207,7 +207,7 @@ class GitServiceBlameTest {
         commitAll("second");
         writeFile("f.txt", "one\ntwo\nthree\n");
 
-        GitFileBlame atFirst = service.getBlameAt("HEAD~1", "f.txt");
+        GitFileBlame atFirst = service.getBlame("HEAD~1", "f.txt");
 
         assertThat(atFirst.commit()).hasSize(40);
         assertThat(atFirst.lineCount()).isEqualTo(1);
@@ -220,8 +220,8 @@ class GitServiceBlameTest {
         commitAll("first");
         writeFile("new.txt", "no history\n");
 
-        assertThatThrownBy(() -> service.getBlame("new.txt")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.getBlame("gone.txt")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.getBlame(null, "new.txt")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.getBlame(null, "gone.txt")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -229,10 +229,10 @@ class GitServiceBlameTest {
         Files.write(repoDir.resolve("blob.bin"), new byte[] {1, 0, 2, 0});
         commitAll("binary");
 
-        assertThatThrownBy(() -> service.getBlame("blob.bin"))
+        assertThatThrownBy(() -> service.getBlame(null, "blob.bin"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Binary");
-        assertThatThrownBy(() -> service.getBlameAt("HEAD", "blob.bin")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.getBlame("HEAD", "blob.bin")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -240,7 +240,7 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\n");
         commitAll("first");
 
-        assertThatThrownBy(() -> service.getBlameAt("nosuch", "f.txt"))
+        assertThatThrownBy(() -> service.getBlame("nosuch", "f.txt"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Commit not found");
     }
@@ -252,7 +252,7 @@ class GitServiceBlameTest {
         commitAll("first");
         writeFile(GitBlameRunner.IGNORE_REVS_FILE, "not a hash\n\n# comment only\n");
 
-        assertThat(service.getBlame("f.txt").hunks()).hasSize(1);
+        assertThat(service.getBlame(null, "f.txt").hunks()).hasSize(1);
     }
 
     /** Дедлайн, истёкший до запуска, — отказ по таймауту, а не пустая колонка. */

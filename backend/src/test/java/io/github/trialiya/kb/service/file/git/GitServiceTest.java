@@ -100,7 +100,7 @@ class GitServiceTest {
         writeFile("pom.txt", "root file");
         commitAll();
 
-        List<GitFileNode> root = service.getFileTree(null);
+        List<GitFileNode> root = service.getFileTree(null, null);
 
         // Regression: without core.quotepath=false, git quotes/octal-escapes the Cyrillic path,
         // which used to split into a bogus quoted "docs" node distinct from the real one.
@@ -110,12 +110,12 @@ class GitServiceTest {
         assertThat(docsNodes.get(0).path()).isEqualTo("docs");
         assertThat(docsNodes.get(0).type()).isEqualTo(FileEntryType.DIRECTORY);
 
-        List<GitFileNode> underDocs = service.getFileTree("docs");
+        List<GitFileNode> underDocs = service.getFileTree(null, "docs");
         assertThat(underDocs).hasSize(1);
         assertThat(underDocs.get(0).path()).isEqualTo("docs/проект");
         assertThat(underDocs.get(0).type()).isEqualTo(FileEntryType.DIRECTORY);
 
-        List<GitFileNode> underProject = service.getFileTree("docs/проект");
+        List<GitFileNode> underProject = service.getFileTree(null, "docs/проект");
         assertThat(underProject).hasSize(1);
         assertThat(underProject.get(0).path()).isEqualTo("docs/проект/readme.md");
         assertThat(underProject.get(0).name()).isEqualTo("readme.md");
@@ -130,7 +130,7 @@ class GitServiceTest {
         writeFile("Bird/x.txt", "b");
         commitAll();
 
-        List<GitFileNode> root = service.getFileTree(null);
+        List<GitFileNode> root = service.getFileTree(null, null);
 
         assertThat(root.stream().map(GitFileNode::name).toList())
                 .containsExactly("Bird", "zebra", "Apple.txt", "banana.txt");
@@ -180,6 +180,23 @@ class GitServiceTest {
     void anUnbornRepositoryHasAnEmptyHistory() {
         assertThat(service.getCommitLog(5, null, false)).isEqualTo(new GitCommitSearchResult(List.of(), false));
         assertThat(service.searchCommits("x", 5)).isEqualTo(new GitCommitSearchResult(List.of(), false));
+    }
+
+    /**
+     * Ревизия у чтения, которое умеет и рабочее дерево, и снимок: пустая и из одних пробелов —
+     * рабочее дерево, как и {@code null}; правка на диске видна только там.
+     */
+    @Test
+    void aBlankRevisionReadsTheWorkingTree() {
+        writeFile("a.txt", "committed\n");
+        commitAll("first");
+        writeFile("a.txt", "on disk\n");
+        String head = service.getCommitLog(1, null, false).commits().get(0).hash();
+
+        assertThat(service.getFileContent("  ", "a.txt", null, null).content()).isEqualTo("on disk\n");
+        assertThat(service.getFileContent(null, "a.txt", null, null).content()).isEqualTo("on disk\n");
+        assertThat(service.getFileContent(head, "a.txt", null, null).content()).isEqualTo("committed\n");
+        assertThat(service.getRawFile("", "a.txt").bytes()).isEqualTo("on disk\n".getBytes(StandardCharsets.UTF_8));
     }
 
     /** Пустой запрос — пустой ответ, и пробелы вокруг ничего не меняют: искать нечего. */
@@ -634,7 +651,7 @@ class GitServiceTest {
         commitAll();
 
         // Windows callers may pass "src\\main" — must be treated identically to "src/main".
-        List<GitFileNode> nodes = service.getFileTree("src\\main");
+        List<GitFileNode> nodes = service.getFileTree(null, "src\\main");
         assertThat(nodes).hasSize(1);
         assertThat(nodes.get(0).name()).isEqualTo("Foo.java");
         assertThat(nodes.get(0).path()).isEqualTo("src/main/Foo.java");
@@ -706,7 +723,9 @@ class GitServiceTest {
 
         // A conflicted file has only stage-1..3 index entries (no stage 0). It is still tracked,
         // so it must not vanish from the tree, from file content, or from uncommitted changes.
-        assertThat(service.getFileTree(null)).extracting(GitFileNode::name).contains("conflict.txt");
+        assertThat(service.getFileTree(null, null))
+                .extracting(GitFileNode::name)
+                .contains("conflict.txt");
         assertThat(service.getFileContent("conflict.txt").content()).contains("<<<<<<<");
 
         List<GitDiffEntry> changes = service.getUncommittedChanges(false);
@@ -723,7 +742,7 @@ class GitServiceTest {
         writeFile("README.md", "readme\n");
         commitAll();
 
-        var view = service.browsePath("src/main/java/com/app/Main.java", true);
+        var view = service.browsePath(null, "src/main/java/com/app/Main.java", true);
 
         assertThat(view.type()).isEqualTo(FileEntryType.FILE);
         assertThat(view.file()).isNotNull();
@@ -749,7 +768,7 @@ class GitServiceTest {
         writeFile("docs/guide/intro.md", "intro\n");
         commitAll();
 
-        var view = service.browsePath("docs/guide", true);
+        var view = service.browsePath(null, "docs/guide", true);
 
         assertThat(view.type()).isEqualTo(FileEntryType.DIRECTORY);
         assertThat(view.file()).isNull();
@@ -763,7 +782,7 @@ class GitServiceTest {
         writeFile("docs/guide/intro.md", "intro\n");
         commitAll();
 
-        var view = service.browsePath("docs/guide/intro.md", false);
+        var view = service.browsePath(null, "docs/guide/intro.md", false);
 
         assertThat(view.type()).isEqualTo(FileEntryType.FILE);
         assertThat(view.file()).isNotNull();
@@ -775,7 +794,7 @@ class GitServiceTest {
         writeFile("docs/guide/intro.md", "intro\n");
         commitAll();
 
-        var view = service.browsePath("docs/guide/gone.md", true);
+        var view = service.browsePath(null, "docs/guide/gone.md", true);
 
         // A dead deep link must render as "not found", not as a load error.
         assertThat(view.type()).isNull();
@@ -799,13 +818,14 @@ class GitServiceTest {
         commitAll();
         deleteFile("docs/guide/gone.md");
 
-        var view = service.browsePath("docs/guide/gone.md", true);
+        var view = service.browsePath(null, "docs/guide/gone.md", true);
 
         assertThat(view.type()).isNull();
         assertThat(view.file()).isNull();
         assertThat(view.tree()).extracting(GitTreeLevel::path).containsExactly("", "docs", "docs/guide");
         // Соседний файл того же каталога открывается как ни в чём не бывало.
-        assertThat(service.browsePath("docs/guide/intro.md", false).type()).isEqualTo(FileEntryType.FILE);
+        assertThat(service.browsePath(null, "docs/guide/intro.md", false).type())
+                .isEqualTo(FileEntryType.FILE);
     }
 
     @Test
@@ -814,7 +834,7 @@ class GitServiceTest {
         writeFile("README.md", "readme\n");
         commitAll();
 
-        var view = service.browsePath(null, true);
+        var view = service.browsePath(null, null, true);
 
         assertThat(view.path()).isEmpty();
         assertThat(view.type()).isEqualTo(FileEntryType.DIRECTORY);
@@ -832,9 +852,9 @@ class GitServiceTest {
 
         // The batched pass over the index must produce exactly what getFileTree does level by
         // level — same nodes, same order.
-        var view = service.browsePath("src/main/java/com/app/Main.java", true);
+        var view = service.browsePath(null, "src/main/java/com/app/Main.java", true);
         for (GitTreeLevel level : view.tree()) {
-            assertThat(level.nodes()).isEqualTo(service.getFileTree(level.path()));
+            assertThat(level.nodes()).isEqualTo(service.getFileTree(null, level.path()));
         }
 
         // Обе стороны сравнения строит один и тот же обход, поэтому один уровень закреплён
@@ -851,9 +871,9 @@ class GitServiceTest {
         writeFile("src/main/Foo.java", "class Foo {}\n");
         commitAll();
 
-        assertThat(service.browsePath("src\\main\\Foo.java", true).type()).isEqualTo(FileEntryType.FILE);
+        assertThat(service.browsePath(null, "src\\main\\Foo.java", true).type()).isEqualTo(FileEntryType.FILE);
 
-        var dir = service.browsePath("src/main/", true);
+        var dir = service.browsePath(null, "src/main/", true);
         assertThat(dir.path()).isEqualTo("src/main");
         assertThat(dir.type()).isEqualTo(FileEntryType.DIRECTORY);
         assertThat(dir.nodes()).extracting(GitFileNode::name).containsExactly("Foo.java");
@@ -1082,7 +1102,7 @@ class GitServiceTest {
         commitAll();
         deleteFile("docs/icon.svg");
 
-        assertThatThrownBy(() -> service.getRawFile("docs/icon.svg"))
+        assertThatThrownBy(() -> service.getRawFile(null, "docs/icon.svg"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("docs/icon.svg");
         assertThatThrownBy(() -> service.getFileContent("docs/icon.svg")).isInstanceOf(IllegalArgumentException.class);
@@ -1099,7 +1119,9 @@ class GitServiceTest {
         writeFile("docs/a\"b.md", "b\n");
         commitAll();
 
-        assertThat(service.getFileTree("docs")).extracting(GitFileNode::path).containsExactly("docs/plain.md");
+        assertThat(service.getFileTree(null, "docs"))
+                .extracting(GitFileNode::path)
+                .containsExactly("docs/plain.md");
         assertThat(service.searchFiles("md", 5)).extracting(GitFileNode::path).containsExactly("docs/plain.md");
     }
 }

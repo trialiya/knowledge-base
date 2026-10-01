@@ -113,7 +113,7 @@ public class GitController {
         requireSafePath(path);
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.getFileContent(path, from, to) : git.getFileContentAt(at, path, from, to));
+        return read(() -> git.getFileContent(at, path, from, to));
     }
 
     /**
@@ -129,7 +129,7 @@ public class GitController {
         requireSafePath(path);
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.getBlame(path) : git.getBlameAt(at, path));
+        return read(() -> git.getBlame(at, path));
     }
 
     /**
@@ -144,7 +144,7 @@ public class GitController {
         requireSafePath(path);
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.getFileOutline(path) : git.getFileOutlineAt(at, path));
+        return read(() -> git.getFileOutline(at, path));
     }
 
     /**
@@ -170,7 +170,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.getCommitLog(limit, path, body) : git.getCommitLog(limit, path, body, at));
+        return read(() -> git.getCommitLog(limit, path, body, at));
     }
 
     /**
@@ -269,7 +269,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.browsePath(path, ancestors) : git.browsePathAt(at, path, ancestors));
+        return read(() -> git.browsePath(at, path, ancestors));
     }
 
     /**
@@ -296,7 +296,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        GitFileBytes file = read(() -> at == null ? git.getRawFile(path) : git.getRawFileAt(at, path));
+        GitFileBytes file = read(() -> git.getRawFile(at, path));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(mediaType))
                 .header(
@@ -344,7 +344,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.getFileTree(path) : git.getFileTreeAt(at, path));
+        return read(() -> git.getFileTree(at, path));
     }
 
     /**

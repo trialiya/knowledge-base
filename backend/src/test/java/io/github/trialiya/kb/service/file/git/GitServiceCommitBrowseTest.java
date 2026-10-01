@@ -53,8 +53,8 @@ class GitServiceCommitBrowseTest {
         runGit("rm", "-q", "src/App.java");
         commitAll("second");
 
-        assertThat(names(service.getFileTreeAt(first, "src"))).containsExactly("util", "App.java");
-        assertThat(names(service.getFileTree("src"))).containsExactly("util", "Added.java");
+        assertThat(names(service.getFileTree(first, "src"))).containsExactly("util", "App.java");
+        assertThat(names(service.getFileTree(null, "src"))).containsExactly("util", "Added.java");
     }
 
     /** Незакоммиченная правка не меняет ни содержимое, ни размер в снимке коммита. */
@@ -63,7 +63,7 @@ class GitServiceCommitBrowseTest {
         String first = head();
         write("README.md", "a much longer line than the committed one\n");
 
-        GitPathView view = service.browsePathAt(first, "README.md", true);
+        GitPathView view = service.browsePath(first, "README.md", true);
 
         assertThat(view.type()).isEqualTo(FileEntryType.FILE);
         assertThat(view.file()).isNotNull();
@@ -85,9 +85,9 @@ class GitServiceCommitBrowseTest {
         commitAll("second");
         runGit("tag", "v1");
 
-        assertThat(service.browsePathAt("v1", "README.md", false).commit()).isEqualTo(head());
-        assertThat(service.browsePathAt("HEAD~1", "README.md", false).commit()).isEqualTo(first);
-        assertThat(service.browsePathAt(first.substring(0, 7), "", false).commit())
+        assertThat(service.browsePath("v1", "README.md", false).commit()).isEqualTo(head());
+        assertThat(service.browsePath("HEAD~1", "README.md", false).commit()).isEqualTo(first);
+        assertThat(service.browsePath(first.substring(0, 7), "", false).commit())
                 .isEqualTo(first);
     }
 
@@ -97,7 +97,7 @@ class GitServiceCommitBrowseTest {
      */
     @Test
     void everythingInACommitCountsAsTracked() {
-        GitPathView view = service.browsePathAt(head(), "src/util/Text.java", true);
+        GitPathView view = service.browsePath(head(), "src/util/Text.java", true);
 
         assertThat(view.tracked()).isTrue();
         assertThat(view.tree()).extracting("path").containsExactly("", "src", "src/util");
@@ -107,12 +107,12 @@ class GitServiceCommitBrowseTest {
     /** Каталог отвечает листингом, файл — содержимым: та же развилка, что у рабочего дерева. */
     @Test
     void aDirectoryAnswersWithItsListingAndAFileWithItsContent() {
-        GitPathView dir = service.browsePathAt(head(), "src", false);
+        GitPathView dir = service.browsePath(head(), "src", false);
         assertThat(dir.type()).isEqualTo(FileEntryType.DIRECTORY);
         assertThat(dir.file()).isNull();
         assertThat(names(dir.nodes())).containsExactly("util", "App.java");
 
-        GitPathView file = service.browsePathAt(head(), "src/App.java", false);
+        GitPathView file = service.browsePath(head(), "src/App.java", false);
         assertThat(file.type()).isEqualTo(FileEntryType.FILE);
         assertThat(file.nodes()).isNull();
         assertThat(file.file()).isNotNull();
@@ -125,7 +125,7 @@ class GitServiceCommitBrowseTest {
         write("src/Later.java", "class Later {}\n");
         commitAll("second");
 
-        GitPathView view = service.browsePathAt(first, "src/Later.java", true);
+        GitPathView view = service.browsePath(first, "src/Later.java", true);
 
         assertThat(view.type()).isNull();
         assertThat(view.file()).isNull();
@@ -136,7 +136,7 @@ class GitServiceCommitBrowseTest {
     /** Корень коммита — каталог, и предков у него нет. */
     @Test
     void theRootOfACommitListsItsTopLevel() {
-        GitPathView root = service.browsePathAt(head(), null, true);
+        GitPathView root = service.browsePath(head(), null, true);
 
         assertThat(root.path()).isEmpty();
         assertThat(root.type()).isEqualTo(FileEntryType.DIRECTORY);
@@ -146,7 +146,7 @@ class GitServiceCommitBrowseTest {
 
     @Test
     void anUnknownRevisionIsRefused() {
-        assertThatThrownBy(() -> service.getFileTreeAt("no-such-rev", null))
+        assertThatThrownBy(() -> service.getFileTree("no-such-rev", null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Commit not found");
     }
@@ -154,7 +154,7 @@ class GitServiceCommitBrowseTest {
     /** Выход за корень отвергается и здесь: путь нормализуется до чтения дерева. */
     @Test
     void aPathOutsideTheRepositoryIsRefused() {
-        assertThatThrownBy(() -> service.browsePathAt(head(), "../outside.txt", false))
+        assertThatThrownBy(() -> service.browsePath(head(), "../outside.txt", false))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -167,8 +167,8 @@ class GitServiceCommitBrowseTest {
         Files.createSymbolicLink(repoDir.resolve("link.md"), Path.of("README.md"));
         commitAll("link");
 
-        assertThat(names(service.getFileTreeAt(head(), ""))).doesNotContain("link.md");
-        assertThat(names(service.getFileTreeAt(head(), ""))).contains("README.md");
+        assertThat(names(service.getFileTree(head(), ""))).doesNotContain("link.md");
+        assertThat(names(service.getFileTree(head(), ""))).contains("README.md");
     }
 
     /** Ревизия, которая коммитом не является, отвергается и историей — так же, как обзором. */
@@ -178,7 +178,7 @@ class GitServiceCommitBrowseTest {
 
         assertThatThrownBy(() -> service.getCommitLog(1, null, false, treeHash))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.getFileTreeAt(treeHash, "")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.getFileTree(treeHash, "")).isInstanceOf(IllegalArgumentException.class);
     }
 
     /** История пути от ревизии: коммиты, сделанные после неё, в ответ не попадают. */
@@ -213,9 +213,9 @@ class GitServiceCommitBrowseTest {
         Files.createSymbolicLink(repoDir.resolve("links/readme.md"), Path.of("../README.md"));
         commitAll("links");
 
-        assertThat(names(service.getFileTreeAt(head(), ""))).doesNotContain("links");
-        assertThat(names(service.getFileTreeAt(head(), "links"))).isEmpty();
-        assertThat(names(service.browsePathAt(head(), "", false).nodes())).doesNotContain("links");
+        assertThat(names(service.getFileTree(head(), ""))).doesNotContain("links");
+        assertThat(names(service.getFileTree(head(), "links"))).isEmpty();
+        assertThat(names(service.browsePath(head(), "", false).nodes())).doesNotContain("links");
     }
 
     /**
@@ -228,8 +228,8 @@ class GitServiceCommitBrowseTest {
         Files.createSymbolicLink(repoDir.resolve("links/readme.md"), Path.of("../README.md"));
         commitAll("links");
 
-        assertThat(service.browsePathAt(head(), "links/readme.md", true).type()).isNull();
-        assertThat(service.browsePathAt(head(), "links", false).type()).isNull();
+        assertThat(service.browsePath(head(), "links/readme.md", true).type()).isNull();
+        assertThat(service.browsePath(head(), "links", false).type()).isNull();
     }
 
     /**
@@ -243,10 +243,10 @@ class GitServiceCommitBrowseTest {
         write("odd/qu\"ote.md", "quoted\n");
         commitAll("odd names");
 
-        assertThat(names(service.getFileTreeAt(head(), ""))).doesNotContain("qu\"ote.md", "odd");
-        assertThat(names(service.getFileTreeAt(head(), "odd"))).isEmpty();
-        assertThat(names(service.browsePathAt(head(), "", false).nodes())).doesNotContain("qu\"ote.md", "odd");
-        assertThat(names(service.getFileTree(""))).doesNotContain("qu\"ote.md", "odd");
+        assertThat(names(service.getFileTree(head(), ""))).doesNotContain("qu\"ote.md", "odd");
+        assertThat(names(service.getFileTree(head(), "odd"))).isEmpty();
+        assertThat(names(service.browsePath(head(), "", false).nodes())).doesNotContain("qu\"ote.md", "odd");
+        assertThat(names(service.getFileTree(null, ""))).doesNotContain("qu\"ote.md", "odd");
     }
 
     /** Размер в листинге — тоже из коммита: правка на диске его не меняет. */
@@ -255,7 +255,7 @@ class GitServiceCommitBrowseTest {
         String first = head();
         write("README.md", "a much longer line than the committed one\n");
 
-        GitFileNode node = service.getFileTreeAt(first, "").stream()
+        GitFileNode node = service.getFileTree(first, "").stream()
                 .filter(n -> "README.md".equals(n.path()))
                 .findFirst()
                 .orElseThrow();
@@ -269,8 +269,8 @@ class GitServiceCommitBrowseTest {
      */
     @Test
     void aPathThatIsNotADirectoryListsNothing() {
-        assertThat(service.getFileTreeAt(head(), "README.md")).isEmpty();
-        assertThat(service.getFileTreeAt(head(), "no/such/dir")).isEmpty();
+        assertThat(service.getFileTree(head(), "README.md")).isEmpty();
+        assertThat(service.getFileTree(head(), "no/such/dir")).isEmpty();
     }
 
     /**
@@ -283,7 +283,7 @@ class GitServiceCommitBrowseTest {
         writeBytes("assets/blob.bin", bytes);
         commitAll("binary");
 
-        GitPathView view = service.browsePathAt(head(), "assets/blob.bin", false);
+        GitPathView view = service.browsePath(head(), "assets/blob.bin", false);
 
         assertThat(view.type()).isEqualTo(FileEntryType.FILE);
         assertThat(view.file()).isNotNull();

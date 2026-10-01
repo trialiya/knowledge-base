@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -59,16 +60,16 @@ class GitFunctionTest {
         when(billing.project())
                 .thenReturn(new Project(
                         "billing", "Billing", Path.of("/repo"), false, false, null, null, null, false, false));
-        when(billing.getFileContent(anyString(), any(), any()))
+        when(billing.getFileContent(isNull(), anyString(), any(), any()))
                 .thenReturn(new GitFileContent(
                         "pom.xml", true, null, "<project/>", false, 10, "xml", 1, false, null, null));
         when(billing.grepHits(anyString(), any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean()))
                 .thenReturn(new GitGrepHits(List.of(new GitGrepMatch("pom.xml", 1, "<project/>")), true));
-        when(billing.getFileTree(any()))
+        when(billing.getFileTree(isNull(), any()))
                 .thenReturn(List.of(new GitFileNode("src", "src", FileEntryType.DIRECTORY, null)));
         when(billing.searchFiles(anyString(), anyInt()))
                 .thenReturn(List.of(new GitFileNode("pom.xml", "pom.xml", FileEntryType.FILE, 10L)));
-        when(billing.getFileOutline(anyString()))
+        when(billing.getFileOutline(isNull(), anyString()))
                 .thenReturn(new GitFileOutline("Foo.java", true, "java", 10, "regex", List.of()));
         when(billing.getCommitLog(anyInt(), any(), anyBoolean()))
                 .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
@@ -195,16 +196,19 @@ class GitFunctionTest {
     @Test
     void theCommitArgumentSwitchesTheReadFromTheWorkingTreeToThatCommitsTree() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
-        when(billing.getFileContentAt(anyString(), anyString(), any(), any()))
+        when(billing.getFileContent(anyString(), anyString(), any(), any()))
                 .thenReturn(new GitFileContent(
                         "pom.xml", true, "abc1234def", "<project/>", false, 10, "xml", 1, false, null, null));
 
         function.getFileContent(context, "pom.xml", 1, 5, "abc1234", null);
-        verify(billing).getFileContentAt("abc1234", "pom.xml", 1, 5);
+        verify(billing).getFileContent("abc1234", "pom.xml", 1, 5);
 
+        // Пустая ревизия — тоже рабочее дерево; так её читает сам сервис (GitServiceTest), а
+        // инструмент передаёт что получил.
         function.getFileContent(context, "pom.xml", null, null, "  ", null);
+        verify(billing).getFileContent("  ", "pom.xml", null, null);
         function.getFileContent(context, "pom.xml", null, null, null, null);
-        verify(billing, times(2)).getFileContent("pom.xml", null, null);
+        verify(billing).getFileContent(null, "pom.xml", null, null);
     }
 
     /**

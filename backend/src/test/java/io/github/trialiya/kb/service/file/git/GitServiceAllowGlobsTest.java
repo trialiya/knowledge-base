@@ -54,7 +54,9 @@ class GitServiceAllowGlobsTest {
     void servesAnUntrackedFileTheGlobsAdmit() {
         assertThat(service.getFileContent("notes/todo.md").content()).isEqualTo("remember the milk\n");
         assertThat(service.listTrackedFiles()).contains("src/App.java", "notes/todo.md");
-        assertThat(service.getFileTree("notes")).extracting(GitFileNode::path).contains("notes/todo.md");
+        assertThat(service.getFileTree(null, "notes"))
+                .extracting(GitFileNode::path)
+                .contains("notes/todo.md");
     }
 
     /**
@@ -162,7 +164,7 @@ class GitServiceAllowGlobsTest {
         Path bare = repoDir.resolve("bare");
         GitService fresh = freshRepo(bare);
 
-        assertThat(fresh.getFileTree("notes"))
+        assertThat(fresh.getFileTree(null, "notes"))
                 .singleElement()
                 .extracting(GitFileNode::tracked)
                 .isEqualTo(false);
@@ -429,12 +431,12 @@ class GitServiceAllowGlobsTest {
 
     @Test
     void theTreeMarksAnAdmittedFileAsUntracked() {
-        assertThat(service.getFileTree("notes"))
+        assertThat(service.getFileTree(null, "notes"))
                 .filteredOn(n -> "notes/todo.md".equals(n.path()))
                 .singleElement()
                 .extracting(GitFileNode::tracked)
                 .isEqualTo(false);
-        assertThat(service.getFileTree("src")).singleElement().satisfies(n -> {
+        assertThat(service.getFileTree(null, "src")).singleElement().satisfies(n -> {
             assertThat(n.path()).isEqualTo("src/App.java");
             assertThat(n.tracked()).isTrue();
         });

@@ -145,7 +145,7 @@ public class GitFunction {
                     String project) {
         log.debug("getFileTree called: path='{}', project='{}'", path, project);
         GitService git = git(context, project);
-        List<GitFileNode> fileTree = git.getFileTree(path);
+        List<GitFileNode> fileTree = git.getFileTree(null, path);
         log.debug("getFileTree called: fileTree={}", fileTree);
         return answer(git, fileTree);
     }
@@ -348,7 +348,7 @@ public class GitFunction {
         requireText(filePath, "filePath");
         log.debug("getFileOutline called: filePath='{}', project='{}'", filePath, project);
         GitService git = git(context, project);
-        GitFileOutline outline = git.getFileOutline(filePath);
+        GitFileOutline outline = git.getFileOutline(null, filePath);
         log.debug("getFileOutline called: outline={}", outline);
         return answer(git, outline);
     }
@@ -424,9 +424,7 @@ public class GitFunction {
                 commit,
                 project);
         GitService git = git(context, project);
-        GitFileContent fileContent = commit == null || commit.isBlank()
-                ? git.getFileContent(filePath, fromLine, toLine)
-                : git.getFileContentAt(commit, filePath, fromLine, toLine);
+        GitFileContent fileContent = git.getFileContent(commit, filePath, fromLine, toLine);
         log.debug("getFileContent called: fileContent='{}'", fileContent);
         return answer(git, fileContent);
     }
