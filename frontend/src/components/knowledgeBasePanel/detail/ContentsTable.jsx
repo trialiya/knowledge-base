@@ -5,9 +5,10 @@ import remarkGfm from 'remark-gfm';
 import { IconFolder, IconDoc } from '@/icons/index';
 import { makeSnippet } from '@/components/common/ui/utils';
 import { KB_PAGE_SIZE as PAGE_SIZE } from '@/constants/pagination';
+import RelativeTime from '@/components/common/ui/RelativeTime';
 
 const ContentsTable = ({ items, onNavigate }) => {
-  const { t, i18n } = useTranslation('knowledgeBase');
+  const { t } = useTranslation('knowledgeBase');
   const [page, setPage] = useState(0);
 
   // Reset to page 0 when the data changes (e.g. navigating to another folder).
@@ -74,7 +75,9 @@ const ContentsTable = ({ items, onNavigate }) => {
               <span className="contents-row__type">
                 {child.type === 'folder' ? t('contentsTable.folder') : t('contentsTable.document')}
               </span>
-              <span className="contents-row__date">{new Date(child.updatedAt).toLocaleDateString(i18n.language)}</span>
+              <span className="contents-row__date">
+                <RelativeTime value={child.updatedAt} />
+              </span>
             </div>
           );
         })}

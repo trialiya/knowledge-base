@@ -5,6 +5,7 @@ import { docUrl } from '@/navigation/urlScheme';
 import { PREAMBLE_PATH } from '@/components/common/preview/sectionAnchor';
 import { highlightSubstring } from '@/components/common/search/highlightMatch';
 import ResultGroup from './ResultGroup';
+import RelativeTime from '@/components/common/ui/RelativeTime';
 
 /** Путь до документа: приходит с ответом (корень → родитель, без самого документа). */
 const Breadcrumb = ({ parents }) => (
@@ -46,7 +47,7 @@ export function groupBySection(fragments) {
  * такого документа запроса в адресе нет, бар открылся бы с честным «0/0».
  */
 const DocResults = ({ result, query, onOpenDoc }) => {
-  const { t, i18n } = useTranslation('search');
+  const { t } = useTranslation('search');
 
   return result.documents.map((doc) => {
     const fromBody = doc.fragments.some((fragment) => fragment.line != null);
@@ -93,7 +94,7 @@ const DocResults = ({ result, query, onOpenDoc }) => {
         title={highlightSubstring(doc.title, query)}
         href={docUrl(doc.id, { find })}
         onOpen={() => onOpenDoc(doc.id, { find })}
-        meta={doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString(i18n.language) : null}
+        meta={doc.updatedAt && <RelativeTime value={doc.updatedAt} />}
         subtitle={doc.parentList?.length > 0 && <Breadcrumb parents={doc.parentList} />}
         rows={rows}
       />

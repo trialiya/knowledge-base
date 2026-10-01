@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconDoc, IconFolder, IconChevronRight, IconSparkle } from '@/icons/index';
 import { docPath } from '@/navigation/urlScheme';
+import RelativeTime from '@/components/common/ui/RelativeTime';
 
 // Хлебные крошки строятся из parentList, который приходит с бэка вместе с
 // результатом (корень → непосредственный родитель, без самого документа).
@@ -28,7 +29,7 @@ const ResultBreadcrumb = ({ parents }) => {
 };
 
 const SearchResults = ({ query, results, onSelect }) => {
-  const { t, i18n } = useTranslation('knowledgeBase');
+  const { t } = useTranslation('knowledgeBase');
 
   return (
     <div className="sr-panel">
@@ -69,7 +70,7 @@ const SearchResults = ({ query, results, onSelect }) => {
                 >
                   {res.title}
                 </a>
-                <span className="sr-card__date">{new Date(res.updatedAt).toLocaleDateString(i18n.language)}</span>
+                <RelativeTime className="sr-card__date" value={res.updatedAt} />
               </div>
               <ResultBreadcrumb parents={res.parentList} />
               {res.summary && (

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import PreviewTooltipShell from './PreviewTooltipShell';
 import { IconFolder, IconDoc, IconSparkle, IconExpand } from '@/icons/index';
+import { formatDateTime } from '@/utils/formatting';
 
 /** Nested preview card for DocLinkTooltip's internal KB doc-link branch. */
 function DocPreviewTooltip({ node, loading, error, pos, onMouseEnter, onMouseLeave, onNavigate, onExpand, ref }) {
@@ -62,9 +63,7 @@ function DocPreviewTooltip({ node, loading, error, pos, onMouseEnter, onMouseLea
           )}
 
           <div className="doc-preview-tooltip__footer">
-            <span className="doc-preview-tooltip__date">
-              {node.updatedAt ? new Date(node.updatedAt).toLocaleDateString(i18n.language) : ''}
-            </span>
+            <span className="doc-preview-tooltip__date">{formatDateTime(node.updatedAt, i18n.language)}</span>
             <button
               className="doc-preview-tooltip__open"
               onClick={(e) => {

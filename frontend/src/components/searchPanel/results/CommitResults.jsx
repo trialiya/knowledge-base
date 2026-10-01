@@ -4,6 +4,7 @@ import { commitUrl } from '@/navigation/urlScheme';
 import { navigateToCommit } from '@/navigation/fileNavigationBus';
 import { highlightSubstring } from '@/components/common/search/highlightMatch';
 import ResultGroup from './ResultGroup';
+import RelativeTime from '@/components/common/ui/RelativeTime';
 
 /**
  * Совпадения в истории: карточка на коммит — заголовок сообщения, под ним хеш и
@@ -17,7 +18,7 @@ import ResultGroup from './ResultGroup';
  * а хеш подсвечен: иначе карточка без единого совпадения читалась бы как ошибка.
  */
 const CommitResults = ({ result, query, project }) => {
-  const { t, i18n } = useTranslation('search');
+  const { t } = useTranslation('search');
 
   return result.commits.map((commit) => (
     <ResultGroup
@@ -26,7 +27,7 @@ const CommitResults = ({ result, query, project }) => {
       title={highlightSubstring(commit.message, query)}
       href={commitUrl(commit.hash, project)}
       onOpen={() => navigateToCommit(commit.hash, project)}
-      meta={commit.date ? new Date(commit.date).toLocaleDateString(i18n.language) : null}
+      meta={commit.date && <RelativeTime value={commit.date} />}
       subtitle={
         <>
           <code className="search-group__hash">

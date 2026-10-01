@@ -75,6 +75,8 @@ const build = !args.includes('--no-build');
 // The app's own fallbackLng, not the browser's: this sandbox's Chromium reports
 // en-US, and i18next would quietly render the English strings (see the skill).
 const locale = flag('locale', 'ru');
+/** «Сейчас» для каждого кейса — см. setFixedTime ниже. */
+const HARNESS_NOW = new Date('2026-09-21T12:00:00Z');
 const port = Number(flag('port', '8099'));
 const outDir = path.resolve(ROOT, flag('out', path.join(HARNESS, 'shots')));
 const baseDir = path.resolve(ROOT, flag('baselines', path.join(HARNESS, '..', 'baselines')));
@@ -386,6 +388,10 @@ async function main() {
 
   for (const id of ids) {
     const page = await context.newPage();
+    // Часы стенда стоят: относительное время («3 дня назад») и дата без года
+    // в текущем году считаются от «сейчас», и без этого снимок менялся бы сам
+    // собой от прогона к прогону. Момент — сразу после самых поздних дат фикстур.
+    await page.clock.setFixedTime(HARNESS_NOW);
     // Своё окно кейса. Рамки стенда высотой в экран и прокручиваются внутри
     // себя, поэтому длинную колонку настроек не спасает ни fullPage, ни скролл:
     // в кадр попадает ровно столько, сколько заказано высоты.

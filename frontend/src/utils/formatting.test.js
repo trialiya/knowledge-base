@@ -1,4 +1,4 @@
-import { formatCompactDateTime, formatRelativeTime } from './formatting';
+import { formatCompactDateTime, formatDate, formatLongDateTime, formatRelativeTime } from './formatting';
 
 describe('formatRelativeTime', () => {
   beforeEach(() => vi.useFakeTimers({ now: new Date('2026-06-15T12:00:00Z') }));
@@ -35,5 +35,28 @@ describe('formatCompactDateTime', () => {
   test('empty and broken values give null', () => {
     expect(formatCompactDateTime(null, 'ru')).toBeNull();
     expect(formatCompactDateTime('nonsense', 'ru')).toBeNull();
+  });
+});
+
+describe('formatDate', () => {
+  test('date only, no time', () => {
+    expect(formatDate(new Date(2026, 4, 20, 6, 58), 'ru')).toBe('20.05.2026');
+  });
+
+  test('empty and broken values give null', () => {
+    expect(formatDate('', 'ru')).toBeNull();
+    expect(formatDate('nonsense', 'ru')).toBeNull();
+  });
+});
+
+describe('formatLongDateTime', () => {
+  test('month in words, minutes without seconds', () => {
+    const value = new Date(2026, 4, 20, 6, 58, 49).toISOString();
+    expect(formatLongDateTime(value, 'ru')).toBe('20 мая 2026 г. в 06:58');
+  });
+
+  test('empty and broken values give null', () => {
+    expect(formatLongDateTime(undefined, 'ru')).toBeNull();
+    expect(formatLongDateTime('nonsense', 'ru')).toBeNull();
   });
 });

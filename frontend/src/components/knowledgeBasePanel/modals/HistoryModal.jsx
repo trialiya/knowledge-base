@@ -8,6 +8,7 @@ import ModalShell from '@/components/common/modal/ModalShell';
 import { IconX } from '@/icons/index';
 import SegmentSwitch from '@/components/common/ui/SegmentSwitch';
 import '@/components/common/ui/buttons.css';
+import { formatDateTime } from '@/utils/formatting';
 
 /**
  * Полноэкранная панель истории изменений описания документа.
@@ -36,15 +37,6 @@ import '@/components/common/ui/buttons.css';
  * Список идёт newest-first: index 0 = новейшая версия, больший индекс = старее.
  * Инвариант выбора: база СТАРЕЕ изменённой ⇒ baseIdx > compareIdx.
  */
-
-const fmtDate = (iso, locale) => {
-  if (!iso) return '';
-  try {
-    return new Date(iso).toLocaleString(locale);
-  } catch {
-    return String(iso);
-  }
-};
 
 const HistoryModal = ({
   documentId,
@@ -258,7 +250,7 @@ const HistoryModal = ({
               entries.map((e, i) => (
                 <div key={`${e.version}-${i}`} className="history-item">
                   <div className="history-item__meta">
-                    <div className="history-item__date">{fmtDate(e.updatedAt, i18n.language)}</div>
+                    <div className="history-item__date">{formatDateTime(e.updatedAt, i18n.language)}</div>
                     <div className="history-item__sub">
                       {t('history.edit', { n: e.descriptionVersion })}
                       {i === 0 ? ` · ${t('history.current')}` : ''}

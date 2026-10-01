@@ -2,7 +2,7 @@
 // произвольные поля DTO: список записей, дерево, шапки.
 
 import i18n from '@/i18n/index';
-import { formatFileSize } from '@/utils/formatting';
+import { formatDate, formatDateTime, formatFileSize } from '@/utils/formatting';
 
 // Только настоящие байты: `chars` — символы, и «210 B» на них было бы просто
 // неверной единицей.
@@ -60,11 +60,11 @@ export const formatFieldValue = (key, value, locale) => {
     // Без времени печатаем только дату: 00:00 в строке — артефакт разбора, а не
     // то, что стояло в ответе.
     const dateOnly = localDate(value);
-    if (dateOnly) return dateOnly.toLocaleDateString(locale);
+    if (dateOnly) return formatDate(dateOnly, locale);
 
     if (ISO_DATE_TIME.test(value)) {
-      const date = new Date(value);
-      if (!Number.isNaN(date.getTime())) return date.toLocaleString(locale);
+      const shown = formatDateTime(value, locale);
+      if (shown) return shown;
     }
   }
   return String(value);

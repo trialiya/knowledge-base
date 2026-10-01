@@ -4,6 +4,7 @@ import { COMPACT_KIND, isFullCompaction } from '@/constants/compactKind';
 import CompactSummaryModal from './CompactSummaryModal';
 import { formatTokens } from './tokenUsage';
 import '../styles/compact.css';
+import { formatDateTime } from '@/utils/formatting';
 
 // Текст плашки по виду сжатия. Ключ по виду, а не по «полное/частичное»: у видов с живым хвостом
 // он общий только формой, а говорят они о разном — свёрнутое начало истории и свёрнутое всё, кроме
@@ -39,8 +40,7 @@ const CompactNotice = ({ conversationId, messageId, compact, savings, timestamp 
   const [showSummary, setShowSummary] = useState(false);
   const canOpen = !!(conversationId && messageId != null);
   const full = isFullCompaction(compact);
-  const time = timestamp ? new Date(timestamp) : null;
-  const title = time && !isNaN(time) ? time.toLocaleString(i18n.language) : undefined;
+  const title = formatDateTime(timestamp, i18n.language) ?? undefined;
 
   return (
     <div className={`compact-notice${full ? '' : ' compact-notice--slim'}`} role="note" title={title}>
