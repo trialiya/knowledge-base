@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import AppLink from '@/components/common/ui/AppLink';
 
 /** Сколько совпадений показывать в свёрнутой карточке. */
 const PREVIEW_ROWS = 5;
-
-/** Клик, который надо отдать браузеру: модификатор или не левая кнопка. */
-const isBrowserClick = (e) => e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
 
 /**
  * Первые PREVIEW_ROWS совпадений вместе с подзаголовками, под которыми они
@@ -54,19 +52,13 @@ const ResultGroup = ({ icon, title, href, onOpen, meta, subtitle, rows }) => {
   const shown = expanded ? rows : previewRows(rows);
   const hidden = rows.filter((row) => !row.heading).length - shown.filter((row) => !row.heading).length;
 
-  const open = (e, action) => {
-    if (isBrowserClick(e)) return;
-    e.preventDefault();
-    action();
-  };
-
   return (
     <article className="search-group">
       <header className="search-group__head">
         <span className="search-group__icon">{icon}</span>
-        <a className="search-group__title" href={href} onClick={(e) => open(e, onOpen)}>
+        <AppLink className="search-group__title" href={href} onNavigate={() => onOpen()}>
           {title}
-        </a>
+        </AppLink>
         {meta && <span className="search-group__meta">{meta}</span>}
       </header>
       {subtitle && <div className="search-group__subtitle">{subtitle}</div>}
@@ -74,9 +66,9 @@ const ResultGroup = ({ icon, title, href, onOpen, meta, subtitle, rows }) => {
         {shown.map((row) => {
           const className = row.heading ? 'search-group__section' : 'search-group__row';
           return row.href ? (
-            <a key={row.key} className={className} href={row.href} onClick={(e) => open(e, row.onOpen)}>
+            <AppLink key={row.key} className={className} href={row.href} onNavigate={() => row.onOpen()}>
               {row.node}
-            </a>
+            </AppLink>
           ) : (
             <div key={row.key} className={className}>
               {row.node}

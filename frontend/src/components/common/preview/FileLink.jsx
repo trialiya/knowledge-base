@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import useFilePreview from './useFilePreview';
-import useLinkTooltip, { isBrowserClick } from './useLinkTooltip';
+import useLinkTooltip from './useLinkTooltip';
 import FilePreviewTooltip from './FilePreviewTooltip';
 import FilePreviewModal from './FilePreviewModal';
 import { navigateToFile } from '@/navigation/fileNavigationBus';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
 import { filesUrl } from '@/navigation/urlScheme';
+import AppLink from '@/components/common/ui/AppLink';
 
 /**
  * Ссылка на файл репозитория в отрендеренном markdown (`/files?path=P[&rev=R][#Lx-Ly]`,
@@ -44,15 +45,10 @@ const FileLink = ({ fileLink, children, ...rest }) => {
     if (visible) calcPos();
   }, [visible, file, loading, calcPos]);
 
-  const handleClick = useCallback(
-    (e) => {
-      if (isBrowserClick(e)) return;
-      e.preventDefault();
-      hide();
-      setModal('range');
-    },
-    [hide],
-  );
+  const openRange = useCallback(() => {
+    hide();
+    setModal('range');
+  }, [hide]);
 
   const openInFilesPanel = useCallback(() => {
     hide();
@@ -69,17 +65,17 @@ const FileLink = ({ fileLink, children, ...rest }) => {
 
   return (
     <>
-      <a
+      <AppLink
         ref={linkRef}
         href={href}
         className="doc-link"
-        onClick={handleClick}
+        onNavigate={openRange}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         {...rest}
       >
         {children}
-      </a>
+      </AppLink>
 
       {visible &&
         createPortal(

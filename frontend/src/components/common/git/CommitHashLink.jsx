@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { navigateToCommit } from '@/navigation/fileNavigationBus';
 import { commitUrl } from '@/navigation/urlScheme';
-import { isBrowserClick } from '@/components/common/preview/useLinkTooltip';
+import AppLink from '@/components/common/ui/AppLink';
 import './commitHashLink.css';
 
 /**
@@ -28,16 +28,15 @@ const CommitHashLink = ({ rev, project = null, newTab = false, className = '', c
     );
   }
 
-  const onClick = (e) => {
-    if (isBrowserClick(e)) return;
-    e.preventDefault();
-    navigateToCommit(rev, project);
-  };
-
   return (
-    <a className={className} href={href} onClick={onClick} title={t('commitLink.open')}>
+    <AppLink
+      className={className}
+      href={href}
+      onNavigate={() => navigateToCommit(rev, project)}
+      title={t('commitLink.open')}
+    >
       {children}
-    </a>
+    </AppLink>
   );
 };
 

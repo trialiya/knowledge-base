@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconDoc, IconFolder, IconChevronRight, IconSparkle } from '@/icons/index';
 import { docPath } from '@/navigation/urlScheme';
+import AppLink from '@/components/common/ui/AppLink';
 import RelativeTime from '@/components/common/ui/RelativeTime';
 
 // Хлебные крошки строятся из parentList, который приходит с бэка вместе с
@@ -51,25 +52,10 @@ const SearchResults = ({ query, results, onSelect }) => {
                 <span className="sr-card__icon">
                   <IconDoc size={14} />
                 </span>
-                {/*
-                  Переход — только по имени. Это настоящий <a href>, поэтому:
-                    • средняя кнопка мыши и Ctrl/Cmd-клик → новая вкладка (браузер сам);
-                    • обычный левый клик → SPA-навигация без перезагрузки.
-                */}
-                <a
-                  className="sr-card__title"
-                  href={docPath(res.id)}
-                  onClick={(e) => {
-                    // Клик с модификатором или не левой кнопкой — отдаём браузеру
-                    // (открыть в новой вкладке/окне). Средняя кнопка сюда не
-                    // приходит вовсе (это auxclick), её обрабатывает сам <a>.
-                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                    e.preventDefault();
-                    onSelect(res.id);
-                  }}
-                >
+                {/* Переход — только по имени. */}
+                <AppLink className="sr-card__title" href={docPath(res.id)} onNavigate={() => onSelect(res.id)}>
                   {res.title}
-                </a>
+                </AppLink>
                 <RelativeTime className="sr-card__date" value={res.updatedAt} />
               </div>
               <ResultBreadcrumb parents={res.parentList} />
