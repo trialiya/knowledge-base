@@ -1,3 +1,5 @@
+import com.github.gradle.node.variant.VariantComputer
+
 plugins {
     id 'com.github.node-gradle.node' version '7.1.0'
     id 'com.diffplug.spotless'
@@ -26,13 +28,28 @@ spotless {
         target 'src/**/*.js', 'src/**/*.jsx', 'src/**/*.ts', 'src/**/*.tsx', 'src/**/*.css', 'src/**/*.scss',
                 'vite.config.js', 'eslint.config.js'
 
-        prettier().config([
+        def prettierStep = prettier().config([
                 'semi': true,
                 'singleQuote': true,
                 'trailingComma': 'all',
                 'printWidth': 120
         ])
+        // Node для Prettier — тот же, что скачивает node-gradle для yarn-задач, а не
+        // найденный Spotless'ом сам: он ищет npm сначала по NODE_PATH и только потом
+        // по PATH, принимает за npm любой одноимённый каталог (в каталоге глобальных
+        // модулей это пакет npm) и ищет node рядом с ним — где его нет. npm Spotless
+        // берёт рядом с явно названным node.
+        if (node.download.get()) {
+            def variant = new VariantComputer()
+            prettierStep.nodeExecutable(
+                    variant.computeNodeExec(node, variant.computeNodeBinDir(node.resolvedNodeDir, node.resolvedPlatform)))
+        }
     }
+}
+
+// Явно названный node должен быть скачан к первому запуску Prettier.
+if (node.download.get()) {
+    tasks.named('spotlessReact') { dependsOn 'nodeSetup' }
 }
 
 // Фронтовые тесты — часть верификации (`check`), а не сборки артефакта: `yarnBuild`
