@@ -45,6 +45,18 @@ import org.springframework.ai.tool.annotation.ToolParam;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ScriptFunction {
 
+    /**
+     * The {@code resultLimit} argument, shared with {@code runSavedScript}. Where the value is kept
+     * is conditional on purpose: the search sub-agent's runs, a value over {@code
+     * kb.script.results.max-chars} and a deployment with kept results off keep nothing, and the cut
+     * part is then gone.
+     */
+    static final String RESULT_LIMIT_DESCRIPTION = "Optional: show you only the first N elements of the"
+            + " returned value — N array items, N lines of a string, and inside a returned object N"
+            + " items/lines of each array or string it holds (items inside an array are not cut)."
+            + " The response's \"truncated\" field says what was cut and whether the whole value was"
+            + " kept for kb.result(resultId) in a later script. Omit to get the value whole.";
+
     private final ScriptRunner scriptRunner;
 
     /** Only to tell "the project the model named" from "the project this run is on". */
@@ -74,7 +86,7 @@ public class ScriptFunction {
                     Use for many-file iteration with tallying/joining/edits; for single searches, reads, \
                     or edits use grepContent / getFileContent / editFile. Full kb reference and limits in \
                     system prompt section "Scripts (runScript)". Returns: value (script result), log, stats, \
-                    filesRead, edits (file diffs), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET with fix hint), \
+                    filesRead (the first few paths; filesReadMore counts the rest), edits (file diffs), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET with fix hint), \
                     resultId (the whole value kept for a later script's kb.result(id) and for \
                     saveScriptResult).
                     """, resultConverter = CompactToolResultConverter.class)
@@ -99,7 +111,9 @@ public class ScriptFunction {
                                     + "actually ran — check it, don't assume.",
                             required = false)
                     @Nullable
-                    String project) {
+                    String project,
+            @ToolParam(description = ScriptFunction.RESULT_LIMIT_DESCRIPTION, required = false) @Nullable
+                    Integer resultLimit) {
         requireText(script, "script");
         final int timeout = positiveOrDefault(timeoutSeconds, 10);
         final String projectId = ProjectContext.resolve(context, project);
@@ -116,15 +130,16 @@ public class ScriptFunction {
         final String chat = conversationId(context);
         ScriptResult result = scriptRunner.run(
                 new ScriptRequest(
-                        ScriptSource.inline(script),
-                        ScriptArgs.none(),
-                        timeout,
-                        readOnly,
-                        ToolInvocationCollector.from(context),
-                        projectId,
-                        // The sub-agent's value reaches the chat model only through its
-                        // summary, so an id handed out here would be one nobody can name.
-                        forceReadOnly ? ResultScope.readOnly(chat) : ResultScope.keeping(chat)),
+                                ScriptSource.inline(script),
+                                ScriptArgs.none(),
+                                timeout,
+                                readOnly,
+                                ToolInvocationCollector.from(context),
+                                projectId,
+                                // The sub-agent's value reaches the chat model only through its
+                                // summary, so an id handed out here would be one nobody can name.
+                                forceReadOnly ? ResultScope.readOnly(chat) : ResultScope.keeping(chat))
+                        .withResultLimit(positiveOrDefault(resultLimit, 0)),
                 RunCancellation.from(context));
         log.debug("runScript finished: {}", result.getFormattedResponse());
         return result;

@@ -11,6 +11,7 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -89,11 +90,14 @@ class PrePersistedUserMessageTest {
     @Autowired
     private ToolCallIndexRepository toolCallIndexRepo;
 
+    @Autowired
+    private ToolCallFullResultRepository toolCallFullResultRepo;
+
     private ChatHistoryService memoryService() {
         return new ChatHistoryService(
                 messageRepo,
                 new ContextItemService(mock(AttachmentService.class)),
-                new ToolCallService(messageRepo, toolCallIndexRepo),
+                new ToolCallService(messageRepo, toolCallIndexRepo, toolCallFullResultRepo),
                 new ToolCallEventPublisher(
                         new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))), new RunRegistry()),
                 ActiveProjectNotices.silent());

@@ -103,6 +103,11 @@ export const detectScriptRun = ({ parsed, isJson }) => {
     value: scriptValue(parsed.value),
     log: parsed.log,
     filesRead: parsed.filesRead,
+    // Только в версии для модели: ей уходят первые пути, остальные — числом.
+    filesReadMore: Number.isInteger(parsed.filesReadMore) && parsed.filesReadMore > 0 ? parsed.filesReadMore : 0,
+    // Только в версии для модели и только при resultLimit: до скольких элементов урезано значение.
+    truncatedTo:
+      isPlainObject(parsed.truncated) && Number.isInteger(parsed.truncated.limit) ? parsed.truncated.limit : null,
     edits,
     error,
   };

@@ -114,6 +114,11 @@ const ScriptRunView = ({ data }) => {
       {data.value !== null && (
         <section className="tool-script__panel">
           <div className="tool-script__section-label">{t('toolCall.detail.script.value')}</div>
+          {data.truncatedTo !== null && (
+            <div className="tool-script__note">
+              {t('toolCall.detail.script.truncated', { count: data.truncatedTo })}
+            </div>
+          )}
           <pre className="tool-script__value">{data.value}</pre>
         </section>
       )}
@@ -133,7 +138,14 @@ const ScriptRunView = ({ data }) => {
       {data.filesRead.length > 0 && (
         <Panel
           label={t('toolCall.detail.script.filesRead')}
-          count={t('toolCall.detail.script.pathCount', { count: data.filesRead.length })}
+          count={
+            data.filesReadMore > 0
+              ? t('toolCall.detail.script.pathCountShown', {
+                  count: data.filesRead.length,
+                  total: data.filesRead.length + data.filesReadMore,
+                })
+              : t('toolCall.detail.script.pathCount', { count: data.filesRead.length })
+          }
           defaultOpen={false}
         >
           <ul className="tool-script__paths">
@@ -143,6 +155,11 @@ const ScriptRunView = ({ data }) => {
               </li>
             ))}
           </ul>
+          {data.filesReadMore > 0 && (
+            <div className="tool-script__note">
+              {t('toolCall.detail.script.filesReadMore', { count: data.filesReadMore })}
+            </div>
+          )}
         </Panel>
       )}
 

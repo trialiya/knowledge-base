@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
@@ -57,7 +58,7 @@ public class SavedScriptFunction {
                     <active-project> block; no other name runs), and a JavaScript attachment, named \
                     "attachment:<id>" with the id from getChatAttachments / getDocumentAttachments — an \
                     attachment runs read-only unless this deployment lets attachments write. Same sandbox, budgets and result shape as runScript. \
-                    Returns: value (script result), log, stats, filesRead, edits, error \
+                    Returns: value (script result), log, stats, filesRead (the first few paths; filesReadMore counts the rest), edits, error \
                     (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET), source (which script ran, its path and the \
                     arguments it got), and resultId (the whole value kept for a later script's \
                     kb.result(id) and for saveScriptResult).
@@ -80,7 +81,9 @@ public class SavedScriptFunction {
                                     + " cut to the deployment ceiling.",
                             required = false)
                     @Nullable
-                    Integer timeoutSeconds) {
+                    Integer timeoutSeconds,
+            @ToolParam(description = ScriptFunction.RESULT_LIMIT_DESCRIPTION, required = false) @Nullable
+                    Integer resultLimit) {
         final String scriptName = requireText(name, "name");
         final String projectId = ProjectContext.from(context);
         final ScriptRequest request = resolver.resolve(
@@ -90,7 +93,8 @@ public class SavedScriptFunction {
                         timeoutSeconds,
                         editPolicy.enabled(projectId),
                         ToolInvocationCollector.from(context))
-                .withResults(ResultScope.keeping(conversationId(context)));
+                .withResults(ResultScope.keeping(conversationId(context)))
+                .withResultLimit(positiveOrDefault(resultLimit, 0));
         log.debug(
                 "runSavedScript called: '{}' ({}), args={}, project='{}', readOnly={}",
                 scriptName,

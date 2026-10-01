@@ -82,6 +82,70 @@ class ScriptResultSharingTest {
         assertThat(next.value()).isEqualTo(99);
     }
 
+    /**
+     * {@code resultLimit} cuts by elements before {@code max-result-chars} cuts by characters: the
+     * model gets valid JSON with the first items, not a fragment — the case the limit exists for.
+     */
+    @Test
+    void resultLimitCutsAValueTooLongForTheModelBeforeTheCharacterCap() {
+        runner = newRunner(withLimits(new ScriptProperties.Limits(0, null, 0, 0, 50, 0, null)));
+
+        ScriptResult big = runner.run(
+                request(ResultScope.keeping(CHAT), "return Array.from({length: 100}, (_, i) => ({i}));")
+                        .withResultLimit(3),
+                RunCancellation.none());
+
+        // The detail view's copy is the character-capped one, as without a limit...
+        assertThat(big.value()).isInstanceOf(String.class);
+        // ...the model's is the first three items, parsed, with what was cut and where the rest is.
+        ScriptResult.ForModel shown = big.forModel();
+        assertThat(shown.value()).isEqualTo(List.of(Map.of("i", 0), Map.of("i", 1), Map.of("i", 2)));
+        assertThat(shown.truncated().cut()).isEqualTo(Map.of("$", 100));
+        assertThat(shown.truncated().note()).contains("kb.result('r1')");
+        // The model's copy is clean, so no warning says otherwise...
+        assertThat(big.log()).noneSatisfy(line -> assertThat(line).contains("Result truncated"));
+        assertThat(shown.log()).noneSatisfy(line -> assertThat(line).contains("Full response truncated"));
+        // ...but the detail view's copy is a fragment, and its log says so and where the rest is.
+        assertThat(big.log())
+                .last()
+                .asString()
+                .contains("Full response truncated")
+                .contains("kb.result('r1')");
+    }
+
+    @Test
+    void aCutValueStillOverTheCharacterCapIsCutByCharactersToo() {
+        runner = newRunner(withLimits(new ScriptProperties.Limits(0, null, 0, 0, 50, 0, null)));
+
+        ScriptResult big = runner.run(
+                request(ResultScope.keeping(CHAT), "return Array.from({length: 10}, () => 'x'.repeat(40));")
+                        .withResultLimit(3),
+                RunCancellation.none());
+
+        assertThat(big.forModel().value()).isInstanceOf(String.class);
+        assertThat((String) big.forModel().value()).hasSize(50);
+        assertThat(big.forModel().truncated().cut()).isEqualTo(Map.of("$", 10));
+        assertThat(big.log()).anySatisfy(line -> assertThat(line).contains("even cut to resultLimit=3"));
+    }
+
+    @Test
+    void aValueWithinTheLimitIsShownAsItIs() {
+        ScriptResult small = runner.run(
+                request(ResultScope.keeping(CHAT), "return [1, 2];").withResultLimit(5), RunCancellation.none());
+
+        assertThat(small.shown()).isNull();
+        assertThat(small.forModel().value()).isEqualTo(List.of(1, 2));
+    }
+
+    @Test
+    void aRunThatKeepsNothingSaysTheCutPartIsGone() {
+        ScriptResult cut = runner.run(
+                request(ResultScope.readOnly(CHAT), "return [1, 2, 3];").withResultLimit(1), RunCancellation.none());
+
+        assertThat(cut.forModel().value()).isEqualTo(List.of(1));
+        assertThat(cut.forModel().truncated().note()).contains("not kept");
+    }
+
     @Test
     void anotherChatDoesNotSeeTheResultAndIsToldWhatItKeeps() {
         run(ResultScope.keeping(CHAT), "return 1;");
@@ -205,9 +269,11 @@ class ScriptResultSharingTest {
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private ScriptResult run(@Nullable ResultScope scope, String script) {
-        return runner.run(
-                new ScriptRequest(ScriptSource.inline(script), ScriptArgs.none(), null, false, null, null, scope),
-                RunCancellation.none());
+        return runner.run(request(scope, script), RunCancellation.none());
+    }
+
+    private static ScriptRequest request(@Nullable ResultScope scope, String script) {
+        return new ScriptRequest(ScriptSource.inline(script), ScriptArgs.none(), null, false, null, null, scope);
     }
 
     private ScriptRunner newRunner(ScriptProperties properties) {

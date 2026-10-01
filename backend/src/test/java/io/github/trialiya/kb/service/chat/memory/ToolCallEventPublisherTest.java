@@ -14,6 +14,7 @@ import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -55,7 +56,8 @@ class ToolCallEventPublisherTest {
         history = new ChatHistoryService(
                 messageRepo,
                 new ContextItemService(mock(AttachmentService.class)),
-                new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
+                new ToolCallService(
+                        messageRepo, mock(ToolCallIndexRepository.class), mock(ToolCallFullResultRepository.class)),
                 new ToolCallEventPublisher(events, runs),
                 ActiveProjectNotices.silent());
         ToolCallTestSupport.echoSavedWithIds(messageRepo);

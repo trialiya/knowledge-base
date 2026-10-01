@@ -3379,6 +3379,31 @@
     - 'Состояние «скопировано» — общий модификатор icon-btn--done (подложка акцента), а не свой цвет'
     - Поле ввода моноширинное, панель стоит над ним во всю ширину колонки
 
+- id: tool-call-detail-script-model-view
+  component: ToolCallDetailModal + SegmentSwitch + ScriptRunView
+  path: frontend/src/components/chatPanel/messages/ToolCallDetailModal.jsx
+  title: Детали вызова — две версии ответа скрипта (полная и что видела модель)
+  status: verified
+  origin:
+    - Сессия 2026-09-30, урезанный для модели ответ runScript / runSavedScript
+  preconditions:
+    viewport: [1440, 1100]
+    auth: admin
+    route: /chat, модалка деталей вызова runScript
+    data: |
+      Ответ, урезанный для модели, есть только у прогона, где модель передала
+      resultLimit или скрипт прочитал больше пяти файлов; в db/sample-data.sql
+      скриптов нет — форма целиком на фикстуре.
+  fixtures:
+    - ./fixtures/toolCallDetail.js#scriptRunTrimmedCall
+  steps: |
+    Переключить версию ответа на «Что видела модель», раскрыть секцию прочитанных файлов.
+  expected:
+    - 'Переключатель «Полный ответ | Что видела модель» стоит в шапке результата перед «Обзор | JSON»; кнопки — общие ghost-кнопки, выбранная помечена aria-pressed'
+    - 'В версии для модели: над значением пометка «Значение урезано для модели (resultLimit): не больше 3 …», в значении три строки'
+    - 'Счётчик секции файлов «файлов: 5 из 12», внутри — пять путей и «Модели не показаны ещё 7 файлов»'
+    - 'В полной версии (по умолчанию) — двенадцать путей и все двенадцать строк значения, пометок нет'
+
 - id: theme-dark-sweep
   component: (весь реестр)
   scenario: |

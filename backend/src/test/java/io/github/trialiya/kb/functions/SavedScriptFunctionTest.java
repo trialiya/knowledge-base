@@ -89,7 +89,7 @@ class SavedScriptFunctionTest {
 
     @Test
     void runsTheNamedScriptWithItsArguments() {
-        ScriptResult result = function(false).runSavedScript(context, "report", Map.of("area", "docs"), null);
+        ScriptResult result = function(false).runSavedScript(context, "report", Map.of("area", "docs"), null, null);
 
         assertThat(result.error()).isNull();
         assertThat(result.value()).isEqualTo(Map.of("area", "docs", "limit", 5));
@@ -99,7 +99,7 @@ class SavedScriptFunctionTest {
     /** The result is about a text the model never saw, so it has to say which one it was. */
     @Test
     void reportsWhichScriptRan() {
-        ScriptResult result = function(false).runSavedScript(context, "report", Map.of("area", "docs"), null);
+        ScriptResult result = function(false).runSavedScript(context, "report", Map.of("area", "docs"), null, null);
 
         ScriptRunSource source = result.source();
         assertThat(source).isNotNull();
@@ -117,7 +117,7 @@ class SavedScriptFunctionTest {
      */
     @Test
     void aReportedLineIsALineOfTheScriptFile() {
-        ScriptResult result = function(false).runSavedScript(context, "broken", null, null);
+        ScriptResult result = function(false).runSavedScript(context, "broken", null, null, null);
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.SYNTAX);
@@ -129,7 +129,7 @@ class SavedScriptFunctionTest {
     /** A failed run is a result, and it still says which script failed. */
     @Test
     void aFailedRunStillNamesItsScript() {
-        ScriptResult result = function(false).runSavedScript(context, "boom", null, null);
+        ScriptResult result = function(false).runSavedScript(context, "boom", null, null, null);
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.RUNTIME);
@@ -140,7 +140,7 @@ class SavedScriptFunctionTest {
 
     @Test
     void argumentsCannotBeChangedByTheScript() {
-        ScriptResult result = function(false).runSavedScript(context, "frozen", Map.of("area", "docs"), null);
+        ScriptResult result = function(false).runSavedScript(context, "frozen", Map.of("area", "docs"), null, null);
 
         // Frozen, not refused: a write to a frozen object is silently ignored outside strict mode,
         // which is what a script body is.
@@ -153,10 +153,23 @@ class SavedScriptFunctionTest {
      * instead of silently becoming the object's prototype — which an object literal in the source
      * would have made it.
      */
+    /** {@code resultLimit} reaches the run: the model's copy is cut, the result's own value is not. */
+    @Test
+    void resultLimitCutsWhatTheModelIsShown() {
+        ScriptResult result = function(false)
+                .runSavedScript(context, "echo", Map.of("area", "docs", "extra", "x", "more", "y"), null, 1);
+
+        assertThat(result.error()).isNull();
+        assertThat(((Map<?, ?>) result.value()).get("keys")).asList().hasSize(3);
+        assertThat(((Map<?, ?>) result.forModel().value()).get("keys")).asList().hasSize(1);
+        assertThat(result.forModel().truncated().cut()).isEqualTo(Map.of("$.keys", 3));
+    }
+
     @Test
     void argumentsArriveAsPassed() {
         ScriptResult result = function(false)
-                .runSavedScript(context, "echo", Map.of("area", "документы/раздел", "__proto__", "harmless"), null);
+                .runSavedScript(
+                        context, "echo", Map.of("area", "документы/раздел", "__proto__", "harmless"), null, null);
 
         assertThat(result.error()).isNull();
         assertThat(result.value())
@@ -171,13 +184,13 @@ class SavedScriptFunctionTest {
     void refusesACallThatTheDeclarationCannotSatisfy() {
         SavedScriptFunction function = function(false);
 
-        assertThatThrownBy(() -> function.runSavedScript(context, "report", Map.of(), null))
+        assertThatThrownBy(() -> function.runSavedScript(context, "report", Map.of(), null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("area");
-        assertThatThrownBy(() -> function.runSavedScript(context, "reportt", null, null))
+        assertThatThrownBy(() -> function.runSavedScript(context, "reportt", null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("report");
-        assertThatThrownBy(() -> function.runSavedScript(context, "  ", null, null))
+        assertThatThrownBy(() -> function.runSavedScript(context, "  ", null, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -187,12 +200,12 @@ class SavedScriptFunctionTest {
      */
     @Test
     void refusesAWritingScriptWhereWritesAreUnavailable() {
-        assertThatThrownBy(() -> function(false).runSavedScript(context, "bump", Map.of("area", "docs"), null))
+        assertThatThrownBy(() -> function(false).runSavedScript(context, "bump", Map.of("area", "docs"), null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("edits files");
 
         assertThat(function(true)
-                        .runSavedScript(context, "bump", Map.of("area", "docs"), null)
+                        .runSavedScript(context, "bump", Map.of("area", "docs"), null, null)
                         .error())
                 .isNull();
     }
@@ -208,7 +221,8 @@ class SavedScriptFunctionTest {
     void anAttachmentRunsAndRunsReadOnly() {
         stubAttachment(12, "probe.js", "return [typeof kb.create, args.area];");
 
-        ScriptResult result = function(true).runSavedScript(context, "attachment:12", Map.of("area", "docs"), null);
+        ScriptResult result =
+                function(true).runSavedScript(context, "attachment:12", Map.of("area", "docs"), null, null);
 
         assertThat(result.error()).isNull();
         assertThat(result.value()).isEqualTo(List.of("undefined", "docs"));
@@ -230,7 +244,7 @@ class SavedScriptFunctionTest {
     void anAttachmentRunsUnderTheCallsOwnTimeout() {
         stubAttachment(14, "spin.js", "while (true) {}");
 
-        ScriptResult result = function(false).runSavedScript(context, "attachment:14", null, 1);
+        ScriptResult result = function(false).runSavedScript(context, "attachment:14", null, 1, null);
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.TIMEOUT);
@@ -241,7 +255,7 @@ class SavedScriptFunctionTest {
     void anAttachmentThatIsNotAScriptIsRefusedBeforeTheSandbox() {
         stubAttachment(13, "notes.md", "# not a script");
 
-        assertThatThrownBy(() -> function(false).runSavedScript(context, "attachment:13", null, null))
+        assertThatThrownBy(() -> function(false).runSavedScript(context, "attachment:13", null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("notes.md");
     }
@@ -255,11 +269,11 @@ class SavedScriptFunctionTest {
         stubAttachment(15, "probe.js", "return typeof kb.create;");
 
         assertThat(function(true)
-                        .runSavedScript(context, "attachment:15", null, null)
+                        .runSavedScript(context, "attachment:15", null, null, null)
                         .value())
                 .isEqualTo("undefined");
         assertThat(function(true, true)
-                        .runSavedScript(context, "attachment:15", null, null)
+                        .runSavedScript(context, "attachment:15", null, null, null)
                         .value())
                 .isEqualTo("function");
     }

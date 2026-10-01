@@ -6,4 +6,4 @@ Scripts run earlier in this chat may have kept their values, each under an id (`
 | `kb.result(id)` | the value | by id (`'r3'`)—whole, not truncated |
 | `kb.results()` | `[{id, script, project, chars, createdAt}]` | results this chat keeps, oldest first |
 
-Your own runs keep nothing and get no id: whatever you find goes into your answer. Only the most recent results are kept—an unknown id's error lists those that exist.
+Your own runs keep nothing and get no id: whatever you find goes into your answer. So `resultLimit` only hides the rest of your value from you—it is not kept anywhere. Only the most recent results are kept—an unknown id's error lists those that exist.

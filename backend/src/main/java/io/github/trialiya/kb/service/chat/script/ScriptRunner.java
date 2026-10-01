@@ -470,7 +470,8 @@ public class ScriptRunner {
                 session.stats(),
                 null,
                 session.filesRead(),
-                edits);
+                edits,
+                delivered.shown());
     }
 
     private ScriptResult failed(String project, ScriptSource source, ScriptSession session, ScriptError error) {

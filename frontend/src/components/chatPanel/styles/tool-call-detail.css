@@ -119,8 +119,9 @@
 
 .tool-call-detail__section-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
 }
 
 /* Подпись секции — заголовок, а не сноска: она делит модалку пополам, и
@@ -138,36 +139,12 @@
   color: var(--kb-text-error);
 }
 
-/* ── Переключатель «Обзор | JSON» ── */
+/* ── Переключатели секции: вид ответа и его версия ── */
 
 .tool-call-detail__modes {
   display: flex;
-  gap: 2px;
-  padding: 2px;
-  background: var(--kb-surface-muted);
-  border-radius: 6px;
+  gap: 4px;
   flex-shrink: 0;
-}
-
-.tool-call-detail__mode {
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--kb-text-muted);
-  padding: 3px 10px;
-  border-radius: 4px;
-  line-height: 1.4;
-  box-sizing: border-box;
-}
-.tool-call-detail__mode:hover {
-  color: var(--kb-text-secondary);
-}
-.tool-call-detail__mode--active {
-  background: var(--kb-surface);
-  color: var(--kb-text);
-  box-shadow: var(--kb-shadow-chip);
 }
 
 /* Один общий скролл на всю модалку (.tool-call-detail__body) — у отдельных

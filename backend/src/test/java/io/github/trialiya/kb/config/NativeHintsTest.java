@@ -3,6 +3,7 @@ package io.github.trialiya.kb.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.trialiya.kb.model.chat.dto.ChatEvent;
+import io.github.trialiya.kb.model.script.ScriptResult;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -76,6 +77,19 @@ class NativeHintsTest {
                         .withMemberCategory(MemberCategory.INVOKE_DECLARED_METHODS))
                 .as("%s", holder)
                 .accepts(HINTS));
+    }
+
+    /**
+     * Результат, который отвечает модели своим видом ({@code ModelView}), сериализуется видом — а
+     * его тип в сигнатуре инструмента не значится. Без регистрации запись в образе не отдаёт своих
+     * компонент, и вызов инструмента обрывается.
+     */
+    @Test
+    void theModelViewOfAToolResultIsRegistered() {
+        assertThat(RuntimeHintsPredicates.reflection()
+                        .onType(ScriptResult.ForModel.class)
+                        .withMemberCategory(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
+                .accepts(HINTS);
     }
 
     /**

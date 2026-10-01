@@ -14,6 +14,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.util.Collection;
@@ -34,7 +35,8 @@ class ToolCallServiceTest {
 
     private final ToolCallIndexRepository indexRepo = mock(ToolCallIndexRepository.class);
 
-    private final ToolCallService service = new ToolCallService(mock(ChatMessageRepository.class), indexRepo);
+    private final ToolCallService service =
+            new ToolCallService(mock(ChatMessageRepository.class), indexRepo, mock(ToolCallFullResultRepository.class));
 
     /** Индекс знает эти вызовы — только по ним синтезированная плашка предлагает детали. */
     private void indexKnows(String... callIds) {

@@ -33,6 +33,18 @@ describe('detectScriptRun — что попадает в «Обзор»', () => 
     expect(data.error).toBeNull();
   });
 
+  it('версия для модели: сколько путей ей не показали и до скольких элементов урезано значение', () => {
+    const data = detect(
+      JSON.stringify(result({ filesReadMore: 40, truncated: { limit: 3, cut: { $: 300 }, note: '…' } })),
+    );
+    expect(data.filesReadMore).toBe(40);
+    expect(data.truncatedTo).toBe(3);
+    // Полный ответ этих пометок не несёт.
+    const whole = detect(JSON.stringify(result()));
+    expect(whole.filesReadMore).toBe(0);
+    expect(whole.truncatedTo).toBeNull();
+  });
+
   it('проект берётся из ответа: прогон мог читать соседний репозиторий', () => {
     expect(detect(JSON.stringify(result({ project: 'billing' }))).project).toBe('billing');
     // Старый ответ без проекта разбор не ломает.

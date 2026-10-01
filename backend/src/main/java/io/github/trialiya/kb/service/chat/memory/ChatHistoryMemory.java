@@ -56,7 +56,10 @@ public class ChatHistoryMemory implements ChatMemory {
 
     @Override
     public void add(String conversationId, List<Message> messages) {
-        history.append(conversationId, messages);
+        history.append(
+                conversationId,
+                messages,
+                events.activeRunId(conversationId).flatMap(runs::find).orElse(null));
     }
 
     @Override

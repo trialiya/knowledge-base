@@ -201,6 +201,17 @@ public class ChatHistoryService {
      */
     @Transactional
     public void append(String conversationId, List<Message> messages) {
+        append(conversationId, messages, null);
+    }
+
+    /**
+     * @param scope идущий прогон, записавший эти сообщения: его коллектор помнит результат вызова
+     *     целиком там, где модели ушёл урезанный вид ({@code ModelView}), — он уходит в свою
+     *     таблицу ({@link ToolCallService#keepFullResults}). {@code null} — прогона нет, помнить
+     *     нечего
+     */
+    @Transactional
+    public void append(String conversationId, List<Message> messages, @Nullable RunScope scope) {
         final AtomicLong position = new AtomicLong(lastPosition(conversationId));
         final List<ChatMessageEntity> newRows = messages.stream()
                 .filter(message -> !(message instanceof IMessage))
@@ -222,6 +233,7 @@ public class ChatHistoryService {
         final List<ChatMessageEntity> saved = new ArrayList<>();
         chatMessageRepository.saveAll(newRows).forEach(saved::add);
         toolCalls.index(conversationId, saved);
+        toolCalls.keepFullResults(saved, scope);
         toolCallEvents.publish(conversationId, saved);
     }
 
@@ -439,6 +451,7 @@ public class ChatHistoryService {
                     // «ответа ещё нет», то есть модалка деталей показывает работающим
                     // инструмент, который уже никогда не ответит.
                     toolCalls.index(conversationId, List.of(repaired));
+                    toolCalls.keepFullResults(List.of(repaired), scope);
                 });
     }
 

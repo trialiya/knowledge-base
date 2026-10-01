@@ -697,10 +697,13 @@ SSE-поток событий чата: стриминг ответа + крос
   "status": "SUCCESS | ERROR | ...",
   "error": "string | null",
   "resultText": "string | null",
+  "fullResultText": "string | null",
   "resultMeta": "object | null",
   "createdAt": "2026-06-09T10:00:00"
 }
 ```
+
+`resultText` — ровно то, чем ответили модели. `fullResultText` — результат целиком, если модели ушёл его урезанный вид (сегодня так отвечают `runScript`/`runSavedScript`, см. `ModelView`); `null`, если модель получила результат как есть.
 
 **Ошибки:** `404` — вызов не найден
 

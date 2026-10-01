@@ -10,6 +10,7 @@ import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -51,7 +52,8 @@ class ChatHistoryReasoningTest {
         history = new ChatHistoryService(
                 messageRepo,
                 new ContextItemService(mock(AttachmentService.class)),
-                new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
+                new ToolCallService(
+                        messageRepo, mock(ToolCallIndexRepository.class), mock(ToolCallFullResultRepository.class)),
                 new ToolCallEventPublisher(events, runs),
                 ActiveProjectNotices.silent());
         ToolCallTestSupport.echoSavedWithIds(messageRepo);

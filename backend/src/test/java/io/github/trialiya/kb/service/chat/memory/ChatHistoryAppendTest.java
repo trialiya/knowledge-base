@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -47,7 +48,7 @@ class ChatHistoryAppendTest {
         history = new ChatHistoryService(
                 messageRepo,
                 new ContextItemService(mock(AttachmentService.class)),
-                new ToolCallService(messageRepo, toolCallIndexRepo),
+                new ToolCallService(messageRepo, toolCallIndexRepo, mock(ToolCallFullResultRepository.class)),
                 new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
                 ActiveProjectNotices.silent());
         ToolCallTestSupport.echoSavedWithIds(messageRepo);

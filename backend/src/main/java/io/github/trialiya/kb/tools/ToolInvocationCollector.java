@@ -164,8 +164,15 @@ public final class ToolInvocationCollector {
                 && path.equals(String.valueOf(invocation.arguments().get("filePath")));
     }
 
+    /**
+     * По результату целиком, а не по тексту, который получила модель: у {@code runScript} модели
+     * уходит лишь начало {@code filesRead} (см. {@code ScriptResult#forModel}), но прочитал скрипт
+     * все файлы списка. Засчитывается при этом и путь из части значения, которую модели урезал {@code
+     * resultLimit}, — в духе того же снисходительного правила, что и выше.
+     */
     private static boolean mentionsFile(ToolInvocation invocation, String path) {
-        return invocation.resultText() != null && invocation.resultText().contains(path);
+        final String text = invocation.wholeResultText();
+        return text != null && text.contains(path);
     }
 
     public enum ToolInvocationStatus {

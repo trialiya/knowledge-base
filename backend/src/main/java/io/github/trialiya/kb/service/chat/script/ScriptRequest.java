@@ -23,6 +23,8 @@ import org.jspecify.annotations.Nullable;
  * @param projectId the repository the run reads and writes; null — the default project
  * @param results the chat whose kept results the run reads and, if it says so, adds to; null for a
  *     run that belongs to no chat
+ * @param resultLimit how many elements of the returned value the model is shown ({@code resultLimit}
+ *     of the call, see {@link ResultLimit}); 0 — the value whole
  */
 public record ScriptRequest(
         ScriptSource source,
@@ -31,10 +33,30 @@ public record ScriptRequest(
         boolean forceReadOnly,
         @Nullable ToolInvocationCollector priorInvocations,
         @Nullable String projectId,
-        @Nullable ResultScope results) {
+        @Nullable ResultScope results,
+        int resultLimit) {
+
+    /** A run whose value the model is shown whole. */
+    public ScriptRequest(
+            ScriptSource source,
+            ScriptArgs.Bound args,
+            @Nullable Integer timeoutSeconds,
+            boolean forceReadOnly,
+            @Nullable ToolInvocationCollector priorInvocations,
+            @Nullable String projectId,
+            @Nullable ResultScope results) {
+        this(source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results, 0);
+    }
 
     /** The same run, belonging to {@code results}'s chat. */
     public ScriptRequest withResults(ResultScope results) {
-        return new ScriptRequest(source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results);
+        return new ScriptRequest(
+                source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results, resultLimit);
+    }
+
+    /** The same run, its value shown to the model cut to {@code limit} elements; 0 — whole. */
+    public ScriptRequest withResultLimit(int limit) {
+        return new ScriptRequest(
+                source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results, Math.max(limit, 0));
     }
 }

@@ -10,10 +10,13 @@ import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
+import io.github.trialiya.kb.model.tool.ToolCallFullResultEntity;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -22,28 +25,35 @@ import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.service.chat.runtime.RunScope;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import io.github.trialiya.kb.support.ActiveProjectNotices;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Сборка {@link ToolCallDetail} из {@code chat_message} по {@code callId} (точечный lookup через
  * {@code tool_call_index} + {@code findAllById}, без скана истории чата — см. {@link
  * ToolCallService#findToolCallDetail}): полные аргументы — из {@code tool_data.toolCalls}
- * ASSISTANT-сегмента, полный результат — из {@code tool_data.responses} TOOL-сообщения,
+ * ASSISTANT-сегмента, результат, каким его видела модель, — из {@code tool_data.responses} TOOL-сообщения, целиком (где
+ * модели ушёл урезанный вид) — из {@code tool_call_full_result},
  * статус/ошибка/resultMeta — из {@code meta.invocations} по тому же {@code callId}. Отдельно
  * проверяются несколько вызовов в одном сегменте, SKIP_TOOLS-вызовы (есть в toolCalls, но не в
  * invocations), ERROR без TOOL-ответа и неизвестные id.
@@ -59,8 +69,14 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     @Autowired
     private ToolCallIndexRepository toolCallIndexRepo;
 
+    @Autowired
+    private ToolCallFullResultRepository toolCallFullResultRepo;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
     private ToolCallService toolCalls() {
-        return new ToolCallService(messageRepo, toolCallIndexRepo);
+        return new ToolCallService(messageRepo, toolCallIndexRepo, toolCallFullResultRepo);
     }
 
     private ChatHistoryService history() {
@@ -137,6 +153,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         assertThat(detail.get().status()).isEqualTo(ToolInvocationStatus.OK);
         assertThat(detail.get().error()).isNull();
         assertThat(detail.get().resultText()).isEqualTo("the full, untruncated tool result text");
+        assertThat(detail.get().fullResultText()).isNull();
         assertThat(detail.get().resultMeta()).isEqualTo(Map.of("id", 7));
         assertThat(detail.get().createdAt()).isNotNull();
     }
@@ -315,6 +332,132 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                     assertThat(meta.callId()).isEqualTo("call_stopped");
                     assertThat(meta.hasDetails()).isTrue();
                 });
+    }
+
+    /**
+     * Ответ, урезанный для модели ({@code ModelView}): {@code append} идущего прогона кладёт
+     * результат целиком из коллектора в {@code tool_call_full_result}, а не в {@code tool_data};
+     * деталь отдаёт обе версии, а история, которая уходит модели, — только урезанную.
+     */
+    @Test
+    void trimmedResponseKeepsTheWholeResultForTheDetailOnly() {
+        String conv = UUID.randomUUID().toString();
+        RunScope scope = new RunRegistry().open(UUID.randomUUID().toString(), conv, "user", "model");
+        ToolInvocationCollector collector = new ToolInvocationCollector();
+        scope.attachCollector(collector);
+        ChatHistoryService history = history();
+        String shown = "{\"filesRead\":[\"a.md\"],\"filesReadMore\":1}";
+        String whole = "{\"filesRead\":[\"a.md\",\"b.md\"]}";
+
+        history.append(
+                conv,
+                List.of(AssistantMessage.builder()
+                        .content("")
+                        .toolCalls(List.of(new AssistantMessage.ToolCall("call_s", "function", "runScript", "{}")))
+                        .build()),
+                scope);
+        // Номер вызову даёт издатель событий по активному прогону чата; здесь прогон не
+        // зарегистрирован в событиях, поэтому номер ставится руками — тот же, что у коллектора.
+        scope.rememberCall("call_s", collector.nextCallIndex(), Map.of());
+        collector.record(new ToolInvocation(
+                "runScript", Map.of(), ToolInvocationStatus.OK, null, null, null, "{}", shown, 0, "kb", whole));
+        history.append(
+                conv,
+                List.of(ToolResponseMessage.builder()
+                        .responses(List.of(new ToolResponseMessage.ToolResponse("call_s", "runScript", shown)))
+                        .build()),
+                scope);
+
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_s");
+
+        assertThat(detail).isPresent();
+        assertThat(detail.get().resultText()).isEqualTo(shown);
+        assertThat(detail.get().fullResultText()).isEqualTo(whole);
+        ToolResponseMessage replayed =
+                (ToolResponseMessage) history.promptMessages(conv).getLast();
+        assertThat(replayed.getResponses())
+                .containsExactly(new ToolResponseMessage.ToolResponse("call_s", "runScript", shown));
+        // Целое — только в своей таблице: в протокольных tool_data его нет вовсе.
+        ChatMessageEntity toolRow = messageRepo
+                .findById(Objects.requireNonNull(toolCallIndexRepo
+                        .findByConversationIdAndCallId(conv, "call_s")
+                        .orElseThrow()
+                        .getResponseMessageId()))
+                .orElseThrow();
+        assertThat(toolRow.getToolData().responses())
+                .containsExactly(new ToolData.Response("call_s", "runScript", shown));
+        // Сырая колонка, а не разобранный ToolData: тот молча выбрасывает незнакомые ключи.
+        assertThat(jdbc.queryForObject(
+                        "select tool_data from chat_message where id = ?", String.class, toolRow.getId()))
+                .doesNotContain("b.md");
+        assertThat(toolCallFullResultRepo.findByMessageIdAndCallId(toolRow.getId(), "call_s"))
+                .get()
+                .extracting(ToolCallFullResultEntity::getResultText)
+                .isEqualTo(whole);
+
+        // И живёт ровно столько, сколько TOOL-ряд: удаление ряда уносит его каскадом.
+        history.delete(conv);
+        assertThat(toolCallFullResultRepo.findByMessageIdAndCallId(toolRow.getId(), "call_s"))
+                .isEmpty();
+    }
+
+    /**
+     * Ремонт оборванного хвоста: вызов отработал, но протокольный ответ записать не успели. Ремонтный
+     * TOOL-ряд получает то, что видела модель, а целое — ту же отдельную таблицу, что и обычный
+     * ответ.
+     */
+    @Test
+    void repairedResponseOfATrimmedCallKeepsTheWholeResultApart() {
+        String conv = UUID.randomUUID().toString();
+        RunScope scope = new RunRegistry().open(UUID.randomUUID().toString(), conv, "user", "model");
+        ToolInvocationCollector collector = new ToolInvocationCollector();
+        scope.attachCollector(collector);
+        ChatHistoryService history = history();
+        String shown = "{\"filesRead\":[\"a.md\"],\"filesReadMore\":1}";
+        String whole = "{\"filesRead\":[\"a.md\",\"b.md\"]}";
+
+        history.append(
+                conv,
+                List.of(AssistantMessage.builder()
+                        .content("")
+                        .toolCalls(List.of(new AssistantMessage.ToolCall("call_r", "function", "runScript", "{}")))
+                        .build()),
+                scope);
+        scope.rememberCall("call_r", collector.nextCallIndex(), Map.of());
+        collector.record(new ToolInvocation(
+                "runScript", Map.of(), ToolInvocationStatus.OK, null, null, null, "{}", shown, 0, "kb", whole));
+
+        history.repairDanglingToolCalls(conv, scope);
+
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_r");
+        assertThat(detail).isPresent();
+        assertThat(detail.get().resultText()).isEqualTo(shown);
+        assertThat(detail.get().fullResultText()).isEqualTo(whole);
+    }
+
+    /** Без идущего прогона полному тексту взяться неоткуда: деталь отдаёт то, что видела модель. */
+    @Test
+    void responseWithoutRunKeepsNoSecondVersion() {
+        String conv = UUID.randomUUID().toString();
+        ChatHistoryService history = history();
+
+        history.append(
+                conv,
+                List.of(AssistantMessage.builder()
+                        .content("")
+                        .toolCalls(List.of(new AssistantMessage.ToolCall("call_n", "function", "runScript", "{}")))
+                        .build()));
+        history.append(
+                conv,
+                List.of(ToolResponseMessage.builder()
+                        .responses(List.of(new ToolResponseMessage.ToolResponse("call_n", "runScript", "{}")))
+                        .build()));
+
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_n");
+
+        assertThat(detail).isPresent();
+        assertThat(detail.get().resultText()).isEqualTo("{}");
+        assertThat(detail.get().fullResultText()).isNull();
     }
 
     /**

@@ -4,8 +4,8 @@ import { detectScriptRun } from './scriptRun';
 import { parseResult } from './registry';
 import ScriptRunView from './ScriptRunView';
 
-// Здесь проверяется не разбор (он в scriptRun.test.js), а то, что показ лога
-// переживает сворачивание секции над ним.
+// Здесь проверяется не разбор (он в scriptRun.test.js), а показ: лог, шапка
+// запущенного скрипта, плитки и пометки версии, которую видела модель.
 
 const LOG_CAP = 200;
 
@@ -90,5 +90,32 @@ describe('ScriptRunView', () => {
 
     const tile = screen.getByText('r3').closest('.tool-script__stat');
     expect(tile.getAttribute('title')).toContain("kb.result('r3')");
+  });
+
+  it('версия для модели помечает, что ей ушло не целиком', async () => {
+    const data = detectScriptRun(
+      parseResult(
+        JSON.stringify({
+          stats: { filesRead: 12, calls: 5 },
+          log: [],
+          error: null,
+          value: [1, 2],
+          truncated: { limit: 2, cut: { $: 300 }, note: '…' },
+          filesRead: ['a.md', 'b.md', 'c.md', 'd.md', 'e.md'],
+          filesReadMore: 7,
+          edits: [],
+        }),
+      ),
+    );
+
+    render(<ScriptRunView data={data} />);
+
+    // Пометка над значением видна сразу; счётчик секции файлов говорит «5 из 12»,
+    // а пометка о скрытых путях — внутри неё.
+    expect(screen.getByText(/at most 2 items per array/)).toBeInTheDocument();
+    const files = screen.getByRole('button', { name: /5 of 12/ });
+    expect(screen.queryByText(/7 more files/)).not.toBeInTheDocument();
+    await userEvent.click(files);
+    expect(screen.getByText(/7 more files/)).toBeInTheDocument();
   });
 });

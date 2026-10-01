@@ -14,10 +14,17 @@ import '@/components/common/ui/buttons.css';
 import '../styles/tool-call-detail.css';
 
 // Два режима на секцию результата, не три: «Обзор» — типизированный вид,
-// «JSON» — ровно то, что ушло модели, отформатированное и подсвеченное.
+// «JSON» — сам ответ, отформатированный и подсвеченный.
 // Отдельный «сырой» режим не нужен: JSON-режим на неразбираемом ответе печатает
-// исходную строку как есть, так что вход модели виден всегда.
+// исходную строку как есть, так что ответ виден всегда.
 const MODE = { OVERVIEW: 'overview', JSON: 'json' };
+const MODES = [MODE.OVERVIEW, MODE.JSON];
+
+// Какой ответ показывать, когда модели ушёл урезанный (`fullResultText` есть только
+// тогда): целиком — то, что на самом деле вернул инструмент, или ровно то, что
+// получила модель. Режимы выше работают поверх любой из двух версий.
+const VERSION = { FULL: 'full', MODEL: 'model' };
+const VERSIONS = [VERSION.FULL, VERSION.MODEL];
 
 // Опрос деталей работающего вызова: первая пауза короткая (инструмент часто отвечает через
 // секунду-другую), дальше вдвое до потолка — модалку могли открыть и забыть.
@@ -27,25 +34,28 @@ const POLL_MAX_MS = 15000;
 const ERROR_RETRIES = 3;
 
 /**
- * Переключатель «Обзор | JSON». Не рендерится, когда обзора для формы нет.
+ * Переключатель состояний одной секции: вид ответа (MODES) или его версия (VERSIONS).
+ * `keyPrefix` — ключи i18n подписи (`<prefix>.<value>`) и подсказки
+ * (`<prefix>.<value>Hint`, если она есть).
  *
  * Группа кнопок с `aria-pressed`, а не `tablist`/`tab`: настоящие вкладки
  * требуют `tabpanel` с `aria-controls` и стрелок вместо Tab, а здесь два
  * состояния одной секции.
  */
-const ModeSwitch = ({ mode, onChange, label }) => {
+const SegmentSwitch = ({ values, value: current, onChange, label, keyPrefix }) => {
   const { t } = useTranslation('chat');
   return (
     <div className="tool-call-detail__modes" role="group" aria-label={label}>
-      {[MODE.OVERVIEW, MODE.JSON].map((value) => (
+      {values.map((value) => (
         <button
           key={value}
           type="button"
-          aria-pressed={mode === value}
-          className={`tool-call-detail__mode${mode === value ? ' tool-call-detail__mode--active' : ''}`}
+          aria-pressed={current === value}
+          className="btn btn--ghost btn--xs"
+          title={t(`${keyPrefix}.${value}Hint`, { defaultValue: '' }) || undefined}
           onClick={() => onChange(value)}
         >
-          {t(`toolCall.detail.mode.${value}`)}
+          {t(`${keyPrefix}.${value}`)}
         </button>
       ))}
     </div>
@@ -96,6 +106,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
   const [answer, setAnswer] = useState(null); // { details, failed } | null
   const [mode, setMode] = useState(MODE.OVERVIEW);
   const [argsMode, setArgsMode] = useState(MODE.OVERVIEW);
+  const [version, setVersion] = useState(VERSION.FULL);
 
   const [req, setReq] = useState({ conversationId, callId });
   if (req.conversationId !== conversationId || req.callId !== callId) {
@@ -103,6 +114,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
     setAnswer(null);
     setMode(MODE.OVERVIEW);
     setArgsMode(MODE.OVERVIEW);
+    setVersion(VERSION.FULL);
   }
 
   // Модалку открывают и на работающем вызове — ради аргументов, — поэтому пока ответ говорит
@@ -168,11 +180,18 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
   const icon = getToolIcon(tc.name);
   const statusClass = details ? ` tool-call-detail__status--${details.status.toLowerCase()}` : '';
 
+  // Вторая версия есть, только когда модели ушёл урезанный ответ.
+  const trimmed = !!details?.fullResultText;
+  const resultText = trimmed && version === VERSION.FULL ? details.fullResultText : details?.resultText;
+
   // Разбор ответа — за useMemo: `resultText` бывает в десятки килобайт, а
   // переключение режима перерисовывает модалку целиком.
   const argsPretty = useMemo(() => (details ? formatJson(details.argumentsRaw) : null), [details]);
-  const resultPretty = useMemo(() => (details ? tryFormatJson(details.resultText) : null), [details]);
-  const view = useMemo(() => (details ? detectResultView(details.resultText, details.argumentsRaw) : null), [details]);
+  const resultPretty = useMemo(() => (details ? tryFormatJson(resultText) : null), [details, resultText]);
+  const view = useMemo(
+    () => (details ? detectResultView(resultText, details.argumentsRaw) : null),
+    [details, resultText],
+  );
   const args = useMemo(() => (details ? detectArgumentList(details.argumentsRaw) : null), [details]);
   const showOverview = view !== null && mode === MODE.OVERVIEW;
   const OverviewView = view?.View;
@@ -209,7 +228,15 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
           <section className="tool-call-detail__section">
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.arguments')}</div>
-              {args && <ModeSwitch mode={argsMode} onChange={setArgsMode} label={t('toolCall.detail.arguments')} />}
+              {args && (
+                <SegmentSwitch
+                  values={MODES}
+                  value={argsMode}
+                  onChange={setArgsMode}
+                  label={t('toolCall.detail.arguments')}
+                  keyPrefix="toolCall.detail.mode"
+                />
+              )}
               <CopyButton value={argsPretty} label={t('toolCall.detail.arguments')} />
             </div>
             {args && argsMode === MODE.OVERVIEW ? (
@@ -222,8 +249,25 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
           <section className="tool-call-detail__section">
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.result')}</div>
-              {view && <ModeSwitch mode={mode} onChange={setMode} label={t('toolCall.detail.result')} />}
-              <CopyButton value={details.resultText} label={t('toolCall.detail.result')} />
+              {trimmed && (
+                <SegmentSwitch
+                  values={VERSIONS}
+                  value={version}
+                  onChange={setVersion}
+                  label={t('toolCall.detail.versionLabel')}
+                  keyPrefix="toolCall.detail.version"
+                />
+              )}
+              {view && (
+                <SegmentSwitch
+                  values={MODES}
+                  value={mode}
+                  onChange={setMode}
+                  label={t('toolCall.detail.result')}
+                  keyPrefix="toolCall.detail.mode"
+                />
+              )}
+              <CopyButton value={resultText} label={t('toolCall.detail.result')} />
             </div>
             {running ? (
               <div className="tool-call-detail__notice" role="status" aria-live="polite">
@@ -236,7 +280,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
               // предыдущего вызова переехало бы на следующий.
               <OverviewView key={callId} data={view.data} />
             ) : (
-              <JsonBlock text={resultPretty} fallback={details.resultText} />
+              <JsonBlock text={resultPretty} fallback={resultText} />
             )}
           </section>
 

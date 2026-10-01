@@ -21,8 +21,8 @@ both — read its javadoc for the why before writing a new `@Tool`.
 
 ## Tool-call storage
 
-- **There is no tool-call table.** Protocol tool data — the assistant's calls and
-  the TOOL responses — lives in `chat_message.tool_data` (JSON; see `ToolData`,
+- **Protocol tool data has no table of its own.** The assistant's calls and
+  the TOOL responses live in `chat_message.tool_data` (JSON; see `ToolData`,
   `ToolDataToJsonConverter`), alongside the message it belongs to. UI-only
   metadata (names, argument gists, the statuses shown in chat) lives in the
   message `meta` as `ToolInvocationMeta`/`ToolInvocation`. Never mix the two:
@@ -41,6 +41,16 @@ both — read its javadoc for the why before writing a new `@Tool`.
   changing how messages are saved — `repairDanglingToolCalls` writes its
   synthetic TOOL row outside `append` and indexes it itself; a tool response
   that misses the index leaves its call looking unfinished forever.
+- **A result the model saw trimmed is kept whole in `tool_call_full_result`,
+  never in `tool_data`.** A tool whose result implements `ModelView` (the
+  script tools) answers the model with `forModel()`; that is what
+  `responseData` holds and what every replay sends. The whole result goes to its
+  own table, keyed by the TOOL row id + `callId` and deleted with the row by
+  cascade: `ToolCallService.keepFullResults` writes it next to `index` (both in
+  `append` and in `repairDanglingToolCalls`), and `findToolCallDetail` is its
+  only reader. Nothing that builds a prompt, a summary or a log of the prompt
+  may read it — that separation is the whole reason it is not a `tool_data`
+  field.
 
 Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`.
 

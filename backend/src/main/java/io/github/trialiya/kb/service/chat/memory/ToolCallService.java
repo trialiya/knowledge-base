@@ -2,12 +2,15 @@ package io.github.trialiya.kb.service.chat.memory;
 
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
+import io.github.trialiya.kb.model.tool.ToolCallFullResultEntity;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
+import io.github.trialiya.kb.service.chat.runtime.RunScope;
 import io.github.trialiya.kb.tools.Compact;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
@@ -52,6 +55,7 @@ public class ToolCallService {
 
     private final ChatMessageRepository chatMessageRepository;
     private final ToolCallIndexRepository toolCallIndexRepository;
+    private final ToolCallFullResultRepository toolCallFullResultRepository;
 
     /** Возвращает {@code true}, если детали вызова инструмента сохраняются в БД. */
     static boolean hasDetails(String toolName) {
@@ -93,6 +97,47 @@ public class ToolCallService {
                 toolCallIndexRepository.setResponseMessageId(conversationId, response.id(), row.getId());
             }
         }
+    }
+
+    /**
+     * Сохраняет результат вызова целиком для тех ответов только что записанных TOOL-рядов, где модели
+     * ушёл его урезанный вид ({@code ModelView}), — в {@code tool_call_full_result}, а не в {@code
+     * tool_data}: там лежит то, что модель получает при повторе истории, и этот текст туда попасть
+     * не должен. Целиком результат знает только коллектор идущего прогона ({@link
+     * ToolInvocation#fullResultText}); без прогона помнить нечего, и детали покажут то, что видела
+     * модель.
+     */
+    void keepFullResults(List<ChatMessageEntity> saved, @Nullable RunScope scope) {
+        if (scope == null) {
+            return;
+        }
+        final List<ToolCallFullResultEntity> rows = new ArrayList<>();
+        for (ChatMessageEntity row : saved) {
+            final ToolData toolData = row.getToolData();
+            if (toolData == null || toolData.responses() == null) {
+                continue;
+            }
+            for (ToolData.Response response : toolData.responses()) {
+                final String full = fullResultText(scope, response.id());
+                if (full != null) {
+                    final ToolCallFullResultEntity fullRow = new ToolCallFullResultEntity();
+                    fullRow.setMessageId(row.getId());
+                    fullRow.setCallId(response.id());
+                    fullRow.setResultText(full);
+                    rows.add(fullRow);
+                }
+            }
+        }
+        if (!rows.isEmpty()) {
+            toolCallFullResultRepository.saveAll(rows);
+        }
+    }
+
+    /** Результат вызова целиком, если прогон его помнит и модели ушёл урезанный вид. */
+    private static @Nullable String fullResultText(RunScope scope, String callId) {
+        final RunScope.StartedCall started = scope.startedCall(callId);
+        final ToolInvocation outcome = started == null ? null : scope.completedCall(started.callIndex());
+        return outcome == null ? null : outcome.fullResultText();
     }
 
     /**
@@ -145,13 +190,19 @@ public class ToolCallService {
             return Optional.empty();
         }
         final ChatMessageEntity responseRow = responseMessageId != null ? byId.get(responseMessageId) : null;
-        final String resultText = responseRow != null
+        final ToolData.Response response = responseRow != null
                         && responseRow.getToolData() != null
                         && responseRow.getToolData().responses() != null
                 ? responseRow.getToolData().responses().stream()
                         .filter(r -> callId.equals(r.id()))
-                        .map(ToolData.Response::responseData)
                         .findFirst()
+                        .orElse(null)
+                : null;
+        final String resultText = response != null ? response.responseData() : null;
+        final String fullResultText = response != null
+                ? toolCallFullResultRepository
+                        .findByMessageIdAndCallId(Objects.requireNonNull(responseMessageId), callId)
+                        .map(ToolCallFullResultEntity::getResultText)
                         .orElse(null)
                 : null;
         return Optional.of(new ToolCallDetail(
@@ -173,6 +224,7 @@ public class ToolCallService {
                         : resultText != null ? ToolInvocationStatus.UNKNOWN : ToolInvocationStatus.STARTED,
                 invocation != null ? invocation.error() : null,
                 resultText,
+                fullResultText,
                 invocation != null ? invocation.resultMeta() : null,
                 segment.getCreatedAt()));
     }

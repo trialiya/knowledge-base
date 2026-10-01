@@ -47,6 +47,13 @@ public class RecordingToolCallback implements ToolCallback {
     static final ThreadLocal<Object> CURRENT_RESULT = new ThreadLocal<>();
 
     /**
+     * The whole result's JSON when the model was answered with a trimmed view of it ({@code
+     * ModelView}, see {@link CompactToolResultConverter}); unset when the model got the result as
+     * it is.
+     */
+    static final ThreadLocal<String> CURRENT_FULL_TEXT = new ThreadLocal<>();
+
+    /**
      * Сквозной номер вызова, который исполняется на этом потоке, — см. {@link #currentCallIndex}.
      */
     private static final ThreadLocal<Integer> CURRENT_CALL_INDEX = new ThreadLocal<>();
@@ -103,6 +110,7 @@ public class RecordingToolCallback implements ToolCallback {
             throw e;
         } finally {
             CURRENT_RESULT.remove();
+            CURRENT_FULL_TEXT.remove();
         }
     }
 
@@ -119,6 +127,7 @@ public class RecordingToolCallback implements ToolCallback {
         }
         try {
             CURRENT_RESULT.remove();
+            CURRENT_FULL_TEXT.remove();
             if (collector != null) {
                 CURRENT_CALL_INDEX.set(callIdx);
             }
@@ -136,7 +145,8 @@ public class RecordingToolCallback implements ToolCallback {
                         toolInput,
                         result,
                         callIdx,
-                        projectOf(raw)));
+                        projectOf(raw),
+                        CURRENT_FULL_TEXT.get()));
             }
             return result;
         } catch (Exception e) {
@@ -148,6 +158,7 @@ public class RecordingToolCallback implements ToolCallback {
             throw e;
         } finally {
             CURRENT_RESULT.remove();
+            CURRENT_FULL_TEXT.remove();
             CURRENT_CALL_INDEX.remove();
         }
     }
