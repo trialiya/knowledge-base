@@ -61,6 +61,14 @@ public class DocumentService {
     private static final int MAX_GREP_RESULTS = 200;
 
     /**
+     * Ceiling on keyword hits, whoever names the number — the caller's {@code limit} or {@code
+     * kb.search.keyword.limit}: every hit carries its whole description to the snippet builder, and
+     * an unbounded request would load the base. Also what keeps a zero or negative setting from
+     * reaching SQL, where Postgres refuses a negative {@code LIMIT}.
+     */
+    private static final int MAX_KEYWORD_RESULTS = 200;
+
+    /**
      * Anything that makes a regex mean more than the characters it spells. A pattern without one of
      * these matches exactly the same text as the literal string, which is what lets {@link
      * #grepDocuments} hand it to the database as an {@code ILIKE} prefilter.
@@ -727,7 +735,10 @@ public class DocumentService {
         return search(q, null);
     }
 
-    /** Keyword search; {@code limit} falls back to {@code kb.search.keyword.limit}. */
+    /**
+     * Keyword search; {@code limit} falls back to {@code kb.search.keyword.limit}, and either is
+     * held to 1..{@value #MAX_KEYWORD_RESULTS}.
+     */
     public List<SearchResult> search(String q, @Nullable Integer limit) {
         return attachParents(keywordHits(q, limit));
     }
@@ -741,7 +752,7 @@ public class DocumentService {
 
     /** Keyword hits without breadcrumbs — shared building block for {@link #hybridSearch}. */
     private List<RawSearchResult> keywordHits(String q, @Nullable Integer limit) {
-        int l = limit != null ? Math.max(limit, 1) : searchConfig.keyword().limit();
+        int l = Math.clamp(limit != null ? limit : searchConfig.keyword().limit(), 1, MAX_KEYWORD_RESULTS);
         return repo.search(q, l).stream()
                 .map(e -> new RawSearchResult(
                         Objects.requireNonNull(e.getId()),

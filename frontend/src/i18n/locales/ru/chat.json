@@ -203,7 +203,8 @@
         "untracked": "вне git",
         "matches": "совпадений: {{count}}",
         "files": "файлов: {{count}}",
-        "documents": "документов: {{count}}"
+        "documents": "документов: {{count}}",
+        "truncated": "показаны не все"
       },
       "script": {
         "stat": {

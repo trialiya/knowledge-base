@@ -62,7 +62,7 @@ class GitFunctionTest {
         when(billing.getFileContent(anyString(), any(), any()))
                 .thenReturn(new GitFileContent(
                         "pom.xml", true, null, "<project/>", false, 10, "xml", 1, false, null, null));
-        when(billing.grepHits(anyString(), any(), anyBoolean(), anyInt(), anyInt(), anyBoolean()))
+        when(billing.grepHits(anyString(), any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean()))
                 .thenReturn(new GitGrepHits(List.of(new GitGrepMatch("pom.xml", 1, "<project/>")), true));
         when(billing.getFileTree(any()))
                 .thenReturn(List.of(new GitFileNode("src", "src", FileEntryType.DIRECTORY, null)));

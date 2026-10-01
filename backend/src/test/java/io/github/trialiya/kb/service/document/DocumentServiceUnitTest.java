@@ -555,5 +555,15 @@ class DocumentServiceUnitTest {
 
         assertThat(configured.search("кейворд-предел")).hasSize(2);
         assertThat(configured.search("кейворд-предел", 3)).hasSize(3);
+        // A zero or negative number from either source is held to one hit rather than reaching
+        // SQL, where Postgres refuses a negative LIMIT.
+        assertThat(configured.search("кейворд-предел", -5)).hasSize(1);
+        DocumentService misconfigured = new DocumentService(
+                repo,
+                historyRepo,
+                mock(DocumentSummaryService.class),
+                mock(SemanticSearchService.class),
+                new SearchConfiguration(new SearchConfiguration.KeywordConfig(0), null, null));
+        assertThat(misconfigured.search("кейворд-предел")).hasSize(1);
     }
 }

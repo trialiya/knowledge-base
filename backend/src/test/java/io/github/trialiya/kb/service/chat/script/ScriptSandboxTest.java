@@ -493,29 +493,32 @@ class ScriptSandboxTest {
     /**
      * A cut search stays an array — scripts that read it keep working — and says so in the log: a
      * count over it is a lower bound. The search is memoized, so asking twice warns once; a search
-     * that returned everything adds nothing, and the notice survives a spent {@code kb.log} budget.
+     * that returned everything, or exactly the {@code max} the script asked for, adds nothing; and
+     * the notice survives a spent {@code kb.log} budget.
      */
     @Test
     void aCutGrepSaysSoInTheLogAndOnlyOnce() {
-        write(repoDir.resolve("many.txt"), "needle\n".repeat(5));
+        write(repoDir.resolve("many.txt"), "needle\n".repeat(250));
+        write(repoDir.resolve("few.txt"), "pin\npin\n");
         commitAll();
         runner = newRunner(withLimits(limits -> limits.withMaxLogChars(10)));
 
         ScriptResult result = run("""
                         kb.log('x'.repeat(50));
-                        var cut = kb.grep('needle', { max: 3 });
-                        kb.grep('needle', { max: 3 });
-                        var whole = kb.grep('needle', { max: 5 });
-                        return [cut.length, whole.length];
+                        var cut = kb.grep('needle');
+                        kb.grep('needle');
+                        var asked = kb.grep('needle', { max: 3 });
+                        var whole = kb.grep('pin');
+                        return [cut.length, asked.length, whole.length];
                         """);
 
         assertThat(result.error()).isNull();
-        assertThat(result.value()).isEqualTo(List.of(3, 5));
+        assertThat(result.value()).isEqualTo(List.of(200, 3, 2));
         assertThat(result.log())
                 .filteredOn(line -> line.startsWith("kb.grep("))
                 .singleElement()
                 .asString()
-                .contains("\"needle\"", "more matches than the 3 returned");
+                .contains("\"needle\"", "more matches than the 200 returned");
     }
 
     @Test

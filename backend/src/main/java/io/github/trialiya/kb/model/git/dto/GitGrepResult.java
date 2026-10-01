@@ -43,7 +43,7 @@ public record GitGrepResult(int total, boolean truncated, List<File> files) {
      * Группирует плоские блоки без контекста ({@code contextLines=0}: один блок — одна строка) по
      * файлу, сохраняя их порядок.
      *
-     * @param matches блоки, как их отдаёт {@code GitService.grepContent} с нулевым контекстом
+     * @param matches блоки, как их отдаёт {@code GitService.grepHits} с нулевым контекстом
      * @param truncated решает вызывающий: по размеру выдачи его не узнать — ровно {@code limit}
      *     совпадений бывает и полной выдачей (см. {@code GitService.grepPage})
      */

@@ -14,7 +14,6 @@ import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepHits;
-import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
@@ -78,7 +77,7 @@ import org.jspecify.annotations.Nullable;
  * from ever sharing a repository handle.
  *
  * <p>All operations run against this project's repository via JGit, in-process — no {@code git}
- * subprocess, no argv, no output parsing — except {@link #grepContent} and {@link #getBlame},
+ * subprocess, no argv, no output parsing — except {@link #grepHits} and {@link #getBlame},
  * which shell out to {@code git grep} and {@code git blame} through {@link GitGrepRunner} and
  * {@link GitBlameRunner} (JGit has no grep, and its blame cannot skip {@code
  * .git-blame-ignore-revs}), and the user's network commands ({@link #fetch}, see {@code
@@ -573,45 +572,18 @@ public class GitService {
     // ── Content grep ────────────────────────────────────────────────────────
 
     /**
-     * Searches the contents of tracked files for lines matching {@code pattern}; see {@link
-     * GitGrepRunner#grepContent}.
-     */
-    public List<GitGrepMatch> grepContent(
-            @NonNull String pattern,
-            @Nullable String pathGlob,
-            boolean regex,
-            int contextLines,
-            int maxResults,
-            boolean includeUntracked) {
-        return grep.grepContent(pattern, pathGlob, regex, contextLines, maxResults, includeUntracked);
-    }
-
-    /**
-     * {@link #grepContent} over the tree of a commit instead of the working tree; see {@link
-     * GitGrepRunner#grepContentAt}.
-     */
-    public List<GitGrepMatch> grepContentAt(
-            @NonNull String rev,
-            @NonNull String pattern,
-            @Nullable String pathGlob,
-            boolean regex,
-            int contextLines,
-            int maxResults) {
-        return grep.grepContentAt(rev, pattern, pathGlob, regex, contextLines, maxResults);
-    }
-
-    /**
-     * {@link #grepContent} that also says whether there is more than it returned; see {@link
-     * GitGrepRunner#grepHits}.
+     * Searches file contents for lines matching {@code pattern}, saying whether there is more than
+     * it returned; see {@link GitGrepRunner#grepHits}.
      */
     public GitGrepHits grepHits(
             @NonNull String pattern,
             @Nullable String pathGlob,
             boolean regex,
+            @Nullable String rev,
             int contextLines,
             int maxResults,
             boolean includeUntracked) {
-        return grep.grepHits(pattern, pathGlob, regex, contextLines, maxResults, includeUntracked);
+        return grep.grepHits(pattern, pathGlob, regex, rev, contextLines, maxResults, includeUntracked);
     }
 
     /**

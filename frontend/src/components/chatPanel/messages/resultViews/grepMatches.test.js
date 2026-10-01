@@ -109,6 +109,15 @@ describe('detectGrepMatches — проект вызова', () => {
     expect(data.project).toBe('billing');
   });
 
+  it('обрезанная выдача остаётся видом совпадений и несёт признак обрезки', () => {
+    const match = { path: 'a/A.java', matchLine: 1, text: 'x' };
+    const cut = detect(JSON.stringify({ project: 'billing', result: [match], truncated: true }));
+    const whole = detect(JSON.stringify({ project: 'billing', result: [match], truncated: false }));
+
+    expect(cut).toMatchObject({ project: 'billing', matches: 1, truncated: true });
+    expect(whole.truncated).toBe(false);
+  });
+
   it('ответ без проекта вовсе не ломает разбор', () => {
     const data = detect(JSON.stringify([{ path: 'a/A.java', matchLine: 1, text: 'x' }]));
     expect(data.project).toBeNull();

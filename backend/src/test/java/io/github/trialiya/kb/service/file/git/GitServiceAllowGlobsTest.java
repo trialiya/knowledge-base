@@ -127,7 +127,7 @@ class GitServiceAllowGlobsTest {
     void aPathGlobReachesAFileAtAnyDepth() {
         writeFile("notes/Draft.java", "class Draft { String milk; }\n");
 
-        assertThat(service.grepContent("milk", "*.java", false, 0, 50, true))
+        assertThat(service.grepHits("milk", "*.java", false, null, 0, 50, true).matches())
                 .extracting(GitGrepMatch::path)
                 .containsExactly("notes/Draft.java");
     }
@@ -135,7 +135,7 @@ class GitServiceAllowGlobsTest {
     /** Pathspec без wildcard — это префикс пути, а не имя файла и не точное совпадение. */
     @Test
     void aPathGlobWithoutAWildcardNamesADirectory() {
-        assertThat(service.grepContent("milk", "notes", false, 0, 50, true))
+        assertThat(service.grepHits("milk", "notes", false, null, 0, 50, true).matches())
                 .extracting(GitGrepMatch::path)
                 .containsExactly("notes/todo.md");
     }
@@ -150,7 +150,8 @@ class GitServiceAllowGlobsTest {
         runGit("add", "src/deep/Tracked.java");
         writeFile("notes/deep/Admitted.java", "class Admitted { String milk; }\n");
 
-        assertThat(service.grepContent("milk", "*/deep/*.java", false, 0, 50, true))
+        assertThat(service.grepHits("milk", "*/deep/*.java", false, null, 0, 50, true)
+                        .matches())
                 .extracting(GitGrepMatch::path)
                 .containsExactly("notes/deep/Admitted.java", "src/deep/Tracked.java");
     }
@@ -250,20 +251,23 @@ class GitServiceAllowGlobsTest {
 
     @Test
     void grepSearchesTrackedFilesOnlyUnlessAsked() {
-        assertThat(service.grepContent("milk", null, false, 0, 50, false)).isEmpty();
+        assertThat(service.grepHits("milk", null, false, null, 0, 50, false).matches())
+                .isEmpty();
 
-        assertThat(service.grepContent("milk", null, false, 0, 50, true))
+        assertThat(service.grepHits("milk", null, false, null, 0, 50, true).matches())
                 .extracting(GitGrepMatch::path)
                 .containsExactly("notes/todo.md");
     }
 
     @Test
     void grepReachesGitignoredFilesInsideTheGlobsButNothingElse() {
-        assertThat(service.grepContent("and gitignored", null, false, 0, 50, true))
+        assertThat(service.grepHits("and gitignored", null, false, null, 0, 50, true)
+                        .matches())
                 .extracting(GitGrepMatch::path)
                 .containsExactly("notes/generated/report.md");
 
-        assertThat(service.grepContent("not admitted", null, false, 0, 50, true))
+        assertThat(service.grepHits("not admitted", null, false, null, 0, 50, true)
+                        .matches())
                 .isEmpty();
     }
 
@@ -277,7 +281,8 @@ class GitServiceAllowGlobsTest {
         writeFile("src/App.java", "class App { String milk; }\n");
         runGit("add", "src/App.java");
 
-        List<GitGrepMatch> hits = service.grepContent("milk", null, false, 0, 2, true);
+        List<GitGrepMatch> hits =
+                service.grepHits("milk", null, false, null, 0, 2, true).matches();
 
         assertThat(hits).extracting(GitGrepMatch::path).containsExactly("notes/todo.md", "src/App.java");
     }
@@ -292,7 +297,7 @@ class GitServiceAllowGlobsTest {
         writeFile("src/App.java", "class App { String milk; }\n");
         runGit("add", "src/App.java");
 
-        assertThat(service.grepContent("milk", null, false, 0, 10, true))
+        assertThat(service.grepHits("milk", null, false, null, 0, 10, true).matches())
                 .extracting(GitGrepMatch::path, GitGrepMatch::tracked)
                 .containsExactly(tuple("notes/todo.md", false), tuple("src/App.java", true));
     }

@@ -141,7 +141,7 @@ public class RecordingToolCallback implements ToolCallback {
                         OK,
                         null,
                         getMeta(payload(raw)),
-                        getGist(payload(raw)),
+                        gistOf(raw),
                         toolInput,
                         result,
                         callIdx,
@@ -250,6 +250,16 @@ public class RecordingToolCallback implements ToolCallback {
                                     .getResultMeta()));
         }
         return Map.of();
+    }
+
+    /**
+     * The gist of the answer without its wrapper, plus the wrapper's {@code truncated}: a summary
+     * of a cut search must not read like the whole answer.
+     */
+    private @Nullable String gistOf(Object raw) {
+        String gist = getGist(payload(raw));
+        boolean cut = raw instanceof ToolResult<?> wrapped && Boolean.TRUE.equals(wrapped.truncated());
+        return cut && gist != null ? gist + "\n(truncated: more exist)" : gist;
     }
 
     private @Nullable String getGist(Object result) {

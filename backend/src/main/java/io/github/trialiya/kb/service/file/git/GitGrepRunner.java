@@ -69,7 +69,8 @@ final class GitGrepRunner {
     }
 
     /**
-     * Searches the contents of tracked files for lines matching {@code pattern}.
+     * Searches the contents of tracked files for lines matching {@code pattern}, and says whether
+     * there is more than it returned.
      *
      * <p>Delegates to {@code git grep}, which searches only tracked files (honouring {@code
      * .gitignore}) and is orders of magnitude faster than scanning the filesystem. Binary files are
@@ -84,39 +85,50 @@ final class GitGrepRunner {
      * the caller sees grouped context rather than one record per raw line; the layout being read is
      * described in {@link GitGrep#parse}.
      *
+     * <p>One block over the cap is asked of git, so that exactly {@code maxResults} blocks read as
+     * complete and one more as cut. A run stopped at its output ceiling is cut whatever it holds:
+     * with context that happens long before the cap ({@link #MAX_OUTPUT_LINES}), and a short or
+     * empty list then means "not read", not "not there".
+     *
      * @param pattern literal string or regex to search for
      * @param pathGlob optional glob to restrict search to matching paths (e.g. {@code "*.java"},
      *     {@code "src/main/**"}); null means all tracked files
      * @param regex if true, treat {@code pattern} as an extended regex; otherwise literal
+     * @param rev optional — search the tree of this commit instead of the working tree: hash (full
+     *     or short), branch, tag or {@code HEAD~2}, resolved through JGit first so only a hash ever
+     *     reaches the command line. Untracked files have no place in a commit, so {@code
+     *     includeUntracked} is ignored with it
      * @param contextLines number of context lines before and after each match (like grep -C); 0
      *     means match line only; capped at 10
      * @param maxResults maximum number of match blocks to return; capped at {@value #MAX_RESULTS}
      * @param includeUntracked also search the untracked files this project's {@code allow-globs}
      *     admit; off by default, so a plain search answers about the committed codebase
-     * @return match blocks in order of appearance; with {@code includeUntracked} the two runs are
+     * @return match blocks in order of appearance, at most {@code maxResults}; with {@code includeUntracked} the two runs are
      *     merged and the whole list comes back ordered by path instead, so a file's blocks stay
      *     together rather than splitting around the seam between the runs — what the second run
      *     contributed is marked {@code tracked=false}. Empty if nothing matched
+     * @throws IllegalArgumentException if the revision is unknown or ambiguous, or the pattern is
+     *     not a valid regular expression
      */
-    List<GitGrepMatch> grepContent(
+    GitGrepHits grepHits(
             @NonNull String pattern,
             @Nullable String pathGlob,
             boolean regex,
+            @Nullable String rev,
             int contextLines,
             int maxResults,
             boolean includeUntracked) {
-        return search(pattern, pathGlob, regex, contextLines, cap(maxResults), includeUntracked)
-                .matches();
+        int cap = Math.clamp(maxResults, 1, MAX_RESULTS);
+        Found found = rev == null
+                ? search(pattern, pathGlob, regex, contextLines, cap + 1, includeUntracked)
+                : searchAt(rev, pattern, pathGlob, regex, contextLines, cap + 1);
+        List<GitGrepMatch> matches = found.matches();
+        boolean over = matches.size() > cap;
+        return new GitGrepHits(over ? matches.subList(0, cap) : matches, over || found.cut());
     }
 
     /**
-     * The search page's question: the matches without context, grouped by file, and whether there
-     * are more than it got. One block over the cap is asked for, so that exactly {@code maxResults}
-     * matches reads as complete and one more reads as cut — and a run stopped at its output ceiling
-     * is cut whatever it holds.
-     *
-     * @param rev optional — search the tree of this commit instead of the working tree; untracked
-     *     files have no place there, so {@code includeUntracked} is ignored with it
+     * The search page's question: {@link #grepHits} without context, grouped by file.
      */
     GitGrepResult grepPage(
             @NonNull String pattern,
@@ -125,43 +137,11 @@ final class GitGrepRunner {
             @Nullable String rev,
             boolean includeUntracked,
             int maxResults) {
-        int cap = cap(maxResults);
-        Found found = rev == null
-                ? search(pattern, pathGlob, regex, 0, cap + 1, includeUntracked)
-                : searchAt(rev, pattern, pathGlob, regex, 0, cap + 1);
-        GitGrepHits hits = upTo(found, cap);
+        GitGrepHits hits = grepHits(pattern, pathGlob, regex, rev, 0, maxResults, includeUntracked);
         return GitGrepResult.group(hits.matches(), hits.truncated());
     }
 
-    /**
-     * {@link #grepContent} that also says whether there is more than it returned — the model's
-     * search ({@code grepContent} tool). Asks for one block over the cap, as {@link #grepPage}
-     * does; with context a run can also stop at {@link #MAX_OUTPUT_LINES} long before the cap, and
-     * that is the case the flag exists for.
-     */
-    GitGrepHits grepHits(
-            @NonNull String pattern,
-            @Nullable String pathGlob,
-            boolean regex,
-            int contextLines,
-            int maxResults,
-            boolean includeUntracked) {
-        int cap = cap(maxResults);
-        return upTo(search(pattern, pathGlob, regex, contextLines, cap + 1, includeUntracked), cap);
-    }
-
-    /** {@code found} asked with one block over {@code cap}: the first {@code cap}, and whether there was more. */
-    private static GitGrepHits upTo(Found found, int cap) {
-        List<GitGrepMatch> matches = found.matches();
-        boolean over = matches.size() > cap;
-        return new GitGrepHits(over ? matches.subList(0, cap) : matches, over || found.cut());
-    }
-
-    private static int cap(int maxResults) {
-        return Math.clamp(maxResults, 1, MAX_RESULTS);
-    }
-
-    /** {@link #grepContent} with the block limit already decided by the caller. */
+    /** The working-tree half of {@link #grepHits}, with the block limit already decided. */
     private Found search(
             String pattern,
             @Nullable String pathGlob,
@@ -221,28 +201,7 @@ final class GitGrepRunner {
         return new Found(found, trackedRun.cut() || extraRun.cut());
     }
 
-    /**
-     * {@link #grepContent} over the tree of a commit instead of the working tree: what the search
-     * page asks for with a revision chosen. Untracked files have no place in a commit, so there is
-     * no second run here.
-     *
-     * @param rev hash (full or short), branch, tag or {@code HEAD~2}; resolved through JGit first,
-     *     so only a hash ever reaches the command line
-     * @throws IllegalArgumentException if the revision is unknown or ambiguous, or the pattern is
-     *     not a valid regular expression
-     */
-    List<GitGrepMatch> grepContentAt(
-            @NonNull String rev,
-            @NonNull String pattern,
-            @Nullable String pathGlob,
-            boolean regex,
-            int contextLines,
-            int maxResults) {
-        return searchAt(rev, pattern, pathGlob, regex, contextLines, cap(maxResults))
-                .matches();
-    }
-
-    /** {@link #grepContentAt} with the block limit already decided by the caller. */
+    /** The commit half of {@link #grepHits}, with the block limit already decided. */
     private Found searchAt(
             String rev, String pattern, @Nullable String pathGlob, boolean regex, int contextLines, int limit) {
         int ctx = Math.min(Math.max(contextLines, 0), 10);

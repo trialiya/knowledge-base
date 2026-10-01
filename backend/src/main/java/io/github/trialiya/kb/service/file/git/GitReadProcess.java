@@ -61,8 +61,9 @@ final class GitReadProcess {
      * What one run left behind.
      *
      * @param lines stdout, at most the ceiling the caller named
-     * @param cut whether git was stopped at that ceiling — then {@code exit} says only that git was
-     *     killed, and the lines are all the caller gets
+     * @param cut whether git had more past that ceiling and was stopped there — then {@code exit}
+     *     says only that git was killed, and the lines are all the caller gets. Output exactly as
+     *     long as the ceiling is not cut
      * @param exit git's exit code, meaningful only when not {@code cut}
      * @param stderr what git had to say, up to {@link #MAX_STDERR_LINES}
      */
@@ -146,10 +147,15 @@ final class GitReadProcess {
                 while ((line = readLine(reader)) != null) {
                     lines.add(line);
                     if (lines.size() >= maxLines) {
-                        // Enough. Whatever git still has to say would be thrown away, so it is
-                        // not read; the kill is what ends git, not a full pipe.
-                        cut = true;
-                        process.destroyForcibly();
+                        // Enough — but only a line past the ceiling says git had more: output
+                        // exactly maxLines long is complete, and calling it cut would drop its
+                        // last block and report a finished search as unfinished. Whatever comes
+                        // after that one line is not read; the kill is what ends git, not a full
+                        // pipe.
+                        cut = readLine(reader) != null;
+                        if (cut) {
+                            process.destroyForcibly();
+                        }
                         break;
                     }
                 }

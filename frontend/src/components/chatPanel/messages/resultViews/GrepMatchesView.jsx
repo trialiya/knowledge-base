@@ -57,6 +57,7 @@ const GrepMatchesView = ({ data }) => {
         {t(`toolCall.detail.grep.${data.kind === 'document' ? 'documents' : 'files'}`, {
           count: data.files.length,
         })}
+        {data.truncated && ` · ${t('toolCall.detail.grep.truncated')}`}
         {data.project && ` · ${t('toolCall.detail.fact.project')} ${data.project}`}
       </ResultSummary>
 

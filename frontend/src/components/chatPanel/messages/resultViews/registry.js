@@ -64,22 +64,27 @@ const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.
  *   результаты вызовов, уже сохранённые в истории чатов: их текст — дословно
  *   то, что ушло модели, и переписать его задним числом нельзя.
  *
- * Условие распаковки нарочно жёсткое — ровно два ключа и непустая строка в
- * `project`: любой ответ инструмента, у которого просто случились поля с такими
- * именами, обязан дойти до видов целиком, а не быть выпотрошенным здесь.
+ * Условие распаковки нарочно жёсткое — ключи `project` и `result`, плюс разве
+ * что булев `truncated` (ответ с пределом говорит им, что показан не весь), и
+ * непустая строка в `project`: любой ответ инструмента, у которого просто
+ * случились поля с такими именами, обязан дойти до видов целиком, а не быть
+ * выпотрошенным здесь. `truncated` уходит видам отдельным полем, как и `project`.
  */
 const unwrapProject = (parsed) => {
-  if (!isPlainObject(parsed)) return { project: null, parsed };
+  if (!isPlainObject(parsed)) return { project: null, truncated: false, parsed };
 
   const keys = Object.keys(parsed);
+  const flagged = keys.length === 3 && typeof parsed.truncated === 'boolean';
   const wrapped =
-    keys.length === 2 &&
+    (keys.length === 2 || flagged) &&
     keys.includes('project') &&
     keys.includes('result') &&
     typeof parsed.project === 'string' &&
     !!parsed.project;
 
-  return wrapped ? { project: parsed.project, parsed: parsed.result } : { project: null, parsed };
+  return wrapped
+    ? { project: parsed.project, truncated: parsed.truncated === true, parsed: parsed.result }
+    : { project: null, truncated: false, parsed };
 };
 
 /**
@@ -94,10 +99,10 @@ const unwrapProject = (parsed) => {
 export const parseResult = (resultText, argumentsRaw) => {
   if (typeof resultText !== 'string' || !resultText) return null;
   try {
-    const { project, parsed } = unwrapProject(JSON.parse(resultText));
-    return { parsed, isJson: true, resultText, argumentsRaw, project };
+    const { project, truncated, parsed } = unwrapProject(JSON.parse(resultText));
+    return { parsed, isJson: true, resultText, argumentsRaw, project, truncated };
   } catch {
-    return { parsed: null, isJson: false, resultText, argumentsRaw, project: null };
+    return { parsed: null, isJson: false, resultText, argumentsRaw, project: null, truncated: false };
   }
 };
 

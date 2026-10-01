@@ -86,6 +86,11 @@ public class GitFunction {
         return new ToolResult<>(git.project().id(), payload);
     }
 
+    /** {@link #answer(GitService, Object)} of a bounded answer, saying whether it was cut. */
+    private static <T> ToolResult<T> answer(GitService git, T payload, boolean truncated) {
+        return new ToolResult<>(git.project().id(), payload, truncated);
+    }
+
     /**
      * Список путей из одного строкового аргумента: запятая — заявленный разделитель, перевод строки
      * принимается заодно, потому что модель, которой сказали «через запятую», всё равно иногда
@@ -210,7 +215,7 @@ public class GitFunction {
         }
         GitCommitSearchResult found = git.searchCommitLog(query.strip(), limit, filePath, withBody);
         log.debug("getCommitLog called: found={}", found);
-        return new ToolResult<>(git.project().id(), found.commits(), found.truncated());
+        return answer(git, found.commits(), found.truncated());
     }
 
     // ── Commit diff ─────────────────────────────────────────────────────────
@@ -562,11 +567,11 @@ public class GitFunction {
                 untracked,
                 project);
         GitService git = git(context, project);
-        GitGrepHits hits = git.grepHits(pattern, pathGlob, useRegex, ctx, limit, untracked);
+        GitGrepHits hits = git.grepHits(pattern, pathGlob, useRegex, null, ctx, limit, untracked);
         List<GitGrepMatch> matches = hits.matches().stream()
                 .map(m -> new GitGrepMatch(m.path(), m.matchLine(), GrepLines.cap(m.text()), m.tracked()))
                 .toList();
         log.debug("grepContent called: {} matches found, truncated={}", matches.size(), hits.truncated());
-        return new ToolResult<>(git.project().id(), matches, hits.truncated());
+        return answer(git, matches, hits.truncated());
     }
 }

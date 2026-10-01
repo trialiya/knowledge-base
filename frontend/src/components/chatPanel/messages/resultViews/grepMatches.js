@@ -63,7 +63,7 @@ const toLines = (text, matchLine) =>
  * сохранить стоит. Поле `path` у источника — то, чем он подписан: путь файла или
  * заголовок документа, а `kind` — чем подписывать их количество.
  */
-export const detectGrepMatches = ({ parsed, isJson, project: wrapperProject }) => {
+export const detectGrepMatches = ({ parsed, isJson, project: wrapperProject, truncated = false }) => {
   if (!isJson || !Array.isArray(parsed)) return null;
   if (parsed.length === 0 || parsed.length > MAX_MATCHES) return null;
   if (!parsed.every(isMatchRecord)) return null;
@@ -93,5 +93,5 @@ export const detectGrepMatches = ({ parsed, isJson, project: wrapperProject }) =
   // либо документы — смешанной выдачи не бывает: вызов ищет либо в репозитории, либо в базе.
   const kind = sourceOf(parsed[0]).kind;
 
-  return { files: [...bySource.values()], matches: parsed.length, project, kind };
+  return { files: [...bySource.values()], matches: parsed.length, project, kind, truncated };
 };
