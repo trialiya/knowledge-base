@@ -107,13 +107,17 @@ public record ScriptResult(
                 error,
                 more > 0 ? filesRead.subList(0, MODEL_PATH_LIMIT) : filesRead,
                 more > 0 ? more : null,
-                edits);
+                edits.stream().map(GitEditResult::forModel).toList());
     }
 
     /**
      * What the model reads: {@link ScriptResult}'s own fields, plus the two notes on what was cut.
      * Public and named as {@link #forModel}'s return type so the native image registers it with
      * the tool's signature (see {@code NativeHints}).
+     *
+     * <p>An empty list and a {@code null} are left out: a run that logged nothing, read nothing and
+     * edited nothing says so by having no such key. Each edit comes without its diff ({@link
+     * GitEditResult#forModel}) — the model wrote that change itself.
      */
     public record ForModel(
             String project,
@@ -129,15 +133,19 @@ public record ScriptResult(
             @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
             Truncated truncated,
 
-            List<String> log,
+            @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> log,
+
             ScriptStats stats,
-            @Nullable ScriptError error,
-            List<String> filesRead,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            ScriptError error,
+
+            @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> filesRead,
 
             @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
             Integer filesReadMore,
 
-            List<GitEditResult> edits) {}
+            @JsonInclude(JsonInclude.Include.NON_EMPTY) List<GitEditResult.ForModel> edits) {}
 
     /**
      * The value as the call's {@code resultLimit} left it for the model.

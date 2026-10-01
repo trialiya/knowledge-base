@@ -19,6 +19,21 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### Git and search REST responses leave out empty fields
+
+`GET /api/git/tree`, `/browse`, `/files/search`, `/files/content` and
+`/files/outline` no longer print a field that is empty or at its usual
+value: `GitFileNode.size` of a directory, `GitFileContent.commit` / `content` /
+`language` / `fromLine` / `toLine` when `null`, `binary` when `false`, and
+`tracked` when `true` (only `"tracked": false` is printed). In `GET /api/documents/search`,
+`parentList` is left out for a top-level document instead of being `[]`. A line range asked
+of `/api/git/files/content` now stops at 512 KB, like a whole read; `toLine`
+says where.
+
+The bundled UI already reads them that way. A script or integration of your
+own that reads these endpoints should treat a missing key as `null` / `false`
+/ `[]` — and a missing `tracked` as `true`.
+
 ### Scheduled script results are logged at DEBUG
 
 A scheduled script that finishes cleanly now writes one INFO line with its

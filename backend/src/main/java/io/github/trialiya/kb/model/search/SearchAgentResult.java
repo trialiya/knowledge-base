@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.search;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ProjectScoped;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
@@ -39,7 +40,7 @@ import org.jspecify.annotations.Nullable;
  */
 public record SearchAgentResult(
         String project,
-        @Nullable String report,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String report,
         boolean complete,
         int iterations,
         @JsonIgnore long durationMs,

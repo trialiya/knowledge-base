@@ -3,6 +3,7 @@ package io.github.trialiya.kb.model.script;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import java.util.Map;
@@ -39,15 +40,30 @@ class ScriptResultForModelTest {
     }
 
     @Test
-    void aShortRunIsAnsweredExactlyAsBefore() throws Exception {
+    void aShortRunLeavesOutOnlyWhatIsEmpty() throws Exception {
         ScriptResult result = result("r1", Map.of("a", 1), List.of("a.md", "b.md"), null);
 
         String shown = CONVERTER.convert(result, ScriptResult.class);
 
+        // An empty log, no edits and no error say so by having no key; value stays even when null.
         assertThat(MAPPER.readValue(shown, Map.class))
-                .containsOnlyKeys("project", "resultId", "value", "log", "stats", "error", "filesRead", "edits");
-        // The same text the whole result makes: nothing extra is kept for the detail view.
-        assertThat(shown).isEqualTo(WHOLE.convert(result, null));
+                .containsOnlyKeys("project", "resultId", "value", "stats", "filesRead");
+        assertThat(MAPPER.readValue(CONVERTER.convert(result("r1", null, List.of(), null), null), Map.class))
+                .containsOnlyKeys("project", "resultId", "value", "stats");
+    }
+
+    @Test
+    void anEditReachesTheModelWithoutItsDiff() throws Exception {
+        GitEditResult edit = new GitEditResult("edit", "a.md", 1, 1, 9, "@@ -1 +1 @@\n-a\n+b");
+        ScriptResult result = new ScriptResult(
+                "kb", null, null, null, List.of(), new ScriptStats(0, 0, 0, 1, 1), null, List.of(), List.of(edit));
+
+        Map<String, Object> shown = shown(result);
+
+        assertThat(shown.get("edits"))
+                .isEqualTo(List.of(
+                        Map.of("operation", "edit", "path", "a.md", "additions", 1, "deletions", 1, "lineCount", 9)));
+        assertThat(WHOLE.convert(result, null)).contains("\"diff\":\"@@ -1 +1 @@");
     }
 
     @Test

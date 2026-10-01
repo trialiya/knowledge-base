@@ -69,9 +69,53 @@ final class FileViews {
             return new GitFileContent(
                     path, tracked, commit, "", false, size, language, total, true, from, Math.max(from, to));
         }
-        String slice = String.join("\n", Arrays.asList(lines).subList(from - 1, to));
-        return new GitFileContent(
-                path, tracked, commit, slice, false, size, language, total, from > 1 || to < total, from, to);
+        // Диапазон не ограничен числом строк, но ограничен тем же размером, что и чтение целиком:
+        // иначе fromLine=1, toLine=999999 вернул бы большой файл полностью, в обход усечения.
+        // Срез кончается на последней строке, что влезла целиком; toLine говорит, где именно, и
+        // продолжить можно со следующей. Одна строка длиннее предела режется сама. Предел — в байтах
+        // UTF-8, как у файла: кириллица — два байта на символ, и счёт по символам пропустил бы вдвое.
+        int end = from - 1;
+        long taken = 0;
+        while (end < to) {
+            long next = taken + utf8Bytes(lines[end]) + 1;
+            if (end >= from && next > RepoFiles.MAX_FILE_SIZE + 1) {
+                break;
+            }
+            taken = next;
+            end++;
+        }
+        String slice = String.join("\n", Arrays.asList(lines).subList(from - 1, end));
+        String kept = utf8Prefix(slice, RepoFiles.MAX_FILE_SIZE);
+        boolean lineCut = kept.length() < slice.length();
+        if (lineCut) {
+            slice = kept + "\n... (line cut at " + RepoFiles.MAX_FILE_SIZE + " bytes)";
+        }
+        boolean partial = from > 1 || end < total || lineCut;
+        return new GitFileContent(path, tracked, commit, slice, false, size, language, total, partial, from, end);
+    }
+
+    /** Байт в UTF-8 у {@code text}. */
+    private static long utf8Bytes(String text) {
+        return text.codePoints()
+                .map(cp -> cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4)
+                .asLongStream()
+                .sum();
+    }
+
+    /** Самое длинное начало {@code text}, что занимает в UTF-8 не больше {@code maxBytes}. */
+    private static String utf8Prefix(String text, long maxBytes) {
+        long bytes = 0;
+        int i = 0;
+        while (i < text.length()) {
+            int cp = text.codePointAt(i);
+            int width = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+            if (bytes + width > maxBytes) {
+                break;
+            }
+            bytes += width;
+            i += Character.charCount(cp);
+        }
+        return text.substring(0, i);
     }
 
     /** Первые {@code HEAD_LINES} и последние {@code TAIL_LINES} строк с отметкой о пропуске. */

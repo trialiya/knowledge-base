@@ -17,14 +17,16 @@ public record SearchResult(
         String snippet,
         LocalDateTime updatedAt,
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String summary,
-        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) List<Parent> parentList)
+
+        @Nullable @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        List<Parent> parentList)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     public record Parent(long id, String title) {}
 
     @Override
     public String getFormattedResponse() {
-        String parents = parentList == null
+        String parents = parentList == null || parentList.isEmpty()
                 ? null
                 : parentList.stream().map(SearchResult.Parent::title).collect(joining("/"));
         return Compact.tag("doc:" + id)

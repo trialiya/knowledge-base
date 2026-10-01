@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.github.trialiya.kb.model.tool.OmitTrue;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import java.util.Map;
@@ -32,9 +34,16 @@ import java.util.Map;
  * @param tracked отслеживается ли файл git'ом. {@code false} — совпадение из второго прогона, по
  *     untracked-файлам проекта ({@code allow-globs}, только при {@code includeUntracked}): истории
  *     у такого файла нет, в коммит он не попадёт, и найденная строка может быть выводом сборки, а
- *     не исходником. Без этого признака выдача двух прогонов неразличима
+ *     не исходником. Без этого признака выдача двух прогонов неразличима. {@code true} в JSON не
+ *     печатается (см. {@link OmitTrue})
  */
-public record GitGrepMatch(String path, int matchLine, String text, boolean tracked)
+public record GitGrepMatch(
+        String path,
+        int matchLine,
+        String text,
+
+        @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = OmitTrue.class)
+        boolean tracked)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     /** Совпадение в отслеживаемом файле — обычный случай, для него и есть этот конструктор. */

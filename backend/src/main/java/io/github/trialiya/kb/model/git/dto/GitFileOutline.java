@@ -1,6 +1,10 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonView;
+import io.github.trialiya.kb.model.tool.OmitTrue;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.model.tool.ToolJson;
 import io.github.trialiya.kb.tools.Compact;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -18,11 +22,20 @@ import org.jspecify.annotations.Nullable;
  *     одном файле, и различаться они не должны
  * @param language определённый язык, либо null
  * @param lineCount общее количество строк
- * @param parser имя использованного парсера: "tree-sitter", "regex" (фолбэк) или "markdown"
+ * @param parser имя использованного парсера: "tree-sitter", "regex" (фолбэк) или "markdown" —
+ *     диагностика для UI, модели не печатается (см. {@link ToolJson})
  * @param symbols список символов в порядке появления в файле
  */
 public record GitFileOutline(
-        String path, boolean tracked, @Nullable String language, int lineCount, String parser, List<GitSymbol> symbols)
+        String path,
+
+        @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = OmitTrue.class)
+        boolean tracked,
+
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String language,
+        int lineCount,
+        @JsonView(ToolJson.UiOnly.class) String parser,
+        List<GitSymbol> symbols)
         implements ToolCallResponseItem {
 
     @Override

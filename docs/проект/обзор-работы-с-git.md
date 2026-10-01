@@ -125,8 +125,10 @@ Unicode — bidi-переопределения и разделители чип
 
 | Что ограничено | Где задано |
 |---|---|
-| Файл больше 512 КБ отдаётся фрагментом (`truncated=true`), бинарный — без содержимого | `RepoFiles.MAX_FILE_SIZE`, `BINARY_SNIFF_BYTES` |
+| Файл больше 512 КБ отдаётся фрагментом (`truncated=true`), бинарный — без содержимого; диапазон строк — тоже не больше 512 КБ | `RepoFiles.MAX_FILE_SIZE`, `BINARY_SNIFF_BYTES`, `FileViews` |
 | Патч одного файла — до 500 строк | `Diffs.MAX_DIFF_LINES` |
+| Только для модели: патчи одного ответа `getCommitDiff` / `getUncommittedChanges` вместе — до 3000 строк, хешей в `getCommitDiff` — до 20 | `PatchBudget.MAX_LINES`, `GitFunction.MAX_DIFF_COMMITS` |
+| Только для модели: строка в совпадении `grepContent` / `grepDocuments` — до 500 символов | `GrepLines.MAX_LINE_CHARS` |
 | Блоб из истории, который поднимается в память целиком, — до 32 МБ | `CommitFiles.MAX_BLOB_SIZE` |
 | `git grep` — 20 секунд и 20 000 строк вывода | `GitGrepRunner.GREP_TIMEOUT`, `MAX_OUTPUT_LINES` |
 | `git blame` — 20 секунд и 400 000 строк вывода (при переполнении — отказ, не усечение) | `GitBlameRunner.BLAME_TIMEOUT`, `MAX_OUTPUT_LINES` |

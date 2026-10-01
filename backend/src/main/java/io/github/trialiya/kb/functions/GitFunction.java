@@ -51,12 +51,16 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * <p><b>Security constraints:</b> all operations are strictly read-only. Only files tracked by Git
  * are accessible — an untracked file is refused even if it exists on disk, unless the project
  * configures {@code allow-globs} and the path falls inside them, which opens that named area as it
- * is on disk, {@code .gitignore} included. Binary files and files larger than 512 KB are detected
- * and returned without content so they never bloat the model context.
+ * is on disk, {@code .gitignore} included. Binary files come back without content; a file larger
+ * than 512 KB read whole comes back as a head+tail excerpt, and a line range stops at the same
+ * 512 KB, so neither way of reading brings a big file into the model context in full.
  */
 @Slf4j
 @AllArgsConstructor
 public class GitFunction {
+
+    /** Хешей в одном {@code getCommitDiff}: больше — это уже выгрузка истории, а не вопрос о ней. */
+    static final int MAX_DIFF_COMMITS = 20;
 
     private final GitRegistry gitRegistry;
 
@@ -114,7 +118,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Browse repository one level at a time (path, name, type, size). Call again with deeper path to drill down.",
+                    "Browse repository one level at a time (path, type, size). Call again with deeper path to drill down.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitFileNode>> getFileTree(
             ToolContext context,
@@ -153,7 +157,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set), so an empty result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
+                    "Recent commit history (newest first). Commit: hash, shortHash, author, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set), so an empty result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
@@ -216,7 +220,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Changed files and diffs for one or more commits. A single hash also returns that commit's full message in \"body\". Files include status (A/M/D/R), path, additions, deletions, and optional unified diff. Link a commit as [shortHash](/files?rev=HASH&project=ID) with the full hash and the response's project field.",
+                    "Changed files and diffs for one or more commits (at most 20). A single hash also returns that commit's full message in \"body\". Files include status (A/M/D/R), path, additions, deletions, and optional unified diff; all patches of one answer together stop at 3000 lines, a file past that keeps its counts and says how to get its patch. Link a commit as [shortHash](/files?rev=HASH&project=ID) with the full hash and the response's project field.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitDiff(
             ToolContext context,
@@ -249,8 +253,15 @@ public class GitFunction {
                 patch,
                 filePath,
                 project);
+        long count = Arrays.stream(commitHashes.split(","))
+                .filter(hash -> !hash.isBlank())
+                .count();
+        if (count > MAX_DIFF_COMMITS) {
+            throw new IllegalArgumentException("At most " + MAX_DIFF_COMMITS + " commits per call, got " + count
+                    + " — split the list into several calls.");
+        }
         GitService git = git(context, project);
-        List<GitCommit> commitDiff = git.getCommitDiff(commitHashes, patch, filePath);
+        List<GitCommit> commitDiff = PatchBudget.ofCommits(git.getCommitDiff(commitHashes, patch, filePath));
         log.debug("getCommitDiff called: commitDiff={}", commitDiff);
         return answer(git, commitDiff);
     }
@@ -352,7 +363,8 @@ public class GitFunction {
                     + "as of that commit (git show COMMIT:PATH), which is how you see what "
                     + "a file said before a change or read one that no longer exists. "
                     + "Binary files flagged without content. Large files (>512 KB) return "
-                    + "excerpt with truncated=true. When mentioning the file in your "
+                    + "excerpt with truncated=true; a line range stops at the same 512 KB "
+                    + "(toLine says where — continue from the next line). When mentioning the file in your "
                     + "response, link it as [filename](/files?path=PATH&project=ID), where "
                     + "PATH is the path from the response and ID is the response's project "
                     + "field; append #Lfrom-Lto for a line range. Read with commit? Link "
@@ -431,7 +443,7 @@ public class GitFunction {
     @Tool(
             name = "getUncommittedChanges",
             description =
-                    "Uncommitted changes in working tree (staged and unstaged) — what the next commit will carry. Status: A/M/D/R. Optional: include unified diff, narrow to given paths, and includeUntracked to also list the untracked files the project's allow-globs admit, under status U (not in git, will not be committed with the rest).",
+                    "Uncommitted changes in working tree (staged and unstaged) — what the next commit will carry. Status: A/M/D/R. Optional: include unified diff (all patches of one answer together stop at 3000 lines), narrow to given paths, and includeUntracked to also list the untracked files the project's allow-globs admit, under status U (not in git, will not be committed with the rest).",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitDiffEntry>> getUncommittedChanges(
             ToolContext context,
@@ -470,7 +482,7 @@ public class GitFunction {
                 filters,
                 project);
         GitService git = git(context, project);
-        List<GitDiffEntry> gitDiffEntries = git.getUncommittedChanges(patch, untracked, filters);
+        List<GitDiffEntry> gitDiffEntries = PatchBudget.ofEntries(git.getUncommittedChanges(patch, untracked, filters));
         log.debug("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
         return answer(git, gitDiffEntries);
     }
@@ -490,7 +502,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Search file content for matching lines (case-insensitive). Returns path, line number, and text.",
+                    "Search file content for matching lines (case-insensitive). Returns path, line number, and text; a line over 500 characters is cut (read it with getFileContent).",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitGrepMatch>> grepContent(
             ToolContext context,
@@ -545,7 +557,9 @@ public class GitFunction {
                 untracked,
                 project);
         GitService git = git(context, project);
-        List<GitGrepMatch> matches = git.grepContent(pattern, pathGlob, useRegex, ctx, limit, untracked);
+        List<GitGrepMatch> matches = git.grepContent(pattern, pathGlob, useRegex, ctx, limit, untracked).stream()
+                .map(m -> new GitGrepMatch(m.path(), m.matchLine(), GrepLines.cap(m.text()), m.tracked()))
+                .toList();
         log.debug("grepContent called: {} matches found", matches.size());
         return answer(git, matches);
     }
