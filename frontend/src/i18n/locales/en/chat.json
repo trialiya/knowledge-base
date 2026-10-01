@@ -372,6 +372,8 @@
     "submit": "Insert",
     "searching": "Searching…",
     "nothingFound": "Nothing found",
+    "nothingFoundPartial": "Nothing in the searched part of history — older commits were not searched",
+    "partial": "Not all matches shown — refine the query",
     "booleanYes": "yes",
     "booleanNo": "no",
     "types": {

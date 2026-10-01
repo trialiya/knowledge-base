@@ -25,7 +25,9 @@ const SEARCH_LIMIT = 10;
  *
  *   kind      — какой виджет рисует диалог: 'text' | 'boolean' | 'search'
  *   inputType — тип <input> (только kind='text')
- *   search    — (query, signal) => Promise<item[]> (только kind='search')
+ *   search    — (query, signal) => Promise<item[] | { items, truncated }> (только
+ *               kind='search'); вторая форма — у поиска с пределом, который знает,
+ *               что показал не всё
  *   describe  — item => { key, icon, title, subtitle } для строки выдачи
  *   toValue   — (выбранное значение, проект) => строка, которая встанет вместо плейсхолдера
  */
@@ -50,7 +52,10 @@ export const PLACEHOLDER_FIELDS = {
   },
   commit: {
     kind: 'search',
-    search: (q, signal, project) => gitApi.searchCommits(q, { limit: SEARCH_LIMIT, project, signal }),
+    search: (q, signal, project) =>
+      gitApi
+        .searchCommits(q, { limit: SEARCH_LIMIT, project, signal })
+        .then(({ commits, truncated }) => ({ items: commits, truncated })),
     describe: (item) => ({
       key: item.hash,
       icon: '🔖',

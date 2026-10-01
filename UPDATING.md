@@ -19,6 +19,15 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### `GET /api/git/commits/search` answers `{commits, truncated}`
+
+The phrase placeholder picker's commit lookup returned a bare `GitCommit[]`; it
+now returns the same shape as `/api/git/commits/grep` — `{ "commits": [...],
+"truncated": bool }` — so a caller can tell "no such commit" from "not that far
+back" (the walk stops at 20 000 commits). The bundled UI is updated with it. A
+script or integration of your own that reads this endpoint must take the list
+from `commits`.
+
 ### `kb.search.keyword.limit` is now applied
 
 The key was bound but never read: keyword search over documents always returned

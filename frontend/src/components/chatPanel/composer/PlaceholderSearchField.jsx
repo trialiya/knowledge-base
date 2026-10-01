@@ -25,6 +25,10 @@ import highlightMatch from '@/components/common/search/highlightMatch';
  */
 const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder, autoFocus, project }) => {
   const { t } = useTranslation('chat');
+  // Показаны ли не все совпадения: поиск с пределом (коммиты) отвечает
+  // { items, truncated }, остальные — голым списком. Ответ отменённого поиска
+  // признак не трогает — его выдачу хук тоже выбросит.
+  const [partial, setPartial] = useState(false);
   // Разбираем по полям прямо на вызове: react-hooks/refs не различает, какое
   // свойство возвращённого объекта — ref, и считает рефом любое чтение с него.
   const {
@@ -46,7 +50,15 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
   } = useSearchDropdown(
     // Мемоизация обязательна: useSearchDropdown держит функцию в зависимостях,
     // и новая идентичность на каждый рендер перезапускала бы поиск.
-    useCallback((q, signal) => spec.search(q, signal, project), [spec, project]),
+    useCallback(
+      (q, signal) =>
+        spec.search(q, signal, project).then((found) => {
+          const bounded = !Array.isArray(found) && found !== null && typeof found === 'object';
+          if (!signal.aborted) setPartial(bounded && found.truncated === true);
+          return bounded ? found.items : found;
+        }),
+      [spec, project],
+    ),
   );
 
   // Набранное держим у себя: `query` хука — это то, что сейчас ищется, и close()
@@ -158,7 +170,9 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
           >
             {loading && <div className="phrase-fill__status">{t('phraseFill.searching')}</div>}
             {!loading && results.length === 0 && (
-              <div className="phrase-fill__status">{t('phraseFill.nothingFound')}</div>
+              <div className="phrase-fill__status">
+                {t(partial ? 'phraseFill.nothingFoundPartial' : 'phraseFill.nothingFound')}
+              </div>
             )}
 
             <div className="phrase-fill__options" id={`${inputId}-list`} role="listbox" ref={listRef}>
@@ -188,6 +202,9 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
                 );
               })}
             </div>
+            {!loading && partial && results.length > 0 && (
+              <div className="phrase-fill__status">{t('phraseFill.partial')}</div>
+            )}
           </div>,
           document.body,
         )}

@@ -101,9 +101,10 @@ describe('PhraseFillModal', () => {
   });
 
   it('inserts a commit chip token carrying the full hash and subject', async () => {
-    gitApi.searchCommits.mockResolvedValue([
-      { hash: 'a1b2c3d4e5', shortHash: 'a1b2c3d', author: 'Тест', message: 'почини кэш' },
-    ]);
+    gitApi.searchCommits.mockResolvedValue({
+      commits: [{ hash: 'a1b2c3d4e5', shortHash: 'a1b2c3d', author: 'Тест', message: 'почини кэш' }],
+      truncated: false,
+    });
     const onSubmit = renderModal('Разбери {{Коммит:commit}}');
 
     await userEvent.type(screen.getByLabelText(/Коммит/), 'кэш');
@@ -112,6 +113,29 @@ describe('PhraseFillModal', () => {
     await submit();
 
     expect(onSubmit).toHaveBeenCalledWith('Разбери ⟦commit:a1b2c3d4e5:почини кэш⟧');
+  });
+
+  // Обход истории ограничен: список коммитов, за которым есть ещё, и пустой ответ
+  // недосмотренной истории говорят об этом, а не выдают себя за всё.
+  it('says when the commit list is not everything', async () => {
+    gitApi.searchCommits.mockResolvedValue({
+      commits: [{ hash: 'a1b2c3d4e5', shortHash: 'a1b2c3d', author: 'Тест', message: 'почини кэш' }],
+      truncated: true,
+    });
+    renderModal('Разбери {{Коммит:commit}}');
+
+    await userEvent.type(screen.getByLabelText(/Коммит/), 'кэш');
+
+    expect(await screen.findByText('phraseFill.partial')).toBeInTheDocument();
+  });
+
+  it('says an empty commit search did not look through all of history', async () => {
+    gitApi.searchCommits.mockResolvedValue({ commits: [], truncated: true });
+    renderModal('Разбери {{Коммит:commit}}');
+
+    await userEvent.type(screen.getByLabelText(/Коммит/), 'кэш');
+
+    expect(await screen.findByText('phraseFill.nothingFoundPartial')).toBeInTheDocument();
   });
 
   // Регрессия: .modal-shell и колонка полей обрезают по overflow, поэтому
