@@ -26,7 +26,8 @@ export default function useKeyedRequest(key, request) {
     };
     start(controller.signal).then(
       (value) => done(value, null),
-      (error) => done(null, error),
+      // Отказ без причины всё равно отказ: `error` — признак, по которому его видно.
+      (error) => done(null, error ?? new Error('Request failed')),
     );
     return () => controller.abort();
   }, [key]);

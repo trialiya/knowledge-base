@@ -38,6 +38,13 @@ describe('useKeyedRequest', () => {
     await waitFor(() => expect(result.current).toEqual({ loading: false, value: null, error: failure }));
   });
 
+  it('отказ без причины — всё равно ошибка', async () => {
+    const { result } = renderHook(() => useKeyedRequest('a', () => Promise.reject(undefined)));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBeInstanceOf(Error);
+  });
+
   it('смена ключа: сразу загрузка, прошлый запрос отменён, его ответ отброшен', async () => {
     const { request, calls } = deferred();
     const { result, rerender } = renderHook((key) => useKeyedRequest(key, request), { initialProps: 'a' });
