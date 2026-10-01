@@ -110,6 +110,9 @@ public class GitService {
      */
     private static final int MAX_OUTGOING = 100;
 
+    /** Most commits one history listing or search returns — what a larger {@code maxCount} is cut to. */
+    public static final int MAX_COMMITS = CommitSearch.MAX_RESULTS;
+
     private final Project project;
 
     /** Where the working tree is, and every rule about which paths may reach into it. */
@@ -318,7 +321,7 @@ public class GitService {
     /**
      * Recent commit history, newest first.
      *
-     * @param maxCount max commits to return (default 20, capped at 100)
+     * @param maxCount max commits to return (default 20, capped at {@value #MAX_COMMITS})
      * @param filePath optional — limit history to a specific file
      * @param includeBody fill each commit's {@code body} with the message below the subject
      * @param rev optional — walk from this revision instead of HEAD, so a browser showing a
@@ -378,8 +381,8 @@ public class GitService {
      * newest first, walking from HEAD. The phrase placeholder picker's lookup; see {@link
      * CommitSearch} for how far back it looks.
      *
-     * @param query hash prefix or subject substring, already stripped and non-blank
-     * @param maxCount max commits to return, capped at 100
+     * @param query hash prefix or subject substring; blank — an empty answer
+     * @param maxCount max commits to return, capped at {@value #MAX_COMMITS}
      * @return the matches with {@code truncated}: the picker has to tell "no such commit" from "not
      *     that far back", and "these" from "the first of more"
      */

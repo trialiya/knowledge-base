@@ -225,9 +225,7 @@ public class GitController {
             @RequestParam("q") String query,
             @RequestParam(name = "limit", defaultValue = "10") int limit,
             @RequestParam(name = "project", required = false) @Nullable String project) {
-        String sanitized = query.strip();
-        if (sanitized.isBlank()) return new GitCommitSearchResult(List.of(), false);
-        return read(() -> git(project).searchCommits(sanitized, limit));
+        return read(() -> git(project).searchCommits(query, limit));
     }
 
     /**
@@ -244,11 +242,9 @@ public class GitController {
             @RequestParam(name = "limit", defaultValue = "50") int limit,
             @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
-        String sanitized = query.strip();
-        if (sanitized.isBlank()) return new GitCommitSearchResult(List.of(), false);
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> git.grepCommits(sanitized, limit, at));
+        return read(() -> git.grepCommits(query, limit, at));
     }
 
     /**

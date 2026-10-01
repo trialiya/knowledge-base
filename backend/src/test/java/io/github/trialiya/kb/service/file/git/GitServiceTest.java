@@ -180,6 +180,19 @@ class GitServiceTest {
         assertThat(service.searchCommits("x", 5)).isEqualTo(new GitCommitSearchResult(List.of(), false));
     }
 
+    /** Пустой запрос — пустой ответ, и пробелы вокруг ничего не меняют: искать нечего. */
+    @Test
+    void aBlankQueryFindsNothing() {
+        writeFile("a.txt", "1\n");
+        commitAll("first");
+
+        assertThat(service.searchCommits("   ", 5)).isEqualTo(new GitCommitSearchResult(List.of(), false));
+        assertThat(service.grepCommits(" \t ", 5, null)).isEqualTo(new GitCommitSearchResult(List.of(), false));
+        assertThat(service.searchCommits("  first  ", 5).commits())
+                .extracting(GitCommit::message)
+                .containsExactly("first");
+    }
+
     /**
      * Листинг говорит, есть ли история за последним отданным коммитом: просьба о двух при трёх
      * коммитах — неполная, о трёх — полная.

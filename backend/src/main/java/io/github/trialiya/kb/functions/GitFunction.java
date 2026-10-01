@@ -155,7 +155,7 @@ public class GitFunction {
     /**
      * Returns recent commit history from the repository.
      *
-     * @param maxCount maximum number of commits to return (default 20, max 100)
+     * @param maxCount maximum number of commits to return (default 20, max {@value GitService#MAX_COMMITS})
      * @param filePath optional — show only commits that touched this file
      * @param query optional — only commits whose message (subject or description) contains it, or
      *     whose hash starts with it
@@ -168,7 +168,10 @@ public class GitFunction {
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
-            @ToolParam(description = "Maximum commits to return (1–100, default 20).", required = false) @Nullable
+            @ToolParam(
+                            description = "Maximum commits to return (1–" + GitService.MAX_COMMITS + ", default 20).",
+                            required = false)
+                    @Nullable
                     Integer maxCount,
             @ToolParam(
                             description =

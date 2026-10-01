@@ -38,8 +38,11 @@ final class CommitSearch {
      */
     private static final int SCAN = 20_000;
 
-    /** Потолок выдачи — столько, сколько не отдаёт и история ({@code GET /commits}). */
-    private static final int MAX_RESULTS = 100;
+    /**
+     * Потолок выдачи и листинга, и поиска; на него ссылаются {@link GitService#MAX_COMMITS} и
+     * описание инструмента {@code getCommitLog}.
+     */
+    static final int MAX_RESULTS = 100;
 
     private CommitSearch() {}
 
@@ -120,7 +123,7 @@ final class CommitSearch {
             }
             return new GitCommitSearchResult(matches, false);
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to search commit log", e);
+            throw new IllegalStateException("Failed to read commit log", e);
         }
     }
 
