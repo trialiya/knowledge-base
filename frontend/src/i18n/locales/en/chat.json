@@ -374,6 +374,7 @@
     "nothingFound": "Nothing found",
     "nothingFoundPartial": "Nothing in the searched part of history — older commits were not searched",
     "partial": "Not all matches shown — refine the query",
+    "partialHistory": "Older commits were not searched",
     "booleanYes": "yes",
     "booleanNo": "no",
     "types": {

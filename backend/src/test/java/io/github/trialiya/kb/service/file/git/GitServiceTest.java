@@ -926,8 +926,9 @@ class GitServiceTest {
     }
 
     /**
-     * Truncated means history was left unwalked: a full page with more commits behind it is, a walk
-     * that reached the root is not — even when it found exactly as many as asked for.
+     * Truncated means there may be more matches: one found past the limit says so, a walk that
+     * reached the root does not — even when it found exactly as many as asked for, and even when
+     * older commits that match nothing lie behind them.
      */
     @Test
     void grepCommitsSaysWhetherHistoryWasWalkedToItsEnd() {
@@ -935,8 +936,12 @@ class GitServiceTest {
         commitAll("fix one");
         writeFile("b.txt", "b\n");
         commitAll("fix two");
+        writeFile("c.txt", "c\n");
+        commitAll("unrelated");
 
         assertThat(service.grepCommits("fix", 1, null).truncated()).isTrue();
+        // A limit filled by the newest match, with only non-matching history after it, is whole.
+        assertThat(service.grepCommits("unrelated", 1, null).truncated()).isFalse();
         assertThat(service.grepCommits("fix", 2, null).truncated()).isFalse();
         assertThat(service.grepCommits("nothing-like-this", 2, null).truncated())
                 .isFalse();

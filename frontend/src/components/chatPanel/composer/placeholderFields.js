@@ -27,7 +27,9 @@ const SEARCH_LIMIT = 10;
  *   inputType — тип <input> (только kind='text')
  *   search    — (query, signal) => Promise<item[] | { items, truncated }> (только
  *               kind='search'); вторая форма — у поиска с пределом, который знает,
- *               что показал не всё
+ *               что показал не всё (см. useSearchDropdown)
+ *   limit     — сколько элементов просит такой поиск: по нему поле отличает «есть
+ *               ещё совпадения» (выдача полна) от «история досмотрена не вся»
  *   describe  — item => { key, icon, title, subtitle } для строки выдачи
  *   toValue   — (выбранное значение, проект) => строка, которая встанет вместо плейсхолдера
  */
@@ -52,6 +54,7 @@ export const PLACEHOLDER_FIELDS = {
   },
   commit: {
     kind: 'search',
+    limit: SEARCH_LIMIT,
     search: (q, signal, project) =>
       gitApi
         .searchCommits(q, { limit: SEARCH_LIMIT, project, signal })
