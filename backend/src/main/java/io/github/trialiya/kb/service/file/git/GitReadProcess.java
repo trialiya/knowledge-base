@@ -109,6 +109,8 @@ final class GitReadProcess {
         if (budget <= 0) {
             throw timedOut(command);
         }
+        @Nullable Process process = null;
+        @Nullable Thread watchdog = null;
         try {
             // core.quotepath=false: without it, git quotes/octal-escapes any path containing
             // non-ASCII bytes (e.g. Cyrillic filenames) in its output — "docs/проект" becomes
@@ -122,14 +124,15 @@ final class GitReadProcess {
             // stderr is kept apart from stdout, not merged into it: a warning git prints on the
             // way — an unreadable directory during a walk — would otherwise be parsed as output.
             ProcessBuilder pb = new ProcessBuilder(withConfig).directory(root.toFile());
-            Process process = pb.start();
+            process = pb.start();
+            Process git = process;
             // Nobody reads stderr until git is done, and a full pipe would stop it mid-run, so it
             // is drained as it comes; what git has to say about a refusal fits in the cap many
             // times over.
             List<String> complaints = new CopyOnWriteArrayList<>();
             Thread stderrDrain = Thread.ofVirtual().start(() -> {
                 try (var err =
-                        new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
+                        new BufferedReader(new InputStreamReader(git.getErrorStream(), StandardCharsets.UTF_8))) {
                     String line;
                     while ((line = err.readLine()) != null) {
                         // Read on past the cap and keep only what fits:
@@ -148,11 +151,11 @@ final class GitReadProcess {
             // The read below blocks until git closes its output, so the deadline is kept by a
             // watchdog that kills the process; the read then ends and waitFor sees the signal.
             AtomicBoolean timedOut = new AtomicBoolean();
-            Thread watchdog = Thread.ofVirtual().start(() -> {
+            watchdog = Thread.ofVirtual().start(() -> {
                 try {
-                    if (!process.waitFor(budget, TimeUnit.NANOSECONDS)) {
+                    if (!git.waitFor(budget, TimeUnit.NANOSECONDS)) {
                         timedOut.set(true);
-                        process.destroyForcibly();
+                        git.destroyForcibly();
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -180,7 +183,6 @@ final class GitReadProcess {
                 }
             }
             int exit = process.waitFor();
-            watchdog.interrupt();
             // git is gone, so its stderr is at end of stream and the drain is about to finish; the
             // wait is bounded all the same rather than trusting that of a thread nothing depends
             // on.
@@ -197,6 +199,16 @@ final class GitReadProcess {
             throw new IllegalStateException("Git command interrupted: " + command, e);
         } catch (IOException e) {
             throw new IllegalStateException("Git command failed: " + command, e);
+        } finally {
+            // Whatever ended the run — an answer, an interrupt, a failed read — git does not
+            // outlive it: otherwise a cancelled chat run would leave it running until the watchdog's
+            // deadline. On the normal path it has exited already and this is a no-op.
+            if (process != null) {
+                process.destroyForcibly();
+            }
+            if (watchdog != null) {
+                watchdog.interrupt();
+            }
         }
     }
 
