@@ -68,6 +68,35 @@ describe('ревизия в «Файлах»', () => {
   });
 });
 
+describe('колонка blame в «Файлах»', () => {
+  it('читается из адреса и не пишется по умолчанию', () => {
+    go('/files/a/b.md?blame=1');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav.fileBlame).toBe(true);
+    act(() => result.current.setFileBlame(false));
+    expect(url()).toBe('/files/a/b.md');
+  });
+
+  // Тумблер — не переход: «Назад» из файла не должно выключать колонку по шагу.
+  it('тумблер заменяет запись истории и пишет флаг после ревизии', () => {
+    go('/files/a/b.md?rev=v1');
+    const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
+    act(() => result.current.setFileBlame(true));
+    expect(url()).toBe('/files/a/b.md?rev=v1&blame=1');
+    expect(window.history.length).toBe(before);
+  });
+
+  // Колонка — способ смотреть репозиторий, как режим изменений: переезжает на
+  // следующий файл и в снимок коммита, куда ведёт клик по ячейке.
+  it('переезжает на следующий открытый файл вместе с ревизией', () => {
+    go('/files/a/b.md?blame=1');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openFilePath('a/b.md', undefined, { rev: 'abc', right: 'commit' }));
+    expect(url()).toBe('/files/a/b.md?rev=abc&blame=1&right=commit');
+  });
+});
+
 describe('подсветка в открытом файле', () => {
   it('читает запрос и пометку «это выражение» из адреса', () => {
     go('/files/a/b.md?find=needle&re=1');

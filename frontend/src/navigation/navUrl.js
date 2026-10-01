@@ -40,6 +40,7 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  *   ?changes=1      файлы: слева список незакоммиченных изменений (дефолт — дерево)
  *   ?rev=<ревизия>  снимок коммита/ветки/тега (дефолт — рабочее дерево): и в
  *                   файлах, и как фильтр единого поиска
+ *   ?blame=1        файлы: колонка авторства строк у открытого файла (дефолт — нет)
  *   ?left=0         левая панель свёрнута (дефолт — раскрыта)
  *   ?right=<tab>    правая панель раскрыта на вкладке (дефолт — свёрнута)
  *
@@ -133,6 +134,7 @@ export function readUrl() {
   let fileProject = '';
   let fileChanges = false;
   let fileRev = '';
+  let fileBlame = false;
   let fileFind = '';
   let fileFindRegex = false;
   if (view === 'files') {
@@ -144,6 +146,9 @@ export function readUrl() {
     // Ревизия — тоже состояние экрана: путь в адресе один и тот же, меняется
     // только снимок, в котором его читают. Пусто — рабочее дерево.
     fileRev = p.get('rev') || '';
+    // Колонка blame — состояние экрана того же рода, что режим изменений: файл
+    // тот же, меняется только то, что о нём показано рядом с текстом.
+    fileBlame = p.get('blame') === '1';
     // Что подсвечивать в открытом файле: запрос, с которым сюда пришли из
     // поиска, или набранный в самом файле. Тоже состояние экрана — файл он не
     // меняет, — но именно в адресе: ссылкой на найденное делятся, и после F5
@@ -192,6 +197,7 @@ export function readUrl() {
     fileProject,
     fileChanges,
     fileRev,
+    fileBlame,
     fileFind,
     fileFindRegex,
     searchQuery,
@@ -238,6 +244,7 @@ export function buildUrl(nav) {
       if (nav.fileProject) p.set('project', nav.fileProject);
       if (nav.fileChanges) p.set('changes', '1');
       if (nav.fileRev) p.set('rev', nav.fileRev);
+      if (nav.fileBlame) p.set('blame', '1');
       if (nav.fileFind) p.set('find', nav.fileFind);
       // Флаг регулярки без самого запроса подсвечивать нечему.
       if (nav.fileFind && nav.fileFindRegex) p.set('re', '1');
@@ -295,6 +302,7 @@ function toNav(u, view, panels) {
     fileProject: u.fileProject,
     fileChanges: u.fileChanges,
     fileRev: u.fileRev,
+    fileBlame: u.fileBlame,
     fileFind: u.fileFind,
     fileFindRegex: u.fileFindRegex,
     searchQuery: u.searchQuery,

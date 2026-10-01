@@ -6,6 +6,7 @@
 ═══════════════════════════════════════════════ */
 
 @import './styles/changes.css';
+@import './styles/blame.css';
 
 /* Оболочка раздела (контейнер, левая панель, центр) — общая: см.
    common/workspaceLayout.css. Здесь только специфика дерева и содержимого. */
@@ -210,25 +211,15 @@
   color: var(--kb-text-warning);
 }
 
-.file-view__view-toggle {
+/* Тумблеры («Diff», «Blame», «рисунок ↔ исходник») стоят в мета-строке файла,
+   где кегль мельче кнопочного: без этого строка становится выше на их высоту.
+   Последний из них прижат к правому краю. */
+.file-view__toggle {
+  padding: 2px 10px;
+  font-size: 0.72rem;
+}
+.file-view__toggle:last-child {
   margin-left: auto;
-  border: 1px solid var(--kb-border);
-  background: none;
-  cursor: pointer;
-  color: var(--kb-text-muted);
-  font-size: 0.85rem;
-  padding: 2px 8px;
-  border-radius: 6px;
-  line-height: 1.2;
-}
-.file-view__view-toggle:hover {
-  background: var(--kb-accent-surface-subtle);
-  color: var(--kb-accent);
-}
-.file-view__view-toggle--active {
-  background: var(--kb-accent-surface-subtle);
-  color: var(--kb-accent);
-  border-color: var(--kb-accent);
 }
 
 .file-image {

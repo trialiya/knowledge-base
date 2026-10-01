@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.git.dto.GitCapabilities;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
+import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import io.github.trialiya.kb.model.git.dto.GitFileBytes;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
@@ -13,7 +14,7 @@ import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
-import io.github.trialiya.kb.service.file.git.GitGrepTimeoutException;
+import io.github.trialiya.kb.service.file.git.GitReadTimeoutException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.service.file.git.PreviewMedia;
@@ -104,7 +105,7 @@ public class GitController {
                     ? git.grepContent(query, pathGlob, regex, 0, cap, untracked)
                     : git.grepContentAt(revision, query, pathGlob, regex, 0, cap));
             return GitGrepResult.group(matches, cap);
-        } catch (GitGrepTimeoutException e) {
+        } catch (GitReadTimeoutException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
         }
     }
@@ -121,6 +122,26 @@ public class GitController {
         GitService git = git(project);
         String at = revision(rev);
         return read(() -> at == null ? git.getFileContent(path, from, to) : git.getFileContentAt(at, path, from, to));
+    }
+
+    /**
+     * Line authorship of a file — the file browser's blame column: {@code git blame} with the
+     * revisions {@code .git-blame-ignore-revs} names skipped. 400 for an untracked or binary file;
+     * a blame git could not finish in time is {@code 503}, as with {@code /grep}.
+     */
+    @GetMapping("/files/blame")
+    public GitFileBlame getBlame(
+            @RequestParam("path") String path,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        requireSafePath(path);
+        GitService git = git(project);
+        String at = revision(rev);
+        try {
+            return read(() -> at == null ? git.getBlame(path) : git.getBlameAt(at, path));
+        } catch (GitReadTimeoutException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
+        }
     }
 
     /**

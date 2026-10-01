@@ -224,7 +224,7 @@ class GitServiceGrepTest {
                     paths, repository, new VisibleFiles(service.project(), paths, repository), Duration.ZERO);
 
             assertThatThrownBy(() -> runner.grepContent("needle", null, false, 0, 50, false))
-                    .isInstanceOf(GitGrepTimeoutException.class);
+                    .isInstanceOf(GitReadTimeoutException.class);
         }
     }
 
