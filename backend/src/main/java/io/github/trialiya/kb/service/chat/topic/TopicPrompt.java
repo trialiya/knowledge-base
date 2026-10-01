@@ -5,11 +5,11 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.utils.MarkdownSections;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
@@ -69,10 +69,6 @@ final class TopicPrompt {
      * по делу: «Async в C#», {@code __init__}, {@code *.gradle}.
      */
     private static final Pattern LEADING_JUNK = Pattern.compile("^(?:#+\\s+|\\*\\*|[\\s\"'`«»“”„])+");
-
-    /** Забор кода, его язык и всё до закрывающего забора той же длины (или до конца текста). */
-    private static final Pattern CODE_BLOCK =
-            Pattern.compile("(?ms)^[ \\t]*(`{3,}|~{3,})[ \\t]*([^\\n]*)$.*?(?:^[ \\t]*\\1[ \\t]*$|\\z)");
 
     private static final Pattern TRAILING_JUNK = Pattern.compile("(?:\\*\\*|[\\s\"'`«»“”„.!。])+$");
 
@@ -209,16 +205,12 @@ final class TopicPrompt {
      * сворачивается до конца текста.
      */
     static String collapseCode(String text) {
-        final Matcher block = CODE_BLOCK.matcher(text);
-        final StringBuilder out = new StringBuilder();
-        while (block.find()) {
-            final String info = block.group(2).strip();
+        final String collapsed = MarkdownSections.transformCodeBlocks(text, block -> {
+            final String info = MarkdownSections.fenceInfo(block);
             final String language = info.isEmpty() ? "" : info.split("\\s+", 2)[0];
-            block.appendReplacement(
-                    out, Matcher.quoteReplacement(language.isEmpty() ? "[code]" : "[code: " + language + "]"));
-        }
-        block.appendTail(out);
-        return out.toString().replaceAll("\n{3,}", "\n\n").strip();
+            return (language.isEmpty() ? "[code]" : "[code: " + language + "]") + (block.endsWith("\n") ? "\n" : "");
+        });
+        return collapsed.replaceAll("\n{3,}", "\n\n").strip();
     }
 
     /** Конец отвеченной части истории: индекс за последним ответом модели, 0 — ответов нет. */

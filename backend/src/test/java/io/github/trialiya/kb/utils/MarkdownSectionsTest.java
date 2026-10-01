@@ -362,4 +362,29 @@ class MarkdownSectionsTest {
             assertThat(result).isEqualTo("# A\r\n## Новое\r\nтело\r\n");
         }
     }
+
+    @Nested
+    class CodeAwareHelpers {
+
+        @Test
+        void bareHashIsAHeadingForContentChecks() {
+            assertThat(MarkdownSections.startsWithHeading("\n#\nтело")).isTrue();
+            assertThat(MarkdownSections.startsWithHeading("текст\n# A")).isFalse();
+        }
+
+        @Test
+        void transformOutsideCodeSkipsFencedBlocksIncludingListItemOnes() {
+            String md = "a\n- ```\n  a\n  ```\n````\na\n```\na\n````\na";
+
+            String result = MarkdownSections.transformOutsideCode(md, text -> text.replace("a", "X"));
+
+            assertThat(result).isEqualTo("X\n- ```\n  a\n  ```\n````\na\n```\na\n````\nX");
+        }
+
+        @Test
+        void unclosedBlockRunsToTheEnd() {
+            assertThat(MarkdownSections.transformOutsideCode("a\n```\na", t -> t.replace("a", "X")))
+                    .isEqualTo("X\n```\na");
+        }
+    }
 }
