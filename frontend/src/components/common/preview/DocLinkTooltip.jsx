@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import useDocPreview from './useDocPreview';
-import useLinkTooltip, { isBrowserClick } from './useLinkTooltip';
+import useLinkTooltip from './useLinkTooltip';
 import DocPreviewTooltip from './DocPreviewTooltip';
 import FileLink from './FileLink';
 import CommitLink from './CommitLink';
@@ -10,6 +10,7 @@ import FullscreenEditorModal from '@/components/knowledgeBasePanel/editor/Fullsc
 import { parseCommitLink, parseDocId, parseFileLink } from './docLinkParsing';
 import { docPath } from '@/navigation/urlScheme';
 import { scrollToHeading } from './anchorScroll';
+import AppLink from '@/components/common/ui/AppLink';
 
 /**
  * Every link in rendered markdown goes through here. Shared by the Knowledge Base
@@ -110,17 +111,7 @@ const DocLink = ({ docId, href, tree, onNavigate, children, ...rest }) => {
   // Навигация идёт через проп onNavigate (в KB это selectNode, в чате —
   // openDoc), оба принимают id документа.
   const navigateToDoc = useCallback((id) => onNavigate?.(id), [onNavigate]);
-
-  const handleClick = useCallback(
-    (e) => {
-      // Клик с модификатором (или не левой кнопкой) — отдаём браузеру: он откроет
-      // href в новой вкладке/окне. Средняя кнопка сюда не приходит вовсе (auxclick).
-      if (isBrowserClick(e)) return;
-      e.preventDefault();
-      navigateToDoc(docId);
-    },
-    [docId, navigateToDoc],
-  );
+  const openDoc = useCallback(() => navigateToDoc(docId), [navigateToDoc, docId]);
 
   // `_stub` — узел, взятый из уже загруженного дерева KB: бэкенд отдаёт в дереве
   // только первые 150 символов описания (DocumentService.SNIPPET_LENGTH). Для
@@ -143,17 +134,17 @@ const DocLink = ({ docId, href, tree, onNavigate, children, ...rest }) => {
 
   return (
     <>
-      <a
+      <AppLink
         ref={linkRef}
         href={docHref}
         className="doc-link"
-        onClick={handleClick}
+        onNavigate={openDoc}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         {...rest}
       >
         {children}
-      </a>
+      </AppLink>
 
       {visible &&
         createPortal(

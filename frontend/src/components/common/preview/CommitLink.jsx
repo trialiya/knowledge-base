@@ -1,11 +1,12 @@
 import { useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import useCommitPreview from './useCommitPreview';
-import useLinkTooltip, { isBrowserClick } from './useLinkTooltip';
+import useLinkTooltip from './useLinkTooltip';
 import CommitPreviewTooltip from './CommitPreviewTooltip';
 import { navigateToCommit } from '@/navigation/fileNavigationBus';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
 import { commitUrl } from '@/navigation/urlScheme';
+import AppLink from '@/components/common/ui/AppLink';
 
 /**
  * Ссылка на коммит в отрендеренном markdown (`/files?rev=HASH[&project=ID]`, разбор —
@@ -37,28 +38,19 @@ const CommitLink = ({ commitLink, children, ...rest }) => {
     navigateToCommit(hash, project);
   }, [hide, hash, project]);
 
-  const handleClick = useCallback(
-    (e) => {
-      if (isBrowserClick(e)) return;
-      e.preventDefault();
-      open();
-    },
-    [open],
-  );
-
   return (
     <>
-      <a
+      <AppLink
         ref={linkRef}
         href={commitUrl(hash, project)}
         className="doc-link doc-link--commit"
-        onClick={handleClick}
+        onNavigate={open}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         {...rest}
       >
         {children}
-      </a>
+      </AppLink>
 
       {visible &&
         createPortal(

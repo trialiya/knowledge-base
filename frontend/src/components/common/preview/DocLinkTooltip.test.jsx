@@ -23,6 +23,10 @@ vi.mock('@/navigation/fileNavigationBus', () => ({
   navigateToFile: vi.fn(),
 }));
 
+vi.mock('@/api/documentsApi', () => ({
+  default: { fetchById: vi.fn(() => new Promise(() => {})) },
+}));
+
 vi.mock('@/components/common/config/useProjectConfig', () => ({
   default: () => ({ defaultProjectId: 'kb' }),
 }));
@@ -146,5 +150,35 @@ describe('DocLinkTooltip: файл в коммите', () => {
     await user.click(await screen.findByText('docLink.open'));
 
     expect(navigateToFile).toHaveBeenCalledWith('a/B.java', null, { rev: '', changes: false });
+  });
+});
+
+describe('DocLinkTooltip: ссылка на документ', () => {
+  const tree = [{ id: 5, title: 'Архитектура', type: 'document', description: 'Слои и пакеты' }];
+
+  /** Клик по ссылке и «Открыть» в карточке ведут к одному документу — через onNavigate раздела. */
+  it('клик и «Открыть» в карточке открывают документ, Ctrl+клик — браузер', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    render(
+      <DocLinkTooltip href="/knowledge/doc/5" tree={tree} onNavigate={onNavigate}>
+        Архитектура
+      </DocLinkTooltip>,
+    );
+    const link = screen.getByRole('link', { name: 'Архитектура' });
+    expect(link).toHaveAttribute('href', '/knowledge/doc/5');
+
+    await user.click(link);
+    expect(onNavigate).toHaveBeenLastCalledWith(5);
+
+    await user.keyboard('{Control>}');
+    await user.click(link);
+    await user.keyboard('{/Control}');
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+
+    await hover(user, link);
+    await user.click(await screen.findByText('docLink.open'));
+    expect(onNavigate).toHaveBeenCalledTimes(2);
+    expect(onNavigate).toHaveBeenLastCalledWith(5);
   });
 });

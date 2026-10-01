@@ -66,8 +66,3 @@ export default function useLinkTooltip() {
 
   return { visible, pos, linkRef, tooltipRef, calcPos, onMouseEnter, onMouseLeave, keepOpen, hide };
 }
-
-/** Клик, который должен обработать сам браузер (новая вкладка/окно), а не SPA. */
-export function isBrowserClick(e) {
-  return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
-}

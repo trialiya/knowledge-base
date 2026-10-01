@@ -2,9 +2,9 @@ import { useTranslation } from 'react-i18next';
 import { FILE_TAB } from '@/constants/fileTabs';
 import { navigateToFile } from '@/navigation/fileNavigationBus';
 import { filesUrl, formatLines } from '@/navigation/urlScheme';
-import { isBrowserClick } from '@/components/common/preview/useLinkTooltip';
 import { formatCompactDateTime, formatDateTime } from '@/utils/formatting';
 import shortRev from '@/components/common/git/shortRev';
+import AppLink from '@/components/common/ui/AppLink';
 
 /**
  * Ячейка колонки blame: когда менялись строки ханка и чем — дата и начало
@@ -40,21 +40,18 @@ const BlameCell = ({ hunk, span, path, project }) => {
     right: FILE_TAB.COMMIT,
   };
   const href = filesUrl(target, project, options);
-  const onClick = (e) => {
-    if (isBrowserClick(e)) return;
-    e.preventDefault();
+  const open = () =>
     navigateToFile(target, project, { ...options, backLines: formatLines(hunk.fromLine, hunk.lineCount) });
-  };
   const byline = [hunk.author, shortRev(hunk.hash), formatDateTime(hunk.date, i18n.language)]
     .filter(Boolean)
     .join(' · ');
   const title = [hunk.summary, byline].filter(Boolean).join('\n');
   return (
     <td className="file-code__blame" rowSpan={span} data-find-skip="">
-      <a className="file-code__blame-link" href={href} onClick={onClick} title={title}>
+      <AppLink className="file-code__blame-link" href={href} onNavigate={open} title={title}>
         <span className="file-code__blame-date">{formatCompactDateTime(hunk.date, i18n.language)}</span>
         <span className="file-code__blame-summary">{hunk.summary}</span>
-      </a>
+      </AppLink>
     </td>
   );
 };
