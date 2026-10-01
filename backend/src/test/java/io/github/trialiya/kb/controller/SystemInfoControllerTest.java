@@ -7,7 +7,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.boot.info.GitProperties;
 
@@ -29,6 +28,8 @@ class SystemInfoControllerTest {
         "jdbc:postgresql://admin:hunter2@db.internal:5432/kb,jdbc:postgresql://db.internal:5432/kb",
         // H2 uses ';' for its settings, and PASSWORD= can hide among them.
         "jdbc:h2:./local-db/h2;MODE=PostgreSQL;PASSWORD=hunter2,jdbc:h2:./local-db/h2",
+        // Another driver, credentials in the authority and a query after the database.
+        "jdbc:mysql://root:s3cr3t@10.0.0.5/kb?serverTimezone=UTC,jdbc:mysql://10.0.0.5/kb",
         // Nothing to strip — the URL is passed through unchanged.
         "jdbc:postgresql://localhost:5432/knowledgebase,jdbc:postgresql://localhost:5432/knowledgebase",
         // Unset datasource (an empty @Value default) stays empty rather than becoming garbage.
@@ -89,22 +90,5 @@ class SystemInfoControllerTest {
         assertThat(build.dirty()).isNull();
         // No commit.id.abbrev among the entries — GitProperties shortens the full id itself.
         assertThat(build.commit()).isEqualTo("15203dc");
-    }
-
-    @ParameterizedTest
-    @ValueSource(
-            strings = {
-                "jdbc:postgresql://localhost:5432/kb?user=admin&password=hunter2",
-                "jdbc:postgresql://admin:hunter2@db.internal:5432/kb",
-                "jdbc:h2:./local-db/h2;MODE=PostgreSQL;PASSWORD=hunter2",
-                "jdbc:mysql://root:s3cr3t@10.0.0.5/kb?serverTimezone=UTC"
-            })
-    @DisplayName("no password survives sanitizing, whatever shape the URL has")
-    void neverLeaksASecret(String raw) {
-        assertThat(SystemInfoController.sanitizeJdbcUrl(raw))
-                .doesNotContain("hunter2")
-                .doesNotContain("s3cr3t")
-                .doesNotContain("password")
-                .doesNotContain("PASSWORD");
     }
 }

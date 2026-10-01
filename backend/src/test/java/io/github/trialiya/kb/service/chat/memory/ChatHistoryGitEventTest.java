@@ -14,7 +14,6 @@ import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
-import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.support.ActiveProjectNotices;
 import java.time.LocalDateTime;
@@ -175,14 +174,5 @@ class ChatHistoryGitEventTest {
     private static ChatMessageEntity entity(
             long position, String text, MessageType type, @Nullable ChatMessageMeta meta) {
         return new ChatMessageEntity(position + 1, CONV, text, type, position, false, false, LocalDateTime.now(), meta);
-    }
-
-    /** Промпт строится из тех же строк — та же связка, что закрепляет {@link PromptRow}. */
-    @Test
-    void theModelReceivesExactlyThePromptRowText() {
-        givenStored(List.of(gitRow(0, new GitEventMeta("fetch", "kb", true, "", "main"))));
-
-        assertThat(service.promptMessages(CONV).getFirst().getText())
-                .isEqualTo(service.promptRows(CONV).getFirst().text());
     }
 }

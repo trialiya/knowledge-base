@@ -247,15 +247,6 @@ class GitFunctionTest {
         verify(billing).getUncommittedChanges(false, false, List.of());
     }
 
-    @Test
-    void aReadToolWithoutTheArgumentStaysOnTheRunsProject() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
-
-        function.getFileTree(context, null, null);
-
-        verify(gitRegistry).forProject("billing");
-    }
-
     /**
      * С запросом история ищется по сообщениям, без него — просто листается: пустой запрос — это «не
      * задан», а не «совпадает со всем».

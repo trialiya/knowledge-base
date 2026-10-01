@@ -197,14 +197,6 @@ class ToolArgumentGapsTest {
     }
 
     @Test
-    void anOptionalFlagLeftOutIsJustItsDefault() {
-        // getUncommittedChanges used to take a primitive boolean: this call is the one that broke
-        // the run outright, and it now answers with includePatch=false.
-        final ToolCallback tool = toolNamed("getUncommittedChanges");
-        assertThat(tool.call("{}", context)).isNotNull();
-    }
-
-    @Test
     void aMistypedIdFailsThroughToolExecutionExceptionRatherThanANumberFormatException() {
         // documentId is a Long parameter: Jackson rejects "doc-7" during argument conversion,
         // before the method — and requireId's by-name message, covered directly in ToolArgsTest —

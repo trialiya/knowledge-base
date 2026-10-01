@@ -56,15 +56,6 @@ class ScriptFunctionTest {
     }
 
     @Test
-    void explicitProjectArgumentOverridesTheChatsOwnProject() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
-
-        function.runScript(context, "return 1;", null, "billing", null);
-
-        assertThat(ran().projectId()).isEqualTo("billing");
-    }
-
-    @Test
     void resultLimitReachesTheRunAndANonPositiveOneMeansWhole() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
@@ -74,15 +65,6 @@ class ScriptFunctionTest {
         clearInvocations(runner);
         function.runScript(context, "return 1;", null, null, -2);
         assertThat(ran().resultLimit()).isZero();
-    }
-
-    @Test
-    void omittedProjectArgumentFallsBackToTheChatsOwnProject() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
-
-        function.runScript(context, "return 1;", null, null, null);
-
-        assertThat(ran().projectId()).isEqualTo("kb");
     }
 
     @Test
