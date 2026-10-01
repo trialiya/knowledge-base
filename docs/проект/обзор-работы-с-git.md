@@ -45,8 +45,9 @@ git-команды — переключение ветки, stash, коммит,
                                │  forProject · requireEditable · requireGitCommands · requireGitPush
                                ▼
                    GitService — один экземпляр на проект, открытый JGit Repository
-                     ├─ RepoPaths · VisibleFiles · Pathspec   какие пути существуют и как пишутся
-                     ├─ RepoFiles · FileViews · CommitFiles · RepoBrowse · Diffs   чтение
+                     ├─ RepoPaths · VisibleFiles · Pathspec   какие пути существуют, как пишутся, поиск по имени
+                     ├─ RepoFiles · FileViews · CommitFiles · RepoBrowse   чтение
+                     ├─ Diffs                                  коммиты и диффы в DTO API
                      ├─ GitGrepRunner (+ GitGrep) · GitBlameRunner (+ GitBlame)   subprocess git на чтении, через GitReadProcess
                      ├─ GitWriter                              правки модели — в индекс, без коммита
                      ├─ GitBranches                            ветка, upstream, ahead/behind
