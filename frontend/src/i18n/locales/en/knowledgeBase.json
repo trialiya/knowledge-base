@@ -187,6 +187,7 @@
     "modeDiff": "Compare",
     "modeBase": "Base",
     "modeCompare": "Changed",
+    "modeLabel": "What to show",
     "restoreBase": "Restore base",
     "restoreBaseTitle": "Save the “Base” version as a new edit (roll back to an earlier version)",
     "restoreCompare": "Restore changed",

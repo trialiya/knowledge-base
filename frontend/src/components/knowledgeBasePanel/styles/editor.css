@@ -306,29 +306,6 @@
   border-bottom: 1px solid var(--kb-border);
   flex-shrink: 0;
 }
-.history-seg {
-  display: flex;
-  border: 1px solid var(--kb-border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.history-seg button {
-  background: none;
-  border: none;
-  padding: 5px 12px;
-  font-size: 0.8rem;
-  cursor: pointer;
-  color: var(--kb-text-muted);
-}
-.history-seg button.is-active {
-  background: var(--kb-accent);
-  color: var(--kb-text-on-fill);
-}
-.history-seg button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
 /* Тело истории: сам контейнер НЕ скроллит — скроллят его дети
    (в режиме diff — .history-diff-scroll, в режимах база/изменённая —
    встроенный .md-preview). Так исчезает «лишняя» внешняя полоса. */
@@ -470,24 +447,4 @@
   margin-left: auto;
   display: flex;
   gap: 8px;
-}
-.history-restore {
-  background: none;
-  border: 1.5px solid var(--kb-border);
-  border-radius: 20px;
-  color: var(--kb-text-muted);
-  cursor: pointer;
-  font-size: 0.8rem;
-  padding: 5px 14px;
-  transition: border-color 0.15s, color 0.15s;
-}
-.history-restore:hover:not(:disabled) {
-  border-color: var(--kb-accent);
-  color: var(--kb-accent);
-}
-.history-restore:disabled {
-  opacity: 0.4;
-  cursor: default;
-  border-color: var(--kb-border);
-  color: var(--kb-text-muted);
 }

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import chatApi from '@/api/chatApi';
 import { getToolIcon, humanizeTool, statusLabelKey, toolLabelKey } from '@/components/common/ui/toolNames';
 import CopyButton from '@/components/common/ui/CopyButton';
+import SegmentSwitch from '@/components/common/ui/SegmentSwitch';
 import ModalShell from '@/components/common/modal/ModalShell';
 import { formatTokens, usageTooltip } from './tokenUsage';
 import { detectResultView } from './resultViews/registry';
@@ -34,32 +35,18 @@ const POLL_MAX_MS = 15000;
 const ERROR_RETRIES = 3;
 
 /**
- * Переключатель состояний одной секции: вид ответа (MODES) или его версия (VERSIONS).
+ * Переключатель секции: вид ответа (MODES) или его версия (VERSIONS).
  * `keyPrefix` — ключи i18n подписи (`<prefix>.<value>`) и подсказки
  * (`<prefix>.<value>Hint`, если она есть).
- *
- * Группа кнопок с `aria-pressed`, а не `tablist`/`tab`: настоящие вкладки
- * требуют `tabpanel` с `aria-controls` и стрелок вместо Tab, а здесь два
- * состояния одной секции.
  */
-const SegmentSwitch = ({ values, value: current, onChange, label, keyPrefix }) => {
+const SectionSwitch = ({ values, value, onChange, label, keyPrefix }) => {
   const { t } = useTranslation('chat');
-  return (
-    <div className="tool-call-detail__modes" role="group" aria-label={label}>
-      {values.map((value) => (
-        <button
-          key={value}
-          type="button"
-          aria-pressed={current === value}
-          className="btn btn--ghost btn--xs"
-          title={t(`${keyPrefix}.${value}Hint`, { defaultValue: '' }) || undefined}
-          onClick={() => onChange(value)}
-        >
-          {t(`${keyPrefix}.${value}`)}
-        </button>
-      ))}
-    </div>
-  );
+  const options = values.map((v) => ({
+    value: v,
+    label: t(`${keyPrefix}.${v}`),
+    title: t(`${keyPrefix}.${v}Hint`, { defaultValue: '' }),
+  }));
+  return <SegmentSwitch options={options} value={value} onChange={onChange} label={label} />;
 };
 
 /**
@@ -229,7 +216,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.arguments')}</div>
               {args && (
-                <SegmentSwitch
+                <SectionSwitch
                   values={MODES}
                   value={argsMode}
                   onChange={setArgsMode}
@@ -250,7 +237,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.result')}</div>
               {trimmed && (
-                <SegmentSwitch
+                <SectionSwitch
                   values={VERSIONS}
                   value={version}
                   onChange={setVersion}
@@ -259,7 +246,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
                 />
               )}
               {view && (
-                <SegmentSwitch
+                <SectionSwitch
                   values={MODES}
                   value={mode}
                   onChange={setMode}

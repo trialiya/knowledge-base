@@ -94,7 +94,9 @@ const ContentsTable = ({ items, onNavigate }) => {
           {Array.from({ length: totalPages }, (_, i) => (
             <button
               key={i}
-              className={`contents-pagination__page ${i === page ? 'contents-pagination__page--active' : ''}`}
+              type="button"
+              className="contents-pagination__page"
+              aria-current={i === page ? 'page' : undefined}
               onClick={() => setPage(i)}
             >
               {i + 1}

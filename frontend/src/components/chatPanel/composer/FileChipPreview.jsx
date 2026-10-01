@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { baseName, chipLabel } from './fileChips';
 import ModalShell from '@/components/common/modal/ModalShell';
+import '@/components/common/ui/buttons.css';
 import { IconX } from '@/icons/index';
 
 // ── Превью содержимого файла — полноэкранная модалка ─────────────────────────
@@ -33,7 +34,8 @@ function FileChipPreview({ preview, project, onClose, onToggleRef }) {
         {isMd && !refOnly && (
           <button
             type="button"
-            className={'file-preview-modal__toggle' + (mdView ? ' file-preview-modal__toggle--active' : '')}
+            className="btn btn--ghost btn--xs"
+            aria-pressed={mdView}
             onClick={() => setMdView((v) => !v)}
             title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
           >
@@ -42,7 +44,8 @@ function FileChipPreview({ preview, project, onClose, onToggleRef }) {
         )}
         <button
           type="button"
-          className={'file-preview-modal__toggle' + (refOnly ? ' file-preview-modal__toggle--active' : '')}
+          className="btn btn--ghost btn--xs"
+          aria-pressed={refOnly}
           onClick={onToggleRef}
           title={refOnly ? t('fileInput.useFullContent') : t('fileInput.usePathOnly')}
         >

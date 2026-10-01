@@ -122,7 +122,7 @@ const Phrases = ({ onSelect, reloadKey }) => {
             </button>
             <button
               type="button"
-              className={`phrases-star ${phrase.favorite ? 'phrases-star--on' : ''}`}
+              className={`icon-btn icon-btn--xs ${phrase.favorite ? 'icon-btn--star' : 'icon-btn--quiet'} phrases-star`}
               onClick={(e) => onToggleFavorite(e, phrase)}
               title={t('phrases.favoriteToggle')}
               aria-pressed={phrase.favorite}

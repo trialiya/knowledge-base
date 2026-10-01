@@ -29,7 +29,9 @@ describe('ContentResultView', () => {
     render(<ContentResultView data={data} />);
 
     const md = document.querySelector('.tool-result__md-toggle');
+    expect(md).toHaveAttribute('aria-pressed', 'true');
     await userEvent.click(md); // markdown → исходник, только там есть сам блок кода
+    expect(md).toHaveAttribute('aria-pressed', 'false');
     expect(document.querySelector('.tool-code--wrap')).toBeNull();
 
     await userEvent.click(wrapToggle());

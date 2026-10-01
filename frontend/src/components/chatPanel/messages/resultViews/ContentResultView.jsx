@@ -59,7 +59,8 @@ const ContentItem = ({ item }) => {
         {item.markdown && item.text !== null && (
           <button
             type="button"
-            className={`tool-result__md-toggle${rendered ? ' tool-result__md-toggle--active' : ''}`}
+            className="btn btn--ghost btn--xs tool-result__md-toggle"
+            aria-pressed={rendered}
             onClick={() => setRendered((v) => !v)}
             title={t('fileChange.toggleMarkdown')}
           >

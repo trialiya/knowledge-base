@@ -109,26 +109,6 @@
   word-break: break-word;
 }
 
-.fcd-md-toggle {
-  background: none;
-  border: 1px solid var(--kb-border);
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--kb-text-tertiary);
-  padding: 3px 8px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  line-height: 1.2;
-}
-.fcd-md-toggle:hover {
-  background: var(--kb-surface-muted);
-}
-.fcd-md-toggle--active {
-  background: var(--kb-accent-surface-subtle);
-  border-color: var(--kb-accent);
-  color: var(--kb-accent);
-}
-
 .fcd-md-preview {
   padding: 4px 2px;
   font-size: 0.88rem;

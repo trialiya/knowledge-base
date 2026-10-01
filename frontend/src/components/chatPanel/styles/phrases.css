@@ -124,30 +124,10 @@
   font-weight: 500;
 }
 
-/* Звезда «избранное» */
-.phrases-star {
+/* Звезда «избранное»: вид — общий (.icon-btn--xs, --star у выбранной, --quiet
+   у остальных), здесь только место в углу карточки фразы. */
+.icon-btn.phrases-star {
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  padding: 0;
-  cursor: pointer;
-  color: var(--kb-border);
-  transition: color 0.12s, background 0.12s;
-}
-
-.phrases-star:hover {
-  color: var(--kb-accent);
-  background: var(--kb-accent-surface-subtle);
-}
-
-.phrases-star--on {
-  color: var(--kb-icon-star);
 }

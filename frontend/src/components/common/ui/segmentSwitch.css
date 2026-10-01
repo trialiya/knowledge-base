@@ -1,0 +1,7 @@
+/* Ряд кнопок SegmentSwitch: вид каждой — общий тумблер (.btn--ghost +
+   aria-pressed, buttons.css), здесь только то, как они стоят рядом. */
+.segment-switch {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}

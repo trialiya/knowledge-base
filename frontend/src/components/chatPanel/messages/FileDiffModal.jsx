@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { fetchContent } from '../composer/fileChips';
 import ModalShell from '@/components/common/modal/ModalShell';
+import '@/components/common/ui/buttons.css';
 import { DiffLines, DiffStats } from './diffRender';
 import { filesUrl } from '@/navigation/urlScheme';
 import '../styles/file-changes.css';
@@ -58,7 +59,8 @@ const FileDiffModal = ({ change, project, onClose }) => {
         {isMd && (
           <button
             type="button"
-            className={`fcd-md-toggle${mdView ? ' fcd-md-toggle--active' : ''}`}
+            className="btn btn--ghost btn--xs"
+            aria-pressed={mdView}
             onClick={() => setMdView((v) => !v)}
             title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
           >

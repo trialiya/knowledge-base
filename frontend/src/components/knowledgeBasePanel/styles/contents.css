@@ -144,7 +144,8 @@
 }
 
 /* Номер страницы рядом остаётся своим: ширину ему задаёт число, а не квадрат
-   значка, и выбранный номер залит, как выбранная строка списка. */
+   значка, и выбранный номер залит, как выбранная строка списка. Выбранный
+   помечен `aria-current`, а не модификатором: это и есть его состояние. */
 .contents-pagination__page {
   display: flex;
   align-items: center;
@@ -167,7 +168,7 @@
   color: var(--kb-accent);
 }
 
-.contents-pagination__page--active {
+.contents-pagination__page[aria-current='page'] {
   background: var(--kb-accent);
   color: var(--kb-text-on-fill);
   font-weight: 700;

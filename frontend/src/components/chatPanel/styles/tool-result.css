@@ -51,25 +51,7 @@
 }
 
 .tool-result__md-toggle {
-  background: none;
-  border: 1px solid var(--kb-border-strong);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.7rem;
-  color: var(--kb-text-muted);
-  padding: 2px 7px;
-  line-height: 1.4;
   flex-shrink: 0;
-  box-sizing: border-box;
-}
-.tool-result__md-toggle:hover {
-  border-color: var(--kb-border-hover);
-  color: var(--kb-text-secondary);
-}
-.tool-result__md-toggle--active {
-  background: var(--kb-surface-info);
-  border-color: var(--kb-border-info);
-  color: var(--kb-text-info);
 }
 
 /* Markdown документа или .md-вложения. Тот же язык, что у ответа ИИ

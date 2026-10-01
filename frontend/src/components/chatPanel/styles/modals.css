@@ -24,27 +24,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.file-preview-modal__toggle {
-  border: 1px solid var(--kb-border);
-  background: none;
-  cursor: pointer;
-  color: var(--kb-text-muted);
-  font-size: 0.9rem;
-  line-height: 1;
-  padding: 3px 8px;
-  border-radius: 4px;
-  transition: background 0.12s, color 0.12s;
-  flex-shrink: 0;
-}
-.file-preview-modal__toggle:hover {
-  background: var(--kb-accent-surface-subtle);
-  color: var(--kb-accent);
-}
-.file-preview-modal__toggle--active {
-  background: var(--kb-accent-surface-subtle);
-  color: var(--kb-accent);
-  border-color: var(--kb-accent);
-}
 .file-preview-modal__body {
   padding: 0 !important; /* override fs-editor__body default padding */
   overflow-y: auto;
