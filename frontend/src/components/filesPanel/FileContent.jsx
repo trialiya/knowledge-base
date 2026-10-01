@@ -32,7 +32,8 @@ const DirectoryListing = ({ nodes, onNavigate }) => {
 
 /**
  * `jump` — `{ line }` символа, к которому прокрутить открытый файл (вкладка
- * «Структура»); его обрабатывает FileView.
+ * «Структура»), и `lines` — выделенные строки из адреса (`?lines=`); оба
+ * обрабатывает FileView.
  *
  * `find` (и `findRegex`) — что подсветить в открытом файле, из адреса; менять
  * его обратно в адрес — дело `onFindChange`. Пусто — файл открыли не из поиска:
@@ -54,6 +55,7 @@ const FileContent = ({
   find = '',
   findRegex = false,
   onFindChange = null,
+  lines = '',
   jump = null,
 }) => {
   const { t } = useTranslation('files');
@@ -116,6 +118,7 @@ const FileContent = ({
             onToggleDiff={onToggleDiff}
             blame={blame}
             onToggleBlame={onToggleBlame}
+            lines={lines}
             jump={jump}
           />
         )}

@@ -37,6 +37,9 @@ public record GitFileBlame(String path, @Nullable String commit, int lineCount, 
      * @param summary первая строка сообщения коммита
      * @param path путь файла в этом коммите — после переименования он отличается от текущего, и
      *     ссылка на файл в снимке того коммита ведёт по нему
+     * @param sourceLine номер первой строки диапазона в файле того коммита (1-based) — строки
+     *     диапазона и там идут подряд, так что ссылка на снимок выделяет их {@code sourceLine}…
+     *     {@code sourceLine + lineCount - 1}
      */
     public record Hunk(
             int fromLine,
@@ -47,5 +50,6 @@ public record GitFileBlame(String path, @Nullable String commit, int lineCount, 
             @Nullable String email,
             @Nullable OffsetDateTime date,
             @Nullable String summary,
-            @Nullable String path) {}
+            @Nullable String path,
+            @Nullable Integer sourceLine) {}
 }

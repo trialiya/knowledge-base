@@ -276,11 +276,12 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
      * @param project репозиторий пути; не передан — остаёмся в том, что открыт
      *   (клик по дереву не должен уводить в другой проект), а переход по ссылке из
      *   чата проект называет и панель переключает
-     * @param options `{ changes, rev, find, findRegex, right }` — `changes`: каким
+     * @param options `{ changes, rev, find, findRegex, lines, right }` — `changes`: каким
      *   показать левый блок (ссылка из вкладки «Репозиторий» ведёт к
      *   незакоммиченному, ссылка на файл — в дерево; не передан — режим остаётся
      *   тем, что был); `find`: что подсветить в открытом файле — его приносит
-     *   переход из поиска; `right`: вкладка правой панели — ссылка на коммит
+     *   переход из поиска; `lines`: какие строки выделить (`42-45`, см.
+     *   urlScheme.formatLines) — его приносит клик по ячейке blame; `right`: вкладка правой панели — ссылка на коммит
      *   открывает вкладку «Коммит» (не передан — раскладка раздела как была)
      */
     openFilePath(path, project, options) {
@@ -300,6 +301,9 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
           // ещё — искать в нём нечего, и прежний запрос красил бы случайное.
           fileFind: options?.find || '',
           fileFindRegex: !!options?.find && !!options?.findRegex,
+          // Выделение строк — тоже переходу: номера принадлежат тому снимку, к
+          // которому вела ссылка, в любом другом файле они значат случайное.
+          fileLines: options?.lines || '',
           // Вкладка — тоже часть перехода: ссылка на коммит ведёт к его описанию,
           // и отдельный setRightTab стал бы второй записью истории.
           ...(options?.right === undefined ? {} : { rightTab: options.right || null }),
@@ -379,7 +383,8 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
      * возврат в рабочее дерево не должен стоить двух «Назад».
      */
     setFileRev(rev) {
-      replace((prev) => (prev.fileRev === (rev || '') ? prev : { ...prev, fileRev: rev || '' }));
+      // Выделенные строки — номера в прежнем снимке; в другом они не те же строки.
+      replace((prev) => (prev.fileRev === (rev || '') ? prev : { ...prev, fileRev: rev || '', fileLines: '' }));
     },
 
     /**

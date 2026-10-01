@@ -46,6 +46,7 @@ const FilesPanelForProject = ({
   blame,
   find,
   findRegex,
+  lines,
   onChangesToggle,
   onRevChange,
   onBlameToggle,
@@ -277,6 +278,7 @@ const FilesPanelForProject = ({
             find={find}
             findRegex={findRegex}
             onFindChange={onFindChange}
+            lines={lines}
             jump={jump}
           />
         }
@@ -332,6 +334,7 @@ const FilesPanel = ({
   blame,
   find,
   findRegex,
+  lines,
   onChangesToggle,
   onRevChange,
   onBlameToggle,
@@ -368,6 +371,7 @@ const FilesPanel = ({
       blame={!!blame}
       find={find || ''}
       findRegex={!!findRegex}
+      lines={lines || ''}
       onChangesToggle={onChangesToggle}
       onRevChange={onRevChange}
       onBlameToggle={onBlameToggle}

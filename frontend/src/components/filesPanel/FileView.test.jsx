@@ -156,6 +156,27 @@ describe('FileView', () => {
 
       expect(scrolled).toHaveLength(0);
     });
+
+    // Ячейка blame ведёт сюда с `?lines=`: строки ханка в снимке коммита.
+    test('выделенные адресом строки подсвечены, и к ним едет один раз', () => {
+      const { rerender } = render(<FileView file={md} path="guide.md" lines="3-4" />);
+
+      const marked = [...document.querySelectorAll('.file-code__row--marked')];
+      expect(marked.map((tr) => tr.dataset.line)).toEqual(['3', '4']);
+      expect(scrolled).toHaveLength(1);
+      expect(scrolled[0].dataset.line).toBe('3');
+
+      // Перечитанный файл (обновление репозитория) уже показанное место не повторяет.
+      rerender(<FileView file={{ ...md }} path="guide.md" lines="3-4" />);
+      expect(scrolled).toHaveLength(1);
+    });
+
+    test('мусор в адресе ничего не выделяет', () => {
+      render(<FileView file={md} path="guide.md" lines="9-3" />);
+
+      expect(document.querySelectorAll('.file-code__row--marked')).toHaveLength(0);
+      expect(scrolled).toHaveLength(0);
+    });
   });
 
   describe('колонка blame', () => {
@@ -172,6 +193,8 @@ describe('FileView', () => {
         summary: 'first',
         // Файл в том коммите лежал под старым именем: ссылка ведёт по нему.
         path: 'old.js',
+        // И строки там стояли ниже: ссылка выделяет их, а не нынешние номера.
+        sourceLine: 7,
       },
       { fromLine: 3, lineCount: 1, hash: null },
     ];
@@ -194,25 +217,27 @@ describe('FileView', () => {
       expect(gitApi.getBlame).not.toHaveBeenCalled();
     });
 
-    test('включённая колонка подписывает первую строку ханка и ведёт к файлу в снимке коммита', async () => {
+    test('включённая колонка подписывает первую строку ханка и ведёт к его строкам в снимке коммита', async () => {
       gitApi.getBlame.mockResolvedValue({ path: 'a.js', hunks });
       const user = userEvent.setup();
       render(<FileView file={code} path="a.js" project="kb" blame onToggleBlame={() => {}} />);
 
       expect(screen.getByText('file.showBlame')).toHaveAttribute('aria-pressed', 'true');
-      await waitFor(() => expect(screen.getByText('Alice')).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText('first')).toBeInTheDocument());
       expect(gitApi.getBlame).toHaveBeenCalledWith('a.js', expect.objectContaining({ project: 'kb' }));
       // Одна ячейка на две строки ханка; незакоммиченная строка подписана словами.
-      expect(screen.getByText('Alice').closest('td')).toHaveAttribute('rowspan', '2');
+      const link = screen.getByRole('link', { name: /first/ });
+      expect(link.closest('td')).toHaveAttribute('rowspan', '2');
       expect(screen.getByText('file.blameUncommitted')).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: /Alice/ })).toHaveAttribute(
-        'href',
-        `/files/old.js?project=kb&rev=${hash}&right=commit`,
-      );
+      // В подписи — дата и описание; автор и хеш — только в подсказке.
+      expect(link).not.toHaveTextContent('Alice');
+      expect(link).not.toHaveTextContent('aaaaaaa');
+      expect(link.title).toMatch(/^first\nAlice · aaaaaaa · /);
+      expect(link).toHaveAttribute('href', `/files/old.js?project=kb&rev=${hash}&lines=7-8&right=commit`);
 
-      await user.click(screen.getByRole('link', { name: /Alice/ }));
+      await user.click(link);
 
-      expect(navigateToFile).toHaveBeenCalledWith('old.js', 'kb', { rev: hash, right: 'commit' });
+      expect(navigateToFile).toHaveBeenCalledWith('old.js', 'kb', { rev: hash, lines: '7-8', right: 'commit' });
     });
 
     // Номера строк усечённого файла не настоящие, у неотслеживаемого истории нет,

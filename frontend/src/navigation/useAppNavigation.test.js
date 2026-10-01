@@ -1,6 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import useAppNavigation from './useAppNavigation';
 import { STORAGE_KEY_PANELS } from '@/constants/storage';
+import { filesUrl } from './urlScheme';
 
 /** Текущий адрес в том же виде, в каком его строит хук. */
 const url = () => window.location.pathname + window.location.search;
@@ -94,6 +95,36 @@ describe('колонка blame в «Файлах»', () => {
     const { result } = renderHook(() => useAppNavigation());
     act(() => result.current.openFilePath('a/b.md', undefined, { rev: 'abc', right: 'commit' }));
     expect(url()).toBe('/files/a/b.md?rev=abc&blame=1&right=commit');
+  });
+});
+
+describe('выделенные строки файла', () => {
+  it('читаются из адреса и пишутся обратно', () => {
+    go('/files/a/b.md?rev=v1&lines=3-5');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav).toMatchObject({ filePath: 'a/b.md', fileRev: 'v1', fileLines: '3-5' });
+    expect(url()).toBe('/files/a/b.md?rev=v1&lines=3-5');
+  });
+
+  // Тот же адрес, что у ссылки ячейки blame: Ctrl+клик и клик открывают одно.
+  it('переход из blame даёт адрес, который строит filesUrl', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    const options = { rev: 'abc', lines: '7-8', right: 'commit' };
+    act(() => result.current.openFilePath('a/b.md', '', options));
+    expect(url()).toBe(filesUrl('a/b.md', '', options));
+  });
+
+  // Номера относятся к тому снимку и тому файлу, куда вела ссылка.
+  it('не переезжают ни на другой файл, ни в другую ревизию', () => {
+    go('/files/a/b.md?rev=v1&lines=3');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.setFileRev('v2'));
+    expect(url()).toBe('/files/a/b.md?rev=v2');
+
+    go('/files/a/b.md?lines=3');
+    const { result: again } = renderHook(() => useAppNavigation());
+    act(() => again.current.openFilePath('a/c.md'));
+    expect(url()).toBe('/files/a/c.md');
   });
 });
 

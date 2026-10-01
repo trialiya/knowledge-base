@@ -122,7 +122,7 @@ export function filesPath(path) {
  * читаемое имя на месте вызова, а список позиционных «путь, проект, ревизия,
  * запрос, регулярка» просчитывается только по этому файлу.
  */
-export function filesUrl(path, project, { rev, find, findRegex, right } = {}) {
+export function filesUrl(path, project, { rev, find, findRegex, lines, right } = {}) {
   const p = new URLSearchParams();
   if (project) p.set('project', project);
   // Ревизия — тоже часть адреса файла: ссылка на совпадение, найденное в снимке
@@ -132,11 +132,32 @@ export function filesUrl(path, project, { rev, find, findRegex, right } = {}) {
   // адресе, а не в переходе, — иначе Ctrl+клик и перезагрузка теряли бы его.
   if (find) p.set('find', find);
   if (find && findRegex) p.set('re', '1');
+  if (lines) p.set('lines', lines);
   // Вкладка правой панели — последней, как её пишет buildUrl: ячейка blame
   // ведёт к файлу в снимке коммита с открытой вкладкой «Коммит».
   if (right) p.set('right', right);
   const qs = p.toString();
   return filesPath(path) + (qs ? `?${qs}` : '');
+}
+
+/**
+ * Диапазон строк файла в форме адреса (`?lines=`): `42` — одна строка, `42-45` —
+ * подряд. Ячейка blame ведёт так к строкам ханка в снимке его коммита.
+ */
+export function formatLines(from, count = 1) {
+  return count > 1 ? `${from}-${from + count - 1}` : String(from);
+}
+
+/**
+ * `?lines=` обратно в `{ from, to }`; не диапазон строк (ручная правка адреса,
+ * `0`, `9-3`) — null: выделять нечего, и файл открывается как обычно.
+ */
+export function parseLines(value) {
+  const m = /^(\d+)(?:-(\d+))?$/.exec(value || '');
+  if (!m) return null;
+  const from = Number(m[1]);
+  const to = m[2] === undefined ? from : Number(m[2]);
+  return from >= 1 && to >= from ? { from, to } : null;
 }
 
 /**

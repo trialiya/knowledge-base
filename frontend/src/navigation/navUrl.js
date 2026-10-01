@@ -41,6 +41,8 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  *   ?rev=<ревизия>  снимок коммита/ветки/тега (дефолт — рабочее дерево): и в
  *                   файлах, и как фильтр единого поиска
  *   ?blame=1        файлы: колонка авторства строк у открытого файла (дефолт — нет)
+ *   ?lines=<a>[-<b>] файлы: строки, выделенные в открытом файле и прокрученные к
+ *                   себе, — так ячейка blame ведёт к ханку в снимке коммита (дефолт — нет)
  *   ?left=0         левая панель свёрнута (дефолт — раскрыта)
  *   ?right=<tab>    правая панель раскрыта на вкладке (дефолт — свёрнута)
  *
@@ -137,6 +139,7 @@ export function readUrl() {
   let fileBlame = false;
   let fileFind = '';
   let fileFindRegex = false;
+  let fileLines = '';
   if (view === 'files') {
     filePath = segs.length > 1 ? segs.slice(1).join('/') : p.get('path') || '';
     fileProject = p.get('project') || '';
@@ -155,6 +158,9 @@ export function readUrl() {
     // подсветка обязана остаться.
     fileFind = p.get('find') || '';
     fileFindRegex = p.get('re') === '1';
+    // Выделенные строки — как подсветка запроса: файл не меняют, но в адресе,
+    // чтобы ссылка на них и F5 показывали то же место.
+    fileLines = p.get('lines') || '';
   }
 
   // Единый поиск: /search?q=…&in=… — запрос и категория, дальше фильтры этой
@@ -200,6 +206,7 @@ export function readUrl() {
     fileBlame,
     fileFind,
     fileFindRegex,
+    fileLines,
     searchQuery,
     searchScope,
     searchPath,
@@ -248,6 +255,7 @@ export function buildUrl(nav) {
       if (nav.fileFind) p.set('find', nav.fileFind);
       // Флаг регулярки без самого запроса подсвечивать нечему.
       if (nav.fileFind && nav.fileFindRegex) p.set('re', '1');
+      if (nav.fileLines) p.set('lines', nav.fileLines);
       break;
     case 'search':
       path = SEARCH_PATH;
@@ -305,6 +313,7 @@ function toNav(u, view, panels) {
     fileBlame: u.fileBlame,
     fileFind: u.fileFind,
     fileFindRegex: u.fileFindRegex,
+    fileLines: u.fileLines,
     searchQuery: u.searchQuery,
     searchScope: normalizeScope(u.searchScope),
     searchPath: u.searchPath,
