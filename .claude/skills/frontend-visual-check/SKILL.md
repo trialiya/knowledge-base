@@ -120,6 +120,14 @@ pixels in its biggest area. Layout itself is reproducible: the same case shot
 twice is byte-identical, so the rule is about rasterisation noise, not about
 tolerating drift.
 
+The stand's clock is frozen (`HARNESS_NOW` in `scripts/visual-harness.js`, a
+moment just after the latest fixture date): relative time within a day («2 часа
+назад») and a date that drops the year inside the current one are counted from
+«now», and would otherwise change the shot on their own from one day to the
+next. A
+fixture dated after that moment reads as the future — move the moment along
+with it.
+
 A registry entry carries more than a component and a frame:
 
 - `api` — the server answers for this case (`{ '<url prefix>': data }` or a

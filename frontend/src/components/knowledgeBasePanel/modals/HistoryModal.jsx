@@ -6,6 +6,9 @@ import { initialSelection } from './historySelection';
 import api from '@/api/documentsApi';
 import ModalShell from '@/components/common/modal/ModalShell';
 import { IconX } from '@/icons/index';
+import SegmentSwitch from '@/components/common/ui/SegmentSwitch';
+import '@/components/common/ui/buttons.css';
+import { formatDateTime } from '@/utils/formatting';
 
 /**
  * Полноэкранная панель истории изменений описания документа.
@@ -34,15 +37,6 @@ import { IconX } from '@/icons/index';
  * Список идёт newest-first: index 0 = новейшая версия, больший индекс = старее.
  * Инвариант выбора: база СТАРЕЕ изменённой ⇒ baseIdx > compareIdx.
  */
-
-const fmtDate = (iso, locale) => {
-  if (!iso) return '';
-  try {
-    return new Date(iso).toLocaleString(locale);
-  } catch {
-    return String(iso);
-  }
-};
 
 const HistoryModal = ({
   documentId,
@@ -236,7 +230,7 @@ const HistoryModal = ({
     <ModalShell onClose={onClose} variant="fullscreen">
       <div className="fs-editor__head">
         <span className="fs-editor__title">{t('history.title', { title: documentTitle })}</span>
-        <button className="fs-editor__close" title={t('history.close')} onClick={onClose}>
+        <button type="button" className="icon-btn" title={t('history.close')} onClick={onClose}>
           <IconX />
         </button>
       </div>
@@ -256,7 +250,7 @@ const HistoryModal = ({
               entries.map((e, i) => (
                 <div key={`${e.version}-${i}`} className="history-item">
                   <div className="history-item__meta">
-                    <div className="history-item__date">{fmtDate(e.updatedAt, i18n.language)}</div>
+                    <div className="history-item__date">{formatDateTime(e.updatedAt, i18n.language)}</div>
                     <div className="history-item__sub">
                       {t('history.edit', { n: e.descriptionVersion })}
                       {i === 0 ? ` · ${t('history.current')}` : ''}
@@ -283,30 +277,22 @@ const HistoryModal = ({
           {/* ── Основная область ── */}
           <div className="history-main">
             <div className="history-toolbar">
-              <div className="history-seg">
-                <button
-                  className={mode === 'diff' ? 'is-active' : ''}
-                  disabled={single}
-                  onClick={() => setMode('diff')}
-                >
-                  {t('history.modeDiff')}
-                </button>
-                <button
-                  className={mode === 'base' ? 'is-active' : ''}
-                  disabled={single}
-                  onClick={() => setMode('base')}
-                >
-                  {t('history.modeBase')}
-                </button>
-                <button className={mode === 'compare' ? 'is-active' : ''} onClick={() => setMode('compare')}>
-                  {t('history.modeCompare')}
-                </button>
-              </div>
+              <SegmentSwitch
+                options={[
+                  { value: 'diff', label: t('history.modeDiff'), disabled: single },
+                  { value: 'base', label: t('history.modeBase'), disabled: single },
+                  { value: 'compare', label: t('history.modeCompare') },
+                ]}
+                value={mode}
+                onChange={setMode}
+                label={t('history.modeLabel')}
+              />
 
               {onRestore && (
                 <div className="history-restore-group">
                   <button
-                    className="history-restore"
+                    type="button"
+                    className="btn btn--ghost btn--sm"
                     disabled={!canRestoreBase}
                     title={t('history.restoreBaseTitle')}
                     onClick={() => handleRestore(base)}
@@ -314,7 +300,8 @@ const HistoryModal = ({
                     {t('history.restoreBase')}
                   </button>
                   <button
-                    className="history-restore"
+                    type="button"
+                    className="btn btn--ghost btn--sm"
                     disabled={!canRestoreCompare}
                     title={canRestoreCompare ? t('history.restoreCompareTitle') : t('history.restoreCurrentTitle')}
                     onClick={() => handleRestore(compare)}

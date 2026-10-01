@@ -124,7 +124,7 @@ const FileContent = ({
         )}
         {!loading && gone && (
           <div className="file-view">
-            <div className="file-view__meta">
+            <div className="file-view__meta" data-find-skip="">
               {diff.entry && (
                 <span className="file-view__badge file-view__badge--warn">
                   {t(`changes.status.${diff.entry.status}`, { defaultValue: diff.entry.status })}

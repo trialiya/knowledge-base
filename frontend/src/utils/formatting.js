@@ -31,6 +31,34 @@ export function formatDateTime(value, locale) {
 }
 
 /**
+ * Только дата в локали интерфейса, либо null для пустого/битого значения — там,
+ * где время в значении не стояло вовсе и 00:00 было бы артефактом разбора.
+ */
+export function formatDate(value, locale) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString(locale);
+}
+
+/**
+ * Дата словами и время без секунд («20 мая 2026 г., 06:58» в ru) — для подсказки
+ * над относительным временем сообщения, где читают её целиком, а не сравнивают
+ * в столбик. null для пустого или битого значения.
+ */
+export function formatLongDateTime(value, locale) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
  * Дата и время цифрами, без секунд («20.05.2026, 06:58» в ru) — для колонки
  * blame: у подписей одна ширина, и описания коммитов за ними начинаются ровно в
  * столбик. null для пустого или битого значения.

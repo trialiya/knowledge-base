@@ -33,7 +33,9 @@ const GrepFile = ({ file, open, onToggle }) => {
                 key={`${line.no}-${line.text}`}
                 className={`tool-grep__line${line.match ? ' tool-grep__line--match' : ''}`}
               >
-                <span className="tool-grep__line-no">{line.no}</span>
+                <span className="tool-grep__line-no" data-find-skip="">
+                  {line.no}
+                </span>
                 <span className="tool-grep__line-text">{line.text || ' '}</span>
               </div>
             ))}

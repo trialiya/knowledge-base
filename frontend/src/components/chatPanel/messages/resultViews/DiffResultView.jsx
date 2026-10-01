@@ -3,6 +3,7 @@ import { DiffLines, DiffStats, PatchHeader } from '../diffRender';
 import { IconChevronDown } from '@/icons/index';
 import ResultSummary, { useExpandAll } from './resultSummary';
 import CommitHashLink from '@/components/common/git/CommitHashLink';
+import RelativeTime from '@/components/common/ui/RelativeTime';
 
 // Режим «Обзор» для формы «unified diff»: коммит → файлы → раскрашенный патч,
 // вместо 40 КБ JSON, в которых переносы строк экранированы как \n.
@@ -64,9 +65,7 @@ const initialOpen = (groups) => {
  * будет (списку коммитов тела не приходят).
  */
 const CommitHead = ({ commit, open, onToggle }) => {
-  const { t, i18n } = useTranslation('chat');
-  const date = commit.date ? new Date(commit.date) : null;
-  const shown = date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString(i18n.language) : null;
+  const { t } = useTranslation('chat');
 
   const hash = (
     <CommitHashLink className="tool-diff__hash" rev={commit.rev} project={commit.project} newTab>
@@ -81,7 +80,7 @@ const CommitHead = ({ commit, open, onToggle }) => {
         </span>
       )}
       {commit.author && <span className="tool-diff__author">{commit.author}</span>}
-      {shown && <span className="tool-diff__date">{shown}</span>}
+      <RelativeTime className="tool-diff__date" value={commit.date} />
     </>
   );
 

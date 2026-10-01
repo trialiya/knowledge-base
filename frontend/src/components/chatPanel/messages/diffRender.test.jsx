@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react';
 import { DiffLines } from './diffRender';
+import { buildMatcher, collectMatchRanges } from '@/components/common/search/findMatches';
 
 // Раскраска одна на чат и на модалку вызова, и ошибиться в ней значит ошибиться
 // в обоих местах сразу.
@@ -69,5 +70,35 @@ describe('DiffLines', () => {
   it('патч на несколько файлов: со следующего ханка отсчёт начинается заново', () => {
     const patch = ['@@ -1 +7 @@', '+a', 'diff --git a/b.js b/b.js', '@@ -1 +100 @@', '+b'].join('\n');
     expect(numbers(patch)).toEqual(['', '7', '', '', '100']);
+  });
+});
+
+describe('DiffLines: Ctrl+F', () => {
+  const PATCH = '@@ -1,2 +1,2 @@\n-foo 1\n+foo 2\n bar\n\\ No newline at end of file';
+
+  const hits = (query, regex, lineNumbers) => {
+    const { container } = render(
+      <pre>
+        <DiffLines patch={PATCH} lineNumbers={lineNumbers} />
+      </pre>,
+    );
+    return collectMatchRanges(container, buildMatcher(query, regex)).map((r) => r.toString());
+  };
+
+  it.each([false, true])('знак строки и служебные строки git не ищутся (номера: %s)', (lineNumbers) => {
+    // Строка находится по своему настоящему началу, без знака diff'а.
+    expect(hits('^foo', true, lineNumbers)).toEqual(['foo', 'foo']);
+    // Ни «1» и «2» из заголовка ханка и гуттера, ни «No newline» не совпадают.
+    expect(hits('1', false, lineNumbers)).toEqual(['1']);
+    expect(hits('newline', false, lineNumbers)).toEqual([]);
+  });
+
+  it('копируется строка целиком, со знаком', () => {
+    const { container } = render(
+      <pre>
+        <DiffLines patch={PATCH} />
+      </pre>,
+    );
+    expect(container.querySelector('.diff-line--add')).toHaveTextContent('+foo 2');
   });
 });

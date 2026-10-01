@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
 import ModalShell from '@/components/common/modal/ModalShell';
+import '@/components/common/ui/buttons.css';
 import { IconX } from '@/icons/index';
 
 /**
@@ -33,7 +34,7 @@ const FullscreenEditorModal = ({
     <ModalShell onClose={onClose} variant="fullscreen">
       <div className="fs-editor__head">
         <span className="fs-editor__title">{title}</span>
-        <button className="fs-editor__close" title={t('fullscreen.close')} onClick={onClose}>
+        <button type="button" className="icon-btn" title={t('fullscreen.close')} onClick={onClose}>
           <IconX />
         </button>
       </div>

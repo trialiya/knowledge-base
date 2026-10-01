@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import CommitHashLink from '@/components/common/git/CommitHashLink';
+import shortRev from '@/components/common/git/shortRev';
 import { formatFieldValue } from './fieldValue';
 import CodeLines, { useCodeLinesView } from './codeLines';
 
@@ -14,6 +16,8 @@ import CodeLines, { useCodeLinesView } from './codeLines';
 /** Факты блока + диапазон строк, посчитанный по самому тексту. */
 const FactList = ({ item, lines }) => {
   const { t, i18n } = useTranslation('chat');
+  // Коммит принадлежит репозиторию ответа: короткий хеш в соседнем — другой коммит.
+  const project = item.facts.find((f) => f.key === 'project')?.value ?? null;
   const range =
     item.text === null
       ? null
@@ -35,7 +39,15 @@ const FactList = ({ item, lines }) => {
       )}
       {item.facts.map(({ key, value }) => (
         <span key={key} className="tool-result__fact">
-          {t(`toolCall.detail.fact.${key}`, { defaultValue: key })}: {formatFieldValue(key, value, i18n.language)}
+          {t(`toolCall.detail.fact.${key}`, { defaultValue: key })}:{' '}
+          {key === 'commit' ? (
+            // В модалке вызова — в новой вкладке, как хеш в DiffResultView.
+            <CommitHashLink className="commit-hash-link" rev={value} project={project} newTab>
+              {shortRev(value)}
+            </CommitHashLink>
+          ) : (
+            formatFieldValue(key, value, i18n.language)
+          )}
         </span>
       ))}
     </div>
@@ -59,7 +71,8 @@ const ContentItem = ({ item }) => {
         {item.markdown && item.text !== null && (
           <button
             type="button"
-            className={`tool-result__md-toggle${rendered ? ' tool-result__md-toggle--active' : ''}`}
+            className="btn btn--ghost btn--xs tool-result__md-toggle"
+            aria-pressed={rendered}
             onClick={() => setRendered((v) => !v)}
             title={t('fileChange.toggleMarkdown')}
           >

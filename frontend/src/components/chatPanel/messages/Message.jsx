@@ -12,7 +12,7 @@ import MessageContextItems from './MessageContextItems';
 import { formatTokens, hasUsage, usageTooltip } from './tokenUsage';
 import CopyButton from '@/components/common/ui/CopyButton';
 import { SENDER } from '@/constants/messageSender';
-import { formatRelativeTime } from '@/utils/formatting';
+import { formatLongDateTime, formatRelativeTime } from '@/utils/formatting';
 
 // ─── Markdown components (стиль KnowledgeBase .md-preview) ─────────────────────
 // Вынесено в фабрику, чтобы ссылки получали onNavigateToDoc через замыкание.
@@ -29,19 +29,6 @@ function getMarkdownComponents(onNavigateToDoc) {
     pre: MarkdownCodeBlock,
   };
 }
-
-const formatFullDatetime = (ts, lang) => {
-  if (!ts) return null;
-  const date = new Date(ts);
-  if (isNaN(date)) return null;
-  return date.toLocaleString(lang, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
 
 const Message = ({
   text,
@@ -70,7 +57,7 @@ const Message = ({
     (queued ? ' message--queued' : '');
   const hasToolCalls = toolCalls && toolCalls.length > 0;
   const timeLabel = formatRelativeTime(timestamp, i18n.language);
-  const timeTitle = formatFullDatetime(timestamp, i18n.language);
+  const timeTitle = formatLongDateTime(timestamp, i18n.language);
 
   // Стабильные идентичности markdown-компонентов между рендерами (как в
   // MarkdownEditor). Без useMemo каждый рендер создаёт новую функцию `a`, React

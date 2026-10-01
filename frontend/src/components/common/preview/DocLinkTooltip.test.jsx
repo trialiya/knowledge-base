@@ -109,10 +109,32 @@ describe('DocLinkTooltip: файл в коммите', () => {
     await waitFor(() =>
       expect(gitApi.getFileContent).toHaveBeenCalledWith('a/B.java', { from: 1, to: 20, rev: hash, project: 'kb' }),
     );
-    expect(await screen.findByText(`a/B.java @ 0123456`)).toBeInTheDocument();
+    // Ревизия рядом с путём — ссылка на сам коммит, в новой вкладке: карточка висит поверх чата.
+    const rev = await screen.findByRole('link', { name: '0123456' });
+    expect(rev.closest('p')).toHaveTextContent('a/B.java @ 0123456');
+    expect(rev.getAttribute('href')).toBe(commitUrl(hash, 'kb'));
+    expect(rev).toHaveAttribute('target', '_blank');
 
     await user.click(screen.getByText('docLink.open'));
     expect(navigateToFile).toHaveBeenCalledWith('a/B.java', 'kb', { rev: hash, changes: false });
+  });
+
+  it('«развернуть» в карточке открывает файл целиком — без строк ссылки, в её ревизии', async () => {
+    const user = userEvent.setup();
+    render(<DocLinkTooltip href={`/files?path=a/B.java&rev=${hash}&project=kb#L3`}>B.java</DocLinkTooltip>);
+
+    await hover(user, screen.getByRole('link', { name: 'B.java' }));
+    await user.click(await screen.findByTitle('docLink.expand'));
+
+    await waitFor(() =>
+      expect(gitApi.getFileContent).toHaveBeenLastCalledWith('a/B.java', {
+        from: undefined,
+        to: undefined,
+        rev: hash,
+        project: 'kb',
+      }),
+    );
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
   it('ссылка без ревизии открывает рабочее дерево, даже если «Файлы» стоят в снимке', async () => {

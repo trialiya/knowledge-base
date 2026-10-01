@@ -109,7 +109,6 @@
 
   --kb-surface-info: var(--p-blue-900);
   --kb-text-info: var(--p-blue-200);
-  --kb-border-info: var(--p-blue-800);
 
   /* ─── Diff ───────────────────────────────────────────────────────────── */
   --kb-diff-add-surface: var(--p-green-900);

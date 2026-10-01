@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { navigateToCommit } from '@/navigation/fileNavigationBus';
 import { commitUrl } from '@/navigation/urlScheme';
 import { isBrowserClick } from '@/components/common/preview/useLinkTooltip';
+import './commitHashLink.css';
 
 /**
  * Хеш коммита, который открывает сам коммит: снимок в «Файлах» с изменёнными

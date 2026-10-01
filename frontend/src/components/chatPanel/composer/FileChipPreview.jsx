@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { baseName, chipLabel } from './fileChips';
+import { baseName, chipLabel, fetchContent } from './fileChips';
 import ModalShell from '@/components/common/modal/ModalShell';
+import useFileContent from '@/components/common/preview/useFileContent';
+import FileView from '@/components/filesPanel/FileView';
+import '@/components/common/ui/buttons.css';
 import { IconX } from '@/icons/index';
 
 // ── Превью содержимого файла — полноэкранная модалка ─────────────────────────
@@ -11,12 +11,22 @@ import { IconX } from '@/icons/index';
 // `project` — репозиторий чата: путь чужого чипа показываем с именем его проекта,
 // иначе превью и чип рядом с ним рассказывают о разных репозиториях одно и то же.
 function FileChipPreview({ preview, project, onClose, onToggleRef }) {
-  const { path, from, to, refOnly, loading, data, error } = preview;
+  const { path, from, to, refOnly } = preview;
   const { t } = useTranslation('chat');
   const name = baseName(path);
   const range = from != null ? ` (${from}–${to})` : '';
-  const isMd = /\.mdx?$/i.test(path || '');
-  const [mdView, setMdView] = useState(false);
+  // Читаем из репозитория, названного в токене: чип может быть из соседнего
+  // проекта, и превью обязано показать тот файл, который уедет в сообщение, —
+  // поэтому и через кэш fetchContent, которым токен развернут при отправке.
+  const fileProject = preview.project || project;
+  const { file, loading, error } = useFileContent({
+    path,
+    project: fileProject,
+    from,
+    to,
+    enabled: !refOnly,
+    read: fetchContent,
+  });
 
   return (
     <ModalShell onClose={onClose} variant="fullscreen" className="file-preview-modal">
@@ -30,25 +40,16 @@ function FileChipPreview({ preview, project, onClose, onToggleRef }) {
             {chipLabel(preview.project, project, path)}
           </span>
         </div>
-        {isMd && !refOnly && (
-          <button
-            type="button"
-            className={'file-preview-modal__toggle' + (mdView ? ' file-preview-modal__toggle--active' : '')}
-            onClick={() => setMdView((v) => !v)}
-            title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
-          >
-            {mdView ? '{ }' : '👁'}
-          </button>
-        )}
         <button
           type="button"
-          className={'file-preview-modal__toggle' + (refOnly ? ' file-preview-modal__toggle--active' : '')}
+          className="btn btn--ghost btn--xs"
+          aria-pressed={refOnly}
           onClick={onToggleRef}
           title={refOnly ? t('fileInput.useFullContent') : t('fileInput.usePathOnly')}
         >
           {refOnly ? '📄' : '📎'}
         </button>
-        <button className="fs-editor__close" title={t('fileInput.closePreview')} onClick={onClose}>
+        <button type="button" className="icon-btn" title={t('fileInput.closePreview')} onClick={onClose}>
           <IconX />
         </button>
       </div>
@@ -57,17 +58,7 @@ function FileChipPreview({ preview, project, onClose, onToggleRef }) {
           <>
             {loading && <div className="file-preview-modal__msg">{t('fileInput.searching')}</div>}
             {error && <div className="file-preview-modal__msg">{t('fileInput.previewError')}</div>}
-            {!loading && !error && data?.binary && (
-              <div className="file-preview-modal__msg">{t('fileChips.binaryFile')}</div>
-            )}
-            {!loading && !error && !data?.binary && mdView && (
-              <div className="file-preview-modal__md">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{data?.content ?? ''}</ReactMarkdown>
-              </div>
-            )}
-            {!loading && !error && !data?.binary && !mdView && (
-              <pre className="file-preview-modal__code">{data?.content ?? ''}</pre>
-            )}
+            {file && <FileView file={file} path={path} project={fileProject || ''} />}
           </>
         )}
         {refOnly && <div className="file-preview-modal__ref-note">{path}</div>}

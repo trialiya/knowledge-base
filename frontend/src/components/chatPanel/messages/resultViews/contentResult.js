@@ -103,12 +103,11 @@ const factsOf = (obj, skipField, project) =>
     .map((key) => ({ key, value: factValue(obj, key, project) }))
     .filter(({ value }) => value !== null && value !== undefined && value !== '');
 
-/** Значение факта: проект берётся из двух мест, хеш коммита показывается коротким. */
-const factValue = (obj, key, project) => {
-  if (key === 'project') return obj.project ?? project;
-  if (key === 'commit' && typeof obj.commit === 'string') return obj.commit.slice(0, 7);
-  return obj[key];
-};
+/**
+ * Значение факта: проект берётся из двух мест. Хеш коммита остаётся полным —
+ * вид рисует его ссылкой на коммит, а короткий однажды перестаёт быть однозначным.
+ */
+const factValue = (obj, key, project) => (key === 'project' ? obj.project ?? project : obj[key]);
 
 /**
  * Один объект ответа → блок текста, либо null если форма не та.

@@ -60,7 +60,9 @@ const CodeLines = ({ lines, startLine = 1, expanded, onExpand, wrap = false, onT
           // Индекс как key безопасен: текст блока иммутабелен в рамках открытой модалки.
 
           <div key={i} className="tool-code__line">
-            <span className="tool-code__line-no">{startLine + i}</span>
+            <span className="tool-code__line-no" data-find-skip="">
+              {startLine + i}
+            </span>
             <span className="tool-code__line-text">{line || ' '}</span>
           </div>
         ))}

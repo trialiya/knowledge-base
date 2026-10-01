@@ -3,6 +3,8 @@ import { IconMessage, IconSparkle, IconTool } from '@/icons/index';
 import { chatUrl } from '@/navigation/urlScheme';
 import { highlightSubstring } from '@/components/common/search/highlightMatch';
 import ResultGroup from './ResultGroup';
+import RelativeTime from '@/components/common/ui/RelativeTime';
+import { formatCompactDateTime } from '@/utils/formatting';
 
 /** Автор сообщения: ключ перевода и значок на роль, которую отдаёт бэкенд. */
 const ROLE = {
@@ -51,12 +53,11 @@ const ChatResults = ({ result, query, onOpenChat }) => {
             <>
               <Icon size={11} />
               <span className="search-line__section">{t(key)}</span>
+              {/* Время сообщения — цифрами, с датой: сообщения одного чата идут днями,
+                  и относительное «18 июл.» у них совпало бы. Давность — у карточки чата. */}
               {message.createdAt && (
-                <time className="search-line__time">
-                  {new Date(message.createdAt).toLocaleTimeString(i18n.language, {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
+                <time className="search-line__time" dateTime={message.createdAt}>
+                  {formatCompactDateTime(message.createdAt, i18n.language)}
                 </time>
               )}
             </>
@@ -81,7 +82,7 @@ const ChatResults = ({ result, query, onOpenChat }) => {
         title={chat.topic ? highlightSubstring(chat.topic, query) : t('chats.untitled')}
         href={chatUrl(chat.conversationId, { find })}
         onOpen={() => onOpenChat(chat.conversationId, { find })}
-        meta={chat.updatedAt ? new Date(chat.updatedAt).toLocaleDateString(i18n.language) : null}
+        meta={chat.updatedAt && <RelativeTime value={chat.updatedAt} />}
         subtitle={chat.titleMatched && <span className="search-group__badge">{t('chats.titleMatched')}</span>}
         rows={rows}
       />

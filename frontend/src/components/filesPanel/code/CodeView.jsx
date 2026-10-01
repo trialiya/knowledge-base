@@ -40,7 +40,12 @@ const CodeView = ({
       className={isMarked(fromLine + i) ? 'file-code__row--marked' : undefined}
     >
       {rows && rows[i] && <BlameCell hunk={rows[i].hunk} span={rows[i].span} path={path} project={project} />}
-      {showLineNumbers && <td className="file-code__gutter">{fromLine + i}</td>}
+      {showLineNumbers && (
+        // Номер строки — не текст файла: числовой запрос иначе находил бы и номера.
+        <td className="file-code__gutter" data-find-skip="">
+          {fromLine + i}
+        </td>
+      )}
       <td className="file-code__line">
         <code>{line.length ? line : ' '}</code>
       </td>

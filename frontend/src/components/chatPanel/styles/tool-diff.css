@@ -167,7 +167,7 @@ a.tool-diff__hash:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   /* Путь читают глазами по сегментам — моноширинный тут помогает,
-     как и в шапке .fcd-title. */
+     как и в шапке .file-diff-modal__title. */
   font-family: var(--kb-font-mono, ui-monospace, Menlo, Consolas, monospace);
   color: var(--kb-text);
 }

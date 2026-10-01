@@ -156,7 +156,8 @@ const FileView = ({
 
   return (
     <div className="file-view" ref={rootRef}>
-      <div className="file-view__meta">
+      {/* Метаданные и тумблеры — служебная строка: Ctrl+F ищет по содержимому. */}
+      <div className="file-view__meta" data-find-skip="">
         {file.language && <span className="file-view__badge">{file.language}</span>}
         {!file.binary && <span>{t('file.lines', { count: file.lineCount })}</span>}
         <span>{formatFileSize(file.sizeBytes)}</span>
