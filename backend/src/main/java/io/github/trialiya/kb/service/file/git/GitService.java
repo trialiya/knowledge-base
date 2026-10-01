@@ -14,6 +14,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
@@ -596,6 +597,20 @@ public class GitService {
             int contextLines,
             int maxResults) {
         return grep.grepContentAt(rev, pattern, pathGlob, regex, contextLines, maxResults);
+    }
+
+    /**
+     * The search page's content search, grouped by file and saying whether it was cut; see {@link
+     * GitGrepRunner#grepPage}.
+     */
+    public GitGrepResult grepPage(
+            @NonNull String pattern,
+            @Nullable String pathGlob,
+            boolean regex,
+            @Nullable String rev,
+            boolean includeUntracked,
+            int maxResults) {
+        return grep.grepPage(pattern, pathGlob, regex, rev, includeUntracked, maxResults);
     }
 
     // ── Line authorship ─────────────────────────────────────────────────────

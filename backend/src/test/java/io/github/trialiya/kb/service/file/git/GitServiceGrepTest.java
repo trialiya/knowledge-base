@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.git.dto.GitGrepResult;
 import io.github.trialiya.kb.support.TestProjects;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -61,6 +62,37 @@ class GitServiceGrepTest {
             assertThat(m.matchLine()).isEqualTo(2);
         });
         assertThat(now).isEmpty();
+    }
+
+    /**
+     * Страница поиска отличает «ровно столько» от «есть ещё»: выдача размером с лимит, на которой
+     * совпадения кончились, полная, а на одно совпадение больше — обрезана, и в ответ лишнее не
+     * попадает.
+     */
+    @Test
+    void searchPageTellsExactlyTheLimitFromMoreThanIt() {
+        writeFile("a.txt", "needle\nneedle\n");
+        writeFile("b.txt", "needle\n");
+        commitAll("first");
+
+        GitGrepResult exact = service.grepPage("needle", null, false, null, false, 3);
+        GitGrepResult cut = service.grepPage("needle", null, false, null, false, 2);
+
+        assertThat(exact.total()).isEqualTo(3);
+        assertThat(exact.truncated()).isFalse();
+        assertThat(cut.total()).isEqualTo(2);
+        assertThat(cut.truncated()).isTrue();
+    }
+
+    @Test
+    void searchPageAtARevisionTellsTheSame() {
+        writeFile("a.txt", "needle\nneedle\n");
+        commitAll("first");
+
+        assertThat(service.grepPage("needle", null, false, "HEAD", false, 2).truncated())
+                .isFalse();
+        assertThat(service.grepPage("needle", null, false, "HEAD", false, 1).truncated())
+                .isTrue();
     }
 
     @Test
