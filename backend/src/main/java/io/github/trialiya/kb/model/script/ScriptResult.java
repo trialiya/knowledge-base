@@ -11,6 +11,7 @@ import io.github.trialiya.kb.tools.Compact;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -39,7 +40,8 @@ import org.jspecify.annotations.Nullable;
  *     failed run, which writes nothing at all
  * @param shown what the model is shown in place of {@code value} when the call's {@code
  *     resultLimit} cut it; null — the model gets {@code value} as it is. Not part of the result:
- *     only {@link #forModel} reads it
+ *     only {@link #forModel} reads it. Its {@link Shown#fullCut} note, when there is one, ends
+ *     {@code log} here and is left out of the model's log
  */
 public record ScriptResult(
         String project,
@@ -53,6 +55,13 @@ public record ScriptResult(
         List<GitEditResult> edits,
         @Nullable @JsonIgnore Shown shown)
         implements ProjectScoped, ToolCallResponseItem, ToolCallResultMetaProvider, ModelView {
+
+    /** The full result's log ends with {@link Shown#fullCut}; {@link #forModel} drops that line. */
+    public ScriptResult {
+        if (shown != null && shown.fullCut() != null) {
+            log = Stream.concat(log.stream(), Stream.of(shown.fullCut())).toList();
+        }
+    }
 
     /** Paths listed in the UI meta; a script may legitimately touch far more than fits a plaque. */
     private static final int META_PATH_LIMIT = 50;
@@ -93,7 +102,7 @@ public record ScriptResult(
                 source,
                 shown != null ? shown.value() : value,
                 shown != null ? shown.truncated() : null,
-                log,
+                shown != null && shown.fullCut() != null ? log.subList(0, log.size() - 1) : log,
                 stats,
                 error,
                 more > 0 ? filesRead.subList(0, MODEL_PATH_LIMIT) : filesRead,
@@ -135,8 +144,19 @@ public record ScriptResult(
      *
      * @param value the cut value, then bounded by {@code max-result-chars} like any other
      * @param truncated what was cut
+     * @param fullCut a line for the full result's log when its {@code value} was itself cut at
+     *     {@code max-result-chars}; null when it is whole. Not in the model's log: {@code
+     *     truncated} already tells the model what it is missing and where the rest is
      */
-    public record Shown(@Nullable Object value, Truncated truncated) {}
+    public record Shown(
+            @Nullable Object value,
+            Truncated truncated,
+            @Nullable String fullCut) {
+
+        public Shown(@Nullable Object value, Truncated truncated) {
+            this(value, truncated, null);
+        }
+    }
 
     /**
      * @param limit the {@code resultLimit} the value was cut to

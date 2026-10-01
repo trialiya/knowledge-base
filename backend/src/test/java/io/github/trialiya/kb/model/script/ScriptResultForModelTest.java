@@ -84,6 +84,17 @@ class ScriptResultForModelTest {
         assertThat(whole).doesNotContainKeys("shown", "truncated", "filesReadMore");
     }
 
+    @Test
+    void aNoteOnTheFullCopysCutReachesOnlyTheFullLog() {
+        ScriptResult.Shown cut = new ScriptResult.Shown(
+                List.of(1), ScriptResult.Truncated.of(1, Map.of("$", 3), "r1"), "Full response truncated");
+
+        ScriptResult result = result("r1", "[1,", List.of(), cut);
+
+        assertThat(result.log()).containsExactly("Full response truncated");
+        assertThat(result.forModel().log()).isEmpty();
+    }
+
     /** The model's text, parsed back. */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> shown(ScriptResult result) throws Exception {

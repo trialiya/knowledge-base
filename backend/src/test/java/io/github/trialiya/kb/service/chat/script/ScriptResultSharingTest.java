@@ -102,8 +102,15 @@ class ScriptResultSharingTest {
         assertThat(shown.value()).isEqualTo(List.of(Map.of("i", 0), Map.of("i", 1), Map.of("i", 2)));
         assertThat(shown.truncated().cut()).isEqualTo(Map.of("$", 100));
         assertThat(shown.truncated().note()).contains("kb.result('r1')");
-        // The model's copy is clean, so no warning says otherwise.
+        // The model's copy is clean, so no warning says otherwise...
         assertThat(big.log()).noneSatisfy(line -> assertThat(line).contains("Result truncated"));
+        assertThat(shown.log()).noneSatisfy(line -> assertThat(line).contains("Full response truncated"));
+        // ...but the detail view's copy is a fragment, and its log says so and where the rest is.
+        assertThat(big.log())
+                .last()
+                .asString()
+                .contains("Full response truncated")
+                .contains("kb.result('r1')");
     }
 
     @Test

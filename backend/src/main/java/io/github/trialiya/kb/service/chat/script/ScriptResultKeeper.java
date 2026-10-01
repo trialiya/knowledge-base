@@ -61,9 +61,23 @@ final class ScriptResultKeeper {
             return new Delivered(whole, resultId, shown);
         }
         if (shown != null) {
-            // The model got the first elements as clean JSON; the character cut below is only the
-            // detail view's copy, and a warning about it would contradict the value in front of it.
-            return new Delivered(parse(json.substring(0, max)), resultId, shown);
+            // The model got the first elements as clean JSON, so the warning about the character
+            // cut goes only to the full copy's log — in the model's it would contradict the value
+            // in front of it.
+            String fullCut = "Full response truncated: maxResultChars="
+                    + max
+                    + ", but the returned value was "
+                    + json.length()
+                    + " characters, so this copy shows only its first "
+                    + max
+                    + ". "
+                    + (resultId == null
+                            ? "The rest was not kept."
+                            : "The whole value is kept as " + resultId + ": kb.result('" + resultId + "').");
+            return new Delivered(
+                    parse(json.substring(0, max)),
+                    resultId,
+                    new ScriptResult.Shown(shown.value(), shown.truncated(), fullCut));
         }
         session.log("Result truncated: maxResultChars="
                 + max
