@@ -4,6 +4,7 @@ import FileResults from './FileResults';
 import CommitResults from './CommitResults';
 import DocResults from './DocResults';
 import ChatResults from './ChatResults';
+import commitSearchNote from '@/components/common/search/commitSearchNote';
 
 /** Отказ категории словами, по которым понятно, что чинить. */
 function errorMessage(t, error) {
@@ -12,6 +13,16 @@ function errorMessage(t, error) {
   if (error?.status === 400) return t('error.badFilter');
   if (error?.status === 503) return t('error.timeout');
   return t('error.generic');
+}
+
+/**
+ * Подпись под обрезанной выдачей. У коммитов она различает «лимит заполнен —
+ * уточните запрос» и «история досмотрена не вся» (commitSearchNote, как в пикере
+ * плейсхолдера); у остальных категорий истории нет, и подпись своя на категорию.
+ */
+function truncationNote(t, scope, data) {
+  if (scope !== SEARCH_SCOPE.COMMITS) return t(`truncated.${scope}`);
+  return t(commitSearchNote({ count: data.commits.length, limit: data.limit, truncated: true }));
 }
 
 /**
@@ -96,7 +107,7 @@ const ResultList = ({ scope, query, loading, entry, regex, rev, project, onOpenF
           <p className="search-results__error">{errorMessage(t, entry.error)}</p>
         ) : (
           <>
-            {data.truncated && <p className="search-results__note">{t(`truncated.${scope}`)}</p>}
+            {data.truncated && <p className="search-results__note">{truncationNote(t, scope, data)}</p>}
 
             {groups === 0 ? (
               <p className="search-results__hint">{t('empty.noResults')}</p>

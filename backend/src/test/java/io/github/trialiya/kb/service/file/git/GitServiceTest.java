@@ -6,6 +6,9 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitGrepResult;
+import io.github.trialiya.kb.model.git.dto.GitCommitMatch;
+import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
@@ -97,7 +100,7 @@ class GitServiceTest {
         writeFile("pom.txt", "root file");
         commitAll();
 
-        List<GitFileNode> root = service.getFileTree(null);
+        List<GitFileNode> root = service.getFileTree(null, null);
 
         // Regression: without core.quotepath=false, git quotes/octal-escapes the Cyrillic path,
         // which used to split into a bogus quoted "docs" node distinct from the real one.
@@ -107,12 +110,12 @@ class GitServiceTest {
         assertThat(docsNodes.get(0).path()).isEqualTo("docs");
         assertThat(docsNodes.get(0).type()).isEqualTo(FileEntryType.DIRECTORY);
 
-        List<GitFileNode> underDocs = service.getFileTree("docs");
+        List<GitFileNode> underDocs = service.getFileTree(null, "docs");
         assertThat(underDocs).hasSize(1);
         assertThat(underDocs.get(0).path()).isEqualTo("docs/проект");
         assertThat(underDocs.get(0).type()).isEqualTo(FileEntryType.DIRECTORY);
 
-        List<GitFileNode> underProject = service.getFileTree("docs/проект");
+        List<GitFileNode> underProject = service.getFileTree(null, "docs/проект");
         assertThat(underProject).hasSize(1);
         assertThat(underProject.get(0).path()).isEqualTo("docs/проект/readme.md");
         assertThat(underProject.get(0).name()).isEqualTo("readme.md");
@@ -127,7 +130,7 @@ class GitServiceTest {
         writeFile("Bird/x.txt", "b");
         commitAll();
 
-        List<GitFileNode> root = service.getFileTree(null);
+        List<GitFileNode> root = service.getFileTree(null, null);
 
         assertThat(root.stream().map(GitFileNode::name).toList())
                 .containsExactly("Bird", "zebra", "Apple.txt", "banana.txt");
@@ -160,16 +163,74 @@ class GitServiceTest {
         writeFile("a.txt", "x\n");
         commitAll("Subject line\n\nWhy it was done.\n\nAnd a second paragraph.");
 
-        assertThat(service.getCommitLog(1, null, false).getFirst())
+        assertThat(service.getCommitLog(1, null, false).commits().getFirst())
                 .satisfies(c -> assertThat(c.message()).isEqualTo("Subject line"))
                 .satisfies(c -> assertThat(c.body()).isNull());
 
-        GitCommit withBody = service.getCommitLog(1, null, true).getFirst();
+        GitCommit withBody = service.getCommitLog(1, null, true).commits().getFirst();
         assertThat(withBody.message()).isEqualTo("Subject line");
         assertThat(withBody.body()).isEqualTo("Why it was done.\n\nAnd a second paragraph.");
 
         assertThat(service.getCommitDiff(withBody.hash(), false).getFirst().body())
                 .isEqualTo(withBody.body());
+    }
+
+    /** Репозиторий без единого коммита — пустая история, а не ошибка: и у листинга, и у поиска. */
+    @Test
+    void anUnbornRepositoryHasAnEmptyHistory() {
+        assertThat(service.getCommitLog(5, null, false)).isEqualTo(new GitCommitSearchResult(List.of(), false));
+        assertThat(service.searchCommits("x", 5)).isEqualTo(new GitCommitSearchResult(List.of(), false));
+    }
+
+    /**
+     * Ревизия у чтения, которое умеет и рабочее дерево, и снимок: пустая и из одних пробелов —
+     * рабочее дерево, как и {@code null}; правка на диске видна только там.
+     */
+    @Test
+    void aBlankRevisionReadsTheWorkingTree() {
+        writeFile("a.txt", "committed\n");
+        commitAll("first");
+        writeFile("a.txt", "on disk\n");
+        String head = service.getCommitLog(1, null, false).commits().get(0).hash();
+
+        assertThat(service.getFileContent("  ", "a.txt", null, null).content()).isEqualTo("on disk\n");
+        assertThat(service.getFileContent(null, "a.txt", null, null).content()).isEqualTo("on disk\n");
+        assertThat(service.getFileContent(head, "a.txt", null, null).content()).isEqualTo("committed\n");
+        assertThat(service.getRawFile("", "a.txt").bytes()).isEqualTo("on disk\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** Пустой запрос — пустой ответ, и пробелы вокруг ничего не меняют: искать нечего. */
+    @Test
+    void aBlankQueryFindsNothing() {
+        writeFile("a.txt", "1\n");
+        commitAll("first");
+
+        assertThat(service.searchCommits("   ", 5)).isEqualTo(new GitCommitSearchResult(List.of(), false));
+        assertThat(service.grepCommits(" \t ", 5, null)).isEqualTo(new GitCommitGrepResult(List.of(), false));
+        assertThat(service.searchCommits("  first  ", 5).commits())
+                .extracting(GitCommit::message)
+                .containsExactly("first");
+    }
+
+    /**
+     * Листинг говорит, есть ли история за последним отданным коммитом: просьба о двух при трёх
+     * коммитах — неполная, о трёх — полная.
+     */
+    @Test
+    void aListingSaysWhetherHistoryGoesOnPastIt() {
+        for (String subject : List.of("one", "two", "three")) {
+            writeFile("a.txt", subject + "\n");
+            commitAll(subject);
+        }
+
+        assertThat(service.getCommitLog(2, null, false).truncated()).isTrue();
+        assertThat(service.getCommitLog(3, null, false).truncated()).isFalse();
+        // Без точности обход стоит на лимите: полная страница — «могут быть ещё», даже когда история
+        // на ней и кончилась; неполная — конец истории.
+        assertThat(service.getCommitLog(3, null, false, null, false).truncated())
+                .isTrue();
+        assertThat(service.getCommitLog(5, null, false, null, false).truncated())
+                .isFalse();
     }
 
     /**
@@ -183,7 +244,7 @@ class GitServiceTest {
         writeFile("a.txt", "2\n");
         commitAll("Second\n\nBody two.");
 
-        List<GitCommit> log = service.getCommitLog(2, null, false);
+        List<GitCommit> log = service.getCommitLog(2, null, false).commits();
         String pair = log.get(0).hash() + "," + log.get(1).hash();
 
         assertThat(service.getCommitDiff(pair, false))
@@ -201,7 +262,7 @@ class GitServiceTest {
         writeFile("a.txt", "x\n");
         commitAll("Fix the parser\n\n    if (x) {\n        return y;\n    }\n");
 
-        assertThat(service.getCommitLog(1, null, true).getFirst().body())
+        assertThat(service.getCommitLog(1, null, true).commits().getFirst().body())
                 .isEqualTo("    if (x) {\n        return y;\n    }");
     }
 
@@ -211,7 +272,8 @@ class GitServiceTest {
         writeFile("a.txt", "x\n");
         commitAll("Subject\n\n   \n  \n");
 
-        assertThat(service.getCommitLog(1, null, true).getFirst().body()).isNull();
+        assertThat(service.getCommitLog(1, null, true).commits().getFirst().body())
+                .isNull();
     }
 
     /** Однострочное сообщение — тела нет, а не пустая строка: пустое поле незачем сериализовать. */
@@ -220,7 +282,8 @@ class GitServiceTest {
         writeFile("a.txt", "x\n");
         commitAll("Just a subject");
 
-        assertThat(service.getCommitLog(1, null, true).getFirst().body()).isNull();
+        assertThat(service.getCommitLog(1, null, true).commits().getFirst().body())
+                .isNull();
     }
 
     /**
@@ -233,7 +296,7 @@ class GitServiceTest {
         writeFile("a.txt", "x\n");
         commitAll("Subject that git\nwrapped onto two lines\n\nThe body.");
 
-        GitCommit commit = service.getCommitLog(1, null, true).getFirst();
+        GitCommit commit = service.getCommitLog(1, null, true).commits().getFirst();
         assertThat(commit.message()).isEqualTo("Subject that git wrapped onto two lines");
         assertThat(commit.body()).isEqualTo("The body.");
     }
@@ -243,7 +306,7 @@ class GitServiceTest {
         writeFile("a.txt", "line1\nline2\n");
         commitAll();
 
-        List<GitCommit> log = service.getCommitLog(10, null, false);
+        List<GitCommit> log = service.getCommitLog(10, null, false).commits();
         assertThat(log).hasSize(1);
 
         // Regression: `git diff-tree` needs --root to show anything for the very first commit;
@@ -476,7 +539,7 @@ class GitServiceTest {
         runGit("mv", "old-name.txt", "new-name.txt");
         runGit("commit", "-q", "-m", "rename");
 
-        List<GitCommit> log = service.getCommitLog(1, null, false);
+        List<GitCommit> log = service.getCommitLog(1, null, false).commits();
         List<GitDiffEntry> files =
                 service.getCommitDiff(log.get(0).hash(), false).get(0).files();
 
@@ -500,7 +563,7 @@ class GitServiceTest {
         writeFile("extra.txt", "shared\ncontent\nlines\n");
         commitAll();
 
-        List<GitCommit> log = service.getCommitLog(1, null, false);
+        List<GitCommit> log = service.getCommitLog(1, null, false).commits();
         List<GitDiffEntry> files =
                 service.getCommitDiff(log.get(0).hash(), false).get(0).files();
 
@@ -555,7 +618,7 @@ class GitServiceTest {
         assertThat(root.parents()).isEmpty();
         assertThat(service.getCommit("HEAD", false, null).parents()).containsExactly(root.hash());
         assertThat(service.getCommitDiff("HEAD", false).getFirst().parents()).isNull();
-        assertThat(service.getCommitLog(5, null, false))
+        assertThat(service.getCommitLog(5, null, false).commits())
                 .allSatisfy(c -> assertThat(c.parents()).isNull());
     }
 
@@ -594,7 +657,7 @@ class GitServiceTest {
         commitAll();
 
         // Windows callers may pass "src\\main" — must be treated identically to "src/main".
-        List<GitFileNode> nodes = service.getFileTree("src\\main");
+        List<GitFileNode> nodes = service.getFileTree(null, "src\\main");
         assertThat(nodes).hasSize(1);
         assertThat(nodes.get(0).name()).isEqualTo("Foo.java");
         assertThat(nodes.get(0).path()).isEqualTo("src/main/Foo.java");
@@ -620,7 +683,7 @@ class GitServiceTest {
 
         // A backslash path must still find the commit that touched THAT file — a filter that
         // stopped being applied would return both commits.
-        var log = service.getCommitLog(10, "src\\main\\Bar.java", false);
+        var log = service.getCommitLog(10, "src\\main\\Bar.java", false).commits();
         assertThat(log).singleElement().satisfies(c -> assertThat(c.message()).isEqualTo("bar"));
     }
 
@@ -628,7 +691,7 @@ class GitServiceTest {
     void windowsBackslashInCommitDiffFilePathIsNormalized() {
         writeFile("src/main/Baz.java", "class Baz {}\n");
         commitAll();
-        String hash = service.getCommitLog(1, null, false).get(0).hash();
+        String hash = service.getCommitLog(1, null, false).commits().get(0).hash();
 
         // A backslash path must resolve to the same file the diff's PathFilter expects.
         var diff = service.getCommitDiff(hash, false, "src\\main\\Baz.java");
@@ -666,7 +729,9 @@ class GitServiceTest {
 
         // A conflicted file has only stage-1..3 index entries (no stage 0). It is still tracked,
         // so it must not vanish from the tree, from file content, or from uncommitted changes.
-        assertThat(service.getFileTree(null)).extracting(GitFileNode::name).contains("conflict.txt");
+        assertThat(service.getFileTree(null, null))
+                .extracting(GitFileNode::name)
+                .contains("conflict.txt");
         assertThat(service.getFileContent("conflict.txt").content()).contains("<<<<<<<");
 
         List<GitDiffEntry> changes = service.getUncommittedChanges(false);
@@ -683,7 +748,7 @@ class GitServiceTest {
         writeFile("README.md", "readme\n");
         commitAll();
 
-        var view = service.browsePath("src/main/java/com/app/Main.java", true);
+        var view = service.browsePath(null, "src/main/java/com/app/Main.java", true);
 
         assertThat(view.type()).isEqualTo(FileEntryType.FILE);
         assertThat(view.file()).isNotNull();
@@ -709,7 +774,7 @@ class GitServiceTest {
         writeFile("docs/guide/intro.md", "intro\n");
         commitAll();
 
-        var view = service.browsePath("docs/guide", true);
+        var view = service.browsePath(null, "docs/guide", true);
 
         assertThat(view.type()).isEqualTo(FileEntryType.DIRECTORY);
         assertThat(view.file()).isNull();
@@ -723,7 +788,7 @@ class GitServiceTest {
         writeFile("docs/guide/intro.md", "intro\n");
         commitAll();
 
-        var view = service.browsePath("docs/guide/intro.md", false);
+        var view = service.browsePath(null, "docs/guide/intro.md", false);
 
         assertThat(view.type()).isEqualTo(FileEntryType.FILE);
         assertThat(view.file()).isNotNull();
@@ -735,7 +800,7 @@ class GitServiceTest {
         writeFile("docs/guide/intro.md", "intro\n");
         commitAll();
 
-        var view = service.browsePath("docs/guide/gone.md", true);
+        var view = service.browsePath(null, "docs/guide/gone.md", true);
 
         // A dead deep link must render as "not found", not as a load error.
         assertThat(view.type()).isNull();
@@ -759,13 +824,14 @@ class GitServiceTest {
         commitAll();
         deleteFile("docs/guide/gone.md");
 
-        var view = service.browsePath("docs/guide/gone.md", true);
+        var view = service.browsePath(null, "docs/guide/gone.md", true);
 
         assertThat(view.type()).isNull();
         assertThat(view.file()).isNull();
         assertThat(view.tree()).extracting(GitTreeLevel::path).containsExactly("", "docs", "docs/guide");
         // Соседний файл того же каталога открывается как ни в чём не бывало.
-        assertThat(service.browsePath("docs/guide/intro.md", false).type()).isEqualTo(FileEntryType.FILE);
+        assertThat(service.browsePath(null, "docs/guide/intro.md", false).type())
+                .isEqualTo(FileEntryType.FILE);
     }
 
     @Test
@@ -774,7 +840,7 @@ class GitServiceTest {
         writeFile("README.md", "readme\n");
         commitAll();
 
-        var view = service.browsePath(null, true);
+        var view = service.browsePath(null, null, true);
 
         assertThat(view.path()).isEmpty();
         assertThat(view.type()).isEqualTo(FileEntryType.DIRECTORY);
@@ -792,9 +858,9 @@ class GitServiceTest {
 
         // The batched pass over the index must produce exactly what getFileTree does level by
         // level — same nodes, same order.
-        var view = service.browsePath("src/main/java/com/app/Main.java", true);
+        var view = service.browsePath(null, "src/main/java/com/app/Main.java", true);
         for (GitTreeLevel level : view.tree()) {
-            assertThat(level.nodes()).isEqualTo(service.getFileTree(level.path()));
+            assertThat(level.nodes()).isEqualTo(service.getFileTree(null, level.path()));
         }
 
         // Обе стороны сравнения строит один и тот же обход, поэтому один уровень закреплён
@@ -811,9 +877,9 @@ class GitServiceTest {
         writeFile("src/main/Foo.java", "class Foo {}\n");
         commitAll();
 
-        assertThat(service.browsePath("src\\main\\Foo.java", true).type()).isEqualTo(FileEntryType.FILE);
+        assertThat(service.browsePath(null, "src\\main\\Foo.java", true).type()).isEqualTo(FileEntryType.FILE);
 
-        var dir = service.browsePath("src/main/", true);
+        var dir = service.browsePath(null, "src/main/", true);
         assertThat(dir.path()).isEqualTo("src/main");
         assertThat(dir.type()).isEqualTo(FileEntryType.DIRECTORY);
         assertThat(dir.nodes()).extracting(GitFileNode::name).containsExactly("Foo.java");
@@ -837,7 +903,7 @@ class GitServiceTest {
     void searchCommitsMatchesHashPrefix() {
         writeFile("a.txt", "a\n");
         commitAll("Only commit");
-        String hash = service.getCommitLog(1, null, false).get(0).hash();
+        String hash = service.getCommitLog(1, null, false).commits().get(0).hash();
 
         assertThat(service.searchCommits(hash.substring(0, 6).toUpperCase(), 10).commits())
                 .extracting(GitCommit::hash)
@@ -892,36 +958,51 @@ class GitServiceTest {
         assertThat(service.searchCommits("Subject", 10).commits()).hasSize(1);
     }
 
-    /** The search page asks for the description too: a hit there counts and the body comes back. */
+    /**
+     * The search page gets where the query matched instead of the description: the lines of the
+     * description that hold it (numbered from 1), whether the subject did, and — when neither did —
+     * that the hash prefix is what found the commit. The description itself does not travel.
+     */
     @Test
-    void grepCommitsMatchesTheDescriptionAndReturnsIt() {
+    void grepCommitsSaysWhereEachCommitMatched() {
         writeFile("a.txt", "a\n");
-        commitAll("Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
+        commitAll("Subject line\n\nfirst line\nmentions ZZZ\nlast");
         writeFile("b.txt", "b\n");
-        commitAll("Unrelated change");
+        commitAll("Unrelated zzz change");
 
         assertThat(service.grepCommits("zzz", 10, null).commits())
+                .satisfiesExactly(
+                        subject -> {
+                            assertThat(subject.commit().message()).isEqualTo("Unrelated zzz change");
+                            assertThat(subject.subjectMatch()).isTrue();
+                            assertThat(subject.lines()).isEmpty();
+                            assertThat(subject.hashMatch()).isFalse();
+                        },
+                        body -> {
+                            assertThat(body.commit().body()).isNull();
+                            assertThat(body.subjectMatch()).isFalse();
+                            assertThat(body.lines()).containsExactly(new GitCommitMatch.Line(2, "mentions ZZZ"));
+                        });
+
+        String hash = service.getCommitLog(1, null, false).commits().get(0).hash();
+        assertThat(service.grepCommits(hash.substring(0, 8), 10, null).commits())
                 .singleElement()
-                .satisfies(c -> {
-                    assertThat(c.message()).isEqualTo("Subject line");
-                    assertThat(c.body()).isEqualTo("mentions ZZZ");
+                .satisfies(found -> {
+                    assertThat(found.hashMatch()).isTrue();
+                    assertThat(found.lines()).isEmpty();
                 });
-        // A subject hit is still a hit, and it carries its body along.
-        assertThat(service.grepCommits("unrelated", 10, null).commits())
-                .extracting(GitCommit::message)
-                .containsExactly("Unrelated change");
     }
 
     @Test
     void grepCommitsFromARevisionSkipsCommitsMadeAfterIt() {
         writeFile("a.txt", "a\n");
         commitAll("fix one");
-        String first = service.getCommitLog(1, null, false).get(0).hash();
+        String first = service.getCommitLog(1, null, false).commits().get(0).hash();
         writeFile("b.txt", "b\n");
         commitAll("fix two");
 
         assertThat(service.grepCommits("fix", 10, first).commits())
-                .extracting(GitCommit::message)
+                .extracting(found -> found.commit().message())
                 .containsExactly("fix one");
     }
 
@@ -1027,7 +1108,7 @@ class GitServiceTest {
         commitAll();
         deleteFile("docs/icon.svg");
 
-        assertThatThrownBy(() -> service.getRawFile("docs/icon.svg"))
+        assertThatThrownBy(() -> service.getRawFile(null, "docs/icon.svg"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("docs/icon.svg");
         assertThatThrownBy(() -> service.getFileContent("docs/icon.svg")).isInstanceOf(IllegalArgumentException.class);
@@ -1044,7 +1125,9 @@ class GitServiceTest {
         writeFile("docs/a\"b.md", "b\n");
         commitAll();
 
-        assertThat(service.getFileTree("docs")).extracting(GitFileNode::path).containsExactly("docs/plain.md");
+        assertThat(service.getFileTree(null, "docs"))
+                .extracting(GitFileNode::path)
+                .containsExactly("docs/plain.md");
         assertThat(service.searchFiles("md", 5)).extracting(GitFileNode::path).containsExactly("docs/plain.md");
     }
 }

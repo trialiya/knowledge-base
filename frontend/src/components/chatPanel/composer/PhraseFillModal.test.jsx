@@ -126,7 +126,7 @@ describe('PhraseFillModal', () => {
 
     await userEvent.type(screen.getByLabelText(/Коммит/), 'кэш');
 
-    expect(await screen.findByText('phraseFill.partial')).toBeInTheDocument();
+    expect(await screen.findByText('common:commitSearch.refine')).toBeInTheDocument();
   });
 
   it('says older history was not searched when a short commit list is cut', async () => {
@@ -135,7 +135,7 @@ describe('PhraseFillModal', () => {
 
     await userEvent.type(screen.getByLabelText(/Коммит/), 'кэш');
 
-    expect(await screen.findByText('phraseFill.partialHistory')).toBeInTheDocument();
+    expect(await screen.findByText('common:commitSearch.olderNotSearched')).toBeInTheDocument();
   });
 
   it('says an empty commit search did not look through all of history', async () => {
@@ -144,7 +144,7 @@ describe('PhraseFillModal', () => {
 
     await userEvent.type(screen.getByLabelText(/Коммит/), 'кэш');
 
-    expect(await screen.findByText('phraseFill.nothingFoundPartial')).toBeInTheDocument();
+    expect(await screen.findByText('common:commitSearch.nothingInSearched')).toBeInTheDocument();
   });
 
   // Признак — слово конкретного ответа: следующий полный ответ или ошибка его снимают.
@@ -154,21 +154,21 @@ describe('PhraseFillModal', () => {
     const input = screen.getByLabelText(/Коммит/);
 
     await userEvent.type(input, 'кэш');
-    await screen.findByText('phraseFill.nothingFoundPartial');
+    await screen.findByText('common:commitSearch.nothingInSearched');
 
     gitApi.searchCommits.mockResolvedValueOnce({ commits: [], truncated: false });
     await userEvent.type(input, 'и');
     await screen.findByText('phraseFill.nothingFound');
-    expect(screen.queryByText('phraseFill.nothingFoundPartial')).toBeNull();
+    expect(screen.queryByText('common:commitSearch.nothingInSearched')).toBeNull();
 
     gitApi.searchCommits.mockResolvedValueOnce({ commits: [], truncated: true });
     await userEvent.type(input, 'р');
-    await screen.findByText('phraseFill.nothingFoundPartial');
+    await screen.findByText('common:commitSearch.nothingInSearched');
 
     gitApi.searchCommits.mockRejectedValueOnce(new Error('500'));
     await userEvent.type(input, 'у');
     await screen.findByText('phraseFill.nothingFound');
-    expect(screen.queryByText('phraseFill.nothingFoundPartial')).toBeNull();
+    expect(screen.queryByText('common:commitSearch.nothingInSearched')).toBeNull();
   });
 
   // Регрессия: .modal-shell и колонка полей обрезают по overflow, поэтому

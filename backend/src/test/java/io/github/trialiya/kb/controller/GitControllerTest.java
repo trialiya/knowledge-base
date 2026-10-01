@@ -49,7 +49,7 @@ class GitControllerTest {
 
     @Test
     void aMissingFileIsABadRequestAndNotAServerError() throws Exception {
-        when(git.getFileContent("gone.md", null, null))
+        when(git.getFileContent(null, "gone.md", null, null))
                 .thenThrow(new IllegalArgumentException("File not found: gone.md"));
 
         mockMvc.perform(get("/api/git/files/content").param("path", "gone.md")).andExpect(status().isBadRequest());
@@ -58,7 +58,7 @@ class GitControllerTest {
     /** Ревизия приходит из поля ввода, и опечатка в ней — такая же ошибка запроса. */
     @Test
     void anUnknownRevisionIsABadRequest() throws Exception {
-        when(git.getFileContentAt("nosuchtag", "README.md", null, null))
+        when(git.getFileContent("nosuchtag", "README.md", null, null))
                 .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag"));
 
         mockMvc.perform(get("/api/git/files/content").param("path", "README.md").param("rev", "nosuchtag"))
@@ -68,7 +68,7 @@ class GitControllerTest {
     /** Обзор с ревизией читает снимок, без неё — рабочее дерево. */
     @Test
     void anOutlineIsReadFromTheRevisionWhenOneIsNamed() throws Exception {
-        when(git.getFileOutlineAt("v1", "README.md"))
+        when(git.getFileOutline("v1", "README.md"))
                 .thenReturn(new GitFileOutline(
                         "README.md",
                         true,
@@ -86,7 +86,7 @@ class GitControllerTest {
     /** Язык, для которого обзора нет, — ошибка запроса, а не сервера. */
     @Test
     void anOutlineOfAnUnsupportedFileIsABadRequest() throws Exception {
-        when(git.getFileOutline("notes.txt"))
+        when(git.getFileOutline(null, "notes.txt"))
                 .thenThrow(new IllegalArgumentException("Unsupported language for outline"));
 
         mockMvc.perform(get("/api/git/files/outline").param("path", "notes.txt"))
@@ -97,7 +97,7 @@ class GitControllerTest {
     @Test
     void blameIsReadFromTheRevisionWhenOneIsNamed() throws Exception {
         String hash = "a".repeat(40);
-        when(git.getBlameAt("v1", "README.md"))
+        when(git.getBlame("v1", "README.md"))
                 .thenReturn(new GitFileBlame(
                         "README.md",
                         hash,
@@ -122,8 +122,8 @@ class GitControllerTest {
     /** Файл без истории — ошибка запроса; blame, не уложившийся в дедлайн, — 503, как у grep. */
     @Test
     void blameOfAnUntrackedFileIsABadRequestAndATimeoutIsUnavailable() throws Exception {
-        when(git.getBlame("new.txt")).thenThrow(new IllegalArgumentException("File is not tracked: new.txt"));
-        when(git.getBlame("slow.txt")).thenThrow(new GitReadTimeoutException("git blame did not finish"));
+        when(git.getBlame(null, "new.txt")).thenThrow(new IllegalArgumentException("File is not tracked: new.txt"));
+        when(git.getBlame(null, "slow.txt")).thenThrow(new GitReadTimeoutException("git blame did not finish"));
 
         mockMvc.perform(get("/api/git/files/blame").param("path", "new.txt")).andExpect(status().isBadRequest());
         mockMvc.perform(get("/api/git/files/blame").param("path", "slow.txt"))
@@ -174,7 +174,7 @@ class GitControllerTest {
     @Test
     void anImageIsServedRawWithItsOwnTypeAndNothingActiveAllowed() throws Exception {
         byte[] bytes = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>".getBytes(UTF_8);
-        when(git.getRawFile("docs/icon.svg"))
+        when(git.getRawFile(null, "docs/icon.svg"))
                 .thenReturn(new GitFileBytes("docs/icon.svg", bytes, 0, bytes.length, false));
 
         mockMvc.perform(get("/api/git/files/raw").param("path", "docs/icon.svg"))
@@ -198,7 +198,7 @@ class GitControllerTest {
     /** Слишком большой файл — отказ запроса, а не куча памяти: см. GitService.getRawFile. */
     @Test
     void anImageTooLargeToServeIsABadRequest() throws Exception {
-        when(git.getRawFile("huge.png")).thenThrow(new IllegalArgumentException("File is too large to preview"));
+        when(git.getRawFile(null, "huge.png")).thenThrow(new IllegalArgumentException("File is too large to preview"));
 
         mockMvc.perform(get("/api/git/files/raw").param("path", "huge.png")).andExpect(status().isBadRequest());
     }

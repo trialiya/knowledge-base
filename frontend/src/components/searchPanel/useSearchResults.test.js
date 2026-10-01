@@ -12,7 +12,14 @@ const FILES = { total: 2, truncated: false, files: [{ path: 'a.java', lines: [{ 
 const DOCS = { total: 1, documents: [{ id: 7, title: 'Doc', fragments: [] }] };
 const COMMITS = {
   truncated: false,
-  commits: [{ hash: 'abc1234', shortHash: 'abc1234', message: 'Find the needle', body: null }],
+  commits: [
+    {
+      commit: { hash: 'abc1234', shortHash: 'abc1234', message: 'Find the needle' },
+      subjectMatch: true,
+      hashMatch: false,
+      lines: [],
+    },
+  ],
 };
 const CHATS = { total: 1, truncated: false, chats: [{ conversationId: 'c1', messages: [] }] };
 

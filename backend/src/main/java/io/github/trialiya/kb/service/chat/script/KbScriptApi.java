@@ -155,8 +155,8 @@ public class KbScriptApi {
     public String read(String path, int fromLine, int toLine) {
         String canonical = canonical(path);
         return session.call(Arrays.<Object>asList("read", canonical, fromLine, toLine), () -> {
-            GitFileContent content =
-                    gitService.getFileContent(canonical, fromLine > 0 ? fromLine : null, toLine > 0 ? toLine : null);
+            GitFileContent content = gitService.getFileContent(
+                    null, canonical, fromLine > 0 ? fromLine : null, toLine > 0 ? toLine : null);
             if (content.binary()) {
                 // Not a budget, and not a refusal to open the file either — only a refusal
                 // to pretend its bytes are text. Decoding them as UTF-8 would hand back a
@@ -322,7 +322,7 @@ public class KbScriptApi {
     public Object outline(String path) {
         String canonical = canonical(path);
         List<Map<String, Object>> symbols = session.call(Arrays.<Object>asList("outline", canonical), () -> {
-            GitFileOutline outline = gitService.getFileOutline(canonical);
+            GitFileOutline outline = gitService.getFileOutline(null, canonical);
             session.chargeRead(outline.path(), 0);
             List<Map<String, Object>> rows = new ArrayList<>();
             outline.symbols().forEach(symbol -> {

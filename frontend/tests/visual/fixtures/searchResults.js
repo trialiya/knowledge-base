@@ -5,7 +5,7 @@
  * `/api/documents/search/grouped`, `/api/chats/search/grouped`, см.
  * api-reference.md), но синтетические: пути, id и тексты придуманы. Коммиты —
  * уже в форме категории (`searchPanel/commitHits.js` поверх
- * `GET /api/git/commits/search?body=true`).
+ * `GET /api/git/commits/grep`).
  *
  * Даты и время в фикстурах без зоны: `toLocaleDateString`/`toLocaleTimeString`
  * читают их в зоне машины, поэтому подпись сообщения воспроизводима ровно в том

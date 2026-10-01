@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Чтение файла из дерева коммита ({@code getFileContentAt}) — то, чем оно отличается от чтения с
+ * Чтение файла из дерева коммита ({@code getFileContent} с ревизией) — то, чем оно отличается от чтения с
  * диска: отвечает история, а не рабочее дерево.
  */
 class GitServiceCommitContentTest {
@@ -45,7 +45,7 @@ class GitServiceCommitContentTest {
         commitAll("second");
         write("src/App.java", "uncommitted\n");
 
-        assertThat(service.getFileContentAt(first, "src/App.java", null, null)).satisfies(c -> {
+        assertThat(service.getFileContent(first, "src/App.java", null, null)).satisfies(c -> {
             assertThat(c.content()).isEqualTo("class App {\n    void one() {}\n}\n");
             assertThat(c.commit()).isEqualTo(first);
             assertThat(c.path()).isEqualTo("src/App.java");
@@ -71,8 +71,7 @@ class GitServiceCommitContentTest {
         runGit("rm", "-q", "src/App.java");
         commitAll("drop it");
 
-        assertThat(service.getFileContentAt(withFile, "src/App.java", null, null)
-                        .content())
+        assertThat(service.getFileContent(withFile, "src/App.java", null, null).content())
                 .isEqualTo("class App {\n    void one() {}\n}\n");
         assertThatThrownBy(() -> service.getFileContent("src/App.java")).isInstanceOf(IllegalArgumentException.class);
     }
@@ -85,12 +84,12 @@ class GitServiceCommitContentTest {
         String committed = head();
         write("docs/guide.md", "# Guide\n## Install\n## Uncommitted\n");
 
-        assertThat(service.getFileOutlineAt(committed, "docs/guide.md")).satisfies(o -> {
+        assertThat(service.getFileOutline(committed, "docs/guide.md")).satisfies(o -> {
             assertThat(o.parser()).isEqualTo("markdown");
             assertThat(o.lineCount()).isEqualTo(3);
             assertThat(o.symbols()).extracting(GitSymbol::signature).containsExactly("Guide", "Guide > Install");
         });
-        assertThat(service.getFileOutline("docs/guide.md").symbols())
+        assertThat(service.getFileOutline(null, "docs/guide.md").symbols())
                 .extracting(GitSymbol::signature)
                 .containsExactly("Guide", "Guide > Install", "Guide > Uncommitted");
     }
@@ -100,7 +99,7 @@ class GitServiceCommitContentTest {
         write("notes.txt", "plain\n");
         commitAll("notes");
 
-        assertThatThrownBy(() -> service.getFileOutlineAt(head(), "notes.txt"))
+        assertThatThrownBy(() -> service.getFileOutline(head(), "notes.txt"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unsupported language");
     }
@@ -114,18 +113,17 @@ class GitServiceCommitContentTest {
         runGit("tag", "v1", first);
 
         for (String rev : List.of(first.substring(0, 7), "HEAD~1", "v1", "  " + first + "  ")) {
-            assertThat(service.getFileContentAt(rev, "src/App.java", null, null))
-                    .satisfies(c -> {
-                        assertThat(c.commit()).isEqualTo(first);
-                        assertThat(c.content()).contains("void one()");
-                    });
+            assertThat(service.getFileContent(rev, "src/App.java", null, null)).satisfies(c -> {
+                assertThat(c.commit()).isEqualTo(first);
+                assertThat(c.content()).contains("void one()");
+            });
         }
     }
 
     /** Диапазон строк считается от начала файла в коммите — так же, как при чтении с диска. */
     @Test
     void aLineRangeIsServedFromTheCommittedFile() {
-        GitFileContent content = service.getFileContentAt(head(), "src/App.java", 2, 2);
+        GitFileContent content = service.getFileContent(head(), "src/App.java", 2, 2);
 
         assertThat(content.content()).isEqualTo("    void one() {}");
         assertThat(content.fromLine()).isEqualTo(2);
@@ -142,9 +140,9 @@ class GitServiceCommitContentTest {
         runGit("mv", "src/App.java", "src/Renamed.java");
         commitAll("rename");
 
-        assertThat(service.getFileContentAt(before, "src/App.java", null, null).content())
+        assertThat(service.getFileContent(before, "src/App.java", null, null).content())
                 .contains("void one()");
-        assertThatThrownBy(() -> service.getFileContentAt(before, "src/Renamed.java", null, null))
+        assertThatThrownBy(() -> service.getFileContent(before, "src/Renamed.java", null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("File not found in " + before);
     }
@@ -152,7 +150,7 @@ class GitServiceCommitContentTest {
     /** Каталог — не файл: содержимого, которое имело бы смысл показать, у него нет. */
     @Test
     void aDirectoryIsRefusedRatherThanServedAsAFile() {
-        assertThatThrownBy(() -> service.getFileContentAt(head(), "src", null, null))
+        assertThatThrownBy(() -> service.getFileContent(head(), "src", null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Not a file in");
     }
@@ -167,14 +165,14 @@ class GitServiceCommitContentTest {
         Files.createSymbolicLink(repoDir.resolve("links/readme.md"), Path.of("../src/App.java"));
         commitAll("links");
 
-        assertThatThrownBy(() -> service.getFileContentAt(head(), "links", null, null))
+        assertThatThrownBy(() -> service.getFileContent(head(), "links", null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Not a file in");
     }
 
     @Test
     void anUnknownRevisionIsRefused() {
-        assertThatThrownBy(() -> service.getFileContentAt("no-such-rev", "src/App.java", null, null))
+        assertThatThrownBy(() -> service.getFileContent("no-such-rev", "src/App.java", null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Commit not found");
     }
@@ -182,7 +180,7 @@ class GitServiceCommitContentTest {
     /** Путь наружу отвергается до всякого обращения к истории — как и в остальных чтениях. */
     @Test
     void aPathOutsideTheRepositoryIsRefused() {
-        assertThatThrownBy(() -> service.getFileContentAt(head(), "../outside.txt", null, null))
+        assertThatThrownBy(() -> service.getFileContent(head(), "../outside.txt", null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -192,7 +190,7 @@ class GitServiceCommitContentTest {
         writeBytes("logo.png", new byte[] {(byte) 0x89, 'P', 'N', 'G', 0, 0, 1});
         commitAll("add binary");
 
-        assertThat(service.getFileContentAt(head(), "logo.png", null, null)).satisfies(c -> {
+        assertThat(service.getFileContent(head(), "logo.png", null, null)).satisfies(c -> {
             assertThat(c.binary()).isTrue();
             assertThat(c.content()).isNull();
             assertThat(c.sizeBytes()).isEqualTo(7);
@@ -202,7 +200,7 @@ class GitServiceCommitContentTest {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private String head() {
-        return service.getCommitLog(1, null, false).getFirst().hash();
+        return service.getCommitLog(1, null, false).commits().getFirst().hash();
     }
 
     private void write(String relativePath, String content) {

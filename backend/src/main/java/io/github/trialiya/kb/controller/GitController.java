@@ -3,6 +3,7 @@ package io.github.trialiya.kb.controller;
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCapabilities;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
@@ -112,7 +113,7 @@ public class GitController {
         requireSafePath(path);
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.getFileContent(path, from, to) : git.getFileContentAt(at, path, from, to));
+        return read(() -> git.getFileContent(at, path, from, to));
     }
 
     /**
@@ -128,7 +129,7 @@ public class GitController {
         requireSafePath(path);
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.getBlame(path) : git.getBlameAt(at, path));
+        return read(() -> git.getBlame(at, path));
     }
 
     /**
@@ -143,7 +144,7 @@ public class GitController {
         requireSafePath(path);
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.getFileOutline(path) : git.getFileOutlineAt(at, path));
+        return read(() -> git.getFileOutline(at, path));
     }
 
     /**
@@ -153,12 +154,16 @@ public class GitController {
      * starts there instead of HEAD — the browser's revision mode asks for it, so the panel
      * describes a path by the history of the snapshot it shows.
      *
+     * <p>{@code truncated} here only says the page is full — more may follow — not that history
+     * really goes on: checking that walks on to one more commit, and along a path that can be the
+     * whole history, paid on every file the "Info" panel opens.
+     *
      * <p>{@code body} is opt-in because it scales with the page: one commit's message body is
      * nothing, twenty of them are the bulk of the response, and a caller that only prints subjects
      * would pay for it on every listing.
      */
     @GetMapping("/commits")
-    public List<GitCommit> getCommits(
+    public GitCommitSearchResult getCommits(
             @RequestParam(name = "path", required = false) @Nullable String path,
             @RequestParam(name = "limit", defaultValue = "20") int limit,
             @RequestParam(name = "body", defaultValue = "false") boolean body,
@@ -169,7 +174,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.getCommitLog(limit, path, body) : git.getCommitLog(limit, path, body, at));
+        return read(() -> git.getCommitLog(limit, path, body, at, false));
     }
 
     /**
@@ -225,30 +230,27 @@ public class GitController {
             @RequestParam("q") String query,
             @RequestParam(name = "limit", defaultValue = "10") int limit,
             @RequestParam(name = "project", required = false) @Nullable String project) {
-        String sanitized = query.strip();
-        if (sanitized.isBlank()) return new GitCommitSearchResult(List.of(), false);
-        return read(() -> git(project).searchCommits(sanitized, limit));
+        return read(() -> git(project).searchCommits(query, limit));
     }
 
     /**
      * Commit search for the search page: the subject and the description are both searched (plus a
-     * hash prefix), and each commit comes back with its description so the page can show the lines
-     * that matched. With {@code rev} the walk starts there instead of HEAD.
+     * hash prefix), and each commit comes back with where it matched — the lines of the description,
+     * as the file and document categories get theirs — not with the description itself. With {@code
+     * rev} the walk starts there instead of HEAD.
      *
      * <p>The answer says whether history was walked to its end: the walk is bounded, and an empty
      * result from a bounded walk is not the same as "nothing there".
      */
     @GetMapping("/commits/grep")
-    public GitCommitSearchResult grepCommits(
+    public GitCommitGrepResult grepCommits(
             @RequestParam("q") String query,
             @RequestParam(name = "limit", defaultValue = "50") int limit,
             @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
-        String sanitized = query.strip();
-        if (sanitized.isBlank()) return new GitCommitSearchResult(List.of(), false);
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> git.grepCommits(sanitized, limit, at));
+        return read(() -> git.grepCommits(query, limit, at));
     }
 
     /**
@@ -271,7 +273,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.browsePath(path, ancestors) : git.browsePathAt(at, path, ancestors));
+        return read(() -> git.browsePath(at, path, ancestors));
     }
 
     /**
@@ -298,7 +300,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        GitFileBytes file = read(() -> at == null ? git.getRawFile(path) : git.getRawFileAt(at, path));
+        GitFileBytes file = read(() -> git.getRawFile(at, path));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(mediaType))
                 .header(
@@ -346,7 +348,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> at == null ? git.getFileTree(path) : git.getFileTreeAt(at, path));
+        return read(() -> git.getFileTree(at, path));
     }
 
     /**

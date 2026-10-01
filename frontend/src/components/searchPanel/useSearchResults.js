@@ -5,6 +5,9 @@ import chatApi from '@/api/chatApi';
 import mergeFileHits from './mergeFileHits';
 import commitHits from './commitHits';
 
+/** Сколько коммитов просит категория «Коммиты»: по нему подпись отличает «уточните запрос» от «история досмотрена не вся». */
+const COMMIT_LIMIT = 50;
+
 /** Сколько файлов просить по имени: больше бэкенд всё равно не отдаст (потолок 50). */
 const NAME_LIMIT = 50;
 
@@ -92,7 +95,9 @@ export default function useSearchResults({ query, mode, path, project, rev, rege
   // Маска пути, регулярка и неотслеживаемые — фильтры содержимого файлов; на
   // историю из них влияют только репозиторий и ревизия.
   const commits = useAnswer(JSON.stringify([query, project, rev]), enabled, (signal) =>
-    gitApi.grepCommits(query, { rev, project, signal }).then((found) => commitHits(found, query)),
+    gitApi
+      .grepCommits(query, { limit: COMMIT_LIMIT, rev, project, signal })
+      .then((found) => commitHits(found, COMMIT_LIMIT)),
   );
   const docs = useAnswer(JSON.stringify([query, mode]), enabled, (signal) =>
     documentsApi.searchGrouped(query, mode, signal),

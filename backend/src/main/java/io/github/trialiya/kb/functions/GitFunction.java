@@ -145,7 +145,7 @@ public class GitFunction {
                     String project) {
         log.debug("getFileTree called: path='{}', project='{}'", path, project);
         GitService git = git(context, project);
-        List<GitFileNode> fileTree = git.getFileTree(path);
+        List<GitFileNode> fileTree = git.getFileTree(null, path);
         log.debug("getFileTree called: fileTree={}", fileTree);
         return answer(git, fileTree);
     }
@@ -155,7 +155,7 @@ public class GitFunction {
     /**
      * Returns recent commit history from the repository.
      *
-     * @param maxCount maximum number of commits to return (default 20, max 100)
+     * @param maxCount maximum number of commits to return (default 20, max {@value GitService#MAX_COMMITS})
      * @param filePath optional — show only commits that touched this file
      * @param query optional — only commits whose message (subject or description) contains it, or
      *     whose hash starts with it
@@ -164,11 +164,14 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Recent commit history (newest first). Commit: hash, shortHash, author, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set); \"truncated\": true means more matches may exist — one was found past maxCount, or the walk hit that bound before history ended — so an empty or short result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
+                    "Recent commit history (newest first). Commit: hash, shortHash, author, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set); \"truncated\": true means there is more — without query, history goes on past the last commit; with query, a match was found past maxCount or the walk hit that bound before history ended, so an empty or short result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
-            @ToolParam(description = "Maximum commits to return (1–100, default 20).", required = false) @Nullable
+            @ToolParam(
+                            description = "Maximum commits to return (1–" + GitService.MAX_COMMITS + ", default 20).",
+                            required = false)
+                    @Nullable
                     Integer maxCount,
             @ToolParam(
                             description =
@@ -209,9 +212,9 @@ public class GitFunction {
                 project);
         GitService git = git(context, project);
         if (query == null || query.isBlank()) {
-            List<GitCommit> commitLog = git.getCommitLog(limit, filePath, withBody);
+            GitCommitSearchResult commitLog = git.getCommitLog(limit, filePath, withBody);
             log.debug("getCommitLog called: commitLog={}", commitLog);
-            return answer(git, commitLog);
+            return answer(git, commitLog.commits(), commitLog.truncated());
         }
         GitCommitSearchResult found = git.searchCommitLog(query.strip(), limit, filePath, withBody);
         log.debug("getCommitLog called: found={}", found);
@@ -345,7 +348,7 @@ public class GitFunction {
         requireText(filePath, "filePath");
         log.debug("getFileOutline called: filePath='{}', project='{}'", filePath, project);
         GitService git = git(context, project);
-        GitFileOutline outline = git.getFileOutline(filePath);
+        GitFileOutline outline = git.getFileOutline(null, filePath);
         log.debug("getFileOutline called: outline={}", outline);
         return answer(git, outline);
     }
@@ -421,9 +424,7 @@ public class GitFunction {
                 commit,
                 project);
         GitService git = git(context, project);
-        GitFileContent fileContent = commit == null || commit.isBlank()
-                ? git.getFileContent(filePath, fromLine, toLine)
-                : git.getFileContentAt(commit, filePath, fromLine, toLine);
+        GitFileContent fileContent = git.getFileContent(commit, filePath, fromLine, toLine);
         log.debug("getFileContent called: fileContent='{}'", fileContent);
         return answer(git, fileContent);
     }

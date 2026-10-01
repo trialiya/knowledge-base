@@ -3,11 +3,14 @@ package io.github.trialiya.kb.tools;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
@@ -117,6 +120,10 @@ class ToolArgumentGapsTest {
             when(gitService.project())
                     .thenReturn(
                             new Project("kb", "KB", Path.of("/repo"), false, false, null, null, null, false, false));
+            // Пустая история, а не null: листинг коммитов — законный ответ на вызов без аргументов, и
+            // мок без него падал бы на чтении ответа, а не на пробеле в аргументах.
+            when(gitService.getCommitLog(anyInt(), any(), anyBoolean()))
+                    .thenReturn(new GitCommitSearchResult(List.of(), false));
             when(registry.forProject(any())).thenReturn(gitService);
             when(registry.requireEditable(any())).thenReturn(gitService);
             return registry;

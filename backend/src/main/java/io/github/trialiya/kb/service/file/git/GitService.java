@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
@@ -43,7 +44,6 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.StatusCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
@@ -110,6 +110,9 @@ public class GitService {
      * more, and the counter next to the branch keeps saying how many there really are.
      */
     private static final int MAX_OUTGOING = 100;
+
+    /** Most commits one history listing or search returns — what a larger {@code maxCount} is cut to. */
+    public static final int MAX_COMMITS = CommitSearch.MAX_RESULTS;
 
     private final Project project;
 
@@ -180,26 +183,36 @@ public class GitService {
         return project;
     }
 
+    /**
+     * The revision a read names, or {@code null} for the working tree. Every read that can look at
+     * either takes {@code rev} first: {@code null} and blank both mean "the working tree", so a
+     * caller passes what it was given without choosing a method for it.
+     */
+    private static @Nullable String snapshot(@Nullable String rev) {
+        return rev == null || rev.isBlank() ? null : rev;
+    }
+
     // ── File tree ────────────────────────────────────────────────────────────
 
     /**
      * Returns visible files/directories under {@code subPath} (or repo root if null), directories
      * first then alphabetically (case-insensitive): the tracked files from the Git index, plus —
      * when the project configures {@code allow-globs} — the untracked files those globs admit (see
-     * {@link VisibleFiles#paths()}).
+     * {@link VisibleFiles#paths()}). With {@code rev} — the same listing of that commit's tree: no
+     * uncommitted change reaches it, and a file deleted since is still there.
+     *
+     * @param rev the commit to list; {@code null} or blank — the working tree. Anything git reads as
+     *     a commit: a full or short hash, a branch, a tag, {@code HEAD~2}
+     * @throws IllegalArgumentException if the revision is unknown or ambiguous
      */
-    public List<GitFileNode> getFileTree(@Nullable String subPath) {
+    public List<GitFileNode> getFileTree(@Nullable String rev, @Nullable String subPath) {
+        String at = snapshot(rev);
+        if (at != null) return fileTreeAt(at, subPath);
         return RepoBrowse.tree(workingTree(visible.all()), RepoPaths.normalizeDir(subPath));
     }
 
-    /**
-     * The same listing as {@link #getFileTree(String)}, but of a commit's tree rather than the
-     * working tree: no uncommitted change reaches it, and a file deleted since is still there.
-     *
-     * @param rev anything git reads as a commit — a full or short hash, a branch, a tag, {@code
-     *     HEAD~2}
-     */
-    public List<GitFileNode> getFileTreeAt(@NonNull String rev, @Nullable String subPath) {
+    /** {@link #getFileTree} of a commit's tree. */
+    private List<GitFileNode> fileTreeAt(String rev, @Nullable String subPath) {
         try (CommitFiles.Commit commit = CommitFiles.Commit.open(repository, rev.strip())) {
             return listingAt(commit, RepoPaths.normalizeDir(subPath));
         }
@@ -225,21 +238,28 @@ public class GitService {
      * the listings of every directory from the repo root down to the path's parent, so the tree can
      * be expanded to it without walking the levels one request at a time.
      *
+     * <p>With {@code rev} — the same view of that commit's tree, what the browser's revision mode
+     * renders; see {@link #pathViewAt}.
+     *
+     * @param rev the commit to read; {@code null} or blank — the working tree
      * @param path path relative to repo root; null or blank means the root itself
      * @param includeAncestors whether to include the ancestor listings; a caller that already has
      *     them cached passes false and gets only the path itself
+     * @throws IllegalArgumentException if the revision is unknown or ambiguous
      */
-    public GitPathView browsePath(@Nullable String path, boolean includeAncestors) {
+    public GitPathView browsePath(@Nullable String rev, @Nullable String path, boolean includeAncestors) {
+        String at = snapshot(rev);
+        if (at != null) return pathViewAt(at, path, includeAncestors);
         String target = RepoPaths.normalizeDir(path);
         VisibleFiles.Visible files = visible.all();
         return RepoBrowse.browse(
-                workingTree(files), target, includeAncestors, tracked -> getFileContent(target, null, null, tracked));
+                workingTree(files), target, includeAncestors, tracked -> readContent(target, null, null, tracked));
     }
 
     /**
      * The same view of a commit's tree — what the file browser's revision mode renders.
      *
-     * <p>A separate entry point rather than a flag on {@link #browsePath}: the two answer from
+     * <p>A separate reading rather than a branch inside the working-tree one: the two answer from
      * different sources, and mixing them in one response is exactly the confusion the mode exists
      * to prevent. Whether the path is *visible* is not asked here — everything in a commit is
      * already the repository's published history, the same rule {@code getFileContent}'s {@code
@@ -248,7 +268,7 @@ public class GitService {
      * @param rev anything git reads as a commit — a full or short hash, a branch, a tag, {@code
      *     HEAD~2}
      */
-    public GitPathView browsePathAt(@NonNull String rev, @Nullable String path, boolean includeAncestors) {
+    private GitPathView pathViewAt(String rev, @Nullable String path, boolean includeAncestors) {
         String target = RepoPaths.normalizeDir(path);
         try (CommitFiles.Commit commit = CommitFiles.Commit.open(repository, rev.strip())) {
             CommitFiles.Entry entry = commit.entry(target);
@@ -311,43 +331,31 @@ public class GitService {
 
     // ── Commit history ───────────────────────────────────────────────────────
 
-    /** History from HEAD — {@link #getCommitLog(int, String, boolean, String)} of no revision. */
-    public List<GitCommit> getCommitLog(int maxCount, @Nullable String filePath, boolean includeBody) {
-        return getCommitLog(maxCount, filePath, includeBody, null);
+    /**
+     * History from HEAD with an exact {@code truncated} — the model's listing; see {@link
+     * #getCommitLog(int, String, boolean, String, boolean)}.
+     */
+    public GitCommitSearchResult getCommitLog(int maxCount, @Nullable String filePath, boolean includeBody) {
+        return getCommitLog(maxCount, filePath, includeBody, null, true);
     }
 
     /**
-     * Returns recent commit history.
+     * Recent commit history, newest first.
      *
-     * @param maxCount max commits to return (default 20, capped at 100)
+     * @param maxCount max commits to return (default 20, capped at {@value #MAX_COMMITS})
      * @param filePath optional — limit history to a specific file
      * @param includeBody fill each commit's {@code body} with the message below the subject
      * @param rev optional — walk from this revision instead of HEAD, so a browser showing a
      *     commit's snapshot describes its paths by the history of that snapshot: a commit made
      *     after {@code rev} did not touch what the snapshot holds
+     * @param exact whether {@code truncated} must say that history really goes on — at the price
+     *     of walking on to one more commit, which along a path can mean the whole history; without
+     *     it the walk stops at {@code maxCount} and {@code truncated} only says the page is full
+     * @return the commits with {@code truncated}
      */
-    public List<GitCommit> getCommitLog(
-            int maxCount, @Nullable String filePath, boolean includeBody, @Nullable String rev) {
-        int limit = Math.min(Math.max(maxCount, 1), 100);
-        try (ObjectReader reader = repository.newObjectReader()) {
-            var logCommand = git.log().setMaxCount(limit);
-            if (rev != null && !rev.isBlank()) {
-                logCommand.add(CommitFiles.commitOf(repository, rev.strip()));
-            }
-            if (filePath != null && !filePath.isBlank()) {
-                logCommand.addPath(RepoPaths.toForwardSlashes(filePath.strip()));
-            }
-            List<GitCommit> commits = new ArrayList<>();
-            for (RevCommit commit : logCommand.call()) {
-                commits.add(Diffs.toGitCommit(commit, null, reader, includeBody));
-            }
-            return commits;
-        } catch (NoHeadException e) {
-            // Repository has no commits yet — an empty history, not an error.
-            return List.of();
-        } catch (GitAPIException | IOException e) {
-            throw new IllegalStateException("Failed to read commit log", e);
-        }
+    public GitCommitSearchResult getCommitLog(
+            int maxCount, @Nullable String filePath, boolean includeBody, @Nullable String rev, boolean exact) {
+        return CommitSearch.log(repository, maxCount, new CommitSearch.Scope(false, includeBody, rev, filePath), exact);
     }
 
     /**
@@ -368,28 +376,26 @@ public class GitService {
         // Neither has anything to publish: a detached HEAD is not a branch, an unborn one has no
         // commits. The dialog says that instead of showing an empty list it cannot explain.
         if (status.detached() || status.unborn()) return List.of();
-        try (ObjectReader reader = repository.newObjectReader()) {
+        try (CommitWalk walk = new CommitWalk(repository)) {
             ObjectId head = repository.resolve(Constants.HEAD);
             if (head == null) return List.of();
-            var log = git.log().setMaxCount(limit);
+            walk.from(head);
             ObjectId upstream = status.upstream() == null ? null : repository.resolve(status.upstream());
             if (upstream == null) {
-                log.add(head);
                 for (Ref remote : repository.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES)) {
                     ObjectId id = remote.getObjectId();
-                    if (id != null) log.not(id);
+                    if (id != null) walk.exclude(id);
                 }
             } else {
-                log.addRange(upstream, head);
+                walk.exclude(upstream);
             }
             List<GitCommit> commits = new ArrayList<>();
-            for (RevCommit commit : log.call()) {
-                commits.add(Diffs.toGitCommit(commit, null, reader, false));
+            for (RevCommit commit : walk) {
+                if (commits.size() == limit) break;
+                commits.add(Diffs.toGitCommit(commit, null, walk.reader(), false));
             }
             return commits;
-        } catch (NoHeadException e) {
-            return List.of();
-        } catch (GitAPIException | IOException e) {
+        } catch (IOException e) {
             throw new IllegalStateException("Failed to read outgoing commits", e);
         }
     }
@@ -399,8 +405,8 @@ public class GitService {
      * newest first, walking from HEAD. The phrase placeholder picker's lookup; see {@link
      * CommitSearch} for how far back it looks.
      *
-     * @param query hash prefix or subject substring, already stripped and non-blank
-     * @param maxCount max commits to return, capped at 100
+     * @param query hash prefix or subject substring; blank — an empty answer
+     * @param maxCount max commits to return, capped at {@value #MAX_COMMITS}
      * @return the matches with {@code truncated}: the picker has to tell "no such commit" from "not
      *     that far back", and "these" from "the first of more"
      */
@@ -426,13 +432,13 @@ public class GitService {
 
     /**
      * Commits whose subject or description contains {@code query}, or whose hash starts with it,
-     * newest first, each with its description in {@link GitCommit#body()} — the search page shows
-     * where in the description the query was found.
+     * newest first, each with where it matched — the subject, the lines of the description, or the
+     * hash alone — rather than the description itself: the search page shows those places.
      *
      * @param rev optional — walk from this revision instead of HEAD
      */
-    public GitCommitSearchResult grepCommits(@NonNull String query, int maxCount, @Nullable String rev) {
-        return CommitSearch.search(repository, query, maxCount, new CommitSearch.Scope(true, true, rev, null));
+    public GitCommitGrepResult grepCommits(@NonNull String query, int maxCount, @Nullable String rev) {
+        return CommitSearch.grep(repository, query, maxCount, rev);
     }
 
     // ── Diff for commit(s) ──────────────────────────────────────────────────
@@ -588,16 +594,15 @@ public class GitService {
     // ── Line authorship ─────────────────────────────────────────────────────
 
     /**
-     * Who last changed each line of a tracked file in the working tree, with the revisions {@code
-     * .git-blame-ignore-revs} names skipped; see {@link GitBlameRunner#blame}.
+     * Who last changed each line of a file, with the revisions {@code .git-blame-ignore-revs} names
+     * skipped: of a tracked file in the working tree, or — with {@code rev} — of the file as of
+     * that commit; see {@link GitBlameRunner#blame} and {@link GitBlameRunner#blameAt}.
+     *
+     * @param rev the commit to read; {@code null} or blank — the working tree
      */
-    public GitFileBlame getBlame(@NonNull String filePath) {
-        return blame.blame(normalizePath(filePath));
-    }
-
-    /** {@link #getBlame} of the file as of a commit; see {@link GitBlameRunner#blameAt}. */
-    public GitFileBlame getBlameAt(@NonNull String commitHash, @NonNull String filePath) {
-        return blame.blameAt(commitHash, normalizePath(filePath));
+    public GitFileBlame getBlame(@Nullable String rev, @NonNull String filePath) {
+        String at = snapshot(rev);
+        return at == null ? blame.blame(normalizePath(filePath)) : blame.blameAt(at, normalizePath(filePath));
     }
 
     // ── File content ────────────────────────────────────────────────────────
@@ -623,13 +628,19 @@ public class GitService {
      * of the whole thing. When omitted, the full file is returned, except oversized files (&gt; 512
      * KB) which return a head+tail excerpt with {@code truncated=true}.
      *
+     * <p>With {@code rev} — the file as of that commit; see {@link #fileContentAt}.
+     *
+     * @param rev the commit to read; {@code null} or blank — the working tree
      * @param filePath path relative to repo root
      * @param fromLine first line to return (1-based, inclusive); null for start of file
      * @param toLine last line to return (1-based, inclusive); null for end of file
      */
     public GitFileContent getFileContent(
-            @NonNull String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
-        return getFileContent(filePath, fromLine, toLine, null);
+            @Nullable String rev, @NonNull String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
+        String at = snapshot(rev);
+        return at == null
+                ? readContent(filePath, fromLine, toLine, null)
+                : fileContentAt(at, filePath, fromLine, toLine);
     }
 
     /**
@@ -638,19 +649,16 @@ public class GitService {
      *     redundant {@link VisibleFiles#require} re-check that would otherwise re-read the index,
      *     and answers the returned {@code tracked} with what that index said.
      */
-    private GitFileContent getFileContent(
-            @NonNull String filePath,
-            @Nullable Integer fromLine,
-            @Nullable Integer toLine,
-            @Nullable Boolean vouchedTracked) {
+    private GitFileContent readContent(
+            String filePath, @Nullable Integer fromLine, @Nullable Integer toLine, @Nullable Boolean vouchedTracked) {
         FileBytes fb = readTrackedFile(filePath, vouchedTracked);
         return FileViews.of(fb.path(), fb.tracked(), null, fb.bytes(), fb.size(), fromLine, toLine);
     }
 
     /**
-     * The same file as {@link #getFileContent(String, Integer, Integer)}, as of a commit — {@code
-     * git show <rev>:<path>}. Reads the commit's tree, never the working copy, so an uncommitted
-     * edit on disk does not show through and a file deleted since that commit still reads.
+     * The file as of a commit — {@code git show <rev>:<path>}. Reads the commit's tree, never the
+     * working copy, so an uncommitted edit on disk does not show through and a file deleted since
+     * that commit still reads.
      *
      * <p>Serves whatever the commit holds, without the working-tree gate {@code getFileContent}
      * applies: a path in a commit is committed history by definition, and {@link #getCommitDiff}
@@ -666,11 +674,8 @@ public class GitService {
      *     file at that path, or the object there is too large to read at all (32 MB — a blob that
      *     size is an artefact somebody committed, not source)
      */
-    public GitFileContent getFileContentAt(
-            @NonNull String commitHash,
-            @NonNull String filePath,
-            @Nullable Integer fromLine,
-            @Nullable Integer toLine) {
+    private GitFileContent fileContentAt(
+            String commitHash, String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
         String normalized = normalizePath(filePath);
         CommitFiles.Blob blob = CommitFiles.read(repository, commitHash.strip(), normalized);
         return FileViews.of(normalized, true, blob.commit(), blob.bytes(), blob.size(), fromLine, toLine);
@@ -678,7 +683,7 @@ public class GitService {
 
     /** Convenience overload: full file, no range. */
     public GitFileContent getFileContent(@NonNull String filePath) {
-        return getFileContent(filePath, null, null);
+        return getFileContent(null, filePath, null, null);
     }
 
     /**
@@ -690,26 +695,24 @@ public class GitService {
      * #getFileContent} does, and says which it answered about in the outline's {@code tracked}
      * field.
      *
+     * <p>With {@code rev} — the outline of the file as of that commit, read from the commit's tree
+     * on the terms of {@link #fileContentAt}.
+     *
+     * @param rev the commit to read; {@code null} or blank — the working tree
      * @param filePath path relative to repo root
      * @throws IllegalArgumentException if the file is binary or its language is not supported for
-     *     outlining ({@link OutlineService#supportedLanguages})
+     *     outlining ({@link OutlineService#supportedLanguages}), or — with {@code rev} — the revision
+     *     is unknown or holds no such file
      */
-    public GitFileOutline getFileOutline(@NonNull String filePath) {
+    public GitFileOutline getFileOutline(@Nullable String rev, @NonNull String filePath) {
+        String at = snapshot(rev);
+        if (at != null) {
+            String normalized = normalizePath(filePath);
+            CommitFiles.Blob blob = CommitFiles.read(repository, at.strip(), normalized);
+            return FileOutlines.of(outlineService, normalized, true, blob.bytes());
+        }
         FileBytes fb = readTrackedFile(filePath);
         return FileOutlines.of(outlineService, fb.path(), fb.tracked(), fb.bytes());
-    }
-
-    /**
-     * The same outline as {@link #getFileOutline}, of the file as of a commit — read from the
-     * commit's tree on the terms of {@link #getFileContentAt}.
-     *
-     * @throws IllegalArgumentException if the revision is unknown, the commit holds no file at that
-     *     path, or the file is binary or in a language the outline does not support
-     */
-    public GitFileOutline getFileOutlineAt(@NonNull String commitHash, @NonNull String filePath) {
-        String normalized = normalizePath(filePath);
-        CommitFiles.Blob blob = CommitFiles.read(repository, commitHash.strip(), normalized);
-        return FileOutlines.of(outlineService, normalized, true, blob.bytes());
     }
 
     // ── Bytes (binary files included) ───────────────────────────────────────
@@ -780,9 +783,15 @@ public class GitService {
      * pulling it into memory — a repository holds artefacts as well as sources, and the caller gets
      * a refusal it can show instead of a browser hanging on a video-sized blob.
      *
-     * @throws IllegalArgumentException if the file is bigger than that limit
+     * <p>With {@code rev} — the file as of that commit; see {@link #rawFileAt}.
+     *
+     * @param rev the commit to read; {@code null} or blank — the working tree
+     * @throws IllegalArgumentException if the file is bigger than that limit, or — with {@code rev}
+     *     — the revision is unknown or holds no such file
      */
-    public GitFileBytes getRawFile(@NonNull String filePath) {
+    public GitFileBytes getRawFile(@Nullable String rev, @NonNull String filePath) {
+        String at = snapshot(rev);
+        if (at != null) return rawFileAt(at, filePath);
         String normalized = normalizePath(filePath);
         Path absolute = visible.require(normalized).absolute();
         long size = RepoFiles.sizeOf(normalized, absolute);
@@ -792,14 +801,14 @@ public class GitService {
     }
 
     /**
-     * The same file as {@link #getRawFile}, as of a commit — {@code git show <rev>:<path>}, so a
-     * snapshot of a revision shows the picture that revision holds and not the one on disk.
+     * The file as of a commit — {@code git show <rev>:<path>}, so a snapshot of a revision shows the
+     * picture that revision holds and not the one on disk.
      *
      * @param rev any revision git resolves: a full or short hash, a branch, a tag, {@code HEAD~2}
      * @throws IllegalArgumentException if the revision is unknown, holds no such file, or the file
      *     there is bigger than {@value #MAX_RAW_FILE_SIZE} bytes
      */
-    public GitFileBytes getRawFileAt(@NonNull String rev, @NonNull String filePath) {
+    private GitFileBytes rawFileAt(String rev, String filePath) {
         String normalized = normalizePath(filePath);
         // Предел уходит внутрь чтения: размер объекта известен до того, как он поднят в память, и
         // отказать по уже прочитанным байтам значило бы заплатить ровно то, ради чего предел есть.
@@ -1151,7 +1160,7 @@ public class GitService {
      * does right after its permission check, at no second index read.
      */
     public GitFileContent getFileContent(@NonNull EditableFile file) {
-        return getFileContent(file.path(), null, null, file.tracked());
+        return readContent(file.path(), null, null, file.tracked());
     }
 
     /**

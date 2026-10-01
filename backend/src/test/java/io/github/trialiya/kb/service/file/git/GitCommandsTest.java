@@ -142,7 +142,7 @@ class GitCommandsTest {
 
         assertThat(result.output()).startsWith("Committed ");
         assertThat(service.branchStatus().dirty()).isFalse();
-        GitCommit head = service.getCommitLog(1, null, false).getFirst();
+        GitCommit head = service.getCommitLog(1, null, false).commits().getFirst();
         assertThat(head.message()).isEqualTo("second");
         // Хеш — полный и того самого коммита: по нему ряд чата ссылается на коммит.
         assertThat(result.commit()).isEqualTo(head.hash());
@@ -174,7 +174,8 @@ class GitCommandsTest {
         GitCommandResult result = service.commit("only the readme", List.of("README.md"));
 
         assertThat(result.output()).startsWith("Committed ");
-        assertThat(service.getCommitLog(1, null, false).getFirst().message()).isEqualTo("only the readme");
+        assertThat(service.getCommitLog(1, null, false).commits().getFirst().message())
+                .isEqualTo("only the readme");
         // Файлы остались на месте и по-прежнему незакоммичены — их коммит впереди.
         assertThat(service.branchStatus().dirty()).isTrue();
         assertThat(changedPaths()).containsExactlyInAnyOrder("staged.txt", "other.txt");
@@ -194,7 +195,7 @@ class GitCommandsTest {
         assertThat(changedPaths()).containsExactly("README.md");
         // Удаление уехало в историю, а не просто пропало из незакоммиченных: по пути видны
         // оба его коммита и ни одного чужого.
-        assertThat(service.getCommitLog(10, "gone.txt", false))
+        assertThat(service.getCommitLog(10, "gone.txt", false).commits())
                 .extracting(GitCommit::message)
                 .containsExactly("drop it", "add gone");
     }
@@ -218,7 +219,7 @@ class GitCommandsTest {
         assertThat(read("report.html")).isEqualTo("build output\n");
         write("README.md", "changed\n");
         service.commit("only the readme");
-        assertThat(service.getCommitLog(1, "report.html", false)).isEmpty();
+        assertThat(service.getCommitLog(1, "report.html", false).commits()).isEmpty();
     }
 
     /** Каталог в выборе — то же расширение «на всё, что под ним», которое запрещает discard. */
@@ -255,7 +256,7 @@ class GitCommandsTest {
         service.commit("odd name", List.of("docs/a,b (draft)'s.md"));
 
         assertThat(changedPaths()).isEmpty();
-        assertThat(service.getCommitLog(1, "docs/a,b (draft)'s.md", false))
+        assertThat(service.getCommitLog(1, "docs/a,b (draft)'s.md", false).commits())
                 .extracting(GitCommit::message)
                 .containsExactly("odd name");
     }

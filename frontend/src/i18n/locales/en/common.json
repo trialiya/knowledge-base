@@ -113,5 +113,10 @@
     "loading": "Loading…",
     "loadError": "Could not read the list of revisions",
     "empty": "No branches, no tags"
+  },
+  "commitSearch": {
+    "refine": "Not all matches shown — refine the query",
+    "olderNotSearched": "Older commits were not searched",
+    "nothingInSearched": "Nothing in the searched part of history — older commits were not searched"
   }
 }

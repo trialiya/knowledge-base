@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -59,18 +60,19 @@ class GitFunctionTest {
         when(billing.project())
                 .thenReturn(new Project(
                         "billing", "Billing", Path.of("/repo"), false, false, null, null, null, false, false));
-        when(billing.getFileContent(anyString(), any(), any()))
+        when(billing.getFileContent(isNull(), anyString(), any(), any()))
                 .thenReturn(new GitFileContent(
                         "pom.xml", true, null, "<project/>", false, 10, "xml", 1, false, null, null));
         when(billing.grepHits(anyString(), any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean()))
                 .thenReturn(new GitGrepHits(List.of(new GitGrepMatch("pom.xml", 1, "<project/>")), true));
-        when(billing.getFileTree(any()))
+        when(billing.getFileTree(isNull(), any()))
                 .thenReturn(List.of(new GitFileNode("src", "src", FileEntryType.DIRECTORY, null)));
         when(billing.searchFiles(anyString(), anyInt()))
                 .thenReturn(List.of(new GitFileNode("pom.xml", "pom.xml", FileEntryType.FILE, 10L)));
-        when(billing.getFileOutline(anyString()))
+        when(billing.getFileOutline(isNull(), anyString()))
                 .thenReturn(new GitFileOutline("Foo.java", true, "java", 10, "regex", List.of()));
-        when(billing.getCommitLog(anyInt(), any(), anyBoolean())).thenReturn(List.of(commit()));
+        when(billing.getCommitLog(anyInt(), any(), anyBoolean()))
+                .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
         when(billing.searchCommitLog(anyString(), anyInt(), any(), anyBoolean()))
                 .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
@@ -187,23 +189,26 @@ class GitFunctionTest {
     }
 
     /**
-     * Один инструмент читает два разных источника, и выбирает их по {@code commit}. Пустая строка
-     * здесь значит то же, что пропущенный аргумент: модель, заполнившая поле впустую, должна
-     * получить рабочее дерево, а не отказ на «no such rev».
+     * Один инструмент читает два разных источника: {@code commit} уходит в сервис как есть, и
+     * источник выбирает сервис. Пустая строка там значит то же, что пропущенный аргумент, —
+     * рабочее дерево, а не отказ на «no such rev» (GitServiceTest).
      */
     @Test
     void theCommitArgumentSwitchesTheReadFromTheWorkingTreeToThatCommitsTree() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
-        when(billing.getFileContentAt(anyString(), anyString(), any(), any()))
+        when(billing.getFileContent(anyString(), anyString(), any(), any()))
                 .thenReturn(new GitFileContent(
                         "pom.xml", true, "abc1234def", "<project/>", false, 10, "xml", 1, false, null, null));
 
         function.getFileContent(context, "pom.xml", 1, 5, "abc1234", null);
-        verify(billing).getFileContentAt("abc1234", "pom.xml", 1, 5);
+        verify(billing).getFileContent("abc1234", "pom.xml", 1, 5);
 
+        // Пустая ревизия — тоже рабочее дерево; так её читает сам сервис (GitServiceTest), а
+        // инструмент передаёт что получил.
         function.getFileContent(context, "pom.xml", null, null, "  ", null);
+        verify(billing).getFileContent("  ", "pom.xml", null, null);
         function.getFileContent(context, "pom.xml", null, null, null, null);
-        verify(billing, times(2)).getFileContent("pom.xml", null, null);
+        verify(billing).getFileContent(null, "pom.xml", null, null);
     }
 
     /**
@@ -267,16 +272,16 @@ class GitFunctionTest {
     }
 
     /**
-     * Обход истории ограничен, поэтому ответ на поиск говорит, дошёл ли он до конца, — а простое
-     * листание, у которого предел назван в параметре, этого поля не несёт вовсе.
+     * И поиск, и простое листание говорят, дошли ли до конца: просьба о двухстах коммитах даёт сто,
+     * и без признака модель прочла бы сотый как самый старый.
      */
     @Test
-    void aSearchThroughMessagesSaysWhetherItWasCutShort() {
+    void bothSearchAndListingSayWhetherTheyWereCutShort() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
         assertThat(function.getCommitLog(context, 5, null, "retry", null, null).truncated())
                 .isTrue();
         assertThat(function.getCommitLog(context, 5, null, null, null, null).truncated())
-                .isNull();
+                .isTrue();
     }
 }
