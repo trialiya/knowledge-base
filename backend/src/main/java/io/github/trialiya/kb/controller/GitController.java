@@ -98,11 +98,7 @@ public class GitController {
         if (pathGlob != null && !pathGlob.isBlank()) requireSafePath(pathGlob);
         GitService git = git(project);
         @Nullable String revision = revision(rev);
-        try {
-            return read(() -> git.grepPage(query, pathGlob, regex, revision, untracked, limit));
-        } catch (GitReadTimeoutException e) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
-        }
+        return read(() -> git.grepPage(query, pathGlob, regex, revision, untracked, limit));
     }
 
     /** File content for chip preview/expansion; {@code from}/{@code to} are 1-based inclusive. */
@@ -132,11 +128,7 @@ public class GitController {
         requireSafePath(path);
         GitService git = git(project);
         String at = revision(rev);
-        try {
-            return read(() -> at == null ? git.getBlame(path) : git.getBlameAt(at, path));
-        } catch (GitReadTimeoutException e) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
-        }
+        return read(() -> at == null ? git.getBlame(path) : git.getBlameAt(at, path));
     }
 
     /**
@@ -430,12 +422,17 @@ public class GitController {
      *
      * <p>Через него идёт каждое чтение, а не только чтение по ревизии: ошибиться в имени можно в
      * любом из них, а незавёрнутое обещало бы «внутреннюю ошибку» там, где сервер здоров.
+     *
+     * <p>Чтение, которое git не успел закончить (grep, blame на большом файле), — {@code 503}: сервер
+     * здоров, а ответ просто дороже отведённого на него времени.
      */
     private static <T> T read(Supplier<T> answer) {
         try {
             return answer.get();
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
+        } catch (GitReadTimeoutException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e);
         }
     }
 

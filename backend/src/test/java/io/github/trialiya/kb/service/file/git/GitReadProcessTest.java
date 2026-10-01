@@ -15,9 +15,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The line ceiling of a git run: what counts as cut is what the search's {@code truncated} is built
- * on, so output exactly as long as the ceiling must read as complete — only a line past it says
- * git had more.
+ * What one git run hands back. The line ceiling: what counts as cut is what the search's {@code
+ * truncated} is built on, so output exactly as long as the ceiling must read as complete — only a
+ * line past it says git had more. The exit code: up to the caller's limit an answer, above it a
+ * failure that carries what git said.
  */
 class GitReadProcessTest {
 

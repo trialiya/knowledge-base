@@ -132,6 +132,15 @@ class GitControllerTest {
                 .andExpect(status().isServiceUnavailable());
     }
 
+    /** Поиск, который git не закончил в срок, — тот же 503, что у blame: оба идут через read(). */
+    @Test
+    void aGrepTimeoutIsUnavailable() throws Exception {
+        when(git.grepPage("slow", null, false, null, false, 200))
+                .thenThrow(new GitReadTimeoutException("git grep did not finish"));
+
+        mockMvc.perform(get("/api/git/grep").param("q", "slow")).andExpect(status().isServiceUnavailable());
+    }
+
     /** Коммит без ревизии не назван вовсе: «рабочее дерево» у этого запроса не ответ. */
     @Test
     void aCommitWithoutRevisionIsABadRequest() throws Exception {

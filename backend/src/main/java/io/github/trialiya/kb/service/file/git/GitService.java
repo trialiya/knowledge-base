@@ -513,10 +513,8 @@ public class GitService {
             RevCommit commit = revWalk.parseCommit(CommitFiles.commitOf(repository, hash));
             RevCommit parent = commit.getParentCount() > 0 ? revWalk.parseCommit(commit.getParent(0)) : null;
 
-            // No parent (root commit) → diff against the empty tree, equivalent to `git diff-tree
-            // --root`. Native git's diff-tree needs that flag explicitly and getCommitDiff never
-            // passed it, so the very first commit of a repo used to come back with an empty files
-            // list — fixed here, since it's the natural (and simpler) way to express it in JGit.
+            // No parent (root commit) → diff against the empty tree, as `git diff-tree --root`
+            // does: without it the very first commit of a repo shows no files at all.
             AbstractTreeIterator oldTree = parent == null ? new EmptyTreeIterator() : treeIterator(reader, parent);
             AbstractTreeIterator newTree = treeIterator(reader, commit);
 
