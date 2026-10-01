@@ -3,9 +3,7 @@ import { createPortal } from 'react-dom';
 import useFilePreview from './useFilePreview';
 import useLinkTooltip, { isBrowserClick } from './useLinkTooltip';
 import FilePreviewTooltip from './FilePreviewTooltip';
-import FileFullscreenModal from './FileFullscreenModal';
 import FilePreviewModal from './FilePreviewModal';
-import gitApi from '@/api/gitApi';
 import { navigateToFile } from '@/navigation/fileNavigationBus';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
 import { filesUrl } from '@/navigation/urlScheme';
@@ -23,8 +21,9 @@ import { filesUrl } from '@/navigation/urlScheme';
  */
 const FileLink = ({ fileLink, children, ...rest }) => {
   const { path, rev, fromLine, toLine } = fileLink;
-  const [fullscreen, setFullscreen] = useState(null); // { node, loading, error } | null
-  const [previewOpen, setPreviewOpen] = useState(false);
+  // Модалка файла: `range` — по клику на саму ссылку (её строки), `whole` — по
+  // «развернуть» в карточке (она показывает голову файла, развёрнутый вид — его целиком).
+  const [modal, setModal] = useState(null); // 'range' | 'whole' | null
   const { visible, pos, linkRef, tooltipRef, calcPos, onMouseEnter, onMouseLeave, keepOpen, hide } = useLinkTooltip();
 
   // Два написания одного и того же проекта не должны разъезжаться. В АДРЕС идёт
@@ -50,7 +49,7 @@ const FileLink = ({ fileLink, children, ...rest }) => {
       if (isBrowserClick(e)) return;
       e.preventDefault();
       hide();
-      setPreviewOpen(true);
+      setModal('range');
     },
     [hide],
   );
@@ -63,15 +62,10 @@ const FileLink = ({ fileLink, children, ...rest }) => {
     navigateToFile(path, project, { rev: rev || '', changes: false });
   }, [hide, path, project, rev]);
 
-  // Карточка показывает только голову файла, развёрнутый вид — его целиком.
-  const openFullscreen = useCallback(() => {
+  const openWhole = useCallback(() => {
     hide();
-    setFullscreen({ node: null, loading: true, error: false });
-    gitApi
-      .getFileContent(path, { rev: rev || undefined, project: projectResolved })
-      .then((node) => setFullscreen((cur) => cur && { node, loading: false, error: false }))
-      .catch(() => setFullscreen((cur) => cur && { node: null, loading: false, error: true }));
-  }, [hide, path, rev, projectResolved]);
+    setModal('whole');
+  }, [hide]);
 
   return (
     <>
@@ -100,31 +94,19 @@ const FileLink = ({ fileLink, children, ...rest }) => {
             onMouseEnter={keepOpen}
             onMouseLeave={onMouseLeave}
             onOpen={openInFilesPanel}
-            onExpand={openFullscreen}
+            onExpand={openWhole}
           />,
           document.body,
         )}
 
-      {previewOpen && (
+      {modal && (
         <FilePreviewModal
           path={path}
           project={project}
           rev={rev}
-          fromLine={fromLine}
-          toLine={toLine}
-          onClose={() => setPreviewOpen(false)}
-        />
-      )}
-
-      {fullscreen && (
-        <FileFullscreenModal
-          path={path}
-          file={fullscreen.node}
-          project={project}
-          rev={rev}
-          loading={fullscreen.loading}
-          error={fullscreen.error}
-          onClose={() => setFullscreen(null)}
+          fromLine={modal === 'range' ? fromLine : undefined}
+          toLine={modal === 'range' ? toLine : undefined}
+          onClose={() => setModal(null)}
         />
       )}
     </>

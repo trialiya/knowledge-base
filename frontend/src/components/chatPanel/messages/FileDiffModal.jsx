@@ -1,55 +1,23 @@
-import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { fetchContent } from '../composer/fileChips';
 import ModalShell from '@/components/common/modal/ModalShell';
+import useFileContent from '@/components/common/preview/useFileContent';
+import FileView from '@/components/filesPanel/FileView';
 import { IconX } from '@/icons/index';
 import '@/components/common/ui/buttons.css';
 import { DiffLines, DiffStats } from './diffRender';
 import { filesUrl } from '@/navigation/urlScheme';
 import '../styles/file-changes.css';
 
-const isMarkdownPath = (path) => /\.mdx?$/i.test(path || '');
-
 /**
  * Один изменённый ответом ИИ файл крупным планом: diff'ы всех правок этого файла из данного
- * ответа, а у созданного файла (diff'а у него нет) — его текущее содержимое.
+ * ответа, а у созданного файла (diff'а у него нет) — его текущее содержимое, тем же FileView,
+ * что и в «Файлах» (с номерами строк и переключателем разметки у markdown). Содержимое читается
+ * мимо кэша чипов: файл после ответа могли править, а показать нужно то, что лежит сейчас.
  */
 const FileDiffModal = ({ change, project, onClose }) => {
   const { t } = useTranslation('chat');
-  const isMd = isMarkdownPath(change.path);
-  const [mdView, setMdView] = useState(false);
   const showsContent = change.diffs.length === 0;
-  // Ответ сервера; null — запрос ещё идёт. `loading`/`error` выводятся из него
-  // при рендере, а сброс на смену файла делается тут же — эффект показал бы
-  // кадр с содержимым предыдущего.
-  const [answer, setAnswer] = useState(null); // { content, error } | null
-
-  const [req, setReq] = useState({ path: change.path, project, showsContent });
-  if (req.path !== change.path || req.project !== project || req.showsContent !== showsContent) {
-    setReq({ path: change.path, project, showsContent });
-    setAnswer(null);
-  }
-
-  useEffect(() => {
-    if (!showsContent) return undefined;
-    let cancelled = false;
-    fetchContent(change.path, { project })
-      .then((data) => {
-        if (!cancelled) setAnswer({ content: data, error: false });
-      })
-      .catch(() => {
-        if (!cancelled) setAnswer({ content: null, error: true });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [change.path, project, showsContent]);
-
-  const loading = showsContent && answer === null;
-  const content = answer?.content ?? null;
-  const error = answer?.error ?? false;
+  const { file, loading, error } = useFileContent({ path: change.path, project, enabled: showsContent });
 
   return (
     <ModalShell onClose={onClose} className="file-diff-modal">
@@ -57,17 +25,6 @@ const FileDiffModal = ({ change, project, onClose }) => {
         <span className="file-diff-modal__title" title={change.path}>
           {change.path} <DiffStats additions={change.additions} deletions={change.deletions} />
         </span>
-        {isMd && (
-          <button
-            type="button"
-            className="btn btn--ghost btn--xs"
-            aria-pressed={mdView}
-            onClick={() => setMdView((v) => !v)}
-            title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
-          >
-            {mdView ? '{ }' : '👁'}
-          </button>
-        )}
         <a
           className="file-diff-modal__open-link"
           href={filesUrl(change.path, project)}
@@ -81,29 +38,15 @@ const FileDiffModal = ({ change, project, onClose }) => {
         </button>
       </div>
       <div className="file-diff-modal__body">
-        {change.diffs.length === 0 ? (
+        {showsContent ? (
           <>
             {loading && <div className="file-diff-modal__empty">{t('loading')}</div>}
             {!loading && error && <div className="file-diff-modal__empty">{t('fileChange.loadError')}</div>}
-            {!loading && !error && content?.binary && (
-              <div className="file-diff-modal__empty">{t('fileChips.binaryFile')}</div>
-            )}
-            {!loading && !error && content && !content.binary && (
-              <>
-                {mdView ? (
-                  <div className="file-diff-modal__md-preview">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.content || ''}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <pre className="file-diff-modal__diff file-diff-modal__content">{content.content || ''}</pre>
-                )}
-              </>
-            )}
+            {!loading && !error && file && <FileView file={file} path={change.path} project={project ?? ''} />}
           </>
         ) : (
           change.diffs.map((diff, i) => (
             // Индекс как key безопасен: список diff'ов иммутабелен в рамках открытой модалки.
-
             <pre key={i} className="file-diff-modal__diff">
               <DiffLines patch={diff} />
             </pre>

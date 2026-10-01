@@ -1,18 +1,17 @@
-import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import gitApi from '@/api/gitApi';
 import FileView from '@/components/filesPanel/FileView';
 import ModalShell from '@/components/common/modal/ModalShell';
 import '@/components/common/ui/buttons.css';
 import { IconX } from '@/icons/index';
 import RevPath from './RevPath';
+import useFileContent from './useFileContent';
 
 /**
- * Read-only file preview modal opened from a chat file link (`/files?path=...`) — shows the
- * file's content without leaving the chat / navigating to FilesPanel. Reuses the
- * `.file-preview-modal`/`.fs-editor*` chrome already styled for ChipEditor's chip preview
- * (chatWindow.css), but renders FileView (language badge, size, line count, binary placeholder,
- * line-numbered code) instead of a plain `<pre>`, since this modal has no path-only mode toggle.
+ * Read-only file preview modal opened from a file link (`/files?path=...`) — shows the
+ * file's content without leaving the chat / navigating to FilesPanel: the range a `#Lx-Ly`
+ * link names, or the whole file (the link card's «expand»). The `.file-preview-modal` /
+ * `.fs-editor*` chrome is shared with ChipEditor's chip preview, and so is the renderer —
+ * FileView (language badge, size, line count, binary placeholder, line-numbered code).
  *
  * props:
  *   path              — repo-relative file path
@@ -22,41 +21,7 @@ import RevPath from './RevPath';
  */
 const FilePreviewModal = ({ path, project, rev = null, fromLine, toLine, onClose }) => {
   const { t } = useTranslation('files');
-  // Ответ сервера; null — запрос ещё идёт. Отдельного `loading` нет: он выводится
-  // из ответа, а сброс на смену файла делается в рендере, чтобы кадра с
-  // содержимым предыдущего файла не было.
-  const [answer, setAnswer] = useState(null); // { file, error } | null
-
-  const [req, setReq] = useState({ path, project, rev, fromLine, toLine });
-  if (
-    req.path !== path ||
-    req.project !== project ||
-    req.rev !== rev ||
-    req.fromLine !== fromLine ||
-    req.toLine !== toLine
-  ) {
-    setReq({ path, project, rev, fromLine, toLine });
-    setAnswer(null);
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    gitApi
-      .getFileContent(path, { from: fromLine, to: toLine, rev: rev || undefined, project })
-      .then((result) => {
-        if (!cancelled) setAnswer({ file: result, error: false });
-      })
-      .catch(() => {
-        if (!cancelled) setAnswer({ file: null, error: true });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [path, project, rev, fromLine, toLine]);
-
-  const loading = answer === null;
-  const file = answer?.file ?? null;
-  const error = answer?.error ?? false;
+  const { file, loading, error } = useFileContent({ path, project, rev, from: fromLine, to: toLine });
 
   const name = path.slice(path.lastIndexOf('/') + 1);
 
