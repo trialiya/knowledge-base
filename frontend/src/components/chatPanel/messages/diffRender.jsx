@@ -22,7 +22,8 @@ const HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
  *
  * Номер один на строку, а не пара «было/стало»: у удалённой строки он из
  * старого файла, у остальных — из нового. `null` — строке номера не положено:
- * шапка, сам заголовок ханка, `\ No newline at end of file`.
+ * шапка, сам заголовок ханка, `\ No newline at end of file`. `skip` — служебная
+ * строка git внутри патча (шапка, заголовок ханка, это примечание): Ctrl+F её не ищет.
  */
 const parseLines = (lines) => {
   let inHunk = false;
@@ -37,7 +38,7 @@ const parseLines = (lines) => {
       // ханку номеров не будет вовсе, лучше их отсутствие, чем выдуманные.
       oldNo = hunk ? Number(hunk[1]) : 0;
       newNo = hunk ? Number(hunk[2]) : 0;
-      return { cls: 'diff-line diff-line--hunk', no: null };
+      return { cls: 'diff-line diff-line--hunk', no: null, skip: true };
     }
     // Патч на несколько файлов: со следующего `diff --git` снова идёт шапка,
     // и отсчёт начинается заново с его первого ханка.
@@ -47,11 +48,12 @@ const parseLines = (lines) => {
       newNo = 0;
     }
 
-    if (!inHunk && META.test(line)) return { cls: 'diff-line diff-line--meta', no: null };
+    if (!inHunk && META.test(line)) return { cls: 'diff-line diff-line--meta', no: null, skip: true };
     if (line.startsWith('+')) return { cls: 'diff-line diff-line--add', no: newNo ? newNo++ : null, sign: true };
     if (line.startsWith('-')) return { cls: 'diff-line diff-line--del', no: oldNo ? oldNo++ : null, sign: true };
     // `\ No newline…` — примечание git о самом файле, а не строка в нём.
-    if (!inHunk || line.startsWith('\\')) return { cls: 'diff-line', no: null };
+    if (line.startsWith('\\') && inHunk) return { cls: 'diff-line', no: null, skip: true };
+    if (!inHunk) return { cls: 'diff-line', no: null };
 
     if (oldNo) oldNo += 1;
     return { cls: 'diff-line', no: newNo ? newNo++ : null, sign: line !== '' };
@@ -90,18 +92,18 @@ export const DiffLines = ({ patch, lineNumbers = false }) => {
   // Хвостовая пустая строка — артефакт `split`, а не строка файла.
   if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
 
-  return parseLines(lines).map(({ cls, no, sign }, i) =>
+  return parseLines(lines).map(({ cls, no, sign, skip }, i) =>
     // Индекс как key безопасен: текст diff'а иммутабелен в рамках открытой модалки.
 
     lineNumbers ? (
-      <span key={i} className={`${cls} diff-line--numbered`}>
+      <span key={i} className={`${cls} diff-line--numbered`} data-find-skip={skip ? '' : undefined}>
         <span className="diff-line__no" data-find-skip="">
           {no ?? ''}
         </span>
         <span className="diff-line__text">{lines[i] ? <LineText line={lines[i]} sign={sign} /> : ' '}</span>
       </span>
     ) : (
-      <span key={i} className={cls}>
+      <span key={i} className={cls} data-find-skip={skip ? '' : undefined}>
         <LineText line={lines[i]} sign={sign} />
         {'\n'}
       </span>
