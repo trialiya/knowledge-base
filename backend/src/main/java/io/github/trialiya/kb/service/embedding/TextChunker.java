@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.embedding;
 
+import io.github.trialiya.kb.utils.MarkdownSections;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Builder;
@@ -17,6 +18,10 @@ import org.jspecify.annotations.Nullable;
  * <h3>Splitting strategy (cascading)</h3>
  *
  * <ol>
+ *   <li>Markdown sections, as {@link MarkdownSections#parse} reads them — a heading stays with its
+ *       body. Small sections are packed together; a section that does not fit is cut below, and
+ *       every piece after the first repeats the heading line. A fenced code block is never cut
+ *       unless it alone exceeds the budget, and no overlap is carried across a section boundary.
  *   <li>Paragraph boundaries ({@code \n\n}) — preferred natural unit.
  *   <li>Sentence boundaries ({@code [.!?]}) — used when a paragraph is too long.
  *   <li>Word boundaries — last resort for very long sentences.
@@ -73,7 +78,7 @@ public class TextChunker {
             return List.of(stripped);
         }
 
-        List<String> units = toAtomicUnits(stripped, maxChars);
+        List<Unit> units = toAtomicUnits(stripped, maxChars);
         return mergeWithOverlap(units, maxChars);
     }
 
@@ -84,20 +89,87 @@ public class TextChunker {
 
     // ── Step 1: break text into atomic units ─────────────────────────────────
 
-    private List<String> toAtomicUnits(String text, int maxChars) {
-        List<String> units = new ArrayList<>();
+    /** A piece of text that is never split further when merging; {@code section} is its owner. */
+    private record Unit(String text, int section) {}
 
-        for (String para : text.split("\\n{2,}")) {
+    private List<Unit> toAtomicUnits(String text, int maxChars) {
+        List<Unit> units = new ArrayList<>();
+        List<MarkdownSections.Section> sections = MarkdownSections.parse(text);
+        for (int i = 0; i < sections.size(); i++) {
+            MarkdownSections.Section section = sections.get(i);
+            // A section's own text ends at the next heading of any level: its subsections are
+            // sections of their own in the flat list.
+            int end = i + 1 < sections.size() ? sections.get(i + 1).startOffset() : text.length();
+            addSection(text.substring(section.startOffset(), end).strip(), section.level(), i, maxChars, units);
+        }
+        return units;
+    }
+
+    private void addSection(String own, int level, int id, int maxChars, List<Unit> units) {
+        if (own.isEmpty()) return;
+        if (own.length() <= maxChars) {
+            units.add(new Unit(own, id));
+            return;
+        }
+        String heading = level > 0 ? own.lines().findFirst().orElse("") : "";
+        int budget = maxChars - heading.length() - 1;
+        if (budget < maxChars / 2) {
+            heading = "";
+            budget = maxChars;
+        }
+
+        List<String> pieces = new ArrayList<>();
+        int from = 0;
+        for (int[] block : MarkdownSections.codeBlocks(own)) {
+            addProse(own.substring(from, block[0]), budget, pieces);
+            String code = own.substring(block[0], block[1]).strip();
+            if (code.length() <= budget) {
+                pieces.add(code);
+            } else {
+                splitByLines(code, budget, pieces);
+            }
+            from = block[1];
+        }
+        addProse(own.substring(from), budget, pieces);
+
+        for (int k = 0; k < pieces.size(); k++) {
+            String piece = pieces.get(k);
+            units.add(new Unit(k == 0 || heading.isEmpty() ? piece : heading + "\n" + piece, id));
+        }
+    }
+
+    private void addProse(String prose, int maxChars, List<String> out) {
+        for (String para : prose.split("\\n{2,}")) {
             String p = para.strip();
             if (p.isEmpty()) continue;
 
             if (p.length() <= maxChars) {
-                units.add(p);
+                out.add(p);
             } else {
-                splitBySentences(p, maxChars, units);
+                splitBySentences(p, maxChars, out);
             }
         }
-        return units;
+    }
+
+    private void splitByLines(String text, int maxChars, List<String> out) {
+        StringBuilder buf = new StringBuilder();
+        for (String line : text.split("\n")) {
+            if (line.length() > maxChars) {
+                if (!buf.isEmpty()) {
+                    out.add(buf.toString());
+                    buf.setLength(0);
+                }
+                splitByWords(line, maxChars, out);
+                continue;
+            }
+            if (buf.length() + 1 + line.length() > maxChars && !buf.isEmpty()) {
+                out.add(buf.toString());
+                buf.setLength(0);
+            }
+            if (!buf.isEmpty()) buf.append('\n');
+            buf.append(line);
+        }
+        if (!buf.isEmpty()) out.add(buf.toString());
     }
 
     private void splitBySentences(String text, int maxChars, List<String> out) {
@@ -144,28 +216,36 @@ public class TextChunker {
 
     // ── Step 2: merge units into overlapping chunks ───────────────────────────
 
-    private List<String> mergeWithOverlap(List<String> units, int maxChars) {
+    private List<String> mergeWithOverlap(List<Unit> units, int maxChars) {
         int overlapChars = overlapTokens * CHARS_PER_TOKEN;
         List<String> chunks = new ArrayList<>();
         StringBuilder current = new StringBuilder();
+        int currentSection = -1;
 
-        for (String unit : units) {
+        for (Unit unit : units) {
+            String text = unit.text();
             boolean fits =
-                    current.isEmpty() ? unit.length() <= maxChars : current.length() + 1 + unit.length() <= maxChars;
+                    current.isEmpty() ? text.length() <= maxChars : current.length() + 1 + text.length() <= maxChars;
 
             if (!fits && !current.isEmpty()) {
                 String finished = current.toString().strip();
                 chunks.add(finished);
 
-                String overlap = tailChars(finished, overlapChars);
+                // The tail is a cut at a word, so it is only safe prose of the same section: across
+                // a heading it would mislead, and in code it would start a block mid-way.
+                String overlap =
+                        unit.section() == currentSection && !finished.contains("```") && !finished.contains("~~~")
+                                ? tailChars(finished, overlapChars)
+                                : "";
                 current.setLength(0);
-                if (!overlap.isBlank()) {
+                if (!overlap.isBlank() && overlap.length() + 1 + text.length() <= maxChars) {
                     current.append(overlap);
                 }
             }
 
             if (!current.isEmpty()) current.append('\n');
-            current.append(unit);
+            current.append(text);
+            currentSection = unit.section();
         }
 
         if (!current.isEmpty()) {

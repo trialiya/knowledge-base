@@ -58,4 +58,12 @@ class DocumentLinkRewriterTest {
         String text = "[tree](/files?project=kb) [branch](/files?rev=main)" + " [file](/files?path=a.md&rev=abc1234)";
         assertThat(DocumentLinkRewriter.flattenCommitLinks(text)).isEqualTo(text);
     }
+
+    @Test
+    void linksInsideCodeBlocksAreLeftAlone() {
+        String text = "[a](/?doc=1)\n```md\n[a](/?doc=1)\n```\n";
+
+        assertThat(DocumentLinkRewriter.toRelativeLinks(text, "x.md", java.util.Map.of(1L, "a.md")))
+                .isEqualTo("[a](a.md)\n```md\n[a](/?doc=1)\n```\n");
+    }
 }

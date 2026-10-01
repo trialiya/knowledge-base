@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.document;
 
+import io.github.trialiya.kb.utils.MarkdownSections;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
@@ -89,6 +90,10 @@ public final class DocumentLinkRewriter {
      * @param idToFile document id → export-relative file holding that document's body
      */
     public static String toRelativeLinks(String text, String sourceFile, Map<Long, String> idToFile) {
+        return MarkdownSections.transformOutsideCode(text, prose -> relativeLinksInProse(prose, sourceFile, idToFile));
+    }
+
+    private static String relativeLinksInProse(String text, String sourceFile, Map<Long, String> idToFile) {
         Matcher m = DOC_LINK.matcher(text);
         StringBuilder out = new StringBuilder();
         while (m.find()) {
@@ -108,6 +113,10 @@ public final class DocumentLinkRewriter {
      * today's file.
      */
     public static String flattenFileLinks(String text) {
+        return MarkdownSections.transformOutsideCode(text, DocumentLinkRewriter::flattenFileLinksInProse);
+    }
+
+    private static String flattenFileLinksInProse(String text) {
         Matcher m = FILE_LINK.matcher(text);
         StringBuilder out = new StringBuilder();
         while (m.find()) {
@@ -135,6 +144,10 @@ public final class DocumentLinkRewriter {
      * without a hex revision, or with a path, is not a commit link and is left alone.
      */
     public static String flattenCommitLinks(String text) {
+        return MarkdownSections.transformOutsideCode(text, DocumentLinkRewriter::flattenCommitLinksInProse);
+    }
+
+    private static String flattenCommitLinksInProse(String text) {
         Matcher m = COMMIT_LINK.matcher(text);
         StringBuilder out = new StringBuilder();
         while (m.find()) {
@@ -197,9 +210,14 @@ public final class DocumentLinkRewriter {
      */
     public static @Nullable String toDocLinks(
             String text, String sourceFile, Function<String, @Nullable Long> fileToId) {
+        String rewritten =
+                MarkdownSections.transformOutsideCode(text, prose -> docLinksInProse(prose, sourceFile, fileToId));
+        return rewritten.equals(text) ? null : rewritten;
+    }
+
+    private static String docLinksInProse(String text, String sourceFile, Function<String, @Nullable Long> fileToId) {
         Matcher m = ANY_LINK_TARGET.matcher(text);
         StringBuilder out = new StringBuilder();
-        boolean changed = false;
         while (m.find()) {
             String target = m.group(1);
             Long id = isRelative(target) ? fileToId.apply(resolve(sourceFile, target)) : null;
@@ -207,22 +225,23 @@ public final class DocumentLinkRewriter {
                 m.appendReplacement(out, Matcher.quoteReplacement(m.group(0)));
             } else {
                 m.appendReplacement(out, Matcher.quoteReplacement("](/?doc=" + id + ")"));
-                changed = true;
             }
         }
         m.appendTail(out);
-        return changed ? out.toString() : null;
+        return out.toString();
     }
 
     /** True when {@code text} holds at least one link that could resolve inside the export. */
     public static boolean hasRelativeLinks(String text) {
-        Matcher m = ANY_LINK_TARGET.matcher(text);
-        while (m.find()) {
-            if (isRelative(m.group(1))) {
-                return true;
+        boolean[] found = {false};
+        MarkdownSections.transformOutsideCode(text, prose -> {
+            Matcher m = ANY_LINK_TARGET.matcher(prose);
+            while (m.find()) {
+                found[0] |= isRelative(m.group(1));
             }
-        }
-        return false;
+            return prose;
+        });
+        return found[0];
     }
 
     private static boolean isRelative(String target) {

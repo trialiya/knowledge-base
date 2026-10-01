@@ -51,8 +51,17 @@ export function dirName(path) {
 /** Strip markdown syntax and return first non-empty line, capped at maxLen chars */
 export function makeSnippet(description, maxLen = 200) {
   if (!description) return null;
+  let fence = null;
   const clean = description
-    .replace(/^#{1,6}\s+/gm, '')
+    .split('\n')
+    .map((line) => {
+      const m = line.match(/^ {0,3}(`{3,}|~{3,})/);
+      if (!fence && m) fence = m[1];
+      else if (fence && m && m[1][0] === fence[0] && m[1].length >= fence.length) fence = null;
+      // A `#` line inside a code block is a comment or a shell prompt, not a heading.
+      return fence || m ? line : line.replace(/^#{1,6}\s+/, '');
+    })
+    .join('\n')
     .replace(/[*_`~>]/g, '')
     .trim();
   const first = clean.split('\n').find((l) => l.trim().length > 0) || '';

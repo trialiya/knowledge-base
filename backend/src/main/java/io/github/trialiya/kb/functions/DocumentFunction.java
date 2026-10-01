@@ -861,7 +861,7 @@ public class DocumentFunction {
 
     /** Rejects section content that does not start with an ATX markdown heading. */
     private static void requireStartsWithHeading(String content) {
-        if (!content.strip().matches("(?s)#{1,6}[ \\t].*")) {
+        if (!MarkdownSections.startsWithHeading(content)) {
             throw new IllegalArgumentException("Текст секции должен начинаться с markdown-заголовка (например "
                     + "'## Название') — секция включает заголовок.");
         }

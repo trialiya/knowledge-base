@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -71,7 +72,7 @@ public final class MarkdownSections {
      */
     public static List<Section> parse(String markdown) {
         int length = markdown.length();
-        List<RawHeading> headings = scanHeadings(markdown);
+        List<RawHeading> headings = scan(markdown).headings();
 
         List<Section> sections = new ArrayList<>();
         int firstHeadingOffset = headings.isEmpty() ? length : headings.get(0).offset();
@@ -173,9 +174,69 @@ public final class MarkdownSections {
 
     private record Ancestor(int level, String path) {}
 
-    /** Collects ATX headings with their offsets, skipping fenced code blocks. */
-    private static List<RawHeading> scanHeadings(String markdown) {
+    /** Headings and fenced code blocks of one pass; a block is {@code {start, end}} offsets. */
+    private record Scan(List<RawHeading> headings, List<int[]> codeBlocks) {}
+
+    /**
+     * Whether the first non-blank line of {@code content} is an ATX heading — by the same {@link
+     * #HEADING} rule that {@link #parse} uses, so a bare {@code #} counts here as it does there.
+     */
+    public static boolean startsWithHeading(String content) {
+        String stripped = content.strip();
+        int newline = stripped.indexOf('\n');
+        return HEADING.matcher(newline == -1 ? stripped : stripped.substring(0, newline))
+                .matches();
+    }
+
+    /**
+     * Applies {@code transform} to the text between fenced code blocks and leaves the blocks
+     * themselves untouched, so a rewrite meant for prose never reaches code that merely looks like
+     * it (a sample link, a {@code #} comment). Fences are recognised as in {@link #parse}.
+     */
+    public static String transformOutsideCode(String markdown, UnaryOperator<String> transform) {
+        StringBuilder out = new StringBuilder(markdown.length());
+        int from = 0;
+        for (int[] block : scan(markdown).codeBlocks()) {
+            out.append(transform.apply(markdown.substring(from, block[0])));
+            out.append(markdown, block[0], block[1]);
+            from = block[1];
+        }
+        return out.append(transform.apply(markdown.substring(from))).toString();
+    }
+
+    /**
+     * The mirror of {@link #transformOutsideCode}: {@code transform} gets each fenced code block
+     * whole (opening line to closing line, or to the end of the text when it never closes) and the
+     * prose between blocks is kept as is.
+     */
+    public static String transformCodeBlocks(String markdown, UnaryOperator<String> transform) {
+        StringBuilder out = new StringBuilder(markdown.length());
+        int from = 0;
+        for (int[] block : scan(markdown).codeBlocks()) {
+            out.append(markdown, from, block[0]);
+            out.append(transform.apply(markdown.substring(block[0], block[1])));
+            from = block[1];
+        }
+        return out.append(markdown, from, markdown.length()).toString();
+    }
+
+    /** Offsets {@code {start, end}} of the fenced code blocks, in document order. */
+    public static List<int[]> codeBlocks(String markdown) {
+        return scan(markdown).codeBlocks();
+    }
+
+    /** The info string of a code block's opening line: its language, when it names one. */
+    public static String fenceInfo(String codeBlock) {
+        int newline = codeBlock.indexOf('\n');
+        Matcher fence = FENCE.matcher(newline == -1 ? codeBlock : codeBlock.substring(0, newline));
+        return fence.matches() ? fence.group(4).strip() : "";
+    }
+
+    /** Collects ATX headings with their offsets, skipping fenced code blocks, and the blocks. */
+    private static Scan scan(String markdown) {
         List<RawHeading> headings = new ArrayList<>();
+        List<int[]> codeBlocks = new ArrayList<>();
+        int blockStart = 0;
         boolean inFence = false;
         char fenceChar = 0;
         int fenceLength = 0;
@@ -204,6 +265,7 @@ public final class MarkdownSections {
                     // may sit at any depth; a bare fence at 4+ spaces is an indented code block.
                     if ((indent <= 3 || !listMarkers.isEmpty()) && opensFence(marker, rest)) {
                         inFence = true;
+                        blockStart = pos;
                         fenceChar = marker.charAt(0);
                         fenceLength = marker.length();
                         fenceColumn = indent + listMarkers.length();
@@ -214,6 +276,7 @@ public final class MarkdownSections {
                         && marker.length() >= fenceLength
                         && rest.isBlank()) {
                     inFence = false;
+                    codeBlocks.add(new int[] {blockStart, Math.min(lineEnd + 1, length)});
                 }
             } else if (!inFence) {
                 Matcher heading = HEADING.matcher(line);
@@ -223,7 +286,10 @@ public final class MarkdownSections {
             }
             pos = lineEnd + 1;
         }
-        return headings;
+        if (inFence) {
+            codeBlocks.add(new int[] {blockStart, length});
+        }
+        return new Scan(headings, codeBlocks);
     }
 
     /**

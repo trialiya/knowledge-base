@@ -48,7 +48,22 @@ function isRelativeInternalUrl(url) {
   return !/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !url.startsWith('//');
 }
 
-const HEADING_RE = /^(#{1,6})\s+(.*)$/;
+const HEADING_RE = /^ {0,3}(#{1,6})\s+(.*)$/;
+// CommonMark fence, as the backend's MarkdownSections reads it: indent, optional list-item
+// markers the fence may follow, 3+ backticks or tildes, info string.
+const FENCE_RE = /^( *)((?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*)(`{3,}|~{3,})(.*)$/;
+
+// After a backtick fence the info string may not hold a backtick: ```js``` text is inline code.
+function isFenceOpener(match) {
+  return match[3][0] === '~' || !match[4].includes('`');
+}
+
+function closesFence(line, fence, fenceColumn) {
+  const m = line.match(FENCE_RE);
+  return Boolean(
+    m && !m[2] && m[1].length <= fenceColumn + 3 && m[3][0] === fence[0] && m[3].length >= fence.length && !m[4].trim(),
+  );
+}
 const HR_RE = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
 const UL_RE = /^(\s*)[-*+]\s+(.*)$/;
 const OL_RE = /^(\s*)\d+[.)]\s+(.*)$/;
@@ -159,14 +174,14 @@ export function markdownToJira(markdown) {
   while (i < lines.length) {
     const line = lines[i];
 
-    const fenceMatch = line.match(/^\s*(```|~~~)\s*([\w+-]*)\s*$/);
-    if (fenceMatch) {
-      const fence = fenceMatch[1];
-      const lang = normalizeLang(fenceMatch[2]);
-      const closeRe = new RegExp(`^\\s*${fence}\\s*$`);
+    const fenceMatch = line.match(FENCE_RE);
+    if (fenceMatch && (fenceMatch[1].length <= 3 || fenceMatch[2]) && isFenceOpener(fenceMatch)) {
+      const fence = fenceMatch[3];
+      const lang = normalizeLang(fenceMatch[4].trim().split(/\s+/)[0] || '');
+      const fenceColumn = fenceMatch[1].length + fenceMatch[2].length;
       const body = [];
       i += 1;
-      while (i < lines.length && !closeRe.test(lines[i])) {
+      while (i < lines.length && !closesFence(lines[i], fence, fenceColumn)) {
         body.push(lines[i]);
         i += 1;
       }

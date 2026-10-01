@@ -104,6 +104,16 @@ describe('markdownToJira', () => {
     expect(markdownToJira('```\nplain\n```')).toBe('{code}\nplain\n{code}');
   });
 
+  it('забор из четырёх бэктиков держит три внутри себя и принимает info string', () => {
+    expect(markdownToJira('````js title="a.js"\n```\nx\n```\n````')).toBe('{code:javascript}\n```\nx\n```\n{code}');
+  });
+
+  it('забор во вложенном пункте списка — блок кода, а # внутри не заголовок', () => {
+    expect(markdownToJira('1. шаг\n   - ```bash\n     # comment\n     ls\n     ```')).toContain(
+      '{code:bash}\n     # comment\n     ls\n{code}',
+    );
+  });
+
   it('горизонтальная линия', () => {
     expect(markdownToJira('---')).toBe('----');
     expect(markdownToJira('***')).toBe('----');

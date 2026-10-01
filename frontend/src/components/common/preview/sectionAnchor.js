@@ -30,6 +30,7 @@ export function normalizeTitle(title) {
  * Заголовки области с их путями — в порядке документа, как MarkdownSections
  * .parse считает их по сырому markdown: стек предков по уровню, повтор полного
  * пути получает «[n]», и подраздел строится от пути родителя уже с суффиксом.
+ * Правила держать синхронными с `MarkdownSections` на бэке — там ссылка обратно.
  */
 function headingPaths(root) {
   const stack = [];
