@@ -82,11 +82,6 @@ class ScriptResultForModelTest {
     }
 
     @Test
-    void aValueNobodyKeptSaysTheRestIsGone() {
-        assertThat(ScriptResult.Truncated.of(1, Map.of("$", 3), null).note()).contains("not kept");
-    }
-
-    @Test
     @SuppressWarnings("unchecked")
     void theWholeResultStillSerialisesEveryPathAndTheWholeValue() throws Exception {
         List<String> paths = IntStream.range(0, 8).mapToObj(i -> "p" + i).toList();

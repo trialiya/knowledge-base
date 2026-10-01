@@ -9,11 +9,12 @@ import { cases } from './harness/registry';
  * Реестр стенда (`harness/registry.jsx`) и реестр кейсов (`cases.yaml`) описывают
  * одно и то же и связаны одним именем: шапка реестра стенда обещает, что `id`
  * записи совпадает со ссылкой на фикстуру в кейсе — `<модуль>#<экспорт>`.
- * Обещание ничем не проверялось: переименованный экспорт, опечатка в ссылке,
- * заведённая запись стенда, которую ни один кейс не описывает, — всё это молча
- * расходится, а замечают расхождение, когда ищут снимок по кейсу и не находят.
+ * Без сверки переименованный экспорт, опечатка в ссылке, заведённая запись
+ * стенда, которую ни один кейс не описывает, — всё это расходится молча, а
+ * замечают расхождение, когда ищут снимок по кейсу и не находят.
  *
- * Здесь сверяются обе стороны. Ссылку на фикстуру из кейса проверяем по самим
+ * Здесь сверяются обе стороны, и ещё третья — фикстуры, которых не называет
+ * никто (см. тест о них ниже). Ссылку на фикстуру из кейса проверяем по самим
  * фикстурам, а не по реестру стенда: часть кейсов снята на живом бэкенде
  * (`./run/test.sh smoke`), стенду они не по зубам, и записи у них нет — но
  * фикстура, на которую кейс ссылается, существовать обязана.
@@ -25,6 +26,15 @@ import { cases } from './harness/registry';
  * см. `theme-dark-sweep`.
  */
 const HERE = dirname(fileURLToPath(import.meta.url));
+
+/** Исходники модулей фикстур: `<модуль>.js` → текст — по нему видно, кто из экспортов строит другие. */
+const fixtureSources = (() => {
+  const modules = import.meta.glob('./fixtures/*.js', { eager: true, query: '?raw', import: 'default' });
+  return new Map(Object.entries(modules).map(([path, text]) => [path.slice('./fixtures/'.length), text]));
+})();
+
+/** Исходник стенда: часть фикстур он берёт не по id записи, а прямо по имени (`chatFind.activeMid`). */
+const registrySource = Object.values(import.meta.glob('./harness/registry.jsx', { eager: true, query: '?raw', import: 'default' }))[0];
 
 /** Экспорты каждого модуля фикстур: `<модуль>.js` → набор имён. */
 const fixtureExports = (() => {
@@ -132,6 +142,26 @@ describe('реестр кейсов', () => {
     const lines = readFileSync(join(HERE, 'cases.yaml'), 'utf8').split('\n');
     const singular = lines.map((line, i) => ({ line: i + 1, text: line })).filter(({ text }) => /^\s*fixture:\s/.test(text));
     expect(singular.map(({ line, text }) => `cases.yaml:${line} — ${text.trim()}`)).toEqual([]);
+  });
+
+  // Обратная сторона сверки: экспорт, которого не называет ни кейс, ни стенд, не проверяет ничего —
+  // и правят его вместе со всеми, как будто проверяет. Нужным считается и экспорт, который стенд
+  // берёт по имени (`<модуль>.<экспорт>` — стенд подключает модули как `* as <модуль>`), и тот, из
+  // которого собран другой экспорт того же модуля. Второе — эвристика по числу вхождений имени в модуле:
+  // упоминание в комментарии или одноимённый ключ тоже засчитываются, так что сирота может и проскочить.
+  it('не держит фикстур, которых не называет ни кейс, ни стенд', () => {
+    const named = new Set([...fixtureRefs().map(({ ref }) => fixtureOf(ref)), ...cases.map((c) => fixtureOf(c.id))]);
+    const orphans = [];
+    for (const [module, names] of fixtureExports) {
+      const text = fixtureSources.get(module);
+      for (const name of names) {
+        if (named.has(`${module}#${name}`)) continue;
+        if (new RegExp(`\\b${module.replace(/\.js$/, '')}\\.${name}\\b`).test(registrySource)) continue;
+        const uses = text.match(new RegExp(`\\b${name}\\b`, 'g'))?.length ?? 0;
+        if (uses < 2) orphans.push(`${module}#${name}`);
+      }
+    }
+    expect(orphans).toEqual([]);
   });
 
   it('не ссылается на фикстуру, которой нет', () => {

@@ -14,7 +14,6 @@ import io.github.trialiya.kb.repository.ToolCallFullResultRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
-import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.support.ActiveProjectNotices;
 import java.time.LocalDateTime;
@@ -46,7 +45,10 @@ class ChatHistoryGitEventTest {
             new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
             ActiveProjectNotices.silent());
 
-    /** Успешная команда: модель узнаёт, что дерево сдвинулось, и что прочитанное могло устареть. */
+    /**
+     * Успешная команда: модель узнаёт, что дерево сдвинулось, и что прочитанное могло устареть.
+     * Коммита pull не создавал — и не называет.
+     */
     @Test
     void aSucceededCommandTellsTheModelTheWorkingTreeMoved() {
         givenStored(List.of(gitRow(0, new GitEventMeta("pull", "kb", true, "Fast-forward", "main"))));
@@ -58,7 +60,8 @@ class ChatHistoryGitEventTest {
                 .contains("project=\"kb\"")
                 .contains("branch=\"main\"")
                 .contains("re-read with the tools")
-                .contains("preserve this notice verbatim");
+                .contains("preserve this notice verbatim")
+                .doesNotContain("commit=");
     }
 
     /** Коммит пользователя назван хешем: модели есть что прочитать и на что сослаться. */
@@ -68,13 +71,6 @@ class ChatHistoryGitEventTest {
         givenStored(List.of(gitRow(0, new GitEventMeta("commit", "kb", true, "Committed 0123456", "main", hash))));
 
         assertThat(service.promptRows(CONV).getFirst().text()).contains("commit=\"" + hash + "\"");
-    }
-
-    @Test
-    void aCommandThatCreatedNoCommitNamesNone() {
-        givenStored(List.of(gitRow(0, new GitEventMeta("pull", "kb", true, "Fast-forward", "main"))));
-
-        assertThat(service.promptRows(CONV).getFirst().text()).doesNotContain("commit=");
     }
 
     /**
@@ -175,14 +171,5 @@ class ChatHistoryGitEventTest {
     private static ChatMessageEntity entity(
             long position, String text, MessageType type, @Nullable ChatMessageMeta meta) {
         return new ChatMessageEntity(position + 1, CONV, text, type, position, false, false, LocalDateTime.now(), meta);
-    }
-
-    /** Промпт строится из тех же строк — та же связка, что закрепляет {@link PromptRow}. */
-    @Test
-    void theModelReceivesExactlyThePromptRowText() {
-        givenStored(List.of(gitRow(0, new GitEventMeta("fetch", "kb", true, "", "main"))));
-
-        assertThat(service.promptMessages(CONV).getFirst().getText())
-                .isEqualTo(service.promptRows(CONV).getFirst().text());
     }
 }

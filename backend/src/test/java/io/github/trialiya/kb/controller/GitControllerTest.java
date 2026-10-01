@@ -19,9 +19,15 @@ import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
@@ -47,22 +53,60 @@ class GitControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(new GitController(registry)).build();
     }
 
-    @Test
-    void aMissingFileIsABadRequestAndNotAServerError() throws Exception {
-        when(git.getFileContent(null, "gone.md", null, null))
-                .thenThrow(new IllegalArgumentException("File not found: gone.md"));
+    /**
+     * Каждое чтение идёт через {@code read()}: всё, что {@link GitService} отвергает {@link
+     * IllegalArgumentException} из-за запроса клиента, — 400 на любом эндпоинте.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("refusedReads")
+    void whatGitRefusesForTheRequestIsABadRequest(
+            String what, Consumer<GitService> stub, MockHttpServletRequestBuilder request) throws Exception {
+        stub.accept(git);
 
-        mockMvc.perform(get("/api/git/files/content").param("path", "gone.md")).andExpect(status().isBadRequest());
+        mockMvc.perform(request).andExpect(status().isBadRequest());
     }
 
-    /** Ревизия приходит из поля ввода, и опечатка в ней — такая же ошибка запроса. */
-    @Test
-    void anUnknownRevisionIsABadRequest() throws Exception {
-        when(git.getFileContent("nosuchtag", "README.md", null, null))
-                .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag"));
-
-        mockMvc.perform(get("/api/git/files/content").param("path", "README.md").param("rev", "nosuchtag"))
-                .andExpect(status().isBadRequest());
+    static Stream<Arguments> refusedReads() {
+        return Stream.of(
+                Arguments.of(
+                        "missing file",
+                        (Consumer<GitService>) g -> when(g.getFileContent(null, "gone.md", null, null))
+                                .thenThrow(new IllegalArgumentException("File not found: gone.md")),
+                        get("/api/git/files/content").param("path", "gone.md")),
+                Arguments.of(
+                        "unknown revision of a file",
+                        (Consumer<GitService>) g -> when(g.getFileContent("nosuchtag", "README.md", null, null))
+                                .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag")),
+                        get("/api/git/files/content").param("path", "README.md").param("rev", "nosuchtag")),
+                Arguments.of(
+                        "outline of an unsupported language",
+                        (Consumer<GitService>) g -> when(g.getFileOutline(null, "notes.txt"))
+                                .thenThrow(new IllegalArgumentException("Unsupported language for outline")),
+                        get("/api/git/files/outline").param("path", "notes.txt")),
+                Arguments.of(
+                        "unknown commit",
+                        (Consumer<GitService>) g -> when(g.getCommit("nosuchtag", false, null))
+                                .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag")),
+                        get("/api/git/commit").param("rev", "nosuchtag")),
+                Arguments.of(
+                        "commit search from an unknown revision",
+                        (Consumer<GitService>) g -> when(g.grepCommits("fix", 50, "nosuchtag"))
+                                .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag")),
+                        get("/api/git/commits/grep")
+                                .param("q", "fix")
+                                .param("limit", "50")
+                                .param("rev", "nosuchtag")),
+                // Отказ, а не куча памяти: см. GitService.getRawFile.
+                Arguments.of(
+                        "image too large to serve",
+                        (Consumer<GitService>) g -> when(g.getRawFile(null, "huge.png"))
+                                .thenThrow(new IllegalArgumentException("File is too large to preview")),
+                        get("/api/git/files/raw").param("path", "huge.png")),
+                Arguments.of(
+                        "status narrowed to an impossible path",
+                        (Consumer<GitService>) g -> when(g.getUncommittedChanges(false, "docs/a\u0007b.md"))
+                                .thenThrow(new IllegalArgumentException("Path contains unsupported characters")),
+                        get("/api/git/status").param("path", "docs/a\u0007b.md")));
     }
 
     /** Обзор с ревизией читает снимок, без неё — рабочее дерево. */
@@ -81,16 +125,6 @@ class GitControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.symbols[0].signature").value("Title"))
                 .andExpect(jsonPath("$.symbols[0].startLine").value(1));
-    }
-
-    /** Язык, для которого обзора нет, — ошибка запроса, а не сервера. */
-    @Test
-    void anOutlineOfAnUnsupportedFileIsABadRequest() throws Exception {
-        when(git.getFileOutline(null, "notes.txt"))
-                .thenThrow(new IllegalArgumentException("Unsupported language for outline"));
-
-        mockMvc.perform(get("/api/git/files/outline").param("path", "notes.txt"))
-                .andExpect(status().isBadRequest());
     }
 
     /** Blame с ревизией читает снимок; ханки уезжают как есть, с полным хешем и коротким. */
@@ -145,27 +179,6 @@ class GitControllerTest {
         mockMvc.perform(get("/api/git/commit").param("rev", " ")).andExpect(status().isBadRequest());
     }
 
-    @Test
-    void anUnknownCommitIsABadRequest() throws Exception {
-        when(git.getCommit("nosuchtag", false, null))
-                .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag"));
-
-        mockMvc.perform(get("/api/git/commit").param("rev", "nosuchtag")).andExpect(status().isBadRequest());
-    }
-
-    /** Поиск коммитов со страницы поиска: ревизия из её фильтра, опечатка в ней — 400. */
-    @Test
-    void aCommitSearchFromAnUnknownRevisionIsABadRequest() throws Exception {
-        when(git.grepCommits("fix", 50, "nosuchtag"))
-                .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag"));
-
-        mockMvc.perform(get("/api/git/commits/grep")
-                        .param("q", "fix")
-                        .param("limit", "50")
-                        .param("rev", "nosuchtag"))
-                .andExpect(status().isBadRequest());
-    }
-
     /**
      * Картинка отдаётся с типом, взятым по расширению, — и без права на что-либо активное внутри:
      * SVG умеет и скрипты, и открыть такой ответ можно прямым переходом, а не только из {@code
@@ -193,22 +206,5 @@ class GitControllerTest {
     void aFileThatIsNotPreviewableIsRefusedRatherThanGuessed() throws Exception {
         mockMvc.perform(get("/api/git/files/raw").param("path", "index.html"))
                 .andExpect(status().isUnsupportedMediaType());
-    }
-
-    /** Слишком большой файл — отказ запроса, а не куча памяти: см. GitService.getRawFile. */
-    @Test
-    void anImageTooLargeToServeIsABadRequest() throws Exception {
-        when(git.getRawFile(null, "huge.png")).thenThrow(new IllegalArgumentException("File is too large to preview"));
-
-        mockMvc.perform(get("/api/git/files/raw").param("path", "huge.png")).andExpect(status().isBadRequest());
-    }
-
-    /** Список изменений сужают тем же путём, что и открывают файл, — и ошибаются в нём так же. */
-    @Test
-    void aStatusRequestForAnImpossiblePathIsABadRequest() throws Exception {
-        when(git.getUncommittedChanges(false, "docs/ab.md"))
-                .thenThrow(new IllegalArgumentException("Path contains unsupported characters"));
-
-        mockMvc.perform(get("/api/git/status").param("path", "docs/ab.md")).andExpect(status().isBadRequest());
     }
 }

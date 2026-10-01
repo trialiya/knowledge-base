@@ -6,7 +6,12 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
@@ -23,24 +28,11 @@ class ChatModelPropertiesTest {
                 List.of(new ModelOption("gpt-4o-mini", "Mini", false, true, null, null, null, false)));
     }
 
-    @Test
-    void defaultModelIsAllowed() {
-        assertThat(props().isAllowed("default-model")).isTrue();
-    }
-
-    @Test
-    void configuredAlternativeIsAllowed() {
-        assertThat(props().isAllowed("gpt-4o-mini")).isTrue();
-    }
-
-    @Test
-    void unknownModelIsRejected() {
-        assertThat(props().isAllowed("evil-model")).isFalse();
-    }
-
-    @Test
-    void nullModelIsRejected() {
-        assertThat(props().isAllowed(null)).isFalse();
+    /** Пустое значение в строке — {@code null}: модель в запросе не названа вовсе. */
+    @ParameterizedTest(name = "{0} → {1}")
+    @CsvSource({"default-model,true", "gpt-4o-mini,true", "evil-model,false", ",false"})
+    void onlyAConfiguredModelIsAllowed(@Nullable String model, boolean allowed) {
+        assertThat(props().isAllowed(model)).isEqualTo(allowed);
     }
 
     /**
@@ -138,15 +130,12 @@ class ChatModelPropertiesTest {
         assertThat(props().isWeak(null)).isTrue();
     }
 
-    @Test
-    void aModelWithoutAnEndpointOfItsOwnSharesTheDefaultConnection() {
-        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, null, null, false);
-        assertThat(shared.hasOwnEndpoint()).isFalse();
-    }
-
-    @Test
-    void blankBaseUrlAndApiKeyAreTheSameAsAbsent() {
-        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, "  ", "  ", false);
+    /** Пустые строки в конфигурации — то же, что их отсутствие: модель ходит общим подключением. */
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = "  ")
+    void aModelWithoutAnEndpointOfItsOwnSharesTheDefaultConnection(@Nullable String blank) {
+        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, blank, blank, false);
         assertThat(shared.baseUrl()).isNull();
         assertThat(shared.apiKey()).isNull();
         assertThat(shared.hasOwnEndpoint()).isFalse();

@@ -71,20 +71,3 @@ export const h2SystemInfo = {
   },
 };
 
-/**
- * Postgres-развёртывание с незаданной папкой экспорта — вариант, в котором
- * «Массовые операции» обязаны сказать, что выгружать некуда, до того как
- * пользователь нажмёт кнопку и получит невнятную ошибку.
- */
-export const postgresNoExportPath = {
-  ...h2SystemInfo,
-  application: { ...h2SystemInfo.application, profiles: ['default'] },
-  database: {
-    url: 'jdbc:postgresql://db.internal:5432/knowledgebase',
-    driver: 'org.postgresql.Driver',
-    username: 'knowledgebase',
-    flywayLocations: 'classpath:db/migration',
-    schemaVersion: '2026.07.27.00',
-  },
-  documents: { exportPath: '', replace: true },
-};

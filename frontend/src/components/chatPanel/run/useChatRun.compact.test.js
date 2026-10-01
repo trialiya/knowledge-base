@@ -132,22 +132,16 @@ describe('useChatRun — старт сжатия', () => {
 
   // Две команды сжатия различаются для этой вкладки ровно одним флагом запроса: где провести
   // границу, решает бэк, а перепутанный здесь флаг сжёг бы ход, который просили сберечь.
-  test('`/compact-1` уходит тем же запросом, но с keepLastRun', async () => {
+  test.each([
+    ['/compact-1 ужми', true],
+    ['/compact ужми', false],
+  ])('`%s` уходит запросом сжатия с keepLastRun = %s', async (command, keepLastRun) => {
     chatApi.compact.mockResolvedValue({ runId: 'op-1', messageId: 9 });
     const { result } = setup();
 
-    await act(() => result.current.sendMessage('/compact-1 ужми'));
+    await act(() => result.current.sendMessage(command));
 
-    expect(chatApi.compact).toHaveBeenCalledWith(CHAT, '/compact-1 ужми', 'ужми', true, expect.any(String));
-  });
-
-  test('а `/compact` — с тем же флагом снятым', async () => {
-    chatApi.compact.mockResolvedValue({ runId: 'op-1', messageId: 9 });
-    const { result } = setup();
-
-    await act(() => result.current.sendMessage('/compact ужми'));
-
-    expect(chatApi.compact).toHaveBeenCalledWith(CHAT, '/compact ужми', 'ужми', false, expect.any(String));
+    expect(chatApi.compact).toHaveBeenCalledWith(CHAT, command, 'ужми', keepLastRun, expect.any(String));
   });
 
   // «Сжимать нечего» у `/compact-1` про другое: не «контекст уже одна сводка», а «кроме

@@ -94,13 +94,8 @@ class SavedScriptFunctionTest {
         assertThat(result.error()).isNull();
         assertThat(result.value()).isEqualTo(Map.of("area", "docs", "limit", 5));
         assertThat(result.log()).contains("area=docs");
-    }
 
-    /** The result is about a text the model never saw, so it has to say which one it was. */
-    @Test
-    void reportsWhichScriptRan() {
-        ScriptResult result = function(false).runSavedScript(context, "report", Map.of("area", "docs"), null, null);
-
+        // The result is about a text the model never saw, so it has to say which one it was.
         ScriptRunSource source = result.source();
         assertThat(source).isNotNull();
         assertThat(source.kind()).isEqualTo(ScriptRunSource.Kind.PROJECT);
