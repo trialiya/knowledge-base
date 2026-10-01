@@ -20,17 +20,30 @@ import org.springframework.ai.tool.annotation.ToolParam;
 @AllArgsConstructor
 public class MessageLookupFunction {
 
+    /** Сообщений за вызов — то, что обещает описание инструмента. */
+    static final int MAX_MESSAGES = 10;
+
+    /**
+     * Символов одного сообщения. Ответ ассистента со вставленным файлом бывает в сотни килобайт, а
+     * за точным текстом приходят ради цитаты, не ради всего файла заново.
+     */
+    static final int MAX_MESSAGE_CHARS = 20_000;
+
     private final ChatMessageRepository chatMessageRepository;
     private final ContextItemService contextItemService;
 
     @Tool(name = "getOriginalMessages", description = """
             Retrieve full text of chat messages by their positions (e.g., [msg:5]). \
             Use when a summary references [msg:N] and you need the exact text. \
-            Max 10 messages per call.
+            Max 10 messages per call; a message over 20000 characters is cut.
             """, resultConverter = CompactToolResultConverter.class)
     public String getOriginalMessages(
             ToolContext context, @ToolParam(description = "Message positions to retrieve.") List<Long> positions) {
         requireNonEmpty(positions, "positions");
+        if (positions.size() > MAX_MESSAGES) {
+            throw new IllegalArgumentException("At most " + MAX_MESSAGES + " messages per call, got " + positions.size()
+                    + " — split the positions into several calls.");
+        }
         final String chatId = conversationId(context);
         log.debug("[{}] Fetching original messages positions: {}", chatId, positions);
 
@@ -48,7 +61,7 @@ public class MessageLookupFunction {
                                 // нотис, который собирается на чтении. Без этого
                                 // «точный текст сообщения» возвращал бы пустоту
                                 // там, где сводка сослалась на такой ряд.
-                                + eventTextOr(m)
+                                + capped(eventTextOr(m))
                                 // Приложенное к вопросу живёт в meta, а не в
                                 // тексте: без этого «точный текст сообщения»
                                 // молча терял бы упоминание вложения.
@@ -61,6 +74,12 @@ public class MessageLookupFunction {
         }
 
         return String.join("\n", lines);
+    }
+
+    private static String capped(String text) {
+        return text.length() <= MAX_MESSAGE_CHARS
+                ? text
+                : text.substring(0, MAX_MESSAGE_CHARS) + "\n... (message cut; total chars: " + text.length() + ")";
     }
 
     /**

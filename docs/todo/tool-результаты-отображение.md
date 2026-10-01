@@ -105,7 +105,7 @@
 | Инструмент | Элемент |
 | --- | --- |
 | `searchDocuments` | `SearchResult` (`title`, `snippet`, `parentList`, `updatedAt`) |
-| `findDocumentsByName` | `DocumentNode` |
+| `findDocumentsByName` | `DocumentNameMatch` (`title`, `snippet`) |
 | `getDocumentAttachments`, `getChatAttachments`, `searchAttachments` | `Attachment` (`fileName`, `contentType`, `fileSize`, `summary`) |
 | `getFileTree`, `searchFiles` | `GitFileNode` (`path`, `type`, `size`) |
 | `getCommitLog` | `GitCommit` (`shortHash`, `author`, `date`, `message`) |
@@ -119,7 +119,7 @@
 
 | Инструмент | Форма |
 | --- | --- |
-| `getTreeSkeleton` | `List<DocumentNode>` — плоский список, иерархия в `parentId` |
+| `getTreeSkeleton` | `List<DocumentSkeletonNode>` — плоский список, иерархия в `parentId` |
 | `getDocumentOutline` | `DocumentOutline.sections[]` — плоский список с `level` 1–6 и `path` |
 | `getFileOutline` | `GitFileOutline.symbols[]` — `kind`, `name`, `signature`, `startLine`–`endLine` |
 

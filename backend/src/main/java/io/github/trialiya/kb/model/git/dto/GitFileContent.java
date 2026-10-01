@@ -2,6 +2,8 @@ package io.github.trialiya.kb.model.git.dto;
 
 import static io.github.trialiya.kb.tools.Compact.truncate;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.github.trialiya.kb.model.tool.OmitTrue;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
 import org.jspecify.annotations.Nullable;
@@ -14,6 +16,9 @@ import org.jspecify.annotations.Nullable;
  * @param path относительный путь
  * @param commit коммит, из которого прочитано содержимое (полный хеш), либо {@code null} — файл
  *     взят из рабочего дерева, то есть таким, какой он сейчас, вместе с незакоммиченными правками
+ * <p>Пустые поля в JSON не печатаются: {@code null}, {@code binary=false} и {@code tracked=true}
+ * (обычный случай, см. {@link OmitTrue}) — отсутствующее поле значит именно их.
+ *
  * @param tracked отслеживается ли файл git'ом. {@code false} — файл виден только через {@code
  *     allow-globs} проекта: он читается как любой другой, но живёт вне истории, и правка в нём
  *     остаётся неотслеживаемой (а на проекте без {@code untracked-edit-enabled} запрещена вовсе).
@@ -31,16 +36,19 @@ import org.jspecify.annotations.Nullable;
  */
 public record GitFileContent(
         String path,
+
+        @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = OmitTrue.class)
         boolean tracked,
-        @Nullable String commit,
-        @Nullable String content,
-        boolean binary,
+
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String commit,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String content,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean binary,
         long sizeBytes,
-        @Nullable String language,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String language,
         int lineCount,
         boolean truncated,
-        @Nullable Integer fromLine,
-        @Nullable Integer toLine)
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer fromLine,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer toLine)
         implements ToolCallResponseItem {
 
     @Override

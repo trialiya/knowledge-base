@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.github.trialiya.kb.model.tool.ModelView;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import java.util.LinkedHashMap;
@@ -18,6 +20,10 @@ import org.jspecify.annotations.Nullable;
  * @param additions lines added by this operation
  * @param deletions lines removed by this operation
  * @param lineCount total lines in the file after the operation
+ * <p>The model is answered without {@code diff} ({@link #forModel}): the patch repeats the edit the
+ * model has just written itself, up to 500 lines of it. The whole result is kept for the call's
+ * detail view, and the file-changes block reads the diff from the meta.
+ *
  * @param diff unified diff of this operation; null for created files
  */
 public record GitEditResult(
@@ -26,7 +32,20 @@ public record GitEditResult(
         int additions,
         int deletions,
         int lineCount,
-        @Nullable String diff) implements ToolCallResultMetaProvider, ToolCallResponseItem {
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String diff)
+        implements ToolCallResultMetaProvider, ToolCallResponseItem, ModelView {
+
+    @Override
+    public ForModel forModel() {
+        return new ForModel(operation, path, additions, deletions, lineCount);
+    }
+
+    /**
+     * What the model reads: the result without {@code diff}. Public and named as {@link #forModel}'s
+     * return type so the native image registers it with the tool's signature (see {@code
+     * NativeHints}).
+     */
+    public record ForModel(String operation, String path, int additions, int deletions, int lineCount) {}
 
     @Override
     public Map<String, Object> getResultMeta() {

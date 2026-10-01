@@ -154,7 +154,7 @@ ID предков от корня до узла (не включая сам уз
 | `kwWeight` | Double? | `null` | Вес keyword (только hybrid) |
 | `semWeight` | Double? | `null` | Вес semantic (только hybrid) |
 
-**Response:** `List<SearchResult>` — каждый результат содержит `parentList: List<Parent>` с полями `id` и `title`
+**Response:** `List<SearchResult>` — каждый результат содержит `parentList: List<Parent>` с полями `id` и `title`; у документа верхнего уровня список пуст, и ключа нет
 
 ---
 
@@ -1113,7 +1113,7 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `limit` | int | `10` | Макс. результатов |
 | `project` | String? | `null` | ID проекта; пусто — дефолтный |
 
-**Response:** `List<GitFileNode>` — `{ path, name, type: "file", size, tracked }`. `tracked: false` — файл виден только через `kb.projects[].allow-globs` проекта (истории в git у него нет); интерфейс помечает такие узлы.
+**Response:** `List<GitFileNode>` — `{ path, name, type: "file", size, tracked }`. `tracked` печатается только как `false` — файл виден только через `kb.projects[].allow-globs` проекта (истории в git у него нет); интерфейс помечает такие узлы. Нет ключа — файл отслеживается. `size` у каталога не печатается.
 
 ---
 
@@ -1156,7 +1156,7 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `rev` | String? | `null` | Прочитать файл на этой ревизии вместо рабочего дерева: хеш (полный или короткий), ветка, тег, `HEAD~2` |
 | `project` | String? | `null` | ID проекта; пусто — дефолтный |
 
-**Response:** `GitFileContent` — `{ project, path, content, binary, sizeBytes, language, totalLines, commit, ... }`. Без `rev` читается рабочее дерево вместе с незакоммиченными правками и `commit` в ответе `null`; с `rev` — дерево коммита, и `commit` несёт его полный хеш, как бы ревизию ни назвали в запросе.
+**Response:** `GitFileContent` — `{ path, tracked, commit, content, binary, sizeBytes, language, lineCount, truncated, fromLine, toLine }`. Пустое не печатается: нет `commit`, `content`, `language`, `fromLine`/`toLine` — значит `null`, нет `binary` — `false`, нет `tracked` — `true`. Без `rev` читается рабочее дерево вместе с незакоммиченными правками, и ключа `commit` нет; с `rev` — дерево коммита, и `commit` несёт его полный хеш, как бы ревизию ни назвали в запросе. Диапазон `from`/`to` ограничен 512 КБ, как и чтение целиком: срез кончается на последней влезшей строке, `toLine` говорит, на какой.
 
 **Ошибки:** `400` — путь пустой или содержит `..`, `/`, `-` в начале, `\0`
 
@@ -1171,7 +1171,7 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `rev` | String? | `null` | Структура файла на этой ревизии вместо рабочего дерева |
 | `project` | String? | `null` | ID проекта; пусто — дефолтный |
 
-**Response:** `GitFileOutline` — `{ path, tracked, language, lineCount, parser, symbols: [{ kind, name, signature, startLine, endLine }] }`. У markdown `kind` — `h1`…`h6` (текст до первого заголовка — `preamble`), `signature` — путь раздела в форме `MarkdownSections`, диапазон строк — раздел вместе с подразделами.
+**Response:** `GitFileOutline` — `{ path, tracked, language, lineCount, parser, symbols: [{ kind, name, signature, startLine, endLine }] }`; `tracked` — только `false`, `language` — только определённый. У markdown `kind` — `h1`…`h6` (текст до первого заголовка — `preamble`), `signature` — путь раздела в форме `MarkdownSections`, диапазон строк — раздел вместе с подразделами.
 
 **Ошибки:** `400` — путь недопустим, файла нет, ревизия неизвестна, файл бинарный или структура для его языка не строится
 

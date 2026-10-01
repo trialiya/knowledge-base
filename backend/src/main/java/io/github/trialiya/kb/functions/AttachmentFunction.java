@@ -34,6 +34,12 @@ import org.springframework.ai.tool.annotation.ToolParam;
 @AllArgsConstructor
 public class AttachmentFunction {
 
+    /**
+     * Вложений одного имени в ответе {@code getAttachmentContentByFileName}: каждое — до 15 000
+     * символов, и без предела по числу один вызов уносил бы их сколько угодно.
+     */
+    static final int MAX_BY_NAME = 5;
+
     private final AttachmentService attachmentService;
 
     // ── List by owner ─────────────────────────────────────────────────────────
@@ -110,7 +116,9 @@ public class AttachmentFunction {
     }
 
     @Tool(
-            description = "Read full text content of attachments by file name.",
+            description = "Read full text content of attachments by file name: at most "
+                    + MAX_BY_NAME
+                    + " attachments, each cut at 15000 characters.",
             resultConverter = CompactToolResultConverter.class)
     public List<AttachmentContext> getAttachmentContentByFileName(
             ToolContext context, @ToolParam(description = "File name.") String fileName) {
@@ -118,6 +126,7 @@ public class AttachmentFunction {
         final String conversationId = conversationId(context);
         log.debug("[{}] getAttachmentContentByFileName called: fileName='{}'", conversationId, fileName);
         return attachmentService.getByFileName(conversationId, fileName).stream()
+                .limit(MAX_BY_NAME)
                 .map(attachment -> new AttachmentContext(
                         attachment.id(),
                         attachment.fileName(),

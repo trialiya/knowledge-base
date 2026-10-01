@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.script;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -13,7 +14,9 @@ import org.jspecify.annotations.Nullable;
  * @param line 1-based line in the script, when the engine reported one
  */
 public record ScriptError(
-        Kind kind, String message, @Nullable Integer line) {
+        Kind kind,
+        String message,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer line) {
 
     public enum Kind {
         /** The script did not parse. */

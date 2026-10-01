@@ -80,8 +80,10 @@ describe('detectResultView', () => {
   });
 
   // `getTreeSkeleton` отдаёт `DocumentSkeletonNode` — узел без содержимого,
-  // дат и `children`; `findDocumentsByName` — полный `DocumentNode` со снипетом
-  // в 150 символов (`toStubNode`). Тесты ниже держат обе настоящие формы, а не
+  // дат и `children`, у корня без ключа `parentId`; `findDocumentsByName` —
+  // `DocumentNameMatch` со снипетом в поле `snippet`. В истории чатов лежат и
+  // прежние формы: скелет с `parentId: null` у корня и полный `DocumentNode`
+  // со снипетом в `description` (`found`). Тесты держат настоящие формы, а не
   // общий знаменатель между ними.
   const skeleton = (id, title, parentId) => ({
     id,
@@ -106,6 +108,19 @@ describe('detectResultView', () => {
     expect(detectResultView(JSON.stringify([skeleton(1, 'Проект', null), skeleton(7, 'Модели', 1)])).id).toBe('tree');
   });
 
+  it('getTreeSkeleton — tree и тогда, когда у корня ключа parentId нет', () => {
+    const root = { id: 1, title: 'Проект', type: 'folder', version: 2, descriptionVersion: 3, hasChildren: true };
+    expect(detectResultView(JSON.stringify([root, skeleton(7, 'Модели', 1)])).id).toBe('tree');
+  });
+
+  it('findDocumentsByName — recordList, даже когда все снипеты многострочные', () => {
+    // Снипет лежит в `snippet` — подписи строки списка, а не в `description`,
+    // который `content` считает текстом документа.
+    const md = '# Обзор\n\nЗапрос проходит через четыре слоя, каждый следующий не знает о преды';
+    const match = (id, title, parentId) => ({ id, title, type: 'document', parentId, snippet: md });
+    expect(detectResultView(JSON.stringify([match(7, 'Модели', 1), match(31, 'Отчёты', 4)])).id).toBe('recordList');
+  });
+
   it('findDocumentsByName — recordList: родители лежат снаружи выдачи', () => {
     const one = 'Слои приложения и их назначение, коротко и в одну строку.';
     expect(detectResultView(JSON.stringify([found(7, 'Модели', 1, one), found(31, 'Отчёты', 4, one)])).id).toBe(
@@ -124,8 +139,8 @@ describe('detectResultView', () => {
     );
   });
 
-  it('findDocumentsByName: все снипеты многострочные — пока текст', () => {
-    // Осознанный текущий исход, а не недосмотр: снипеты выглядят ровно как
+  it('findDocumentsByName из истории: все снипеты многострочные — текст', () => {
+    // Осознанный исход для прежней формы, а не недосмотр: снипеты выглядят ровно как
     // короткие тексты, и отличить их от них можно только порогом
     // `isContentText`, который делит границу ещё и со `scalar`.
     const md = '# Обзор\n\nЗапрос проходит через четыре слоя, каждый следующий не знает о преды';

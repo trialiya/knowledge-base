@@ -1,8 +1,10 @@
 package io.github.trialiya.kb.model.git.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonView;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
+import io.github.trialiya.kb.model.tool.ToolJson;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +26,8 @@ import org.jspecify.annotations.Nullable;
  * @param hash полный SHA коммита
  * @param shortHash сокращённый SHA (минимум 7 символов, длиннее при неоднозначности)
  * @param author имя автора
- * @param email email автора
+ * @param email email автора; модели не печатается (см. {@link ToolJson}) — рядом с {@code author}
+ *     он ей ничего не добавляет, а окно коммита в «Файлах» его показывает
  * @param date дата коммита (ISO-8601 с offset)
  * @param message subject — первый абзац сообщения, переносы строк склеены пробелами
  * @param body остальная часть сообщения — всё после первой пустой строки; {@code null}, если тела
@@ -38,7 +41,7 @@ public record GitCommit(
         String hash,
         String shortHash,
         String author,
-        String email,
+        @JsonView(ToolJson.UiOnly.class) String email,
         OffsetDateTime date,
         String message,
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String body,

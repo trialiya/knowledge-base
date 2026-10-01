@@ -69,9 +69,24 @@ final class FileViews {
             return new GitFileContent(
                     path, tracked, commit, "", false, size, language, total, true, from, Math.max(from, to));
         }
-        String slice = String.join("\n", Arrays.asList(lines).subList(from - 1, to));
-        return new GitFileContent(
-                path, tracked, commit, slice, false, size, language, total, from > 1 || to < total, from, to);
+        // Диапазон не ограничен числом строк, но ограничен тем же размером, что и чтение целиком:
+        // иначе fromLine=1, toLine=999999 вернул бы большой файл полностью, в обход усечения.
+        // Срез кончается на последней строке, что влезла целиком; toLine говорит, где именно, и
+        // продолжить можно со следующей. Одна строка длиннее предела режется сама.
+        int end = from - 1;
+        long chars = 0;
+        while (end < to && (end == from - 1 || chars + lines[end].length() + 1 <= RepoFiles.MAX_FILE_SIZE)) {
+            chars += lines[end].length() + 1;
+            end++;
+        }
+        String slice = String.join("\n", Arrays.asList(lines).subList(from - 1, end));
+        boolean lineCut = slice.length() > RepoFiles.MAX_FILE_SIZE;
+        if (lineCut) {
+            slice = slice.substring(0, (int) RepoFiles.MAX_FILE_SIZE) + "\n... (line cut at " + RepoFiles.MAX_FILE_SIZE
+                    + " chars)";
+        }
+        boolean partial = from > 1 || end < total || lineCut;
+        return new GitFileContent(path, tracked, commit, slice, false, size, language, total, partial, from, end);
     }
 
     /** Первые {@code HEAD_LINES} и последние {@code TAIL_LINES} строк с отметкой о пропуске. */

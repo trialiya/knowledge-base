@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.doc.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.tools.Compact;
@@ -14,20 +15,19 @@ import org.jspecify.annotations.Nullable;
  * <p>Отдельный record, а не {@link DocumentNode} с пустыми полями: в скелете на сотни узлов пустые
  * {@code description}, даты, {@code children} и поля сводки занимали половину ответа.
  *
- * <p>{@code parentId} печатается и когда он {@code null}: корень дерева без этого ключа «Обзор»
- * чата не узнал бы как узел иерархии ({@code treeResult.js}).
- *
- * @param parentId id родителя; {@code null} у узла верхнего уровня
+ * @param parentId id родителя; у узла верхнего уровня ключа нет вовсе — «Обзор» чата узнаёт
+ *     иерархию по ключу хотя бы у одного узла выдачи ({@code treeResult.js})
+ * @param system системный узел; {@code false} не печатается
  */
 public record DocumentSkeletonNode(
         long id,
         String title,
         String type,
-        @Nullable Long parentId,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Long parentId,
         int version,
         int descriptionVersion,
         boolean hasChildren,
-        boolean system)
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean system)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     public static DocumentSkeletonNode of(DocumentNode node) {

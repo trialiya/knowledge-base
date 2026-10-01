@@ -13,6 +13,7 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.DocumentGrepMatch;
+import io.github.trialiya.kb.model.doc.dto.DocumentNameMatch;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.DocumentOutline;
 import io.github.trialiya.kb.model.doc.dto.DocumentSection;
@@ -31,8 +32,10 @@ import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ExactEdit;
 import io.github.trialiya.kb.utils.MarkdownSections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -67,6 +70,12 @@ import org.springframework.ai.tool.annotation.ToolParam;
  */
 @Slf4j
 public class DocumentFunction {
+
+    /**
+     * Узлов в ответе {@code getTreeSkeleton}. Столько же «Обзор» чата берётся показать деревом
+     * ({@code treeResult.js}): больше — не дерево, а выгрузка.
+     */
+    static final int MAX_SKELETON_NODES = 1000;
 
     private final DocumentService documentService;
     private final AttachmentService attachmentService;
@@ -168,7 +177,7 @@ public class DocumentFunction {
     @Tool(
             description =
                     "Search document CONTENT for matching lines (case-insensitive), like grep over the knowledge base. "
-                            + "Returns documentId, title, sectionPath, line number and text. "
+                            + "Returns documentId, title, sectionPath, line number and text; a line over 500 characters is cut. "
                             + "Use it to find where a wording occurs before editing; use searchDocuments to find which document is about a topic.",
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentGrepMatch> grepDocuments(
@@ -201,7 +210,10 @@ public class DocumentFunction {
                 ctx,
                 limit,
                 documentId);
-        return documentService.grepDocuments(pattern, useRegex, ctx, limit, documentId);
+        return documentService.grepDocuments(pattern, useRegex, ctx, limit, documentId).stream()
+                .map(m -> new DocumentGrepMatch(
+                        m.documentId(), m.title(), m.sectionPath(), m.matchLine(), GrepLines.cap(m.text())))
+                .toList();
     }
 
     // ── Tree ──────────────────────────────────────────────────────────────────
@@ -214,11 +226,62 @@ public class DocumentFunction {
      * @return flat list of skeleton nodes; parentId=null means root level
      */
     @Tool(
-            description = "List all knowledge base nodes (id, title, type, parentId) without content.",
+            description = "List all knowledge base nodes (id, title, type, parentId) without content. "
+                    + "Over "
+                    + MAX_SKELETON_NODES
+                    + " nodes, only the upper levels that fit are listed: a node with hasChildren=true "
+                    + "whose children are not in the list is a folder to open with getDocument.",
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentSkeletonNode> getTreeSkeleton() {
         log.debug("getTreeSkeleton called");
-        return documentService.getTreeSkeleton();
+        return upperLevels(documentService.getTreeSkeleton(), MAX_SKELETON_NODES);
+    }
+
+    /**
+     * Узлы верхних уровней дерева — столько уровней целиком, сколько влезает в {@code max}. Резать
+     * по уровням, а не по счёту: обрезанный список остаётся деревом, и каждый узел, чьих детей в нём
+     * нет, сам говорит об этом через {@code hasChildren}. Если не влезают даже корни — первые
+     * {@code max} из них. Порядок исходного списка сохраняется.
+     */
+    static List<DocumentSkeletonNode> upperLevels(List<DocumentSkeletonNode> nodes, int max) {
+        if (nodes.size() <= max) {
+            return nodes;
+        }
+        Map<Long, Long> parentOf = new HashMap<>();
+        nodes.forEach(n -> parentOf.put(n.id(), n.parentId()));
+        Map<Long, Integer> depth = new HashMap<>();
+        for (DocumentSkeletonNode node : nodes) {
+            depth.put(node.id(), depthOf(node.id(), parentOf, nodes.size()));
+        }
+        int[] perLevel = new int[nodes.size() + 1];
+        depth.values().forEach(d -> perLevel[d]++);
+        int level = -1;
+        int taken = 0;
+        while (level + 1 < perLevel.length && taken + perLevel[level + 1] <= max) {
+            level++;
+            taken += perLevel[level];
+        }
+        if (level < 0) {
+            return nodes.stream()
+                    .filter(n -> depth.getOrDefault(n.id(), 0) == 0)
+                    .limit(max)
+                    .toList();
+        }
+        int deepest = level;
+        return nodes.stream()
+                .filter(n -> depth.getOrDefault(n.id(), 0) <= deepest)
+                .toList();
+    }
+
+    /** Глубина узла: 0 у корня и у узла, чей родитель вне списка; цепочка длиннее списка — цикл. */
+    private static int depthOf(long id, Map<Long, Long> parentOf, int bound) {
+        int depth = 0;
+        Long parent = parentOf.get(id);
+        while (parent != null && parentOf.containsKey(parent) && depth < bound) {
+            depth++;
+            parent = parentOf.get(parent);
+        }
+        return depth;
     }
 
     // ── Find by name ──────────────────────────────────────────────────────────
@@ -234,18 +297,20 @@ public class DocumentFunction {
      * surface documents that merely mention the name in their body text.
      *
      * @param name full or partial document/folder title
-     * @return list of matching nodes with id, title, type, parentId, description, hasChildren
+     * @return matching documents with id, title, type, parentId and the start of the description
      */
     @Tool(
             description = "Find document/folder by title (exact or partial match, case-insensitive, "
                     + "exact matches first). Matches ONLY the title, not content.",
             resultConverter = CompactToolResultConverter.class)
-    public List<DocumentNode> findDocumentsByName(
+    public List<DocumentNameMatch> findDocumentsByName(
             @ToolParam(description = "Document/folder title (full or partial).") String name) {
         // "" matches every title; the model that wants the whole list has getTreeSkeleton for it.
         requireText(name, "name");
         log.debug("findDocumentsByName called: name='{}'", name);
-        return documentService.findByName(name);
+        return documentService.findByName(name).stream()
+                .map(DocumentNameMatch::of)
+                .toList();
     }
 
     // ── Single document ───────────────────────────────────────────────────────

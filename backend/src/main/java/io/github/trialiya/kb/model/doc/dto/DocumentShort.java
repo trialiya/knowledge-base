@@ -1,7 +1,10 @@
 package io.github.trialiya.kb.model.doc.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonView;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
+import io.github.trialiya.kb.model.tool.ToolJson;
 import io.github.trialiya.kb.tools.Compact;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -10,6 +13,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Lightweight document DTO returned by create / update / move operations.
+ *
+ * <p>The model reads neither {@code updatedAt} nor {@code summaryStale} (see {@link ToolJson}); a
+ * {@code parentId} of a root-level document and a missing {@code summarySourceVersion} are left out.
  *
  * @param summaryStale {@code true} when the description has changed since the last summarisation,
  *     i.e. the summary may no longer reflect the current content. Always {@code false} when {@link
@@ -21,12 +27,12 @@ public record DocumentShort(
         long id,
         String title,
         String type,
-        @Nullable Long parentId,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Long parentId,
         int version,
         int descriptionVersion,
-        LocalDateTime updatedAt,
-        boolean summaryStale,
-        @Nullable Integer summarySourceVersion)
+        @JsonView(ToolJson.UiOnly.class) LocalDateTime updatedAt,
+        @JsonView(ToolJson.UiOnly.class) boolean summaryStale,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer summarySourceVersion)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
     @Override
     public String getFormattedResponse() {

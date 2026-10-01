@@ -32,7 +32,8 @@ const countNodes = (nodes) => nodes.reduce((sum, node) => sum + 1 + countNodes(n
  * Ссылка на родителя (`getTreeSkeleton`): узлы плоские, иерархия в `parentId`.
  *
  * Узел, чьего родителя в выдаче нет, — корень: инструмент отдаёт поддерево, и
- * ссылка наружу это не ошибка.
+ * ссылка наружу это не ошибка. Узел без ключа `parentId` — тоже корень: бэкенд
+ * не печатает `null`.
  */
 const byParentId = (records) => {
   const nodes = new Map();
@@ -63,9 +64,9 @@ const byParentId = (records) => {
   }
 
   // Ни одной связи внутри выдачи — это не иерархия, а плоский список, совпавший
-  // формой: `findDocumentsByName` отдаёт те же `DocumentNode`, но найденные по
-  // имени, и их `parentId` показывают наружу. Лес одиночных корней в этом виде
-  // беднее строки списка записей, поэтому такую выдачу отдаём ему.
+  // формой: `findDocumentsByName` отдаёт документы, найденные по имени, и их
+  // `parentId` показывают наружу. Лес одиночных корней в этом виде беднее строки
+  // списка записей, поэтому такую выдачу отдаём ему.
   if (edges === 0) return null;
 
   // Ссылки должны образовывать лес: цикл — даже если он захватил лишь часть
@@ -178,7 +179,11 @@ const fromArray = (records) => {
   // его правил, а вопрос ему самому.
   if (contentTakesArray(records)) return null;
 
-  if (records.every((r) => Number.isInteger(r.id) && 'parentId' in r)) return byParentId(records);
+  // `parentId` нужен хотя бы одному узлу, не всем: у корня ключа нет. В ответах,
+  // уже сохранённых в истории чатов, он есть у всех, со значением `null`.
+  if (records.every((r) => Number.isInteger(r.id)) && records.some((r) => 'parentId' in r)) {
+    return byParentId(records);
+  }
   if (records.every((r) => str(r.path))) return byPath(records);
   return null;
 };

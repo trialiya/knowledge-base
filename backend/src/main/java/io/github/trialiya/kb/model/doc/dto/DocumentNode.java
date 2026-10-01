@@ -3,8 +3,10 @@ package io.github.trialiya.kb.model.doc.dto;
 import static java.util.stream.Collectors.joining;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonView;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
+import io.github.trialiya.kb.model.tool.ToolJson;
 import io.github.trialiya.kb.tools.Compact;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -16,7 +18,8 @@ import org.jspecify.annotations.Nullable;
  * Full document node returned by {@code GET /api/documents/{id}} and tree/children endpoints.
  *
  * <p>Carries summary metadata alongside the document so the UI can show a "summary may be stale"
- * badge without an extra round-trip.
+ * badge without an extra round-trip. The dates and {@code summaryStale} are for the UI only: a tool
+ * answer leaves them out (see {@link ToolJson}).
  *
  * @param system When true: the UI must hide delete/rename controls and the server will reject
  *     delete/rename requests with 403.
@@ -39,13 +42,13 @@ public record DocumentNode(
         int version,
         String description,
         int descriptionVersion,
-        @Nullable LocalDateTime createdAt,
-        @Nullable LocalDateTime updatedAt,
+        @Nullable @JsonView(ToolJson.UiOnly.class) LocalDateTime createdAt,
+        @Nullable @JsonView(ToolJson.UiOnly.class) LocalDateTime updatedAt,
         @Nullable List<DocumentNode> children,
         boolean hasChildren,
         boolean system,
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String summary,
-        boolean summaryStale,
+        @JsonView(ToolJson.UiOnly.class) boolean summaryStale,
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer summarySourceVersion)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 

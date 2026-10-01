@@ -50,6 +50,29 @@ describe('detectTreeResult — вложенность по ссылке на р�
     expect(detect(JSON.stringify([doc(1, 'Проект', null), doc(1, 'Двойник', null)]))).toBeNull();
   });
 
+  it('getTreeSkeleton: у корня ключа parentId нет вовсе — бэкенд не печатает null', () => {
+    const skeleton = (id, title, parentId) => ({
+      id,
+      title,
+      type: 'folder',
+      ...(parentId == null ? {} : { parentId }),
+      version: 1,
+      descriptionVersion: 1,
+      hasChildren: false,
+    });
+    const data = detect(
+      JSON.stringify([
+        skeleton(1, 'Проект'),
+        skeleton(7, 'Модели', 1),
+        skeleton(2, 'Архив'),
+        skeleton(9, 'Документы', 7),
+      ]),
+    );
+    expect(shape(data.nodes)).toEqual([['Проект', [['Модели', ['Документы']]]], 'Архив']);
+    // Одни корни — ни одного ключа: это не иерархия, а список.
+    expect(detect(JSON.stringify([skeleton(1, 'Проект'), skeleton(2, 'Архив')]))).toBeNull();
+  });
+
   it('findDocumentsByName: ни одной связи внутри выдачи — это список, а не дерево', () => {
     // Та же форма DocumentNode, но найденная по имени: родители лежат снаружи
     // выдачи, и дерево выродилось бы в столбец одиночных корней.

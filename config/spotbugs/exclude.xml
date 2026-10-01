@@ -51,4 +51,12 @@
         <Bug pattern="DCN_NULLPOINTER_EXCEPTION"/>
     </Match>
 
+    <!-- A Jackson @JsonInclude(CUSTOM) value filter is asked filter.equals(value) and leaves the
+         property out on true: comparing with a Boolean, not with another OmitTrue, is the
+         contract. -->
+    <Match>
+        <Class name="io.github.trialiya.kb.model.tool.OmitTrue"/>
+        <Bug pattern="EQ_CHECK_FOR_OPERAND_NOT_COMPATIBLE_WITH_THIS"/>
+    </Match>
+
 </FindBugsFilter>

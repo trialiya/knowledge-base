@@ -16,6 +16,15 @@ const STAT_ORDER = ['filesRead', 'bytesRead', 'calls', 'filesEdited', 'elapsedMs
 const isStringArray = (value) => Array.isArray(value) && value.every((item) => typeof item === 'string');
 
 /**
+ * Список, который версия для модели опускает, когда он пуст: нет ключа — пустой
+ * список, есть ключ не того типа — не та форма (`null`).
+ */
+const listOr = (value, isList) => {
+  if (value === undefined) return [];
+  return isList(value) ? value : null;
+};
+
+/**
  * Объект счётчиков → плитки. Все значения обязаны быть числами: именно это и
  * делает объект статистикой, а не вложенным куском ответа.
  */
@@ -64,8 +73,13 @@ const scriptValue = (value) => {
 export const detectScriptRun = ({ parsed, isJson }) => {
   if (!isJson || !isPlainObject(parsed)) return null;
   if (!isPlainObject(parsed.stats)) return null;
-  if (!isStringArray(parsed.log) || !isStringArray(parsed.filesRead)) return null;
-  if (!Array.isArray(parsed.edits)) return null;
+  // Пустые `log`, `filesRead` и `edits` версия для модели не печатает, а `value`
+  // печатает всегда, даже `null`, — по нему форма и узнаётся, когда списков нет.
+  if (!('value' in parsed)) return null;
+  const log = listOr(parsed.log, isStringArray);
+  const filesRead = listOr(parsed.filesRead, isStringArray);
+  const editList = listOr(parsed.edits, Array.isArray);
+  if (!log || !filesRead || !editList) return null;
 
   // Вид ошибки обязателен, если ошибка вообще есть: половина смысла `ScriptError`
   // в том, что упавший прогон назван — синтаксис, лимит и таймаут чинятся
@@ -79,8 +93,8 @@ export const detectScriptRun = ({ parsed, isJson }) => {
   // Правки показывает вид diff'а — разбор один, а не второй такой же здесь.
   // Непустой список, который тем видом не разбирается, уводит в JSON весь ответ:
   // показать статистику и умолчать про правки хуже, чем показать всё сырым.
-  const edits = parsed.edits.length > 0 ? detectDiffResult({ parsed: parsed.edits, isJson: true }) : null;
-  if (parsed.edits.length > 0 && !edits) return null;
+  const edits = editList.length > 0 ? detectDiffResult({ parsed: editList, isJson: true }) : null;
+  if (editList.length > 0 && !edits) return null;
 
   const error = failed
     ? {
@@ -101,8 +115,8 @@ export const detectScriptRun = ({ parsed, isJson }) => {
     // Необязателен: скрипт, написанный моделью, источника не называет.
     source: scriptSource(parsed.source),
     value: scriptValue(parsed.value),
-    log: parsed.log,
-    filesRead: parsed.filesRead,
+    log,
+    filesRead,
     // Только в версии для модели: ей уходят первые пути, остальные — числом.
     filesReadMore: Number.isInteger(parsed.filesReadMore) && parsed.filesReadMore > 0 ? parsed.filesReadMore : 0,
     // Только в версии для модели и только при resultLimit: до скольких элементов урезано значение.

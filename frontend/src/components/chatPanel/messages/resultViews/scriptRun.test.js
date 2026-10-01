@@ -45,6 +45,28 @@ describe('detectScriptRun — что попадает в «Обзор»', () => 
     expect(whole.truncatedTo).toBeNull();
   });
 
+  it('версия для модели: пустые списки и ошибку она не печатает, их нет — значит, пусто', () => {
+    const data = detect(JSON.stringify({ project: 'kb', value: 3, stats: { calls: 1, elapsedMs: 12 } }));
+    expect(data.log).toEqual([]);
+    expect(data.filesRead).toEqual([]);
+    expect(data.edits).toBeNull();
+    expect(data.error).toBeNull();
+    expect(data.value).toBe('3');
+    // Правка в версии для модели — без diff: её написала сама модель.
+    const edited = detect(
+      JSON.stringify({
+        value: null,
+        stats: { filesEdited: 1 },
+        edits: [{ operation: 'edit', path: 'a.jsx', additions: 1, deletions: 1, lineCount: 9 }],
+      }),
+    );
+    expect(edited.edits[0].files.map((f) => f.path)).toEqual(['a.jsx']);
+  });
+
+  it('без value ответ — не прогон скрипта, даже со счётчиками', () => {
+    expect(detect(JSON.stringify({ stats: { calls: 1 } }))).toBeNull();
+  });
+
   it('проект берётся из ответа: прогон мог читать соседний репозиторий', () => {
     expect(detect(JSON.stringify(result({ project: 'billing' }))).project).toBe('billing');
     // Старый ответ без проекта разбор не ломает.
@@ -136,8 +158,8 @@ describe('detectScriptRun — что остаётся другим видам', 
     expect(detect(JSON.stringify(result({ edits: [{ path: 'a.jsx' }] })))).toBeNull();
   });
 
-  it('без лога, путей или статистики форма не та', () => {
-    expect(detect(JSON.stringify(result({ log: undefined })))).toBeNull();
+  it('лог, пути или статистика не той формы — форма не та', () => {
+    expect(detect(JSON.stringify(result({ log: 'начало обхода' })))).toBeNull();
     expect(detect(JSON.stringify(result({ stats: {} })))).toBeNull();
     expect(detect(JSON.stringify(result({ filesRead: [{ path: 'a.jsx' }] })))).toBeNull();
   });
