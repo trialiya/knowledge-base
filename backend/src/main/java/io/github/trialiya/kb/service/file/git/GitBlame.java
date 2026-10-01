@@ -86,7 +86,9 @@ final class GitBlame {
     /**
      * Parses {@code --porcelain} output into hunks, in line order.
      *
-     * <p>The layout: a header {@code <sha> <orig-line> <final-line> [<lines-in-hunk>]} opens a hunk;
+     * <p>The layout: a header {@code <sha> <orig-line> <final-line> [<lines-in-hunk>]} opens a hunk
+     * ({@code orig-line} — where the hunk starts in that commit's file — becomes its {@code
+     * sourceLine});
      * the first time a commit appears it is followed by its fields ({@code author}, {@code
      * author-mail}, {@code author-time}, {@code author-tz}, {@code summary}, …), one {@code key
      * value} per line; every line of the file follows its own header, prefixed by a tab. The count
@@ -110,7 +112,11 @@ final class GitBlame {
             if (header.matches()) {
                 String sha = header.group(1);
                 if (header.group(4) != null) {
-                    hunks.add(bare(sha, Integer.parseInt(header.group(3)), Integer.parseInt(header.group(4))));
+                    hunks.add(bare(
+                            sha,
+                            Integer.parseInt(header.group(2)),
+                            Integer.parseInt(header.group(3)),
+                            Integer.parseInt(header.group(4))));
                     hunkPaths.add(null);
                 }
                 current = metas.computeIfAbsent(sha, s -> new Meta());
@@ -139,10 +145,24 @@ final class GitBlame {
 
     private static final String FILENAME = "filename ";
 
-    /** A hunk as its header names it, before the commit's fields are known. */
-    private static GitFileBlame.Hunk bare(String sha, int fromLine, int count) {
+    /**
+     * A hunk as its header names it, before the commit's fields are known. The source line is kept
+     * for committed lines only: for an uncommitted edit git numbers the working copy itself, and
+     * there is no snapshot to point into.
+     */
+    private static GitFileBlame.Hunk bare(String sha, int sourceLine, int fromLine, int count) {
+        boolean uncommitted = UNCOMMITTED.equals(sha);
         return new GitFileBlame.Hunk(
-                fromLine, count, UNCOMMITTED.equals(sha) ? null : sha, null, null, null, null, null, null);
+                fromLine,
+                count,
+                uncommitted ? null : sha,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                uncommitted ? null : sourceLine);
     }
 
     /** One commit's fields, gathered off the {@code key value} lines that follow its first header. */
@@ -191,7 +211,8 @@ final class GitBlame {
                     email,
                     date(),
                     summary,
-                    hunkPath == null ? path : hunkPath);
+                    hunkPath == null ? path : hunkPath,
+                    open.sourceLine());
         }
 
         /** The author's moment in the author's own offset; an offset git printed oddly falls back to UTC. */

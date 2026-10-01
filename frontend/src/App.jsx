@@ -293,6 +293,7 @@ function App() {
               blame={nav.fileBlame}
               find={nav.fileFind}
               findRegex={nav.fileFindRegex}
+              lines={nav.fileLines}
               onChangesToggle={setFileChanges}
               onRevChange={setFileRev}
               onBlameToggle={setFileBlame}

@@ -104,6 +104,8 @@ class GitBlameTest {
         // Путь — из полей коммита: второй ханк первого коммита приходит одним заголовком, без
         // filename, и путь берёт с первого появления.
         assertThat(hunks).extracting(GitFileBlame.Hunk::path).containsExactly("old.txt", "f.txt", "old.txt");
+        // Строка в файле того коммита — из заголовка ханка, не из заголовков его прочих строк.
+        assertThat(hunks).extracting(GitFileBlame.Hunk::sourceLine).containsExactly(1, 1, 3);
         assertThat(hunks.get(0).date()).isEqualTo(OffsetDateTime.parse("2023-11-15T01:13:20+03:00"));
         assertThat(hunks.get(1).date()).isEqualTo(OffsetDateTime.parse("2023-11-14T23:13:20Z"));
     }
@@ -128,6 +130,7 @@ class GitBlameTest {
             assertThat(h.author()).isNull();
             assertThat(h.date()).isNull();
             assertThat(h.path()).isNull();
+            assertThat(h.sourceLine()).isNull();
         });
     }
 

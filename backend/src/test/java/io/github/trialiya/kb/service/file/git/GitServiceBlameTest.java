@@ -61,6 +61,25 @@ class GitServiceBlameTest {
     }
 
     /**
+     * Строки, сдвинутые вставкой выше, в файле своего коммита стоят на прежнем месте: {@code
+     * sourceLine} — номер оттуда, по нему ссылка на снимок выделяет именно их.
+     */
+    @Test
+    void hunksCarryTheLineTheyStartAtInTheirCommit() {
+        writeFile("f.txt", "a\nb\n");
+        commitAll("first");
+        writeFile("f.txt", "new 1\nnew 2\na\nb\n");
+        commitAll("inserted");
+        writeFile("f.txt", "new 1\nnew 2\na\nb\nwip\n");
+
+        GitFileBlame blame = service.getBlame("f.txt");
+
+        assertThat(blame.hunks())
+                .extracting(GitFileBlame.Hunk::summary, GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::sourceLine)
+                .containsExactly(tuple("inserted", 1, 1), tuple("first", 3, 1), tuple(null, 5, null));
+    }
+
+    /**
      * Коммит-переформатирование, названный в {@code .git-blame-ignore-revs}, авторства не
      * получает: его строки остаются за тем, кто писал их до него. Без игнор-файла тот же blame
      * отдал бы всё переформатированию — это и проверяется вторым чтением.

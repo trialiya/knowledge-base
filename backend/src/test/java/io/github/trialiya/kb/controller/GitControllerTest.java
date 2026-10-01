@@ -111,7 +111,8 @@ class GitControllerTest {
                                 "alice@example.com",
                                 OffsetDateTime.parse("2024-01-02T03:04:05+03:00"),
                                 "first",
-                                "README.md"))));
+                                "README.md",
+                                1))));
 
         mockMvc.perform(get("/api/git/files/blame").param("path", "README.md").param("rev", "v1"))
                 .andExpect(status().isOk())

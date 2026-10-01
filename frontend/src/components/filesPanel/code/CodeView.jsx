@@ -12,18 +12,33 @@ import { blameRows } from './blameRows';
  * С колонкой каждый ханк — свой `<tbody>`: подсветка при наведении на подпись
  * ложится на все его строки разом (blame.css), а не на одну, к которой
  * пристёгнута растянутая ячейка.
+ *
+ * `marked` — `{ from, to }`, строки, выделенные адресом (`?lines=`), или null.
  */
-const CodeView = ({ text, fromLine = 1, showLineNumbers = true, blame = null, path = '', project = '' }) => {
+const CodeView = ({
+  text,
+  fromLine = 1,
+  showLineNumbers = true,
+  blame = null,
+  marked = null,
+  path = '',
+  project = '',
+}) => {
   const lines = text.split('\n');
   const hunks = blame?.hunks;
   const rows = useMemo(
     () => (hunks ? blameRows(hunks, fromLine, lines.length) : null),
     [hunks, fromLine, lines.length],
   );
+  const isMarked = (n) => !!marked && n >= marked.from && n <= marked.to;
   const row = (line, i) => (
     // Номер строки как адрес — для прокрутки к символу структуры (FileView), и
     // только там, где нумерация честная.
-    <tr key={i} data-line={showLineNumbers ? fromLine + i : undefined}>
+    <tr
+      key={i}
+      data-line={showLineNumbers ? fromLine + i : undefined}
+      className={isMarked(fromLine + i) ? 'file-code__row--marked' : undefined}
+    >
       {rows && rows[i] && <BlameCell hunk={rows[i].hunk} span={rows[i].span} path={path} project={project} />}
       {showLineNumbers && <td className="file-code__gutter">{fromLine + i}</td>}
       <td className="file-code__line">

@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import gitApi from '@/api/gitApi';
 import { formatFileSize } from '@/utils/formatting';
 import { previewKind, defaultPreviewView } from '@/utils/filePreview';
+import { parseLines } from '@/navigation/urlScheme';
 import ChangeDiffView from './changes/ChangeDiffView';
 import CodeView from './code/CodeView';
 import useFileBlame from './code/useFileBlame';
@@ -74,6 +75,9 @@ const ImageView = ({ path, project, rev, reloadToken = 0 }) => {
  * `blame` / `onToggleBlame` — колонка авторства строк: включена ли она (из
  * адреса, `?blame=1`) и чем её переключать. Без `onToggleBlame` (превью в
  * модалках) тумблера нет и колонка не спрашивается.
+ *
+ * `lines` — выделенные строки из адреса (`?lines=42-45`): они подсвечены в
+ * исходнике, и файл один раз прокручивается к ним, когда содержимое пришло.
  */
 const FileView = ({
   file,
@@ -86,6 +90,7 @@ const FileView = ({
   onToggleDiff,
   blame = false,
   onToggleBlame = null,
+  lines = '',
   jump = null,
 }) => {
   const { t } = useTranslation('files');
@@ -99,7 +104,9 @@ const FileView = ({
     setPrevPath(filePath);
     setView(null);
   }
-  const shown = view ?? defaultPreviewView(kind);
+  const marked = parseLines(lines);
+  // Выделение есть только у строк исходника: SVG, открытый ради строк, — текстом.
+  const shown = view ?? (marked ? 'source' : defaultPreviewView(kind));
   const preview = shown === 'preview';
   // Переключать есть что, только когда у файла два вида. У растра исходника нет
   // вовсе, а у SVG и markdown, не прочитавшихся текстом (UTF-16, встроенный
@@ -131,6 +138,21 @@ const FileView = ({
     if (!jump) return;
     rootRef.current?.querySelector(`[data-line="${jump.line}"]`)?.scrollIntoView({ block: 'start' });
   }, [jump]);
+
+  // К выделенным строкам — один раз на файл и диапазон, а не на каждый приход
+  // содержимого: обновление репозитория перечитывает файл, и прокрутка не
+  // должна уводить оттуда, куда пользователь уже ушёл сам. Файл без выделения
+  // память сбрасывает: «Назад» на ссылку с `?lines=` обязан привести к строкам снова.
+  const scrolledTo = useRef('');
+  const markKey = marked ? `${filePath}\n${lines}` : '';
+  useEffect(() => {
+    if (!markKey) scrolledTo.current = '';
+    if (!markKey || scrolledTo.current === markKey) return;
+    const row = rootRef.current?.querySelector(`[data-line="${marked.from}"]`);
+    if (!row) return;
+    scrolledTo.current = markKey;
+    row.scrollIntoView({ block: 'center' });
+  }, [markKey, marked, file]);
 
   return (
     <div className="file-view" ref={rootRef}>
@@ -197,6 +219,7 @@ const FileView = ({
           fromLine={file.fromLine ?? 1}
           showLineNumbers={!excerpt}
           blame={blameShown ? lineBlame : null}
+          marked={excerpt ? null : marked}
           path={filePath}
           project={project}
         />

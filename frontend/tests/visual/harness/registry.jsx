@@ -67,6 +67,7 @@ import * as detailHeader from '../fixtures/detailHeader';
 import * as fileChangeBlock from '../fixtures/fileChangeBlock';
 import * as detailPanel from '../fixtures/detailPanel';
 import * as docFind from '../fixtures/docFind';
+import * as fileBlame from '../fixtures/fileBlame';
 import * as fileFind from '../fixtures/fileFind';
 import * as filesBreadcrumb from '../fixtures/filesBreadcrumb';
 import * as gitMenu from '../fixtures/gitMenu';
@@ -756,6 +757,26 @@ const LIGHT = [
     ),
   },
 
+  // Колонка blame рядом со строками, выделенными адресом: ширина колонки и
+  // многоточие длинного описания, дата столбиком, растянутая ячейка ханка, и что
+  // подсветка `?lines=` ложится на номер и текст, но не на подпись ханка.
+  {
+    id: 'fileBlame.js#blameColumn',
+    frame: 'center',
+    api: (p) => ({ '/api/git/files/blame': p.blame }),
+    render: (p) => (
+      <FileContent
+        content={{ type: 'file', path: p.path, file: p.file }}
+        path={p.path}
+        loading={false}
+        onNavigate={noop}
+        blame
+        onToggleBlame={noop}
+        lines={fileBlame.lines}
+      />
+    ),
+  },
+
   // Документ открыт из поиска по разделу: бар подставлен, активно первое
   // совпадение в названном разделе, а не в документе — без шагов.
   {
@@ -990,6 +1011,7 @@ const MODULES = {
   'chatUsage.js': chatUsage,
   'infoList.js': infoList,
   'docFind.js': docFind,
+  'fileBlame.js': fileBlame,
   'fileFind.js': fileFind,
   'modalFind.js': modalFind,
   'operationRow.js': operationRow,

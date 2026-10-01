@@ -1,19 +1,24 @@
 import { useTranslation } from 'react-i18next';
 import { FILE_TAB } from '@/constants/fileTabs';
 import { navigateToFile } from '@/navigation/fileNavigationBus';
-import { filesUrl } from '@/navigation/urlScheme';
+import { filesUrl, formatLines } from '@/navigation/urlScheme';
 import { isBrowserClick } from '@/components/common/preview/useLinkTooltip';
-import { formatDateTime, formatRelativeTime } from '@/utils/formatting';
+import { formatCompactDateTime, formatDateTime } from '@/utils/formatting';
 
 /**
- * Ячейка колонки blame: кто и когда последним менял строки ханка. Клик
- * открывает этот же файл в снимке того коммита с вкладкой «Коммит» справа —
- * одним переходом (см. navStore.openFilePath); Ctrl/Cmd+клик — браузеру, по
- * тому же адресу. Путь — тот, под которым файл лежал в том коммите
- * (`hunk.path`): после переименования нынешнее имя там не найдётся. Ханк без
- * коммита — незакоммиченная правка: вести некуда.
+ * Ячейка колонки blame: когда менялись строки ханка и чем — дата и начало
+ * описания коммита, сколько влезет в ширину колонки. Автор, хеш и полное
+ * описание — в подсказке.
  *
- * `data-find-skip`: Ctrl+F в файле ищет по тексту, а не по авторам и хешам.
+ * Клик открывает этот же файл в снимке того коммита с вкладкой «Коммит» справа и
+ * строками ханка, выделенными там (`?lines=`), — одним переходом (см.
+ * navStore.openFilePath); Ctrl/Cmd+клик — браузеру, по тому же адресу. Путь и
+ * номера — те, что были у файла в том коммите (`hunk.path`, `hunk.sourceLine`):
+ * после переименования нынешнее имя там не найдётся, а строки, сдвинутые
+ * позднейшими правками, стояли там на другом месте. Ханк без коммита —
+ * незакоммиченная правка: вести некуда.
+ *
+ * `data-find-skip`: Ctrl+F в файле ищет по тексту, а не по описаниям коммитов.
  */
 const BlameCell = ({ hunk, span, path, project }) => {
   const { t, i18n } = useTranslation('files');
@@ -26,20 +31,24 @@ const BlameCell = ({ hunk, span, path, project }) => {
     );
   }
   const target = hunk.path || path;
-  const href = filesUrl(target, project, { rev: hunk.hash, right: FILE_TAB.COMMIT });
+  const options = {
+    rev: hunk.hash,
+    lines: hunk.sourceLine ? formatLines(hunk.sourceLine, hunk.lineCount) : undefined,
+    right: FILE_TAB.COMMIT,
+  };
+  const href = filesUrl(target, project, options);
   const onClick = (e) => {
     if (isBrowserClick(e)) return;
     e.preventDefault();
-    navigateToFile(target, project, { rev: hunk.hash, right: FILE_TAB.COMMIT });
+    navigateToFile(target, project, options);
   };
-  const when = formatDateTime(hunk.date, i18n.language);
-  const title = [hunk.summary, `${hunk.author}${when ? ` · ${when}` : ''}`].filter(Boolean).join('\n');
+  const byline = [hunk.author, hunk.shortHash, formatDateTime(hunk.date, i18n.language)].filter(Boolean).join(' · ');
+  const title = [hunk.summary, byline].filter(Boolean).join('\n');
   return (
     <td className="file-code__blame" rowSpan={span} data-find-skip="">
       <a className="file-code__blame-link" href={href} onClick={onClick} title={title}>
-        <span className="file-code__blame-hash">{hunk.shortHash}</span>
-        <span className="file-code__blame-author">{hunk.author}</span>
-        <span className="file-code__blame-date">{formatRelativeTime(hunk.date, i18n.language)}</span>
+        <span className="file-code__blame-date">{formatCompactDateTime(hunk.date, i18n.language)}</span>
+        <span className="file-code__blame-summary">{hunk.summary}</span>
       </a>
     </td>
   );

@@ -31,15 +31,31 @@ export function formatDateTime(value, locale) {
 }
 
 /**
+ * Дата и время цифрами, без секунд («20.05.2026, 06:58» в ru) — для колонки
+ * blame: у подписей одна ширина, и описания коммитов за ними начинаются ровно в
+ * столбик. null для пустого или битого значения.
+ */
+export function formatCompactDateTime(value, locale) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString(locale, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
  * Момент относительно «сейчас» в локали интерфейса: «5 минут назад», «2 часа
  * назад», дальше суток — короткая дата, в другом году — с годом (иначе два
  * коммита с разницей в годы читались бы одинаково). Плюрализацию и слова даёт
  * нативный Intl.RelativeTimeFormat, поэтому ключей перевода не нужно. null для
  * пустого или битого значения; момент из будущего (часы разошлись) — датой, а
  * не пустотой.
- *
- * Одна подпись для времени сообщения в чате и для колонки blame: «когда» в
- * интерфейсе должно читаться одинаково.
+
  */
 export function formatRelativeTime(value, locale) {
   if (!value) return null;

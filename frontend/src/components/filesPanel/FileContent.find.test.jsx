@@ -55,15 +55,15 @@ describe('поиск в открытом файле', () => {
     expect(counter()).toBe('1/2');
   });
 
-  // Автор «needle» в колонке blame — не совпадение: искали в тексте файла.
+  // Описание коммита «needle» в колонке blame — не совпадение: искали в тексте файла.
   test('колонка blame в счётчик не попадает', async () => {
     gitApi.getBlame.mockResolvedValue({
       path: 'a.js',
-      hunks: [{ fromLine: 1, lineCount: 3, hash: 'a'.repeat(40), shortHash: 'aaaaaaa', author: 'needle' }],
+      hunks: [{ fromLine: 1, lineCount: 3, hash: 'a'.repeat(40), shortHash: 'aaaaaaa', summary: 'fix needle' }],
     });
     renderFile({ find: 'needle', file: { ...FILE, tracked: true }, blame: true, onToggleBlame: () => {} });
 
-    await screen.findByText('aaaaaaa');
+    await screen.findByText('fix needle');
 
     expect(counter()).toBe('1/2');
   });

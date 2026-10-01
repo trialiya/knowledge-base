@@ -1,4 +1,4 @@
-import { formatRelativeTime } from './formatting';
+import { formatCompactDateTime, formatRelativeTime } from './formatting';
 
 describe('formatRelativeTime', () => {
   beforeEach(() => vi.useFakeTimers({ now: new Date('2026-06-15T12:00:00Z') }));
@@ -23,5 +23,17 @@ describe('formatRelativeTime', () => {
   test('empty or broken input is null', () => {
     expect(formatRelativeTime(null, 'en')).toBeNull();
     expect(formatRelativeTime('nonsense', 'en')).toBeNull();
+  });
+});
+
+describe('formatCompactDateTime', () => {
+  test('digits only, minutes without seconds', () => {
+    const value = new Date(2026, 4, 20, 6, 58, 49).toISOString();
+    expect(formatCompactDateTime(value, 'ru')).toBe('20.05.2026, 06:58');
+  });
+
+  test('empty and broken values give null', () => {
+    expect(formatCompactDateTime(null, 'ru')).toBeNull();
+    expect(formatCompactDateTime('nonsense', 'ru')).toBeNull();
   });
 });

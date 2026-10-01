@@ -294,3 +294,14 @@
 .file-code__table tr:hover {
   background: var(--kb-accent-surface-subtle);
 }
+
+/* Строки из адреса (`?lines=`): фон на ячейках номера и текста, а не на строке —
+   у строки с ячейкой blame он лёг бы и на всю растянутую подпись ханка. */
+.file-code__row--marked > .file-code__gutter,
+.file-code__row--marked > .file-code__line {
+  background: var(--kb-surface-warning);
+}
+.file-code__row--marked > .file-code__gutter {
+  box-shadow: inset 2px 0 0 var(--kb-warning);
+  opacity: 1;
+}
