@@ -43,10 +43,12 @@ const FilesPanelForProject = ({
   path,
   changes,
   rev,
+  blame,
   find,
   findRegex,
   onChangesToggle,
   onRevChange,
+  onBlameToggle,
   onFindChange,
   onPathChange,
   onProjectChange,
@@ -268,6 +270,10 @@ const FilesPanelForProject = ({
             diff={showChanges && path ? diff : null}
             showDiff={showDiff}
             onToggleDiff={setDiffChoice}
+            // Колонка blame — состояние экрана из адреса (`?blame=1`), как
+            // режим изменений: переживает F5 и переезжает на соседний файл.
+            blame={blame}
+            onToggleBlame={onBlameToggle}
             find={find}
             findRegex={findRegex}
             onFindChange={onFindChange}
@@ -323,10 +329,12 @@ const FilesPanel = ({
   path,
   changes,
   rev,
+  blame,
   find,
   findRegex,
   onChangesToggle,
   onRevChange,
+  onBlameToggle,
   onFindChange,
   onPathChange,
   refreshToken,
@@ -357,10 +365,12 @@ const FilesPanel = ({
       path={path}
       changes={changes}
       rev={rev || ''}
+      blame={!!blame}
       find={find || ''}
       findRegex={!!findRegex}
       onChangesToggle={onChangesToggle}
       onRevChange={onRevChange}
+      onBlameToggle={onBlameToggle}
       onFindChange={onFindChange}
       onPathChange={onPathChange}
       // Путь из одного репозитория в другом ничего не значит — уходим в корень.

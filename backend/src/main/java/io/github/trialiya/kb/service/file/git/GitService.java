@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
+import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import io.github.trialiya.kb.model.git.dto.GitFileBytes;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileInfo;
@@ -81,10 +82,11 @@ import org.jspecify.annotations.Nullable;
  * from ever sharing a repository handle.
  *
  * <p>All operations run against this project's repository via JGit, in-process — no {@code git}
- * subprocess, no argv, no output parsing — except {@link #grepContent}, which still shells out to
- * {@code git grep} through {@link GitGrepRunner} (JGit has no equivalent), and the user's network
- * commands ({@link #fetch}, see {@code GitCommands}), which shell out to reuse the host's
- * credentials. Files matched by {@code .gitignore} are excluded from tree/search/status results the
+ * subprocess, no argv, no output parsing — except {@link #grepContent} and {@link #getBlame},
+ * which shell out to {@code git grep} and {@code git blame} through {@link GitGrepRunner} and
+ * {@link GitBlameRunner} (JGit has no grep, and its blame cannot skip {@code
+ * .git-blame-ignore-revs}), and the user's network commands ({@link #fetch}, see {@code
+ * GitCommands}), which shell out to reuse the host's credentials. Files matched by {@code .gitignore} are excluded from tree/search/status results the
  * same way native git excludes them.
  */
 @Slf4j
@@ -140,8 +142,11 @@ public class GitService {
     /** Which paths this project exposes, and what the index says about them. */
     private final VisibleFiles visible;
 
-    /** Content search — the one operation that shells out to {@code git}. */
+    /** Content search, through a {@code git grep} subprocess. */
     private final GitGrepRunner grep;
+
+    /** Line authorship, through a {@code git blame} subprocess. */
+    private final GitBlameRunner blame;
 
     /** The working-tree writes, kept apart from this far larger read surface. */
     private final GitWriter writer;
@@ -174,6 +179,7 @@ public class GitService {
         this.git = new Git(repository);
         this.visible = new VisibleFiles(project, paths, repository);
         this.grep = new GitGrepRunner(paths, repository, visible);
+        this.blame = new GitBlameRunner(paths, repository, visible);
         this.writer = new GitWriter(project, paths, visible, git);
         this.branches = new GitBranches(repository, git);
         this.commands = new GitCommands(paths, repository, git, branches);
@@ -695,6 +701,21 @@ public class GitService {
             int contextLines,
             int maxResults) {
         return grep.grepContentAt(rev, pattern, pathGlob, regex, contextLines, maxResults);
+    }
+
+    // ── Line authorship ─────────────────────────────────────────────────────
+
+    /**
+     * Who last changed each line of a tracked file in the working tree, with the revisions {@code
+     * .git-blame-ignore-revs} names skipped; see {@link GitBlameRunner#blame}.
+     */
+    public GitFileBlame getBlame(@NonNull String filePath) {
+        return blame.blame(normalizePath(filePath));
+    }
+
+    /** {@link #getBlame} of the file as of a commit; see {@link GitBlameRunner#blameAt}. */
+    public GitFileBlame getBlameAt(@NonNull String commitHash, @NonNull String filePath) {
+        return blame.blameAt(commitHash, normalizePath(filePath));
     }
 
     // ── File content ────────────────────────────────────────────────────────

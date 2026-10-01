@@ -35,7 +35,11 @@
     "toggleMarkdown": "Просмотр в markdown",
     "togglePicture": "Рисунок или исходник",
     "imageUnavailable": "Не удалось показать изображение — возможно, файл слишком велик",
-    "showDiff": "Diff"
+    "showDiff": "Diff",
+    "showBlame": "Blame",
+    "blameTitle": "Кто последним менял каждую строку; переформатирования из .git-blame-ignore-revs пропущены",
+    "blameUncommitted": "Не закоммичено",
+    "blameError": "Не удалось загрузить blame"
   },
   "info": {
     "name": "Имя",

@@ -122,7 +122,7 @@ export function filesPath(path) {
  * читаемое имя на месте вызова, а список позиционных «путь, проект, ревизия,
  * запрос, регулярка» просчитывается только по этому файлу.
  */
-export function filesUrl(path, project, { rev, find, findRegex } = {}) {
+export function filesUrl(path, project, { rev, find, findRegex, right } = {}) {
   const p = new URLSearchParams();
   if (project) p.set('project', project);
   // Ревизия — тоже часть адреса файла: ссылка на совпадение, найденное в снимке
@@ -132,6 +132,9 @@ export function filesUrl(path, project, { rev, find, findRegex } = {}) {
   // адресе, а не в переходе, — иначе Ctrl+клик и перезагрузка теряли бы его.
   if (find) p.set('find', find);
   if (find && findRegex) p.set('re', '1');
+  // Вкладка правой панели — последней, как её пишет buildUrl: ячейка blame
+  // ведёт к файлу в снимке коммита с открытой вкладкой «Коммит».
+  if (right) p.set('right', right);
   const qs = p.toString();
   return filesPath(path) + (qs ? `?${qs}` : '');
 }

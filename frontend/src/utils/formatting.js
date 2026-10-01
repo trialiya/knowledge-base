@@ -29,3 +29,30 @@ export function formatDateTime(value, locale) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date.toLocaleString(locale);
 }
+
+/**
+ * Момент относительно «сейчас» в локали интерфейса: «5 минут назад», «2 часа
+ * назад», дальше суток — короткая дата, в другом году — с годом (иначе два
+ * коммита с разницей в годы читались бы одинаково). Плюрализацию и слова даёт
+ * нативный Intl.RelativeTimeFormat, поэтому ключей перевода не нужно. null для
+ * пустого или битого значения; момент из будущего (часы разошлись) — датой, а
+ * не пустотой.
+ *
+ * Одна подпись для времени сообщения в чате и для колонки blame: «когда» в
+ * интерфейсе должно читаться одинаково.
+ */
+export function formatRelativeTime(value, locale) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  const diffMin = Math.floor((now.getTime() - date.getTime()) / 60000);
+  if (diffMin >= 0 && diffMin < 60 * 24) {
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    if (diffMin < 1) return rtf.format(0, 'minute');
+    if (diffMin < 60) return rtf.format(-diffMin, 'minute');
+    return rtf.format(-Math.floor(diffMin / 60), 'hour');
+  }
+  const sameYear = date.getFullYear() === now.getFullYear();
+  return date.toLocaleDateString(locale, { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
+}

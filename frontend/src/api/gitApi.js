@@ -103,6 +103,20 @@ const gitApi = {
   },
 
   /**
+   * Авторство строк — GitFileBlame { path, commit, lineCount, hunks: [{ fromLine,
+   * lineCount, hash, shortHash, author, email, date, summary }] }. Коммиты из
+   * `.git-blame-ignore-revs` уже пропущены; у незакоммиченных строк рабочего
+   * дерева все поля о коммите null. Неотслеживаемый или бинарный файл — 400,
+   * не уложившийся в дедлайн blame — 503.
+   */
+  getBlame: (path, { rev, project, signal } = {}) => {
+    const params = new URLSearchParams({ path });
+    if (rev) params.set('rev', rev);
+    const [qs, init] = opts(params, project, signal);
+    return request(`/api/git/files/blame${qs}`, init);
+  },
+
+  /**
    * Структура файла — GitFileOutline { path, language, lineCount, parser,
    * symbols: [{ kind, name, signature, startLine, endLine }] }. У markdown
    * символы — заголовки (`kind` h1…h6, `preamble` — текст до первого),

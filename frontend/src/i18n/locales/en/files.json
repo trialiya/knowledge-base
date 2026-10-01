@@ -35,7 +35,11 @@
     "toggleMarkdown": "Markdown preview",
     "togglePicture": "Picture or source",
     "imageUnavailable": "This image cannot be shown — the file may be too large",
-    "showDiff": "Diff"
+    "showDiff": "Diff",
+    "showBlame": "Blame",
+    "blameTitle": "Who last changed each line; reformatting commits from .git-blame-ignore-revs are skipped",
+    "blameUncommitted": "Not committed",
+    "blameError": "Failed to load blame"
   },
   "info": {
     "name": "Name",

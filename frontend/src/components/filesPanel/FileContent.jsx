@@ -49,6 +49,8 @@ const FileContent = ({
   diff = null,
   showDiff = false,
   onToggleDiff,
+  blame = false,
+  onToggleBlame = null,
   find = '',
   findRegex = false,
   onFindChange = null,
@@ -112,6 +114,8 @@ const FileContent = ({
             diff={diff}
             showDiff={showDiff}
             onToggleDiff={onToggleDiff}
+            blame={blame}
+            onToggleBlame={onToggleBlame}
             jump={jump}
           />
         )}

@@ -4,11 +4,13 @@ import userEvent from '@testing-library/user-event';
 import FileContent from './FileContent';
 import ModalShell from '@/components/common/modal/ModalShell';
 import useDismissable from '@/components/common/layout/useDismissable';
+import gitApi from '@/api/gitApi';
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal()),
-  useTranslation: () => ({ t: (key) => key }),
+  useTranslation: () => ({ t: (key) => key, i18n: { language: 'en' } }),
 }));
+vi.mock('@/api/gitApi');
 
 const pressCtrlF = () => fireEvent.keyDown(window, { key: 'f', code: 'KeyF', ctrlKey: true });
 const pressEscape = () => fireEvent.keyDown(document, { key: 'Escape' });
@@ -50,6 +52,19 @@ describe('поиск в открытом файле', () => {
 
     expect(bar()).not.toBeNull();
     expect(screen.getByPlaceholderText('find.placeholder')).toHaveValue('needle');
+    expect(counter()).toBe('1/2');
+  });
+
+  // Автор «needle» в колонке blame — не совпадение: искали в тексте файла.
+  test('колонка blame в счётчик не попадает', async () => {
+    gitApi.getBlame.mockResolvedValue({
+      path: 'a.js',
+      hunks: [{ fromLine: 1, lineCount: 3, hash: 'a'.repeat(40), shortHash: 'aaaaaaa', author: 'needle' }],
+    });
+    renderFile({ find: 'needle', file: { ...FILE, tracked: true }, blame: true, onToggleBlame: () => {} });
+
+    await screen.findByText('aaaaaaa');
+
     expect(counter()).toBe('1/2');
   });
 

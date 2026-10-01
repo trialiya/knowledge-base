@@ -12,6 +12,7 @@ import MessageContextItems from './MessageContextItems';
 import { formatTokens, hasUsage, usageTooltip } from './tokenUsage';
 import CopyButton from '@/components/common/ui/CopyButton';
 import { SENDER } from '@/constants/messageSender';
+import { formatRelativeTime } from '@/utils/formatting';
 
 // ─── Markdown components (стиль KnowledgeBase .md-preview) ─────────────────────
 // Вынесено в фабрику, чтобы ссылки получали onNavigateToDoc через замыкание.
@@ -28,26 +29,6 @@ function getMarkdownComponents(onNavigateToDoc) {
     pre: MarkdownCodeBlock,
   };
 }
-
-/**
- * Форматирует timestamp: если < 24ч — относительное время, иначе — дата.
- * Локаль берётся из i18n (lang) — относительное время и плюрализацию даёт нативный
- * Intl.RelativeTimeFormat, поэтому отдельные ключи перевода не нужны.
- */
-const formatTimestamp = (ts, lang) => {
-  if (!ts) return null;
-  const date = new Date(ts);
-  if (isNaN(date)) return null;
-  const diffMs = Date.now() - date.getTime();
-  if (diffMs < 0) return null;
-  const diffMin = Math.floor(diffMs / 60000);
-  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
-  if (diffMin < 1) return rtf.format(0, 'minute');
-  if (diffMin < 60) return rtf.format(-diffMin, 'minute');
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return rtf.format(-diffH, 'hour');
-  return date.toLocaleDateString(lang, { day: 'numeric', month: 'short' });
-};
 
 const formatFullDatetime = (ts, lang) => {
   if (!ts) return null;
@@ -88,7 +69,7 @@ const Message = ({
     // прогон не дойдёт до места, где вопрос можно вставить (см. useChatRun.queueMessage).
     (queued ? ' message--queued' : '');
   const hasToolCalls = toolCalls && toolCalls.length > 0;
-  const timeLabel = formatTimestamp(timestamp, i18n.language);
+  const timeLabel = formatRelativeTime(timestamp, i18n.language);
   const timeTitle = formatFullDatetime(timestamp, i18n.language);
 
   // Стабильные идентичности markdown-компонентов между рендерами (как в
