@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.file.git;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -50,6 +51,22 @@ class GitReadProcessTest {
 
         assertThat(out.cut()).isTrue();
         assertThat(out.lines()).containsExactly("three", "two");
+    }
+
+    /**
+     * A code up to the caller's limit is an answer, above it a failure that names the command and
+     * carries what git said — the message the 500 and the log line are built from.
+     */
+    @Test
+    void anExitAboveTheLimitIsRefusedWithWhatGitSaid() {
+        List<String> command = List.of("git", "log", "no-such-revision");
+        GitReadProcess.Output out = git.run(command, 10, git.deadline());
+
+        assertThatThrownBy(() -> out.requireExit(command, 0))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageStartingWith("git log exited 128: ")
+                .hasMessageContaining("no-such-revision");
+        out.requireExit(command, 128);
     }
 
     private void runGit(String... args) {

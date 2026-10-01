@@ -130,11 +130,7 @@ final class GitBlameRunner {
             log.warn("git blame filled {} lines: {}", MAX_OUTPUT_LINES, command);
             throw new IllegalStateException("git blame output too large for " + normalized);
         }
-        if (out.exit() != 0) {
-            String said = out.said();
-            log.warn("Git command exited {}: {} → {}", out.exit(), command, said);
-            throw new IllegalStateException("git blame exited " + out.exit() + ": " + said);
-        }
+        out.requireExit(command, 0);
         List<GitFileBlame.Hunk> hunks = GitBlame.parse(out.lines());
         int lineCount = hunks.stream().mapToInt(GitFileBlame.Hunk::lineCount).sum();
         return new GitFileBlame(normalized, commit, lineCount, hunks);
