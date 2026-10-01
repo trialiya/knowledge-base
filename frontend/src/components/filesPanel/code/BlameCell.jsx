@@ -4,6 +4,7 @@ import { navigateToFile } from '@/navigation/fileNavigationBus';
 import { filesUrl, formatLines } from '@/navigation/urlScheme';
 import { isBrowserClick } from '@/components/common/preview/useLinkTooltip';
 import { formatCompactDateTime, formatDateTime } from '@/utils/formatting';
+import shortRev from '@/components/common/git/shortRev';
 
 /**
  * Ячейка колонки blame: когда менялись строки ханка и чем — дата и начало
@@ -44,7 +45,9 @@ const BlameCell = ({ hunk, span, path, project }) => {
     e.preventDefault();
     navigateToFile(target, project, { ...options, backLines: formatLines(hunk.fromLine, hunk.lineCount) });
   };
-  const byline = [hunk.author, hunk.shortHash, formatDateTime(hunk.date, i18n.language)].filter(Boolean).join(' · ');
+  const byline = [hunk.author, shortRev(hunk.hash), formatDateTime(hunk.date, i18n.language)]
+    .filter(Boolean)
+    .join(' · ');
   const title = [hunk.summary, byline].filter(Boolean).join('\n');
   return (
     <td className="file-code__blame" rowSpan={span} data-find-skip="">

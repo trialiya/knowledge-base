@@ -93,14 +93,13 @@ class GitBlameTest {
                 .extracting(
                         GitFileBlame.Hunk::fromLine,
                         GitFileBlame.Hunk::lineCount,
-                        GitFileBlame.Hunk::shortHash,
+                        GitFileBlame.Hunk::hash,
                         GitFileBlame.Hunk::author,
-                        GitFileBlame.Hunk::email,
                         GitFileBlame.Hunk::summary)
                 .containsExactly(
-                        tuple(1, 2, "aaaaaaa", "Alice", "alice@example.com", "first"),
-                        tuple(3, 1, "bbbbbbb", "Bob", "bob@example.com", "second"),
-                        tuple(4, 1, "aaaaaaa", "Alice", "alice@example.com", "first"));
+                        tuple(1, 2, A, "Alice", "first"),
+                        tuple(3, 1, B, "Bob", "second"),
+                        tuple(4, 1, A, "Alice", "first"));
         // Путь — из полей коммита: второй ханк первого коммита приходит одним заголовком, без
         // filename, и путь берёт с первого появления.
         assertThat(hunks).extracting(GitFileBlame.Hunk::path).containsExactly("old.txt", "f.txt", "old.txt");
@@ -126,7 +125,6 @@ class GitBlameTest {
         assertThat(GitBlame.parse(out)).singleElement().satisfies(h -> {
             assertThat(h.fromLine()).isEqualTo(1);
             assertThat(h.hash()).isNull();
-            assertThat(h.shortHash()).isNull();
             assertThat(h.author()).isNull();
             assertThat(h.date()).isNull();
             assertThat(h.path()).isNull();

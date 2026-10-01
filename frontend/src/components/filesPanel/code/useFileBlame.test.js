@@ -4,7 +4,7 @@ import gitApi from '@/api/gitApi';
 
 vi.mock('@/api/gitApi');
 
-const hunks = [{ fromLine: 1, lineCount: 2, hash: 'a'.repeat(40), shortHash: 'aaaaaaa', author: 'Alice' }];
+const hunks = [{ fromLine: 1, lineCount: 2, hash: 'a'.repeat(40), author: 'Alice' }];
 
 describe('useFileBlame', () => {
   afterEach(() => vi.resetAllMocks());

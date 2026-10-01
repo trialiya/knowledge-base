@@ -54,9 +54,7 @@ class GitServiceBlameTest {
                 .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::lineCount, GitFileBlame.Hunk::summary)
                 .containsExactly(tuple(1, 1, "first"), tuple(2, 2, "second"));
         assertThat(blame.hunks().get(0).hash()).hasSize(40);
-        assertThat(blame.hunks().get(0).shortHash()).hasSize(7);
         assertThat(blame.hunks().get(0).author()).isEqualTo("Test");
-        assertThat(blame.hunks().get(0).email()).isEqualTo("test@example.com");
         assertThat(blame.hunks().get(0).date()).isNotNull();
     }
 

@@ -106,9 +106,7 @@ class GitControllerTest {
                                 1,
                                 2,
                                 hash,
-                                "aaaaaaa",
                                 "Alice",
-                                "alice@example.com",
                                 OffsetDateTime.parse("2024-01-02T03:04:05+03:00"),
                                 "first",
                                 "README.md",
@@ -117,7 +115,7 @@ class GitControllerTest {
         mockMvc.perform(get("/api/git/files/blame").param("path", "README.md").param("rev", "v1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.commit").value(hash))
-                .andExpect(jsonPath("$.hunks[0].shortHash").value("aaaaaaa"))
+                .andExpect(jsonPath("$.hunks[0].hash").value(hash))
                 .andExpect(jsonPath("$.hunks[0].lineCount").value(2));
     }
 
