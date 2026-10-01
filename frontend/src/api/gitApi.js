@@ -368,7 +368,9 @@ const gitApi = {
 
   /**
    * Поиск коммитов по префиксу хэша или подстроке заголовка (свежие первыми) —
-   * для пикера. Возвращает те же GitCommit[], что и getCommits.
+   * для пикера. Возвращает { commits: GitCommit[], truncated }: обход истории
+   * ограничен, и `truncated` говорит, что дальше могли быть ещё совпадения —
+   * выдача упёрлась в limit или обход в свой предел.
    */
   searchCommits: (q, { limit = 10, project, signal } = {}) => {
     const [qs, init] = opts(new URLSearchParams({ q, limit: String(limit) }), project, signal);

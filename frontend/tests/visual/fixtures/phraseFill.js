@@ -38,14 +38,17 @@ export const fileResults = [
 ];
 
 /** Ответ gitApi.searchCommits — поле типа commit. */
-export const commitResults = [
-  {
-    hash: '5d405d4c0f1a2b3c4d5e6f708192a3b4c5d6e7f8',
-    shortHash: '5d405d4',
-    author: 'Claude',
-    message: 'Типизированные плейсхолдеры фраз и диалог их заполнения',
-  },
-];
+export const commitResults = {
+  commits: [
+    {
+      hash: '5d405d4c0f1a2b3c4d5e6f708192a3b4c5d6e7f8',
+      shortHash: '5d405d4',
+      author: 'Claude',
+      message: 'Типизированные плейсхолдеры фраз и диалог их заполнения',
+    },
+  ],
+  truncated: false,
+};
 
 /** Ответ documentsApi.searchByName — поле типа document. */
 export const documentResults = [

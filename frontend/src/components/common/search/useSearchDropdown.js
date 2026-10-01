@@ -16,13 +16,20 @@ const DEFAULT_DEBOUNCE_MS = 200;
  * the `search` captured when the keystroke was handled, not the one from the
  * latest render.
  *
- * @param {(query: string, signal: AbortSignal) => Promise<any[]>} search
+ * `search` answers either a bare list or `{ items, truncated }` — the second is
+ * a bounded search that knows it showed less than there is, and the hook hands
+ * `truncated` back next to `results`. It is the answer's own word: any other
+ * outcome (a new query, an error, closing) clears it, so a stale flag cannot
+ * outlive the list it described.
+ *
+ * @param {(query: string, signal: AbortSignal) => Promise<any[] | { items: any[], truncated: boolean }>} search
  * @param {{ debounceMs?: number }} [options]
  */
 export default function useSearchDropdown(search, { debounceMs = DEFAULT_DEBOUNCE_MS } = {}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [idx, setIdx] = useState(0);
   const [anchorRect, setAnchorRect] = useState(null);
@@ -42,6 +49,7 @@ export default function useSearchDropdown(search, { debounceMs = DEFAULT_DEBOUNC
     setOpen(false);
     setQuery('');
     setResults([]);
+    setTruncated(false);
     setIdx(0);
     setLoading(false);
   }, []);
@@ -64,13 +72,16 @@ export default function useSearchDropdown(search, { debounceMs = DEFAULT_DEBOUNC
       setLoading(true);
       search(q, controller.signal)
         .then((data) => {
-          setResults(Array.isArray(data) ? data : []);
+          const bounded = !Array.isArray(data) && Array.isArray(data?.items);
+          setResults(Array.isArray(data) ? data : bounded ? data.items : []);
+          setTruncated(bounded && data.truncated === true);
           setIdx(0);
           setLoading(false);
         })
         .catch((err) => {
           if (err.name !== 'AbortError') {
             setResults([]);
+            setTruncated(false);
             setLoading(false);
           }
         });
@@ -92,6 +103,7 @@ export default function useSearchDropdown(search, { debounceMs = DEFAULT_DEBOUNC
       } else {
         abortRef.current?.abort();
         setResults([]);
+        setTruncated(false);
         setLoading(false);
       }
     },
@@ -166,6 +178,7 @@ export default function useSearchDropdown(search, { debounceMs = DEFAULT_DEBOUNC
     open,
     query,
     results,
+    truncated,
     loading,
     idx,
     anchorRect,

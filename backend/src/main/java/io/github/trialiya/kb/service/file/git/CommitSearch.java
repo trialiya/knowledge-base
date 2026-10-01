@@ -68,8 +68,10 @@ final class CommitSearch {
     /**
      * @param query префикс хеша или подстрока сообщения, без учёта регистра
      * @param maxCount сколько коммитов вернуть, не больше {@value #MAX_RESULTS}
-     * @return совпадения и признак того, что обход остановился раньше конца истории — на лимите
-     *     выдачи или на {@link #SCAN}
+     * @return совпадения и признак того, что за ними могут быть ещё: нашлось совпадение сверх
+     *     лимита, или обход остановился на {@link #SCAN} раньше конца истории. Лимит, заполненный
+     *     последним совпадением истории, — полная выдача: после него обход идёт дальше, до конца
+     *     истории или до {@link #SCAN}, — та же цена, что у запроса без единого совпадения
      */
     // ObjectReader принадлежит RevWalk и закрывается вместе с ним; закрыть его здесь значило бы
     // выдернуть читатель из-под обхода, который ещё идёт.
@@ -100,10 +102,15 @@ final class CommitSearch {
             List<GitCommit> matches = new ArrayList<>();
             int scanned = 0;
             for (RevCommit commit : walk) {
-                if (++scanned > SCAN || matches.size() >= limit) {
+                if (++scanned > SCAN) {
                     return new GitCommitSearchResult(matches, true);
                 }
                 if (matches(commit, q, scope.inBody())) {
+                    // Только совпадение сверх лимита говорит «есть ещё»: коммит, который просто
+                    // лежит дальше по истории, может ни с чем не совпасть.
+                    if (matches.size() == limit) {
+                        return new GitCommitSearchResult(matches, true);
+                    }
                     matches.add(Diffs.toGitCommit(commit, null, reader, scope.withBody()));
                 }
             }

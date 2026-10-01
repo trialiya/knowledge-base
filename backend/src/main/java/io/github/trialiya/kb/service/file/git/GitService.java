@@ -402,10 +402,11 @@ public class GitService {
      *
      * @param query hash prefix or subject substring, already stripped and non-blank
      * @param maxCount max commits to return, capped at 100
+     * @return the matches with {@code truncated}: the picker has to tell "no such commit" from "not
+     *     that far back", and "these" from "the first of more"
      */
-    public List<GitCommit> searchCommits(@NonNull String query, int maxCount) {
-        return CommitSearch.search(repository, query, maxCount, CommitSearch.Scope.SUBJECT)
-                .commits();
+    public GitCommitSearchResult searchCommits(@NonNull String query, int maxCount) {
+        return CommitSearch.search(repository, query, maxCount, CommitSearch.Scope.SUBJECT);
     }
 
     /**
