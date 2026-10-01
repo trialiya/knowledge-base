@@ -26,8 +26,9 @@
 /* Ячейка ханка растянута rowSpan'ом, но принадлежит первой строке, и общая
    подсветка строки (filesPanel.css) легла бы на неё и только на эту строку.
    Поэтому: наведение на код — подсвечена одна строка без подписи, наведение на
-   подпись — весь ханк (он же <tbody>, см. CodeView). */
-.file-code__table--blame tr:hover {
+   подпись — весь ханк (он же <tbody>, см. CodeView). Сброс с двумя классами:
+   этот файл подключается раньше общего правила, и равная специфичность проиграла бы. */
+.file-code__table.file-code__table--blame tr:hover {
   background: none;
 }
 .file-code__table--blame tr:hover:not(:has(.file-code__blame:hover)) > td:not(.file-code__blame),
