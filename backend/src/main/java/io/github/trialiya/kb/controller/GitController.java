@@ -3,6 +3,7 @@ package io.github.trialiya.kb.controller;
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCapabilities;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
@@ -230,14 +231,14 @@ public class GitController {
 
     /**
      * Commit search for the search page: the subject and the description are both searched (plus a
-     * hash prefix), and each commit comes back with its description so the page can show the lines
-     * that matched. With {@code rev} the walk starts there instead of HEAD.
+     * hash prefix), and each commit comes back with where it matched — the lines of the description,
+     * as the file and document categories get theirs — not with the description itself. With {@code rev} the walk starts there instead of HEAD.
      *
      * <p>The answer says whether history was walked to its end: the walk is bounded, and an empty
      * result from a bounded walk is not the same as "nothing there".
      */
     @GetMapping("/commits/grep")
-    public GitCommitSearchResult grepCommits(
+    public GitCommitGrepResult grepCommits(
             @RequestParam("q") String query,
             @RequestParam(name = "limit", defaultValue = "50") int limit,
             @RequestParam(name = "rev", required = false) @Nullable String rev,

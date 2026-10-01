@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitGrepResult;
+import io.github.trialiya.kb.model.git.dto.GitCommitMatch;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
@@ -187,7 +189,7 @@ class GitServiceTest {
         commitAll("first");
 
         assertThat(service.searchCommits("   ", 5)).isEqualTo(new GitCommitSearchResult(List.of(), false));
-        assertThat(service.grepCommits(" \t ", 5, null)).isEqualTo(new GitCommitSearchResult(List.of(), false));
+        assertThat(service.grepCommits(" \t ", 5, null)).isEqualTo(new GitCommitGrepResult(List.of(), false));
         assertThat(service.searchCommits("  first  ", 5).commits())
                 .extracting(GitCommit::message)
                 .containsExactly("first");
@@ -930,24 +932,39 @@ class GitServiceTest {
         assertThat(service.searchCommits("Subject", 10).commits()).hasSize(1);
     }
 
-    /** The search page asks for the description too: a hit there counts and the body comes back. */
+    /**
+     * The search page gets where the query matched instead of the description: the lines of the
+     * description that hold it (numbered from 1), whether the subject did, and — when neither did —
+     * that the hash prefix is what found the commit. The description itself does not travel.
+     */
     @Test
-    void grepCommitsMatchesTheDescriptionAndReturnsIt() {
+    void grepCommitsSaysWhereEachCommitMatched() {
         writeFile("a.txt", "a\n");
-        commitAll("Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions ZZZ");
+        commitAll("Subject line\n\nfirst line\nmentions ZZZ\nlast");
         writeFile("b.txt", "b\n");
-        commitAll("Unrelated change");
+        commitAll("Unrelated zzz change");
 
         assertThat(service.grepCommits("zzz", 10, null).commits())
+                .satisfiesExactly(
+                        subject -> {
+                            assertThat(subject.commit().message()).isEqualTo("Unrelated zzz change");
+                            assertThat(subject.subjectMatch()).isTrue();
+                            assertThat(subject.lines()).isEmpty();
+                            assertThat(subject.hashMatch()).isFalse();
+                        },
+                        body -> {
+                            assertThat(body.commit().body()).isNull();
+                            assertThat(body.subjectMatch()).isFalse();
+                            assertThat(body.lines()).containsExactly(new GitCommitMatch.Line(2, "mentions ZZZ"));
+                        });
+
+        String hash = service.getCommitLog(1, null, false).commits().get(0).hash();
+        assertThat(service.grepCommits(hash.substring(0, 8), 10, null).commits())
                 .singleElement()
-                .satisfies(c -> {
-                    assertThat(c.message()).isEqualTo("Subject line");
-                    assertThat(c.body()).isEqualTo("mentions ZZZ");
+                .satisfies(found -> {
+                    assertThat(found.hashMatch()).isTrue();
+                    assertThat(found.lines()).isEmpty();
                 });
-        // A subject hit is still a hit, and it carries its body along.
-        assertThat(service.grepCommits("unrelated", 10, null).commits())
-                .extracting(GitCommit::message)
-                .containsExactly("Unrelated change");
     }
 
     @Test
@@ -959,7 +976,7 @@ class GitServiceTest {
         commitAll("fix two");
 
         assertThat(service.grepCommits("fix", 10, first).commits())
-                .extracting(GitCommit::message)
+                .extracting(found -> found.commit().message())
                 .containsExactly("fix one");
     }
 

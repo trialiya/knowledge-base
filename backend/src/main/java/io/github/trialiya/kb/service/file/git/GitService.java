@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
@@ -408,13 +409,13 @@ public class GitService {
 
     /**
      * Commits whose subject or description contains {@code query}, or whose hash starts with it,
-     * newest first, each with its description in {@link GitCommit#body()} — the search page shows
-     * where in the description the query was found.
+     * newest first, each with where it matched — the subject, the lines of the description, or the
+     * hash alone — rather than the description itself: the search page shows those places.
      *
      * @param rev optional — walk from this revision instead of HEAD
      */
-    public GitCommitSearchResult grepCommits(@NonNull String query, int maxCount, @Nullable String rev) {
-        return CommitSearch.search(repository, query, maxCount, new CommitSearch.Scope(true, true, rev, null));
+    public GitCommitGrepResult grepCommits(@NonNull String query, int maxCount, @Nullable String rev) {
+        return CommitSearch.grep(repository, query, maxCount, rev);
     }
 
     // ── Diff for commit(s) ──────────────────────────────────────────────────

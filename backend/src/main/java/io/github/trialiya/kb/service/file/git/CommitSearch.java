@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.service.file.git;
 
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitCommitGrepResult;
+import io.github.trialiya.kb.model.git.dto.GitCommitMatch;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,10 +40,7 @@ final class CommitSearch {
      */
     private static final int SCAN = 20_000;
 
-    /**
-     * Потолок выдачи и листинга, и поиска; на него ссылаются {@link GitService#MAX_COMMITS} и
-     * описание инструмента {@code getCommitLog}.
-     */
+    /** Потолок выдачи и листинга, и поиска; наружу — как {@link GitService#MAX_COMMITS}. */
     static final int MAX_RESULTS = 100;
 
     private CommitSearch() {}
@@ -77,7 +76,31 @@ final class CommitSearch {
     static GitCommitSearchResult search(Repository repository, String query, int maxCount, Scope scope) {
         String q = query.strip().toLowerCase(Locale.ROOT);
         if (q.isEmpty()) return new GitCommitSearchResult(List.of(), false);
-        return walk(repository, commit -> matches(commit, q, scope.inBody()), maxCount, scope);
+        Page<GitCommit> page = walk(
+                repository,
+                commit -> matches(commit, q, scope.inBody()),
+                (commit, reader) -> Diffs.toGitCommit(commit, null, reader, scope.withBody()),
+                maxCount,
+                scope);
+        return new GitCommitSearchResult(page.items(), page.truncated());
+    }
+
+    /**
+     * Поиск страницы «Поиск»: и в заголовке, и в описании, от {@code rev} или HEAD, — и с тем, где
+     * совпало, вместо описания целиком: строки описания с запросом, совпал ли заголовок, найден ли
+     * коммит только по хешу. Те же правила, что у {@link #search}: пустой запрос — пустой ответ,
+     * признак обрезки тот же.
+     */
+    static GitCommitGrepResult grep(Repository repository, String query, int maxCount, @Nullable String rev) {
+        String q = query.strip().toLowerCase(Locale.ROOT);
+        if (q.isEmpty()) return new GitCommitGrepResult(List.of(), false);
+        Page<GitCommitMatch> page = walk(
+                repository,
+                commit -> matches(commit, q, true),
+                (commit, reader) -> matchOf(Diffs.toGitCommit(commit, null, reader, true), q),
+                maxCount,
+                new Scope(true, true, rev, null));
+        return new GitCommitGrepResult(page.items(), page.truncated());
     }
 
     /**
@@ -87,14 +110,57 @@ final class CommitSearch {
      * @param maxCount сколько коммитов вернуть, не больше {@value #MAX_RESULTS}
      */
     static GitCommitSearchResult log(Repository repository, int maxCount, Scope scope) {
-        return walk(repository, commit -> true, maxCount, scope);
+        Page<GitCommit> page = walk(
+                repository,
+                commit -> true,
+                (commit, reader) -> Diffs.toGitCommit(commit, null, reader, scope.withBody()),
+                maxCount,
+                scope);
+        return new GitCommitSearchResult(page.items(), page.truncated());
+    }
+
+    /** Совпадения одного обхода и признак, что за ними могут быть ещё. */
+    private record Page<T>(List<T> items, boolean truncated) {}
+
+    /** Найденный коммит → то, что уходит в ответ; читатель — обхода, закрывать его нельзя. */
+    @FunctionalInterface
+    private interface Found<T> {
+        T of(RevCommit commit, ObjectReader reader) throws IOException;
+    }
+
+    /**
+     * Где в коммите совпал запрос — тем же сравнением без учёта регистра, каким его нашли. Номер
+     * строки — в описании ({@link GitCommit#body()}), считая с 1.
+     */
+    private static GitCommitMatch matchOf(GitCommit commit, String lowerQuery) {
+        boolean subjectMatch = contains(commit.message(), lowerQuery);
+        List<GitCommitMatch.Line> lines = new ArrayList<>();
+        String body = commit.body();
+        if (body != null) {
+            String[] split = body.split("\n", -1);
+            for (int i = 0; i < split.length; i++) {
+                if (contains(split[i], lowerQuery)) lines.add(new GitCommitMatch.Line(i + 1, split[i]));
+            }
+        }
+        boolean hashMatch = !subjectMatch && lines.isEmpty() && commit.hash().startsWith(lowerQuery);
+        GitCommit withoutBody = new GitCommit(
+                commit.hash(),
+                commit.shortHash(),
+                commit.author(),
+                commit.email(),
+                commit.date(),
+                commit.message(),
+                null,
+                commit.files(),
+                commit.parents());
+        return new GitCommitMatch(withoutBody, subjectMatch, hashMatch, List.copyOf(lines));
     }
 
     // ObjectReader принадлежит обходу и закрывается вместе с ним; закрыть его здесь значило бы
     // выдернуть читатель из-под обхода, который ещё идёт.
     @SuppressWarnings("PMD.CloseResource")
-    private static GitCommitSearchResult walk(
-            Repository repository, Predicate<RevCommit> match, int maxCount, Scope scope) {
+    private static <T> Page<T> walk(
+            Repository repository, Predicate<RevCommit> match, Found<T> found, int maxCount, Scope scope) {
         int limit = Math.min(Math.max(maxCount, 1), MAX_RESULTS);
         String rev = scope.rev();
         ObjectId start = rev == null || rev.isBlank() ? null : CommitFiles.commitOf(repository, rev.strip());
@@ -102,26 +168,26 @@ final class CommitSearch {
         try (CommitWalk walk = new CommitWalk(repository)) {
             if (start == null) start = repository.resolve(Constants.HEAD);
             // Коммитов в репозитории ещё нет — это пустая история, а не ошибка.
-            if (start == null) return new GitCommitSearchResult(List.of(), false);
+            if (start == null) return new Page<>(List.of(), false);
             walk.from(start).path(scope.path());
 
             ObjectReader reader = walk.reader();
-            List<GitCommit> matches = new ArrayList<>();
+            List<T> matches = new ArrayList<>();
             int scanned = 0;
             for (RevCommit commit : walk) {
                 if (++scanned > SCAN) {
-                    return new GitCommitSearchResult(matches, true);
+                    return new Page<>(matches, true);
                 }
                 if (match.test(commit)) {
                     // Только совпадение сверх лимита говорит «есть ещё»: коммит, который просто
                     // лежит дальше по истории, может ни с чем не совпасть.
                     if (matches.size() == limit) {
-                        return new GitCommitSearchResult(matches, true);
+                        return new Page<>(matches, true);
                     }
-                    matches.add(Diffs.toGitCommit(commit, null, reader, scope.withBody()));
+                    matches.add(found.of(commit, reader));
                 }
             }
-            return new GitCommitSearchResult(matches, false);
+            return new Page<>(matches, false);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to read commit log", e);
         }

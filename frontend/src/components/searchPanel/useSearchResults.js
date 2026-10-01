@@ -92,7 +92,7 @@ export default function useSearchResults({ query, mode, path, project, rev, rege
   // Маска пути, регулярка и неотслеживаемые — фильтры содержимого файлов; на
   // историю из них влияют только репозиторий и ревизия.
   const commits = useAnswer(JSON.stringify([query, project, rev]), enabled, (signal) =>
-    gitApi.grepCommits(query, { rev, project, signal }).then((found) => commitHits(found, query)),
+    gitApi.grepCommits(query, { rev, project, signal }).then(commitHits),
   );
   const docs = useAnswer(JSON.stringify([query, mode]), enabled, (signal) =>
     documentsApi.searchGrouped(query, mode, signal),

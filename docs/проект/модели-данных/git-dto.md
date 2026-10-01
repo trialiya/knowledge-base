@@ -17,7 +17,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | `email` | String | Email автора |
 | `date` | OffsetDateTime | Дата коммита (ISO-8601) |
 | `message` | String | Subject — первый абзац сообщения, переносы строк склеены пробелами |
-| `body` | String | Остальное сообщение (всё после первой пустой строки). `null`, если тела нет или его не запрашивали — см. `includeMessageBody` у [`getCommitLog`](../ai-инструменты.md) и `body=true` у `GET /api/git/commits`; в ответе `GET /api/git/commits/grep` заполнено всегда |
+| `body` | String | Остальное сообщение (всё после первой пустой строки). `null`, если тела нет или его не запрашивали — см. `includeMessageBody` у [`getCommitLog`](../ai-инструменты.md) и `body=true` у `GET /api/git/commits`; в ответе `GET /api/git/commits/grep` не приходит — там вместо него строки совпадений (`GitCommitMatch`) |
 | `files` | List\<GitDiffEntry\> | Затронутые файлы (null если не запрошены) |
 | `parents` | List\<String\> | Полные SHA родителей — только в ответе `GET /api/git/commit` (вкладка «Коммит» ведёт по ним назад по истории); в истории и в ответах инструментов null: модели они ничего не дают |
 
@@ -26,12 +26,22 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 `getResultMeta()`: `shortHash`, `author`, `email`, `date`, `message`, `changesFilesCount` — тела в плашке нет ни при каких условиях, там строка на коммит.
 
 ### GitCommitSearchResult
+Ответ листинга и поиска коммитов: `GET /api/git/commits`, `/commits/search`, инструмент `getCommitLog`.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `commits` | List\<GitCommit\> | Коммиты, свежие первыми |
+| `truncated` | boolean | История просмотрена не вся: у листинга — за последним коммитом она продолжается; у поиска — обход остановился на лимите выдачи (а коммиты ещё оставались) или на пределе в 20 000 коммитов. Пустая выдача при `true` — «в просмотренной части нет», а не «нет вовсе» |
+
+### GitCommitGrepResult
 Ответ `GET /api/git/commits/grep` — поиска коммитов по теме, описанию и префиксу хеша для страницы поиска.
 
 | Поле | Тип | Описание |
 |---|---|---|
-| `commits` | List\<GitCommit\> | Совпавшие коммиты, свежие первыми, с `body` |
-| `truncated` | boolean | История просмотрена не вся: обход остановился на лимите выдачи (а коммиты ещё оставались) или на пределе в 20 000 коммитов. Пустая выдача при `true` — «в просмотренной части нет», а не «нет вовсе» |
+| `commits` | List\<GitCommitMatch\> | Совпавшие коммиты, свежие первыми, с тем, где совпало |
+| `truncated` | boolean | Как у `GitCommitSearchResult` |
+
+`GitCommitMatch`: `commit` (`GitCommit` без `body`), `subjectMatch` (запрос в теме), `hashMatch` (найден только по префиксу хеша), `lines` — строки описания с запросом, `[{ line, text }]`, номер — строка описания с 1.
 
 ### GitDiffEntry
 Одна запись из diff коммита. Реализует `ToolCallResponseItem`.

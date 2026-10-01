@@ -382,8 +382,10 @@ const gitApi = {
    * Поиск коммитов для страницы поиска: по заголовку, описанию и префиксу хеша.
    * `rev` — обходить историю от этой ревизии, а не от HEAD.
    *
-   * Возвращает { commits: GitCommit[] (с body), truncated } — `truncated`
-   * говорит, что история просмотрена не вся (лимит выдачи или предел обхода).
+   * Возвращает { commits: [{ commit: GitCommit (без body), subjectMatch,
+   * hashMatch, lines: [{ line, text }] }], truncated } — где совпало: строки
+   * описания, заголовок или один хеш; `truncated` говорит, что история
+   * просмотрена не вся (лимит выдачи или предел обхода).
    */
   grepCommits: (q, { limit = 50, rev, project, signal } = {}) => {
     const params = new URLSearchParams({ q, limit: String(limit) });

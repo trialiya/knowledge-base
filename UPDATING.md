@@ -28,6 +28,18 @@ back" (the walk stops at 20 000 commits). The bundled UI is updated with it. A
 script or integration of your own that reads this endpoint must take the list
 from `commits`.
 
+### `GET /api/git/commits/grep` answers where each commit matched
+
+The search page's commit search returned `{ commits: GitCommit[], truncated }`
+with each commit's full description in `body`, and the page found the matching
+lines itself. It now returns `{ commits: [{ commit, subjectMatch, hashMatch,
+lines }], truncated }`: `commit` without `body`, `lines` the description lines
+that hold the query (`{ line, text }`, numbered from 1), `subjectMatch` and
+`hashMatch` where else it matched. The bundled UI is updated with it. A script
+of your own that reads this endpoint must take the commit from `commit` and
+the matching lines from `lines`; the full description comes from
+`/api/git/commit`.
+
 ### `GET /api/git/commits` answers `{commits, truncated}`
 
 The history listing returned a bare `GitCommit[]`; it now returns the same shape
