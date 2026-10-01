@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -53,6 +54,8 @@ import org.springframework.core.io.ClassPathResource;
  * рассуждение, склеенное из чанков ещё раз, повторялось бы в истории много раз. Если Spring AI
  * поменяет форму, этот тест упадёт первым.
  */
+// Цепочка из ChatConfig включает MessageLoggingAdvisor — см. замок у MessageLoggingAdvisorTest.
+@ResourceLock("message-logging-advisor-log")
 class ReasoningStreamTest {
 
     private static final String CONV = "conv-reasoning";
