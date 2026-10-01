@@ -4,7 +4,7 @@ import '@/components/common/ui/buttons.css';
 import FileView from '@/components/filesPanel/FileView';
 import { baseName } from '@/components/common/ui/utils';
 import { IconX } from '@/icons/index';
-import shortRev from '@/components/common/git/shortRev';
+import RevPath from './RevPath';
 
 // Unlike the doc fullscreen path (FullscreenEditorModal → MarkdownEditor),
 // file content is source code, not markdown — rendering it through the
@@ -20,7 +20,7 @@ const FileFullscreenModal = ({ path, file, project, rev = null, loading, error, 
         <div className="file-preview-modal__title">
           <span className="file-preview-modal__name">{name}</span>
           <span className="file-preview-modal__path" title={path}>
-            {rev ? `${path} @ ${shortRev(rev)}` : path}
+            <RevPath path={path} rev={rev} project={project} />
           </span>
         </div>
         <button type="button" className="icon-btn" title={t('preview.close')} onClick={onClose}>

@@ -93,6 +93,7 @@ const FileLink = ({ fileLink, children, ...rest }) => {
             ref={tooltipRef}
             file={file}
             rev={rev}
+            project={project}
             loading={loading}
             error={error}
             pos={pos}

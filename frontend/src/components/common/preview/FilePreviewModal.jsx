@@ -5,7 +5,7 @@ import FileView from '@/components/filesPanel/FileView';
 import ModalShell from '@/components/common/modal/ModalShell';
 import '@/components/common/ui/buttons.css';
 import { IconX } from '@/icons/index';
-import shortRev from '@/components/common/git/shortRev';
+import RevPath from './RevPath';
 
 /**
  * Read-only file preview modal opened from a chat file link (`/files?path=...`) — shows the
@@ -66,7 +66,7 @@ const FilePreviewModal = ({ path, project, rev = null, fromLine, toLine, onClose
         <div className="file-preview-modal__title">
           <span className="file-preview-modal__name">{name}</span>
           <span className="file-preview-modal__path" title={path}>
-            {rev ? `${path} @ ${shortRev(rev)}` : path}
+            <RevPath path={path} rev={rev} project={project} />
           </span>
         </div>
         <button type="button" className="icon-btn" title={t('preview.close')} onClick={onClose}>

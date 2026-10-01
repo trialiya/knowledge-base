@@ -64,10 +64,10 @@ describe('detectContentResult — что попадает в «Обзор»', ()
   });
 
   /** Чтение из истории: без хеша в шапке ответ не отличить от текущего содержимого файла. */
-  it('чтение на коммите: коммит показан фактом, и коротким хешем', () => {
+  it('чтение на коммите: коммит показан фактом, с полным хешем — для ссылки', () => {
     const items = detect(JSON.stringify(fileContent({ commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678' })));
 
-    expect(items[0].facts).toContainEqual({ key: 'commit', value: 'a1b2c3d' });
+    expect(items[0].facts).toContainEqual({ key: 'commit', value: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678' });
   });
 
   it('запись из рабочего дерева коммитом не подписана', () => {

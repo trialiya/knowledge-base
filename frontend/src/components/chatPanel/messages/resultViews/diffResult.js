@@ -7,6 +7,7 @@
 // `additions` + `deletions` нет больше ни у одного DTO с полем `path`.
 
 import { patchParts } from '../diffRender';
+import shortRev from '@/components/common/git/shortRev';
 import { nonEmptyString as str } from './fieldValue';
 
 // Больше двух сотен файлов за вызов — это уже не «изменения», а выгрузка;
@@ -60,7 +61,7 @@ const toFile = (obj, key) => {
 const toCommit = (obj, key, project = null) => {
   if (!isPlainObject(obj) || !Array.isArray(obj.files) || obj.files.length === 0) return null;
 
-  const hash = str(obj.shortHash) ?? str(obj.hash)?.slice(0, 7);
+  const hash = str(obj.shortHash) ?? shortRev(obj.hash);
   if (!hash) return null;
 
   const files = obj.files.map((entry, i) => toFile(entry, `${key}-${i}`));

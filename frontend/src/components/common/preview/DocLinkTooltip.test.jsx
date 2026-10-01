@@ -109,7 +109,11 @@ describe('DocLinkTooltip: файл в коммите', () => {
     await waitFor(() =>
       expect(gitApi.getFileContent).toHaveBeenCalledWith('a/B.java', { from: 1, to: 20, rev: hash, project: 'kb' }),
     );
-    expect(await screen.findByText(`a/B.java @ 0123456`)).toBeInTheDocument();
+    // Ревизия рядом с путём — ссылка на сам коммит, в новой вкладке: карточка висит поверх чата.
+    const rev = await screen.findByRole('link', { name: '0123456' });
+    expect(rev.closest('p')).toHaveTextContent('a/B.java @ 0123456');
+    expect(rev.getAttribute('href')).toBe(commitUrl(hash, 'kb'));
+    expect(rev).toHaveAttribute('target', '_blank');
 
     await user.click(screen.getByText('docLink.open'));
     expect(navigateToFile).toHaveBeenCalledWith('a/B.java', 'kb', { rev: hash, changes: false });

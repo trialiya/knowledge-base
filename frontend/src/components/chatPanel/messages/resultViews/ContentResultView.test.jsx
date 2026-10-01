@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { detectContentResult } from './contentResult';
 import { parseResult } from './registry';
 import ContentResultView from './ContentResultView';
+import { commitUrl } from '@/navigation/urlScheme';
 
 // Здесь проверяется не разбор (он в contentResult.test.js), а то, что показ
 // текста переживает переключатели над ним.
@@ -66,5 +67,24 @@ describe('ContentResultView', () => {
     await userEvent.click(toggle); // исходник → markdown
     await userEvent.click(toggle); // и обратно
     expect(shownLines()).toBe(420);
+  });
+});
+
+describe('ContentResultView: чтение на коммите', () => {
+  it('хеш в шапке — ссылка на коммит в репозитории ответа, в новой вкладке', () => {
+    const hash = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+    const data = detectContentResult(
+      parseResult(
+        JSON.stringify({
+          project: 'billing',
+          result: { path: 'a.txt', content: 'x\n'.repeat(30), language: 'text', lineCount: 30, commit: hash },
+        }),
+      ),
+    );
+    render(<ContentResultView data={data} />);
+
+    const link = screen.getByRole('link', { name: 'a1b2c3d' });
+    expect(link.getAttribute('href')).toBe(commitUrl(hash, 'billing'));
+    expect(link).toHaveAttribute('target', '_blank');
   });
 });
