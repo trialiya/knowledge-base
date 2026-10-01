@@ -1,0 +1,11 @@
+/* Короткий хеш ссылкой посреди обычного текста (путь @ ревизия, факт «коммит»):
+   моноширинный и акцентный, как хеш везде, без подчёркивания до наведения —
+   иначе он спорит с текстом вокруг. */
+.commit-hash-link {
+  font-family: var(--kb-font-mono);
+  color: var(--kb-accent);
+  text-decoration: none;
+}
+.commit-hash-link:hover {
+  text-decoration: underline;
+}

@@ -7,11 +7,14 @@ import shortRev from '@/components/common/git/shortRev';
  * она стоит, — модалки и карточка поверх чата, и переход внутри приложения
  * увёл бы раздел из-под них (см. CommitHashLink).
  */
+/** То же строкой — для подсказки над обрезанным путём, где ссылка ушла под многоточие. */
+export const revPathText = (path, rev) => (rev ? `${path} @ ${shortRev(rev)}` : path);
+
 const RevPath = ({ path, rev, project = null }) =>
   rev ? (
     <>
       {path} @{' '}
-      <CommitHashLink rev={rev} project={project} newTab>
+      <CommitHashLink className="commit-hash-link" rev={rev} project={project} newTab>
         {shortRev(rev)}
       </CommitHashLink>
     </>

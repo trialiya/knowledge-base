@@ -42,7 +42,7 @@ const FactList = ({ item, lines }) => {
           {t(`toolCall.detail.fact.${key}`, { defaultValue: key })}:{' '}
           {key === 'commit' ? (
             // В модалке вызова — в новой вкладке, как хеш в DiffResultView.
-            <CommitHashLink rev={value} project={project} newTab>
+            <CommitHashLink className="commit-hash-link" rev={value} project={project} newTab>
               {shortRev(value)}
             </CommitHashLink>
           ) : (

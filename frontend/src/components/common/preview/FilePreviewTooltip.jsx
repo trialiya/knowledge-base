@@ -6,7 +6,8 @@ import RevPath from './RevPath';
 
 /**
  * Preview card for a repo file link (FileLink). `rev` — the revision the link names:
- * shown next to the path, so a quote of an old version is not mistaken for today's file.
+ * shown next to the path as a link to that commit, so a quote of an old version is not
+ * mistaken for today's file. `project` — the link's repository, which the commit belongs to.
  */
 function FilePreviewTooltip({
   file,

@@ -61,7 +61,7 @@ const toFile = (obj, key) => {
 const toCommit = (obj, key, project = null) => {
   if (!isPlainObject(obj) || !Array.isArray(obj.files) || obj.files.length === 0) return null;
 
-  const hash = str(obj.shortHash) ?? shortRev(obj.hash);
+  const hash = str(obj.shortHash) ?? shortRev(str(obj.hash));
   if (!hash) return null;
 
   const files = obj.files.map((entry, i) => toFile(entry, `${key}-${i}`));

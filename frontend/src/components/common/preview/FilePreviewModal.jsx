@@ -3,7 +3,7 @@ import FileView from '@/components/filesPanel/FileView';
 import ModalShell from '@/components/common/modal/ModalShell';
 import '@/components/common/ui/buttons.css';
 import { IconX } from '@/icons/index';
-import RevPath from './RevPath';
+import RevPath, { revPathText } from './RevPath';
 import useFileContent from './useFileContent';
 
 /**
@@ -30,7 +30,7 @@ const FilePreviewModal = ({ path, project, rev = null, fromLine, toLine, onClose
       <div className="fs-editor__head">
         <div className="file-preview-modal__title">
           <span className="file-preview-modal__name">{name}</span>
-          <span className="file-preview-modal__path" title={path}>
+          <span className="file-preview-modal__path" title={revPathText(path, rev)}>
             <RevPath path={path} rev={rev} project={project} />
           </span>
         </div>
