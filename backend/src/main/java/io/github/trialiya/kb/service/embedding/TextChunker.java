@@ -53,12 +53,11 @@ public class TextChunker {
     @Builder.Default
     private final int overlapTokens = DEFAULT_OVERLAP_TOKENS;
 
-    // ── Singleton with defaults ───────────────────────────────────────────────
+    // ── Defaults ──────────────────────────────────────────────────────────────
 
-    private static final TextChunker DEFAULT_INSTANCE = TextChunker.builder().build();
-
+    /** A chunker with the default budget; a fresh instance, as the class is not an immutable type for SpotBugs. */
     public static TextChunker defaults() {
-        return DEFAULT_INSTANCE;
+        return TextChunker.builder().build();
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
