@@ -119,6 +119,24 @@ describe('DocLinkTooltip: файл в коммите', () => {
     expect(navigateToFile).toHaveBeenCalledWith('a/B.java', 'kb', { rev: hash, changes: false });
   });
 
+  it('«развернуть» в карточке открывает файл целиком — без строк ссылки, в её ревизии', async () => {
+    const user = userEvent.setup();
+    render(<DocLinkTooltip href={`/files?path=a/B.java&rev=${hash}&project=kb#L3`}>B.java</DocLinkTooltip>);
+
+    await hover(user, screen.getByRole('link', { name: 'B.java' }));
+    await user.click(await screen.findByTitle('docLink.expand'));
+
+    await waitFor(() =>
+      expect(gitApi.getFileContent).toHaveBeenLastCalledWith('a/B.java', {
+        from: undefined,
+        to: undefined,
+        rev: hash,
+        project: 'kb',
+      }),
+    );
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
   it('ссылка без ревизии открывает рабочее дерево, даже если «Файлы» стоят в снимке', async () => {
     const user = userEvent.setup();
     render(<DocLinkTooltip href="/files?path=a/B.java">B.java</DocLinkTooltip>);

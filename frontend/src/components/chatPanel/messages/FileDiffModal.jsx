@@ -37,7 +37,7 @@ const FileDiffModal = ({ change, project, onClose }) => {
           <IconX />
         </button>
       </div>
-      <div className="file-diff-modal__body">
+      <div className={`file-diff-modal__body${showsContent ? ' file-diff-modal__body--file' : ''}`}>
         {showsContent ? (
           <>
             {loading && <div className="file-diff-modal__empty">{t('loading')}</div>}

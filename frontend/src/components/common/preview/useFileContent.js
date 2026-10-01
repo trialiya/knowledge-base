@@ -11,6 +11,8 @@ import gitApi from '@/api/gitApi';
  *
  * `read` — чем читать; по умолчанию gitApi.getFileContent. Превью чипа читает
  * через кэш fileChips.fetchContent: в сообщение уйдёт ровно то, что показали.
+ * Функция обязана быть стабильной (модульной): она в зависимостях эффекта, и
+ * лямбда на месте перечитывала бы файл на каждом рендере.
  * `enabled: false` — не читать вовсе (чип в режиме «только путь»).
  */
 export default function useFileContent({
@@ -22,22 +24,29 @@ export default function useFileContent({
   enabled = true,
   read = gitApi.getFileContent,
 }) {
-  const key = enabled ? JSON.stringify([path, project, rev || null, from ?? null, to ?? null]) : null;
+  // '' и null — один и тот же проект (по умолчанию) и одна и та же ревизия
+  // (рабочее дерево): эффект следует нормализованным значениям, и другое
+  // написание того же запроса файл не перечитывает.
+  const proj = project || null;
+  const revision = rev || null;
+  const lo = from ?? null;
+  const hi = to ?? null;
+  const key = enabled ? JSON.stringify([path, proj, revision, lo, hi]) : null;
   const [answer, setAnswer] = useState(null); // { key, file, error } | null
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!key) return undefined;
     let cancelled = false;
     const done = (file, error) => {
       if (!cancelled) setAnswer({ key, file, error });
     };
-    read(path, { from, to, rev: rev || undefined, project })
+    read(path, { from: lo ?? undefined, to: hi ?? undefined, rev: revision ?? undefined, project: proj })
       .then((file) => done(file, false))
       .catch(() => done(null, true));
     return () => {
       cancelled = true;
     };
-  }, [key, enabled, read, path, project, rev, from, to]);
+  }, [key, read, path, proj, revision, lo, hi]);
 
   const current = answer?.key === key ? answer : null;
   return {

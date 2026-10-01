@@ -63,6 +63,12 @@
   padding: 12px 16px 16px;
   overflow-y: auto;
 }
+/* Содержимое созданного файла — FileView, как в модалке превью: у его строки
+   метаданных свои отступы, а горизонтальный скролл у .file-code, вровень с краями. */
+.file-diff-modal__body--file {
+  padding: 0;
+  overflow-x: hidden;
+}
 
 .file-diff-modal__empty {
   padding: 24px 16px;
