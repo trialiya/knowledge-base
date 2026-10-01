@@ -171,6 +171,15 @@ describe('FileView', () => {
       expect(scrolled).toHaveLength(1);
     });
 
+    // Ссылка → другой файл → «Назад» на ссылку: выделение показано заново.
+    test('возврат к тем же строкам после файла без выделения едет к ним снова', () => {
+      const { rerender } = render(<FileView file={md} path="guide.md" lines="3-4" />);
+      rerender(<FileView file={md} path="other.md" />);
+      rerender(<FileView file={md} path="guide.md" lines="3-4" />);
+
+      expect(scrolled.map((el) => el.dataset.line)).toEqual(['3', '3']);
+    });
+
     test('мусор в адресе ничего не выделяет', () => {
       render(<FileView file={md} path="guide.md" lines="9-3" />);
 

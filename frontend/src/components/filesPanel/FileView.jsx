@@ -141,10 +141,12 @@ const FileView = ({
 
   // К выделенным строкам — один раз на файл и диапазон, а не на каждый приход
   // содержимого: обновление репозитория перечитывает файл, и прокрутка не
-  // должна уводить оттуда, куда пользователь уже ушёл сам.
+  // должна уводить оттуда, куда пользователь уже ушёл сам. Файл без выделения
+  // память сбрасывает: «Назад» на ссылку с `?lines=` обязан привести к строкам снова.
   const scrolledTo = useRef('');
   const markKey = marked ? `${filePath}\n${lines}` : '';
   useEffect(() => {
+    if (!markKey) scrolledTo.current = '';
     if (!markKey || scrolledTo.current === markKey) return;
     const row = rootRef.current?.querySelector(`[data-line="${marked.from}"]`);
     if (!row) return;
