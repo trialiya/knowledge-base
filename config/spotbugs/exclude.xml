@@ -14,15 +14,6 @@
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2,EI_EXPOSE_STATIC_REP2"/>
     </Match>
 
-    <!-- TextChunker.defaults() hands out one shared instance on purpose: every field is final and
-         set by the builder, so there is no representation to expose. SpotBugs cannot see that
-         through Lombok's @Builder and flags any static returned as is. -->
-    <Match>
-        <Class name="io.github.trialiya.kb.service.embedding.TextChunker"/>
-        <Method name="defaults"/>
-        <Bug pattern="MS_EXPOSE_REP"/>
-    </Match>
-
     <!-- Nullness has one owner: NullAway in JSpecify mode over @NullMarked packages (see
          backend/build.gradle). SpotBugs reads neither the annotations nor the package marking,
          so its dataflow reports every @Nullable-returning call it cannot prove guarded. -->
