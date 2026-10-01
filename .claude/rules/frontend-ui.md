@@ -207,7 +207,10 @@ Panel open/closed state is **controlled state that lives in the URL**
 - Reuse the shared hooks before writing new plumbing: `useSearchDropdown`
   (search-button → dropdown widgets), `useEscape`, `useDocPreview`/
   `useFilePreview` (both built on `usePreviewCache` — the module-cache preview
-  pattern, which new preview kinds should reuse too), `useNotice` (one notice
+  pattern, which new preview kinds should reuse too), `useKeyedRequest`
+  (`common/preview/`) for one uncached fetch per key — the answer kept with the
+  key that got it, the previous request aborted (`useFileContent`,
+  `useFileBlame`), `useNotice` (one notice
   descriptor per section beats a boolean and a modal per reason), and
   `useCopyFeedback` for any copy-to-clipboard button (`writeText` plus the
   transient "copied" state and its timer), `useDismissable`

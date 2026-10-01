@@ -132,6 +132,7 @@ describe('DocLinkTooltip: файл в коммите', () => {
         to: undefined,
         rev: hash,
         project: 'kb',
+        signal: expect.any(AbortSignal),
       }),
     );
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
