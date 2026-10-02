@@ -147,17 +147,53 @@ class GitServiceLineOriginTest {
         assertThat(origin.steps().getLast().path()).isEqualTo("Big.java");
     }
 
-    /** Незакоммиченную строку дальше рабочего дерева не провести — так и сказано, без шагов. */
+    /**
+     * Подстрока вошла незакоммиченной правкой: шагов нет, а «было» — строка в HEAD, которую правка
+     * заменила.
+     */
     @Test
-    void anUncommittedLineSaysSo() {
-        writeFile("f.txt", "one\n");
-        commitAll("first");
-        writeFile("f.txt", "one needle\n");
+    void aSubstringBroughtInByAnUncommittedEditNamesTheLineInHead() {
+        writeFile("f.txt", "head\none\n");
+        String first = commitAll("first");
+        writeFile("f.txt", "head\none needle\n");
 
-        GitLineOrigin origin = service.getLineOrigin(null, "f.txt", 1, "needle");
+        GitLineOrigin origin = service.getLineOrigin(null, "f.txt", 2, "needle");
 
         assertThat(origin.status()).isEqualTo(Status.UNCOMMITTED);
         assertThat(origin.steps()).isEmpty();
+        assertThat(origin.before()).isNotNull();
+        assertThat(origin.before().hash()).isEqualTo(first);
+        assertThat(origin.before().text()).isEqualTo("one");
+    }
+
+    /** Строка, добавленная незакоммиченной правкой, — тоже незакоммиченное появление, без «было». */
+    @Test
+    void aLineAddedByAnUncommittedEditHasNothingBefore() {
+        writeFile("f.txt", "head\n");
+        commitAll("first");
+        writeFile("f.txt", "head\nnew needle\n");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "f.txt", 2, "needle");
+
+        assertThat(origin.status()).isEqualTo(Status.UNCOMMITTED);
+        assertThat(origin.before()).isNull();
+    }
+
+    /**
+     * Строка изменена в рабочем дереве, но подстрока в ней была и в HEAD: незакоммиченная правка
+     * — не её появление, обход идёт по истории.
+     */
+    @Test
+    void anUncommittedEditThatKeptTheSubstringIsWalkedThroughIntoHistory() {
+        writeFile("f.txt", "head\nint x = needle();\n");
+        String written = commitAll("written");
+        writeFile("f.txt", "head\nfinal int x = needle();\n");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "f.txt", 2, "needle");
+
+        assertThat(origin.status()).isEqualTo(Status.FOUND);
+        assertThat(origin.steps()).extracting(GitLineOrigin.Step::hash).containsExactly(written);
+        assertThat(origin.steps().getFirst().text()).isEqualTo("int x = needle();");
     }
 
     /** Подстроки в строке нет (файл поменялся после поиска) или строки нет вовсе — не находка. */
@@ -316,6 +352,23 @@ class GitServiceLineOriginTest {
         GitLineOrigin origin = service.getLineOrigin("HEAD", "f.txt", 2, "needle");
 
         assertThat(origin.steps()).extracting(GitLineOrigin.Step::text).containsExactly("x needle");
+    }
+
+    /**
+     * Прежняя версия файла — бинарная (или больше предела): строк в ней не прочесть, и обход
+     * останавливается на пройденном, а не падает.
+     */
+    @Test
+    void aVersionOfTheFileThatCannotBeReadAsLinesStopsTheWalkWithWhatItReached() throws IOException {
+        Files.write(repoDir.resolve("f.txt"), new byte[] {'n', 'e', 'e', 'd', 'l', 'e', 0, '\n'});
+        commitAll("binary");
+        writeFile("f.txt", "x needle\n");
+        String text = commitAll("text");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "f.txt", 1, "needle");
+
+        assertThat(origin.status()).isEqualTo(Status.LIMIT);
+        assertThat(origin.steps()).extracting(GitLineOrigin.Step::hash).containsExactly(text);
     }
 
     @Test

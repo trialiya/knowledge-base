@@ -10,8 +10,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import org.eclipse.jgit.blame.BlameGenerator;
 import org.eclipse.jgit.diff.DiffEntry;
@@ -112,17 +117,75 @@ final class LineOriginTracer {
      *     revision is unknown, or the repository has no commits
      * @throws GitReadTimeoutException if the walk took no step before its deadline
      */
+    // PreserveStackTrace: a failure of the walk is rethrown as the walk threw it — its own trace is
+    // the one that matters; the ExecutionException around it only adds this waiting frame.
+    @SuppressWarnings("PMD.PreserveStackTrace")
     GitLineOrigin origin(String normalized, @Nullable String rev, int line, String query) {
-        Pattern needle = LineOrigin.needle(query);
         long deadline = System.nanoTime() + timeout.toNanos();
+        AtomicReference<@Nullable Answer> progress = new AtomicReference<>();
+        // The walk runs on a thread of its own and is waited for no longer than the deadline: a
+        // single step of JGit's blame can walk a long history before it returns, and checks of the
+        // deadline between steps would not cut it short. The thread is not interrupted — JGit
+        // reads packs through channels that an interrupt closes for the whole repository — but
+        // left to stop at its own next check, and its late answer is dropped.
+        CompletableFuture<GitLineOrigin> result = new CompletableFuture<>();
+        Thread.ofVirtual().name("line-origin").start(() -> {
+            try {
+                result.complete(trace(normalized, rev, line, query, deadline, progress));
+            } catch (RuntimeException | Error e) {
+                result.completeExceptionally(e);
+            }
+        });
+        try {
+            return result.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+        } catch (TimeoutException e) {
+            Answer answer = progress.get();
+            if (answer == null || answer.walked() == 0) {
+                GitReadTimeoutException timeout = timedOut(normalized);
+                timeout.initCause(e);
+                throw timeout;
+            }
+            return answer.status(Status.LIMIT);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RuntimeException failure) {
+                throw failure;
+            }
+            if (e.getCause() instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException("Cannot trace " + normalized + ":" + line, e.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted tracing " + normalized + ":" + line, e);
+        }
+    }
+
+    /**
+     * The walk itself, on the walk's own thread.
+     *
+     * @param progress where the answer being built is published, so a caller that stopped waiting
+     *     can still hand out the versions walked so far
+     */
+    private GitLineOrigin trace(
+            String normalized,
+            @Nullable String rev,
+            int line,
+            String query,
+            long deadline,
+            AtomicReference<@Nullable Answer> progress) {
+        Pattern needle = LineOrigin.needle(query);
         try (RevWalk walk = new RevWalk(repository)) {
-            Start start = rev == null ? workingTree(walk, normalized, line) : snapshot(walk, rev, normalized, line);
+            Start start =
+                    rev == null ? workingTree(walk, normalized, line, needle) : snapshot(walk, rev, normalized, line);
             Answer answer = new Answer(normalized, line, query, start.commit());
+            progress.set(answer);
             if (start.text() == null || !needle.matcher(start.text()).find()) {
                 return answer.status(Status.NOT_IN_LINE);
             }
             if (start.at() == null) {
-                return answer.status(Status.UNCOMMITTED);
+                At before = start.before();
+                return answer.before(before == null ? null : versionBefore(walk, before, deadline))
+                        .status(Status.UNCOMMITTED);
             }
             return walkFrom(walk, start.at(), needle, deadline, answer);
         } catch (IOException e) {
@@ -134,14 +197,22 @@ final class LineOriginTracer {
      * Where the walk starts.
      *
      * @param commit the full hash of the snapshot asked about; {@code null} — the working tree
-     * @param at the line in the first commit to blame; {@code null} when the line is an
-     *     uncommitted edit (or past the end)
+     * @param at the line in the first commit to blame; {@code null} when the substring entered with
+     *     an uncommitted edit (or the line is past the end)
      * @param text the line as asked about; {@code null} past the end of the file
+     * @param before for a substring that entered with an uncommitted edit, the line in HEAD it
+     *     replaced; {@code null} when the edit added the line
      */
     private record Start(
             @Nullable String commit,
             @Nullable At at,
-            @Nullable String text) {}
+            @Nullable String text,
+            @Nullable At before) {
+
+        Start(@Nullable String commit, @Nullable At at, @Nullable String text) {
+            this(commit, at, text, null);
+        }
+    }
 
     private Start snapshot(RevWalk walk, String rev, String normalized, int line) throws IOException {
         CommitFiles.Blob blob = CommitFiles.read(repository, rev, normalized);
@@ -155,7 +226,13 @@ final class LineOriginTracer {
         return new Start(blob.commit(), new At(commit, normalized, index), lineOf(file, index));
     }
 
-    private Start workingTree(RevWalk walk, String normalized, int line) throws IOException {
+    /**
+     * The working-tree line, carried into HEAD the way {@link #previous} carries a line into a
+     * parent — the working tree is one more version on top of history: an unchanged line goes
+     * through as it is; an edited one through the old line of its hunk that has the substring; one
+     * the edit added, or whose hunk had no substring, is where the substring entered — uncommitted.
+     */
+    private Start workingTree(RevWalk walk, String normalized, int line, Pattern needle) throws IOException {
         VisibleFiles.Resolved resolved = visible.require(normalized);
         if (!resolved.tracked()) {
             throw new IllegalArgumentException("File is not tracked: " + normalized);
@@ -185,10 +262,18 @@ final class LineOriginTracer {
         // line edited.
         EditList edits = diff(RawTextComparator.WS_IGNORE_TRAILING, committed, work);
         Edit edit = editAt(edits, index);
-        if (edit != null) {
+        if (edit == null) {
+            return new Start(null, new At(headCommit, normalized, unchanged(edits, index)), text);
+        }
+        if (edit.getLengthA() == 0) {
             return new Start(null, null, text);
         }
-        return new Start(null, new At(headCommit, normalized, unchanged(edits, index)), text);
+        int carried = LineOrigin.carrying(committed, edit.getBeginA(), edit.getEndA(), needle, text);
+        if (carried >= 0) {
+            return new Start(null, new At(headCommit, normalized, carried), text);
+        }
+        int closest = LineOrigin.closest(committed, edit.getBeginA(), edit.getEndA(), text);
+        return new Start(null, null, text, new At(headCommit, normalized, closest));
     }
 
     private GitLineOrigin walkFrom(RevWalk walk, At first, Pattern needle, long deadline, Answer answer)
@@ -201,7 +286,7 @@ final class LineOriginTracer {
             } catch (GitReadTimeoutException e) {
                 // The versions already walked are an answer of their own — the oldest reached, as
                 // at the step limit; only a walk that got nowhere is the timeout it is.
-                if (answer.steps().isEmpty()) {
+                if (answer.walked() == 0) {
                     throw e;
                 }
                 return answer.status(Status.LIMIT);
@@ -213,14 +298,16 @@ final class LineOriginTracer {
             }
             // Checked only now: the last step allowed may well be the origin, and only its own
             // look at the parent can say so.
-            if (answer.steps().size() == LineOrigin.MAX_STEPS) {
+            if (answer.walked() == LineOrigin.MAX_STEPS) {
                 return answer.status(Status.LIMIT);
             }
             answer.step(step(version));
             Next next;
             try {
                 next = previous(walk, version, needle, deadline);
-            } catch (GitReadTimeoutException e) {
+            } catch (GitReadTimeoutException | Unreadable e) {
+                // Out of time, or a version of the file history cannot be read as text (past the
+                // size cap, or binary then): the oldest version reached is as far as it goes.
                 return answer.status(Status.LIMIT);
             }
             switch (next) {
@@ -356,7 +443,12 @@ final class LineOriginTracer {
                         || version.path().equals(entry.getNewPath())) {
                     continue;
                 }
-                RawText old = text(parent, entry.getOldPath());
+                RawText old;
+                try {
+                    old = text(parent, entry.getOldPath());
+                } catch (Unreadable e) {
+                    continue;
+                }
                 if (old == null) {
                     continue;
                 }
@@ -422,8 +514,11 @@ final class LineOriginTracer {
     }
 
     /**
-     * The file as of the commit; {@code null} when the commit holds no such file there — or a
-     * directory, a link, a binary or one past {@link #MAX_BLOB_BYTES}: no line of it to follow.
+     * The file as of the commit; {@code null} when the commit holds no file there (or a directory,
+     * a link: no lines of it).
+     *
+     * @throws Unreadable when there is a file but not one to read lines from: past {@link
+     *     #MAX_BLOB_BYTES}, or binary
      */
     private @Nullable RawText text(RevCommit commit, String path) throws IOException {
         try (TreeWalk tree = TreeWalk.forPath(repository, path, commit.getTree())) {
@@ -432,10 +527,26 @@ final class LineOriginTracer {
             }
             ObjectLoader blob = repository.open(tree.getObjectId(0));
             if (blob.getSize() > MAX_BLOB_BYTES) {
-                return null;
+                throw new Unreadable(path + " in " + commit.name() + " is too large");
             }
             byte[] bytes = blob.getCachedBytes((int) MAX_BLOB_BYTES);
-            return RawText.isBinary(bytes) ? null : new RawText(bytes);
+            if (RawText.isBinary(bytes)) {
+                throw new Unreadable(path + " in " + commit.name() + " is binary");
+            }
+            return new RawText(bytes);
+        }
+    }
+
+    /**
+     * A version of a file the walk needs and cannot read as lines. Not a failure of the request: the
+     * walk stops at the version it reached ({@link Status#LIMIT}), and the search for a moved block
+     * passes such a file over.
+     */
+    private static final class Unreadable extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        Unreadable(String message) {
+            super(message, null, false, false);
         }
     }
 
@@ -447,9 +558,13 @@ final class LineOriginTracer {
 
     private void checkDeadline(long deadline, String path) {
         if (System.nanoTime() > deadline) {
-            throw new GitReadTimeoutException(
-                    "Tracing the line did not finish within " + timeout.toSeconds() + "s: " + path);
+            throw timedOut(path);
         }
+    }
+
+    private GitReadTimeoutException timedOut(String path) {
+        return new GitReadTimeoutException(
+                "Tracing the line did not finish within " + timeout.toSeconds() + "s: " + path);
     }
 
     private static EditList diff(RawTextComparator comparator, RawText old, RawText now) {
@@ -525,8 +640,9 @@ final class LineOriginTracer {
         private final int line;
         private final String query;
         private final @Nullable String commit;
-        private final List<GitLineOrigin.Step> steps = new ArrayList<>();
-        private GitLineOrigin.@Nullable Step before;
+        // Written by the walk's thread and read by the caller's once it stopped waiting.
+        private final List<GitLineOrigin.Step> steps = new CopyOnWriteArrayList<>();
+        private volatile GitLineOrigin.@Nullable Step before;
 
         Answer(String path, int line, String query, @Nullable String commit) {
             this.path = path;
@@ -535,8 +651,8 @@ final class LineOriginTracer {
             this.commit = commit;
         }
 
-        List<GitLineOrigin.Step> steps() {
-            return steps;
+        int walked() {
+            return steps.size();
         }
 
         void step(GitLineOrigin.Step step) {
@@ -549,7 +665,8 @@ final class LineOriginTracer {
         }
 
         GitLineOrigin status(Status status) {
-            // A walk that ended before its first step has no versions, whatever it stopped on.
+            // A walk that ended before its first step has no versions, whatever it stopped on;
+            // an uncommitted origin still names the committed line it replaced.
             List<GitLineOrigin.Step> walked =
                     status == Status.NOT_IN_LINE || status == Status.UNCOMMITTED ? List.of() : List.copyOf(steps);
             return new GitLineOrigin(path, line, query, commit, status, walked, before);
