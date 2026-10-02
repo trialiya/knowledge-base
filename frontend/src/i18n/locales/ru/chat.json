@@ -199,6 +199,14 @@
       "tree": {
         "nodes": "узлов: {{count}}"
       },
+      "blame": {
+        "hunks": "ханков: {{count}}",
+        "lines": "строк: {{count}}",
+        "range": "строки {{from}}–{{to}} из {{count}}",
+        "truncated": "показаны не все ханки",
+        "uncommitted": "ещё не в коммите",
+        "empty": "Диапазон за концом файла"
+      },
       "grep": {
         "untracked": "вне git",
         "matches": "совпадений: {{count}}",

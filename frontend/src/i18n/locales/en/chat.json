@@ -199,6 +199,14 @@
       "tree": {
         "nodes": "{{count}} nodes"
       },
+      "blame": {
+        "hunks": "{{count}} hunks",
+        "lines": "{{count}} lines",
+        "range": "lines {{from}}–{{to}} of {{count}}",
+        "truncated": "more hunks not shown",
+        "uncommitted": "not committed yet",
+        "empty": "The range lies past the end of the file"
+      },
       "grep": {
         "untracked": "untracked",
         "matches": "{{count}} matches",

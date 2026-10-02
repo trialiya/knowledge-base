@@ -567,6 +567,8 @@ const LIGHT = [
     ['fileOutlineCall'],
     // Четвёртый файл (вне git) добавляет блок, который в 900 не помещается.
     ['grepCall', [1440, 1000]],
+    // Сетка ханков: столбцы хеша, автора и даты при длинном описании и строке без коммита.
+    ['blameCall'],
     ['docMutationCall'],
     ['scriptRunCall', [1440, 1350]],
     ['scriptFailedCall'],

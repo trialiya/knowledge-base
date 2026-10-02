@@ -9,7 +9,7 @@
 **Связанные документы:**
 
 - [AI-инструменты](ai-инструменты.md), §4 — аргументы и ответы `getFileTree`, `getFileContent`,
-  `grepContent`, `getCommitLog`, `getUncommittedChanges`, `createFile`, `editFile`
+  `getBlame`, `grepContent`, `getCommitLog`, `getUncommittedChanges`, `createFile`, `editFile`
 - [API Reference](api-reference.md) — `GitController` (`GET /api/git/**`), `GitCommandController`
   (`POST /api/git/**`), `POST /api/chats/{id}/revert-files`
 - [Конфигурация](конфигурация.md), «Проекты (`kb.projects`)» — ключи, которые здесь только
@@ -130,6 +130,7 @@ Unicode — bidi-переопределения и разделители чип
 | Патч одного файла — до 500 строк | `Diffs.MAX_DIFF_LINES` |
 | Только для модели: патчи одного ответа `getCommitDiff` / `getUncommittedChanges` вместе — до 3000 строк, хешей в `getCommitDiff` — до 20 | `PatchBudget.MAX_LINES`, `GitFunction.MAX_DIFF_COMMITS` |
 | Только для модели: строка в совпадении `grepContent` / `grepDocuments` — до 500 символов | `GrepLines.MAX_LINE_CHARS` |
+| Только для модели: ханков в одном ответе `getBlame` — до 100 (дальше `truncated` и продолжение с `toLine + 1`) | `BlameBudget.MAX_HUNKS` |
 | Блоб из истории, который поднимается в память целиком, — до 32 МБ | `CommitFiles.MAX_BLOB_SIZE` |
 | `git grep` — 20 секунд и 20 000 строк вывода | `GitGrepRunner.GREP_TIMEOUT`, `MAX_OUTPUT_LINES` |
 | `git blame` — 20 секунд и 400 000 строк вывода (при переполнении — отказ, не усечение) | `GitBlameRunner.BLAME_TIMEOUT`, `MAX_OUTPUT_LINES` |
@@ -183,7 +184,7 @@ Unicode — bidi-переопределения и разделители чип
 | Операция | Как выполняется | Почему |
 |---|---|---|
 | `git grep` (`grepContent`, `GET /api/git/grep`) | subprocess `git grep` (`GitGrepRunner`, командная строка — `GitGrep`) | У JGit нет grep |
-| `git blame` (`getBlame`, `GET /api/git/files/blame`) | subprocess `git blame --porcelain` (`GitBlameRunner`, командная строка — `GitBlame`) | Blame у JGit есть, но он не умеет пропускать коммиты из `.git-blame-ignore-revs`; колонка, приписывающая каждую строку переформатированию, бесполезна. Список игнорируемых коммитов уезжает по `--ignore-rev` на каждый: файл читается из того дерева, которое смотрят (для снимка — из коммита), и кривая строка в нём не валит запрос, как сделал бы `--ignore-revs-file` |
+| `git blame` (`GitService.getBlame`: инструмент `getBlame`, `GET /api/git/files/blame`) | subprocess `git blame --porcelain [-L from,to]` (`GitBlameRunner`, командная строка — `GitBlame`) | Blame у JGit есть, но он не умеет пропускать коммиты из `.git-blame-ignore-revs`; колонка, приписывающая каждую строку переформатированию, бесполезна. Список игнорируемых коммитов уезжает по `--ignore-rev` на каждый: файл читается из того дерева, которое смотрят (для снимка — из коммита), и кривая строка в нём не валит запрос, как сделал бы `--ignore-revs-file`. Диапазон инструмента уходит в `-L` и сужает сам обход истории; начало диапазона заранее укладывается в файл (`GitBlame.fit` по `RepoFiles.lineCount`), потому что git отвергает диапазон, начинающийся за концом файла. Если рабочий файл укоротили между подсчётом и запуском, отказ git'а ведёт к пересчёту строк и одному повтору — текст отказа не разбирается, git его переводит |
 | `fetch`, `pull`, `push` | subprocess `git` | Нужны учётные данные хоста — ssh-agent, credential helper, `insteadOf`; системный git их уже знает, а учить им JGit значило бы воспроизводить окружение вместо того, чтобы им пользоваться |
 | `merge --abort` | subprocess `git` | JGit этого не умеет |
 | `switch`, `stash`, `commit`, `discard`, статус, история, диффы, чтение | JGit | Ничего, кроме этого репозитория, им не нужно |
