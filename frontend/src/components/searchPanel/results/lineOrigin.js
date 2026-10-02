@@ -6,7 +6,8 @@
  * @returns {{
  *   kind: 'found' | 'boundary' | 'limit' | 'uncommitted' | 'notInLine',
  *   origin: object | null,   // шаг-ответ: где появилось (или самый старый из пройденных)
- *   before: object | null,   // строка до появления — уже без подстроки
+ *   before: object | null,   // строка до появления — уже без подстроки (у незакоммиченной
+ *                            // правки — строка в HEAD, которую она заменила)
  *   path: object[],          // пройденные версии строки от новой к старой
  * }}
  */
@@ -22,9 +23,9 @@ export function describeOrigin(answer) {
     case 'LIMIT':
       return { ...base, kind: 'limit' };
     case 'UNCOMMITTED':
-      return { ...base, kind: 'uncommitted', origin: null };
+      return { ...base, kind: 'uncommitted', origin: null, path: [] };
     default:
-      return { ...base, kind: 'notInLine', origin: null };
+      return { ...base, kind: 'notInLine', origin: null, before: null, path: [] };
   }
 }
 

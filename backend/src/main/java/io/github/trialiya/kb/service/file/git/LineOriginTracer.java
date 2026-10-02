@@ -52,8 +52,8 @@ import org.jspecify.annotations.Nullable;
  *       goes on from it; when none has it, the substring entered with this commit, and the old
  *       line most like it is the answer's {@code before};
  *   <li>the line sits in a hunk that only inserted lines, or the file is new — the line was added
- *       here, unless the same commit deleted the same block from another file (a move, {@link
- *       #moved}); then the walk goes on in that file.
+ *       here, unless the same commit deleted the same block elsewhere — another file, or another
+ *       place in this one (a move, {@link #moved}); then the walk goes on from there.
  * </ul>
  *
  * <p>Pairing by the substring rather than by position or similarity alone is what keeps a line
@@ -140,6 +140,11 @@ final class LineOriginTracer {
             return result.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
         } catch (TimeoutException e) {
             Answer answer = progress.get();
+            Status settled = answer == null ? null : answer.settled();
+            if (answer != null && settled != null) {
+                // The walk had its answer and was only fetching the version before it.
+                return answer.status(settled);
+            }
             if (answer == null || answer.walked() == 0) {
                 GitReadTimeoutException timeout = timedOut(normalized);
                 timeout.initCause(e);
@@ -184,10 +189,15 @@ final class LineOriginTracer {
             }
             if (start.at() == null) {
                 At before = start.before();
+                answer.settle(Status.UNCOMMITTED);
                 return answer.before(before == null ? null : versionBefore(walk, before, deadline))
                         .status(Status.UNCOMMITTED);
             }
             return walkFrom(walk, start.at(), needle, deadline, answer);
+        } catch (Unreadable e) {
+            // Only the start can get here — the walk itself stops on an unreadable version: the
+            // file as asked about is readable, its HEAD version is not.
+            throw new IllegalArgumentException("File history cannot be read as text: " + e.getMessage(), e);
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot trace " + normalized + ":" + line, e);
         }
@@ -215,7 +225,7 @@ final class LineOriginTracer {
     }
 
     private Start snapshot(RevWalk walk, String rev, String normalized, int line) throws IOException {
-        CommitFiles.Blob blob = CommitFiles.read(repository, rev, normalized);
+        CommitFiles.Blob blob = CommitFiles.read(repository, rev.strip(), normalized);
         requireText(normalized, blob.bytes());
         RawText file = new RawText(blob.bytes());
         int index = line - 1;
@@ -313,6 +323,7 @@ final class LineOriginTracer {
             switch (next) {
                 case Next.Carried carried -> at = carried.at();
                 case Next.Without without -> {
+                    answer.settle(Status.FOUND);
                     return answer.before(versionBefore(walk, without.at(), deadline))
                             .status(Status.FOUND);
                 }
@@ -409,7 +420,8 @@ final class LineOriginTracer {
 
     /**
      * Where a line added by {@code commit} was moved in from: the same commit deleted the same block
-     * from another file — line for line, indentation aside — and the run of matching lines that
+     * elsewhere — from another file, or from another place in this one — line for line,
+     * indentation aside — and the run of matching lines that
      * holds this one carries at least {@link LineOrigin#MOVE_MIN_ALNUM} letters and digits. The
      * longest such run wins. A run with no substring in the line itself does not count: then the
      * substring entered with the move, not before it.
@@ -439,8 +451,8 @@ final class LineOriginTracer {
             for (DiffEntry entry : entries) {
                 // Every file read here may be large: the walk's deadline holds through the search.
                 checkDeadline(deadline, version.path());
-                if (entry.getChangeType() == DiffEntry.ChangeType.ADD
-                        || version.path().equals(entry.getNewPath())) {
+                // The line's own file is searched too: a method moved up the same file is a move.
+                if (entry.getChangeType() == DiffEntry.ChangeType.ADD) {
                     continue;
                 }
                 RawText old;
@@ -530,7 +542,9 @@ final class LineOriginTracer {
                 throw new Unreadable(path + " in " + commit.name() + " is too large");
             }
             byte[] bytes = blob.getCachedBytes((int) MAX_BLOB_BYTES);
-            if (RawText.isBinary(bytes)) {
+            // The project's own test, as the read that accepted the file used: JGit's would also call
+            // a text file with a lone carriage return binary.
+            if (RepoFiles.isBinary(bytes)) {
                 throw new Unreadable(path + " in " + commit.name() + " is binary");
             }
             return new RawText(bytes);
@@ -643,6 +657,7 @@ final class LineOriginTracer {
         // Written by the walk's thread and read by the caller's once it stopped waiting.
         private final List<GitLineOrigin.Step> steps = new CopyOnWriteArrayList<>();
         private volatile GitLineOrigin.@Nullable Step before;
+        private volatile @Nullable Status settled;
 
         Answer(String path, int line, String query, @Nullable String commit) {
             this.path = path;
@@ -653,6 +668,16 @@ final class LineOriginTracer {
 
         int walked() {
             return steps.size();
+        }
+
+        /** The status the walk settled on, before it fetches the version before the origin. */
+        void settle(Status status) {
+            settled = status;
+        }
+
+        @Nullable
+        Status settled() {
+            return settled;
         }
 
         void step(GitLineOrigin.Step step) {

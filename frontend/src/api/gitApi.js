@@ -119,7 +119,7 @@ const gitApi = {
   /**
    * Где подстрока появилась в строке файла — GitLineOrigin { path, line, query,
    * commit, status, steps: [{ hash, author, date, summary, path, line, text }],
-   * before }: цепочка git blame по версиям строки, `steps` от новой к старой.
+   * before }: обход по версиям строки (JGit), `steps` от новой к старой.
    * `status` — FOUND | UNCOMMITTED | NOT_IN_LINE | BOUNDARY | LIMIT. Ошибка
    * вызова (неотслеживаемый файл, пустой запрос) — 400, не уложившаяся в срок
    * цепочка — 503.

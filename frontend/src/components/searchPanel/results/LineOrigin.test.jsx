@@ -71,6 +71,19 @@ describe('LineOrigin', () => {
     );
   });
 
+  it('незакоммиченная правка: «было» — строка в HEAD, ссылкой на неё', async () => {
+    gitApi.getLineOrigin.mockResolvedValue({
+      status: 'UNCOMMITTED',
+      steps: [],
+      before: { hash: HASH1, author: 'Alice', summary: 'start', path: 'src/A.java', line: 12, text: 'x = 1;' },
+    });
+    renderOrigin();
+
+    expect(await screen.findByText('files.origin.uncommitted')).toBeInTheDocument();
+    const was = screen.getByText('x = 1;').closest('a');
+    expect(was.getAttribute('href')).toContain(`rev=${HASH1}`);
+  });
+
   it('без ответа — подпись о причине; 503 — про время', async () => {
     gitApi.getLineOrigin.mockResolvedValueOnce({ status: 'UNCOMMITTED', steps: [] });
     const { unmount } = renderOrigin();

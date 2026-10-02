@@ -24,6 +24,8 @@ describe('describeOrigin', () => {
 
   it('без шагов ответа нет: незакоммиченная строка, подстроки нет, непонятный статус', () => {
     expect(describeOrigin({ status: 'UNCOMMITTED', steps: [] })).toMatchObject({ kind: 'uncommitted', origin: null });
+    // У незакоммиченной правки «было» остаётся — строка в HEAD, которую она заменила.
+    expect(describeOrigin({ status: 'UNCOMMITTED', steps: [], before: step('h', 'x') }).before.hash).toBe('h');
     expect(describeOrigin({ status: 'NOT_IN_LINE', steps: [] })).toMatchObject({ kind: 'notInLine', origin: null });
     expect(describeOrigin({ status: 'SOMETHING_NEW' }).origin).toBeNull();
   });

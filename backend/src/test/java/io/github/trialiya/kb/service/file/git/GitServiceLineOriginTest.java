@@ -371,6 +371,53 @@ class GitServiceLineOriginTest {
         assertThat(origin.steps()).extracting(GitLineOrigin.Step::hash).containsExactly(text);
     }
 
+    /** Метод, переставленный в том же файле, прослеживается до того, кто его написал. */
+    @Test
+    void codeMovedWithinItsOwnFileIsFollowedBackToWhereItWasWritten() {
+        String method = "    int computeInvoiceTotalWithDiscountsApplied(Order order) {\n"
+                + "        return order.linesWithoutReturnedItems().sumOfPricesAfterTax();\n"
+                + "    }\n";
+        // Полей больше, чем строк метода: diff оставит их на месте и покажет переставленным метод.
+        String fields = "    int a;\n    int b;\n    int c;\n    int d;\n    int e;\n    int f;\n";
+        writeFile("Big.java", "class Big {\n" + fields + method + "}\n");
+        String written = commitAll("written");
+        writeFile("Big.java", "class Big {\n" + method + fields + "}\n");
+        commitAll("moved up");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "Big.java", 3, "sumOfPricesAfterTax");
+
+        assertThat(origin.status()).isEqualTo(Status.FOUND);
+        assertThat(origin.steps().getLast().hash()).isEqualTo(written);
+        assertThat(origin.steps().getLast().line()).isEqualTo(9);
+    }
+
+    /**
+     * Одиночный {@code \r} посреди строки — текст, как его читает весь проект, а не бинарный файл:
+     * обход идёт по истории, а не останавливается на нём.
+     */
+    @Test
+    void aLoneCarriageReturnDoesNotMakeAFileBinary() {
+        writeFile("f.txt", "a\rb needle\n");
+        String written = commitAll("written");
+        writeFile("f.txt", "top\na\rb needle\n");
+        commitAll("top");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "f.txt", 2, "needle");
+
+        assertThat(origin.status()).isEqualTo(Status.FOUND);
+        assertThat(origin.steps()).extracting(GitLineOrigin.Step::hash).containsExactly(written);
+    }
+
+    /** Ревизия с пробелами по краям — та же ревизия, как и у blame. */
+    @Test
+    void aRevisionWithSurroundingSpacesIsTheSameRevision() {
+        writeFile("f.txt", "needle\n");
+        String first = commitAll("first");
+
+        assertThat(service.getLineOrigin(" HEAD ", "f.txt", 1, "needle").commit())
+                .isEqualTo(first);
+    }
+
     @Test
     void aBlankQueryOrALineBelowOneIsTheCallersMistake() {
         writeFile("f.txt", "one\n");

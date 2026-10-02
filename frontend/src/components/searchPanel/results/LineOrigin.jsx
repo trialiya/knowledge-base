@@ -31,8 +31,6 @@ const LineOrigin = ({ path, line, query, rev, project, onOpenFile }) => {
   }
 
   const view = describeOrigin(value);
-  if (!view.origin) return <div className="search-origin search-origin--note">{t(`files.origin.${view.kind}`)}</div>;
-
   const open = (step) => {
     const options = { rev: step.hash, lines: String(step.line), find: query, right: FILE_TAB.COMMIT };
     return {
@@ -40,6 +38,22 @@ const LineOrigin = ({ path, line, query, rev, project, onOpenFile }) => {
       onNavigate: () => onOpenFile(step.path, project, options),
     };
   };
+
+  if (view.kind === 'uncommitted') {
+    // Подстрока вошла незакоммиченной правкой: коммита нет, а «было» — строка в HEAD,
+    // которую правка заменила (её нет, если правка строку добавила).
+    return (
+      <div className="search-origin">
+        <div className="search-origin__head">
+          <span className="search-origin__label">{t('files.origin.uncommitted')}</span>
+        </div>
+        {view.before && (
+          <VersionLine label={t('files.origin.was')} step={view.before} query={query} link={open(view.before)} />
+        )}
+      </div>
+    );
+  }
+  if (!view.origin) return <div className="search-origin search-origin--note">{t(`files.origin.${view.kind}`)}</div>;
 
   return (
     <div className="search-origin">
