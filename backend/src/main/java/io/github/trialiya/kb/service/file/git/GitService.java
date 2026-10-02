@@ -16,6 +16,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepResult;
+import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
@@ -623,6 +624,27 @@ public class GitService {
         }
         boolean ranged = fromLine != null || toLine != null;
         return blame(rev, filePath, ranged ? new GitBlameRunner.Range(fromLine, toLine) : null);
+    }
+
+    /**
+     * The commit where {@code query} entered line {@code line} of the file — a chain of one-line
+     * blames back through the versions of that line; see {@link GitBlameRunner#origin}.
+     *
+     * @param rev the commit the line is numbered in; {@code null} or blank — the working tree
+     * @param line 1-based
+     * @param query the substring, matched literally and case-insensitively
+     * @throws IllegalArgumentException for a line below 1 or a blank query, and as {@link
+     *     #getBlame(String, String)}
+     */
+    public GitLineOrigin getLineOrigin(
+            @Nullable String rev, @NonNull String filePath, int line, @NonNull String query) {
+        if (line < 1) {
+            throw new IllegalArgumentException("line must be 1 or more: " + line);
+        }
+        if (query.isBlank()) {
+            throw new IllegalArgumentException("query must not be blank");
+        }
+        return blame.origin(normalizePath(filePath), snapshot(rev), line, query);
     }
 
     private GitFileBlame blame(@Nullable String rev, String filePath, GitBlameRunner.@Nullable Range range) {

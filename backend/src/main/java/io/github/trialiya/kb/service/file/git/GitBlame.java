@@ -57,7 +57,26 @@ final class GitBlame {
      *     be read as an option
      */
     static List<String> args(String path, List<String> ignoredRevs, @Nullable Lines lines, @Nullable String commit) {
+        return args(path, ignoredRevs, lines, commit, false);
+    }
+
+    /**
+     * {@link #args(String, List, Lines, String)}, with {@code -C} when {@code followCopies}: a line
+     * moved in from another file the same commit changed is followed into that file, rather than
+     * credited to the commit that moved it. Tracing where a substring came from wants that — code
+     * extracted into a new file is the common case — while the blame column does not: there, the
+     * commit that put the line into this file is the answer.
+     */
+    static List<String> args(
+            String path,
+            List<String> ignoredRevs,
+            @Nullable Lines lines,
+            @Nullable String commit,
+            boolean followCopies) {
         List<String> args = new ArrayList<>(List.of("git", "blame", "--porcelain"));
+        if (followCopies) {
+            args.add("-C");
+        }
         if (lines != null) {
             args.add("-L");
             args.add(lines.from() + "," + lines.to());
