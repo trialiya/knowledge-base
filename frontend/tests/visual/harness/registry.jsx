@@ -740,6 +740,25 @@ const LIGHT = [
     render: (p) => <ResultCards {...p} />,
   },
   { id: 'searchResults.js#emptyAndRefusal', frame: 'center', render: (p) => <EmptyStates {...p} /> },
+  // «Когда появилось» открыто у второй строки и раскрыт путь строки: панель под строкой
+  // и её ссылки есть только здесь, ответ бэкенда заявлен маршрутом.
+  {
+    id: 'searchResults.js#lineOriginCard',
+    frame: 'center',
+    api: (p) => ({ '/api/git/files/origin': p.origin }),
+    steps: [
+      { click: '.search-group__row:nth-child(2) .search-line__origin' },
+      { click: '.search-origin__toggle' },
+      { unhover: true },
+    ],
+    render: (p) => (
+      <div className="search-results">
+        <div className="search-results__list">
+          <FileResults result={p.files.data} query={p.query} regex={false} rev="" project="" onOpenFile={noop} />
+        </div>
+      </div>
+    ),
+  },
 
   // Переход к найденному: файл открыт из единого поиска, запрос стоит в адресе.
   // Проверяемое — что бар подставлен и центр промотан к первому совпадению без

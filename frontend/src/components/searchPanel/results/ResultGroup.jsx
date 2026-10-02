@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AppLink from '@/components/common/ui/AppLink';
 
@@ -41,10 +41,11 @@ function previewRows(rows) {
  *   onOpen      — SPA-переход по обычному левому клику
  *   meta        — правый угол шапки (дата, число совпадений)
  *   subtitle    — строка под шапкой (хлебные крошки, путь)
- *   rows        — [{ key, node, heading?, href?, onOpen? }] совпадения внутри
- *                 сущности; `heading` — подзаголовок группы совпадений (раздел
- *                 документа), в счёт «ещё N» не идёт; `href` + `onOpen` делают
- *                 строку ссылкой
+ *   rows        — [{ key, node, heading?, href?, onOpen?, detail? }] совпадения
+ *                 внутри сущности; `heading` — подзаголовок группы совпадений
+ *                 (раздел документа), в счёт «ещё N» не идёт; `href` + `onOpen`
+ *                 делают строку ссылкой; `detail` — узел под строкой (ответ на
+ *                 действие с ней), в счёт тоже не идёт
  */
 const ResultGroup = ({ icon, title, href, onOpen, meta, subtitle, rows }) => {
   const { t } = useTranslation('search');
@@ -65,14 +66,17 @@ const ResultGroup = ({ icon, title, href, onOpen, meta, subtitle, rows }) => {
       <div className="search-group__rows">
         {shown.map((row) => {
           const className = row.heading ? 'search-group__section' : 'search-group__row';
-          return row.href ? (
-            <AppLink key={row.key} className={className} href={row.href} onNavigate={() => row.onOpen()}>
-              {row.node}
-            </AppLink>
-          ) : (
-            <div key={row.key} className={className}>
-              {row.node}
-            </div>
+          return (
+            <Fragment key={row.key}>
+              {row.href ? (
+                <AppLink className={className} href={row.href} onNavigate={() => row.onOpen()}>
+                  {row.node}
+                </AppLink>
+              ) : (
+                <div className={className}>{row.node}</div>
+              )}
+              {row.detail}
+            </Fragment>
           );
         })}
       </div>

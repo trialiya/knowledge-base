@@ -1,9 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { navigateToCommit } from '@/navigation/fileNavigationBus';
+import gitApi from '@/api/gitApi';
 import ResultList from './ResultList';
 
 vi.mock('@/navigation/fileNavigationBus', () => ({ navigateToCommit: vi.fn() }));
+vi.mock('@/api/gitApi', () => ({ default: { getLineOrigin: vi.fn() } }));
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -414,4 +416,55 @@ test.each([
   );
 
   expect(screen.getByText(note)).toBeInTheDocument();
+});
+
+test('«когда появилось» есть у строки файла в git и открывает ответ под ней', async () => {
+  gitApi.getLineOrigin.mockReturnValue(new Promise(() => {}));
+  renderFiles();
+  const ask = screen.getAllByRole('button', { name: 'files.origin.ask' });
+  expect(ask).toHaveLength(5);
+  expect(ask[1]).toHaveAttribute('aria-expanded', 'false');
+
+  await userEvent.click(ask[1]);
+
+  expect(ask[1]).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByText('files.origin.loading')).toBeInTheDocument();
+  expect(gitApi.getLineOrigin).toHaveBeenCalledWith('backend/src/Main.java', 2, 'needle', expect.any(Object));
+});
+
+test('в режиме регулярного выражения и у файла вне git кнопки нет', () => {
+  const { unmount } = renderFiles({ regex: true });
+  expect(screen.queryByRole('button', { name: 'files.origin.ask' })).toBeNull();
+  unmount();
+
+  const file = { ...filesEntry.data.files[0], tracked: false };
+  const untracked = { ...filesEntry, data: { ...filesEntry.data, files: [file] } };
+  renderFiles({ entry: untracked });
+  expect(screen.queryByRole('button', { name: 'files.origin.ask' })).toBeNull();
+});
+
+test('новый запрос закрывает открытые «когда появилось» и не спрашивает за них снова', async () => {
+  gitApi.getLineOrigin.mockReset();
+  gitApi.getLineOrigin.mockReturnValue(new Promise(() => {}));
+  const { rerender } = renderFiles();
+  await userEvent.click(screen.getAllByRole('button', { name: 'files.origin.ask' })[0]);
+  expect(gitApi.getLineOrigin).toHaveBeenCalledTimes(1);
+
+  rerender(
+    <ResultList
+      scope="files"
+      query="other"
+      loading={false}
+      entry={filesEntry}
+      regex={false}
+      rev=""
+      project=""
+      onOpenFile={vi.fn()}
+      onOpenDoc={vi.fn()}
+      onOpenChat={vi.fn()}
+    />,
+  );
+
+  expect(screen.queryByText('files.origin.loading')).toBeNull();
+  expect(gitApi.getLineOrigin).toHaveBeenCalledTimes(1);
 });

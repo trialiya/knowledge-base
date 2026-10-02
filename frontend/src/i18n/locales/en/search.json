@@ -45,7 +45,24 @@
     "matches_other": "{{count}} lines",
     "untracked": "untracked",
     "byName": "by name",
-    "nameMatch": "name matches"
+    "nameMatch": "name matches",
+    "origin": {
+      "ask": "When did this appear",
+      "loading": "Looking for the commit that brought this into the line…",
+      "found": "Appeared in",
+      "boundary": "The clone's history is cut before:",
+      "boundaryHint": "The clone is shallow: the substring may be older than this commit.",
+      "limit": "Hit the step limit with the substring in every version; the oldest one reached:",
+      "became": "now",
+      "was": "before",
+      "added": "The line was added by this commit.",
+      "path_one": "Line history: {{count}} version",
+      "path_other": "Line history: {{count}} versions",
+      "uncommitted": "The line has uncommitted changes — its history cannot be traced.",
+      "notInLine": "The line no longer contains the substring — the file changed after the search.",
+      "timeout": "Ran out of time — the line's history is too long.",
+      "failed": "Could not trace the line's history."
+    }
   },
   "commits": {
     "hashMatched": "hash matched"

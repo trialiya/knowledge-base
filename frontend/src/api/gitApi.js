@@ -117,6 +117,21 @@ const gitApi = {
   },
 
   /**
+   * Где подстрока появилась в строке файла — GitLineOrigin { path, line, query,
+   * commit, status, steps: [{ hash, author, date, summary, path, line, text }],
+   * before }: цепочка git blame по версиям строки, `steps` от новой к старой.
+   * `status` — FOUND | UNCOMMITTED | NOT_IN_LINE | BOUNDARY | LIMIT. Ошибка
+   * вызова (неотслеживаемый файл, пустой запрос) — 400, не уложившаяся в срок
+   * цепочка — 503.
+   */
+  getLineOrigin: (path, line, query, { rev, project, signal } = {}) => {
+    const params = new URLSearchParams({ path, line: String(line), query });
+    if (rev) params.set('rev', rev);
+    const [qs, init] = opts(params, project, signal);
+    return request(`/api/git/files/origin${qs}`, init);
+  },
+
+  /**
    * Структура файла — GitFileOutline { path, language, lineCount, parser,
    * symbols: [{ kind, name, signature, startLine, endLine }] }. У markdown
    * символы — заголовки (`kind` h1…h6, `preamble` — текст до первого),
