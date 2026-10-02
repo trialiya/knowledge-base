@@ -55,7 +55,7 @@
       "limit": "The walk stopped early — out of steps or time, or a version of the file is not text; the substring is in every version walked, the oldest:",
       "became": "now",
       "was": "before",
-      "added": "The line was added by this commit.",
+      "added": "The line has no earlier version: this commit added it — or moved it from somewhere that could not be found.",
       "path_one": "Line history: {{count}} version",
       "path_other": "Line history: {{count}} versions",
       "uncommitted": "Appeared in an uncommitted edit.",

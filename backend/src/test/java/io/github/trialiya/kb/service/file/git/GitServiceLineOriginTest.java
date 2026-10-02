@@ -418,6 +418,47 @@ class GitServiceLineOriginTest {
                 .isEqualTo(first);
     }
 
+    /**
+     * Блок, перенесённый в существующий файл на место заглушки: diff сливает вставку с заменой
+     * заглушки в один кусок, и прежней строки с подстрокой в нём нет — но это перенос, и обход
+     * идёт к тому, кто блок написал.
+     */
+    @Test
+    void aBlockMovedOverAStubIsStillAMove() {
+        String block = "    int computeInvoiceTotalWithDiscountsApplied(Order order) {\n"
+                + "        return order.linesWithoutReturnedItems().sumOfPricesAfterTax();\n"
+                + "    }\n";
+        writeFile("A.java", "class A {\n" + block + "}\n");
+        writeFile("B.java", "class B {\n    // TODO\n}\n");
+        String written = commitAll("written");
+        writeFile("A.java", "class A {\n}\n");
+        writeFile("B.java", "class B {\n" + block + "}\n");
+        commitAll("moved over the stub");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "B.java", 3, "sumOfPricesAfterTax");
+
+        assertThat(origin.status()).isEqualTo(Status.FOUND);
+        assertThat(origin.steps().getLast().hash()).isEqualTo(written);
+        assertThat(origin.steps().getLast().path()).isEqualTo("A.java");
+    }
+
+    /**
+     * Правка, дописавшая только хвостовые пробелы, для сравнения с HEAD невидима — но если подстрока
+     * в них, она вошла этой правкой: незакоммиченное появление, а не «подстроки нет».
+     */
+    @Test
+    void aSubstringInTrailingWhitespaceAddedByAnUncommittedEditIsUncommitted() {
+        writeFile("f.txt", "foo\n");
+        String first = commitAll("first");
+        writeFile("f.txt", "foo  \n");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "f.txt", 1, "foo ");
+
+        assertThat(origin.status()).isEqualTo(Status.UNCOMMITTED);
+        assertThat(origin.before().hash()).isEqualTo(first);
+        assertThat(origin.before().text()).isEqualTo("foo");
+    }
+
     @Test
     void aBlankQueryOrALineBelowOneIsTheCallersMistake() {
         writeFile("f.txt", "one\n");
