@@ -36,7 +36,7 @@ final class CommitFiles {
      * конец файла, поэтому прочитать его приходится целиком, — но не настолько, чтобы один блоб из
      * истории (дамп, собранный артефакт, случайно закоммиченный архив) положил бэкенд.
      */
-    private static final long MAX_BLOB_SIZE = 32L * 1024 * 1024;
+    static final long MAX_BLOB_SIZE = 32L * 1024 * 1024;
 
     private CommitFiles() {}
 

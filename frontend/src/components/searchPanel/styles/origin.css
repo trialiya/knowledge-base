@@ -1,0 +1,128 @@
+/* ── «Когда появилось» у строки совпадения в файле ──
+   Кнопка в конце строки и панель ответа под ней (results/LineOrigin.jsx). */
+
+/* Кнопка ждёт наведения на строку или фокуса: на каждой из десятков строк
+   выдачи постоянная иконка спорила бы с самим кодом. Открытая панель держит
+   свою кнопку видимой — по ней же панель и закрывают. */
+.icon-btn.search-line__origin {
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: auto;
+  opacity: 0;
+}
+.search-group__row:hover .search-line__origin,
+.search-line__origin:focus-visible,
+.search-line__origin[aria-expanded='true'] {
+  opacity: 1;
+}
+/* Без наведения (сенсорный экран) ждать нечего — кнопка видна всегда. */
+@media (hover: none) {
+  .icon-btn.search-line__origin {
+    opacity: 1;
+  }
+}
+
+/* Панель под строкой встаёт под её кодом — левый край по тексту, а не по
+   номеру: 12px отступа строки, 42px колонки номера и 10px зазора. */
+.search-origin {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 12px 6px 64px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--kb-accent);
+  border-radius: 0 4px 4px 0;
+  background: var(--kb-surface-sunken);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--kb-text);
+}
+
+.search-origin--note {
+  color: var(--kb-text-muted);
+}
+
+.search-origin__head,
+.search-origin__commit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.search-origin__label {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.search-origin__meta {
+  flex-shrink: 0;
+  color: var(--kb-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.search-origin__summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-origin__hint {
+  color: var(--kb-text-muted);
+}
+
+/* Версия строки — ссылка, но читается как строка выдачи: номер и код. */
+.search-origin__line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 3px;
+}
+.search-origin__line:hover {
+  background: var(--kb-accent-surface-subtle);
+}
+/* Номер версии короче колонки строк выдачи: подписи «стало»/«было» уже
+   выравнивают их по левому краю. */
+.search-origin__line .search-line__no {
+  min-width: 0;
+}
+
+.search-origin__line-label {
+  flex-shrink: 0;
+  min-width: 36px;
+  color: var(--kb-text-muted);
+}
+
+.search-origin__toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--kb-accent);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.search-origin__toggle:hover {
+  text-decoration: underline;
+}
+
+.search-origin__path {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.search-origin__step {
+  display: flex;
+  flex-direction: column;
+  padding-top: 4px;
+  border-top: 1px solid var(--kb-border-light);
+}

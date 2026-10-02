@@ -13,9 +13,11 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Line authorship of one file: the {@code git blame} subprocess and its command line ({@link
- * GitBlame}). JGit has a blame of its own, but it cannot skip the revisions {@code
- * .git-blame-ignore-revs} names — and a column that credits every line to the last reformatting
- * commit says nothing — so this one leaves the JVM through {@link GitReadProcess}, like grep.
+ * GitBlame}). The revisions {@code .git-blame-ignore-revs} names are skipped — a column that
+ * credits every line to the last reformatting commit says nothing — and JGit's blame, which can
+ * skip them too, hands a skipped commit's lines back by position, where git pairs them by
+ * similarity: the column would disagree with GitHub's blame and with {@code git blame} on the
+ * same file. So this one leaves the JVM through {@link GitReadProcess}, like grep.
  */
 @Slf4j
 final class GitBlameRunner {
@@ -73,21 +75,9 @@ final class GitBlameRunner {
      * @throws GitReadTimeoutException if git did not answer in time
      */
     GitFileBlame blame(String normalized, @Nullable Range range) {
-        VisibleFiles.Resolved resolved = visible.require(normalized);
-        if (!resolved.tracked()) {
-            throw new IllegalArgumentException("File is not tracked: " + normalized);
-        }
-        // A tracked file whose repository has no commit yet (a staged file on an unborn branch)
-        // is git's `fatal: no such ref: HEAD` — the caller's situation, not a failure here.
-        if (CommitFiles.commitOrNull(repository, "HEAD") == null) {
-            throw new IllegalArgumentException("Repository has no commits yet: " + normalized);
-        }
-        byte[] head = RepoFiles.readWindow(normalized, resolved.absolute(), 0, RepoFiles.BINARY_SNIFF_BYTES);
-        requireText(normalized, head);
-        IntSupplier count = () -> RepoFiles.lineCount(normalized, resolved.absolute());
-        int total = range == null ? 0 : count.getAsInt();
-        List<String> ignored = resolvable(GitBlame.ignoredRevs(workingTreeIgnoreFile()));
-        return run(normalized, ignored, null, range, total, count);
+        Target target = workingTree(normalized);
+        int total = range == null ? 0 : target.count().getAsInt();
+        return run(normalized, target.ignored(), null, range, total, target.count());
     }
 
     /**
@@ -101,12 +91,43 @@ final class GitBlameRunner {
      *     file at that path, or the file is binary
      */
     GitFileBlame blameAt(String rev, String normalized, @Nullable Range range) {
+        Target target = snapshot(rev, normalized);
+        int total = range == null ? 0 : target.count().getAsInt();
+        return run(normalized, target.ignored(), target.commit(), range, total, null);
+    }
+
+    /**
+     * What a blame of one file starts from: the commit it is read at ({@code null} — the working
+     * tree), the revisions it skips, and the file's line count as git counts it, read only when
+     * asked for.
+     */
+    private record Target(@Nullable String commit, List<String> ignored, IntSupplier count) {}
+
+    /** The working-tree file, refused unless git has history for it and it is text. */
+    private Target workingTree(String normalized) {
+        VisibleFiles.Resolved resolved = visible.require(normalized);
+        if (!resolved.tracked()) {
+            throw new IllegalArgumentException("File is not tracked: " + normalized);
+        }
+        // A tracked file whose repository has no commit yet (a staged file on an unborn branch)
+        // is git's `fatal: no such ref: HEAD` — the caller's situation, not a failure here.
+        if (CommitFiles.commitOrNull(repository, "HEAD") == null) {
+            throw new IllegalArgumentException("Repository has no commits yet: " + normalized);
+        }
+        byte[] head = RepoFiles.readWindow(normalized, resolved.absolute(), 0, RepoFiles.BINARY_SNIFF_BYTES);
+        requireText(normalized, head);
+        List<String> ignored = resolvable(GitBlame.ignoredRevs(workingTreeIgnoreFile()));
+        return new Target(null, ignored, () -> RepoFiles.lineCount(normalized, resolved.absolute()));
+    }
+
+    /** The file as of a commit, refused unless the commit holds it and it is text. */
+    private Target snapshot(String rev, String normalized) {
         String commit = CommitFiles.commitOf(repository, rev.strip()).name();
         CommitFiles.Blob blob = CommitFiles.read(repository, commit, normalized);
         requireText(normalized, blob.bytes());
-        int total = range == null ? 0 : RepoFiles.lineCount(blob.bytes());
+        int total = RepoFiles.lineCount(blob.bytes());
         List<String> ignored = resolvable(GitBlame.ignoredRevs(snapshotIgnoreFile(commit)));
-        return run(normalized, ignored, commit, range, total, null);
+        return new Target(commit, ignored, () -> total);
     }
 
     /**

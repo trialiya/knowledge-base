@@ -219,3 +219,50 @@ export const scopePanel = {
     mode: 'hybrid',
   },
 };
+
+/**
+ * «Когда появилось» у второй строки файла (`GET /api/git/files/origin`):
+ * подстрока вошла в строку правкой, а не с её добавлением, — поэтому есть и
+ * «было», и путь строки из трёх версий. Средняя версия — из файла до выноса
+ * (другой путь и номер строки): так видно, что ссылки ведут по ним, а не по
+ * нынешним.
+ */
+export const lineOriginCard = {
+  query,
+  files: { data: { ...fileEntry.data, files: [fileEntry.data.files[0]] } },
+  origin: {
+    path: 'backend/src/main/java/io/github/trialiya/kb/service/file/git/GitGrepRunner.java',
+    line: 58,
+    query,
+    status: 'FOUND',
+    steps: [
+      {
+        hash: 'cee01a1f6a2b3c4d5e6f708192a3b4c5d6e7f809',
+        author: 'Анна Смирнова',
+        date: '2026-07-18T20:41:00+03:00',
+        summary: 'Страница поиска: сгруппированные эндпоинты для файлов, документов и чатов (#351)',
+        path: 'backend/src/main/java/io/github/trialiya/kb/service/file/git/GitGrepRunner.java',
+        line: 58,
+        text: '        List<String> args = GitGrep.args(pattern, pathspec, regex, ctx, roots, null);',
+      },
+      {
+        hash: '026c0f01b2c3d4e5f60718293a4b5c6d7e8f9012',
+        author: 'Alex Morgan',
+        date: '2026-05-30T11:02:00+03:00',
+        summary: 'Инструмент runScript: скрипты для умного поиска и правки репозитория (#192)',
+        path: 'backend/src/main/java/io/github/trialiya/kb/service/GitService.java',
+        line: 412,
+        text: '        List<String> args = GitGrep.args(pattern, pathspec, regex, ctx);',
+      },
+    ],
+    before: {
+      hash: '171424fa5b2631518a16a86ae87587b0f8d3c3fb',
+      author: 'Trialiya',
+      date: '2026-05-20T07:36:57+03:00',
+      summary: 'GitFunction',
+      path: 'backend/src/main/java/io/github/trialiya/kb/service/GitService.java',
+      line: 398,
+      text: '        List<String> args = buildArgs(pattern, pathspec, regex, ctx);',
+    },
+  },
+};

@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import io.github.trialiya.kb.model.git.dto.GitFileBytes;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
 import io.github.trialiya.kb.model.git.dto.GitSymbol;
 import io.github.trialiya.kb.service.file.git.GitReadTimeoutException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -166,6 +167,46 @@ class GitControllerTest {
 
         mockMvc.perform(get("/api/git/files/blame").param("path", "new.txt")).andExpect(status().isBadRequest());
         mockMvc.perform(get("/api/git/files/blame").param("path", "slow.txt"))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    /**
+     * Происхождение подстроки: ревизия и строка уходят в сервис, шаги — как есть; ошибка вызова —
+     * 400, обход, не уложившийся в срок, — 503, как у blame.
+     */
+    @Test
+    void lineOriginIsReadAtTheRevisionAndItsFailuresMapLikeBlame() throws Exception {
+        String hash = "a".repeat(40);
+        when(git.getLineOrigin("v1", "A.java", 12, "total"))
+                .thenReturn(new GitLineOrigin(
+                        "A.java",
+                        12,
+                        "total",
+                        hash,
+                        GitLineOrigin.Status.FOUND,
+                        List.of(new GitLineOrigin.Step(hash, "Alice", null, "first", "A.java", 10, "int total;")),
+                        null));
+        when(git.getLineOrigin(null, "A.java", 0, "x")).thenThrow(new IllegalArgumentException("line must be 1"));
+        when(git.getLineOrigin(null, "slow.txt", 1, "x")).thenThrow(new GitReadTimeoutException("too slow"));
+
+        mockMvc.perform(get("/api/git/files/origin")
+                        .param("path", "A.java")
+                        .param("line", "12")
+                        .param("query", "total")
+                        .param("rev", "v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FOUND"))
+                .andExpect(jsonPath("$.steps[0].line").value(10))
+                .andExpect(jsonPath("$.before").doesNotExist());
+        mockMvc.perform(get("/api/git/files/origin")
+                        .param("path", "A.java")
+                        .param("line", "0")
+                        .param("query", "x"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/git/files/origin")
+                        .param("path", "slow.txt")
+                        .param("line", "1")
+                        .param("query", "x"))
                 .andExpect(status().isServiceUnavailable());
     }
 
