@@ -177,8 +177,8 @@ final class GitBlameRunner {
             @Nullable IntSupplier recount) {
         GitBlame.Lines lines = GitBlame.fit(range.fromLine(), range.toLine(), total);
         if (lines == null) {
-            // Nothing of the file in the range: git would refuse it outright, and an empty answer
-            // that still names the file's length says more than a refusal.
+            // The range starts past the file's end (GitService refuses a reversed one): git would
+            // refuse it outright, and an empty answer naming the file's length says more.
             int from = range.fromLine() == null ? 1 : Math.max(1, range.fromLine());
             return new GitFileBlame(normalized, commit, total, List.of(), from, from - 1);
         }

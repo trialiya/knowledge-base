@@ -200,8 +200,12 @@
         "nodes": "узлов: {{count}}"
       },
       "blame": {
-        "hunks": "ханков: {{count}}",
-        "lines": "строк: {{count}}",
+        "hunks_one": "{{count}} ханк",
+        "hunks_few": "{{count}} ханка",
+        "hunks_many": "{{count}} ханков",
+        "lines_one": "{{count}} строка",
+        "lines_few": "{{count}} строки",
+        "lines_many": "{{count}} строк",
         "range": "строки {{from}}–{{to}} из {{count}}",
         "truncated": "показаны не все ханки",
         "uncommitted": "ещё не в коммите",

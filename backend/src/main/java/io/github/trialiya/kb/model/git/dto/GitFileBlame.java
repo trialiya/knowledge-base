@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.StringJoiner;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -102,8 +103,19 @@ public record GitFileBlame(
             if (hash == null) {
                 return lines + " uncommitted";
             }
-            return lines + " " + hash.substring(0, 7) + " " + author + " "
-                    + (date == null ? "" : date.toLocalDate() + " ") + Compact.oneLine(summary, 60);
+            // Поля коммита приходят вместе, но парсер оставляет голый ханк, если коммит не
+            // описан, — плашка тогда без них, а не с «null».
+            StringJoiner gist = new StringJoiner(" ").add(lines).add(hash.substring(0, 7));
+            if (author != null) {
+                gist.add(author);
+            }
+            if (date != null) {
+                gist.add(date.toLocalDate().toString());
+            }
+            if (summary != null) {
+                gist.add(Compact.oneLine(summary, 60));
+            }
+            return gist.toString();
         }
     }
 }

@@ -255,6 +255,21 @@ class GitServiceBlameTest {
         assertThat(past.toLine()).isLessThan(past.fromLine());
     }
 
+    /**
+     * Конец раньше начала — ошибка вызова, а не пустой диапазон: иначе ответ читался бы как
+     * «начало за концом файла», а это неправда.
+     */
+    @Test
+    void aRangeThatEndsBeforeItStartsIsTheCallersMistake() {
+        writeFile("f.txt", "one\ntwo\nthree\n");
+        commitAll("first");
+
+        assertThatThrownBy(() -> service.getBlame(null, "f.txt", 3, 2))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("before fromLine");
+        assertThatThrownBy(() -> service.getBlame(null, "f.txt", null, 0)).isInstanceOf(IllegalArgumentException.class);
+    }
+
     /** Диапазон у снимка считается по файлу того коммита, а не рабочего дерева. */
     @Test
     void aRangeAtARevisionIsFittedToThatCommitsFile() {

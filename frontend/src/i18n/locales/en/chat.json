@@ -200,8 +200,10 @@
         "nodes": "{{count}} nodes"
       },
       "blame": {
-        "hunks": "{{count}} hunks",
-        "lines": "{{count}} lines",
+        "hunks_one": "{{count}} hunk",
+        "hunks_other": "{{count}} hunks",
+        "lines_one": "{{count}} line",
+        "lines_other": "{{count}} lines",
         "range": "lines {{from}}–{{to}} of {{count}}",
         "truncated": "more hunks not shown",
         "uncommitted": "not committed yet",

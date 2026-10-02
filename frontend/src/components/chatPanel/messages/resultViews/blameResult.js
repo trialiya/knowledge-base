@@ -9,6 +9,8 @@
 
 import { isPlainObject } from './contentResult';
 import { filesUrl, formatLines } from '@/navigation/urlScheme';
+import { FILE_TAB } from '@/constants/fileTabs';
+import shortRev from '@/components/common/git/shortRev';
 
 const isLine = (value) => Number.isInteger(value) && value >= 1;
 
@@ -33,14 +35,14 @@ const toRow = (hunk, i, file, project) => {
     lines,
     uncommitted: false,
     hash,
-    shortHash: hash.slice(0, 7),
+    shortHash: shortRev(hash),
     author: typeof hunk.author === 'string' ? hunk.author : null,
     date: typeof hunk.date === 'string' ? hunk.date : null,
     summary: typeof hunk.summary === 'string' ? hunk.summary : null,
     href: filesUrl(typeof hunk.path === 'string' && hunk.path ? hunk.path : file, project, {
       rev: hash,
       lines: source,
-      right: 'commit',
+      right: FILE_TAB.COMMIT,
     }),
   };
 };
@@ -57,7 +59,7 @@ export const detectBlameResult = ({ parsed, isJson, project = null, truncated = 
   return {
     path,
     rev,
-    shortRev: rev ? rev.slice(0, 7) : null,
+    shortRev: rev ? shortRev(rev) : null,
     lineCount,
     // toLine < fromLine — от файла в диапазон не попало ничего (GitFileBlame).
     range: ranged ? { from: fromLine, to: toLine, empty: toLine < fromLine } : null,
