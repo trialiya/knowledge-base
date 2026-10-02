@@ -448,7 +448,9 @@ final class LineOriginTracer {
                 if (carried >= 0) {
                     return new Next.Carried(new At(before, path, carried));
                 }
-                if (hunk.getLengthA() > 0 && without == null && fallbackParent == null) {
+                // From whichever parent first had a version of the line — in a merge, the first
+                // parent may not have the file at all.
+                if (hunk.getLengthA() > 0 && without == null) {
                     int closest = LineOrigin.closest(old, hunk.getBeginA(), hunk.getEndA(), version.text());
                     without = new Next.Without(new At(before, path, closest), FileVersions.lineOf(old, closest));
                 }
@@ -460,15 +462,25 @@ final class LineOriginTracer {
             }
         }
         if (fallbackParent != null && fallbackEdit != null) {
-            At moved = moves.find(
-                    fallbackParent,
-                    commit,
-                    version.text(),
-                    version.line(),
-                    now,
-                    fallbackEdit,
-                    needle,
-                    () -> checkDeadline(deadline, version.path()));
+            At moved;
+            try {
+                moved = moves.find(
+                        fallbackParent,
+                        commit,
+                        version.text(),
+                        version.line(),
+                        now,
+                        fallbackEdit,
+                        needle,
+                        () -> checkDeadline(deadline, version.path()));
+            } catch (GitReadTimeoutException e) {
+                // Out of time looking for a move: an edit that brought the substring in is still
+                // the answer; with no such edit there is nothing to stand on but the steps walked.
+                if (without == null) {
+                    throw e;
+                }
+                return without;
+            }
             if (moved != null) {
                 return new Next.Carried(moved);
             }

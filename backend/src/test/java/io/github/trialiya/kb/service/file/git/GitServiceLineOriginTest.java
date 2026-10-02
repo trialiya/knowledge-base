@@ -327,6 +327,34 @@ class GitServiceLineOriginTest {
     }
 
     /**
+     * Слияние, в котором подстроку внесло само разрешение: у первого родителя файла нет вовсе, у
+     * второго строка была без подстроки — «было» берётся из второго, а не теряется.
+     */
+    @Test
+    void aMergeTakesTheVersionBeforeFromWhicheverParentHadTheLine() {
+        writeFile("base.txt", "base\n");
+        commitAll("base");
+        String main = runGit(repoDir, "rev-parse", "--abbrev-ref", "HEAD").strip();
+        runGit(repoDir, "checkout", "-q", "-b", "feature");
+        writeFile("f.txt", "head\nint x = 1;\n");
+        String onBranch = commitAll("on branch");
+        runGit(repoDir, "checkout", "-q", main);
+        writeFile("g.txt", "other\n");
+        commitAll("on main");
+        runGit(repoDir, "merge", "-q", "--no-ff", "--no-commit", "feature");
+        writeFile("f.txt", "head\nint x = needle();\n");
+        String merge = commitAll("merge with an edit");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "f.txt", 2, "needle");
+
+        assertThat(origin.status()).isEqualTo(Status.FOUND);
+        assertThat(origin.steps()).extracting(GitLineOrigin.Step::hash).containsExactly(merge);
+        assertThat(origin.before()).isNotNull();
+        assertThat(origin.before().hash()).isEqualTo(onBranch);
+        assertThat(origin.before().text()).isEqualTo("int x = 1;");
+    }
+
+    /**
      * Одна короткая строка, совпавшая с удалённой в другом файле, — случайность, а не перенос:
      * блок легче порога ({@link LineOrigin#MOVE_MIN_ALNUM}), и ответ — коммит, добавивший строку.
      */
