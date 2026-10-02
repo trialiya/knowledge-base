@@ -462,25 +462,17 @@ final class LineOriginTracer {
             }
         }
         if (fallbackParent != null && fallbackEdit != null) {
-            At moved;
-            try {
-                moved = moves.find(
-                        fallbackParent,
-                        commit,
-                        version.text(),
-                        version.line(),
-                        now,
-                        fallbackEdit,
-                        needle,
-                        () -> checkDeadline(deadline, version.path()));
-            } catch (GitReadTimeoutException e) {
-                // Out of time looking for a move: an edit that brought the substring in is still
-                // the answer; with no such edit there is nothing to stand on but the steps walked.
-                if (without == null) {
-                    throw e;
-                }
-                return without;
-            }
+            // Not cut short on the deadline into an answer: a move found beats the edit, so an
+            // unfinished search leaves the origin unknown — the walk then stops at LIMIT.
+            At moved = moves.find(
+                    fallbackParent,
+                    commit,
+                    version.text(),
+                    version.line(),
+                    now,
+                    fallbackEdit,
+                    needle,
+                    () -> checkDeadline(deadline, version.path()));
             if (moved != null) {
                 return new Next.Carried(moved);
             }
