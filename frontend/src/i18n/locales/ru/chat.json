@@ -426,6 +426,7 @@
     "searchFiles": "Поиск файлов",
     "getFileOutline": "Структура файла",
     "getFileContent": "Чтение файла",
+    "getBlame": "Авторство строк",
     "getUncommittedChanges": "Незакоммиченные изменения",
     "grepContent": "Поиск по коду",
     "searchCodebase": "Умный поиск",

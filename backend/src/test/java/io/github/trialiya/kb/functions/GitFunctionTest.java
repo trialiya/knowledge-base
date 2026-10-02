@@ -16,6 +16,7 @@ import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
+import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
@@ -76,6 +77,14 @@ class GitFunctionTest {
         when(billing.searchCommitLog(anyString(), anyInt(), any(), anyBoolean()))
                 .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
+        when(billing.getBlame(any(), anyString(), any(), any()))
+                .thenReturn(new GitFileBlame(
+                        "pom.xml",
+                        null,
+                        10,
+                        List.of(new GitFileBlame.Hunk(1, 2, null, null, null, null, null, null)),
+                        1,
+                        2));
         when(billing.getUncommittedChanges(anyBoolean(), anyBoolean(), anyList()))
                 .thenReturn(List.of(new GitDiffEntry("M", "pom.xml", null, 1, 0, null, null)));
         when(gitRegistry.forProject("billing")).thenReturn(billing);
@@ -150,11 +159,12 @@ class GitFunctionTest {
                         function.getFileOutline(context, "Foo.java", "billing"),
                         function.getCommitLog(context, null, null, null, null, "billing"),
                         function.getCommitDiff(context, "abc1234", null, null, "billing"),
-                        function.getUncommittedChanges(context, null, null, null, "billing")))
+                        function.getUncommittedChanges(context, null, null, null, "billing"),
+                        function.getBlame(context, "pom.xml", 1, 2, null, "billing")))
                 .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"))
                 .allSatisfy(r -> assertThat(r.result()).isNotNull());
 
-        verify(gitRegistry, times(6)).forProject("billing");
+        verify(gitRegistry, times(7)).forProject("billing");
     }
 
     /**
@@ -209,6 +219,21 @@ class GitFunctionTest {
         verify(billing).getFileContent("  ", "pom.xml", null, null);
         function.getFileContent(context, "pom.xml", null, null, null, null);
         verify(billing).getFileContent(null, "pom.xml", null, null);
+    }
+
+    /**
+     * Диапазон и ревизия доезжают до сервиса как есть — укладывает диапазон в файл сервис ({@code
+     * GitServiceBlameTest}), — а ответ в пределе ханков приходит целым и не помеченным усечённым.
+     */
+    @Test
+    void blameHandsTheRangeAndRevisionToTheService() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+
+        ToolResult<GitFileBlame> answer = function.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null);
+
+        verify(billing).getBlame("HEAD~1", "pom.xml", 3, 9);
+        assertThat(answer.truncated()).isNotEqualTo(Boolean.TRUE);
+        assertThat(answer.result().hunks()).hasSize(1);
     }
 
     /**

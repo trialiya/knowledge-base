@@ -152,7 +152,10 @@ class GitControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.commit").value(hash))
                 .andExpect(jsonPath("$.hunks[0].hash").value(hash))
-                .andExpect(jsonPath("$.hunks[0].lineCount").value(2));
+                .andExpect(jsonPath("$.hunks[0].lineCount").value(2))
+                // Плашка инструмента модели — не поле ответа; диапазона не спрашивали — его нет.
+                .andExpect(jsonPath("$.formattedResponse").doesNotExist())
+                .andExpect(jsonPath("$.fromLine").doesNotExist());
     }
 
     /** Файл без истории — ошибка запроса; blame, не уложившийся в дедлайн, — 503, как у grep. */

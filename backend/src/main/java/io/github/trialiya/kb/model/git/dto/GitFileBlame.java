@@ -1,19 +1,24 @@
 package io.github.trialiya.kb.model.git.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.tools.Compact;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Авторство строк файла ({@code git blame}) для колонки blame файлового браузера: файл разбит на
+ * Авторство строк файла ({@code git blame}) — для колонки blame файлового браузера и для
+ * инструмента модели {@code getBlame}: файл разбит на
  * диапазоны подряд идущих строк, пришедших из одного коммита, — как их и показывает интерфейс,
  * подписью на первой строке диапазона.
  *
  * <p>Коммиты из {@code .git-blame-ignore-revs} репозитория (массовые переформатирования) уже
  * пропущены: их строки приписаны тому, кто менял их до этого.
  *
- * <p>Репозиторий ответ не называет: он один на всю выдачу и известен клиенту из запроса.
+ * <p>Репозиторий ответ не называет: он один на всю выдачу и известен клиенту из запроса, а модели —
+ * из обёртки ответа ({@code ToolResult}). Пустые поля в JSON не печатаются: отсутствующее поле
+ * значит {@code null}.
  *
  * @param path относительный путь от корня репозитория
  * @param commit полный хеш ревизии, в снимке которой смотрели файл; {@code null} — рабочее дерево
@@ -28,11 +33,27 @@ import org.jspecify.annotations.Nullable;
  */
 public record GitFileBlame(
         String path,
-        @Nullable String commit,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String commit,
         int lineCount,
         List<Hunk> hunks,
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer fromLine,
-        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer toLine) {
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer toLine)
+        implements ToolCallResponseItem {
+
+    /** Ханков в плашке вызова: она — напоминание о том, что пришло, а не сам ответ. */
+    private static final int GIST_HUNKS = 5;
+
+    @Override
+    public String getFormattedResponse() {
+        StringBuilder gist = new StringBuilder(Compact.tag("blame:" + path)
+                .add("at", commit == null ? null : commit.substring(0, 7))
+                .add("lines", lineCount)
+                .add("range", fromLine == null ? null : fromLine + "-" + toLine)
+                .add("hunks", hunks.size())
+                .done());
+        hunks.stream().limit(GIST_HUNKS).forEach(h -> gist.append('\n').append(h.gist()));
+        return gist.toString();
+    }
 
     /**
      * Строки {@code fromLine}…{@code fromLine + lineCount - 1}, последними изменённые одним коммитом.
@@ -55,10 +76,34 @@ public record GitFileBlame(
     public record Hunk(
             int fromLine,
             int lineCount,
-            @Nullable String hash,
-            @Nullable String author,
-            @Nullable OffsetDateTime date,
-            @Nullable String summary,
-            @Nullable String path,
-            @Nullable Integer sourceLine) {}
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            String hash,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            String author,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            OffsetDateTime date,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            String summary,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            String path,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            Integer sourceLine) {
+
+        /** {@code 12-18 a1b2c3d Alice 2024-03-01 Fix parser}; без коммита — {@code 19 uncommitted}. */
+        String gist() {
+            int to = fromLine + lineCount - 1;
+            String lines = to == fromLine ? String.valueOf(fromLine) : fromLine + "-" + to;
+            if (hash == null) {
+                return lines + " uncommitted";
+            }
+            return lines + " " + hash.substring(0, 7) + " " + author + " "
+                    + (date == null ? "" : date.toLocalDate() + " ") + Compact.oneLine(summary, 60);
+        }
+    }
 }

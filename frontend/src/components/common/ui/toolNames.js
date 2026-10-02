@@ -49,6 +49,7 @@ export const TOOL_META = {
   searchFiles: { icon: '🔎', category: 'git' },
   getFileOutline: { icon: '🗂️', category: 'git' },
   getFileContent: { icon: '📄', category: 'git' },
+  getBlame: { icon: '👤', category: 'git' },
   getUncommittedChanges: { icon: '📝', category: 'git' },
   grepContent: { icon: '🔎', category: 'git' },
   searchCodebase: { icon: '🧭', category: 'git' },

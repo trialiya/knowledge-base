@@ -422,6 +422,7 @@
     "searchFiles": "Search files",
     "getFileOutline": "File outline",
     "getFileContent": "Read file",
+    "getBlame": "Line authorship",
     "getUncommittedChanges": "Uncommitted changes",
     "grepContent": "Search in code",
     "searchCodebase": "Smart search",
