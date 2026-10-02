@@ -1,30 +1,23 @@
 package io.github.trialiya.kb.service.file.git;
 
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
-import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
-import io.github.trialiya.kb.model.git.dto.GitLineOrigin.Status;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.IntSupplier;
-import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Repository;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Line authorship of one file: the {@code git blame} subprocess and its command line ({@link
- * GitBlame}). JGit has a blame of its own, but it cannot skip the revisions {@code
- * .git-blame-ignore-revs} names — and a column that credits every line to the last reformatting
- * commit says nothing — so this one leaves the JVM through {@link GitReadProcess}, like grep.
+ * GitBlame}). The revisions {@code .git-blame-ignore-revs} names are skipped — a column that
+ * credits every line to the last reformatting commit says nothing — and JGit's blame, which can
+ * skip them too, hands a skipped commit's lines back by position, where git pairs them by
+ * similarity: the column would disagree with GitHub's blame and with {@code git blame} on the
+ * same file. So this one leaves the JVM through {@link GitReadProcess}, like grep.
  */
 @Slf4j
 final class GitBlameRunner {
@@ -84,7 +77,7 @@ final class GitBlameRunner {
     GitFileBlame blame(String normalized, @Nullable Range range) {
         Target target = workingTree(normalized);
         int total = range == null ? 0 : target.count().getAsInt();
-        return run(normalized, target.ignored().get(), null, range, total, target.count());
+        return run(normalized, target.ignored(), null, range, total, target.count());
     }
 
     /**
@@ -100,15 +93,15 @@ final class GitBlameRunner {
     GitFileBlame blameAt(String rev, String normalized, @Nullable Range range) {
         Target target = snapshot(rev, normalized);
         int total = range == null ? 0 : target.count().getAsInt();
-        return run(normalized, target.ignored().get(), target.commit(), range, total, null);
+        return run(normalized, target.ignored(), target.commit(), range, total, null);
     }
 
     /**
      * What a blame of one file starts from: the commit it is read at ({@code null} — the working
-     * tree), the revisions it skips and the file's line count as git counts it — both read only
-     * when asked for: the trace of a line's origin skips no revisions of the ignore file.
+     * tree), the revisions it skips, and the file's line count as git counts it, read only when
+     * asked for.
      */
-    private record Target(@Nullable String commit, Supplier<List<String>> ignored, IntSupplier count) {}
+    private record Target(@Nullable String commit, List<String> ignored, IntSupplier count) {}
 
     /** The working-tree file, refused unless git has history for it and it is text. */
     private Target workingTree(String normalized) {
@@ -123,10 +116,8 @@ final class GitBlameRunner {
         }
         byte[] head = RepoFiles.readWindow(normalized, resolved.absolute(), 0, RepoFiles.BINARY_SNIFF_BYTES);
         requireText(normalized, head);
-        return new Target(
-                null,
-                () -> resolvable(GitBlame.ignoredRevs(workingTreeIgnoreFile())),
-                () -> RepoFiles.lineCount(normalized, resolved.absolute()));
+        List<String> ignored = resolvable(GitBlame.ignoredRevs(workingTreeIgnoreFile()));
+        return new Target(null, ignored, () -> RepoFiles.lineCount(normalized, resolved.absolute()));
     }
 
     /** The file as of a commit, refused unless the commit holds it and it is text. */
@@ -135,133 +126,8 @@ final class GitBlameRunner {
         CommitFiles.Blob blob = CommitFiles.read(repository, commit, normalized);
         requireText(normalized, blob.bytes());
         int total = RepoFiles.lineCount(blob.bytes());
-        return new Target(commit, () -> resolvable(GitBlame.ignoredRevs(snapshotIgnoreFile(commit))), () -> total);
-    }
-
-    /**
-     * Where {@code query} entered line {@code line} of the file: the line is blamed, the version
-     * of it in the commit blamed is checked for the substring, and while it is there the line is
-     * blamed again with that commit skipped ({@code --ignore-rev}) — git then credits the line to
-     * the version of it before that commit, matched by similarity. The last version that still
-     * has the substring is where it entered.
-     *
-     * <p>The walk ends when a version no longer has the substring (it entered in the version
-     * after: {@code before} is that version), or when skipping a commit gives the same commit back
-     * — git could not pass it, because the line was added there or the file was created there.
-     * Lines are followed across renames, and with {@code -C} into files the same commit changed,
-     * so code moved into a new file is followed back to where it was written.
-     *
-     * <p>The match by similarity is git's heuristic: when the line was added, git may still pair
-     * it with a neighbour, and the check for the substring in the version it names is what stops
-     * the walk there — unless the neighbour has the substring too.
-     *
-     * @param rev the commit to start at; {@code null} — the working tree
-     * @param line 1-based line of the file as of {@code rev}
-     * @throws IllegalArgumentException as {@link #blame} and {@link #blameAt}
-     * @throws GitReadTimeoutException if the walk did not finish within one blame's deadline
-     */
-    GitLineOrigin origin(String normalized, @Nullable String rev, int line, String query) {
-        Target target = rev == null ? workingTree(normalized) : snapshot(rev, normalized);
-        String commit = target.commit();
-        if (line > target.count().getAsInt()) {
-            return answer(normalized, line, query, commit, Status.NOT_IN_LINE, List.of(), null);
-        }
-        Pattern needle = LineOrigin.needle(query);
-        // The ignore file is not used here: a reformatting commit that did not touch the substring
-        // is walked past as one more step, and one that brought it in is the answer — skipping it
-        // would credit the line to a version without the substring and lose the find.
-        Set<String> walked = new LinkedHashSet<>();
-        List<GitLineOrigin.Step> steps = new ArrayList<>();
-        long deadline = git.deadline();
-        while (true) {
-            GitFileBlame.Hunk hunk;
-            try {
-                hunk = blameLine(normalized, List.copyOf(walked), line, commit, deadline);
-            } catch (GitReadTimeoutException e) {
-                // The versions already walked are an answer of their own — the oldest reached, as
-                // at the step limit; only a walk that got nowhere is the timeout it is.
-                if (steps.isEmpty()) {
-                    throw e;
-                }
-                return answer(normalized, line, query, commit, Status.LIMIT, steps, null);
-            }
-            String hash = hunk.hash();
-            if (hash == null) {
-                return answer(normalized, line, query, commit, Status.UNCOMMITTED, List.of(), null);
-            }
-            if (walked.contains(hash)) {
-                return answer(normalized, line, query, commit, stuckAt(hash), steps, null);
-            }
-            // Checked only now, after the blame: the last step allowed may well be the origin,
-            // and only the blame after it can say so.
-            if (steps.size() == LineOrigin.MAX_STEPS) {
-                return answer(normalized, line, query, commit, Status.LIMIT, steps, null);
-            }
-            String path = hunk.path() == null ? normalized : hunk.path();
-            int at = hunk.sourceLine() == null ? line : hunk.sourceLine();
-            String text =
-                    LineOrigin.lineAt(CommitFiles.read(repository, hash, path).bytes(), at);
-            GitLineOrigin.Step step = LineOrigin.step(hunk, hash, path, at, text == null ? "" : text);
-            if (text == null || !needle.matcher(text).find()) {
-                // The first version is the line as it is now: no substring there means the file
-                // changed after the search, not a history to walk.
-                Status status = steps.isEmpty() ? Status.NOT_IN_LINE : Status.FOUND;
-                return answer(normalized, line, query, commit, status, steps, steps.isEmpty() ? null : step);
-            }
-            steps.add(step);
-            walked.add(hash);
-        }
-    }
-
-    private static GitLineOrigin answer(
-            String normalized,
-            int line,
-            String query,
-            @Nullable String commit,
-            Status status,
-            List<GitLineOrigin.Step> steps,
-            GitLineOrigin.@Nullable Step before) {
-        return new GitLineOrigin(normalized, line, query, commit, status, List.copyOf(steps), before);
-    }
-
-    /**
-     * The walk stopped on a commit git gave back when asked to skip it: git paired the line with
-     * nothing older — it was added there, or rewritten past what git's similarity match pairs.
-     * Git cannot pass the first commit of a shallow clone either, but there the line may be older
-     * than the clone — that is where history ends, not where the substring appeared.
-     */
-    private Status stuckAt(String hash) {
-        return shallowBoundary(hash) ? Status.BOUNDARY : Status.FOUND;
-    }
-
-    /**
-     * Whether the commit is where this clone's history was cut ({@code shallow} in the common git
-     * directory names it — not the worktree's own, which a linked worktree has apart).
-     */
-    private boolean shallowBoundary(String hash) {
-        Path shallow = repository.getCommonDirectory().toPath().resolve("shallow");
-        if (!Files.isRegularFile(shallow)) {
-            return false;
-        }
-        try {
-            return Files.readAllLines(shallow, StandardCharsets.US_ASCII).stream()
-                    .anyMatch(hash::equals);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Cannot read " + shallow, e);
-        }
-    }
-
-    /** One step of the walk ({@link GitBlame#args} with {@code trace}), on its shared deadline. */
-    private GitFileBlame.Hunk blameLine(
-            String normalized, List<String> ignored, int line, @Nullable String commit, long deadline) {
-        List<String> command = GitBlame.args(normalized, ignored, new GitBlame.Lines(line, line), commit, true);
-        GitReadProcess.Output out = git.run(command, MAX_OUTPUT_LINES, deadline);
-        out.requireExit(command, 0);
-        List<GitFileBlame.Hunk> hunks = GitBlame.parse(out.lines());
-        if (hunks.isEmpty()) {
-            throw new IllegalStateException("git blame named no commit for " + normalized + ":" + line);
-        }
-        return hunks.getFirst();
+        List<String> ignored = resolvable(GitBlame.ignoredRevs(snapshotIgnoreFile(commit)));
+        return new Target(commit, ignored, () -> total);
     }
 
     /**

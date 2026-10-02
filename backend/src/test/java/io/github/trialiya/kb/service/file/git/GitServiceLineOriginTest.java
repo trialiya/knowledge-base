@@ -240,12 +240,82 @@ class GitServiceLineOriginTest {
         RepoPaths paths = new RepoPaths(repoDir);
         try (Repository repository =
                 new FileRepositoryBuilder().setWorkTree(repoDir.toFile()).build()) {
-            GitBlameRunner runner = new GitBlameRunner(
-                    paths, repository, new VisibleFiles(service.project(), paths, repository), Duration.ZERO);
+            LineOriginTracer tracer = new LineOriginTracer(
+                    repository, new VisibleFiles(service.project(), paths, repository), Duration.ZERO);
 
-            assertThatThrownBy(() -> runner.origin("f.txt", null, 1, "needle"))
+            assertThatThrownBy(() -> tracer.origin("f.txt", null, 1, "needle"))
                     .isInstanceOf(GitReadTimeoutException.class);
         }
+    }
+
+    /**
+     * Строка, добавленная рядом с похожей, в которой та же подстрока, — не поздняя версия той
+     * похожей: ответ — коммит, который её добавил. Сопоставление по похожести ({@code git blame
+     * --ignore-rev}) связало бы их и ушло бы в историю соседки.
+     */
+    @Test
+    void aLineAddedBesideALookAlikeWithTheSameSubstringIsNotThatLookAlike() {
+        writeFile("Errors.java", "class Errors {\n    Errors(String message) {\n    }\n}\n");
+        commitAll("one constructor");
+        writeFile(
+                "Errors.java",
+                "class Errors {\n    Errors(String message) {\n    }\n"
+                        + "    Errors(String message, Throwable cause) {\n    }\n}\n");
+        String second = commitAll("second constructor");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "Errors.java", 4, "Errors(");
+
+        assertThat(origin.status()).isEqualTo(Status.FOUND);
+        assertThat(origin.steps()).extracting(GitLineOrigin.Step::hash).containsExactly(second);
+        assertThat(origin.before()).isNull();
+    }
+
+    /** Строка, пришедшая слиянием ветки, прослеживается в коммит ветки, где её написали. */
+    @Test
+    void aLineMergedFromABranchIsTracedToTheBranchCommitThatWroteIt() {
+        writeFile("f.txt", "base\n");
+        commitAll("base");
+        String main = runGit(repoDir, "rev-parse", "--abbrev-ref", "HEAD").strip();
+        runGit(repoDir, "checkout", "-q", "-b", "feature");
+        writeFile("f.txt", "base\nfeature needle\n");
+        String onBranch = commitAll("on branch");
+        runGit(repoDir, "checkout", "-q", main);
+        writeFile("g.txt", "other\n");
+        commitAll("on main");
+        runGit(repoDir, "merge", "-q", "--no-ff", "-m", "merge", "feature");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "f.txt", 2, "needle");
+
+        assertThat(origin.status()).isEqualTo(Status.FOUND);
+        assertThat(origin.steps()).extracting(GitLineOrigin.Step::hash).containsExactly(onBranch);
+    }
+
+    /**
+     * Одна короткая строка, совпавшая с удалённой в другом файле, — случайность, а не перенос:
+     * блок легче порога ({@link LineOrigin#MOVE_MIN_ALNUM}), и ответ — коммит, добавивший строку.
+     */
+    @Test
+    void aShortLineThatHappensToMatchADeletedOneIsNotAMove() {
+        writeFile("A.java", "class A {\n    int needle;\n}\n");
+        commitAll("written");
+        writeFile("A.java", "class A {\n}\n");
+        writeFile("B.java", "class B {\n    int needle;\n}\n");
+        String added = commitAll("both");
+
+        GitLineOrigin origin = service.getLineOrigin(null, "B.java", 2, "needle");
+
+        assertThat(origin.steps()).extracting(GitLineOrigin.Step::hash).containsExactly(added);
+    }
+
+    /** Файл с CRLF в истории: текст версии — без {@code \r}, как его показывает интерфейс. */
+    @Test
+    void aVersionOfACrlfFileCarriesNoCarriageReturn() {
+        writeFile("f.txt", "head\r\nx needle\r\n");
+        commitAll("crlf");
+
+        GitLineOrigin origin = service.getLineOrigin("HEAD", "f.txt", 2, "needle");
+
+        assertThat(origin.steps()).extracting(GitLineOrigin.Step::text).containsExactly("x needle");
     }
 
     @Test

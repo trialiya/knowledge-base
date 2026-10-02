@@ -133,6 +133,9 @@ public class GitService {
     /** Line authorship, through a {@code git blame} subprocess. */
     private final GitBlameRunner blame;
 
+    /** Where a substring entered a line, through JGit. */
+    private final LineOriginTracer origins;
+
     /** The working-tree writes, kept apart from this far larger read surface. */
     private final GitWriter writer;
 
@@ -165,6 +168,7 @@ public class GitService {
         this.visible = new VisibleFiles(project, paths, repository);
         this.grep = new GitGrepRunner(paths, repository, visible);
         this.blame = new GitBlameRunner(paths, repository, visible);
+        this.origins = new LineOriginTracer(repository, visible);
         this.writer = new GitWriter(project, paths, visible, git);
         this.branches = new GitBranches(repository, git);
         this.commands = new GitCommands(paths, repository, git, branches);
@@ -627,8 +631,8 @@ public class GitService {
     }
 
     /**
-     * The commit where {@code query} entered line {@code line} of the file — a chain of one-line
-     * blames back through the versions of that line; see {@link GitBlameRunner#origin}.
+     * The commit where {@code query} entered line {@code line} of the file — a walk back through
+     * the versions of that line; see {@link LineOriginTracer}.
      *
      * @param rev the commit the line is numbered in; {@code null} or blank — the working tree
      * @param line 1-based
@@ -644,7 +648,7 @@ public class GitService {
         if (query.isBlank()) {
             throw new IllegalArgumentException("query must not be blank");
         }
-        return blame.origin(normalizePath(filePath), snapshot(rev), line, query);
+        return origins.origin(normalizePath(filePath), snapshot(rev), line, query);
     }
 
     private GitFileBlame blame(@Nullable String rev, String filePath, GitBlameRunner.@Nullable Range range) {

@@ -57,34 +57,7 @@ final class GitBlame {
      *     be read as an option
      */
     static List<String> args(String path, List<String> ignoredRevs, @Nullable Lines lines, @Nullable String commit) {
-        return args(path, ignoredRevs, lines, commit, false);
-    }
-
-    /**
-     * {@link #args(String, List, Lines, String)}, or — with {@code trace} — the command line of
-     * one step of tracing where a substring entered a line ({@link GitBlameRunner#origin}), which
-     * differs in two ways:
-     *
-     * <ul>
-     *   <li>{@code -C}: a line moved in from another file the same commit changed is followed into
-     *       that file, rather than credited to the commit that moved it. Code extracted into a new
-     *       file is the common case; the blame column, by contrast, wants the commit that put the
-     *       line into this file.
-     *   <li>{@code --ignore-revs-file ""}: a {@code blame.ignoreRevsFile} in the repository's git
-     *       config is cleared. The trace skips exactly the commits it walked, and a reformatting
-     *       commit that brought the substring in is an answer, not a commit to skip.
-     * </ul>
-     */
-    static List<String> args(
-            String path, List<String> ignoredRevs, @Nullable Lines lines, @Nullable String commit, boolean trace) {
         List<String> args = new ArrayList<>(List.of("git", "blame", "--porcelain"));
-        if (trace) {
-            args.add("-C");
-            // Before every --ignore-rev: the empty name clears what was read so far, the config's
-            // file included, and the walk's own revisions come after it.
-            args.add("--ignore-revs-file");
-            args.add("");
-        }
         if (lines != null) {
             args.add("-L");
             args.add(lines.from() + "," + lines.to());
