@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -16,10 +17,22 @@ import org.jspecify.annotations.Nullable;
  *
  * @param path относительный путь от корня репозитория
  * @param commit полный хеш ревизии, в снимке которой смотрели файл; {@code null} — рабочее дерево
- * @param lineCount сколько строк в файле; сумма {@code lineCount} по диапазонам
- * @param hunks диапазоны в порядке строк
+ * @param lineCount сколько строк в файле — во всём, а не в запрошенном диапазоне; без диапазона это
+ *     сумма {@code lineCount} по ханкам
+ * @param hunks диапазоны в порядке строк; при запрошенном диапазоне — только его строки, ханк на его
+ *     границе обрезан по ней
+ * @param fromLine первая строка, о которой ответ (1-based), уже уложенная в файл; {@code null} —
+ *     спрашивали весь файл
+ * @param toLine последняя строка ответа (включительно); {@code toLine < fromLine} — от файла в
+ *     диапазон не попало ничего (начало за его концом), и {@code hunks} пуст
  */
-public record GitFileBlame(String path, @Nullable String commit, int lineCount, List<Hunk> hunks) {
+public record GitFileBlame(
+        String path,
+        @Nullable String commit,
+        int lineCount,
+        List<Hunk> hunks,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer fromLine,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer toLine) {
 
     /**
      * Строки {@code fromLine}…{@code fromLine + lineCount - 1}, последними изменённые одним коммитом.

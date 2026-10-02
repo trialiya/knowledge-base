@@ -34,8 +34,8 @@ final class GitBlame {
     private GitBlame() {}
 
     /**
-     * One {@code git blame} invocation: {@code git blame --porcelain [--ignore-rev <sha>…]
-     * [<commit>] -- <path>}.
+     * One {@code git blame} invocation: {@code git blame --porcelain [-L <from>,<to>] [--ignore-rev
+     * <sha>…] [<commit>] -- <path>}.
      *
      * <p>{@code --porcelain} rather than {@code --line-porcelain}: the commit's fields are printed
      * once, on its first hunk, and the parser keeps them — half the output on a file whose lines
@@ -47,12 +47,21 @@ final class GitBlame {
      * whichever tree it came from. It also spares git's own reading of that file, which refuses the
      * whole run on a line it cannot resolve.
      *
+     * <p>{@code -L} narrows the walk itself, not just the output: git follows only those lines back
+     * through history, which is what makes a few lines of a long file cheap to ask about.
+     *
+     * @param lines when non-null, only these lines are blamed; already fitted to the file, since git
+     *     refuses a range that starts past its last line
      * @param commit when non-null, the file as of this commit is blamed instead of the working tree.
      *     Callers pass a resolved hash, never user input: an argument starting with {@code -} would
      *     be read as an option
      */
-    static List<String> args(String path, List<String> ignoredRevs, @Nullable String commit) {
+    static List<String> args(String path, List<String> ignoredRevs, @Nullable Lines lines, @Nullable String commit) {
         List<String> args = new ArrayList<>(List.of("git", "blame", "--porcelain"));
+        if (lines != null) {
+            args.add("-L");
+            args.add(lines.from() + "," + lines.to());
+        }
         for (String rev : ignoredRevs) {
             args.add("--ignore-rev");
             args.add(rev);
@@ -64,6 +73,20 @@ final class GitBlame {
         args.add(path);
         return args;
     }
+
+    /**
+     * The asked range fitted into a file of {@code total} lines: a missing bound is the file's edge,
+     * the start is at least 1, the end at most {@code total}. {@code null} when nothing of the file
+     * is left — a start past the end, or a start after the end.
+     */
+    static @Nullable Lines fit(@Nullable Integer fromLine, @Nullable Integer toLine, int total) {
+        int from = fromLine == null ? 1 : Math.max(1, fromLine);
+        int to = toLine == null ? total : Math.min(total, toLine);
+        return from > to ? null : new Lines(from, to);
+    }
+
+    /** A 1-based inclusive line range: {@code -L from,to}. */
+    record Lines(int from, int to) {}
 
     /**
      * The revisions {@code .git-blame-ignore-revs} names, out of its text: one hash per line,

@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.IntSupplier;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Repository;
 import org.jspecify.annotations.Nullable;
@@ -66,11 +67,12 @@ final class GitBlameRunner {
      * no commit. The ignore list is the working tree's copy of {@value #IGNORE_REVS_FILE}.
      *
      * @param normalized a path {@link RepoPaths#normalize} has cleaned
+     * @param range the lines to blame; {@code null} — the whole file
      * @throws IllegalArgumentException if the path is not served, is not tracked (blame needs
      *     history, and an untracked file has none), or is binary
      * @throws GitReadTimeoutException if git did not answer in time
      */
-    GitFileBlame blame(String normalized) {
+    GitFileBlame blame(String normalized, @Nullable Range range) {
         VisibleFiles.Resolved resolved = visible.require(normalized);
         if (!resolved.tracked()) {
             throw new IllegalArgumentException("File is not tracked: " + normalized);
@@ -82,8 +84,10 @@ final class GitBlameRunner {
         }
         byte[] head = RepoFiles.readWindow(normalized, resolved.absolute(), 0, RepoFiles.BINARY_SNIFF_BYTES);
         requireText(normalized, head);
+        IntSupplier count = () -> RepoFiles.lineCount(normalized, resolved.absolute());
+        int total = range == null ? 0 : count.getAsInt();
         List<String> ignored = resolvable(GitBlame.ignoredRevs(workingTreeIgnoreFile()));
-        return run(normalized, ignored, null);
+        return run(normalized, ignored, null, range, total, count);
     }
 
     /**
@@ -92,16 +96,24 @@ final class GitBlameRunner {
      *
      * @param rev hash (full or short), branch, tag or {@code HEAD~2}; resolved through JGit first,
      *     so only a hash ever reaches the command line
+     * @param range the lines to blame; {@code null} — the whole file
      * @throws IllegalArgumentException if the revision is unknown or ambiguous, the commit holds no
      *     file at that path, or the file is binary
      */
-    GitFileBlame blameAt(String rev, String normalized) {
+    GitFileBlame blameAt(String rev, String normalized, @Nullable Range range) {
         String commit = CommitFiles.commitOf(repository, rev.strip()).name();
         CommitFiles.Blob blob = CommitFiles.read(repository, commit, normalized);
         requireText(normalized, blob.bytes());
+        int total = range == null ? 0 : RepoFiles.lineCount(blob.bytes());
         List<String> ignored = resolvable(GitBlame.ignoredRevs(snapshotIgnoreFile(commit)));
-        return run(normalized, ignored, commit);
+        return run(normalized, ignored, commit, range, total, null);
     }
+
+    /**
+     * The lines asked about, before they are fitted to the file: either bound may be missing — the
+     * file's own edge — or lie outside it.
+     */
+    record Range(@Nullable Integer fromLine, @Nullable Integer toLine) {}
 
     /**
      * Only the revisions this repository can name: git refuses the whole run on an {@code
@@ -123,17 +135,73 @@ final class GitBlameRunner {
                 .toList();
     }
 
-    private GitFileBlame run(String normalized, List<String> ignored, @Nullable String commit) {
-        List<String> command = GitBlame.args(normalized, ignored, commit);
+    /**
+     * @param range the lines asked about, or {@code null} for the whole file
+     * @param total the file's line count as git counts it; read only when {@code range} is set —
+     *     the whole file's count is the sum of its hunks, and costs no second read
+     * @param recount for the working tree, a fresh count of its lines; {@code null} for a snapshot,
+     *     whose count cannot change
+     */
+    private GitFileBlame run(
+            String normalized,
+            List<String> ignored,
+            @Nullable String commit,
+            @Nullable Range range,
+            int total,
+            @Nullable IntSupplier recount) {
+        if (range == null) {
+            List<String> command = GitBlame.args(normalized, ignored, null, commit);
+            GitReadProcess.Output out = exec(command, normalized);
+            out.requireExit(command, 0);
+            List<GitFileBlame.Hunk> hunks = GitBlame.parse(out.lines());
+            int lineCount =
+                    hunks.stream().mapToInt(GitFileBlame.Hunk::lineCount).sum();
+            return new GitFileBlame(normalized, commit, lineCount, hunks, null, null);
+        }
+        return ranged(normalized, ignored, commit, range, total, recount);
+    }
+
+    /**
+     * @param recount asked once when git refuses: the working-tree file can get shorter between
+     *     counting its lines and git reading it — an edit tool writes into the same repository —
+     *     and a range fitted to the old length then starts past the new end. A shorter recount
+     *     fits the range again and asks once more; anything else is git's refusal as it stands.
+     *     The refusal's own text is not read for the length: git translates it
+     */
+    private GitFileBlame ranged(
+            String normalized,
+            List<String> ignored,
+            @Nullable String commit,
+            Range range,
+            int total,
+            @Nullable IntSupplier recount) {
+        GitBlame.Lines lines = GitBlame.fit(range.fromLine(), range.toLine(), total);
+        if (lines == null) {
+            // Nothing of the file in the range: git would refuse it outright, and an empty answer
+            // that still names the file's length says more than a refusal.
+            int from = range.fromLine() == null ? 1 : Math.max(1, range.fromLine());
+            return new GitFileBlame(normalized, commit, total, List.of(), from, from - 1);
+        }
+        List<String> command = GitBlame.args(normalized, ignored, lines, commit);
+        GitReadProcess.Output out = exec(command, normalized);
+        if (out.exit() != 0 && recount != null) {
+            int now = recount.getAsInt();
+            if (now < total) {
+                return ranged(normalized, ignored, commit, range, now, null);
+            }
+        }
+        out.requireExit(command, 0);
+        return new GitFileBlame(normalized, commit, total, GitBlame.parse(out.lines()), lines.from(), lines.to());
+    }
+
+    /** One run, refused when it fills the output ceiling; the exit code is the caller's to read. */
+    private GitReadProcess.Output exec(List<String> command, String normalized) {
         GitReadProcess.Output out = git.run(command, MAX_OUTPUT_LINES, git.deadline());
         if (out.cut()) {
             log.warn("git blame filled {} lines: {}", MAX_OUTPUT_LINES, command);
             throw new IllegalStateException("git blame output too large for " + normalized);
         }
-        out.requireExit(command, 0);
-        List<GitFileBlame.Hunk> hunks = GitBlame.parse(out.lines());
-        int lineCount = hunks.stream().mapToInt(GitFileBlame.Hunk::lineCount).sum();
-        return new GitFileBlame(normalized, commit, lineCount, hunks);
+        return out;
     }
 
     private static void requireText(String normalized, byte[] bytes) {

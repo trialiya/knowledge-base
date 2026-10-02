@@ -21,7 +21,7 @@ class GitBlameTest {
     /** Путь идёт за {@code --}, ревизия — перед ним, игнорируемые коммиты — по опции на каждый. */
     @Test
     void thePathSitsBehindTheSeparatorAndEveryIgnoredRevIsAnOption() {
-        List<String> args = GitBlame.args("--others", List.of(A, B), "deadbee");
+        List<String> args = GitBlame.args("--others", List.of(A, B), null, "deadbee");
 
         assertThat(args)
                 .containsExactly(
@@ -39,8 +39,30 @@ class GitBlameTest {
 
     @Test
     void withoutARevisionTheWorkingTreeIsBlamed() {
-        assertThat(GitBlame.args("src/App.java", List.of(), null))
+        assertThat(GitBlame.args("src/App.java", List.of(), null, null))
                 .containsExactly("git", "blame", "--porcelain", "--", "src/App.java");
+    }
+
+    /** Диапазон строк — одна опция {@code -L from,to} перед ревизией, путь всё так же за {@code --}. */
+    @Test
+    void aLineRangeIsOneOptionBeforeTheRevision() {
+        assertThat(GitBlame.args("f.txt", List.of(), new GitBlame.Lines(3, 7), "deadbee"))
+                .containsExactly("git", "blame", "--porcelain", "-L", "3,7", "deadbee", "--", "f.txt");
+    }
+
+    /**
+     * Диапазон укладывается в файл так же, как у чтения содержимого: пропущенная граница — край
+     * файла, выходящая наружу — подтягивается. Начало за концом файла git отверг бы целиком,
+     * поэтому от такого диапазона не остаётся ничего.
+     */
+    @Test
+    void aRangeIsFittedIntoTheFile() {
+        assertThat(GitBlame.fit(null, null, 10)).isEqualTo(new GitBlame.Lines(1, 10));
+        assertThat(GitBlame.fit(-5, 4, 10)).isEqualTo(new GitBlame.Lines(1, 4));
+        assertThat(GitBlame.fit(8, 999, 10)).isEqualTo(new GitBlame.Lines(8, 10));
+        assertThat(GitBlame.fit(11, null, 10)).isNull();
+        assertThat(GitBlame.fit(6, 5, 10)).isNull();
+        assertThat(GitBlame.fit(null, null, 0)).isNull();
     }
 
     /**
