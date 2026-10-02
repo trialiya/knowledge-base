@@ -16,6 +16,8 @@ import { detectDocMutation } from './docMutation';
 import DocMutationView from './DocMutationView';
 import { detectGrepMatches } from './grepMatches';
 import GrepMatchesView from './GrepMatchesView';
+import { detectBlameResult } from './blameResult';
+import BlameResultView from './BlameResultView';
 import { detectTreeResult } from './treeResult';
 import TreeResultView from './TreeResultView';
 import { detectRecordList } from './recordList';
@@ -44,6 +46,7 @@ const VIEWS = [
   { id: 'diff', detect: detectDiffResult, View: DiffResultView },
   { id: 'docMutation', detect: detectDocMutation, View: DocMutationView },
   { id: 'grepMatches', detect: detectGrepMatches, View: GrepMatchesView },
+  { id: 'blame', detect: detectBlameResult, View: BlameResultView },
   { id: 'tree', detect: detectTreeResult, View: TreeResultView },
   { id: 'recordList', detect: detectRecordList, View: RecordListView },
   { id: 'content', detect: detectContentResult, View: ContentResultView },

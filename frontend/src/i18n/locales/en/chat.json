@@ -199,6 +199,16 @@
       "tree": {
         "nodes": "{{count}} nodes"
       },
+      "blame": {
+        "hunks_one": "{{count}} hunk",
+        "hunks_other": "{{count}} hunks",
+        "lines_one": "{{count}} line",
+        "lines_other": "{{count}} lines",
+        "range": "lines {{from}}–{{to}} of {{count}}",
+        "truncated": "more hunks not shown",
+        "uncommitted": "not committed yet",
+        "empty": "The range lies past the end of the file"
+      },
       "grep": {
         "untracked": "untracked",
         "matches": "{{count}} matches",
@@ -422,6 +432,7 @@
     "searchFiles": "Search files",
     "getFileOutline": "File outline",
     "getFileContent": "Read file",
+    "getBlame": "Line authorship",
     "getUncommittedChanges": "Uncommitted changes",
     "grepContent": "Search in code",
     "searchCodebase": "Smart search",

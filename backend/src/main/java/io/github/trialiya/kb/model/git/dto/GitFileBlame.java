@@ -1,25 +1,60 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.tools.Compact;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.StringJoiner;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Авторство строк файла ({@code git blame}) для колонки blame файлового браузера: файл разбит на
+ * Авторство строк файла ({@code git blame}) — для колонки blame файлового браузера и для
+ * инструмента модели {@code getBlame}: файл разбит на
  * диапазоны подряд идущих строк, пришедших из одного коммита, — как их и показывает интерфейс,
  * подписью на первой строке диапазона.
  *
  * <p>Коммиты из {@code .git-blame-ignore-revs} репозитория (массовые переформатирования) уже
  * пропущены: их строки приписаны тому, кто менял их до этого.
  *
- * <p>Репозиторий ответ не называет: он один на всю выдачу и известен клиенту из запроса.
+ * <p>Репозиторий ответ не называет: он один на всю выдачу и известен клиенту из запроса, а модели —
+ * из обёртки ответа ({@code ToolResult}). Пустые поля в JSON не печатаются: отсутствующее поле
+ * значит {@code null}.
  *
  * @param path относительный путь от корня репозитория
  * @param commit полный хеш ревизии, в снимке которой смотрели файл; {@code null} — рабочее дерево
- * @param lineCount сколько строк в файле; сумма {@code lineCount} по диапазонам
- * @param hunks диапазоны в порядке строк
+ * @param lineCount сколько строк в файле — во всём, а не в запрошенном диапазоне; без диапазона это
+ *     сумма {@code lineCount} по ханкам
+ * @param hunks диапазоны в порядке строк; при запрошенном диапазоне — только его строки, ханк на его
+ *     границе обрезан по ней
+ * @param fromLine первая строка, о которой ответ (1-based), уже уложенная в файл; {@code null} —
+ *     спрашивали весь файл
+ * @param toLine последняя строка ответа (включительно); {@code toLine < fromLine} — от файла в
+ *     диапазон не попало ничего (начало за его концом), и {@code hunks} пуст
  */
-public record GitFileBlame(String path, @Nullable String commit, int lineCount, List<Hunk> hunks) {
+public record GitFileBlame(
+        String path,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String commit,
+        int lineCount,
+        List<Hunk> hunks,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer fromLine,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer toLine)
+        implements ToolCallResponseItem {
+
+    /** Ханков в плашке вызова: она — напоминание о том, что пришло, а не сам ответ. */
+    private static final int GIST_HUNKS = 5;
+
+    @Override
+    public String getFormattedResponse() {
+        StringBuilder gist = new StringBuilder(Compact.tag("blame:" + path)
+                .add("at", commit == null ? null : commit.substring(0, 7))
+                .add("lines", lineCount)
+                .add("range", fromLine == null ? null : fromLine + "-" + toLine)
+                .add("hunks", hunks.size())
+                .done());
+        hunks.stream().limit(GIST_HUNKS).forEach(h -> gist.append('\n').append(h.gist()));
+        return gist.toString();
+    }
 
     /**
      * Строки {@code fromLine}…{@code fromLine + lineCount - 1}, последними изменённые одним коммитом.
@@ -42,10 +77,45 @@ public record GitFileBlame(String path, @Nullable String commit, int lineCount, 
     public record Hunk(
             int fromLine,
             int lineCount,
-            @Nullable String hash,
-            @Nullable String author,
-            @Nullable OffsetDateTime date,
-            @Nullable String summary,
-            @Nullable String path,
-            @Nullable Integer sourceLine) {}
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            String hash,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            String author,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            OffsetDateTime date,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            String summary,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            String path,
+
+            @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
+            Integer sourceLine) {
+
+        /** {@code 12-18 a1b2c3d Alice 2024-03-01 Fix parser}; без коммита — {@code 19 uncommitted}. */
+        String gist() {
+            int to = fromLine + lineCount - 1;
+            String lines = to == fromLine ? String.valueOf(fromLine) : fromLine + "-" + to;
+            if (hash == null) {
+                return lines + " uncommitted";
+            }
+            // Поля коммита приходят вместе, но парсер оставляет голый ханк, если коммит не
+            // описан, — плашка тогда без них, а не с «null».
+            StringJoiner gist = new StringJoiner(" ").add(lines).add(hash.substring(0, 7));
+            if (author != null) {
+                gist.add(author);
+            }
+            if (date != null) {
+                gist.add(date.toLocalDate().toString());
+            }
+            if (summary != null) {
+                gist.add(Compact.oneLine(summary, 60));
+            }
+            return gist.toString();
+        }
+    }
 }

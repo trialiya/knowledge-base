@@ -10,6 +10,7 @@
 @import './tool-records.css';
 @import './tool-tree.css';
 @import './tool-grep.css';
+@import './tool-blame.css';
 @import './tool-doc.css';
 @import './tool-script.css';
 

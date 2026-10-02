@@ -1,0 +1,102 @@
+/* ── Режим «Обзор» в модалке вызова инструмента ──
+   Ханки `getBlame`: строка на ханк. Импортируется из tool-call-detail.css. */
+
+.tool-blame {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tool-blame__file {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--kb-font-mono);
+  font-size: 0.78rem;
+}
+
+.tool-blame__path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kb-text);
+}
+
+.tool-blame__rev {
+  flex: none;
+  color: var(--kb-text-faint);
+}
+
+/* Подложка та же, что у блоков кода в модалке (см. tool-code.css). Колонки —
+   сетка на весь список, а не на строку: хеши, авторы и даты встают в столбик,
+   и описания за ними начинаются с одной вертикали. */
+.tool-blame__rows {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, max-content) max-content minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 6px 0;
+  background: var(--kb-surface-app);
+  border: 1px solid var(--kb-border);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: var(--kb-text);
+}
+
+.tool-blame__row {
+  display: contents;
+}
+
+.tool-blame__row > * {
+  padding: 2px 0;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-blame__lines {
+  padding-left: 10px;
+  text-align: right;
+  font-family: var(--kb-font-mono);
+  color: var(--kb-text-faint);
+}
+
+/* Номера строк и путь — ссылки, но читаются как текст рядом: подчёркивание
+   только при наведении, как у хеша (commit-hash-link). */
+.tool-blame__lines,
+.tool-blame__path {
+  text-decoration: none;
+}
+.tool-blame__lines:hover,
+.tool-blame__path:hover {
+  text-decoration: underline;
+}
+
+.tool-blame__author,
+.tool-blame__date {
+  color: var(--kb-text-muted);
+}
+
+.tool-blame__date {
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-blame__summary {
+  padding-right: 10px;
+}
+
+/* Незакоммиченные строки: подпись занимает всё место за номерами. */
+.tool-blame__uncommitted {
+  grid-column: 2 / -1;
+  padding-right: 10px;
+  font-style: italic;
+  color: var(--kb-text-faint);
+}
+
+.tool-blame__empty {
+  font-size: 0.75rem;
+  color: var(--kb-text-faint);
+}

@@ -199,6 +199,18 @@
       "tree": {
         "nodes": "узлов: {{count}}"
       },
+      "blame": {
+        "hunks_one": "{{count}} ханк",
+        "hunks_few": "{{count}} ханка",
+        "hunks_many": "{{count}} ханков",
+        "lines_one": "{{count}} строка",
+        "lines_few": "{{count}} строки",
+        "lines_many": "{{count}} строк",
+        "range": "строки {{from}}–{{to}} из {{count}}",
+        "truncated": "показаны не все ханки",
+        "uncommitted": "ещё не в коммите",
+        "empty": "Диапазон за концом файла"
+      },
       "grep": {
         "untracked": "вне git",
         "matches": "совпадений: {{count}}",
@@ -426,6 +438,7 @@
     "searchFiles": "Поиск файлов",
     "getFileOutline": "Структура файла",
     "getFileContent": "Чтение файла",
+    "getBlame": "Авторство строк",
     "getUncommittedChanges": "Незакоммиченные изменения",
     "grepContent": "Поиск по коду",
     "searchCodebase": "Умный поиск",

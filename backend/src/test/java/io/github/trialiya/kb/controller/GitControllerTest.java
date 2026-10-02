@@ -144,13 +144,18 @@ class GitControllerTest {
                                 OffsetDateTime.parse("2024-01-02T03:04:05+03:00"),
                                 "first",
                                 "README.md",
-                                1))));
+                                1)),
+                        null,
+                        null));
 
         mockMvc.perform(get("/api/git/files/blame").param("path", "README.md").param("rev", "v1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.commit").value(hash))
                 .andExpect(jsonPath("$.hunks[0].hash").value(hash))
-                .andExpect(jsonPath("$.hunks[0].lineCount").value(2));
+                .andExpect(jsonPath("$.hunks[0].lineCount").value(2))
+                // Плашка инструмента модели — не поле ответа; диапазона не спрашивали — его нет.
+                .andExpect(jsonPath("$.formattedResponse").doesNotExist())
+                .andExpect(jsonPath("$.fromLine").doesNotExist());
     }
 
     /** Файл без истории — ошибка запроса; blame, не уложившийся в дедлайн, — 503, как у grep. */

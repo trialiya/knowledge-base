@@ -473,6 +473,61 @@ export const grepCall = {
 };
 
 /**
+ * Авторство строк (`getBlame`): диапазон длинного файла, обёртка с проектом.
+ *
+ * Ханки — три коммита, второй — до переименования (`path` другой, а
+ * `sourceLine` не совпадает с нынешним номером), последний — незакоммиченная
+ * строка: у неё полей о коммите нет вовсе, пустые поля бэкенд не печатает.
+ * Длинное описание второго коммита проверяет, что сетка не разъезжается.
+ */
+export const blameCall = {
+  name: 'getBlame',
+  argumentsRaw: JSON.stringify({
+    filePath: 'backend/src/main/java/io/github/trialiya/kb/functions/GitFunction.java',
+    fromLine: 120,
+    toLine: 160,
+  }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify({
+    project: 'knowledge-base',
+    result: {
+      path: 'backend/src/main/java/io/github/trialiya/kb/functions/GitFunction.java',
+      lineCount: 612,
+      hunks: [
+        {
+          fromLine: 120,
+          lineCount: 15,
+          hash: 'b959119a4c2e8f0d1e3a5b7c9d1f3a5b7c9e1f30',
+          author: 'Ирина Котова',
+          date: '2026-08-14T18:22:05+03:00',
+          summary: 'Blame по диапазону строк: git blame -L',
+          path: 'backend/src/main/java/io/github/trialiya/kb/functions/GitFunction.java',
+          sourceLine: 118,
+        },
+        {
+          fromLine: 135,
+          lineCount: 25,
+          hash: '7c1e2d3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d',
+          author: 'Alex Morgan',
+          date: '2025-11-03T09:41:47Z',
+          summary:
+            'Чтение файлов для модели переехало в GitFunction: описание инструментов, ссылки на репозиторий и проект в аргументах собраны в одном месте',
+          path: 'backend/src/main/java/io/github/trialiya/kb/tools/GitTools.java',
+          sourceLine: 40,
+        },
+        { fromLine: 160, lineCount: 1 },
+      ],
+      fromLine: 120,
+      toLine: 160,
+    },
+    truncated: false,
+  }),
+  resultMeta: null,
+  createdAt: '2026-08-16T12:07:40',
+};
+
+/**
  * Документная мутация: карточка правки со ссылкой в историю версий. В
  * аргументах — весь markdown документа, то есть тот самый случай, ради которого
  * длинное значение показывается блоком, а не строкой с экранированными `\n`.

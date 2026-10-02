@@ -214,6 +214,77 @@ class GitServiceBlameTest {
         assertThat(atFirst.hunks()).extracting(GitFileBlame.Hunk::summary).containsExactly("first");
     }
 
+    /**
+     * Диапазон оставляет в ответе только свои строки: ханк на его границе обрезан по ней, а длина
+     * файла остаётся длиной всего файла, а не диапазона.
+     */
+    @Test
+    void aRangeAnswersForItsLinesOnly() {
+        writeFile("f.txt", "one\ntwo\nthree\n");
+        commitAll("first");
+        writeFile("f.txt", "one\ntwo\nthree\nfour\nfive\n");
+        commitAll("second");
+
+        GitFileBlame blame = service.getBlame(null, "f.txt", 2, 4);
+
+        assertThat(blame.lineCount()).isEqualTo(5);
+        assertThat(blame.fromLine()).isEqualTo(2);
+        assertThat(blame.toLine()).isEqualTo(4);
+        assertThat(blame.hunks())
+                .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::lineCount, GitFileBlame.Hunk::summary)
+                .containsExactly(tuple(2, 2, "first"), tuple(4, 1, "second"));
+    }
+
+    /**
+     * Границы за краем файла подтягиваются к нему; начало за его концом — пустой ответ с длиной
+     * файла, а не отказ git'а. Строка без перевода в конце — тоже строка.
+     */
+    @Test
+    void aRangeOutsideTheFileIsPulledInOrAnsweredEmpty() {
+        writeFile("f.txt", "one\ntwo\nthree");
+        commitAll("first");
+
+        GitFileBlame tail = service.getBlame(null, "f.txt", 3, 100);
+        GitFileBlame past = service.getBlame(null, "f.txt", 4, null);
+
+        assertThat(tail.lineCount()).isEqualTo(3);
+        assertThat(tail.toLine()).isEqualTo(3);
+        assertThat(tail.hunks()).extracting(GitFileBlame.Hunk::fromLine).containsExactly(3);
+        assertThat(past.lineCount()).isEqualTo(3);
+        assertThat(past.hunks()).isEmpty();
+        assertThat(past.toLine()).isLessThan(past.fromLine());
+    }
+
+    /**
+     * Конец раньше начала — ошибка вызова, а не пустой диапазон: иначе ответ читался бы как
+     * «начало за концом файла», а это неправда.
+     */
+    @Test
+    void aRangeThatEndsBeforeItStartsIsTheCallersMistake() {
+        writeFile("f.txt", "one\ntwo\nthree\n");
+        commitAll("first");
+
+        assertThatThrownBy(() -> service.getBlame(null, "f.txt", 3, 2))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("before fromLine");
+        assertThatThrownBy(() -> service.getBlame(null, "f.txt", null, 0)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** Диапазон у снимка считается по файлу того коммита, а не рабочего дерева. */
+    @Test
+    void aRangeAtARevisionIsFittedToThatCommitsFile() {
+        writeFile("f.txt", "one\ntwo\n");
+        commitAll("first");
+        writeFile("f.txt", "one\ntwo\nthree\nfour\n");
+        commitAll("second");
+
+        GitFileBlame blame = service.getBlame("HEAD~1", "f.txt", 2, 4);
+
+        assertThat(blame.lineCount()).isEqualTo(2);
+        assertThat(blame.toLine()).isEqualTo(2);
+        assertThat(blame.hunks()).extracting(GitFileBlame.Hunk::summary).containsExactly("first");
+    }
+
     @Test
     void anUntrackedFileIsRefusedLikeAMissingOne() {
         writeFile("f.txt", "one\n");
@@ -266,7 +337,7 @@ class GitServiceBlameTest {
             GitBlameRunner runner = new GitBlameRunner(
                     paths, repository, new VisibleFiles(service.project(), paths, repository), Duration.ZERO);
 
-            assertThatThrownBy(() -> runner.blame("f.txt")).isInstanceOf(GitReadTimeoutException.class);
+            assertThatThrownBy(() -> runner.blame("f.txt", null)).isInstanceOf(GitReadTimeoutException.class);
         }
     }
 

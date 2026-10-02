@@ -7,6 +7,7 @@ import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
+import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
@@ -427,6 +428,78 @@ public class GitFunction {
         GitFileContent fileContent = git.getFileContent(commit, filePath, fromLine, toLine);
         log.debug("getFileContent called: fileContent='{}'", fileContent);
         return answer(git, fileContent);
+    }
+
+    /**
+     * Who last changed the given lines — {@code git blame -L}, with the revisions {@code
+     * .git-blame-ignore-revs} names skipped; see {@link GitService#getBlame(String, String, Integer,
+     * Integer)}.
+     *
+     * <p>Answers with the hunks alone, not the text of the lines: the model comes here about lines
+     * it has already read, and the description points it on from a hunk to the commit that wrote
+     * it. A long history is cut at {@link BlameBudget#MAX_HUNKS} hunks, with {@code truncated} and
+     * the answer's {@code toLine} saying where to go on from.
+     *
+     * @param filePath path relative to repo root
+     * @param fromLine first line (1-based, inclusive); null for start of file
+     * @param toLine last line (1-based, inclusive); null for end of file
+     * @param commit revision to blame the file as of; null blames the working tree
+     */
+    @Tool(
+            description = "Who last changed each line of a file (git blame). Answers with hunks —"
+                    + " consecutive lines from one commit: fromLine, lineCount, hash, author,"
+                    + " date, summary (commit subject), and path + sourceLine (the file's path"
+                    + " and the hunk's first line in that commit — they differ after a rename"
+                    + " or after edits above). A hunk with no hash is an uncommitted edit."
+                    + " Commits named in .git-blame-ignore-revs (mass reformatting) are skipped,"
+                    + " so their lines go to whoever changed them before. Give fromLine/toLine"
+                    + " for the lines you care about: the history of a range is walked, not"
+                    + " the whole file. lineCount at the top is the whole file's length."
+                    + " \"truncated\": true means more hunks past toLine — continue from the"
+                    + " next line. Why a change was made: getCommitDiff with the hash and"
+                    + " filePath. The lines as that commit wrote them: getFileContent with"
+                    + " commit=hash, filePath=path, fromLine=sourceLine. Untracked and binary"
+                    + " files have no blame. Link a commit as"
+                    + " [shortHash](/files?rev=HASH&project=ID) with the full hash and the"
+                    + " response's project field.",
+            resultConverter = CompactToolResultConverter.class)
+    public ToolResult<GitFileBlame> getBlame(
+            ToolContext context,
+            @ToolParam(description = "File path relative to repo root.") String filePath,
+            @ToolParam(description = "First line (1-based, inclusive). Null for start of file.", required = false)
+                    @Nullable
+                    Integer fromLine,
+            @ToolParam(description = "Last line (1-based, inclusive). Null for end of file.", required = false)
+                    @Nullable
+                    Integer toLine,
+            @ToolParam(
+                            description = "Optional: blame the file as of this commit instead of the"
+                                    + " working tree — a full or short hash, a branch, a"
+                                    + " tag, or a revision like HEAD~2. Give the path as"
+                                    + " it was spelled in that commit.",
+                            required = false)
+                    @Nullable
+                    String commit,
+            @ToolParam(
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " top-level \"project\" field says which"
+                                    + " one answered.",
+                            required = false)
+                    @Nullable
+                    String project) {
+        requireText(filePath, "filePath");
+        log.debug(
+                "getBlame called: filePath='{}', fromLine={}, toLine={}, commit='{}', project='{}'",
+                filePath,
+                fromLine,
+                toLine,
+                commit,
+                project);
+        GitService git = git(context, project);
+        GitFileBlame blame = git.getBlame(commit, filePath, fromLine, toLine);
+        log.debug("getBlame called: {} hunks over lines {}-{}", blame.hunks().size(), blame.fromLine(), blame.toLine());
+        return answer(git, BlameBudget.cap(blame), BlameBudget.cut(blame));
     }
 
     /**

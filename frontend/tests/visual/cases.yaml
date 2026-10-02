@@ -1865,6 +1865,35 @@
     «развернуть/свернуть всё» появляются от двух сворачиваемых узлов — у
     обзора файла ветвь одна (класс), и там их намеренно нет.
 
+- id: tool-call-detail-blame
+  component: ToolCallDetailModal + BlameResultView
+  path: frontend/src/components/chatPanel/messages/resultViews/BlameResultView.jsx
+  title: Детали вызова — авторство строк (getBlame)
+  status: verified
+  origin:
+    - Сессия 2026-10-02, инструмент getBlame и вид blame
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: стенд (./run/test.sh harness), вызова getBlame в сэмпле нет
+    profile: h2
+    click: модалка деталей вызова, режим «Обзор»
+    data: |
+      Диапазон 120–160 длинного файла: два коммита (второй — до переименования
+      файла, с длинным описанием) и одна незакоммиченная строка.
+  fixtures:
+    - ./fixtures/toolCallDetail.js#blameCall
+  expected:
+    - 'Шапка: число ханков, «строки 120–160 из 612», проект ответа'
+    - 'Путь файла — ссылка на его строки 120–160; у снимка рядом стоял бы @короткий-хеш'
+    - 'Строка на ханк: номера строк, короткий хеш, автор, дата и время цифрами, описание — одной сеткой, хеши, авторы и даты стоят в столбик'
+    - 'Длинное описание обрезано многоточием в своей колонке и не сдвигает соседние; целиком — в подсказке вместе с автором, хешем и датой'
+    - 'Незакоммиченная строка подписана «ещё не в коммите» курсивом вместо хеша, автора и даты'
+    - 'Номера строк ведут к файлу в снимке того коммита по его старому пути и его номерам строк, хеш — к коммиту; оба открываются в новой вкладке'
+  notes: |
+    Снято на стенде (harness) в обеих темах; сверка с эталонами — в образе
+    (./run/test.sh harness-image).
+
 - id: tool-call-detail-doc-script-args
   component: ToolCallDetailModal + DocMutationView + ScriptRunView + ArgumentListView
   path: frontend/src/components/chatPanel/messages/resultViews/ScriptRunView.jsx

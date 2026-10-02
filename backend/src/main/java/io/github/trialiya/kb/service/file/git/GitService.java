@@ -601,8 +601,34 @@ public class GitService {
      * @param rev the commit to read; {@code null} or blank — the working tree
      */
     public GitFileBlame getBlame(@Nullable String rev, @NonNull String filePath) {
+        return blame(rev, filePath, null);
+    }
+
+    /**
+     * {@link #getBlame(String, String)} narrowed to a line range — git walks the history of those
+     * lines only. Bounds work as in {@link #getFileContent(String, String, Integer, Integer)}: a
+     * missing one is the file's edge, one outside the file is pulled in, and a range that misses
+     * the file entirely answers with no hunks rather than an error. Both bounds null is the whole
+     * file, as with the two-argument form. An end before the start is the caller's mistake, not an
+     * empty range: told apart from a start past the file's end, which only the file can answer.
+     *
+     * @param fromLine first line (1-based, inclusive); null for start of file
+     * @param toLine last line (1-based, inclusive); null for end of file
+     * @throws IllegalArgumentException if {@code toLine} is before {@code fromLine}
+     */
+    public GitFileBlame getBlame(
+            @Nullable String rev, @NonNull String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
+        if (toLine != null && toLine < Math.max(1, fromLine == null ? 1 : fromLine)) {
+            throw new IllegalArgumentException("toLine " + toLine + " is before fromLine " + fromLine);
+        }
+        boolean ranged = fromLine != null || toLine != null;
+        return blame(rev, filePath, ranged ? new GitBlameRunner.Range(fromLine, toLine) : null);
+    }
+
+    private GitFileBlame blame(@Nullable String rev, String filePath, GitBlameRunner.@Nullable Range range) {
         String at = snapshot(rev);
-        return at == null ? blame.blame(normalizePath(filePath)) : blame.blameAt(at, normalizePath(filePath));
+        String normalized = normalizePath(filePath);
+        return at == null ? blame.blame(normalized, range) : blame.blameAt(at, normalized, range);
     }
 
     // ── File content ────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.file.git;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
@@ -80,6 +81,53 @@ final class RepoFiles {
             throw new IllegalStateException("Cannot read file: " + normalized, e);
         }
         return buffer.position() == length ? buffer.array() : Arrays.copyOf(buffer.array(), buffer.position());
+    }
+
+    /**
+     * Lines as git counts them: one per {@code \n}, plus a last line without one. A file that ends
+     * in a newline has no empty line after it — unlike a split on {@code \n}, which counts one.
+     */
+    static int lineCount(byte[] bytes) {
+        return newlines(bytes, bytes.length, 0) + (endsOpen(bytes, bytes.length) ? 1 : 0);
+    }
+
+    /**
+     * {@link #lineCount(byte[])} of a file on disk, read through in chunks rather than whole: the
+     * file may be far past {@link #MAX_FILE_SIZE}, and only its newlines are wanted.
+     */
+    static int lineCount(String normalized, Path absolute) {
+        byte[] buffer = new byte[64 * 1024];
+        int count = 0;
+        boolean open = false;
+        try (InputStream in = Files.newInputStream(absolute)) {
+            for (int read = in.read(buffer); read >= 0; read = in.read(buffer)) {
+                if (read > 0) {
+                    count = newlines(buffer, read, count);
+                    open = endsOpen(buffer, read);
+                }
+            }
+        } catch (NoSuchFileException e) {
+            throw missing(normalized, e);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot read file: " + normalized, e);
+        }
+        return open ? count + 1 : count;
+    }
+
+    /** {@code count} plus the newlines among the first {@code length} bytes. */
+    private static int newlines(byte[] bytes, int length, int count) {
+        int total = count;
+        for (int i = 0; i < length; i++) {
+            if (bytes[i] == '\n') {
+                total++;
+            }
+        }
+        return total;
+    }
+
+    /** Whether the bytes end in a line that has no {@code \n} yet. */
+    private static boolean endsOpen(byte[] bytes, int length) {
+        return length > 0 && bytes[length - 1] != '\n';
     }
 
     /**
