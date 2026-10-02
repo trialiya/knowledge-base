@@ -82,7 +82,8 @@ class GitServiceLineOriginTest {
     }
 
     /**
-     * Переформатирование, названное в {@code .git-blame-ignore-revs}, цепочка не пропускает:
+     * Переформатирование, названное в {@code .git-blame-ignore-revs} (и в {@code
+     * blame.ignoreRevsFile} конфига), цепочка не пропускает:
      * если подстроку внесло оно, оно и ответ. Колонка blame его пропускает, а здесь пропуск
      * приписал бы строку версии без подстроки и потерял бы находку.
      */
@@ -94,6 +95,9 @@ class GitServiceLineOriginTest {
         String reformat = commitAll("reformat");
         writeFile(GitBlameRunner.IGNORE_REVS_FILE, reformat + "\n");
         commitAll("ignore the reformat");
+
+        // Тот же файл, названный ещё и в git config, — так его подхватывает и сам git blame.
+        runGit(repoDir, "config", "blame.ignoreRevsFile", GitBlameRunner.IGNORE_REVS_FILE);
 
         GitLineOrigin origin = service.getLineOrigin(null, "f.txt", 1, "a, b");
 

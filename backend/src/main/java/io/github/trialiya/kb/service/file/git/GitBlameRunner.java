@@ -231,7 +231,7 @@ final class GitBlameRunner {
         }
     }
 
-    /** One line blamed with {@code -C}, skipping the walk's commits, on its shared deadline. */
+    /** One step of the walk ({@link GitBlame#args} with {@code trace}), on its shared deadline. */
     private GitFileBlame.Hunk blameLine(
             String normalized, List<String> ignored, int line, @Nullable String commit, long deadline) {
         List<String> command = GitBlame.args(normalized, ignored, new GitBlame.Lines(line, line), commit, true);

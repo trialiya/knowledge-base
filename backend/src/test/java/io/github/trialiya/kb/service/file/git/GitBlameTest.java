@@ -51,6 +51,28 @@ class GitBlameTest {
     }
 
     /**
+     * Шаг поиска происхождения: {@code -C} и сброс игнор-файла из конфига — перед своими {@code
+     * --ignore-rev}, иначе пустое имя сбросило бы и их.
+     */
+    @Test
+    void aTraceStepFollowsCopiesAndClearsTheConfiguredIgnoreFileBeforeItsOwnRevs() {
+        assertThat(GitBlame.args("f.txt", List.of(A), new GitBlame.Lines(4, 4), null, true))
+                .containsExactly(
+                        "git",
+                        "blame",
+                        "--porcelain",
+                        "-C",
+                        "--ignore-revs-file",
+                        "",
+                        "-L",
+                        "4,4",
+                        "--ignore-rev",
+                        A,
+                        "--",
+                        "f.txt");
+    }
+
+    /**
      * Диапазон укладывается в файл так же, как у чтения содержимого: пропущенная граница — край
      * файла, выходящая наружу — подтягивается. Начало за концом файла git отверг бы целиком,
      * поэтому от такого диапазона не остаётся ничего.

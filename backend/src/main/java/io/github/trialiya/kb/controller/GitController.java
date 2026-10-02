@@ -12,6 +12,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepResult;
+import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.service.file.git.GitReadTimeoutException;
@@ -130,6 +131,25 @@ public class GitController {
         GitService git = git(project);
         String at = revision(rev);
         return read(() -> git.getBlame(at, path));
+    }
+
+    /**
+     * Where {@code query} entered line {@code line} of a file — the search page's «когда
+     * появилось»: a chain of one-line blames back through the versions of that line. 400 for an
+     * untracked or binary file, a line below 1 or a blank query; a walk git could not finish in
+     * time is {@code 503}, as with {@code /files/blame}.
+     */
+    @GetMapping("/files/origin")
+    public GitLineOrigin getLineOrigin(
+            @RequestParam("path") String path,
+            @RequestParam("line") int line,
+            @RequestParam("query") String query,
+            @RequestParam(name = "rev", required = false) @Nullable String rev,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        requireSafePath(path);
+        GitService git = git(project);
+        String at = revision(rev);
+        return read(() -> git.getLineOrigin(at, path, line, query));
     }
 
     /**
