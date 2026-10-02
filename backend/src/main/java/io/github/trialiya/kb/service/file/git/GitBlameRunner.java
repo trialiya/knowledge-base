@@ -14,6 +14,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Repository;
@@ -83,7 +84,7 @@ final class GitBlameRunner {
     GitFileBlame blame(String normalized, @Nullable Range range) {
         Target target = workingTree(normalized);
         int total = range == null ? 0 : target.count().getAsInt();
-        return run(normalized, target.ignored(), null, range, total, target.count());
+        return run(normalized, target.ignored().get(), null, range, total, target.count());
     }
 
     /**
@@ -99,15 +100,15 @@ final class GitBlameRunner {
     GitFileBlame blameAt(String rev, String normalized, @Nullable Range range) {
         Target target = snapshot(rev, normalized);
         int total = range == null ? 0 : target.count().getAsInt();
-        return run(normalized, target.ignored(), target.commit(), range, total, null);
+        return run(normalized, target.ignored().get(), target.commit(), range, total, null);
     }
 
     /**
      * What a blame of one file starts from: the commit it is read at ({@code null} — the working
-     * tree), the revisions it skips, and the file's line count as git counts it, read only when
-     * asked for.
+     * tree), the revisions it skips and the file's line count as git counts it — both read only
+     * when asked for: the trace of a line's origin skips no revisions of the ignore file.
      */
-    private record Target(@Nullable String commit, List<String> ignored, IntSupplier count) {}
+    private record Target(@Nullable String commit, Supplier<List<String>> ignored, IntSupplier count) {}
 
     /** The working-tree file, refused unless git has history for it and it is text. */
     private Target workingTree(String normalized) {
@@ -122,8 +123,10 @@ final class GitBlameRunner {
         }
         byte[] head = RepoFiles.readWindow(normalized, resolved.absolute(), 0, RepoFiles.BINARY_SNIFF_BYTES);
         requireText(normalized, head);
-        List<String> ignored = resolvable(GitBlame.ignoredRevs(workingTreeIgnoreFile()));
-        return new Target(null, ignored, () -> RepoFiles.lineCount(normalized, resolved.absolute()));
+        return new Target(
+                null,
+                () -> resolvable(GitBlame.ignoredRevs(workingTreeIgnoreFile())),
+                () -> RepoFiles.lineCount(normalized, resolved.absolute()));
     }
 
     /** The file as of a commit, refused unless the commit holds it and it is text. */
@@ -131,9 +134,8 @@ final class GitBlameRunner {
         String commit = CommitFiles.commitOf(repository, rev.strip()).name();
         CommitFiles.Blob blob = CommitFiles.read(repository, commit, normalized);
         requireText(normalized, blob.bytes());
-        List<String> ignored = resolvable(GitBlame.ignoredRevs(snapshotIgnoreFile(commit)));
         int total = RepoFiles.lineCount(blob.bytes());
-        return new Target(commit, ignored, () -> total);
+        return new Target(commit, () -> resolvable(GitBlame.ignoredRevs(snapshotIgnoreFile(commit))), () -> total);
     }
 
     /**
@@ -171,14 +173,29 @@ final class GitBlameRunner {
         Set<String> walked = new LinkedHashSet<>();
         List<GitLineOrigin.Step> steps = new ArrayList<>();
         long deadline = git.deadline();
-        while (steps.size() < LineOrigin.MAX_STEPS) {
-            GitFileBlame.Hunk hunk = blameLine(normalized, List.copyOf(walked), line, commit, deadline);
+        while (true) {
+            GitFileBlame.Hunk hunk;
+            try {
+                hunk = blameLine(normalized, List.copyOf(walked), line, commit, deadline);
+            } catch (GitReadTimeoutException e) {
+                // The versions already walked are an answer of their own — the oldest reached, as
+                // at the step limit; only a walk that got nowhere is the timeout it is.
+                if (steps.isEmpty()) {
+                    throw e;
+                }
+                return answer(normalized, line, query, commit, Status.LIMIT, steps, null);
+            }
             String hash = hunk.hash();
             if (hash == null) {
                 return answer(normalized, line, query, commit, Status.UNCOMMITTED, List.of(), null);
             }
             if (walked.contains(hash)) {
                 return answer(normalized, line, query, commit, stuckAt(hash), steps, null);
+            }
+            // Checked only now, after the blame: the last step allowed may well be the origin,
+            // and only the blame after it can say so.
+            if (steps.size() == LineOrigin.MAX_STEPS) {
+                return answer(normalized, line, query, commit, Status.LIMIT, steps, null);
             }
             String path = hunk.path() == null ? normalized : hunk.path();
             int at = hunk.sourceLine() == null ? line : hunk.sourceLine();
@@ -194,7 +211,6 @@ final class GitBlameRunner {
             steps.add(step);
             walked.add(hash);
         }
-        return answer(normalized, line, query, commit, Status.LIMIT, steps, null);
     }
 
     private static GitLineOrigin answer(
@@ -209,7 +225,8 @@ final class GitBlameRunner {
     }
 
     /**
-     * The walk stopped on a commit git gave back when asked to skip it: the line was added there.
+     * The walk stopped on a commit git gave back when asked to skip it: git paired the line with
+     * nothing older — it was added there, or rewritten past what git's similarity match pairs.
      * Git cannot pass the first commit of a shallow clone either, but there the line may be older
      * than the clone — that is where history ends, not where the substring appeared.
      */
@@ -217,9 +234,12 @@ final class GitBlameRunner {
         return shallowBoundary(hash) ? Status.BOUNDARY : Status.FOUND;
     }
 
-    /** Whether the commit is where this clone's history was cut ({@code .git/shallow} names it). */
+    /**
+     * Whether the commit is where this clone's history was cut ({@code shallow} in the common git
+     * directory names it — not the worktree's own, which a linked worktree has apart).
+     */
     private boolean shallowBoundary(String hash) {
-        Path shallow = repository.getDirectory().toPath().resolve("shallow");
+        Path shallow = repository.getCommonDirectory().toPath().resolve("shallow");
         if (!Files.isRegularFile(shallow)) {
             return false;
         }

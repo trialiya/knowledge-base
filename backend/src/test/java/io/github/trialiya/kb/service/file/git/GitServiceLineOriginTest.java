@@ -12,8 +12,11 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -198,6 +201,51 @@ class GitServiceLineOriginTest {
 
         assertThat(origin.status()).isEqualTo(Status.BOUNDARY);
         assertThat(origin.steps()).hasSize(1);
+    }
+
+    /**
+     * Предел — число шагов, а не повод не проверить последний: строка ровно с {@code MAX_STEPS}
+     * версиями находит свой коммит, а с одной версией больше — упирается в предел, отдав пройденное.
+     */
+    @Test
+    void theStepLimitStillFindsAnOriginOnItsLastStepAndStopsOneVersionLater() {
+        int limit = LineOrigin.MAX_STEPS;
+        String second = null;
+        for (int i = 1; i <= limit + 1; i++) {
+            writeFile("f.txt", "needle " + i + "\n");
+            String hash = commitAll("v" + i);
+            if (i == 2) {
+                second = hash;
+            }
+        }
+
+        // От HEAD~1 версий ровно MAX_STEPS (v30…v1): последний шаг — v1, и blame после него
+        // говорит, что дальше некуда.
+        GitLineOrigin fits = service.getLineOrigin("HEAD~1", "f.txt", 1, "needle");
+        assertThat(fits.status()).isEqualTo(Status.FOUND);
+        assertThat(fits.steps()).hasSize(limit);
+
+        // От HEAD их на одну больше: пройдено MAX_STEPS (v31…v2), до v1 предел не пустил.
+        GitLineOrigin tooMany = service.getLineOrigin(null, "f.txt", 1, "needle");
+        assertThat(tooMany.status()).isEqualTo(Status.LIMIT);
+        assertThat(tooMany.steps()).hasSize(limit);
+        assertThat(tooMany.steps().getLast().hash()).isEqualTo(second);
+    }
+
+    /** Срок, кончившийся раньше первого шага, — отказ по таймауту, а не пустой ответ. */
+    @Test
+    void aWalkThatGotNowhereInTimeIsATimeout() throws IOException {
+        writeFile("f.txt", "needle\n");
+        commitAll("first");
+        RepoPaths paths = new RepoPaths(repoDir);
+        try (Repository repository =
+                new FileRepositoryBuilder().setWorkTree(repoDir.toFile()).build()) {
+            GitBlameRunner runner = new GitBlameRunner(
+                    paths, repository, new VisibleFiles(service.project(), paths, repository), Duration.ZERO);
+
+            assertThatThrownBy(() -> runner.origin("f.txt", null, 1, "needle"))
+                    .isInstanceOf(GitReadTimeoutException.class);
+        }
     }
 
     @Test
