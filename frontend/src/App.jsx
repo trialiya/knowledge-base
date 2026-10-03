@@ -58,7 +58,7 @@ function App() {
     setSearch,
     openChat,
     openFilePath,
-    setFileChanges,
+    setFileMode,
     setFileRev,
     setFileBlame,
     setFileFind,
@@ -288,13 +288,14 @@ function App() {
             <FilesPanel
               project={nav.fileProject}
               path={nav.filePath}
-              changes={nav.fileChanges}
+              mode={nav.fileMode}
+              commit={nav.fileCommit}
               rev={nav.fileRev}
               blame={nav.fileBlame}
               find={nav.fileFind}
               findRegex={nav.fileFindRegex}
               lines={nav.fileLines}
-              onChangesToggle={setFileChanges}
+              onModeChange={setFileMode}
               onRevChange={setFileRev}
               onBlameToggle={setFileBlame}
               onFindChange={setFileFind}

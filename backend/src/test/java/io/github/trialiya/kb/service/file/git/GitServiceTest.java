@@ -233,6 +233,24 @@ class GitServiceTest {
                 .isFalse();
     }
 
+    /** Следующая страница листинга — тот же обход со смещением: без пропусков и без повторов. */
+    @Test
+    void aListingPagesOnWithSkip() {
+        for (String subject : List.of("one", "two", "three")) {
+            writeFile("a.txt", subject + "\n");
+            commitAll(subject);
+        }
+
+        assertThat(service.getCommitLog(2, 0, null, false, null, false).commits())
+                .extracting(GitCommit::message)
+                .containsExactly("three", "two");
+        GitCommitSearchResult rest = service.getCommitLog(2, 2, null, false, null, false);
+        assertThat(rest.commits()).extracting(GitCommit::message).containsExactly("one");
+        assertThat(rest.truncated()).isFalse();
+        assertThat(service.getCommitLog(2, 5, null, false, null, false).commits())
+                .isEmpty();
+    }
+
     /**
      * Дифф по списку хешей тел не отдаёт: иначе цена контекста, ради которой в логе заведён флаг,
      * вернулась бы через соседний инструмент — «покажи, что менялось в двадцати коммитах».

@@ -1,4 +1,5 @@
 import { SEARCH_MODE } from '@/constants/searchMode';
+import { FILE_MODE } from '@/constants/fileModes';
 import { normalizeScope } from '@/constants/searchScope';
 import { readPanelState } from './panelState';
 import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_PATH, SEARCH_PATH } from './urlScheme';
@@ -38,6 +39,9 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  *   ?section=<путь> документ: раздел, к которому прокрутить, — путь заголовков
  *                   в форме бэкенда («Установка > Docker»); только вместе с find
  *   ?changes=1      файлы: слева список незакоммиченных изменений (дефолт — дерево)
+ *   ?history=1      файлы: слева лента коммитов
+ *   ?commit=<хеш>   файлы, лента коммитов: в центре — изменение открытого файла
+ *                   в этом коммите (дефолт — сам файл)
  *   ?rev=<ревизия>  снимок коммита/ветки/тега (дефолт — рабочее дерево): и в
  *                   файлах, и как фильтр единого поиска
  *   ?blame=1        файлы: колонка авторства строк у открытого файла (дефолт — нет)
@@ -134,7 +138,8 @@ export function readUrl() {
   // Файлы: /files/<path…> (legacy: ?path=), проект — в query (см. urlScheme.filesUrl).
   let filePath = '';
   let fileProject = '';
-  let fileChanges = false;
+  let fileMode = FILE_MODE.TREE;
+  let fileCommit = '';
   let fileRev = '';
   let fileBlame = false;
   let fileFind = '';
@@ -145,7 +150,11 @@ export function readUrl() {
     fileProject = p.get('project') || '';
     // Режим левого блока — состояние экрана, а не ресурс: путь в адресе один и
     // тот же независимо от того, из дерева его открыли или из списка изменений.
-    fileChanges = p.get('changes') === '1';
+    if (p.get('changes') === '1') fileMode = FILE_MODE.CHANGES;
+    else if (p.get('history') === '1') fileMode = FILE_MODE.HISTORY;
+    // Коммит, в котором смотрят изменение открытого файла, — только у ленты:
+    // в остальных режимах выбрать его неоткуда, и в адресе он был бы мусором.
+    if (fileMode === FILE_MODE.HISTORY) fileCommit = p.get('commit') || '';
     // Ревизия — тоже состояние экрана: путь в адресе один и тот же, меняется
     // только снимок, в котором его читают. Пусто — рабочее дерево.
     fileRev = p.get('rev') || '';
@@ -201,7 +210,8 @@ export function readUrl() {
     mode: p.get('mode') || SEARCH_MODE.HYBRID,
     filePath,
     fileProject,
-    fileChanges,
+    fileMode,
+    fileCommit,
     fileRev,
     fileBlame,
     fileFind,
@@ -249,7 +259,9 @@ export function buildUrl(nav) {
       // Дефолтный проект в адрес не пишем — как и любое значение по умолчанию
       // в этой схеме; адрес без проекта означает именно его.
       if (nav.fileProject) p.set('project', nav.fileProject);
-      if (nav.fileChanges) p.set('changes', '1');
+      if (nav.fileMode === FILE_MODE.CHANGES) p.set('changes', '1');
+      if (nav.fileMode === FILE_MODE.HISTORY) p.set('history', '1');
+      if (nav.fileMode === FILE_MODE.HISTORY && nav.fileCommit) p.set('commit', nav.fileCommit);
       if (nav.fileRev) p.set('rev', nav.fileRev);
       if (nav.fileBlame) p.set('blame', '1');
       if (nav.fileFind) p.set('find', nav.fileFind);
@@ -308,7 +320,8 @@ function toNav(u, view, panels) {
     mode: u.mode,
     filePath: u.filePath,
     fileProject: u.fileProject,
-    fileChanges: u.fileChanges,
+    fileMode: u.fileMode,
+    fileCommit: u.fileCommit,
     fileRev: u.fileRev,
     fileBlame: u.fileBlame,
     fileFind: u.fileFind,

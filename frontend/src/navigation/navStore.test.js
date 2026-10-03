@@ -350,7 +350,7 @@ describe('переход к коммиту', () => {
     const s = mount();
     s.openFilePath('', 'kb', { rev: hash, changes: true, right: 'commit' });
     expect(url()).toBe(commitUrl(hash, 'kb'));
-    expect(s.nav()).toMatchObject({ view: 'files', fileRev: hash, fileChanges: true, rightTab: 'commit' });
+    expect(s.nav()).toMatchObject({ view: 'files', fileRev: hash, fileMode: 'changes', rightTab: 'commit' });
     back('/chat/7');
     expect(s.nav().view).toBe('chat');
   });
@@ -403,5 +403,46 @@ describe('возврат из снимка, открытого по ячейке
     s.openFilePath('old.js', undefined, { rev: hash, backLines: '3-4' });
 
     expect(replaced).not.toHaveBeenCalled();
+  });
+});
+
+describe('лента коммитов в «Файлах»', () => {
+  const hash = '0123456789abcdef0123456789abcdef01234567';
+
+  it('режим ленты — в адресе, и уход из неё забывает выбранный коммит', () => {
+    go('/files/a/b.md');
+    const s = mount();
+    s.setFileMode('history');
+    expect(url()).toBe('/files/a/b.md?history=1');
+
+    s.openFilePath('a/c.md', undefined, { commit: hash });
+    expect(url()).toBe(`/files/a/c.md?history=1&commit=${hash}`);
+    expect(s.nav()).toMatchObject({ fileMode: 'history', fileCommit: hash });
+
+    s.setFileMode('changes');
+    expect(url()).toBe('/files/a/c.md?changes=1');
+    expect(s.nav().fileCommit).toBe('');
+  });
+
+  it('переход без коммита открывает сам файл, а лента остаётся слева', () => {
+    go(`/files/a/c.md?history=1&commit=${hash}`);
+    const s = mount();
+    expect(s.nav()).toMatchObject({ fileMode: 'history', fileCommit: hash });
+    s.openFilePath('a');
+    expect(url()).toBe('/files/a?history=1');
+  });
+
+  it('смена ревизии забывает коммит из ленты: в новой ленте его может не быть', () => {
+    go(`/files/a/c.md?history=1&commit=${hash}`);
+    const s = mount();
+    s.setFileRev('v1');
+    expect(url()).toBe('/files/a/c.md?history=1&rev=v1');
+  });
+
+  it('коммит без ленты в адресе ничего не значит и отбрасывается', () => {
+    go(`/files/a/c.md?commit=${hash}`);
+    const s = mount();
+    expect(s.nav()).toMatchObject({ fileMode: 'tree', fileCommit: '' });
+    expect(url()).toBe('/files/a/c.md');
   });
 });

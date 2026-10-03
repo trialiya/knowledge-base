@@ -3,12 +3,13 @@ import { IconList, IconFolder } from '@/icons/index';
 import RevisionPicker from '@/components/common/git/RevisionPicker';
 import FileSearch from './FileSearch';
 import GitBranchBar from './git/GitBranchBar';
+import { FILE_MODE } from '@/constants/fileModes';
 
 /**
  * Тулбар левой панели: какую ревизию показывает панель, на какой ветке
- * репозиторий, чем панель его показывает — деревом файлов или списком
- * незакоммиченных изменений, — поиск файла и, в режиме изменений, раскладка
- * списка.
+ * репозиторий, чем панель его показывает — деревом файлов, списком
+ * незакоммиченных изменений или лентой коммитов, — поиск файла и, в режиме
+ * изменений, раскладка списка.
  *
  * Оба переключателя — общие классы кнопок с `aria-pressed` (см. buttons.css):
  * включённое состояние в них уже нарисовано, своего семейства «сегментов»
@@ -16,8 +17,8 @@ import GitBranchBar from './git/GitBranchBar';
  */
 const FilesToolbar = ({
   project,
-  changes,
-  onChangesToggle,
+  mode,
+  onModeChange,
   flat,
   onFlatToggle,
   onSelect,
@@ -63,22 +64,30 @@ const FilesToolbar = ({
           <button
             type="button"
             className="btn btn--ghost btn--sm"
-            aria-pressed={!changes}
-            onClick={() => onChangesToggle(false)}
+            aria-pressed={mode === FILE_MODE.TREE}
+            onClick={() => onModeChange(FILE_MODE.TREE)}
           >
             {t('panel.modeFiles')}
           </button>
           <button
             type="button"
             className="btn btn--ghost btn--sm"
-            aria-pressed={changes}
+            aria-pressed={mode === FILE_MODE.CHANGES}
             title={snapshot ? t('panel.commitChanges') : undefined}
-            onClick={() => onChangesToggle(true)}
+            onClick={() => onModeChange(FILE_MODE.CHANGES)}
           >
             {t('panel.modeChanges')}
           </button>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            aria-pressed={mode === FILE_MODE.HISTORY}
+            onClick={() => onModeChange(FILE_MODE.HISTORY)}
+          >
+            {t('panel.modeHistory')}
+          </button>
         </div>
-        {changes && (
+        {mode === FILE_MODE.CHANGES && (
           <button
             type="button"
             className="icon-btn"
