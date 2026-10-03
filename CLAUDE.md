@@ -73,6 +73,15 @@ new test is in `.claude/rules/backend-data.md`.
 
 ## Rules that apply everywhere
 
+- **A large task done in stages gets a review between stages, not only at
+  the end.** After each stage stop and review what was built: re-read the
+  diff, run the checks, and compare the result against the plan — then refine
+  the plan for the remaining stages (what the last stage taught, what to
+  drop, what to add) before starting the next one. When the whole feature is
+  done, run a full review of the entire change as one piece (`/code-review`
+  or an equivalent pass), since stage reviews only see their own slice. If
+  the full review produced many fixes, review once more after applying them:
+  a large batch of fixes is itself a change that can introduce bugs.
 - **Before a pull request run `./run/test.sh pre-pr`** — `spotlessCheck` ·
   PMD + SpotBugs · `:backend:test` · `build`. All of it runs in the web sandbox
   too, IT tests included.
