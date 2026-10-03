@@ -5,6 +5,7 @@ import { MARKDOWN, OUTLINE_LANGUAGES } from './outline/outlineRows';
 import { IconHistory, IconInfo, IconList } from '@/icons/index';
 import { RIGHT_TAB } from '@/constants/rightTabs';
 import { FILE_TAB } from '@/constants/fileTabs';
+import { FILE_MODE } from '@/constants/fileModes';
 
 /**
  * Вкладки правой панели файлового браузера: «Инфо» всегда; «Структура» — у
@@ -22,7 +23,7 @@ export default function buildFileTabs({
   snapshot,
   snapshotCommit,
   showChanges,
-  onChangesToggle,
+  onModeChange,
   jump,
   onJump,
 }) {
@@ -68,7 +69,7 @@ export default function buildFileTabs({
           loading={snapshotCommit.loading}
           error={snapshotCommit.error}
           changesShown={showChanges}
-          onShowChanges={onChangesToggle}
+          onShowChanges={() => onModeChange(FILE_MODE.CHANGES)}
         />
       ),
     });

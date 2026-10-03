@@ -1,0 +1,224 @@
+/* ── Лента коммитов (левый блок в режиме «История») ──
+   Плашка коммита повторяет плашку вызова инструмента в чате (tool-calls.css):
+   тот же фон, полоса слева и раскрытие под чертой. Классы свои — чужие классы
+   панели не трогаем, — а сходство держат общие роли темы. */
+
+.commit-history {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.commit-history__scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px var(--ws-gutter) 0;
+  min-width: 0;
+}
+
+.commit-history__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 1px 2px 1px 8px;
+  border-radius: 6px;
+  background: var(--kb-accent-surface);
+  color: var(--kb-accent);
+  font-size: 0.75rem;
+}
+.commit-history__chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-history__list {
+  gap: 4px;
+  padding: 2px calc(var(--ws-gutter) - 4px) 4px;
+}
+
+.commit-history__day {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.commit-history__day-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 10px 2px 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kb-text-muted);
+}
+
+.commit-history__count {
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.commit-history__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px var(--ws-gutter) 14px;
+}
+
+.commit-history__shown {
+  font-size: 0.72rem;
+  color: var(--kb-text-muted);
+}
+
+.commit-history__error {
+  font-size: 0.72rem;
+  color: var(--kb-text-error);
+}
+
+/* ── Плашка коммита ── */
+
+.commit-plate-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.commit-plate {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 4px 5px 7px;
+  border-radius: 8px;
+  background: var(--kb-surface-muted);
+  border-left: 3px solid var(--kb-border-strong);
+  font-size: 0.73rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+/* Не отправлен — тёплая полоса, как у вызова, который ещё идёт: состояние,
+   которое ещё может поменяться. */
+.commit-plate--outgoing {
+  border-left-color: var(--kb-warning);
+  background: var(--kb-surface-warning);
+}
+
+.commit-plate--open:not(.commit-plate--outgoing) {
+  border-left-color: var(--kb-border-hover);
+}
+
+/* Наведение — наложением поверх фона: фон несёт состояние коммита. */
+.commit-plate:hover {
+  background-image: linear-gradient(var(--kb-surface-hover), var(--kb-surface-hover));
+}
+.commit-plate:focus {
+  outline: none;
+}
+.commit-plate:focus-visible {
+  outline: 2px solid var(--kb-accent);
+  outline-offset: -2px;
+}
+
+.commit-plate__chevron {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  height: 1.4em;
+  color: var(--kb-text-placeholder);
+}
+
+.commit-plate__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Тема коммита — в две строки: обрезанная на одной, она чаще всего теряет как
+   раз то, о чём коммит. */
+.commit-plate__subject {
+  font-weight: 600;
+  color: var(--kb-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.commit-plate__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  font-size: 0.67rem;
+  color: var(--kb-text-faint);
+}
+
+.commit-plate__hash {
+  font-family: var(--kb-font-mono);
+  color: var(--kb-text-muted);
+}
+
+.commit-plate__badge {
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--kb-surface-active);
+  color: var(--kb-text-warning);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/* Действия ждут наведения на плашку, как копирование у плашки вызова: иначе
+   лента рябит значками. С клавиатуры — видны у строки в фокусе. */
+.commit-plate__actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.commit-plate:hover .commit-plate__actions,
+.commit-plate:focus-within .commit-plate__actions {
+  opacity: 1;
+}
+
+.commit-plate__children {
+  display: flex;
+  flex-direction: column;
+  margin: 3px 0 4px 7px;
+  padding-left: 4px;
+  border-left: 1px solid var(--kb-border-strong);
+}
+
+.commit-plate__note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  font-size: 0.72rem;
+  color: var(--kb-text-muted);
+}
+.commit-plate__note--error {
+  color: var(--kb-text-error);
+}
+
+.btn.commit-plate__more {
+  align-self: flex-start;
+  margin: 2px 2px 0;
+}
+
+/* ── Центр: изменение файла в коммите из ленты ── */
+
+.commit-file-diff__spacer {
+  flex: 1;
+}

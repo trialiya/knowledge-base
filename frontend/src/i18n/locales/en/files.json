@@ -5,7 +5,9 @@
     "mode": "Panel mode",
     "modeFiles": "Files",
     "modeChanges": "Changes",
-    "commitChanges": "Commit changes"
+    "commitChanges": "Commit changes",
+    "modeHistory": "History",
+    "history": "Commit history"
   },
   "tree": {
     "loading": "Loading…",
@@ -177,5 +179,30 @@
     "emptyMarkdown": "No headings in this file",
     "loadError": "Could not load the outline",
     "preamble": "Start of file"
+  },
+  "history": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "loadError": "Failed to load the history",
+    "empty": "No commits",
+    "more": "Show more",
+    "shown_one": "{{count}} commit shown",
+    "shown_other": "{{count}} commits shown",
+    "shownAll_one": "{{count}} commit — the whole history",
+    "shownAll_other": "{{count}} commits — the whole history",
+    "outgoing": "not pushed",
+    "outgoingHint": "This commit has not been pushed to the remote yet",
+    "copyHash": "Copy hash",
+    "openDetail": "Commit details",
+    "filesLoading": "Loading changed files…",
+    "filesError": "Failed to load the changed files",
+    "retry": "Retry",
+    "allFiles_one": "All {{count}} file — in details",
+    "allFiles_other": "All {{count}} files — in details",
+    "scopeOnly": "Only {{name}}",
+    "scopeClear": "Show the whole history",
+    "detailTitle": "Commit {{hash}}",
+    "openSnapshot": "Open snapshot",
+    "openFile": "Open file"
   }
 }

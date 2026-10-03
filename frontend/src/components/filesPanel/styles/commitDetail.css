@@ -1,0 +1,72 @@
+/* ── Детали коммита из ленты ──
+   Окно того же склада, что детали вызова инструмента в чате: шапка, под ней
+   прокручиваемое тело. Оверлей, Escape и роли — у ModalShell. */
+
+.modal-shell.commit-detail {
+  --modal-shell-pad-x: 0px;
+  --modal-shell-pad-top: 0px;
+  width: 960px;
+  max-width: 95vw;
+  height: 85vh;
+  max-height: 85vh;
+  padding: 0;
+  gap: 0;
+  background: var(--kb-surface);
+  border-radius: 12px;
+  box-shadow: var(--kb-shadow-overlay);
+}
+
+.commit-detail__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--kb-border-light);
+  flex-shrink: 0;
+}
+
+.commit-detail__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--kb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-detail__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 16px 16px;
+}
+
+/* Список слева, патч справа; на узком окне — друг под другом. */
+.commit-detail__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--kb-border);
+}
+
+.commit-detail__list {
+  flex: 1 1 260px;
+  max-width: 340px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.commit-detail__diff {
+  flex: 999 1 420px;
+  min-width: 0;
+  overflow-x: auto;
+}

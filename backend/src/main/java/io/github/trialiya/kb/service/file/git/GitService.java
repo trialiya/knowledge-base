@@ -360,7 +360,22 @@ public class GitService {
      */
     public GitCommitSearchResult getCommitLog(
             int maxCount, @Nullable String filePath, boolean includeBody, @Nullable String rev, boolean exact) {
-        return CommitSearch.log(repository, maxCount, new CommitSearch.Scope(false, includeBody, rev, filePath), exact);
+        return getCommitLog(maxCount, 0, filePath, includeBody, rev, exact);
+    }
+
+    /**
+     * A page of the history further down: the same walk with the first {@code skip} commits left
+     * out — what the file browser's history list asks for under "show more".
+     */
+    public GitCommitSearchResult getCommitLog(
+            int maxCount,
+            int skip,
+            @Nullable String filePath,
+            boolean includeBody,
+            @Nullable String rev,
+            boolean exact) {
+        return CommitSearch.log(
+                repository, maxCount, skip, new CommitSearch.Scope(false, includeBody, rev, filePath), exact);
     }
 
     /**

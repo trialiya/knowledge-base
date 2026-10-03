@@ -172,7 +172,8 @@ public class GitController {
      * browser's "Info" panel asks for {@code limit=1} to show who last changed the selected path
      * and when; omit {@code path} for the repository's own history. With {@code rev} the walk
      * starts there instead of HEAD — the browser's revision mode asks for it, so the panel
-     * describes a path by the history of the snapshot it shows.
+     * describes a path by the history of the snapshot it shows. {@code skip} pages further down the
+     * same walk — the browser's history list under "show more".
      *
      * <p>{@code truncated} here only says the page is full — more may follow — not that history
      * really goes on: checking that walks on to one more commit, and along a path that can be the
@@ -186,6 +187,7 @@ public class GitController {
     public GitCommitSearchResult getCommits(
             @RequestParam(name = "path", required = false) @Nullable String path,
             @RequestParam(name = "limit", defaultValue = "20") int limit,
+            @RequestParam(name = "skip", defaultValue = "0") int skip,
             @RequestParam(name = "body", defaultValue = "false") boolean body,
             @RequestParam(name = "rev", required = false) @Nullable String rev,
             @RequestParam(name = "project", required = false) @Nullable String project) {
@@ -194,7 +196,7 @@ public class GitController {
         }
         GitService git = git(project);
         String at = revision(rev);
-        return read(() -> git.getCommitLog(limit, path, body, at, false));
+        return read(() -> git.getCommitLog(limit, skip, path, body, at, false));
     }
 
     /**

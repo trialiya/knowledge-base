@@ -5,7 +5,9 @@
     "mode": "Режим панели",
     "modeFiles": "Файлы",
     "modeChanges": "Изменения",
-    "commitChanges": "Изменения коммита"
+    "commitChanges": "Изменения коммита",
+    "modeHistory": "История",
+    "history": "История коммитов"
   },
   "tree": {
     "loading": "Загрузка…",
@@ -181,5 +183,36 @@
     "emptyMarkdown": "В файле нет заголовков",
     "loadError": "Не удалось получить структуру",
     "preamble": "Начало файла"
+  },
+  "history": {
+    "today": "Сегодня",
+    "yesterday": "Вчера",
+    "loadError": "Не удалось загрузить историю",
+    "empty": "Коммитов нет",
+    "more": "Показать ещё",
+    "shown_one": "Показан {{count}} коммит",
+    "shown_few": "Показано {{count}} коммита",
+    "shown_many": "Показано {{count}} коммитов",
+    "shown_other": "Показано {{count}} коммита",
+    "shownAll_one": "{{count}} коммит — вся история",
+    "shownAll_few": "{{count}} коммита — вся история",
+    "shownAll_many": "{{count}} коммитов — вся история",
+    "shownAll_other": "{{count}} коммита — вся история",
+    "outgoing": "не отправлен",
+    "outgoingHint": "Коммит ещё не отправлен в удалённый репозиторий",
+    "copyHash": "Копировать хеш",
+    "openDetail": "Подробнее о коммите",
+    "filesLoading": "Загружаем изменённые файлы…",
+    "filesError": "Не удалось загрузить изменённые файлы",
+    "retry": "Повторить",
+    "allFiles_one": "Все {{count}} файл — в деталях",
+    "allFiles_few": "Все {{count}} файла — в деталях",
+    "allFiles_many": "Все {{count}} файлов — в деталях",
+    "allFiles_other": "Все {{count}} файла — в деталях",
+    "scopeOnly": "Только {{name}}",
+    "scopeClear": "Показать всю историю",
+    "detailTitle": "Коммит {{hash}}",
+    "openSnapshot": "Открыть снимок",
+    "openFile": "Открыть файл"
   }
 }

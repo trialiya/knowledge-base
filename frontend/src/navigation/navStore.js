@@ -1,4 +1,5 @@
 import { normalizeScope } from '@/constants/searchScope';
+import { FILE_MODE } from '@/constants/fileModes';
 import { readPanelState, savePanelState } from './panelState';
 import { readUrl, buildUrl, currentUrl, initialNav, popNav } from './navUrl';
 
@@ -276,10 +277,11 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
      * @param project репозиторий пути; не передан — остаёмся в том, что открыт
      *   (клик по дереву не должен уводить в другой проект), а переход по ссылке из
      *   чата проект называет и панель переключает
-     * @param options `{ changes, rev, find, findRegex, lines, backLines, right }` — `changes`: каким
-     *   показать левый блок (ссылка из вкладки «Репозиторий» ведёт к
+     * @param options `{ changes, commit, rev, find, findRegex, lines, backLines, right }` — `changes`:
+     *   каким показать левый блок (ссылка из вкладки «Репозиторий» ведёт к
      *   незакоммиченному, ссылка на файл — в дерево; не передан — режим остаётся
-     *   тем, что был); `find`: что подсветить в открытом файле — его приносит
+     *   тем, что был); `commit`: файл открыт из ленты коммитов — в центре его
+     *   изменение в этом коммите, а лента остаётся слева; `find`: что подсветить в открытом файле — его приносит
      *   переход из поиска; `lines`: какие строки выделить (`42-45`, см.
      *   urlScheme.formatLines) — его приносит клик по ячейке blame; `backLines`:
      *   строки открытого сейчас файла, к которым вернёт «Назад» (ханк, по подписи
@@ -304,9 +306,12 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
           filePath: path || '',
           fileProject: nextProject,
           // Режим левого блока — часть этого же перехода, а не отдельная запись:
-          // отдельным setFileChanges (он не переход) переход превратился бы в
+          // отдельным setFileMode (он не переход) переход превратился бы в
           // замену, и «Назад» не вернуло бы туда, откуда ссылку нажали.
-          fileChanges: options?.changes === undefined ? prev.fileChanges : !!options.changes,
+          fileMode: nextFileMode(prev, options),
+          // Коммит, в котором смотрят изменение файла, принадлежит переходу из
+          // ленты: любой другой переход открывает сам файл.
+          fileCommit: options?.commit || '',
           fileRev: nextFileRev(prev, nextProject, options),
           // Подсветка принадлежит переходу, а не файлу: открыли файл откуда-то
           // ещё — искать в нём нечего, и прежний запрос красил бы случайное.
@@ -380,12 +385,13 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
     },
 
     /**
-     * Режим левого блока файлового браузера: дерево репозитория или список
-     * незакоммиченных изменений. Открытый путь остаётся тем же, и переключение
-     * туда-обратно не должно требовать двух «Назад».
+     * Режим левого блока файлового браузера (FILE_MODE): дерево, изменения или
+     * лента коммитов. Открытый путь остаётся тем же, и переключение
+     * туда-обратно не должно требовать двух «Назад». Выбранный в ленте коммит
+     * с неё и уходит: в другом режиме открыт уже сам файл.
      */
-    setFileChanges(changes) {
-      replace((prev) => (prev.fileChanges === !!changes ? prev : { ...prev, fileChanges: !!changes }));
+    setFileMode(mode) {
+      replace((prev) => (prev.fileMode === mode ? prev : { ...prev, fileMode: mode, fileCommit: '' }));
     },
 
     /**
@@ -564,6 +570,15 @@ function searchWhereFilesAre(prev) {
 }
 
 /**
+ * Режим левого блока после перехода: `changes` его называет (ссылка на
+ * незакоммиченное — изменения, ссылка на файл — дерево), без него режим тот же.
+ */
+function nextFileMode(prev, options) {
+  if (options?.changes === undefined) return prev.fileMode;
+  return options.changes ? FILE_MODE.CHANGES : FILE_MODE.TREE;
+}
+
+/**
  * Ревизия следующего перехода в «Файлах».
  *
  * По умолчанию она переезжает вместе с путём: ссылка на файл, нажатая в снимке
@@ -580,7 +595,7 @@ function searchWhereFilesAre(prev) {
  * - переход по ссылке на незакоммиченные изменения (`changes: true`, вкладка
  *   «Репозиторий» чата): такие правки есть только у рабочего дерева, и панель,
  *   оставшись в снимке, показала бы вместо них изменения коммита. Переключатель
- *   «Изменения» внутри панели (setFileChanges) — не переход, и ревизию он не
+ *   «Изменения» внутри панели (setFileMode) — не переход, и ревизию он не
  *   трогает: в снимке этот режим показывает то, что поменял сам коммит.
  */
 function nextFileRev(prev, nextProject, options) {

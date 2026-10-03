@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import FilesToolbar from './FilesToolbar';
 
 vi.mock('@/api/gitApi', () => ({ default: { getRefs: vi.fn(() => new Promise(() => {})) } }));
@@ -14,8 +15,8 @@ const renderToolbar = (props = {}) =>
   render(
     <FilesToolbar
       project="kb"
-      changes={false}
-      onChangesToggle={vi.fn()}
+      mode="tree"
+      onModeChange={vi.fn()}
       flat={false}
       onFlatToggle={vi.fn()}
       onSelect={vi.fn()}
@@ -51,5 +52,15 @@ describe('FilesToolbar', () => {
     expect(screen.getByText('panel.modeChanges')).toHaveAttribute('title', 'panel.commitChanges');
     // А сам ответ на «что я вижу» — остаётся, и называет ревизию.
     expect(screen.getByText('v1')).toBeInTheDocument();
+  });
+
+  test('the mode switch offers the tree, the changes and the history, one of them pressed', async () => {
+    const onModeChange = vi.fn();
+    renderToolbar({ mode: 'history', onModeChange });
+
+    expect(screen.getByText('panel.modeHistory')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('panel.modeFiles')).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(screen.getByText('panel.modeChanges'));
+    expect(onModeChange).toHaveBeenCalledWith('changes');
   });
 });

@@ -351,12 +351,15 @@ const gitApi = {
    * { commits: GitCommit[] { hash, shortHash, author, email, date, message, body },
    * truncated } — `truncated`: за последним отданным коммитом история продолжается.
    *
+   * `skip` — следующая страница того же обхода (лента коммитов в «Файлах»).
+   *
    * `body` (текст сообщения ниже темы) приходит только с `body: true`: он есть
    * не у каждого коммита, зато у больших правок идёт на десятки строк, и в
    * листинге на двадцать записей весит больше всего остального ответа.
    */
-  getCommits: (path, { limit = 20, body = false, rev, project, signal } = {}) => {
+  getCommits: (path, { limit = 20, skip = 0, body = false, rev, project, signal } = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
+    if (skip) params.set('skip', String(skip));
     if (path) params.set('path', path);
     if (body) params.set('body', 'true');
     if (rev) params.set('rev', rev);

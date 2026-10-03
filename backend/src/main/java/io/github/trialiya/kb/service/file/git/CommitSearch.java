@@ -84,6 +84,7 @@ final class CommitSearch {
                 commit -> matches(commit, q, scope.inBody()),
                 (commit, reader) -> Diffs.toGitCommit(commit, null, reader, scope.withBody()),
                 maxCount,
+                0,
                 scope,
                 true);
         return new GitCommitSearchResult(page.items(), page.truncated());
@@ -104,6 +105,7 @@ final class CommitSearch {
                 (commit, reader) ->
                         matchOf(Diffs.toGitCommit(commit, null, reader, false), Diffs.messageBody(commit), q),
                 maxCount,
+                0,
                 new Scope(true, false, rev, null),
                 true);
         return new GitCommitGrepResult(page.items(), page.truncated());
@@ -113,6 +115,9 @@ final class CommitSearch {
      * История без запроса — каждый коммит обхода совпадение.
      *
      * @param maxCount сколько коммитов вернуть, не больше {@value #MAX_RESULTS}
+     * @param skip сколько первых коммитов пропустить — следующая страница листинга. Смещение, а не
+     *     «продолжить от коммита»: обход от родителя последнего показанного терял бы коммиты боковых
+     *     веток, которые по дате лежат дальше, а сюда приходят из того же обхода
      * @param exact признак обрезки точный: обход ищет ещё один коммит за лимитом, и {@code true}
      *     значит, что история продолжается. Без этого обход останавливается на лимите, и {@code
      *     true} — только «выдача заполнила лимит, дальше могут быть ещё». Разница — в цене истории
@@ -120,12 +125,13 @@ final class CommitSearch {
      *     всей истории ради одного флага, а «Инфо» файлового браузера просит коммит на каждый выбор
      *     файла
      */
-    static GitCommitSearchResult log(Repository repository, int maxCount, Scope scope, boolean exact) {
+    static GitCommitSearchResult log(Repository repository, int maxCount, int skip, Scope scope, boolean exact) {
         Page<GitCommit> page = walk(
                 repository,
                 commit -> true,
                 (commit, reader) -> Diffs.toGitCommit(commit, null, reader, scope.withBody()),
                 maxCount,
+                skip,
                 scope,
                 exact);
         return new GitCommitSearchResult(page.items(), page.truncated());
@@ -165,9 +171,11 @@ final class CommitSearch {
             Predicate<RevCommit> match,
             Found<T> found,
             int maxCount,
+            int skip,
             Scope scope,
             boolean exact) {
         int limit = Math.min(Math.max(maxCount, 1), MAX_RESULTS);
+        int toSkip = Math.max(skip, 0);
         String rev = scope.rev();
         ObjectId start = rev == null || rev.isBlank() ? null : CommitFiles.commitOf(repository, rev.strip());
 
@@ -180,11 +188,16 @@ final class CommitSearch {
             ObjectReader reader = walk.reader();
             List<T> matches = new ArrayList<>();
             int scanned = 0;
+            int skipped = 0;
             for (RevCommit commit : walk) {
                 if (++scanned > SCAN) {
                     return new Page<>(matches, true);
                 }
                 if (match.test(commit)) {
+                    if (skipped < toSkip) {
+                        skipped++;
+                        continue;
+                    }
                     // Только совпадение сверх лимита говорит «есть ещё»: коммит, который просто
                     // лежит дальше по истории, может ни с чем не совпасть.
                     if (matches.size() == limit) {

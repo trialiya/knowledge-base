@@ -12,16 +12,15 @@ import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
 import useGitBranch from './git/useGitBranch';
 import useGitActions from './git/useGitActions';
-import GitPromptModal from './git/GitPromptModal';
-import CommitDialog from '@/components/common/git/CommitDialog';
-import PushDialog from '@/components/common/git/PushDialog';
-import ConfirmModal from '@/components/common/modal/ConfirmModal';
+import FilesGitDialogs from './git/FilesGitDialogs';
+import CommitHistory from './history/CommitHistory';
+import CommitFileDiff from './history/CommitFileDiff';
 import useNotice from '@/components/common/ui/useNotice';
-import ErrorModal from '@/components/common/modal/ErrorModal';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
 import { resolveProjectChoice } from '@/components/common/config/projectChoice';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
 import { FILE_TAB } from '@/constants/fileTabs';
+import { FILE_MODE } from '@/constants/fileModes';
 import buildFileTabs from './filesSidebar';
 import useOutlineJump from './outline/useOutlineJump';
 import { previewKind } from '@/utils/filePreview';
@@ -41,13 +40,14 @@ const FilesPanelForProject = ({
   project,
   projectOptions,
   path,
-  changes,
+  mode,
+  commit,
   rev,
   blame,
   find,
   findRegex,
   lines,
-  onChangesToggle,
+  onModeChange,
   onRevChange,
   onBlameToggle,
   onFindChange,
@@ -65,7 +65,10 @@ const FilesPanelForProject = ({
   // не имеют. Режим «Изменения» в нём показывает то, что поменял сам коммит, —
   // источник списка и патча другой, строки и diff те же.
   const snapshot = !!rev;
-  const showChanges = changes;
+  const showChanges = mode === FILE_MODE.CHANGES;
+  // Файл, открытый из ленты коммитов, центр показывает его изменением в том
+  // коммите (CommitFileDiff), а не самим файлом.
+  const commitDiff = mode === FILE_MODE.HISTORY && !!commit && !!path;
   // Сигнал «показанное могло устареть». У снимка их два: ревизия бывает веткой,
   // и после fetch (`gitRefsToken`) она называет уже другой коммит — дерево и
   // файл обязаны перейти на него вместе со списком и diff (useSnapshotCommit),
@@ -80,7 +83,14 @@ const FilesPanelForProject = ({
     refreshToken: contentToken,
   });
 
-  const diff = useChangeDiff({ project, path, rev, refreshToken, refsToken: gitRefsToken, enabled: showChanges });
+  const diff = useChangeDiff({
+    project,
+    path,
+    rev,
+    refreshToken,
+    refsToken: gitRefsToken,
+    enabled: showChanges,
+  });
   // Коммит снимка нужен и вкладке «Коммит», и списку слева — один запрос на обоих,
   // и только пока хоть один из них на экране: без пути ответ несёт строку каждого
   // файла коммита, а у коммита с vendor-обновлением их тысячи.
@@ -91,14 +101,26 @@ const FilesPanelForProject = ({
     refsToken: gitRefsToken,
     enabled: showChanges || panels?.rightTab === FILE_TAB.COMMIT,
   });
-  const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
+  const git = useGitBranch({
+    project,
+    refreshToken,
+    refsToken: gitRefsToken,
+    onRefsChanged: onGitRefsChanged,
+  });
 
   // Одно уведомление на панель: git-команда отказывает словами самого git
   // («Permission denied (publickey)»), и это ровно то, что нужно показать —
   // своя формулировка сказала бы меньше. Кроме коммита и push: их отказ остаётся
   // в окне, из которого их запустили (см. useGitActions).
   const { notice, notify, dismissNotice } = useNotice();
-  const actions = useGitActions({ git, project, refreshToken, onRepoChanged, notify, t });
+  const actions = useGitActions({
+    git,
+    project,
+    refreshToken,
+    onRepoChanged,
+    notify,
+    t,
+  });
 
   // Список незакоммиченного нужен и режиму «Изменения», и окну коммита — окно
   // открывается и из режима дерева, где списка на экране нет.
@@ -153,6 +175,11 @@ const FilesPanelForProject = ({
 
   const { jump, onJump } = useOutlineJump(path);
 
+  // Снимок коммита из ленты — тот же вид, что у ссылки на коммит: изменения
+  // слева, вкладка «Коммит» справа (см. navigateToCommit).
+  const openSnapshot = (filePath, hash) =>
+    onPathChange(filePath, undefined, { rev: hash, changes: true, right: FILE_TAB.COMMIT });
+
   const rightTabs = useMemo(
     () =>
       buildFileTabs({
@@ -166,7 +193,7 @@ const FilesPanelForProject = ({
         snapshot,
         snapshotCommit,
         showChanges,
-        onChangesToggle,
+        onModeChange,
         jump,
         onJump,
       }),
@@ -181,7 +208,7 @@ const FilesPanelForProject = ({
       snapshot,
       snapshotCommit,
       showChanges,
-      onChangesToggle,
+      onModeChange,
       jump,
       onJump,
     ],
@@ -202,15 +229,15 @@ const FilesPanelForProject = ({
             ) : (
               t('panel.tree')
             ),
-          ariaLabel: t(showChanges ? (snapshot ? 'panel.commitChanges' : 'panel.changes') : 'panel.tree'),
+          ariaLabel: t(leftLabelKey(mode, snapshot)),
           toolbar: (
             <FilesToolbar
               project={project}
-              changes={showChanges}
+              mode={mode}
               rev={rev}
               onRevChange={onRevChange}
               gitRefsToken={gitRefsToken}
-              onChangesToggle={onChangesToggle}
+              onModeChange={onModeChange}
               flat={flat}
               onFlatToggle={changeFlat}
               onSelect={onPathChange}
@@ -223,7 +250,19 @@ const FilesPanelForProject = ({
           bodyScroll: false,
           children: (
             <div className="files-panel-tree">
-              {showChanges ? (
+              {mode === FILE_MODE.HISTORY && (
+                <CommitHistory
+                  project={project}
+                  rev={rev}
+                  path={path}
+                  commit={commit}
+                  refreshToken={refreshToken}
+                  refsToken={gitRefsToken}
+                  onOpenFile={(filePath, hash) => onPathChange(filePath, undefined, { commit: hash })}
+                  onOpenSnapshot={(hash) => openSnapshot('', hash)}
+                />
+              )}
+              {showChanges && (
                 <ChangesList
                   tracked={listed.tracked}
                   untracked={listed.untracked}
@@ -238,7 +277,8 @@ const FilesPanelForProject = ({
                   // Коммит откатывать нечем — снимок только для чтения.
                   onDiscard={!snapshot && git.capabilities?.commands && !git.running ? actions.askDiscard : null}
                 />
-              ) : (
+              )}
+              {mode === FILE_MODE.TREE && (
                 <FileTree
                   treeCache={treeCache}
                   loadingDirs={loadingDirs}
@@ -252,69 +292,67 @@ const FilesPanelForProject = ({
           ),
         }}
         center={
-          <FileContent
-            content={content}
-            path={path}
-            // Картинку центр грузит сам, по адресу сырых байт, — а адрес этот,
-            // как и всякая ссылка на файл, есть пара (проект, путь), да ещё и
-            // снимок ревизии, если панель стоит на нём.
-            project={project}
-            rev={rev}
-            // Дерево и содержимое перезапрашивает useFileTree, а байты картинки
-            // грузит браузер по неизменному адресу — без этого токена он остался
-            // бы с прошлой картинкой там, где файл уже другой.
-            reloadToken={contentToken}
-            loading={contentLoading || diffPending}
-            onNavigate={onPathChange}
-            // Тумблер «оригинал ↔ diff» показываем только там, где есть что
-            // переключать: панель в режиме изменений и открыт какой-то путь.
-            diff={showChanges && path ? diff : null}
-            showDiff={showDiff}
-            onToggleDiff={setDiffChoice}
-            // Колонка blame — состояние экрана из адреса (`?blame=1`), как
-            // режим изменений: переживает F5 и переезжает на соседний файл.
-            blame={blame}
-            onToggleBlame={onBlameToggle}
-            find={find}
-            findRegex={findRegex}
-            onFindChange={onFindChange}
-            lines={lines}
-            jump={jump}
-          />
+          commitDiff ? (
+            <CommitFileDiff
+              key={`${commit}\n${path}`}
+              project={project}
+              path={path}
+              commit={commit}
+              onNavigate={onPathChange}
+              onOpenFile={(filePath) => onPathChange(filePath)}
+              onOpenSnapshot={(hash) => openSnapshot(path, hash)}
+            />
+          ) : (
+            <FileContent
+              content={content}
+              path={path}
+              // Картинку центр грузит сам, по адресу сырых байт, — а адрес этот,
+              // как и всякая ссылка на файл, есть пара (проект, путь), да ещё и
+              // снимок ревизии, если панель стоит на нём.
+              project={project}
+              rev={rev}
+              // Дерево и содержимое перезапрашивает useFileTree, а байты картинки
+              // грузит браузер по неизменному адресу — без этого токена он остался
+              // бы с прошлой картинкой там, где файл уже другой.
+              reloadToken={contentToken}
+              loading={contentLoading || diffPending}
+              onNavigate={onPathChange}
+              // Тумблер «оригинал ↔ diff» показываем только там, где есть что
+              // переключать: панель в режиме изменений и открыт какой-то путь.
+              diff={showChanges && path ? diff : null}
+              showDiff={showDiff}
+              onToggleDiff={setDiffChoice}
+              // Колонка blame — состояние экрана из адреса (`?blame=1`), как
+              // режим изменений: переживает F5 и переезжает на соседний файл.
+              blame={blame}
+              onToggleBlame={onBlameToggle}
+              find={find}
+              findRegex={findRegex}
+              onFindChange={onFindChange}
+              lines={lines}
+              jump={jump}
+            />
+          )
         }
         right={rightTabs}
       />
-      <GitPromptModal
-        open={actions.naming}
-        title={t('git.newBranch')}
-        label={t('git.branchName')}
-        hint={git.status ? t('git.branchFrom', { branch: git.status.current }) : undefined}
-        placeholder="feature/…"
-        confirmLabel={t('git.create')}
-        onConfirm={actions.confirmNewBranch}
-        onCancel={actions.cancelNewBranch}
-      />
-      {/* Те же окна, что открывает вкладка «Репозиторий» в чате: коммит там и
-          здесь означает одно и то же (см. common/git). */}
-      {actions.dialog === 'commit' && <CommitDialog git={dialogGit} onClose={actions.closeDialog} />}
-      {actions.dialog === 'push' && <PushDialog git={dialogGit} onClose={actions.closeDialog} />}
-      <ConfirmModal
-        open={!!actions.discarding}
-        title={t('git.discardTitle')}
-        message={t('git.discardMessage', { path: actions.discarding })}
-        confirmLabel={t('git.discardConfirm')}
-        onConfirm={actions.confirmDiscard}
-        onCancel={actions.cancelDiscard}
-      />
-      <ErrorModal
-        open={!!notice}
-        title={notice ? t(notice.titleKey) : ''}
-        message={notice ? t(notice.messageKey, notice.params) : ''}
-        onClose={dismissNotice}
+      <FilesGitDialogs
+        git={git}
+        actions={actions}
+        dialogGit={dialogGit}
+        notice={notice}
+        onDismissNotice={dismissNotice}
       />
     </>
   );
 };
+
+/** Имя левого блока для скринридера — по тому, что в нём сейчас. */
+function leftLabelKey(mode, snapshot) {
+  if (mode === FILE_MODE.HISTORY) return 'panel.history';
+  if (mode === FILE_MODE.CHANGES) return snapshot ? 'panel.commitChanges' : 'panel.changes';
+  return 'panel.tree';
+}
 
 /**
  * Смена проекта перемонтирует панель по `key`: дерево, раскрытые узлы,
@@ -329,13 +367,14 @@ const FilesPanelForProject = ({
 const FilesPanel = ({
   project,
   path,
-  changes,
+  mode,
+  commit,
   rev,
   blame,
   find,
   findRegex,
   lines,
-  onChangesToggle,
+  onModeChange,
   onRevChange,
   onBlameToggle,
   onFindChange,
@@ -366,13 +405,14 @@ const FilesPanel = ({
       project={current}
       projectOptions={projectOptions}
       path={path}
-      changes={changes}
+      mode={mode || FILE_MODE.TREE}
+      commit={commit || ''}
       rev={rev || ''}
       blame={!!blame}
       find={find || ''}
       findRegex={!!findRegex}
       lines={lines || ''}
-      onChangesToggle={onChangesToggle}
+      onModeChange={onModeChange}
       onRevChange={onRevChange}
       onBlameToggle={onBlameToggle}
       onFindChange={onFindChange}

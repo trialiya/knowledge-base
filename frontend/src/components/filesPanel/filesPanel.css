@@ -7,6 +7,8 @@
 
 @import './styles/changes.css';
 @import './styles/blame.css';
+@import './styles/history.css';
+@import './styles/commitDetail.css';
 
 /* Оболочка раздела (контейнер, левая панель, центр) — общая: см.
    common/workspaceLayout.css. Здесь только специфика дерева и содержимого. */
