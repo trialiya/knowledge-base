@@ -139,4 +139,32 @@ describe('CommitHistory', () => {
     expect(gitApi.getOutgoing).not.toHaveBeenCalled();
     expect(screen.queryByText('history.outgoing')).not.toBeInTheDocument();
   });
+
+  test('a plate reopened while its files are still loading does not ask again', async () => {
+    let resolve;
+    gitApi.getCommit.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    show();
+    const plate = (await screen.findByText('Новый коммит')).closest('[role="treeitem"]');
+
+    await userEvent.click(plate);
+    await userEvent.click(plate);
+    await userEvent.click(plate);
+    resolve({ ...NEW, files: [{ status: 'M', path: 'src/a.js', additions: 2, deletions: 1 }] });
+
+    expect(await screen.findByText('a.js')).toBeInTheDocument();
+    expect(gitApi.getCommit).toHaveBeenCalledTimes(1);
+  });
+
+  // Обход истории ограничен: смещение за его пределом отвечает пустой страницей с
+  // truncated — кнопка обязана уйти, а не спрашивать то же самое без конца.
+  test('an empty next page ends the history even when the backend says there may be more', async () => {
+    gitApi.getCommits
+      .mockResolvedValueOnce({ commits: [NEW], truncated: true })
+      .mockResolvedValueOnce({ commits: [], truncated: true });
+    show();
+
+    await userEvent.click(await screen.findByText('history.more'));
+
+    await waitFor(() => expect(screen.queryByText('history.more')).not.toBeInTheDocument());
+  });
 });

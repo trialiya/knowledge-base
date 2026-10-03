@@ -401,7 +401,11 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
      */
     setFileRev(rev) {
       // Выделенные строки — номера в прежнем снимке; в другом они не те же строки.
-      replace((prev) => (prev.fileRev === (rev || '') ? prev : { ...prev, fileRev: rev || '', fileLines: '' }));
+      // Коммит, открытый из ленты, — тоже: лента пойдёт от другой ревизии, и его в
+      // ней может не оказаться вовсе.
+      replace((prev) =>
+        prev.fileRev === (rev || '') ? prev : { ...prev, fileRev: rev || '', fileLines: '', fileCommit: '' },
+      );
     },
 
     /**

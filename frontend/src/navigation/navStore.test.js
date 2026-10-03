@@ -432,6 +432,13 @@ describe('лента коммитов в «Файлах»', () => {
     expect(url()).toBe('/files/a?history=1');
   });
 
+  it('смена ревизии забывает коммит из ленты: в новой ленте его может не быть', () => {
+    go(`/files/a/c.md?history=1&commit=${hash}`);
+    const s = mount();
+    s.setFileRev('v1');
+    expect(url()).toBe('/files/a/c.md?history=1&rev=v1');
+  });
+
   it('коммит без ленты в адресе ничего не значит и отбрасывается', () => {
     go(`/files/a/c.md?commit=${hash}`);
     const s = mount();

@@ -34,15 +34,19 @@ const CommitHistory = ({ project, rev, path, commit, refreshToken, refsToken, on
     refsToken,
   });
   const [open, setOpen] = useState(() => new Set());
-  // hash → GitDiffEntry[] | null (запрос не удался); нет ключа — ещё не спрашивали.
+  // hash → GitDiffEntry[] | null (запрос не удался) | undefined (в пути); нет ключа — не спрашивали.
   const [files, setFiles] = useState({});
   const [detail, setDetail] = useState(null);
 
-  const loadFiles = (hash) =>
-    gitApi
+  // Ключ ставится сразу, до ответа (`undefined` — в пути): иначе плашка, свёрнутая
+  // и раскрытая, пока файлы ещё грузятся, спросила бы их второй раз.
+  const loadFiles = (hash) => {
+    setFiles((prev) => ({ ...prev, [hash]: undefined }));
+    return gitApi
       .getCommit(hash, { project })
       .then((answer) => setFiles((prev) => ({ ...prev, [hash]: answer.files ?? [] })))
       .catch(() => setFiles((prev) => ({ ...prev, [hash]: null })));
+  };
 
   const toggle = (hash) => {
     const opening = !open.has(hash);
@@ -53,15 +57,6 @@ const CommitHistory = ({ project, rev, path, commit, refreshToken, refsToken, on
       return next;
     });
     if (opening && !(hash in files)) loadFiles(hash);
-  };
-
-  const retry = (hash) => {
-    setFiles((prev) => {
-      const next = { ...prev };
-      delete next[hash];
-      return next;
-    });
-    loadFiles(hash);
   };
 
   const groups = useMemo(() => groupByDay(history.commits), [history.commits]);
@@ -133,11 +128,11 @@ const CommitHistory = ({ project, rev, path, commit, refreshToken, refsToken, on
                   key={c.hash}
                   commit={c}
                   open={open.has(c.hash)}
-                  outgoing={!!history.outgoing?.has(c.hash)}
+                  outgoing={!!history.outgoing.has(c.hash)}
                   files={files[c.hash]}
                   selectedPath={c.hash === commit ? path : null}
                   onToggle={toggle}
-                  onRetry={retry}
+                  onRetry={loadFiles}
                   onOpenFile={onOpenFile}
                   onOpenDetail={setDetail}
                 />

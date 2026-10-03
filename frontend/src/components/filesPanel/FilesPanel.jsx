@@ -83,14 +83,7 @@ const FilesPanelForProject = ({
     refreshToken: contentToken,
   });
 
-  const diff = useChangeDiff({
-    project,
-    path,
-    rev,
-    refreshToken,
-    refsToken: gitRefsToken,
-    enabled: showChanges,
-  });
+  const diff = useChangeDiff({ project, path, rev, refreshToken, refsToken: gitRefsToken, enabled: showChanges });
   // Коммит снимка нужен и вкладке «Коммит», и списку слева — один запрос на обоих,
   // и только пока хоть один из них на экране: без пути ответ несёт строку каждого
   // файла коммита, а у коммита с vendor-обновлением их тысячи.
@@ -101,26 +94,14 @@ const FilesPanelForProject = ({
     refsToken: gitRefsToken,
     enabled: showChanges || panels?.rightTab === FILE_TAB.COMMIT,
   });
-  const git = useGitBranch({
-    project,
-    refreshToken,
-    refsToken: gitRefsToken,
-    onRefsChanged: onGitRefsChanged,
-  });
+  const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
 
   // Одно уведомление на панель: git-команда отказывает словами самого git
   // («Permission denied (publickey)»), и это ровно то, что нужно показать —
   // своя формулировка сказала бы меньше. Кроме коммита и push: их отказ остаётся
   // в окне, из которого их запустили (см. useGitActions).
   const { notice, notify, dismissNotice } = useNotice();
-  const actions = useGitActions({
-    git,
-    project,
-    refreshToken,
-    onRepoChanged,
-    notify,
-    t,
-  });
+  const actions = useGitActions({ git, project, refreshToken, onRepoChanged, notify, t });
 
   // Список незакоммиченного нужен и режиму «Изменения», и окну коммита — окно
   // открывается и из режима дерева, где списка на экране нет.
