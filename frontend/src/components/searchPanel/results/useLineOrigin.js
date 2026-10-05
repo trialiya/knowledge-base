@@ -1,6 +1,6 @@
 import useKeyedRequest from '@/components/common/preview/useKeyedRequest';
 import gitApi from '@/api/gitApi';
-import { originKey } from './lineOrigin';
+import { originKey } from './originAnswer';
 
 /**
  * «Когда появилось» для одной строки совпадения. Хук живёт в панели ответа,

@@ -1,4 +1,4 @@
-import { describeOrigin, originKey } from './lineOrigin';
+import { describeOrigin, originKey } from './originAnswer';
 
 // Данные — форма GitLineOrigin с бэкенда: steps от новой версии к старой.
 

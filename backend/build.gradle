@@ -5,7 +5,7 @@ plugins {
     id 'com.diffplug.spotless'
     id 'net.ltgt.errorprone'
     id 'pmd'
-    id 'com.github.spotbugs' version '6.5.11'
+    id 'com.github.spotbugs' version '6.5.12'
     id 'info.solidsoft.pitest' version '1.19.0'
     id 'com.gorylenko.gradle-git-properties' version '4.0.1'
     // apply false: плагин включается по флагу ниже, иначе он меняет обычный bootJar.

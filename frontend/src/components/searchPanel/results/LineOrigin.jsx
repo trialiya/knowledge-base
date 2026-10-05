@@ -7,7 +7,7 @@ import { highlightSubstring } from '@/components/common/search/highlightMatch';
 import { FILE_TAB } from '@/constants/fileTabs';
 import { filesUrl } from '@/navigation/urlScheme';
 import { formatCompactDateTime } from '@/utils/formatting';
-import { describeOrigin } from './lineOrigin';
+import { describeOrigin } from './originAnswer';
 import useLineOrigin from './useLineOrigin';
 
 /**
