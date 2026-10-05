@@ -86,6 +86,57 @@ describe('applyChatEvent', () => {
     expect(last(chat).retryMode).toBeUndefined();
   });
 
+  test('RUN_STOPPED after tool calls puts the label in its own bubble below the plates', () => {
+    // Оборвалось то, что шло ПОСЛЕ вызовов: подпись, дописанная к тексту сегмента, встала бы над
+    // плашками. Отдельный пузырь — тот же вид, что даёт после перезагрузки ряд-метка бэкенда.
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1', payload: { model: 'gpt-5' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'смотрю' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'listFiles', status: 'OK' } } },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { contextTokens: 900 } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_STOPPED', runId: 'r1' }, ctx);
+
+    const ai = chat.messages.filter((m) => m.sender === 'ai');
+    expect(ai).toHaveLength(2);
+    expect(ai[0].text).toBe('смотрю');
+    expect(ai[0].toolCalls).toHaveLength(1);
+    expect(ai[0].usage).toBeUndefined();
+    expect(ai[1]).toMatchObject({ text: '[stopped]', model: 'gpt-5', usage: { contextTokens: 900 } });
+  });
+
+  test('RUN_STOPPED in text written after the tools keeps the label on that text', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'listFiles', status: 'OK' } } },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'нашёл' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_STOPPED', runId: 'r1' }, ctx);
+
+    const ai = chat.messages.filter((m) => m.sender === 'ai');
+    expect(ai).toHaveLength(2);
+    expect(ai[1].text).toBe('нашёл [stopped]');
+  });
+
+  test('RUN_ERROR after tool calls puts the error label below the plates', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'listFiles', status: 'OK' } } },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'RUN_ERROR', runId: 'r1', payload: {} }, ctx);
+
+    const ai = chat.messages.filter((m) => m.sender === 'ai');
+    expect(ai).toHaveLength(2);
+    expect(ai[0].error).toBeUndefined();
+    expect(ai[1]).toMatchObject({ text: 'Ошибка', error: true });
+  });
+
   test('TOOL_CALL STARTED puts the context after its model call on the segment, the latest one wins', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'смотрю' } }, ctx);
