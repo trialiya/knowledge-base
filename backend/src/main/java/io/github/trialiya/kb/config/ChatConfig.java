@@ -339,7 +339,8 @@ public class ChatConfig {
                         scriptGuideService, skillService, chatModelProperties.isWeak(subAgentConfig.modelId()))
                 : "";
         // The sub-agent's model may be one of the kb.chat.models entries with an endpoint of its
-        // own, so the connection is looked up by id like the main chat's, not taken as the default.
+        // own, so the connection is looked up by id like the main chat's, not taken as the default
+        // — and so is replay-reasoning, which belongs to the endpoint the request goes to.
         return new SearchAgentService(
                 chatModelRegistry.forModel(subAgentConfig.modelId()),
                 toolCallingManager,
@@ -347,7 +348,8 @@ public class ChatConfig {
                 searchAgentPrompt,
                 scriptInstructions,
                 readOnly,
-                gitRegistry);
+                gitRegistry,
+                chatModelProperties.replayReasoning(subAgentConfig.modelId()));
     }
 
     /**
