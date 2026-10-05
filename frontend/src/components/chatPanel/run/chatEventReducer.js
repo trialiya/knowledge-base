@@ -31,6 +31,24 @@ import { RUN_KIND } from '@/constants/runKind';
 import { IDLE_RUN_STATE } from './activeRun';
 
 /**
+ * Пузырь, куда встаёт подпись обрыва прогона. Закрытый сегмент (sealed) уже кончился вызовами
+ * инструментов: дописанная к его тексту подпись встала бы НАД плашками, хотя оборвалось то, что
+ * шло после них. Поэтому под неё открывается новый пузырь — как и после перезагрузки, где метку
+ * бэкенд пишет отдельным рядом за рядами вызовов (ChatRunService.persistPartial). Плашка итога
+ * переезжает туда же: в истории она лежит на последнем ряду прогона, то есть на метке.
+ *
+ * @returns индекс пузыря или -1, если у прогона пузыря нет
+ */
+const interruptionBubble = (msgs, runId) => {
+  const idx = lastAiIndexForRun(msgs, runId);
+  if (idx < 0 || !msgs[idx].sealed) return idx;
+  const { usage, model } = msgs[idx];
+  const at = pushAi(msgs, runId, model ?? null);
+  if (usage) setRunUsage(msgs, runId, usage, true);
+  return at;
+};
+
+/**
  * @param chat объект чата ({ id, messages, runId, ... })
  * @param ev   событие { type, runId, clientMsgId, payload, seq }
  * @param ctx  { isLocal(clientMsgId), stoppedLabel, errorLabel, interruptedNote,
@@ -263,7 +281,7 @@ export function applyChatEvent(chat, ev, ctx) {
     }
 
     case CHAT_EVENT.RUN_STOPPED: {
-      const idx = lastAiIndexForRun(msgs, runId);
+      const idx = interruptionBubble(msgs, runId);
       if (idx >= 0) {
         const base = (msgs[idx].text || '').trimEnd();
         msgs[idx] = { ...msgs[idx], text: base ? `${base} ${ctx.stoppedLabel}` : ctx.stoppedLabel };
@@ -276,7 +294,7 @@ export function applyChatEvent(chat, ev, ctx) {
       // Помечаем пузырь error:true — под ним может появиться кнопка «Повторить»
       // (см. MessageList/Message.jsx). Если ассистент ещё не появился (ошибка до первого
       // чанка) — заводим пустой, чтобы было к чему прицепить ошибку.
-      let idx = lastAiIndexForRun(msgs, runId);
+      let idx = interruptionBubble(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
       const partial = (msgs[idx].text || '').trimEnd();
       // Повтор предлагаем, только пока модель ничего не выдала: ни текста, ни вызова
