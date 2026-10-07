@@ -133,6 +133,7 @@ Unicode — bidi-переопределения и разделители чип
 | Только для модели: ханков в одном ответе `getBlame` — до 100 (дальше `truncated` и продолжение с `toLine + 1`) | `BlameBudget.MAX_HUNKS` |
 | Происхождение подстроки в строке (`GET /api/git/files/origin`) — до 30 шагов, все в одни 20 секунд; не больше 4 обходов одного репозитория разом; перенос ищется только в коммитах до 300 файлов | `LineOrigin.MAX_STEPS`, `LineOriginTracer.TIMEOUT`, `LineOriginTracer.MAX_WALKS`, `MovedBlocks.MAX_FILES` |
 | Блоб из истории, который поднимается в память целиком, — до 32 МБ | `CommitFiles.MAX_BLOB_SIZE` |
+| Сравнение ревизий: коммитов по каждую сторону считается до 10 000, поимённо перечисляется до 100 | `RevisionCompare.MAX_COUNT`, `MAX_COMMITS` |
 | `git grep` — 20 секунд и 20 000 строк вывода | `GitGrepRunner.GREP_TIMEOUT`, `MAX_OUTPUT_LINES` |
 | `git blame` — 20 секунд и 400 000 строк вывода (при переполнении — отказ, не усечение) | `GitBlameRunner.BLAME_TIMEOUT`, `MAX_OUTPUT_LINES` |
 | Сообщение коммита — 4000 символов, файлов в одном коммите — 1000 | `GitCommands.MAX_MESSAGE_CHARS`, `MAX_COMMIT_PATHS` |
@@ -156,6 +157,18 @@ Unicode — bidi-переопределения и разделители чип
 нет, ссылка на него из ответа модели, из карточки инструмента или из панели открывает снимок.
 Как ссылки пишет модель и что с ними делает интерфейс — [AI-инструменты](ai-инструменты.md),
 «Ссылки на репозиторий в ответе».
+
+**Сравнение двух ревизий** (`GET /api/git/compare`, `GitService.compare` → `RevisionCompare`) —
+тот же режим «Изменения», но с базой: выбранную в тулбаре ревизию (`?base=`) сравнивают с
+показанной — снимком `rev` или, без него, с HEAD рабочего дерева (незакоммиченное у сравнения
+не участвует: у него свой список, и смешанный ответ не сказал бы, что из него закоммичено).
+Разница по умолчанию считается от общего предка — `git diff base...head`, так, как ветку
+читает pull request: работа, сделанная в базе после развилки, иначе выглядела бы откатом её в
+сравниваемой ветке. `?direct=1` сравнивает сами деревья. История между ревизиями — счётчики
+впереди/позади и коммиты сравниваемой стороны — приходит вместе со списком и показывается
+вкладкой «Сравнение»; патч открытого файла спрашивается отдельно, с `path`, и уже без истории.
+Обход истории ограничен (`RevisionCompare.MAX_COUNT`), и ответ говорит, если счёт упёрся в
+предел.
 
 Историю целиком панель показывает режимом **«История»** — лентой `GET /api/git/commits`, которую
 листают страницами (`skip` — смещение в том же обходе), а файлы коммита и патч файла спрашивает у
@@ -335,6 +348,7 @@ pull не тупик. Каждый ответ (`GitCommandResult`) везёт с
 |---|---|
 | `filesPanel/git/` | Строка ветки (`GitBranchBar`), меню команд (`GitMenu`, `GitBranchList`), состояние ветки и права (`useGitBranch`), сценарий команд — что спросить до и где показать отказ после (`useGitActions`) |
 | `filesPanel/changes/` | Режим «Изменения»: список без патчей (`useUncommittedChanges`), патч одного файла по клику (`useChangeDiff`), раскладка плоско/деревом |
+| `filesPanel/compare/` | Сравнение с базой: ответ `/compare` для списка (`useComparison`), он же вместе с действиями вкладки «Сравнение» (`useCompareView`), сама вкладка (`CompareInfo`); база выбирается тем же `RevisionPicker` с `purpose="compare"` |
 | `filesPanel/code/` | Исходник построчно и колонка blame: `useFileBlame` (`GET /api/git/files/blame`), раскладка ханков по строкам (`blameRows`), ячейка с автором и давностью, ведущая к файлу в снимке того коммита (`BlameCell`) |
 | `common/git/` | Общее для нескольких поверхностей: окно коммита с выбором файлов (`CommitDialog`, `useCommitSelection`) и окно push со списком того, что уедет (`PushDialog`, `useOutgoingCommits`) — у панели «Файлы» и чата; карточка вывода git (`GitOutputCard`) — там же и в ленте чата; выбор снимка ревизии (`RevisionPicker`, `useRevisions`) — у панели «Файлы» и единого поиска; хеш, открывающий коммит (`CommitHashLink`), и короткая запись ревизии (`shortRev`) — везде, где хеш стоит в интерфейсе |
 | `chatPanel/git/` | Вкладка «Репозиторий» (`ChatRepoPanel`, `useChatGit`) — те же хуки плюс два правила §8 |
@@ -361,7 +375,7 @@ stash и только потом отказывает, и панель, обно
 | Слой | Файлы |
 |---|---|
 | Проекты | `config/model/ProjectProperties.java`, `config/model/GitProperties.java` (запасная однопроектная форма `kb.git.project-path`, когда `kb.projects` пуст), `model/project/Project.java`, `service/file/project/ProjectCatalog.java`, `tools/ProjectContext.java` |
-| Репозиторий | `service/file/git/` — `GitRegistry`, `GitService`, `GitWriter`, `GitBranches`, `GitCommands`, `GitGrepRunner`/`GitGrep`, `GitBlameRunner`/`GitBlame`, `GitReadProcess`, `RepoPaths`, `VisibleFiles`, `Pathspec`, `RepoFiles`, `FileViews`, `CommitFiles`, `RepoBrowse`, `Diffs`, `PreviewMedia` |
+| Репозиторий | `service/file/git/` — `GitRegistry`, `GitService`, `GitWriter`, `GitBranches`, `GitCommands`, `GitGrepRunner`/`GitGrep`, `GitBlameRunner`/`GitBlame`, `GitReadProcess`, `RepoPaths`, `VisibleFiles`, `Pathspec`, `RepoFiles`, `FileViews`, `CommitFiles`, `RepoBrowse`, `Diffs`, `RevisionCompare`, `PreviewMedia` |
 | Инструменты | `functions/GitFunction.java`, `functions/GitEditFunction.java`, `service/chat/script/ScriptEditPolicy.java` |
 | Эндпоинты | `controller/GitController.java`, `controller/GitCommandController.java`, `controller/ChatFileRevertController.java` |
 | Чат | `service/chat/git/` — `ChatGitLog`, `ChatFileRevert`, `FileRevertPlan`; `model/chat/entity/GitEventMeta.java` |

@@ -1,0 +1,50 @@
+/* Имя ревизии и хеш коммита, который оно сейчас значит, — в одну строку. */
+.compare-info__rev {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+
+.compare-info__mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.9rem;
+}
+
+.compare-info__log {
+  margin-top: 0.9rem;
+}
+
+.compare-info__log-title {
+  margin: 0 0 0.35rem;
+  font-size: 12px;
+  color: var(--kb-text-muted);
+}
+
+.compare-info__commits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Строка на коммит: хеш и заголовок, длинный заголовок обрезается, а не
+   переносится — список читают сверху вниз, а не построчно. */
+.compare-info__commit {
+  display: flex;
+  gap: 0.5em;
+  min-width: 0;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.compare-info__hash {
+  flex: none;
+  font-family: var(--kb-font-mono);
+}
+
+.compare-info__message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

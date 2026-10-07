@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.git.dto.GitCapabilities;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
+import io.github.trialiya.kb.model.git.dto.GitComparison;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import io.github.trialiya.kb.model.git.dto.GitFileBytes;
@@ -224,6 +225,38 @@ public class GitController {
         }
         GitService git = git(project);
         return read(() -> git.getCommit(at, patch, scope));
+    }
+
+    /**
+     * How one revision differs from another — the file browser's changes mode with a base chosen to
+     * compare against. {@code head} defaults to {@code HEAD}: the working tree's own commit, since
+     * the uncommitted part already has its own list ({@code /status}). By default the files are
+     * diffed against the common ancestor, as a pull request reads a branch; {@code direct=true}
+     * diffs against {@code base} itself.
+     *
+     * <p>As with {@code /commit}, patches are opt-in and meant for one file at a time; with {@code
+     * path} the answer also leaves out the history between the two, which only the summary needs.
+     */
+    @GetMapping("/compare")
+    public GitComparison compare(
+            @RequestParam("base") String base,
+            @RequestParam(name = "head", required = false) @Nullable String head,
+            @RequestParam(name = "direct", defaultValue = "false") boolean direct,
+            @RequestParam(name = "path", required = false) @Nullable String path,
+            @RequestParam(name = "patch", defaultValue = "false") boolean patch,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        String from = revision(base);
+        if (from == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "base must not be blank");
+        }
+        @Nullable String named = revision(head);
+        String to = named == null ? "HEAD" : named;
+        final String scope = path != null && !path.isBlank() ? path : null;
+        if (scope != null) {
+            requireSafePath(scope);
+        }
+        GitService git = git(project);
+        return read(() -> git.compare(from, to, direct, patch, scope));
     }
 
     /**

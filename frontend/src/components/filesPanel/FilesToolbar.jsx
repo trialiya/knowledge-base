@@ -11,6 +11,10 @@ import { FILE_MODE } from '@/constants/fileModes';
  * незакоммиченных изменений или лентой коммитов, — поиск файла и, в режиме
  * изменений, раскладка списка.
  *
+ * В режиме изменений под переключателем — база сравнения: выбранная, она
+ * заменяет список незакоммиченного (или изменений коммита) разницей показанной
+ * ревизии с ней.
+ *
  * Оба переключателя — общие классы кнопок с `aria-pressed` (см. buttons.css):
  * включённое состояние в них уже нарисовано, своего семейства «сегментов»
  * заводить не за чем.
@@ -26,6 +30,8 @@ const FilesToolbar = ({
   actions,
   rev,
   onRevChange,
+  base = '',
+  onBaseChange,
   gitRefsToken,
 }) => {
   const { t } = useTranslation('files');
@@ -99,6 +105,15 @@ const FilesToolbar = ({
           </button>
         )}
       </div>
+      {mode === FILE_MODE.CHANGES && onBaseChange && (
+        <RevisionPicker
+          purpose="compare"
+          project={project}
+          rev={base}
+          refsToken={gitRefsToken}
+          onChange={onBaseChange}
+        />
+      )}
       {/* Поиск по имени спрашивает рабочее дерево: в снимке он открывал бы
           пути, которых в нём может не быть. */}
       {!snapshot && <FileSearch project={project} onSelect={onSelect} />}

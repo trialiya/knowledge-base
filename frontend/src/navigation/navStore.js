@@ -192,6 +192,7 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
           // Восстановленный репозиторий может быть не тем, в котором стояла
           // ревизия, — она принадлежит своему (см. nextFileRev).
           next.fileRev = nextFileRev(prev, next.fileProject, undefined);
+          Object.assign(next, nextFileCompare(prev, next.fileProject, prev.fileMode, undefined));
         }
         return next;
       });
@@ -287,7 +288,8 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
      *   строки открытого сейчас файла, к которым вернёт «Назад» (ханк, по подписи
      *   которого кликнули), — пишутся в ТЕКУЩУЮ запись истории на месте, до
      *   перехода, так что запись по-прежнему одна; `right`: вкладка правой панели — ссылка на коммит
-     *   открывает вкладку «Коммит» (не передан — раскладка раздела как была)
+     *   открывает вкладку «Коммит» (не передан — раскладка раздела как была); `base`, `direct`:
+     *   сравнение, в котором открыть путь (см. setFileCompare и nextFileCompare)
      */
     openFilePath(path, project, options) {
       // Не переход, а пометка места, с которого уходят: прокрутку внутреннего
@@ -300,6 +302,7 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
       }
       push((prev) => {
         const nextProject = project === undefined ? prev.fileProject : project || '';
+        const nextMode = nextFileMode(prev, options);
         return {
           ...entering(prev, 'files'),
           view: 'files',
@@ -308,11 +311,12 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
           // Режим левого блока — часть этого же перехода, а не отдельная запись:
           // отдельным setFileMode (он не переход) переход превратился бы в
           // замену, и «Назад» не вернуло бы туда, откуда ссылку нажали.
-          fileMode: nextFileMode(prev, options),
+          fileMode: nextMode,
           // Коммит, в котором смотрят изменение файла, принадлежит переходу из
           // ленты: любой другой переход открывает сам файл.
           fileCommit: options?.commit || '',
           fileRev: nextFileRev(prev, nextProject, options),
+          ...nextFileCompare(prev, nextProject, nextMode, options),
           // Подсветка принадлежит переходу, а не файлу: открыли файл откуда-то
           // ещё — искать в нём нечего, и прежний запрос красил бы случайное.
           fileFind: options?.find || '',
@@ -391,7 +395,18 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
      * с неё и уходит: в другом режиме открыт уже сам файл.
      */
     setFileMode(mode) {
-      replace((prev) => (prev.fileMode === mode ? prev : { ...prev, fileMode: mode, fileCommit: '' }));
+      // База сравнения — свойство списка изменений: в дереве и ленте сравнивать
+      // нечего, и вернувшись в «Изменения», видят незакоммиченное (или коммит).
+      replace((prev) =>
+        prev.fileMode === mode
+          ? prev
+          : {
+              ...prev,
+              fileMode: mode,
+              fileCommit: '',
+              ...(mode === FILE_MODE.CHANGES ? {} : { fileBase: '', fileDirect: false }),
+            },
+      );
     },
 
     /**
@@ -405,6 +420,23 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
       // ней может не оказаться вовсе.
       replace((prev) =>
         prev.fileRev === (rev || '') ? prev : { ...prev, fileRev: rev || '', fileLines: '', fileCommit: '' },
+      );
+    },
+
+    /**
+     * С чем сравнивать показанную ревизию в режиме «Изменения»: '' — ни с чем
+     * (список незакоммиченного или изменений коммита), иначе имя ветки, тега
+     * или хеш. `direct` — сравнивать с самой базой, а не с общим предком.
+     * Как и смена ревизии, не переход: путь тот же, и выход из сравнения не
+     * должен стоить двух «Назад».
+     */
+    setFileCompare(base, direct = false) {
+      const nextBase = base || '';
+      const nextDirect = !!nextBase && !!direct;
+      replace((prev) =>
+        prev.fileBase === nextBase && prev.fileDirect === nextDirect
+          ? prev
+          : { ...prev, fileMode: FILE_MODE.CHANGES, fileCommit: '', fileBase: nextBase, fileDirect: nextDirect },
       );
     },
 
@@ -606,4 +638,24 @@ function nextFileRev(prev, nextProject, options) {
   if (options?.rev !== undefined) return options.rev || '';
   if (options?.changes) return '';
   return nextProject === prev.fileProject ? prev.fileRev : '';
+}
+
+/**
+ * База сравнения после перехода. Переезжает с путём, как ревизия, — клик по
+ * файлу в списке сравнения открывает его в том же сравнении; уходит вместе с
+ * режимом «Изменения», со сменой репозитория (имя ветки принадлежит своему) и
+ * с любым переходом, который сам называет ревизию или режим, — ссылкой на
+ * коммит или на незакоммиченное: она ведёт к своему виду, а не к сравнению.
+ */
+function nextFileCompare(prev, nextProject, nextMode, options) {
+  if (options?.base !== undefined) {
+    const base = options.base || '';
+    return { fileBase: base, fileDirect: !!base && !!options.direct };
+  }
+  const keep =
+    nextMode === FILE_MODE.CHANGES &&
+    nextProject === prev.fileProject &&
+    options?.rev === undefined &&
+    options?.changes === undefined;
+  return keep ? { fileBase: prev.fileBase || '', fileDirect: !!prev.fileDirect } : { fileBase: '', fileDirect: false };
 }

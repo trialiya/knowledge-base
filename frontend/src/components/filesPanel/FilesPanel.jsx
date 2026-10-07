@@ -7,6 +7,7 @@ import ChangesList from './changes/ChangesList';
 import useSnapshotCommit from './commit/useSnapshotCommit';
 import useUncommittedChanges, { UNTRACKED_STATUS } from './changes/useUncommittedChanges';
 import useChangeDiff from './changes/useChangeDiff';
+import useCompareView from './compare/useCompareView';
 import { readChangesFlat, saveChangesFlat } from './changes/changesLayout';
 import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
@@ -30,7 +31,7 @@ import './filesPanel.css';
  * GitHub-стиль просмотр репозитория: дерево слева, содержимое файла/каталога
  * в центре. Раскладка — общая (WorkspaceLayout); справа вкладка «Инфо»
  * (метаданные пути и последний коммит), как в чате и базе знаний, а в снимке
- * ревизии ещё и «Коммит» — о самом снимке.
+ * ревизии ещё и «Коммит» — о самом снимке, а в сравнении — «Сравнение».
  *
  * `project` — репозиторий, который показывает панель; приходит из адреса
  * (пусто — дефолтный). Смена проекта — это перемонтирование всего содержимого
@@ -43,12 +44,15 @@ const FilesPanelForProject = ({
   mode,
   commit,
   rev,
+  base,
+  direct,
   blame,
   find,
   findRegex,
   lines,
   onModeChange,
   onRevChange,
+  onCompareChange,
   onBlameToggle,
   onFindChange,
   onPathChange,
@@ -69,6 +73,11 @@ const FilesPanelForProject = ({
   // Файл, открытый из ленты коммитов, центр показывает его изменением в том
   // коммите (CommitFileDiff), а не самим файлом.
   const commitDiff = mode === FILE_MODE.HISTORY && !!commit && !!path;
+  // Сравнение с базой — тоже режим «Изменения», только список и патч в нём —
+  // разница показанной ревизии (без снимка — HEAD) с базой. База без режима
+  // изменений в адрес не попадает (navUrl), так что отдельной проверки режима
+  // здесь не нужно.
+  const comparing = showChanges && !!base;
   // Сигнал «показанное могло устареть». У снимка их два: ревизия бывает веткой,
   // и после fetch (`gitRefsToken`) она называет уже другой коммит — дерево и
   // файл обязаны перейти на него вместе со списком и diff (useSnapshotCommit),
@@ -83,7 +92,17 @@ const FilesPanelForProject = ({
     refreshToken: contentToken,
   });
 
-  const diff = useChangeDiff({ project, path, rev, refreshToken, refsToken: gitRefsToken, enabled: showChanges });
+  const diff = useChangeDiff({
+    project,
+    path,
+    rev,
+    base: comparing ? base : '',
+    direct,
+    refreshToken,
+    refsToken: gitRefsToken,
+    enabled: showChanges,
+  });
+
   // Коммит снимка нужен и вкладке «Коммит», и списку слева — один запрос на обоих,
   // и только пока хоть один из них на экране: без пути ответ несёт строку каждого
   // файла коммита, а у коммита с vendor-обновлением их тысячи.
@@ -92,9 +111,22 @@ const FilesPanelForProject = ({
     rev,
     refreshToken,
     refsToken: gitRefsToken,
-    enabled: showChanges || panels?.rightTab === FILE_TAB.COMMIT,
+    enabled: (showChanges && !comparing) || panels?.rightTab === FILE_TAB.COMMIT,
   });
   const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
+  const { comparison, compareTab } = useCompareView({
+    enabled: comparing,
+    project,
+    path,
+    rev,
+    base,
+    direct,
+    branch: git.status?.current,
+    refreshToken,
+    refsToken: gitRefsToken,
+    onCompareChange,
+    onPathChange,
+  });
 
   // Одно уведомление на панель: git-команда отказывает словами самого git
   // («Permission denied (publickey)»), и это ровно то, что нужно показать —
@@ -108,9 +140,9 @@ const FilesPanelForProject = ({
   const changeList = useUncommittedChanges({
     project,
     refreshToken,
-    enabled: (showChanges && !snapshot) || actions.dialog === 'commit',
+    enabled: (showChanges && !snapshot && !comparing) || actions.dialog === 'commit',
   });
-  const listed = snapshot ? snapshotCommit : changeList;
+  const listed = listSource({ comparing, snapshot, comparison, snapshotCommit, changeList });
   // Панель дополняет контракт окон тем, чего сам `useGitActions` собрать не мог:
   // список спрашивается лениво, по открытому окну.
   const dialogGit = useMemo(
@@ -177,6 +209,7 @@ const FilesPanelForProject = ({
         onModeChange,
         jump,
         onJump,
+        compare: compareTab,
       }),
     [
       t,
@@ -192,6 +225,7 @@ const FilesPanelForProject = ({
       onModeChange,
       jump,
       onJump,
+      compareTab,
     ],
   );
 
@@ -210,13 +244,15 @@ const FilesPanelForProject = ({
             ) : (
               t('panel.tree')
             ),
-          ariaLabel: t(leftLabelKey(mode, snapshot)),
+          ariaLabel: t(leftLabelKey(mode, snapshot, comparing)),
           toolbar: (
             <FilesToolbar
               project={project}
               mode={mode}
               rev={rev}
               onRevChange={onRevChange}
+              base={base}
+              onBaseChange={(next) => onCompareChange(next, direct)}
               gitRefsToken={gitRefsToken}
               onModeChange={onModeChange}
               flat={flat}
@@ -253,10 +289,13 @@ const FilesPanelForProject = ({
                   selectedPath={path}
                   onSelect={selectNode}
                   snapshot={snapshot}
+                  compare={comparing}
                   // Откат правки предлагается только там, где проекту разрешены
                   // команды: без разрешения кнопка отвечала бы отказом сервера.
                   // Коммит откатывать нечем — снимок только для чтения.
-                  onDiscard={!snapshot && git.capabilities?.commands && !git.running ? actions.askDiscard : null}
+                  onDiscard={
+                    !snapshot && !comparing && git.capabilities?.commands && !git.running ? actions.askDiscard : null
+                  }
                 />
               )}
               {mode === FILE_MODE.TREE && (
@@ -329,10 +368,21 @@ const FilesPanelForProject = ({
 };
 
 /** Имя левого блока для скринридера — по тому, что в нём сейчас. */
-function leftLabelKey(mode, snapshot) {
+function leftLabelKey(mode, snapshot, comparing) {
   if (mode === FILE_MODE.HISTORY) return 'panel.history';
+  if (comparing) return 'panel.compareChanges';
   if (mode === FILE_MODE.CHANGES) return snapshot ? 'panel.commitChanges' : 'panel.changes';
   return 'panel.tree';
+}
+
+/**
+ * Чей список показывает режим «Изменения»: разница с базой сравнения,
+ * изменения коммита снимка или незакоммиченное рабочего дерева. Форма у всех
+ * трёх одна (`tracked`/`untracked`), поэтому список слева об источнике не знает.
+ */
+function listSource({ comparing, snapshot, comparison, snapshotCommit, changeList }) {
+  if (comparing) return comparison;
+  return snapshot ? snapshotCommit : changeList;
 }
 
 /**
@@ -351,12 +401,15 @@ const FilesPanel = ({
   mode,
   commit,
   rev,
+  base,
+  direct,
   blame,
   find,
   findRegex,
   lines,
   onModeChange,
   onRevChange,
+  onCompareChange,
   onBlameToggle,
   onFindChange,
   onPathChange,
@@ -389,12 +442,15 @@ const FilesPanel = ({
       mode={mode || FILE_MODE.TREE}
       commit={commit || ''}
       rev={rev || ''}
+      base={base || ''}
+      direct={!!direct}
       blame={!!blame}
       find={find || ''}
       findRegex={!!findRegex}
       lines={lines || ''}
       onModeChange={onModeChange}
       onRevChange={onRevChange}
+      onCompareChange={onCompareChange}
       onBlameToggle={onBlameToggle}
       onFindChange={onFindChange}
       onPathChange={onPathChange}

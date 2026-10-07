@@ -112,7 +112,12 @@
     "tags": "Tags",
     "loading": "Loading…",
     "loadError": "Could not read the list of revisions",
-    "empty": "No branches, no tags"
+    "empty": "No branches, no tags",
+    "compare": "Compare with…",
+    "compareHint": "Pick a revision to compare the shown one with: a branch, a tag or a commit",
+    "comparedWith": "Compared with {{rev}}",
+    "comparingHint": "On the left: how the shown revision differs from {{rev}}",
+    "compareExit": "Stop comparing"
   },
   "commitSearch": {
     "refine": "Not all matches shown — refine the query",

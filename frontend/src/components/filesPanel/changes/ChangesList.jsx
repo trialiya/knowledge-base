@@ -56,7 +56,8 @@ const ChangesSection = ({ title, entries, flat, selectedPath, collapsed, onToggl
  * пропом: её помнит панель, а не список, — переключатель живёт в тулбаре.
  *
  * `snapshot` — список показывает не незакоммиченное, а файлы, изменённые
- * коммитом снимка: строки те же, меняются только подписи.
+ * коммитом снимка; `compare` — файлы, которыми показанная ревизия отличается
+ * от базы сравнения. Строки те же, меняются только подписи.
  */
 const ChangesList = ({
   tracked,
@@ -68,6 +69,7 @@ const ChangesList = ({
   onSelect,
   onDiscard,
   snapshot = false,
+  compare = false,
 }) => {
   const { t } = useTranslation('files');
   const handleKeyDown = useListNavigation();
@@ -83,6 +85,7 @@ const ChangesList = ({
       return next;
     });
 
+  const text = TEXT[listKind(snapshot, compare)];
   const empty = !loading && !error && tracked.length === 0 && untracked.length === 0;
 
   return (
@@ -91,7 +94,7 @@ const ChangesList = ({
       // Роль контейнера следует раскладке: плоский перечень — listbox,
       // иерархия — tree (см. правила левой панели).
       role={flat ? 'listbox' : 'tree'}
-      aria-label={t(snapshot ? 'panel.commitChanges' : 'panel.changes')}
+      aria-label={t(text.aria)}
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
@@ -107,12 +110,12 @@ const ChangesList = ({
       )}
       {empty && (
         <div className="ws-hint" role="none">
-          {t(snapshot ? 'changes.commitEmpty' : 'changes.empty')}
+          {t(text.empty)}
         </div>
       )}
       {tracked.length > 0 && (
         <ChangesSection
-          title={t(snapshot ? 'changes.inCommit' : 'changes.tracked')}
+          title={t(text.section)}
           entries={tracked}
           flat={flat}
           selectedPath={selectedPath}
@@ -136,6 +139,18 @@ const ChangesList = ({
       )}
     </div>
   );
+};
+
+function listKind(snapshot, compare) {
+  if (compare) return 'compare';
+  return snapshot ? 'commit' : 'uncommitted';
+}
+
+/** Подписи списка по тому, чьи изменения он показывает. */
+const TEXT = {
+  uncommitted: { aria: 'panel.changes', empty: 'changes.empty', section: 'changes.tracked' },
+  commit: { aria: 'panel.commitChanges', empty: 'changes.commitEmpty', section: 'changes.inCommit' },
+  compare: { aria: 'panel.compareChanges', empty: 'changes.compareEmpty', section: 'changes.inComparison' },
 };
 
 export default ChangesList;

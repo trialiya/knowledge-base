@@ -11,20 +11,39 @@ import gitApi from '@/api/gitApi';
  * Тогда в ключ входит и `refsToken`: после fetch remote-ветка называет другой
  * коммит — ровно как у списка слева (useSnapshotCommit).
  *
+ * `base` — панель сравнивает ревизии: изменение — то, чем файл в показанной
+ * ревизии (без `rev` — в HEAD) отличается от базы (useComparison); ревизии
+ * сравнения бывают ветками, поэтому `refsToken` тогда в ключе тоже.
+ *
  * Ответ — `null`, если изменения у файла нет (открыли файл из обычного дерева,
  * а diff-режим остался включённым): это не ошибка, а «нечего показывать», и
  * центр говорит именно это.
  */
-export default function useChangeDiff({ project, path, rev = '', refreshToken, refsToken, enabled }) {
-  const refs = rev ? refsToken ?? 0 : 0;
-  const requestKey = enabled && path ? `${refreshToken ?? 0} ${refs} ${project ?? ''} ${rev}\n${path}` : null;
+export default function useChangeDiff({
+  project,
+  path,
+  rev = '',
+  base = '',
+  direct = false,
+  refreshToken,
+  refsToken,
+  enabled,
+}) {
+  const refs = rev || base ? refsToken ?? 0 : 0;
+  const compared = base ? `${direct ? 1 : 0} ${base}` : '';
+  const requestKey =
+    enabled && path ? `${refreshToken ?? 0} ${refs} ${project ?? ''} ${rev} ${compared}\n${path}` : null;
   const [answer, setAnswer] = useState(null);
 
   useEffect(() => {
     if (!requestKey) return undefined;
     const controller = new AbortController();
     const signal = controller.signal;
-    const entries = rev
+    const entries = base
+      ? gitApi
+          .compare(base, { head: rev, direct, path, patch: true, project, signal })
+          .then((comparison) => comparison.files ?? [])
+      : rev
       ? gitApi.getCommit(rev, { path, patch: true, project, signal }).then((commit) => commit.files ?? [])
       : gitApi.getStatus({ path, patch: true, project, signal });
     entries
@@ -34,12 +53,13 @@ export default function useChangeDiff({ project, path, rev = '', refreshToken, r
         setAnswer({ key: requestKey, entry: null, error });
       });
     return () => controller.abort();
-  }, [requestKey, project, path, rev]);
+  }, [requestKey, project, path, rev, base, direct]);
 
   const fresh = answer?.key === requestKey ? answer : null;
 
   return {
     rev,
+    base,
     loading: !!requestKey && !fresh,
     error: fresh?.error ?? null,
     entry: fresh?.entry ?? null,

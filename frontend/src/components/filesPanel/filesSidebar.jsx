@@ -1,8 +1,9 @@
 import FileInfo from './FileInfo';
 import CommitInfo from './commit/CommitInfo';
+import CompareInfo from './compare/CompareInfo';
 import FileOutline from './outline/FileOutline';
 import { MARKDOWN, OUTLINE_LANGUAGES } from './outline/outlineRows';
-import { IconHistory, IconInfo, IconList } from '@/icons/index';
+import { IconCommit, IconHistory, IconInfo, IconList } from '@/icons/index';
 import { RIGHT_TAB } from '@/constants/rightTabs';
 import { FILE_TAB } from '@/constants/fileTabs';
 import { FILE_MODE } from '@/constants/fileModes';
@@ -10,7 +11,9 @@ import { FILE_MODE } from '@/constants/fileModes';
 /**
  * Вкладки правой панели файлового браузера: «Инфо» всегда; «Структура» — у
  * файла, для которого бэкенд её строит (язык называет он же; у markdown она
- * «Разделы»), у остальных вкладки нет вовсе; «Коммит» — только в снимке ревизии.
+ * «Разделы»), у остальных вкладки нет вовсе; «Коммит» — только в снимке ревизии;
+ * «Сравнение» — только пока выбрана база сравнения (`compare` — её описание и
+ * действия, собранные панелью).
  */
 export default function buildFileTabs({
   t,
@@ -26,6 +29,7 @@ export default function buildFileTabs({
   onModeChange,
   jump,
   onJump,
+  compare = null,
 }) {
   const tabs = [
     {
@@ -72,6 +76,14 @@ export default function buildFileTabs({
           onShowChanges={() => onModeChange(FILE_MODE.CHANGES)}
         />
       ),
+    });
+  }
+  if (compare) {
+    tabs.push({
+      key: FILE_TAB.COMPARE,
+      label: t('tabs.compare'),
+      icon: <IconCommit size={15} />,
+      content: <CompareInfo project={project} {...compare} />,
     });
   }
   return tabs;

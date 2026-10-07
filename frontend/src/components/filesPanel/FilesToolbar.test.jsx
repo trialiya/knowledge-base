@@ -63,4 +63,29 @@ describe('FilesToolbar', () => {
     await userEvent.click(screen.getByText('panel.modeChanges'));
     expect(onModeChange).toHaveBeenCalledWith('changes');
   });
+
+  /** База сравнения — свойство списка изменений: в дереве и ленте её не выбирают. */
+  test('the compare picker is offered in the changes mode only', () => {
+    const { rerender } = renderToolbar({ mode: 'tree', onBaseChange: vi.fn() });
+    expect(screen.queryByText('revision.compare')).not.toBeInTheDocument();
+
+    rerender(
+      <FilesToolbar
+        project="kb"
+        mode="changes"
+        onModeChange={vi.fn()}
+        flat={false}
+        onFlatToggle={vi.fn()}
+        onSelect={vi.fn()}
+        git={git}
+        actions={{}}
+        rev=""
+        onRevChange={vi.fn()}
+        base=""
+        onBaseChange={vi.fn()}
+        gitRefsToken={0}
+      />,
+    );
+    expect(screen.getByText('revision.compare')).toBeInTheDocument();
+  });
 });
