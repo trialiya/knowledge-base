@@ -178,8 +178,9 @@ class GitFunctionTest {
         ToolResult<List<GitCommit>> log = function.getCommitLog(context, null, null, null, null, "billing");
 
         assertThat(log.project()).isEqualTo("billing");
-        assertThat(log.result()).isNotEmpty().allSatisfy(c -> assertThat(c)
-                .hasNoNullFieldsOrPropertiesExcept("files", "body", "parents"));
+        assertThat(log.result())
+                .isNotEmpty()
+                .allSatisfy(c -> assertThat(c).hasNoNullFieldsOrPropertiesExcept("files", "body", "parents"));
         assertThat(GitCommit.class.getRecordComponents()).noneMatch(component -> "project".equals(component.getName()));
     }
 

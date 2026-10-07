@@ -373,18 +373,20 @@ public class ChatRunService {
      */
     public Optional<ActiveRun> activeRun(String conversationId) {
         final boolean replayTruncated = events.replayTruncated(conversationId);
-        return slots.activeRun(conversationId).map(runId -> runs.find(runId)
-                .map(scope -> new ActiveRun(runId, ActiveRun.Kind.GENERATION, scope.elapsedMs(), replayTruncated))
-                .orElseGet(() -> new ActiveRun(
-                        runId,
-                        kindOutsideRegistry(conversationId, runId),
-                        // Области прогона нет —
-                        // длительность
-                        // помнит сама заявка. Операции это
-                        // единственный источник, и таймер
-                        // сжатия живёт им.
-                        slots.elapsedMs(conversationId, runId),
-                        replayTruncated)));
+        return slots.activeRun(conversationId)
+                .map(runId -> runs.find(runId)
+                        .map(scope ->
+                                new ActiveRun(runId, ActiveRun.Kind.GENERATION, scope.elapsedMs(), replayTruncated))
+                        .orElseGet(() -> new ActiveRun(
+                                runId,
+                                kindOutsideRegistry(conversationId, runId),
+                                // Области прогона нет —
+                                // длительность
+                                // помнит сама заявка. Операции это
+                                // единственный источник, и таймер
+                                // сжатия живёт им.
+                                slots.elapsedMs(conversationId, runId),
+                                replayTruncated)));
     }
 
     /**

@@ -78,8 +78,9 @@ class GitCommandChatTest {
                 .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"));
 
         assertThatThrownBy(() -> controller.pull("kb", CHAT))
-                .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode())
-                        .isEqualTo(HttpStatus.CONFLICT));
+                .isInstanceOfSatisfying(
+                        ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
 
         verifyNoInteractions(git);
         verify(chatActionClaim, never()).release(anyString(), anyString());
@@ -116,8 +117,9 @@ class GitCommandChatTest {
         when(git.push()).thenThrow(new GitCommandFailedException("remote rejected"));
 
         assertThatThrownBy(() -> controller.push("kb", CHAT))
-                .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode())
-                        .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
+                .isInstanceOfSatisfying(
+                        ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
 
         verify(chatGitLog).record(CHAT, "push", "kb", false, "remote rejected", null, null);
     }
@@ -141,8 +143,9 @@ class GitCommandChatTest {
         when(git.discard("../etc")).thenThrow(new IllegalArgumentException("path escapes the repo"));
 
         assertThatThrownBy(() -> controller.discard("../etc", "kb", CHAT))
-                .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode())
-                        .isEqualTo(HttpStatus.BAD_REQUEST));
+                .isInstanceOfSatisfying(
+                        ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
 
         verify(chatGitLog, never()).record(anyString(), anyString(), any(), anyBoolean(), anyString(), any(), any());
     }

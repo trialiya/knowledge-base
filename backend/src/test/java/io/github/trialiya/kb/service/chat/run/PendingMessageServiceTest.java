@@ -88,8 +88,9 @@ class PendingMessageServiceTest {
         final ArgumentCaptor<Object> payloads = ArgumentCaptor.forClass(Object.class);
         verify(events, org.mockito.Mockito.times(2))
                 .publish(eq(CONV), eq(ChatEventType.USER_MESSAGE), eq(RUN), any(), payloads.capture());
-        assertThat(payloads.getAllValues()).allSatisfy(p -> assertThat(((UserMessagePayload) p).interjection())
-                .isEqualTo(Boolean.TRUE));
+        assertThat(payloads.getAllValues())
+                .allSatisfy(
+                        p -> assertThat(((UserMessagePayload) p).interjection()).isEqualTo(Boolean.TRUE));
     }
 
     /** Строка, которую успела забрать другая точка доставки, второй ряд истории не получает. */

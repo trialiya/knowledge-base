@@ -303,8 +303,9 @@ class ProjectStampBackfillTest {
 
         backfill.backfillIfNeeded();
 
-        assertThat(saved()).singleElement().satisfies(r -> assertThat(r.getPosition())
-                .isEqualTo(1));
+        assertThat(saved())
+                .singleElement()
+                .satisfies(r -> assertThat(r.getPosition()).isEqualTo(1));
         verify(stateRepo, never()).save(any());
     }
 
