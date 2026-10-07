@@ -53,8 +53,9 @@ class ChatActionClaimTest {
         givenChatOwnedBy("boris");
 
         assertThatThrownBy(() -> claim.claimIdleAndOwned(CONV))
-                .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode())
-                        .isEqualTo(HttpStatus.FORBIDDEN));
+                .isInstanceOfSatisfying(
+                        ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
     }
 
     /**
@@ -65,8 +66,9 @@ class ChatActionClaimTest {
         when(chatTopicRepository.findById(CONV)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> claim.claimIdleAndOwned(CONV))
-                .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode())
-                        .isEqualTo(HttpStatus.NOT_FOUND));
+                .isInstanceOfSatisfying(
+                        ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
     /**
@@ -79,8 +81,9 @@ class ChatActionClaimTest {
         when(slots.claim(CONV)).thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "already generating"));
 
         assertThatThrownBy(() -> claim.claimIdleAndOwned(CONV))
-                .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode())
-                        .isEqualTo(HttpStatus.CONFLICT));
+                .isInstanceOfSatisfying(
+                        ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
     }
 
     /** Свободный свой чат пропускается — и с этого мгновения занят заявкой команды. */

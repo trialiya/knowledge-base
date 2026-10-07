@@ -148,8 +148,9 @@ class McpReconnectTest {
      */
     private void awaitRound(int count, ConnectionStatus expected) {
         Awaitility.await().atMost(Duration.ofSeconds(15)).until(() -> probes.get() >= count);
-        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(registry.statuses())
-                .containsExactly(expected));
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(registry.statuses()).containsExactly(expected));
     }
 
     private String callTool() {
