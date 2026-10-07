@@ -1436,12 +1436,12 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `head` | String? | `HEAD` | Что сравнивать. Без него — коммит рабочего дерева: незакоммиченное в сравнение не входит, у него свой `/status` |
 | `direct` | boolean | `false` | Сравнивать с самой `base`, а не с общим предком |
 | `path` | String? | `null` | Только запись этого файла — и тогда без `log`: истории патчу не нужно, а обход её стоил бы на каждом клике |
-| `patch` | boolean | `false` | Заполнить `patchHeader`/`patch` у записей |
+| `patch` | boolean | `false` | Заполнить `patchHeader`/`patch` у записей. Только вместе с `path`: диапазон может тянуться на годы истории, и патчи всех его файлов были бы ответом без верхней границы |
 | `project` | String? | `null` | ID проекта; пусто — дефолтный |
 
 **Response:** `GitComparison` — `{ base, head, mergeBase, diffBase, log, files }`: `base`/`head` — `GitCommit` без `files` и `body`; `mergeBase` — общий предок или `null`; `diffBase` — коммит, против которого посчитан `files`; `log` — `{ ahead, aheadTruncated, behind, behindTruncated, commits }`: счётчики как у `git rev-list --left-right --count base...head` (каждый — до 10 000; упёршийся в предел помечен своим `*Truncated`), `commits` — первые 100 коммитов `head`, которых нет в `base`, свежие первыми; `files` — `List<GitDiffEntry>`, как у `/commit`. Поля — в [Git DTO](модели-данных/git-dto.md#gitcomparison).
 
-**Ошибки:** `400` — пустая `base`; неизвестная или неоднозначная ревизия; недопустимый `path`.
+**Ошибки:** `400` — пустая `base`; `patch=true` без `path`; неизвестная или неоднозначная ревизия; недопустимый `path`.
 
 ### GET `/api/git/commits/search`
 Поиск коммита для диалога заполнения плейсхолдеров (тип `commit`). Совпадением считается префикс хэша или подстрока темы коммита — регистр не важен. Тело сообщения не ищется: в строке выдачи видна только тема, и попадание по телу читалось бы как случайный результат.

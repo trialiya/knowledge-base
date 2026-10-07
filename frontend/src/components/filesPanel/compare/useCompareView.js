@@ -39,10 +39,14 @@ export default function useCompareView({
             onDirectChange: (next) => onCompareChange(base, next),
             // Поменять местами — переход, а не правка экрана: меняется и
             // показанная ревизия, и «Назад» должно вернуть прежнее сравнение.
+            // Ветка остаётся веткой, как её и выбирали; рабочее дерево без
+            // ветки (detached HEAD) становится хешем своего коммита, а не
+            // `HEAD`, который после следующего коммита значил бы другое.
+            // Кнопка есть только у загруженного сравнения, так что хеш известен.
             onSwap: () =>
               onPathChange(path, undefined, {
                 rev: base,
-                base: headName || comparison.comparison?.head.hash || 'HEAD',
+                base: headName || comparison.comparison.head.hash,
                 direct,
               }),
             onExit: () => onCompareChange(''),

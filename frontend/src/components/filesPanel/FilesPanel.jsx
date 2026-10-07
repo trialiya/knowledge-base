@@ -4,11 +4,8 @@ import FileTree from './FileTree';
 import FileContent from './FileContent';
 import FilesToolbar from './FilesToolbar';
 import ChangesList from './changes/ChangesList';
-import useSnapshotCommit from './commit/useSnapshotCommit';
-import useUncommittedChanges from './changes/useUncommittedChanges';
-import useChangeDiff from './changes/useChangeDiff';
 import useDiffChoice from './changes/useDiffChoice';
-import useCompareView from './compare/useCompareView';
+import useChangesSource from './changes/useChangesSource';
 import { readChangesFlat, saveChangesFlat } from './changes/changesLayout';
 import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
@@ -73,11 +70,6 @@ const FilesPanelForProject = ({
   // Файл, открытый из ленты коммитов, центр показывает его изменением в том
   // коммите (CommitFileDiff), а не самим файлом.
   const commitDiff = mode === FILE_MODE.HISTORY && !!commit && !!path;
-  // Сравнение с базой — тоже режим «Изменения», только список и патч в нём —
-  // разница показанной ревизии (без снимка — HEAD) с базой. База без режима
-  // изменений в адрес не попадает (navUrl), так что отдельной проверки режима
-  // здесь не нужно.
-  const comparing = showChanges && !!base;
   // Сигнал «показанное могло устареть». У снимка их два: ревизия бывает веткой,
   // и после fetch (`gitRefsToken`) она называет уже другой коммит — дерево и
   // файл обязаны перейти на него вместе со списком и diff (useSnapshotCommit),
@@ -92,42 +84,7 @@ const FilesPanelForProject = ({
     refreshToken: contentToken,
   });
 
-  const diff = useChangeDiff({
-    project,
-    path,
-    rev,
-    base: comparing ? base : '',
-    direct,
-    refreshToken,
-    refsToken: gitRefsToken,
-    enabled: showChanges,
-  });
-
-  // Коммит снимка нужен и вкладке «Коммит», и списку слева — один запрос на обоих,
-  // и только пока хоть один из них на экране: без пути ответ несёт строку каждого
-  // файла коммита, а у коммита с vendor-обновлением их тысячи.
-  const snapshotCommit = useSnapshotCommit({
-    project,
-    rev,
-    refreshToken,
-    refsToken: gitRefsToken,
-    enabled: (showChanges && !comparing) || panels?.rightTab === FILE_TAB.COMMIT,
-  });
   const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
-  const { comparison, compareTab } = useCompareView({
-    enabled: comparing,
-    project,
-    path,
-    rev,
-    base,
-    direct,
-    branch: git.status?.current,
-    refreshToken,
-    refsToken: gitRefsToken,
-    onCompareChange,
-    onPathChange,
-  });
-
   // Одно уведомление на панель: git-команда отказывает словами самого git
   // («Permission denied (publickey)»), и это ровно то, что нужно показать —
   // своя формулировка сказала бы меньше. Кроме коммита и push: их отказ остаётся
@@ -135,14 +92,23 @@ const FilesPanelForProject = ({
   const { notice, notify, dismissNotice } = useNotice();
   const actions = useGitActions({ git, project, refreshToken, onRepoChanged, notify, t });
 
-  // Список незакоммиченного нужен и режиму «Изменения», и окну коммита — окно
-  // открывается и из режима дерева, где списка на экране нет.
-  const changeList = useUncommittedChanges({
+  // Чей список и чей патч показывает режим «Изменения»: незакоммиченное,
+  // изменения коммита снимка или разница с базой сравнения.
+  const { comparing, diff, snapshotCommit, compareTab, changeList, listed } = useChangesSource({
     project,
+    path,
+    rev,
+    base,
+    direct,
+    showChanges,
+    branch: git.status?.current,
     refreshToken,
-    enabled: (showChanges && !snapshot && !comparing) || actions.dialog === 'commit',
+    refsToken: gitRefsToken,
+    commitTabOpen: panels?.rightTab === FILE_TAB.COMMIT,
+    commitDialogOpen: actions.dialog === 'commit',
+    onCompareChange,
+    onPathChange,
   });
-  const listed = listSource({ comparing, snapshot, comparison, snapshotCommit, changeList });
   // Панель дополняет контракт окон тем, чего сам `useGitActions` собрать не мог:
   // список спрашивается лениво, по открытому окну.
   const dialogGit = useMemo(
@@ -352,16 +318,6 @@ function leftLabelKey(mode, snapshot, comparing) {
   if (comparing) return 'panel.compareChanges';
   if (mode === FILE_MODE.CHANGES) return snapshot ? 'panel.commitChanges' : 'panel.changes';
   return 'panel.tree';
-}
-
-/**
- * Чей список показывает режим «Изменения»: разница с базой сравнения,
- * изменения коммита снимка или незакоммиченное рабочего дерева. Форма у всех
- * трёх одна (`tracked`/`untracked`), поэтому список слева об источнике не знает.
- */
-function listSource({ comparing, snapshot, comparison, snapshotCommit, changeList }) {
-  if (comparing) return comparison;
-  return snapshot ? snapshotCommit : changeList;
 }
 
 /**

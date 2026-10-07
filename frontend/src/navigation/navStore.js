@@ -192,7 +192,9 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
           // Восстановленный репозиторий может быть не тем, в котором стояла
           // ревизия, — она принадлежит своему (см. nextFileRev).
           next.fileRev = nextFileRev(prev, next.fileProject, undefined);
-          Object.assign(next, nextFileCompare(prev, next.fileProject, prev.fileMode, undefined));
+          // Возврат в раздел — не переход по ссылке: сравнение, на котором из
+          // «Файлов» ушли, остаётся, если репозиторий тот же.
+          Object.assign(next, nextFileCompare({ ...prev, view: 'files' }, next.fileProject, prev.fileMode, undefined));
         }
         return next;
       });
@@ -641,11 +643,14 @@ function nextFileRev(prev, nextProject, options) {
 }
 
 /**
- * База сравнения после перехода. Переезжает с путём, как ревизия, — клик по
- * файлу в списке сравнения открывает его в том же сравнении; уходит вместе с
- * режимом «Изменения», со сменой репозитория (имя ветки принадлежит своему) и
- * с любым переходом, который сам называет ревизию или режим, — ссылкой на
- * коммит или на незакоммиченное: она ведёт к своему виду, а не к сравнению.
+ * База сравнения после перехода. Переезжает с путём только внутри «Файлов» —
+ * клик по файлу в списке сравнения открывает его в том же сравнении. Ссылка из
+ * чата, поиска или базы знаний ведёт к файлу, а не к его diff'у с базой,
+ * выбранной когда-то раньше, — в отличие от ревизии, которая файл не подменяет,
+ * а лишь говорит, в каком снимке его читать. Ещё база уходит вместе с режимом
+ * «Изменения», со сменой репозитория (имя ветки принадлежит своему) и с любым
+ * переходом, который сам называет ревизию или режим, — ссылкой на коммит или на
+ * незакоммиченное: она ведёт к своему виду, а не к сравнению.
  */
 function nextFileCompare(prev, nextProject, nextMode, options) {
   // База живёт только в режиме изменений: в другом её не видно в адресе, и
@@ -655,6 +660,10 @@ function nextFileCompare(prev, nextProject, nextMode, options) {
     const base = options.base || '';
     return { fileBase: base, fileDirect: !!base && !!options.direct };
   }
-  const keep = nextProject === prev.fileProject && options?.rev === undefined && options?.changes === undefined;
+  const keep =
+    prev.view === 'files' &&
+    nextProject === prev.fileProject &&
+    options?.rev === undefined &&
+    options?.changes === undefined;
   return keep ? { fileBase: prev.fileBase || '', fileDirect: !!prev.fileDirect } : { fileBase: '', fileDirect: false };
 }

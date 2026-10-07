@@ -121,6 +121,13 @@ class GitControllerTest {
         mockMvc.perform(get("/api/git/compare").param("base", " ")).andExpect(status().isBadRequest());
     }
 
+    /** Патчи всех файлов диапазона, который может тянуться на годы истории, — не ответ, а отказ. */
+    @Test
+    void aComparisonWithPatchesButNoPathIsABadRequest() throws Exception {
+        mockMvc.perform(get("/api/git/compare").param("base", "main").param("patch", "true"))
+                .andExpect(status().isBadRequest());
+    }
+
     /** Обзор с ревизией читает снимок, без неё — рабочее дерево. */
     @Test
     void anOutlineIsReadFromTheRevisionWhenOneIsNamed() throws Exception {

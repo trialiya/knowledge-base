@@ -520,4 +520,21 @@ describe('сравнение ревизий в «Файлах»', () => {
     s.setFileMode('changes');
     expect(url()).toBe('/files/a.js?changes=1');
   });
+
+  it('ссылка на файл из другого раздела открывает файл, а не прежнее сравнение', () => {
+    go('/files/a.js?changes=1&base=main');
+    const s = mount();
+    s.switchView('chat');
+    s.openFilePath('b.js');
+    expect(s.nav().fileBase).toBe('');
+    expect(url()).toBe('/files/b.js?changes=1');
+  });
+
+  it('возврат в раздел оставляет сравнение, на котором из него ушли', () => {
+    go('/files?changes=1&base=main');
+    const s = mount();
+    s.switchView('chat');
+    s.switchView('files');
+    expect(url()).toBe('/files?changes=1&base=main');
+  });
 });

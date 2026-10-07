@@ -234,8 +234,10 @@ public class GitController {
      * diffed against the common ancestor, as a pull request reads a branch; {@code direct=true}
      * diffs against {@code base} itself.
      *
-     * <p>As with {@code /commit}, patches are opt-in and meant for one file at a time; with {@code
-     * path} the answer also leaves out the history between the two, which only the summary needs.
+     * <p>Patches come one file at a time and only so: {@code patch} without {@code path} is a 400.
+     * Unlike {@code /commit}, the range here may span years of history, and the patches of every
+     * file in it would be one unbounded response. With {@code path} the answer also leaves out the
+     * history between the two, which only the summary needs.
      */
     @GetMapping("/compare")
     public GitComparison compare(
@@ -254,6 +256,8 @@ public class GitController {
         final String scope = path != null && !path.isBlank() ? path : null;
         if (scope != null) {
             requireSafePath(scope);
+        } else if (patch) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "patch needs a path");
         }
         GitService git = git(project);
         return read(() -> git.compare(from, to, direct, patch, scope));
