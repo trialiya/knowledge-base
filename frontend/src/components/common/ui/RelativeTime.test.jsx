@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import RelativeTime from './RelativeTime';
 import { formatDateTime } from '@/utils/formatting';
 
@@ -39,5 +39,32 @@ describe('RelativeTime', () => {
       </>,
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  // Молчащий чат: новых пропсов нет, а подпись всё равно идёт вслед за часами.
+  it('относительная подпись обновляется сама, без новых пропсов', () => {
+    vi.useFakeTimers({ now: new Date('2026-09-21T12:00:30Z') });
+    const { container } = render(<RelativeTime value="2026-09-21T11:59:00Z" />);
+    expect(container.querySelector('time')).toHaveTextContent('1 минуту назад');
+
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(container.querySelector('time')).toHaveTextContent('2 минуты назад');
+  });
+
+  // Фоновая вкладка: таймер браузер придушил, а часы ушли вперёд — пересчёт по возвращении.
+  it('пересчитывается при возвращении во вкладку, не дожидаясь тика', () => {
+    vi.useFakeTimers({ now: new Date('2026-09-21T12:00:00Z') });
+    const { container } = render(<RelativeTime value="2026-09-21T11:55:00Z" />);
+    expect(container.querySelector('time')).toHaveTextContent('5 минут назад');
+
+    vi.setSystemTime(new Date('2026-09-21T12:30:00Z'));
+    act(() => window.dispatchEvent(new Event('focus')));
+    expect(container.querySelector('time')).toHaveTextContent('35 минут назад');
+  });
+
+  it('дата старше суток таймер не заводит', () => {
+    vi.useFakeTimers({ now: new Date('2026-09-21T12:00:00Z') });
+    render(<RelativeTime value="2026-09-01T10:00:00Z" />);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

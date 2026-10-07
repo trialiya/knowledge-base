@@ -76,27 +76,52 @@ export function formatCompactDateTime(value, locale) {
   });
 }
 
+// Подписи, идущие за тиком `useNow`, форматируются каждую секунду: собирать
+// Intl-форматтер на каждый вызов было бы дороже самой подписи.
+const relativeFormats = new Map();
+function relativeFormat(locale) {
+  let rtf = relativeFormats.get(locale);
+  if (!rtf) {
+    rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    relativeFormats.set(locale, rtf);
+  }
+  return rtf;
+}
+
 /**
  * Момент относительно «сейчас» в локали интерфейса: «5 минут назад», «2 часа
  * назад», дальше суток — короткая дата, в другом году — с годом (иначе два
  * коммита с разницей в годы читались бы одинаково). Плюрализацию и слова даёт
  * нативный Intl.RelativeTimeFormat, поэтому ключей перевода не нужно. null для
  * пустого или битого значения; момент из будущего (часы разошлись) — датой, а
- * не пустотой.
-
+ * не пустотой. `nowMs` — от чего отсчитывать; без него — от момента вызова.
  */
-export function formatRelativeTime(value, locale) {
+export function formatRelativeTime(value, locale, nowMs) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  const now = new Date();
+  const now = nowMs == null ? new Date() : new Date(nowMs);
   const diffMin = Math.floor((now.getTime() - date.getTime()) / 60000);
-  if (diffMin >= 0 && diffMin < 60 * 24) {
-    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  // −1 — момент чуть позже «сейчас»: отметка поставлена в этой же вкладке после
+  // последнего тика `useNow` или часы сервера на секунды впереди. Это «сейчас», не дата.
+  if (diffMin >= -1 && diffMin < 60 * 24) {
+    const rtf = relativeFormat(locale);
     if (diffMin < 1) return rtf.format(0, 'minute');
     if (diffMin < 60) return rtf.format(-diffMin, 'minute');
     return rtf.format(-Math.floor(diffMin / 60), 'hour');
   }
   const sameYear = date.getFullYear() === now.getFullYear();
   return date.toLocaleDateString(locale, { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
+}
+
+/**
+ * Меняет ли течение времени подпись `formatRelativeTime` для этого значения:
+ * да, пока момент ближе суток к «сейчас» в любую сторону — «N минут/часов
+ * назад» или дата из ближайшего будущего (часы разошлись), которая скоро станет
+ * «сейчас»; нет — для даты дальше суток.
+ */
+export function isRelativeTimeLive(value, nowMs = Date.now()) {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return !Number.isNaN(time) && Math.abs(nowMs - time) < 24 * 60 * 60000;
 }
