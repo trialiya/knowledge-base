@@ -12,7 +12,8 @@ import MessageContextItems from './MessageContextItems';
 import { formatTokens, hasUsage, usageTooltip } from './tokenUsage';
 import CopyButton from '@/components/common/ui/CopyButton';
 import { SENDER } from '@/constants/messageSender';
-import { formatLongDateTime, formatRelativeTime } from '@/utils/formatting';
+import RelativeTime from '@/components/common/ui/RelativeTime';
+import { formatLongDateTime } from '@/utils/formatting';
 
 // ─── Markdown components (стиль KnowledgeBase .md-preview) ─────────────────────
 // Вынесено в фабрику, чтобы ссылки получали onNavigateToDoc через замыкание.
@@ -47,7 +48,7 @@ const Message = ({
   usage,
   contextTokens,
 }) => {
-  const { t, i18n } = useTranslation('chat');
+  const { t } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
   const messageClass =
     `message ${sender}` +
@@ -56,8 +57,6 @@ const Message = ({
     // прогон не дойдёт до места, где вопрос можно вставить (см. useChatRun.queueMessage).
     (queued ? ' message--queued' : '');
   const hasToolCalls = toolCalls && toolCalls.length > 0;
-  const timeLabel = formatRelativeTime(timestamp, i18n.language);
-  const timeTitle = formatLongDateTime(timestamp, i18n.language);
 
   // Стабильные идентичности markdown-компонентов между рендерами (как в
   // MarkdownEditor). Без useMemo каждый рендер создаёт новую функцию `a`, React
@@ -110,11 +109,7 @@ const Message = ({
     sender === SENDER.AI ? (
       <div className="message-footer message-footer--ai">
         <div className="message-footer__meta">
-          {timeLabel && (
-            <span className="message-footer__time" title={timeTitle ?? undefined}>
-              {timeLabel}
-            </span>
-          )}
+          <RelativeTime className="message-footer__time" value={timestamp} formatTitle={formatLongDateTime} />
           {/* Модель этого ответа — не та, что выбрана в чате сейчас (её показывает вкладка
               «Инфо»): модель переключают посреди чата, и старые ответы остаются за прежней. */}
           {modelLabel && (
@@ -186,11 +181,7 @@ const Message = ({
             className="icon-btn--sm icon-btn--quiet"
           />
         </div>
-        {timeLabel && (
-          <span className="message-footer__time" title={timeTitle ?? undefined}>
-            {timeLabel}
-          </span>
-        )}
+        <RelativeTime className="message-footer__time" value={timestamp} formatTitle={formatLongDateTime} />
       </div>
     );
 
