@@ -150,8 +150,8 @@ class FileRevertPlanTest {
                 null,
                 "call-1");
 
-        assertThatThrownBy(
-                        () -> FileRevertPlan.of(List.of(answer(List.of(), List.of(script, edit("call-2", "b.txt"))))))
+        assertThatThrownBy(() ->
+                        FileRevertPlan.of(List.of(answer(List.of(), List.of(script, edit("call-2", "b.txt"))))))
                 .isInstanceOf(FileRevertRefusedException.class)
                 .hasMessageContaining(tool);
     }

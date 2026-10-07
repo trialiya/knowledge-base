@@ -190,8 +190,9 @@ class PrePersistedUserMessageTest {
                 .hasSize(1);
 
         // Дубля нет: USER-строка ровно одна, та же самая.
-        assertThat(userRows(conversationId)).singleElement().satisfies(m -> assertThat(m.getId())
-                .isEqualTo(userMessageId));
+        assertThat(userRows(conversationId))
+                .singleElement()
+                .satisfies(m -> assertThat(m.getId()).isEqualTo(userMessageId));
 
         assertThat(memory.promptMessages(conversationId)).anyMatch(m -> REPLY.equals(m.getText()));
     }
@@ -222,8 +223,9 @@ class PrePersistedUserMessageTest {
                 .filteredOn(m -> QUESTION.equals(m.getText()))
                 .hasSize(1);
 
-        assertThat(userRows(conversationId)).singleElement().satisfies(m -> assertThat(m.getId())
-                .isEqualTo(userMessageId));
+        assertThat(userRows(conversationId))
+                .singleElement()
+                .satisfies(m -> assertThat(m.getId()).isEqualTo(userMessageId));
     }
 
     @Test

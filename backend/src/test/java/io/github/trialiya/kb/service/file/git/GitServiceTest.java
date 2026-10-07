@@ -702,9 +702,11 @@ class GitServiceTest {
                 .satisfies(c -> assertThat(c.message()).isEqualTo("foo"));
 
         var diff = service.getCommitDiff(fooCommit, false, "src\\main\\Foo.java");
-        assertThat(diff).singleElement().satisfies(commit -> assertThat(commit.files())
-                .extracting(GitDiffEntry::path)
-                .containsExactly("src/main/Foo.java"));
+        assertThat(diff)
+                .singleElement()
+                .satisfies(commit -> assertThat(commit.files())
+                        .extracting(GitDiffEntry::path)
+                        .containsExactly("src/main/Foo.java"));
     }
 
     @Test

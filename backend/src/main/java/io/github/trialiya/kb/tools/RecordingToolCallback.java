@@ -245,9 +245,9 @@ public class RecordingToolCallback implements ToolCallback {
         } else if (result instanceof Map<?, ?> map) {
             return map.entrySet().stream()
                     .filter(it -> it.getValue() instanceof ToolCallResultMetaProvider)
-                    .collect(
-                            toMap(entry -> entry.getKey().toString(), it -> ((ToolCallResultMetaProvider) it.getValue())
-                                    .getResultMeta()));
+                    .collect(toMap(
+                            entry -> entry.getKey().toString(),
+                            it -> ((ToolCallResultMetaProvider) it.getValue()).getResultMeta()));
         }
         return Map.of();
     }

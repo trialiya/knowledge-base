@@ -84,8 +84,9 @@ class McpToolRegistryTest {
         answer.set(List.of(tool("issue")));
         registry.refreshAll();
 
-        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
-                .containsExactly("issue"));
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(names(registry)).containsExactly("issue"));
     }
 
     /**
@@ -107,8 +108,10 @@ class McpToolRegistryTest {
         reachable.set(false);
         registry.refreshAll();
 
-        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(registry.statuses())
-                .containsExactly(new ConnectionStatus("jira", Status.DOWN, 1)));
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() ->
+                        assertThat(registry.statuses()).containsExactly(new ConnectionStatus("jira", Status.DOWN, 1)));
         assertThat(names(registry)).containsExactly("issue");
         assertThatThrownBy(() -> registry.callbacks().getFirst().call("{}"))
                 .isInstanceOf(ToolExecutionException.class)
@@ -128,8 +131,9 @@ class McpToolRegistryTest {
         reachable.set(true);
         registry.refreshAll();
 
-        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
-                .containsExactly("issue"));
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(names(registry)).containsExactly("issue"));
         assertThat(registry.callbacks().getFirst().call("{}")).isEqualTo("{}");
     }
 
@@ -149,8 +153,9 @@ class McpToolRegistryTest {
         advertised.set(List.of(tool("issue")));
         registry.onToolsChanged(new org.springframework.ai.mcp.McpToolsChangedEvent("jira", List.of()));
 
-        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
-                .containsExactly("issue"));
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(names(registry)).containsExactly("issue"));
     }
 
     /**
@@ -171,8 +176,9 @@ class McpToolRegistryTest {
         first.set(List.of(tool("issue")));
         registry.onToolsChanged(new org.springframework.ai.mcp.McpToolsChangedEvent("jira", List.of()));
 
-        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
-                .containsExactly("issue", "search"));
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(names(registry)).containsExactly("issue", "search"));
         assertThat(registry.statuses())
                 .containsExactly(
                         new ConnectionStatus("jira", Status.UP, 1), new ConnectionStatus("github", Status.UP, 2));
@@ -193,15 +199,17 @@ class McpToolRegistryTest {
 
         registry.connect();
 
-        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
-                .containsExactly("search"));
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(names(registry)).containsExactly("search"));
         assertThat(registry.statuses())
                 .containsExactly(
                         new ConnectionStatus("fast", Status.UP, 1), new ConnectionStatus("slow", Status.PENDING, 0));
 
         answering.countDown();
-        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(names(registry))
-                .containsExactly("search", "issue"));
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(names(registry)).containsExactly("search", "issue"));
     }
 
     /**
@@ -263,8 +271,9 @@ class McpToolRegistryTest {
 
     /** The registry probes in the background; a probe is done once no connection is PENDING. */
     private static void awaitProbed(McpToolRegistry registry) {
-        Awaitility.await().atMost(Duration.ofSeconds(5)).until(() -> registry.statuses().stream()
-                .noneMatch(status -> status.status() == Status.PENDING));
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .until(() -> registry.statuses().stream().noneMatch(status -> status.status() == Status.PENDING));
     }
 
     private static List<ToolCallback> unreachable() {

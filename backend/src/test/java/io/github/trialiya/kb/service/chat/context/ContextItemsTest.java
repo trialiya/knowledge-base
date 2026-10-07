@@ -266,11 +266,12 @@ class ContextItemsTest {
         haveAttachment(conversationId, "report-v2.md", "Переписанное описание");
         haveAttachment(otherChat, "log.txt", "Описание, заказанное после вопроса");
 
-        assertThat(memoryService.promptMessages(conversationId)).singleElement().satisfies(message -> assertThat(
-                        message.getText())
-                .contains("report-v2.md")
-                .contains("summary=\"Отчёт за квартал\"")
-                .doesNotContain("Переписанное описание"));
+        assertThat(memoryService.promptMessages(conversationId))
+                .singleElement()
+                .satisfies(message -> assertThat(message.getText())
+                        .contains("report-v2.md")
+                        .contains("summary=\"Отчёт за квартал\"")
+                        .doesNotContain("Переписанное описание"));
         assertThat(memoryService.promptMessages(otherChat))
                 .singleElement()
                 .satisfies(message ->
@@ -472,7 +473,8 @@ class ContextItemsTest {
                           {"kind":"ATTACHMENT","ref":"7","label":"report.md"}]}
                         """);
 
-        assertThat(meta.contextItems()).singleElement().satisfies(item -> assertThat(item.ref())
-                .isEqualTo("7"));
+        assertThat(meta.contextItems())
+                .singleElement()
+                .satisfies(item -> assertThat(item.ref()).isEqualTo("7"));
     }
 }

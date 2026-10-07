@@ -1,4 +1,10 @@
-import { formatCompactDateTime, formatDate, formatLongDateTime, formatRelativeTime } from './formatting';
+import {
+  formatCompactDateTime,
+  formatDate,
+  formatLongDateTime,
+  formatRelativeTime,
+  isRelativeTimeLive,
+} from './formatting';
 
 describe('formatRelativeTime', () => {
   beforeEach(() => vi.useFakeTimers({ now: new Date('2026-06-15T12:00:00Z') }));
@@ -23,6 +29,31 @@ describe('formatRelativeTime', () => {
   test('empty or broken input is null', () => {
     expect(formatRelativeTime(null, 'en')).toBeNull();
     expect(formatRelativeTime('nonsense', 'en')).toBeNull();
+  });
+
+  // Отметка своей вкладки после последнего тика useNow, или часы сервера чуть впереди.
+  test('a moment seconds ahead is now, not a date', () => {
+    expect(formatRelativeTime('2026-06-15T12:00:00.800Z', 'en')).toBe('this minute');
+  });
+
+  test('counts from the given moment instead of the clock', () => {
+    const at = new Date('2026-06-15T13:00:00Z').getTime();
+    expect(formatRelativeTime('2026-06-15T11:30:00Z', 'en', at)).toBe('1 hour ago');
+  });
+});
+
+describe('isRelativeTimeLive', () => {
+  const now = new Date('2026-06-15T12:00:00Z').getTime();
+
+  test('live while the label is relative, or may become relative', () => {
+    expect(isRelativeTimeLive('2026-06-15T11:59:00Z', now)).toBe(true);
+    expect(isRelativeTimeLive('2026-06-15T13:00:00Z', now)).toBe(true);
+  });
+
+  test('a date past a day, and empty or broken input, is not', () => {
+    expect(isRelativeTimeLive('2026-06-13T12:00:00Z', now)).toBe(false);
+    expect(isRelativeTimeLive(null, now)).toBe(false);
+    expect(isRelativeTimeLive('nonsense', now)).toBe(false);
   });
 });
 
