@@ -86,7 +86,8 @@ class RevisionCompareTest {
         assertThat(log).isNotNull();
         assertThat(log.ahead()).isEqualTo(2);
         assertThat(log.behind()).isEqualTo(1);
-        assertThat(log.countsTruncated()).isFalse();
+        assertThat(log.aheadTruncated()).isFalse();
+        assertThat(log.behindTruncated()).isFalse();
         assertThat(log.commits()).extracting(GitCommit::message).containsExactly("feature second", "feature work");
     }
 

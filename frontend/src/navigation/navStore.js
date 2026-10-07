@@ -648,14 +648,13 @@ function nextFileRev(prev, nextProject, options) {
  * коммит или на незакоммиченное: она ведёт к своему виду, а не к сравнению.
  */
 function nextFileCompare(prev, nextProject, nextMode, options) {
+  // База живёт только в режиме изменений: в другом её не видно в адресе, и
+  // всплыла бы она потом, при возврате в «Изменения», ниоткуда.
+  if (nextMode !== FILE_MODE.CHANGES) return { fileBase: '', fileDirect: false };
   if (options?.base !== undefined) {
     const base = options.base || '';
     return { fileBase: base, fileDirect: !!base && !!options.direct };
   }
-  const keep =
-    nextMode === FILE_MODE.CHANGES &&
-    nextProject === prev.fileProject &&
-    options?.rev === undefined &&
-    options?.changes === undefined;
+  const keep = nextProject === prev.fileProject && options?.rev === undefined && options?.changes === undefined;
   return keep ? { fileBase: prev.fileBase || '', fileDirect: !!prev.fileDirect } : { fileBase: '', fileDirect: false };
 }

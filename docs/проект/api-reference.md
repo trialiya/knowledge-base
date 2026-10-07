@@ -1439,7 +1439,7 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `patch` | boolean | `false` | Заполнить `patchHeader`/`patch` у записей |
 | `project` | String? | `null` | ID проекта; пусто — дефолтный |
 
-**Response:** `GitComparison` — `{ base, head, mergeBase, diffBase, log, files }`: `base`/`head` — `GitCommit` без `files` и `body`; `mergeBase` — общий предок или `null`; `diffBase` — коммит, против которого посчитан `files`; `log` — `{ ahead, behind, countsTruncated, commits }`: счётчики как у `git rev-list --left-right --count base...head` (каждый — до 10 000, дальше `countsTruncated`), `commits` — первые 100 коммитов `head`, которых нет в `base`, свежие первыми; `files` — `List<GitDiffEntry>`, как у `/commit`. Поля — в [Git DTO](модели-данных/git-dto.md#gitcomparison).
+**Response:** `GitComparison` — `{ base, head, mergeBase, diffBase, log, files }`: `base`/`head` — `GitCommit` без `files` и `body`; `mergeBase` — общий предок или `null`; `diffBase` — коммит, против которого посчитан `files`; `log` — `{ ahead, aheadTruncated, behind, behindTruncated, commits }`: счётчики как у `git rev-list --left-right --count base...head` (каждый — до 10 000; упёршийся в предел помечен своим `*Truncated`), `commits` — первые 100 коммитов `head`, которых нет в `base`, свежие первыми; `files` — `List<GitDiffEntry>`, как у `/commit`. Поля — в [Git DTO](модели-данных/git-dto.md#gitcomparison).
 
 **Ошибки:** `400` — пустая `base`; неизвестная или неоднозначная ревизия; недопустимый `path`.
 

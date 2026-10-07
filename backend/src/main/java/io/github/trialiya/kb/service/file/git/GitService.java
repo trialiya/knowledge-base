@@ -545,19 +545,7 @@ public class GitService {
             AbstractTreeIterator oldTree = parent == null ? new EmptyTreeIterator() : treeIterator(reader, parent);
             AbstractTreeIterator newTree = treeIterator(reader, commit);
 
-            List<GitDiffEntry> entries = new ArrayList<>();
-            var patchOut = new ByteArrayOutputStream();
-            try (DiffFormatter formatter = new DiffFormatter(patchOut)) {
-                formatter.setRepository(repository);
-                formatter.setDetectRenames(true);
-                if (filePath != null) {
-                    formatter.setPathFilter(PathFilterGroup.createFromStrings(List.of(filePath)));
-                }
-                for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
-                    if (only != null && !only.equals(Diffs.reportedPath(entry))) continue;
-                    entries.add(Diffs.toGitDiffEntry(entry, formatter, includePatch, patchOut));
-                }
-            }
+            List<GitDiffEntry> entries = Diffs.scan(repository, oldTree, newTree, includePatch, filePath, only);
             return Diffs.toGitCommit(commit, entries, reader, includeBody, includeParents);
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + hash, e);

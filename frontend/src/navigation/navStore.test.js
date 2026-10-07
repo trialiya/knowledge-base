@@ -511,4 +511,13 @@ describe('сравнение ревизий в «Файлах»', () => {
     s.openFilePath('a.js', undefined, { rev: 'main', base: 'feature' });
     expect(url()).toBe('/files/a.js?changes=1&rev=main&base=feature');
   });
+
+  it('база при переходе в другой режим не остаётся в состоянии, которого нет в адресе', () => {
+    go('/files/a.js');
+    const s = mount();
+    s.openFilePath('a.js', undefined, { changes: false, base: 'main' });
+    expect(s.nav().fileBase).toBe('');
+    s.setFileMode('changes');
+    expect(url()).toBe('/files/a.js?changes=1');
+  });
 });

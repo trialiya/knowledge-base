@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import useKeyedRequest from '@/components/common/preview/useKeyedRequest';
 import gitApi from '@/api/gitApi';
 
 /**
@@ -33,35 +33,26 @@ export default function useChangeDiff({
   const compared = base ? `${direct ? 1 : 0} ${base}` : '';
   const requestKey =
     enabled && path ? `${refreshToken ?? 0} ${refs} ${project ?? ''} ${rev} ${compared}\n${path}` : null;
-  const [answer, setAnswer] = useState(null);
-
-  useEffect(() => {
-    if (!requestKey) return undefined;
-    const controller = new AbortController();
-    const signal = controller.signal;
-    const entries = base
-      ? gitApi
-          .compare(base, { head: rev, direct, path, patch: true, project, signal })
-          .then((comparison) => comparison.files ?? [])
-      : rev
-      ? gitApi.getCommit(rev, { path, patch: true, project, signal }).then((commit) => commit.files ?? [])
-      : gitApi.getStatus({ path, patch: true, project, signal });
-    entries
-      .then((found) => setAnswer({ key: requestKey, entry: found[0] ?? null }))
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        setAnswer({ key: requestKey, entry: null, error });
-      });
-    return () => controller.abort();
-  }, [requestKey, project, path, rev, base, direct]);
-
-  const fresh = answer?.key === requestKey ? answer : null;
+  const answer = useKeyedRequest(requestKey, (signal) => entriesOf({ project, path, rev, base, direct, signal }));
 
   return {
     rev,
     base,
-    loading: !!requestKey && !fresh,
-    error: fresh?.error ?? null,
-    entry: fresh?.entry ?? null,
+    loading: answer.loading,
+    error: answer.error,
+    entry: answer.value?.[0] ?? null,
   };
+}
+
+/** Записи открытого файла у того, чьи изменения показаны: сравнения, коммита снимка или рабочего дерева. */
+function entriesOf({ project, path, rev, base, direct, signal }) {
+  if (base) {
+    return gitApi
+      .compare(base, { head: rev, direct, path, patch: true, project, signal })
+      .then((comparison) => comparison.files ?? []);
+  }
+  if (rev) {
+    return gitApi.getCommit(rev, { path, patch: true, project, signal }).then((commit) => commit.files ?? []);
+  }
+  return gitApi.getStatus({ path, patch: true, project, signal });
 }

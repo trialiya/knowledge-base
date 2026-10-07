@@ -20,7 +20,8 @@ const COMPARISON = {
   log: {
     ahead: 3,
     behind: 1,
-    countsTruncated: false,
+    aheadTruncated: false,
+    behindTruncated: false,
     commits: [commit('f'.repeat(40), 'feature work'), commit('e'.repeat(40), 'earlier')],
   },
   files: [
@@ -64,10 +65,11 @@ describe('CompareInfo', () => {
     expect(screen.getByText('compare.moreCommits {"count":1}')).toBeInTheDocument();
   });
 
-  test('a capped count is marked as a lower bound', () => {
-    show({ comparison: { ...COMPARISON, log: { ...COMPARISON.log, countsTruncated: true } } });
+  /** Стороны считаются порознь: точное число одной не становится нижней границей из-за другой. */
+  test('only the capped count is marked as a lower bound', () => {
+    show({ comparison: { ...COMPARISON, log: { ...COMPARISON.log, behindTruncated: true } } });
 
-    expect(screen.getByText('compare.aheadBehind {"ahead":"3+","behind":"1+"}')).toBeInTheDocument();
+    expect(screen.getByText('compare.aheadBehind {"ahead":"3","behind":"1+"}')).toBeInTheDocument();
   });
 
   test('the diff mode is a pair of toggles, the chosen one pressed', async () => {

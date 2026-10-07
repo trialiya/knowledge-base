@@ -39,7 +39,6 @@ const CompareInfo = ({
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
   const log = comparison.log;
   const more = log ? log.ahead - log.commits.length : 0;
-  const plus = log?.countsTruncated ? '+' : '';
 
   const commitRef = (name, commit) => (
     <span className="compare-info__rev">
@@ -67,7 +66,10 @@ const CompareInfo = ({
     },
     log && {
       label: t('compare.commits'),
-      value: t('compare.aheadBehind', { ahead: `${log.ahead}${plus}`, behind: `${log.behind}${plus}` }),
+      value: t('compare.aheadBehind', {
+        ahead: atLeast(log.ahead, log.aheadTruncated),
+        behind: atLeast(log.behind, log.behindTruncated),
+      }),
     },
     {
       label: t('commit.files'),
@@ -146,5 +148,8 @@ const CompareInfo = ({
     </>
   );
 };
+
+/** Счёт, остановленный на пределе, — нижняя граница, и пишется так. */
+const atLeast = (count, truncated) => `${count}${truncated ? '+' : ''}`;
 
 export default CompareInfo;

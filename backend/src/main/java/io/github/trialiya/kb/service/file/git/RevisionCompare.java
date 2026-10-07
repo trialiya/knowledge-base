@@ -4,12 +4,9 @@ import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitComparison;
 import io.github.trialiya.kb.model.git.dto.GitComparisonLog;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import org.eclipse.jgit.diff.DiffEntry;
-import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
@@ -100,17 +97,7 @@ final class RevisionCompare {
         oldTree.reset(reader, from.getTree());
         CanonicalTreeParser newTree = new CanonicalTreeParser();
         newTree.reset(reader, to.getTree());
-        List<GitDiffEntry> entries = new ArrayList<>();
-        var patchOut = new ByteArrayOutputStream();
-        try (DiffFormatter formatter = new DiffFormatter(patchOut)) {
-            formatter.setRepository(repository);
-            formatter.setDetectRenames(true);
-            for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
-                if (only != null && !only.equals(Diffs.reportedPath(entry))) continue;
-                entries.add(Diffs.toGitDiffEntry(entry, formatter, includePatch, patchOut));
-            }
-        }
-        return entries;
+        return Diffs.scan(repository, oldTree, newTree, includePatch, null, only);
     }
 
     private static GitComparisonLog log(Repository repository, ObjectId base, ObjectId head) throws IOException {
@@ -133,7 +120,7 @@ final class RevisionCompare {
                 commit.next();
             }
         }
-        return new GitComparisonLog(ahead.value, behind.value, ahead.capped || behind.capped, commits);
+        return new GitComparisonLog(ahead.value, ahead.capped, behind.value, behind.capped, commits);
     }
 
     /** Счёт коммитов одной стороны до {@link #MAX_COUNT}; лишний коммит не считается, а отмечается. */

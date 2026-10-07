@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import useKeyedRequest from '@/components/common/preview/useKeyedRequest';
 import gitApi from '@/api/gitApi';
 
 /**
@@ -22,31 +23,16 @@ export default function useComparison({ project, base, rev, direct, refreshToken
     base && enabled
       ? `${refreshToken ?? 0} ${refsToken ?? 0} ${project ?? ''} ${direct ? 1 : 0} ${rev}\n${base}`
       : null;
-  const [answer, setAnswer] = useState(null);
-
-  useEffect(() => {
-    if (!requestKey) return undefined;
-    const controller = new AbortController();
-    gitApi
-      .compare(base, { head: rev, direct, project, signal: controller.signal })
-      .then((comparison) => setAnswer({ key: requestKey, comparison }))
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        setAnswer({ key: requestKey, comparison: null, error });
-      });
-    return () => controller.abort();
-  }, [requestKey, project, base, rev, direct]);
-
-  const fresh = answer?.key === requestKey ? answer : null;
+  const answer = useKeyedRequest(requestKey, (signal) => gitApi.compare(base, { head: rev, direct, project, signal }));
 
   return useMemo(() => {
-    const entries = fresh?.comparison?.files ?? [];
+    const entries = answer.value?.files ?? [];
     return {
-      loading: !!requestKey && !fresh,
-      error: fresh?.error ?? null,
-      comparison: fresh?.comparison ?? null,
+      loading: answer.loading,
+      error: answer.error,
+      comparison: answer.value,
       tracked: entries,
       untracked: [],
     };
-  }, [fresh, requestKey]);
+  }, [answer.loading, answer.error, answer.value]);
 }

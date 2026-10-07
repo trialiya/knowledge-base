@@ -55,7 +55,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | `log` | GitComparisonLog | История между ревизиями; `null` (ключа нет), когда запрошен один файл |
 | `files` | List\<GitDiffEntry\> | Файлы, которыми `head` отличается от `diffBase`; патчи — только по просьбе |
 
-`GitComparisonLog`: `ahead` — коммитов в `head`, которых нет в `base`; `behind` — наоборот; `countsTruncated` — счёт остановился на пределе в 10 000 (`RevisionCompare.MAX_COUNT`), настоящие числа больше; `commits` — коммиты `head`, которых нет в `base`, свежие первыми, не больше 100 (`RevisionCompare.MAX_COMMITS`). Коммиты `base` не перечисляются: к списку файлов они отношения не имеют.
+`GitComparisonLog`: `ahead` — коммитов в `head`, которых нет в `base`; `behind` — наоборот; `aheadTruncated` / `behindTruncated` — счёт этой стороны остановился на пределе в 10 000 (`RevisionCompare.MAX_COUNT`), настоящее число больше (стороны помечаются порознь); `commits` — коммиты `head`, которых нет в `base`, свежие первыми, не больше 100 (`RevisionCompare.MAX_COMMITS`). Коммиты `base` не перечисляются: к списку файлов они отношения не имеют.
 
 ### GitDiffEntry
 Одна запись из diff коммита. Реализует `ToolCallResponseItem`.
