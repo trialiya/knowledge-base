@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.GitFunction;
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.model.search.SearchAgentResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.support.TestProjects;
@@ -17,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -93,9 +95,14 @@ class SearchAgentServiceIT {
     private static final Duration DEADLINE = Duration.ofMinutes(10);
 
     private SearchAgentService newService(int maxIterations) {
-        SubAgentConfig cfg = new SubAgentConfig(true, "test-model", 4000, maxIterations, Set.of());
+        return newService(maxIterations, true);
+    }
+
+    private SearchAgentService newService(int maxIterations, boolean replayReasoning) {
+        SubAgentConfig cfg = new SubAgentConfig(true, "test-model", 4000, maxIterations, Set.of(), null, null, 0.0);
         Resource prompt = new ByteArrayResource("system".getBytes(StandardCharsets.UTF_8));
-        return new SearchAgentService(chatModel, toolCallingManager, cfg, prompt, "", readOnlyTools, gitRegistry);
+        return new SearchAgentService(
+                chatModel, toolCallingManager, cfg, prompt, "", readOnlyTools, gitRegistry, replayReasoning);
     }
 
     @Test
@@ -204,7 +211,71 @@ class SearchAgentServiceIT {
         assertThat(result.report()).isNotBlank();
     }
 
+    /**
+     * Рассуждение шага возвращается модели на следующем шаге — как его вернул {@code
+     * OpenAiChatModel}, в метаданных сообщения ассистента: thinking-модель с инструментами
+     * (DeepSeek) ждёт его обратно, и финальная суммаризация везёт его тоже.
+     */
+    @Test
+    void stepReasoningIsReplayedToTheNextStep() {
+        when(chatModel.call(any(Prompt.class)))
+                .thenReturn(toolCall("grepContent", "{\"pattern\":\"" + MAGIC + "\"}", "ищу токен грепом"))
+                .thenReturn(text(""))
+                .thenReturn(text("Итог: найдено."));
+
+        newService(6).run("Где определён " + MAGIC + "?", null, "code", null, null, null);
+
+        ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel, times(3)).call(prompts.capture());
+        assertThat(assistantReasoning(prompts.getAllValues().get(1))).containsExactly("ищу токен грепом");
+        assertThat(assistantReasoning(prompts.getAllValues().get(2))).containsExactly("ищу токен грепом");
+    }
+
+    /**
+     * С выключенным replay-reasoning (эндпоинт, отвергающий поле, — spring-ai#6968) рассуждение
+     * снимается до каждого следующего обращения, включая суммаризацию, а вызовы инструментов
+     * остаются на месте: без них ответы инструментов в истории ни к чему бы не относились.
+     */
+    @Test
+    void reasoningIsStrippedWhenTheModelMustNotGetItBack() {
+        when(chatModel.call(any(Prompt.class)))
+                .thenReturn(toolCall("grepContent", "{\"pattern\":\"" + MAGIC + "\"}", "ищу токен грепом"))
+                .thenReturn(text(""))
+                .thenReturn(text("Итог: найдено."));
+
+        SearchAgentResult result =
+                newService(6, false).run("Где определён " + MAGIC + "?", null, "code", null, null, null);
+
+        assertThat(result.report()).isEqualTo("Итог: найдено.");
+        ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel, times(3)).call(prompts.capture());
+        for (Prompt sent : prompts.getAllValues().subList(1, 3)) {
+            assertThat(assistantReasoning(sent)).isEmpty();
+            assertThat(sent.getInstructions())
+                    .filteredOn(m -> m instanceof AssistantMessage a && a.hasToolCalls())
+                    .hasSize(1);
+            assertThat(toolResponseText(sent)).contains(MAGIC);
+        }
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────
+
+    private static ChatResponse toolCall(String name, String argsJson, String reasoning) {
+        AssistantMessage msg = AssistantMessage.builder()
+                .content("")
+                .properties(Map.of(AssistantChatMessage.REASONING_CONTENT, reasoning))
+                .toolCalls(List.of(new AssistantMessage.ToolCall("call-1", "function", name, argsJson)))
+                .build();
+        return new ChatResponse(List.of(new Generation(msg)));
+    }
+
+    private static List<Object> assistantReasoning(Prompt prompt) {
+        return prompt.getInstructions().stream()
+                .filter(m -> m instanceof AssistantMessage)
+                .map(m -> m.getMetadata().get(AssistantChatMessage.REASONING_CONTENT))
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
 
     private static ChatResponse toolCall(String name, String argsJson) {
         AssistantMessage msg = AssistantMessage.builder()

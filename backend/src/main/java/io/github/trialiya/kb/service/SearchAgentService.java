@@ -8,17 +8,22 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.entity.TokenUsage;
+import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.model.search.SearchAgentResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ProjectContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -77,6 +82,15 @@ public class SearchAgentService {
     private final ToolCallback[] toolCallbacks;
 
     /**
+     * Whether the sub-agent's own reasoning goes back to its model on the next step — the flag of
+     * the sub-agent's model ({@code ChatModelProperties#replayReasoning}), like the main chat's.
+     * {@code OpenAiChatModel} keeps a step's reasoning on the assistant message it returns and
+     * sends it back with that message, so on an endpoint that rejects the field the second step
+     * would fail; off, it is stripped from the history before every call.
+     */
+    private final boolean replayReasoning;
+
+    /**
      * Only to canonicalize the project the run works on — the id the report echoes has to be the
      * one a repository actually answers by, not the raw argument (which may be absent, or name the
      * default project explicitly). Reading is the sub-agent's tools' business, not this class's.
@@ -90,7 +104,8 @@ public class SearchAgentService {
             Resource systemPrompt,
             String extraInstructions,
             ToolCallback[] toolCallbacks,
-            GitRegistry gitRegistry) {
+            GitRegistry gitRegistry,
+            boolean replayReasoning) {
         this.chatModel = chatModel;
         this.toolCallingManager = toolCallingManager;
         this.config = config;
@@ -98,10 +113,16 @@ public class SearchAgentService {
         String basePrompt = readResource(systemPrompt);
         this.systemPrompt = extraInstructions.isBlank() ? basePrompt : basePrompt + "\n\n" + extraInstructions;
         this.toolCallbacks = toolCallbacks.clone();
+        this.replayReasoning = replayReasoning;
         log.info(
-                "SearchAgentService ready: model={}, maxIterations={}, tools={}",
+                "SearchAgentService ready: model={}, maxIterations={}, reasoningEffort={}, thinking={},"
+                        + " temperature={}, replayReasoning={}, tools={}",
                 config.modelId(),
                 config.maxIterations(),
+                config.reasoningEffort(),
+                config.thinking(),
+                config.temperature(),
+                replayReasoning,
                 java.util.Arrays.stream(toolCallbacks)
                         .map(c -> c.getToolDefinition().name())
                         .toList());
@@ -187,7 +208,7 @@ public class SearchAgentService {
                 return result(conversationId, projectId, text, false, hops, startMs, usage);
             }
 
-            prompt = new Prompt(exec.conversationHistory(), toolOptions);
+            prompt = new Prompt(history(exec.conversationHistory()), toolOptions);
             try {
                 response = chatModel.call(prompt);
                 add(usage, response);
@@ -292,6 +313,31 @@ public class SearchAgentService {
     }
 
     /**
+     * The loop's history as the next call should see it: unchanged, or with the reasoning taken off
+     * every assistant message when the sub-agent's model must not get it back.
+     */
+    private List<Message> history(List<Message> messages) {
+        return replayReasoning
+                ? messages
+                : messages.stream().map(SearchAgentService::withoutReasoning).toList();
+    }
+
+    private static Message withoutReasoning(Message message) {
+        if (!(message instanceof AssistantMessage assistant)
+                || !assistant.getMetadata().containsKey(AssistantChatMessage.REASONING_CONTENT)) {
+            return message;
+        }
+        final Map<String, Object> metadata = new HashMap<>(assistant.getMetadata());
+        metadata.remove(AssistantChatMessage.REASONING_CONTENT);
+        return AssistantMessage.builder()
+                .content(assistant.getText())
+                .properties(metadata)
+                .toolCalls(assistant.getToolCalls())
+                .media(assistant.getMedia())
+                .build();
+    }
+
+    /**
      * Опции, общие у обоих обращений сабагента.
      *
      * <p>Дедлайн вызова здесь приходится ставить руками, и это не перестраховка: сабагент зовёт
@@ -307,11 +353,36 @@ public class SearchAgentService {
      * деплоя он не должен.
      */
     private OpenAiChatOptions.Builder callOptions() {
-        return OpenAiChatOptions.builder()
-                .model(config.modelId())
-                .maxTokens(config.maxTokens())
-                .temperature(0.0)
-                .timeout(chatModel.getOptions().getTimeout());
+        return requestOptions(config, chatModel.getOptions().getTimeout());
+    }
+
+    /**
+     * Опции запроса из настроек сабагента. Не заданное поле не отправляется: {@code thinking}
+     * незнакомый эндпоинт отвергает вместе со всем запросом, а температуру, отличную от своей,
+     * reasoning-модели OpenAI не принимают вовсе.
+     *
+     * <p>{@code thinking} — единственное поле extra-body, и это не упущение: extra-body модели
+     * сабагент не наследует (см. {@link #callOptions}), поэтому «размышлять ли» решает только его
+     * собственная настройка, а не {@code spring.ai.openai.chat.options.extra-body.thinking}.
+     *
+     * <p>Package-private ради теста: что уходит модели, решается здесь, а не в цикле.
+     */
+    static OpenAiChatOptions.Builder requestOptions(SubAgentConfig config, @Nullable Duration timeout) {
+        final OpenAiChatOptions.Builder options =
+                OpenAiChatOptions.builder().model(config.modelId()).maxTokens(config.maxTokens());
+        if (timeout != null) {
+            options.timeout(timeout);
+        }
+        if (config.temperature() != null) {
+            options.temperature(config.temperature());
+        }
+        if (config.reasoningEffort() != null) {
+            options.reasoningEffort(config.reasoningEffort());
+        }
+        if (config.thinking() != null) {
+            options.extraBody(Map.of("thinking", Map.of("type", config.thinking())));
+        }
+        return options;
     }
 
     /**

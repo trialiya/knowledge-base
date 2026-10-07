@@ -526,9 +526,25 @@ kb:
       # Its runScript tutorial half is gated by this id's own weak flag (kb.chat.default-model.weak
       # / kb.chat.models[].weak), not by whatever model the current chat turn happens to use.
       model-id: ${KB_SEARCH_SUBAGENT_MODEL:${AI_MODEL}}
+      # Per call, and a reasoning model spends it on its reasoning too — raise it together with
+      # reasoning-effort, or a long think leaves the report cut short.
       max-tokens: ${KB_SEARCH_SUBAGENT_MAX_TOKENS:12000}
       # Hard cap on tool-call rounds before a forced, tool-less summarization call.
       max-iterations: ${KB_SEARCH_SUBAGENT_MAX_ITERATIONS:30}
+      # How much the sub-agent "thinks" on each step: reasoning_effort for OpenAI-style endpoints,
+      # thinking.type (e.g. disabled) for the common vendor extension. Empty — the field is not
+      # sent and the model reasons as much as it does by default; for thinking that is the only safe
+      # default, since an endpoint that does not know the field rejects the whole request.
+      # Worth turning down here: most steps only pick the next grep or file, every step's
+      # reasoning is paid as output and then carried in the context of every later step, and the
+      # main answer waits for the whole search. The sub-agent does NOT inherit
+      # spring.ai.openai.chat.options (extra-body.thinking included) — set it here.
+      reasoning-effort: ${KB_SEARCH_SUBAGENT_REASONING_EFFORT:}
+      thinking: ${KB_SEARCH_SUBAGENT_THINKING:}
+      # Empty — not sent, the endpoint's default applies. Clear it for a model that rejects a
+      # non-default temperature (OpenAI reasoning models) or degrades on greedy decoding in
+      # thinking mode (Qwen3-style models loop in their reasoning at 0).
+      temperature: ${KB_SEARCH_SUBAGENT_TEMPERATURE:0.0}
       # Read-only tools the sub-agent may call. MUST NOT include searchCodebase (recursion guard).
       # runScript is here as the sub-agent's own forced-read-only copy (see ChatConfig): its write
       # methods are withheld regardless of kb.script.edit-enabled. Listing it costs nothing when

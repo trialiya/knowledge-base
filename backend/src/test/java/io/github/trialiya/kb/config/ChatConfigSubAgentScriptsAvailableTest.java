@@ -27,7 +27,7 @@ class ChatConfigSubAgentScriptsAvailableTest {
 
     @Test
     void allowListingRunScriptDoesNotConjureItWhenScriptsAreOff() {
-        SubAgentConfig config = new SubAgentConfig(true, "model", 12000, 30, ALLOWED);
+        SubAgentConfig config = new SubAgentConfig(true, "model", 12000, 30, ALLOWED, null, null, 0.0);
 
         assertThat(ChatConfig.subAgentScriptsAvailable(
                         new ScriptProperties(
