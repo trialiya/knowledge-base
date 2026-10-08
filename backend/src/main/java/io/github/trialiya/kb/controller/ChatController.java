@@ -378,6 +378,10 @@ public class ChatController {
             throw new ResponseStatusException(BAD_REQUEST, "Empty message");
         }
         checkChat(conversationId, true);
+        // Выбор проверяем целиком ДО резолва: резолв пишет модель и проект в chat_topic по ходу
+        // дела, и отказ на поле, разобранном позже, оставил бы за собой чужой выбор и съеденный
+        // маркер смены проекта у следующего сообщения.
+        runOptions.validate(body.choice());
         // Проверяем приложенное ДО заявки на чат: 404 на чужое вложение не должен оставлять
         // за собой ни занятый чат, ни записанный вопрос.
         final List<ContextItem> contextItems =

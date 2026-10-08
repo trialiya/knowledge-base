@@ -16,7 +16,6 @@ import { isFindShortcut, isTypingTarget } from '@/components/common/search/findS
 export default function useChatFindShortcut({ isActive, canSearch, search }) {
   const inputRef = useRef(null);
 
-
   // Тело шортката — useEffectEvent: слушатель вешается один раз на вкладку, но
   // внутри читает всегда свежие canSearch/search. Держать их в
   // зависимостях эффекта нельзя — объект useInChatSearch пересоздаётся каждый

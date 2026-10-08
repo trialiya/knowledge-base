@@ -196,7 +196,8 @@ class ChatModelPropertiesTest {
     /**
      * Уровни рассуждений приходят из YAML — блоком, где {@code default} назван ключевым словом Java,
      * а {@code extra-body} несёт вложенные поля провайдера с подчёркиваниями. И то и другое обязано
-     * доехать до записи как написано.
+     * доехать до записи как написано — а значение, пришедшее строкой (так его отдают переменные
+     * окружения и {@code .properties}), с типом JSON: {@code "false"} провайдеру — это истина.
      */
     @Test
     void reasoningLevelsBindFromTheConfiguration() {
@@ -223,7 +224,7 @@ class ChatModelPropertiesTest {
                 .extracting(ReasoningOptions.Level::reasoningEffort)
                 .isEqualTo("medium");
         assertThat(bound.reasoningLevel("qwen", "off").orElseThrow().extraBody())
-                .isEqualTo(Map.of("chat_template_kwargs", Map.of("enable_thinking", "false")));
+                .isEqualTo(Map.of("chat_template_kwargs", Map.of("enable_thinking", false)));
     }
 
     /**
@@ -273,6 +274,15 @@ class ChatModelPropertiesTest {
         assertThat(props.isKnownReasoningLevel("high")).isTrue();
         assertThat(props.isKnownReasoningLevel("max")).isFalse();
         assertThat(props.isKnownReasoningLevel(null)).isFalse();
+    }
+
+    /** Число, пришедшее строкой, уходит числом; строка, которая числом не является, — строкой. */
+    @Test
+    void extraBodyNumbersArriveTypedAndOtherStringsStayAsIs() {
+        final ReasoningOptions.Level level = new ReasoningOptions.Level(
+                "think", null, null, Map.of("thinking", Map.of("type", "enabled", "budget_tokens", "1024")));
+
+        assertThat(level.extraBody()).isEqualTo(Map.of("thinking", Map.of("type", "enabled", "budget_tokens", 1024L)));
     }
 
     @Test

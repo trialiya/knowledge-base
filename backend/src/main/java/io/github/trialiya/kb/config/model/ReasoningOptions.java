@@ -2,11 +2,14 @@ package io.github.trialiya.kb.config.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.boot.context.properties.bind.Name;
@@ -28,6 +31,9 @@ import org.springframework.boot.context.properties.bind.Name;
  */
 public record ReasoningOptions(
         @Name("default") @JsonProperty("default") @Nullable String defaultLevel, List<Level> levels) {
+
+    /** Целое число, пришедшее строкой, — см. {@link Level#extraBody}. */
+    private static final Pattern INTEGER = Pattern.compile("-?\\d{1,18}");
 
     public ReasoningOptions {
         defaultLevel = ConfigValues.trimToNull(defaultLevel);
@@ -86,7 +92,36 @@ public record ReasoningOptions(
             id = trimmed;
             label = ConfigValues.trimToNull(label);
             reasoningEffort = ConfigValues.trimToNull(reasoningEffort);
-            extraBody = extraBody == null || extraBody.isEmpty() ? null : Map.copyOf(extraBody);
+            extraBody = extraBody == null || extraBody.isEmpty() ? null : typed(extraBody);
+        }
+
+        /**
+         * Значения {@code extra-body} с типами JSON. YAML отдаёт {@code false} и {@code 1024}
+         * булевым и числом, а переменная окружения и {@code .properties} — строкой, и строка ушла
+         * бы провайдеру строкой: {@code "enable_thinking": "false"} шаблон Qwen читает как истину,
+         * и уровень «выкл» рассуждения не выключал бы. Поэтому {@code true}/{@code false} и целые
+         * числа, пришедшие строкой, приводятся к своему типу — на любой глубине.
+         */
+        private static Map<String, Object> typed(Map<String, Object> body) {
+            final Map<String, Object> out = new LinkedHashMap<>();
+            body.forEach((key, value) -> out.put(key, typedValue(value)));
+            return Collections.unmodifiableMap(out);
+        }
+
+        @SuppressWarnings("unchecked")
+        private static Object typedValue(Object value) {
+            if (value instanceof Map<?, ?> nested) {
+                return typed((Map<String, Object>) nested);
+            }
+            if (value instanceof String text) {
+                if ("true".equals(text) || "false".equals(text)) {
+                    return Boolean.valueOf(text);
+                }
+                if (INTEGER.matcher(text).matches()) {
+                    return Long.valueOf(text);
+                }
+            }
+            return value;
         }
 
         /**

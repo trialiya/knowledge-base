@@ -118,6 +118,13 @@ export default function useComposerChoices({
     [missingProjectId, projectOptions, selectedProjectId, t],
   );
 
+  // Одним объектом и под мемо: от него зависит мемо вкладок правой панели в ChatWindow,
+  // а ChatWindow перерисовывается на каждый чанк стриминга.
+  const labels = useMemo(
+    () => ({ modelLabel, modeLabel, reasoningLabel, projectLabel }),
+    [modelLabel, modeLabel, reasoningLabel, projectLabel],
+  );
+
   return {
     selectedProjectId,
     model: { config: modelConfig, options: modelOptions, selected: selectedModelId, onChange: handleModelChange },
@@ -131,6 +138,6 @@ export default function useComposerChoices({
       missing: missingProjectId,
       onChange: handleProjectChange,
     },
-    labels: { modelLabel, modeLabel, reasoningLabel, projectLabel },
+    labels,
   };
 }

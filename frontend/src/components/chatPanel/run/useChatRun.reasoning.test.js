@@ -60,12 +60,7 @@ describe('useChatRun — уровень рассуждений', () => {
 
     chats = [{ ...chats[0], runId: 'r1' }];
     await act(() => result.current.sendMessage('ещё'));
-    expect(chatApi.queueMessage).toHaveBeenCalledWith(
-      CHAT,
-      'r1',
-      'ещё',
-      expect.objectContaining({ reasoning: 'low' }),
-    );
+    expect(chatApi.queueMessage).toHaveBeenCalledWith(CHAT, 'r1', 'ещё', expect.objectContaining({ reasoning: 'low' }));
   });
 
   test('у модели без такого уровня поле не названо', async () => {

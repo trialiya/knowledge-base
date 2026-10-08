@@ -192,9 +192,10 @@ public class RunOptionsResolver {
      * уровнем, чат обязан снова на нём пойти. Сам прогон при этом едет на том, что у модели есть
      * (см. {@code ChatModelProperties#reasoningLevel}).
      *
-     * <p>Уровень, которого нет ни у одной модели, — опечатка, а не переключение: 400, как у
-     * неизвестных модели и режима. Сохранённый же уровень, выбывший из конфигурации, тихо уступает
-     * умолчанию модели.
+     * <p>Уровень, которого нет ни у одной модели, сюда как выбор не доходит: опечатку в запросе
+     * отвергает {@link #validate} до резолва. Доходит он только снимком из очереди, сделанным до
+     * того, как уровень убрали из конфигурации, — и тогда, как и сохранённый в чате, тихо уступает
+     * умолчанию модели: отказать здесь значило бы оставить доставленный вопрос без ответа.
      *
      * @param model модель прогона, уже разрешённая ({@code null} — модель по умолчанию)
      * @return {@code null} — отправлять нечего: у модели нет уровней, или ни выбора, ни умолчания
@@ -204,17 +205,14 @@ public class RunOptionsResolver {
             final Optional<ChatTopicEntity> stored,
             final @Nullable String requested,
             final @Nullable String model) {
-        final String chosen;
-        if (StringUtils.hasText(requested)) {
-            if (!chatModelProperties.isKnownReasoningLevel(requested)) {
-                throw new ResponseStatusException(BAD_REQUEST, "Unknown reasoning level: " + requested);
-            }
-            chatTopicRepository.updateReasoning(conversationId, requested); // запоминаем как «последний»
-            chosen = requested;
-        } else {
-            chosen = stored.map(ChatTopicEntity::getReasoning).orElse(null);
+        final String saved = stored.map(ChatTopicEntity::getReasoning).orElse(null);
+        if (!StringUtils.hasText(requested) || !chatModelProperties.isKnownReasoningLevel(requested)) {
+            return chatModelProperties.reasoningLevel(model, saved).orElse(null);
         }
-        return chatModelProperties.reasoningLevel(model, chosen).orElse(null);
+        if (!requested.equals(saved)) {
+            chatTopicRepository.updateReasoning(conversationId, requested); // запоминаем как «последний»
+        }
+        return chatModelProperties.reasoningLevel(model, requested).orElse(null);
     }
 
     /**

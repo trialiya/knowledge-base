@@ -216,14 +216,34 @@ class RunOptionsResolverTest {
         assertThat(reasoningResolver().current(CONV).reasoning()).isNull();
     }
 
-    /** Уровня нет ни у одной модели — опечатка, а не переключение модели. */
+    /**
+     * Уровня нет ни у одной модели. В запросе это опечатка — её отвергает {@code validate} до
+     * резолва. В резолв же такой уровень доходит снимком очереди, сделанным до того, как уровень
+     * убрали из конфигурации: тогда он уступает умолчанию модели, а не оставляет доставленный
+     * вопрос без ответа.
+     */
     @Test
-    void anUnknownReasoningLevelIsRejected() {
-        assertThatThrownBy(() -> reasoningResolver().resolve(CONV, new RunChoice(null, null, "max", null)))
+    void anUnknownReasoningLevelIsRejectedUpFrontAndFallsBackInTheResolve() {
+        assertThatThrownBy(() -> reasoningResolver().validate(new RunChoice(null, null, "max", null)))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("max");
-        assertThatThrownBy(() -> reasoningResolver().validate(new RunChoice(null, null, "max", null)))
-                .isInstanceOf(ResponseStatusException.class);
+
+        assertThat(reasoningResolver()
+                        .resolve(CONV, new RunChoice("deepseek", null, "max", null))
+                        .reasoning())
+                .isNotNull()
+                .extracting(ReasoningOptions.Level::id)
+                .isEqualTo("off");
+        verify(topicRepository, never()).updateReasoning(anyString(), any());
+    }
+
+    /** Названный уровень, который у чата уже стоит, второй раз не пишется. */
+    @Test
+    void aReasoningLevelAlreadyStoredIsNotWrittenAgain() {
+        when(topicRepository.findById(CONV)).thenReturn(Optional.of(topic(null, "low")));
+
+        reasoningResolver().resolve(CONV, new RunChoice(null, null, "low", null));
+
         verify(topicRepository, never()).updateReasoning(anyString(), any());
     }
 
