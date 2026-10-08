@@ -12,7 +12,6 @@ import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.model.search.SearchAgentResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ProjectContext;
-import io.github.trialiya.kb.utils.ReasoningOptions;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -377,7 +376,8 @@ public class SearchAgentService {
         if (config.temperature() != null) {
             options.temperature(config.temperature());
         }
-        return ReasoningOptions.apply(options, config.reasoningEffort(), config.thinking(), null);
+        config.applyTo(options);
+        return options;
     }
 
     /**
