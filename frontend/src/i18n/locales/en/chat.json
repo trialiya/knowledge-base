@@ -47,6 +47,7 @@
     "updated": "Last change",
     "model": "Model",
     "mode": "Mode",
+    "reasoning": "Reasoning",
     "project": "Project",
     "id": "ID",
     "draftNote": "Draft: the chat is created on the server with the first message."
@@ -476,6 +477,21 @@
   "mode": {
     "aria": "Mode",
     "none": "No mode"
+  },
+  "reasoning": {
+    "aria": "Reasoning",
+    "option": "Reasoning: {{level}}",
+    "default": "default",
+    "levels": {
+      "none": "none",
+      "minimal": "minimal",
+      "low": "low",
+      "medium": "medium",
+      "high": "high",
+      "xhigh": "extra high",
+      "off": "off",
+      "on": "on"
+    }
   },
   "project": {
     "aria": "Project",

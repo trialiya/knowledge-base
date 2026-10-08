@@ -2087,6 +2087,25 @@
     пишет ответ. Соседний кейс со сжатием контекста ловит обратное — там писать
     некуда, и обе кнопки неактивны.
 
+- id: chat-composer-reasoning-selector
+  component: ComposerToolbar + ReasoningSelector
+  path: frontend/src/components/chatPanel/composer/ReasoningSelector.jsx
+  fixtures:
+    - ./fixtures/composerToolbar.js#reasoningComposer
+  title: Композер — селектор уровня рассуждений у модели, которая их поддерживает
+  status: verified
+  origin:
+    - Сессия 2026-10-08, выбор reasoning в чате
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - Четыре селектора в одном ряду — модель, режим, рассуждения, проект; ряд не переносится
+    - 'Триггер называет, что выбрано: «Рассуждения: высокие», а не голое «high»'
+    - 'Список открыт вверх: «по умолчанию» первым (у модели нет reasoning.default), затем «низкие», «высокие» и «Глубоко» — подпись из конфигурации'
+  notes: |
+    У модели без уровней селектора нет вовсе — это видно на соседних кейсах
+    composerToolbar.js, где reasoning не передан.
+
 - id: chat-composer-compacting-locks-both
   component: ComposerToolbar
   path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx

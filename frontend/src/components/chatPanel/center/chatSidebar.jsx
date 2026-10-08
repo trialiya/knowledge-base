@@ -19,9 +19,7 @@ export function buildChatTabs({
   t,
   chatId,
   infoChat,
-  modelLabel,
-  modeLabel,
-  projectLabel,
+  labels,
   usage,
   attachmentCount,
   onAttachmentCountChange,
@@ -34,7 +32,7 @@ export function buildChatTabs({
       key: RIGHT_TAB.INFO,
       label: t('tabs.info'),
       icon: <IconInfo size={16} />,
-      content: <ChatInfo chat={infoChat} modelLabel={modelLabel} modeLabel={modeLabel} projectLabel={projectLabel} />,
+      content: <ChatInfo chat={infoChat} {...labels} />,
     },
     {
       // Токены — второй вкладкой, сразу за «Инфо»: вопрос к ней («во что обошёлся чат») задают

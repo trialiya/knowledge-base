@@ -10,11 +10,12 @@ const enc = (id) => encodeURIComponent(id);
 // Тело запроса, отправляющего сообщение в чат, — одно на POST /runs и на постановку в
 // очередь идущего прогона (StartRunRequest на бэке): выбор едет вместе с сообщением, а не
 // параметрами адреса, который целиком попадает в логи вместе с текстом вопроса.
-const runBody = (text, contextItems, { model, mode, project, clientMsgId, retry = false }) => ({
+const runBody = (text, contextItems, { model, mode, reasoning, project, clientMsgId, retry = false }) => ({
   text: text || null,
   contextItems: contextItems || [],
   model: model || null,
   mode: mode || null,
+  reasoning: reasoning || null,
   project: project || null,
   clientMsgId: clientMsgId || null,
   retry,
@@ -133,6 +134,17 @@ const chatApi = {
     }),
 
   /**
+   * Сменить уровень рассуждений чата. Тело — plain string ('' → умолчание модели). Уровни —
+   * у моделей в getModels (reasoning); бэк отвергает только уровень, которого нет ни у одной.
+   */
+  updateReasoning: (id, levelId) =>
+    request(`/api/chats/${enc(id)}/reasoning`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: levelId || '',
+    }),
+
+  /**
    * Запустить генерацию ответа как фоновую задачу. Возвращает { runId, messageId }.
    * Сам ответ приходит не здесь, а потоком событий (chatEvents.js).
    * clientMsgId — чтобы не задвоить свой оптимистичный пузырь при получении эха.
@@ -148,10 +160,10 @@ const chatApi = {
    * retry — повтор упавшего прогона: текста не передаём, ходом остаётся уже сохранённый
    * вопрос со своим контекстом. Если модель успела начать ответ, бэк отвечает 422.
    */
-  startRun: (id, text, { model, mode, project, clientMsgId, retry, contextItems } = {}) =>
+  startRun: (id, text, { model, mode, reasoning, project, clientMsgId, retry, contextItems } = {}) =>
     request(`/api/chats/${enc(id)}/runs`, {
       method: 'POST',
-      ...json(runBody(text, contextItems, { model, mode, project, clientMsgId, retry })),
+      ...json(runBody(text, contextItems, { model, mode, reasoning, project, clientMsgId, retry })),
     }),
 
   /**
@@ -165,10 +177,10 @@ const chatApi = {
    * `409` — этот прогон уже не генерирует (кончился, пока набирали): вызывающий повторяет
    * обычным startRun.
    */
-  queueMessage: (id, runId, text, { model, mode, project, clientMsgId, contextItems } = {}) =>
+  queueMessage: (id, runId, text, { model, mode, reasoning, project, clientMsgId, contextItems } = {}) =>
     request(`/api/chats/${enc(id)}/runs/${enc(runId)}/messages`, {
       method: 'POST',
-      ...json(runBody(text, contextItems, { model, mode, project, clientMsgId })),
+      ...json(runBody(text, contextItems, { model, mode, reasoning, project, clientMsgId })),
     }),
 
   /**

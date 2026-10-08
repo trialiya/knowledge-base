@@ -1,6 +1,11 @@
-import { STORAGE_KEY_LAST_MODEL, STORAGE_KEY_LAST_MODE, STORAGE_KEY_LAST_PROJECT } from '@/constants/storage';
+import {
+  STORAGE_KEY_LAST_MODEL,
+  STORAGE_KEY_LAST_MODE,
+  STORAGE_KEY_LAST_PROJECT,
+  STORAGE_KEY_LAST_REASONING,
+} from '@/constants/storage';
 
-// ─── Модель и режим последней отправки ──────────────────────────────────────
+// ─── Модель, режим, рассуждения и проект последней отправки ─────────────────
 // Ими стартует новый чат и подстраховывается отправка, когда у чата своих не
 // задано. В рендере не участвуют (выбор показывает сам чат), а прочитать их
 // нужно синхронно в момент отправки — поэтому обычный модуль, а не состояние:
@@ -12,6 +17,7 @@ import { STORAGE_KEY_LAST_MODEL, STORAGE_KEY_LAST_MODE, STORAGE_KEY_LAST_PROJECT
 let lastModel = read(STORAGE_KEY_LAST_MODEL) || null;
 let lastMode = read(STORAGE_KEY_LAST_MODE) || '';
 let lastProject = read(STORAGE_KEY_LAST_PROJECT) || null;
+let lastReasoning = read(STORAGE_KEY_LAST_REASONING) || '';
 
 function read(key) {
   try {
@@ -57,4 +63,18 @@ export function getLastProject() {
 export function setLastProject(project) {
   lastProject = project || null;
   write(STORAGE_KEY_LAST_PROJECT, lastProject || '');
+}
+
+/**
+ * Уровень рассуждений, выбранный последним; '' — умолчание модели. В отличие от модели и
+ * режима запоминается при выборе в селекторе, а не при отправке: на отправку уходит уровень,
+ * только если он есть у модели (см. reasoningForSend), и «не отправили» там не значит «сбросили».
+ */
+export function getLastReasoning() {
+  return lastReasoning;
+}
+
+export function setLastReasoning(reasoning) {
+  lastReasoning = reasoning || '';
+  write(STORAGE_KEY_LAST_REASONING, lastReasoning);
 }

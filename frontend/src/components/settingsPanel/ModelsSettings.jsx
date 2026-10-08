@@ -28,6 +28,12 @@ const ModelsSettings = () => {
   );
 };
 
+/** Уровни модели для тегов: умолчание помечено, чтобы его было видно без отдельной строки. */
+const reasoningTags = (reasoning, t) =>
+  (reasoning?.levels || []).map((l) =>
+    l.id === reasoning.default ? t('models.chat.reasoningDefault', { id: l.id }) : l.id,
+  );
+
 const ModelsSections = ({ config }) => {
   const { t } = useTranslation('settings');
   const duration = useDurationFormat();
@@ -67,6 +73,10 @@ const ModelsSections = ({ config }) => {
             Выключение рвёт кэш промпта у чатов, где рассуждения уже есть, — об этом пояснение. */}
         <ConfigBoolRow label={t('models.chat.replayReasoning')} value={chat.defaultModel?.replayReasoning} />
         <p className="config-note">{t('models.chat.replayReasoningNote')}</p>
+        {/* Уровни рассуждений — что пользователь выбирает в чате; без них селектора нет. */}
+        <ConfigBlock label={t('models.chat.reasoningLevels')}>
+          <ConfigTags items={reasoningTags(chat.defaultModel?.reasoning, t)} empty={t('models.chat.reasoningNone')} />
+        </ConfigBlock>
       </SettingsSection>
 
       {chat.models?.length > 0 && (
@@ -79,6 +89,9 @@ const ModelsSections = ({ config }) => {
               {/* Модель отвечает не с общего эндпоинта: у неё свои base-url/api-key
                   (kb.chat.models[].base-url). Сам адрес и токен наружу не отдаются. */}
               {m.ownEndpoint && <span className="config-badge">{t('models.available.ownEndpointBadge')}</span>}
+              {m.reasoning?.levels?.length > 0 && (
+                <span className="config-badge">{t('models.available.reasoningBadge')}</span>
+              )}
               {/* По умолчанию рассуждения возвращаются — отмечаем исключение. */}
               {m.replayReasoning === false && (
                 <span className="config-badge">{t('models.available.noReasoningBadge')}</span>

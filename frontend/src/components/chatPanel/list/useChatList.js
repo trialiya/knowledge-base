@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import i18n from '@/i18n/index';
 import chatApi from '@/api/chatApi';
 import { DRAFT_CHAT_ID } from '@/constants/storage';
+import { setLastReasoning } from '../run/lastChoiceStore';
 
 /**
  * Ответ первичной загрузки поверх того, что уже есть в стейте. Пока список шёл, в панели
@@ -88,6 +89,7 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
           aiTopic: chat.aiTopic || null,
           model: chat.model || null,
           mode: chat.mode || null,
+          reasoning: chat.reasoning || null,
           project: chat.project || null,
         }));
 
@@ -197,6 +199,23 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
     [patchChat],
   );
 
+  // Смена уровня рассуждений чата. Пустой id ('') → умолчание модели. Запоминается и
+  // как «последний» — им стартует новый чат (см. lastChoiceStore).
+  const changeReasoning = useCallback(
+    async (chatId, newId) => {
+      if (!chatId) return;
+      patchChat(chatId, { reasoning: newId || null });
+      setLastReasoning(newId);
+      if (chatId === DRAFT_CHAT_ID) return;
+      try {
+        await chatApi.updateReasoning(chatId, newId);
+      } catch (err) {
+        console.error('Ошибка смены уровня рассуждений чата:', err);
+      }
+    },
+    [patchChat],
+  );
+
   // Смена проекта чата. Пустой id ('') → вернуться к дефолтному. На бэк не пишется:
   // выбор становится проектом чата только с отправленным сообщением (?project= на
   // прогоне) — так сохранённое значение всегда означает «на каком проекте шла
@@ -219,6 +238,7 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
         patchChat(chatId, (chat) => ({
           model: data.model ?? chat.model ?? null,
           mode: data.mode ?? chat.mode ?? null,
+          reasoning: data.reasoning ?? chat.reasoning ?? null,
           // Проекта здесь нет намеренно: выбор в селекторе на бэк не пишется до отправки
           // (см. changeProject), и ответ сервера про него отстаёт — взяв его, мы бы откатывали
           // выбранный, но ещё не отправленный проект всякий раз, когда завершается прогон.
@@ -245,6 +265,7 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
     renameChat,
     changeModel,
     changeMode,
+    changeReasoning,
     changeProject,
     refreshChatMeta,
   };
