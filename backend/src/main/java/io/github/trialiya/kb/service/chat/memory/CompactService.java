@@ -8,6 +8,7 @@ import static java.util.Objects.requireNonNull;
 
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.config.ChatModelRegistry;
+import io.github.trialiya.kb.config.model.ReasoningOptions;
 import io.github.trialiya.kb.model.chat.dto.CompactDetail;
 import io.github.trialiya.kb.model.chat.dto.CompactErrorPayload;
 import io.github.trialiya.kb.model.chat.dto.CompactPayload;
@@ -167,8 +168,8 @@ public class CompactService {
 
     /**
      * Настройки запроса сжатия. Это те же настройки, на которых идёт сам чат ({@code
-     * ChatRunService.RunOptions}) — все четыре поля влияют на начало запроса, а от него зависит,
-     * попадёт ли раунд в кэш промпта (см. javadoc класса).
+     * ChatRunService.RunOptions}): модель, промпт и история определяют начало запроса, а от него
+     * зависит, попадёт ли раунд в кэш промпта (см. javadoc класса).
      *
      * <p>Своя запись, а не {@code RunOptions}: пакеты чата зависят в одну сторону ({@code event} ←
      * {@code runtime} ← {@code memory} ← {@code run}), и тип из {@code run} здесь был бы ссылкой
@@ -181,13 +182,16 @@ public class CompactService {
      * @param replayReasoning {@code ChatModelProperties#replayReasoning} от {@link #model}:
      *     рассуждения ответов входят в историю чата на тех же правах, что и их текст, и без них
      *     раунд разошёлся бы с кэшем уже на первом ответе окна
+     * @param reasoning уровень рассуждений чата, разрешённый под {@link #model}; {@code null} —
+     *     ничего не отправлять. Тот же, что у ответов: сжатие идёт от имени чата и на его настройках
      */
     public record CompactOptions(
             @Nullable String model,
             boolean weakModel,
             @Nullable String project,
             String modeInstructions,
-            boolean replayReasoning) {}
+            boolean replayReasoning,
+            ReasoningOptions.@Nullable Level reasoning) {}
 
     /**
      * Чем раунд закрывается — всё, чем сжатие по команде отличается от автоматического ({@code
@@ -463,8 +467,16 @@ public class CompactService {
                         // параметру историю здесь некому.
                         .param(ChatMemory.CONVERSATION_ID, conversationId)
                         .param(ChatClientAttributes.TOOL_CALLING_ADVISOR_AUTO_REGISTER.getKey(), false));
-        if (model != null) {
-            spec = spec.options(OpenAiChatOptions.builder().model(model));
+        final ReasoningOptions.@Nullable Level reasoning = options.reasoning();
+        if (model != null || reasoning != null) {
+            final OpenAiChatOptions.Builder requestOptions = OpenAiChatOptions.builder();
+            if (model != null) {
+                requestOptions.model(model);
+            }
+            if (reasoning != null) {
+                reasoning.applyTo(requestOptions);
+            }
+            spec = spec.options(requestOptions);
         }
         final @Nullable ChatResponse response = spec.call().chatResponse();
         // Замер обращения — накопителем прогона на один вызов: правило сборки у сжатия и у ответа

@@ -40,7 +40,7 @@ class ChatSearchGroupedTest {
     }
 
     private static ChatTopicEntity topic(String id, String title, LocalDateTime updatedAt) {
-        return new ChatTopicEntity(id, USER, title, null, null, null, null, null, T0, updatedAt, false);
+        return new ChatTopicEntity(id, USER, title, null, null, null, null, null, null, T0, updatedAt, false);
     }
 
     private static ChatMessageEntity message(

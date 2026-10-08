@@ -75,7 +75,17 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
   const runConversation = useCallback(
     async (
       conversationId,
-      { text = null, clientMsgId = null, model, mode, project, retry = false, retryMid = null, contextItems = [] },
+      {
+        text = null,
+        clientMsgId = null,
+        model,
+        mode,
+        reasoning,
+        project,
+        retry = false,
+        retryMid = null,
+        contextItems = [],
+      },
     ) => {
       // Запоминаем как «последние» — новый чат стартует именно с них. Режим
       // запоминаем всегда, в т.ч. '' — это сознательный сброс к «без режима».
@@ -90,6 +100,7 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
         const res = await chatApi.startRun(conversationId, text, {
           model,
           mode,
+          reasoning,
           project,
           clientMsgId,
           retry,
@@ -181,11 +192,12 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
   // блокировка отняла бы у пользователя ровно ту возможность, ради которой всё и сделано.
   const queueMessage = useCallback(
     async (conversationId, runId, send) => {
-      const { text, clientMsgId, contextItems, model, mode, project } = send;
+      const { text, clientMsgId, contextItems, model, mode, reasoning, project } = send;
       try {
         await chatApi.queueMessage(conversationId, runId, text, {
           model,
           mode,
+          reasoning,
           project,
           clientMsgId,
           contextItems,

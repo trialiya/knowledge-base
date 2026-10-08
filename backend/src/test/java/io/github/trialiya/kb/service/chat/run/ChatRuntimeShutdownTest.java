@@ -14,6 +14,7 @@ import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.AutoCompactService;
@@ -100,7 +101,7 @@ class ChatRuntimeShutdownTest {
     void cancelsRunsAndClosesSubscriptionsOnContextClosed() {
         runService = runService(Runnable::run);
         final SseEmitter emitter = events.subscribe(CONV, 0);
-        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), RunChoice.NONE, "msg-1");
 
         assertThat(runs.size()).isEqualTo(1);
         assertThat(events.hubCount()).isEqualTo(1);
@@ -122,7 +123,7 @@ class ChatRuntimeShutdownTest {
     @Test
     void cancelsRunThatHasNotSubscribedYet() {
         runService = runService(deferred);
-        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), RunChoice.NONE, "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
         assertThat(runs.size()).isEqualTo(1); // задача ещё не стартовала
@@ -141,9 +142,8 @@ class ChatRuntimeShutdownTest {
     @Test
     void aStoppedRunDeliversItsQueueButStartsNoAnswer() {
         runService = runService(Runnable::run);
-        when(pendingMessages.flushPlain(CONV))
-                .thenReturn(new Flushed(List.of(userRow()), USER, PendingMessageService.PendingOptions.NONE));
-        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+        when(pendingMessages.flushPlain(CONV)).thenReturn(new Flushed(List.of(userRow()), USER, RunChoice.NONE));
+        runService.start(CONV, USER, "привет", List.of(), RunChoice.NONE, "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
 
@@ -171,7 +171,7 @@ class ChatRuntimeShutdownTest {
             quiescentDuringFlush.add(runService.awaitQuiescence(Duration.ZERO));
             return Flushed.NOTHING;
         });
-        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), RunChoice.NONE, "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
 
@@ -248,18 +248,25 @@ class ChatRuntimeShutdownTest {
                 mock(PendingSummaryService.class),
                 mock(AutoCompactService.class),
                 new ChatModelProperties(
-                        new ModelOption("default-model", "Default", true, true, null, null, null, false), List.of()),
+                        new ModelOption("default-model", "Default", true, true, null, null, null, false, null),
+                        List.of()),
                 events,
                 mock(SystemPromptService.class),
                 pendingMessages,
-                mock(RunOptionsResolver.class),
+                resolver(),
                 runs,
                 slots,
                 executor);
     }
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
+    private static RunOptionsResolver resolver() {
+        final RunOptionsResolver resolver = mock(RunOptionsResolver.class);
+        when(resolver.resolve(anyString(), any())).thenReturn(options());
+        return resolver;
+    }
+
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, true, "", null, "kb", null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, null, "kb", null);
     }
 }

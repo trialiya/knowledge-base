@@ -17,6 +17,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.ChatModelRegistry;
+import io.github.trialiya.kb.config.model.ReasoningOptions;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.CompactDetail;
 import io.github.trialiya.kb.model.chat.dto.CompactErrorPayload;
@@ -83,7 +84,7 @@ class CompactServiceTest {
 
     /** Настройки чата: их собирает контроллер тем же резолвом, что и для обычного прогона. */
     private static final CompactService.CompactOptions OPTIONS =
-            new CompactService.CompactOptions(null, false, "kb", "MODE", false);
+            new CompactService.CompactOptions(null, false, "kb", "MODE", false, null);
 
     private ChatMessageRepository repository;
     private PendingSummaryService pendingSummaries;
@@ -740,6 +741,34 @@ class CompactServiceTest {
         return task -> {
             throw new RejectedExecutionException("shutting down");
         };
+    }
+
+    /**
+     * Сжатие идёт от имени чата и на его уровне рассуждений. Уровень ложится поверх опций модели:
+     * {@code reasoning_effort} заменяет её, а {@code extra-body} сливается с её собственным по
+     * ключам — маршрутизация провайдера, заданная у модели, обязана доехать и сюда.
+     */
+    @Test
+    void theChatsReasoningLevelGoesOverTheModelsOwnOptions() {
+        when(chatModel.getOptions())
+                .thenReturn(OpenAiChatOptions.builder()
+                        .extraBody(Map.of("route", "eu", "thinking", Map.of("type", "enabled")))
+                        .build());
+        final CompactService.CompactOptions withReasoning = new CompactService.CompactOptions(
+                null,
+                false,
+                "kb",
+                "MODE",
+                false,
+                new ReasoningOptions.Level("off", null, "low", Map.of("thinking", Map.of("type", "disabled"))));
+
+        service().compact(CONV, turns(1), forCommand(commandRow(3).entity()), null, withReasoning);
+
+        final OpenAiChatOptions sent = (OpenAiChatOptions) capturedPrompt().getOptions();
+        assertThat(sent.getReasoningEffort()).isEqualTo("low");
+        assertThat(sent.getExtraBody())
+                .containsEntry("route", "eu")
+                .containsEntry("thinking", Map.of("type", "disabled"));
     }
 
     private void answerWith(String content) {

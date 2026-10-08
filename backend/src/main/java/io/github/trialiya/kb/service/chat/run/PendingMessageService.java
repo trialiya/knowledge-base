@@ -4,6 +4,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.MESSAGE_QUEUED;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
 import io.github.trialiya.kb.model.chat.dto.QueuedMessagePayload;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
@@ -54,20 +55,6 @@ public class PendingMessageService {
     private final ChatEventService events;
 
     /**
-     * Снимок настроек прогона на момент отправки. Если доставка случится уже после завершения
-     * текущего прогона, follow-up обязан поехать на них, а не на том, что окажется у чата к тому
-     * моменту.
-     */
-    public record PendingOptions(
-            @Nullable String model,
-            @Nullable String mode,
-            @Nullable String project) {
-
-        /** Ничего не выбрано — как отсутствующие параметры запроса: решают память чата и конфиг. */
-        public static final PendingOptions NONE = new PendingOptions(null, null, null);
-    }
-
-    /**
      * Принимает сообщение в очередь чата и сообщает всем вкладкам ({@code MESSAGE_QUEUED}).
      * Проверку «прогон действительно активен» делает вызывающий — здесь только запись и событие.
      *
@@ -82,7 +69,7 @@ public class PendingMessageService {
             String user,
             String text,
             List<ContextItem> contextItems,
-            PendingOptions options,
+            RunChoice options,
             String runId,
             @Nullable String clientMsgId) {
         final ChatPendingMessageEntity saved = repository.save(new ChatPendingMessageEntity(
@@ -94,6 +81,7 @@ public class PendingMessageService {
                 contextItems.isEmpty() ? null : ChatMessageMeta.ofContextItems(contextItems),
                 options.model(),
                 options.mode(),
+                options.reasoning(),
                 options.project(),
                 LocalDateTime.now()));
         announce(List.of(() -> events.publish(
@@ -148,10 +136,10 @@ public class PendingMessageService {
      *     ChatHistoryService#unansweredUserMessage}) — на настройках первого он ответил бы на одно
      *     сообщение выбором, сделанным для другого
      */
-    public record Flushed(List<ChatMessageEntity> rows, String user, PendingOptions options) {
+    public record Flushed(List<ChatMessageEntity> rows, String user, RunChoice options) {
 
         /** Доставлять было нечего. */
-        public static final Flushed NOTHING = new Flushed(List.of(), ChatUtils.ANONYMOUS_USER, PendingOptions.NONE);
+        public static final Flushed NOTHING = new Flushed(List.of(), ChatUtils.ANONYMOUS_USER, RunChoice.NONE);
 
         /** Доставлено хоть одно сообщение — у чата появился неотвеченный вопрос. */
         public boolean any() {
@@ -175,7 +163,7 @@ public class PendingMessageService {
             flushed = new Flushed(
                     delivered,
                     pending.getUser(),
-                    new PendingOptions(pending.getModel(), pending.getMode(), pending.getProject()));
+                    new RunChoice(pending.getModel(), pending.getMode(), pending.getReasoning(), pending.getProject()));
             final String clientMsgId = pending.getClientMsgId();
             announcements.add(() ->
                     // Хаба может не быть вовсе: восстановление после падения процесса

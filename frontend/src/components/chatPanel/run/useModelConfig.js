@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import chatApi from '@/api/chatApi';
+import { getLastModel } from './lastChoiceStore';
 
 /**
  * Человекочитаемая подпись модели по её id. Модель, выбывшая из конфигурации, показывается
@@ -10,6 +11,22 @@ import chatApi from '@/api/chatApi';
  * @param {?string} id id модели; null/пусто — подписи нет
  */
 export const modelLabelOf = (options, id) => (id ? options?.find((o) => o.id === id)?.label || id : null);
+
+/**
+ * Модель, на которой пойдёт следующая отправка в этом чате: выбранная у чата → последняя
+ * отправленная → дефолтная; каждая — только если она ещё есть в конфиге. Одна функция на
+ * селектор и на отправку (useComposerChoices, useChatRun): на экране обязана стоять та модель,
+ * с которой уйдёт сообщение, — от неё же зависят и уровни рассуждений в селекторе.
+ *
+ * @returns {?string} id модели; null — конфиг ещё не доехал
+ */
+export function modelForChat(chat, modelOptions, modelConfig) {
+  const selected = chat?.model;
+  if (selected && modelOptions.some((o) => o.id === selected)) return selected;
+  const last = getLastModel();
+  if (last && modelOptions.some((o) => o.id === last)) return last;
+  return modelConfig?.defaultModel?.id || null;
+}
 
 /**
  * Загружает конфиг моделей (GET /api/chats/models) один раз и отдаёт его вместе с

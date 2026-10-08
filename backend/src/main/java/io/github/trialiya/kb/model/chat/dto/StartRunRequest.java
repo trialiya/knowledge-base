@@ -17,6 +17,10 @@ import org.jspecify.annotations.Nullable;
  *     подписями на бэке
  * @param model id модели поверх выбранной в чате; {@code null} — модель чата
  * @param mode id режима ассистента поверх выбранного в чате; {@code null} — режим чата
+ * @param reasoning id уровня рассуждений поверх выбранного в чате; {@code null} — уровень чата,
+ *     пустая строка — сброс к умолчанию модели.
+ *     Уровень, которого у модели прогона нет, ошибкой не считается — прогон пойдёт на её умолчании
+ *     (см. {@code ChatModelProperties#reasoningLevel})
  * @param project id проекта поверх выбранного в чате; {@code null} — проект чата
  * @param clientMsgId идентификатор клиента — чтобы вкладка-отправитель не задвоила свой
  *     оптимистично показанный пузырь, получив его же эхом
@@ -29,6 +33,13 @@ public record StartRunRequest(
         @Nullable List<ContextItemRequest> contextItems,
         @Nullable String model,
         @Nullable String mode,
+        @Nullable String reasoning,
         @Nullable String project,
         @Nullable String clientMsgId,
-        boolean retry) {}
+        boolean retry) {
+
+    /** Выбор пользователя из тела запроса — то, что резолвят поверх памяти чата. */
+    public RunChoice choice() {
+        return new RunChoice(model, mode, reasoning, project);
+    }
+}

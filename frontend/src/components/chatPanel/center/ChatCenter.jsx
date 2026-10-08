@@ -19,6 +19,7 @@ import MessageInput from '../composer/MessageInput';
  * @param {object} p.search  результат useInChatSearch плюс `inputRef` и `canSearch`
  * @param {object} p.model   { config, options, selected, onChange } для селектора модели
  * @param {object} p.mode    { options, selected, onChange } для селектора режима
+ * @param {object} p.reasoning { levels, selected, onChange } для селектора рассуждений
  * @param {object} p.project { options, defaultId, selected, inLinks, missing, onChange } для селектора проекта
  */
 const ChatCenter = ({
@@ -38,6 +39,7 @@ const ChatCenter = ({
   composerDraftSignal,
   model,
   mode,
+  reasoning,
   project,
   onRename,
   onDelete,
@@ -171,6 +173,7 @@ const ChatCenter = ({
           onTextChange={onTextChange}
           model={model}
           mode={mode}
+          reasoning={reasoning}
           project={project}
           run={run}
         />
