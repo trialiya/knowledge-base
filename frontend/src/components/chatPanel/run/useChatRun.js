@@ -5,7 +5,8 @@ import { SENDER } from '@/constants/messageSender';
 import { RETRY_MODE } from '@/constants/retryMode';
 import { generateUUID } from '@/utils/uuid';
 import { nextMessageId } from '../messages/messageId';
-import { getLastModel, getLastMode } from './lastChoiceStore';
+import { getLastMode } from './lastChoiceStore';
+import { modelForChat } from './useModelConfig';
 import { reasoningForSend } from './reasoningChoice';
 import { chatLoadErrorNotice, COMMAND_BLOCK_NOTICE, scriptArgumentNotice, scriptFailedNotice } from './chatNotices';
 import { isChatEmpty } from '../messages/chatHistory';
@@ -67,15 +68,9 @@ export default function useChatRun({
     { getChats, patchChat, patchMessages, notify },
   );
 
-  // Модель для отправки — всегда явная: выбранная у чата → последняя → дефолтная.
+  // Модель для отправки — всегда явная, и та же, что стоит в селекторе (см. modelForChat).
   const resolveModelForSend = useCallback(
-    (chat) => {
-      const selected = chat?.model;
-      if (selected && modelOptions.some((o) => o.id === selected)) return selected;
-      const last = getLastModel();
-      if (last && modelOptions.some((o) => o.id === last)) return last;
-      return modelConfig?.defaultModel?.id || null;
-    },
+    (chat) => modelForChat(chat, modelOptions, modelConfig),
     [modelOptions, modelConfig],
   );
 

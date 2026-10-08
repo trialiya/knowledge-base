@@ -2,6 +2,7 @@ package io.github.trialiya.kb.config.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -108,10 +109,32 @@ public record ReasoningOptions(
             return Collections.unmodifiableMap(out);
         }
 
+        /**
+         * Список из YAML ({@code order: [a, b]}) привязка к {@code Map<String, Object>} отдаёт
+         * картой с ключами {@code 0..n-1}, и провайдеру ушёл бы объект вместо массива. Карта ровно
+         * с такими ключами — в любом порядке — это и есть список; иначе {@code null}.
+         */
+        private static @Nullable List<Object> asList(Map<String, Object> map) {
+            final List<Object> list = new ArrayList<>();
+            for (int index = 0; index < map.size(); index++) {
+                final String key = String.valueOf(index);
+                if (!map.containsKey(key)) {
+                    return null;
+                }
+                list.add(typedValue(map.get(key)));
+            }
+            return list.isEmpty() ? null : List.copyOf(list);
+        }
+
         @SuppressWarnings("unchecked")
         private static Object typedValue(Object value) {
             if (value instanceof Map<?, ?> nested) {
-                return typed((Map<String, Object>) nested);
+                final Map<String, Object> map = (Map<String, Object>) nested;
+                final List<Object> list = asList(map);
+                return list != null ? list : typed(map);
+            }
+            if (value instanceof List<?> list) {
+                return list.stream().map(Level::typedValue).toList();
             }
             if (value instanceof String text) {
                 if ("true".equals(text) || "false".equals(text)) {

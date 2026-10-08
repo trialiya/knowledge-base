@@ -285,6 +285,40 @@ class ChatModelPropertiesTest {
         assertThat(level.extraBody()).isEqualTo(Map.of("thinking", Map.of("type", "enabled", "budget_tokens", 1024L)));
     }
 
+    /**
+     * Список из YAML доходит до записи картой с ключами-индексами — и уходит провайдеру массивом,
+     * в порядке индексов, а не порядке ключей ({@code 10} после {@code 9}, а не после {@code 1}).
+     */
+    @Test
+    void extraBodyListsArriveAsArrays() {
+        final Map<String, Object> order = new java.util.LinkedHashMap<>();
+        for (final int i : new int[] {0, 1, 10, 2, 3, 4, 5, 6, 7, 8, 9}) {
+            order.put(String.valueOf(i), "p" + i);
+        }
+        final ReasoningOptions.Level level =
+                new ReasoningOptions.Level("routed", null, null, Map.of("provider", Map.of("order", order)));
+
+        assertThat(level.extraBody())
+                .isEqualTo(Map.of(
+                        "provider",
+                        Map.of("order", List.of("p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10"))));
+    }
+
+    @Test
+    void aReasoningLevelsListBindsFromYamlAsAnArray() {
+        final ChatModelProperties bound = new Binder(new MapConfigurationPropertySource(Map.of(
+                        "kb.chat.default-model.id", "router",
+                        "kb.chat.default-model.label", "Router",
+                        "kb.chat.default-model.reasoning.levels[0].id", "high",
+                        "kb.chat.default-model.reasoning.levels[0].extra-body.provider.order[0]", "anthropic",
+                        "kb.chat.default-model.reasoning.levels[0].extra-body.provider.order[1]", "openai")))
+                .bind("kb.chat", ChatModelProperties.class)
+                .get();
+
+        assertThat(bound.reasoningLevel(null, "high").orElseThrow().extraBody())
+                .isEqualTo(Map.of("provider", Map.of("order", List.of("anthropic", "openai"))));
+    }
+
     @Test
     void aReasoningDefaultOutsideTheLevelsIsRejected() {
         assertThatIllegalArgumentException()

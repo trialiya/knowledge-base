@@ -20,6 +20,7 @@ import io.github.trialiya.kb.model.chat.dto.CompactDetail;
 import io.github.trialiya.kb.model.chat.dto.CompactRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.dto.ScriptRunRequest;
 import io.github.trialiya.kb.model.chat.dto.StartRunRequest;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -186,9 +187,7 @@ public class ChatController {
             @PathVariable final String conversationId, @RequestBody(required = false) final String reasoning) {
         getChatTopic(conversationId); // 404/403 + проверка владельца
         final String trimmed = reasoning == null ? "" : reasoning.trim();
-        if (!trimmed.isEmpty() && !chatModelProperties.isKnownReasoningLevel(trimmed)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Unknown reasoning level: " + trimmed);
-        }
+        runOptions.validate(new RunChoice(null, null, trimmed, null));
         chatTopicRepository.updateReasoning(conversationId, trimmed.isEmpty() ? null : trimmed);
     }
 

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { modelLabelOf } from '../run/useModelConfig';
+import { modelForChat, modelLabelOf } from '../run/useModelConfig';
 import { resolveProjectChoice } from '@/components/common/config/projectChoice';
 import { effectiveReasoning, reasoningLevelName, reasoningOf } from '../run/reasoningChoice';
 import { stampChipProject } from './fileChips';
@@ -32,13 +32,9 @@ export default function useComposerChoices({
   changeProject,
   drafts,
 }) {
-  // Выбранная в селекторе модель. Если у чата модель не задана или её больше нет
-  // в конфиге — показываем дефолтную (чтобы select оставался валидным).
-  const selectedModelId = useMemo(() => {
-    const def = modelConfig?.defaultModel?.id || '';
-    const m = activeChat?.model;
-    return m && modelOptions.some((o) => o.id === m) ? m : def;
-  }, [activeChat, modelOptions, modelConfig]);
+  // Выбранная в селекторе модель — та, с которой уйдёт отправка (modelForChat): у чата,
+  // иначе последняя отправленная, иначе дефолтная. '' — конфиг ещё не доехал.
+  const selectedModelId = modelForChat(activeChat, modelOptions, modelConfig) || '';
 
   // Выбранный режим чата. Нет режима / режим убран из конфига → «без режима» ('').
   const selectedModeId = useMemo(() => {
