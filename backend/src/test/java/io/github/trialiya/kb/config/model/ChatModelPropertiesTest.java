@@ -24,8 +24,8 @@ class ChatModelPropertiesTest {
 
     private static ChatModelProperties props() {
         return new ChatModelProperties(
-                new ModelOption("default-model", "Default", true, true, null, null, null, false),
-                List.of(new ModelOption("gpt-4o-mini", "Mini", false, true, null, null, null, false)));
+                new ModelOption("default-model", "Default", true, true, null, null, null, false, null),
+                List.of(new ModelOption("gpt-4o-mini", "Mini", false, true, null, null, null, false, null)));
     }
 
     /** Пустое значение в строке — {@code null}: модель в запросе не названа вовсе. */
@@ -42,8 +42,8 @@ class ChatModelPropertiesTest {
     @Test
     void replayReasoningIsResolvedPerModelAndOnForAnUnknownOne() {
         final ChatModelProperties models = new ChatModelProperties(
-                new ModelOption("default-model", "Default", true, true, null, null, null, false),
-                List.of(new ModelOption("deepseek", "DeepSeek", false, true, null, null, null, true)));
+                new ModelOption("default-model", "Default", true, true, null, null, null, false, null),
+                List.of(new ModelOption("deepseek", "DeepSeek", false, true, null, null, null, true, null)));
 
         assertThat(models.replayReasoning(null)).isFalse();
         assertThat(models.replayReasoning("deepseek")).isTrue();
@@ -76,8 +76,8 @@ class ChatModelPropertiesTest {
     @Test
     void streamUsageIsResolvedPerModel() {
         final ChatModelProperties props = new ChatModelProperties(
-                new ModelOption("default-model", "Default", true, true, null, null, null, false),
-                List.of(new ModelOption("picky-gateway", "Picky", false, false, null, null, null, false)));
+                new ModelOption("default-model", "Default", true, true, null, null, null, false, null),
+                List.of(new ModelOption("picky-gateway", "Picky", false, false, null, null, null, false, null)));
 
         assertThat(props.streamUsage("picky-gateway")).isFalse();
         assertThat(props.streamUsage("default-model")).isTrue();
@@ -96,10 +96,10 @@ class ChatModelPropertiesTest {
     @Test
     void contextTokensAreResolvedPerModelAndNeverGuessed() {
         final ChatModelProperties props = new ChatModelProperties(
-                new ModelOption("default-model", "Default", true, true, 200_000, null, null, false),
+                new ModelOption("default-model", "Default", true, true, 200_000, null, null, false, null),
                 List.of(
-                        new ModelOption("small", "Small", false, true, 8_000, null, null, false),
-                        new ModelOption("unnamed", "Unnamed", false, true, null, null, null, false)));
+                        new ModelOption("small", "Small", false, true, 8_000, null, null, false, null),
+                        new ModelOption("unnamed", "Unnamed", false, true, null, null, null, false, null)));
 
         assertThat(props.contextTokens("small")).isEqualTo(8_000);
         assertThat(props.contextTokens("default-model")).isEqualTo(200_000);
@@ -111,8 +111,8 @@ class ChatModelPropertiesTest {
 
     @Test
     void nullModelsListDefaultsToEmptyAndAllowsOnlyDefault() {
-        ChatModelProperties only =
-                new ChatModelProperties(new ModelOption("solo", "Solo", true, true, null, null, null, false), null);
+        ChatModelProperties only = new ChatModelProperties(
+                new ModelOption("solo", "Solo", true, true, null, null, null, false, null), null);
         assertThat(only.models()).isEmpty();
         assertThat(only.isAllowed("solo")).isTrue();
         assertThat(only.isAllowed("anything-else")).isFalse();
@@ -135,7 +135,7 @@ class ChatModelPropertiesTest {
     @NullSource
     @ValueSource(strings = "  ")
     void aModelWithoutAnEndpointOfItsOwnSharesTheDefaultConnection(@Nullable String blank) {
-        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, blank, blank, false);
+        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, blank, blank, false, null);
         assertThat(shared.baseUrl()).isNull();
         assertThat(shared.apiKey()).isNull();
         assertThat(shared.hasOwnEndpoint()).isFalse();
@@ -143,8 +143,8 @@ class ChatModelPropertiesTest {
 
     @Test
     void ownHostWithItsOwnTokenGetsAnEndpointOfItsOwn() {
-        ModelOption own =
-                new ModelOption("remote", "Remote", false, true, null, "https://llm.example/v1", "sk-remote", false);
+        ModelOption own = new ModelOption(
+                "remote", "Remote", false, true, null, "https://llm.example/v1", "sk-remote", false, null);
         assertThat(own.hasOwnEndpoint()).isTrue();
         assertThat(own.baseUrl()).isEqualTo("https://llm.example/v1");
     }
@@ -152,7 +152,8 @@ class ChatModelPropertiesTest {
     @Test
     void ownTokenWithoutAHostIsAllowedAndStillNeedsItsOwnConnection() {
         // Same host, separate account or quota — nothing to guess, so nothing to reject.
-        ModelOption ownKey = new ModelOption("billed-apart", "Billed apart", false, true, null, null, "sk-two", false);
+        ModelOption ownKey =
+                new ModelOption("billed-apart", "Billed apart", false, true, null, null, "sk-two", false, null);
         assertThat(ownKey.hasOwnEndpoint()).isTrue();
     }
 
@@ -160,8 +161,8 @@ class ChatModelPropertiesTest {
     void ownHostWithoutATokenIsRejected() {
         // The one combination nobody means: a foreign host reached with the default host's token.
         assertThatIllegalArgumentException()
-                .isThrownBy(() ->
-                        new ModelOption("remote", "Remote", false, true, null, "https://llm.example/v1", null, false))
+                .isThrownBy(() -> new ModelOption(
+                        "remote", "Remote", false, true, null, "https://llm.example/v1", null, false, null))
                 .withMessageContaining("api-key");
     }
 
@@ -171,7 +172,8 @@ class ChatModelPropertiesTest {
         // report ownEndpoint without ever being built, so the configuration must not accept it.
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new ChatModelProperties(
-                        new ModelOption("solo", "Solo", true, true, null, "https://llm.example/v1", "sk-solo", false),
+                        new ModelOption(
+                                "solo", "Solo", true, true, null, "https://llm.example/v1", "sk-solo", false, null),
                         List.of()))
                 .withMessageContaining("kb.chat.models");
     }
@@ -179,8 +181,8 @@ class ChatModelPropertiesTest {
     @Test
     void theTokenIsNotPrinted() {
         // @JsonIgnore covers the API; toString is the other way a secret reaches a log line.
-        ModelOption own =
-                new ModelOption("remote", "Remote", false, true, null, "https://llm.example/v1", "sk-remote", false);
+        ModelOption own = new ModelOption(
+                "remote", "Remote", false, true, null, "https://llm.example/v1", "sk-remote", false, null);
         assertThat(own.toString()).doesNotContain("sk-remote").contains("remote", "***");
     }
 
@@ -189,5 +191,110 @@ class ChatModelPropertiesTest {
         // Should not happen past isAllowed(), but the conservative fallback is "assume weak" —
         // missing the tutorial hurts a weak model more than an extra paragraph hurts a strong one.
         assertThat(props().isWeak("evil-model")).isTrue();
+    }
+
+    /**
+     * Уровни рассуждений приходят из YAML — блоком, где {@code default} назван ключевым словом Java,
+     * а {@code extra-body} несёт вложенные поля провайдера с подчёркиваниями. И то и другое обязано
+     * доехать до записи как написано.
+     */
+    @Test
+    void reasoningLevelsBindFromTheConfiguration() {
+        final ChatModelProperties bound = new Binder(new MapConfigurationPropertySource(Map.ofEntries(
+                        Map.entry("kb.chat.default-model.id", "gpt-5"),
+                        Map.entry("kb.chat.default-model.label", "GPT-5"),
+                        Map.entry("kb.chat.default-model.reasoning.default", "medium"),
+                        Map.entry("kb.chat.default-model.reasoning.levels[0].id", "low"),
+                        Map.entry("kb.chat.default-model.reasoning.levels[0].reasoning-effort", "low"),
+                        Map.entry("kb.chat.default-model.reasoning.levels[1].id", "medium"),
+                        Map.entry("kb.chat.default-model.reasoning.levels[1].reasoning-effort", "medium"),
+                        Map.entry("kb.chat.models[0].id", "qwen"),
+                        Map.entry("kb.chat.models[0].label", "Qwen"),
+                        Map.entry("kb.chat.models[0].reasoning.levels[0].id", "off"),
+                        Map.entry(
+                                "kb.chat.models[0].reasoning.levels[0].extra-body.chat_template_kwargs.enable_thinking",
+                                "false"))))
+                .bind("kb.chat", ChatModelProperties.class)
+                .get();
+
+        assertThat(bound.defaultModel().reasoning().defaultLevel()).isEqualTo("medium");
+        assertThat(bound.reasoningLevel(null, null))
+                .get()
+                .extracting(ReasoningOptions.Level::reasoningEffort)
+                .isEqualTo("medium");
+        assertThat(bound.reasoningLevel("qwen", "off").orElseThrow().extraBody())
+                .isEqualTo(Map.of("chat_template_kwargs", Map.of("enable_thinking", "false")));
+    }
+
+    /**
+     * Выбор хранится у чата, а модель в нём переключают: уровень, которого у модели нет, уступает её
+     * умолчанию, а без умолчания отправлять нечего. Модель без блока уровней не получает ничего.
+     */
+    @Test
+    void aReasoningLevelFallsBackToTheModelsDefault() {
+        final ChatModelProperties props = new ChatModelProperties(
+                new ModelOption(
+                        "gpt-5",
+                        "GPT-5",
+                        false,
+                        true,
+                        null,
+                        null,
+                        null,
+                        true,
+                        new ReasoningOptions("medium", List.of(effort("low"), effort("medium"), effort("high")))),
+                List.of(
+                        new ModelOption(
+                                "deepseek",
+                                "DeepSeek",
+                                false,
+                                true,
+                                null,
+                                null,
+                                null,
+                                true,
+                                new ReasoningOptions(
+                                        null,
+                                        List.of(new ReasoningOptions.Level(
+                                                "off", null, null, Map.of("thinking", Map.of("type", "disabled")))))),
+                        new ModelOption("plain", "Plain", false, true, null, null, null, true, null)));
+
+        assertThat(props.reasoningLevel("gpt-5", "high").map(ReasoningOptions.Level::id))
+                .hasValue("high");
+        assertThat(props.reasoningLevel(null, "off").map(ReasoningOptions.Level::id))
+                .hasValue("medium");
+        assertThat(props.reasoningLevel("deepseek", "off").map(ReasoningOptions.Level::id))
+                .hasValue("off");
+        assertThat(props.reasoningLevel("deepseek", "high")).isEmpty();
+        assertThat(props.reasoningLevel("plain", "high")).isEmpty();
+        assertThat(props.reasoningLevel("evil-model", "high")).isEmpty();
+
+        assertThat(props.isKnownReasoningLevel("off")).isTrue();
+        assertThat(props.isKnownReasoningLevel("high")).isTrue();
+        assertThat(props.isKnownReasoningLevel("max")).isFalse();
+        assertThat(props.isKnownReasoningLevel(null)).isFalse();
+    }
+
+    @Test
+    void aReasoningDefaultOutsideTheLevelsIsRejected() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new ReasoningOptions("max", List.of(effort("low"))))
+                .withMessageContaining("max");
+    }
+
+    @Test
+    void aReasoningLevelListedTwiceIsRejected() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new ReasoningOptions(null, List.of(effort("low"), effort("low"))))
+                .withMessageContaining("twice");
+    }
+
+    @Test
+    void aReasoningLevelWithoutAnIdIsRejected() {
+        assertThatIllegalArgumentException().isThrownBy(() -> effort(" "));
+    }
+
+    private static ReasoningOptions.Level effort(String id) {
+        return new ReasoningOptions.Level(id, null, id, null);
     }
 }

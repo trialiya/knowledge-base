@@ -27,16 +27,16 @@ import org.springframework.beans.factory.ObjectProvider;
 class ChatModelRegistryTest {
 
     private static final ModelOption DEFAULT_MODEL =
-            new ModelOption("default-model", "Default", true, true, null, null, null, false);
+            new ModelOption("default-model", "Default", true, true, null, null, null, false, null);
 
     @Test
     void onlyModelsWithTheirOwnEndpointGetAConnectionOfTheirOwn() {
         OpenAiChatModel defaultConnection = mock(OpenAiChatModel.class);
         ChatModelRegistry registry = build(
                 defaultConnection,
-                new ModelOption("shared", "Shared", true, true, null, null, null, false),
-                new ModelOption("remote", "Remote", false, true, null, "https://llm.example/v1", "sk-r", false),
-                new ModelOption("own-key", "Own key", false, true, null, null, "sk-k", false));
+                new ModelOption("shared", "Shared", true, true, null, null, null, false, null),
+                new ModelOption("remote", "Remote", false, true, null, "https://llm.example/v1", "sk-r", false, null),
+                new ModelOption("own-key", "Own key", false, true, null, null, "sk-k", false, null));
 
         assertThat(registry.ownEndpointModelIds()).containsExactlyInAnyOrder("remote", "own-key");
         // Никакого переопределения на прогон — дефолтное соединение.
@@ -55,8 +55,8 @@ class ChatModelRegistryTest {
     @Test
     void withoutSuchModelsThereIsOnlyTheDefaultConnection() {
         OpenAiChatModel defaultConnection = mock(OpenAiChatModel.class);
-        ChatModelRegistry registry =
-                build(defaultConnection, new ModelOption("shared", "Shared", true, true, null, null, null, false));
+        ChatModelRegistry registry = build(
+                defaultConnection, new ModelOption("shared", "Shared", true, true, null, null, null, false, null));
 
         assertThat(registry.ownEndpointModelIds()).isEmpty();
         assertThat(registry.forModel("shared")).isSameAs(defaultConnection);
@@ -70,7 +70,8 @@ class ChatModelRegistryTest {
         OpenAiChatModel defaultConnection = mock(OpenAiChatModel.class);
         ChatModelRegistry registry = build(
                 defaultConnection,
-                new ModelOption("default-model", "Default", true, true, null, "https://llm.example/v1", "sk-d", false));
+                new ModelOption(
+                        "default-model", "Default", true, true, null, "https://llm.example/v1", "sk-d", false, null));
 
         assertThat(registry.forModel(null)).isNotSameAs(defaultConnection);
         assertThat(registry.forModel(null)).isSameAs(registry.forModel("default-model"));
@@ -96,7 +97,7 @@ class ChatModelRegistryTest {
                 new ChatModelProperties(
                         DEFAULT_MODEL,
                         List.of(new ModelOption(
-                                "remote", "Remote", false, true, null, "https://llm.example/v1", "sk-r", false))),
+                                "remote", "Remote", false, true, null, "https://llm.example/v1", "sk-r", false, null))),
                 common,
                 chat,
                 mock(ToolCallingManager.class),

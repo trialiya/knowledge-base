@@ -48,7 +48,8 @@ class RunOptionsResolverTest {
         when(modeService.instructionsFor(any())).thenReturn("");
 
         resolver = new RunOptionsResolver(
-                new ChatModelProperties(new ModelOption("gpt", "GPT", true, true, null, null, null, false), List.of()),
+                new ChatModelProperties(
+                        new ModelOption("gpt", "GPT", true, true, null, null, null, false, null), List.of()),
                 new ChatModeProperties(List.of()),
                 modeService,
                 topicRepository,
