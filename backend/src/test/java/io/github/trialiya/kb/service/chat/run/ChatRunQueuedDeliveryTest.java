@@ -16,6 +16,7 @@ import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.AutoCompactService;
@@ -24,7 +25,6 @@ import io.github.trialiya.kb.service.chat.memory.PendingSummaryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
-import io.github.trialiya.kb.service.chat.run.PendingMessageService.PendingOptions;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.topic.AiTopicService;
@@ -73,7 +73,7 @@ class ChatRunQueuedDeliveryTest {
         events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
         runs = new RunRegistry();
         slots = new ConversationSlots(events);
-        when(runOptions.resolve(anyString(), any(), any(), any())).thenReturn(options());
+        when(runOptions.resolve(anyString(), any())).thenReturn(options());
         when(pendingMessages.flushPlain(anyString())).thenReturn(Flushed.NOTHING);
         runService = new ChatRunService(
                 new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
@@ -106,12 +106,12 @@ class ChatRunQueuedDeliveryTest {
      */
     @Test
     void aMessageAcceptedAsTheRunEndedIsDeliveredButNotAnswered() {
-        when(pendingMessages.flushPlain(CONV)).thenReturn(flushed(new PendingOptions("gpt-5", "review", "kb")));
+        when(pendingMessages.flushPlain(CONV)).thenReturn(flushed(new RunChoice("gpt-5", "review", "high", "kb")));
 
         runService.deliverIfNobodyGenerates(CONV);
 
         verify(pendingMessages).flushPlain(CONV);
-        verify(runOptions, never()).resolve(anyString(), any(), any(), any());
+        verify(runOptions, never()).resolve(anyString(), any());
         verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any(), any());
         assertThat(runs.size()).isZero();
     }
@@ -139,7 +139,7 @@ class ChatRunQueuedDeliveryTest {
     void anEmptyQueueStartsNothing() {
         runService.deliverIfNobodyGenerates(CONV);
 
-        verify(runOptions, never()).resolve(anyString(), any(), any(), any());
+        verify(runOptions, never()).resolve(anyString(), any());
         assertThat(runs.size()).isZero();
     }
 
@@ -221,7 +221,7 @@ class ChatRunQueuedDeliveryTest {
     }
 
     /** Доставлено одно сообщение на названных настройках. */
-    private static Flushed flushed(PendingOptions options) {
+    private static Flushed flushed(RunChoice options) {
         return new Flushed(List.of(userRow()), USER, options);
     }
 
@@ -231,6 +231,6 @@ class ChatRunQueuedDeliveryTest {
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, true, "", null, "kb", null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, null, "kb", null);
     }
 }

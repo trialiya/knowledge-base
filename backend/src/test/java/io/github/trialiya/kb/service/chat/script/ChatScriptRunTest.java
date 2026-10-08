@@ -64,7 +64,7 @@ class ChatScriptRunTest {
     void setUp() {
         when(claim.claimIdleAndOwned(CONV)).thenReturn(CLAIM);
         when(runOptions.current(CONV))
-                .thenReturn(new ChatRunService.RunOptions(null, false, false, "", "kb", "kb", null));
+                .thenReturn(new ChatRunService.RunOptions(null, false, false, "", null, "kb", "kb", null));
         when(resolver.resolve(any(), any(), any(), any(), anyBoolean(), any()))
                 .thenReturn(new ScriptRequest(
                         new ScriptSource("return 1;", "tools/report.js", null),

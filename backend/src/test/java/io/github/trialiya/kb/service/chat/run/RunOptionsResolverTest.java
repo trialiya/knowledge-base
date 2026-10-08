@@ -15,6 +15,8 @@ import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
+import io.github.trialiya.kb.config.model.ReasoningOptions;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -22,6 +24,7 @@ import io.github.trialiya.kb.service.chat.prompt.ChatModeService;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
@@ -171,23 +174,118 @@ class RunOptionsResolverTest {
         assertThat(resolve(null).projectSwitch()).isNull();
     }
 
+    /**
+     * Выбор уровня принадлежит чату, а модель в нём переключают. Названный уровень запоминается
+     * как назван, даже если у модели этого прогона его нет, — а прогон едет на её умолчании;
+     * вернувшись на модель с таким уровнем, чат снова пойдёт на нём.
+     */
+    @Test
+    void aReasoningLevelIsStoredAsChosenAndResolvedPerModel() {
+        final RunOptionsResolver withLevels = reasoningResolver();
+
+        final ChatRunService.RunOptions onGpt = withLevels.resolve(CONV, new RunChoice(null, null, "high", null));
+        assertThat(onGpt.reasoning())
+                .isNotNull()
+                .extracting(ReasoningOptions.Level::id)
+                .isEqualTo("high");
+        verify(topicRepository).updateReasoning(CONV, "high");
+
+        final ChatRunService.RunOptions onDeepseek =
+                withLevels.resolve(CONV, new RunChoice("deepseek", null, "high", null));
+        assertThat(onDeepseek.reasoning())
+                .isNotNull()
+                .extracting(ReasoningOptions.Level::id)
+                .isEqualTo("off");
+    }
+
+    /** Не названный в запросе уровень берётся из памяти чата и ничего не пишет. */
+    @Test
+    void aStoredReasoningLevelIsUsedWithoutWriting() {
+        when(topicRepository.findById(CONV)).thenReturn(Optional.of(topic(null, "low")));
+
+        assertThat(reasoningResolver().resolve(CONV, RunChoice.NONE).reasoning())
+                .isNotNull()
+                .extracting(ReasoningOptions.Level::reasoningEffort)
+                .isEqualTo("low");
+        verify(topicRepository, never()).updateReasoning(anyString(), any());
+    }
+
+    /** Без выбора и без умолчания у модели отправлять нечего. */
+    @Test
+    void noChoiceAndNoDefaultSendsNoReasoning() {
+        assertThat(reasoningResolver().current(CONV).reasoning()).isNull();
+    }
+
+    /** Уровня нет ни у одной модели — опечатка, а не переключение модели. */
+    @Test
+    void anUnknownReasoningLevelIsRejected() {
+        assertThatThrownBy(() -> reasoningResolver().resolve(CONV, new RunChoice(null, null, "max", null)))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("max");
+        assertThatThrownBy(() -> reasoningResolver().validate(new RunChoice(null, null, "max", null)))
+                .isInstanceOf(ResponseStatusException.class);
+        verify(topicRepository, never()).updateReasoning(anyString(), any());
+    }
+
+    private RunOptionsResolver reasoningResolver() {
+        final ChatModeService modeService = mock(ChatModeService.class);
+        when(modeService.instructionsFor(any())).thenReturn("");
+        return new RunOptionsResolver(
+                new ChatModelProperties(
+                        new ModelOption(
+                                "gpt",
+                                "GPT",
+                                true,
+                                true,
+                                null,
+                                null,
+                                null,
+                                false,
+                                new ReasoningOptions(null, List.of(effort("low"), effort("high")))),
+                        List.of(new ModelOption(
+                                "deepseek",
+                                "DeepSeek",
+                                true,
+                                true,
+                                null,
+                                null,
+                                null,
+                                true,
+                                new ReasoningOptions(
+                                        "off",
+                                        List.of(new ReasoningOptions.Level(
+                                                "off", null, null, Map.of("thinking", Map.of("type", "disabled")))))))),
+                new ChatModeProperties(List.of()),
+                modeService,
+                topicRepository,
+                catalog());
+    }
+
+    private static ReasoningOptions.Level effort(String id) {
+        return new ReasoningOptions.Level(id, null, id, null);
+    }
+
+    private static ChatTopicEntity topic(@Nullable String project, @Nullable String reasoning) {
+        return new ChatTopicEntity(
+                CONV,
+                USER,
+                null,
+                null,
+                null,
+                null,
+                null,
+                reasoning,
+                project,
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                false);
+    }
+
     private ChatRunService.RunOptions resolve(@Nullable String requested) {
-        return resolver.resolve(CONV, null, null, requested);
+        return resolver.resolve(CONV, new RunChoice(null, null, null, requested));
     }
 
     private void storedProject(@Nullable String project) {
-        when(topicRepository.findById(CONV))
-                .thenReturn(Optional.of(new ChatTopicEntity(
-                        CONV,
-                        USER,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        project,
-                        LocalDateTime.now(),
-                        LocalDateTime.now(),
-                        false)));
+        when(topicRepository.findById(CONV)).thenReturn(Optional.of(topic(project, null)));
     }
 }

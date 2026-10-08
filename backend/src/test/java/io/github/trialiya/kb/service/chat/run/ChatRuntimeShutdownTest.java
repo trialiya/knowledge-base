@@ -14,6 +14,7 @@ import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.AutoCompactService;
@@ -141,8 +142,7 @@ class ChatRuntimeShutdownTest {
     @Test
     void aStoppedRunDeliversItsQueueButStartsNoAnswer() {
         runService = runService(Runnable::run);
-        when(pendingMessages.flushPlain(CONV))
-                .thenReturn(new Flushed(List.of(userRow()), USER, PendingMessageService.PendingOptions.NONE));
+        when(pendingMessages.flushPlain(CONV)).thenReturn(new Flushed(List.of(userRow()), USER, RunChoice.NONE));
         runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
@@ -261,6 +261,6 @@ class ChatRuntimeShutdownTest {
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, true, "", null, "kb", null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, null, "kb", null);
     }
 }

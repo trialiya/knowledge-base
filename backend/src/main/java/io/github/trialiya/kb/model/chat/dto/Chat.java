@@ -18,6 +18,9 @@ import org.jspecify.annotations.Nullable;
  * @param project id of the project the chat runs its tools in. {@code null} — the chat never chose
  *     one and rides the default (the first entry of {@code kb.projects}), which the selector learns
  *     from {@code ProjectOptions.defaultProject}.
+ * @param reasoning id of the reasoning level last chosen in the chat ({@code
+ *     ReasoningOptions.Level}). Stored as chosen, not as resolved: a level the chat's current model
+ *     lacks is still returned, and the selector falls back to that model's default by itself.
  * @param messages {@code null} for the metadata-only projection ({@code includeMessages=false} or
  *     the chat list), populated otherwise.
  */
@@ -28,6 +31,7 @@ public record Chat(
         @Nullable String aiTopic,
         @Nullable String model,
         @Nullable String mode,
+        @Nullable String reasoning,
         @Nullable String project,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.boot.context.properties.bind.Name;
 
 /**
@@ -86,6 +87,20 @@ public record ReasoningOptions(
             label = ConfigValues.trimToNull(label);
             reasoningEffort = ConfigValues.trimToNull(reasoningEffort);
             extraBody = extraBody == null || extraBody.isEmpty() ? null : Map.copyOf(extraBody);
+        }
+
+        /**
+         * Кладёт уровень в опции запроса. Только то, что задано: опции запроса ложатся поверх опций
+         * модели, и незаданное здесь оставляет настроенное у неё как есть. {@code extraBody} модели
+         * подмешивать не нужно — {@code OpenAiChatOptions} сам сливает его с этим по ключам.
+         */
+        public void applyTo(OpenAiChatOptions.Builder options) {
+            if (reasoningEffort != null) {
+                options.reasoningEffort(reasoningEffort);
+            }
+            if (extraBody != null) {
+                options.extraBody(extraBody);
+            }
         }
     }
 }

@@ -175,6 +175,23 @@ public class ChatController {
         chatTopicRepository.updateMode(conversationId, trimmed.isEmpty() ? null : trimmed);
     }
 
+    /**
+     * Задать (или сбросить) уровень рассуждений чата. Пустое тело → умолчание модели. Уровень
+     * проверяется на существование у какой-нибудь модели, а не у модели чата: выбор принадлежит
+     * чату, и при переключении модели он переживает модель, у которой его нет (см. {@code
+     * RunOptionsResolver}).
+     */
+    @PutMapping("/{conversationId}/reasoning")
+    public void updateChatReasoning(
+            @PathVariable final String conversationId, @RequestBody(required = false) final String reasoning) {
+        getChatTopic(conversationId); // 404/403 + проверка владельца
+        final String trimmed = reasoning == null ? "" : reasoning.trim();
+        if (!trimmed.isEmpty() && !chatModelProperties.isKnownReasoningLevel(trimmed)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unknown reasoning level: " + trimmed);
+        }
+        chatTopicRepository.updateReasoning(conversationId, trimmed.isEmpty() ? null : trimmed);
+    }
+
     /** Lists the current user's chats (metadata only, no messages). */
     @GetMapping
     public List<Chat> getChats() {
@@ -326,6 +343,7 @@ public class ChatController {
                                 null,
                                 null,
                                 null,
+                                null,
                                 // overwritten by
                                 // @CreatedDate/@LastModifiedDate auditing
                                 // before insert
@@ -369,7 +387,7 @@ public class ChatController {
                 getUser(),
                 retry ? null : body.text(),
                 contextItems,
-                runOptions.resolve(conversationId, body.model(), body.mode(), body.project()),
+                runOptions.resolve(conversationId, body.choice()),
                 body.clientMsgId());
         return Map.of("runId", started.runId(), "messageId", started.userMessageId());
     }
@@ -402,7 +420,7 @@ public class ChatController {
         // проекта, а этому сообщению до собственного прогона ещё дожить надо (см.
         // ChatRunService#deliverQueued). Проверить существование названного — здесь: приняв
         // несуществующую модель, отказать пришлось бы уже некому.
-        runOptions.validate(body.model(), body.mode(), body.project());
+        runOptions.validate(body.choice());
         // Приложенное проверяем ДО постановки в очередь — 404 на чужое вложение не должен
         // оставлять за собой принятое сообщение.
         final List<ContextItem> contextItems = contextItemService.resolve(conversationId, body.contextItems());
@@ -410,13 +428,7 @@ public class ChatController {
             throw new ResponseStatusException(CONFLICT, "This run is no longer generating");
         }
         pendingMessages.enqueue(
-                conversationId,
-                getUser(),
-                body.text(),
-                contextItems,
-                new PendingMessageService.PendingOptions(body.model(), body.mode(), body.project()),
-                runId,
-                body.clientMsgId());
+                conversationId, getUser(), body.text(), contextItems, body.choice(), runId, body.clientMsgId());
         // Прогон мог кончиться между проверкой выше и коммитом строки: его собственная доставка
         // застала бы очередь пустой, а второй у него не будет. Перепроверяем уже после коммита —
         // окно закрывается, а повторной доставки не выйдет: строку забирает тот, чей DELETE её
@@ -465,7 +477,8 @@ public class ChatController {
                         options.weakModel(),
                         options.project(),
                         options.modeInstructions(),
-                        chatModelProperties.replayReasoning(options.model())),
+                        chatModelProperties.replayReasoning(options.model()),
+                        options.reasoning()),
                 body.clientMsgId());
         // Строго после start: 409/422 не сохраняют сообщения, и поднимать за них чат в списке
         // не за что. Успех же дописал в чат обычную реплику — как и любая, она его освежает.
@@ -629,6 +642,7 @@ public class ChatController {
                 entity.getAiTopic(),
                 entity.getModel(),
                 entity.getMode(),
+                entity.getReasoning(),
                 entity.getProject(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),

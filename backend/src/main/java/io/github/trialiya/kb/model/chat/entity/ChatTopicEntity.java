@@ -34,6 +34,9 @@ public class ChatTopicEntity implements Persistable<String> {
     private final String mode;
 
     @Nullable
+    private final String reasoning;
+
+    @Nullable
     private final String project;
 
     @CreatedDate
@@ -54,6 +57,7 @@ public class ChatTopicEntity implements Persistable<String> {
             @Nullable Integer aiTopicTurn,
             @Nullable String model,
             @Nullable String mode,
+            @Nullable String reasoning,
             @Nullable String project,
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
@@ -65,6 +69,7 @@ public class ChatTopicEntity implements Persistable<String> {
         this.aiTopicTurn = aiTopicTurn;
         this.model = model;
         this.mode = mode;
+        this.reasoning = reasoning;
         this.project = project;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -81,10 +86,23 @@ public class ChatTopicEntity implements Persistable<String> {
             @Nullable Integer aiTopicTurn,
             @Nullable String model,
             @Nullable String mode,
+            @Nullable String reasoning,
             @Nullable String project,
             LocalDateTime createdAt,
             LocalDateTime updatedAt) {
-        this(conversationId, user, userTopic, aiTopic, aiTopicTurn, model, mode, project, createdAt, updatedAt, false);
+        this(
+                conversationId,
+                user,
+                userTopic,
+                aiTopic,
+                aiTopicTurn,
+                model,
+                mode,
+                reasoning,
+                project,
+                createdAt,
+                updatedAt,
+                false);
     }
 
     public ChatTopicEntity(
@@ -103,6 +121,7 @@ public class ChatTopicEntity implements Persistable<String> {
                 aiTopic,
                 null,
                 model,
+                null,
                 null,
                 null,
                 LocalDateTime.now(),
@@ -153,6 +172,16 @@ public class ChatTopicEntity implements Persistable<String> {
     @Nullable
     public String getMode() {
         return mode;
+    }
+
+    /**
+     * Уровень рассуждений, выбранный в чате последним ({@code ReasoningOptions.Level#id}). Хранится
+     * как выбран, а не как разрешён: у модели, на которую чат переключили, такого уровня может не
+     * быть, и тогда прогон идёт на её умолчании (см. {@code ChatModelProperties#reasoningLevel}).
+     */
+    @Nullable
+    public String getReasoning() {
+        return reasoning;
     }
 
     /** Проект (репозиторий), выбранный в чате; {@code null} — дефолтный из {@code kb.projects}. */

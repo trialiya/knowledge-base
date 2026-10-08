@@ -16,7 +16,7 @@ import org.springframework.data.relational.core.mapping.Table;
  *
  * <p>{@code meta} несёт только {@code contextItems} вопроса — тем же конвертером, что и {@code
  * chat_message.meta}, поэтому вложения переезжают в доставленный ряд без переупаковки. {@code
- * model}/{@code mode}/{@code project} — снимок выбора на момент отправки: follow-up прогон (когда
+ * model}/{@code mode}/{@code reasoning}/{@code project} — снимок выбора на момент отправки: follow-up прогон (когда
  * доставка случилась уже после завершения текущего) обязан поехать на нём.
  */
 @Table(name = "chat_pending_message")
@@ -47,6 +47,9 @@ public class ChatPendingMessageEntity implements Persistable<Long> {
     private final String mode;
 
     @Nullable
+    private final String reasoning;
+
+    @Nullable
     private final String project;
 
     @NonNull
@@ -61,6 +64,7 @@ public class ChatPendingMessageEntity implements Persistable<Long> {
             @Nullable ChatMessageMeta meta,
             @Nullable String model,
             @Nullable String mode,
+            @Nullable String reasoning,
             @Nullable String project,
             @NonNull LocalDateTime createdAt) {
         this.id = id;
@@ -71,6 +75,7 @@ public class ChatPendingMessageEntity implements Persistable<Long> {
         this.meta = meta;
         this.model = model;
         this.mode = mode;
+        this.reasoning = reasoning;
         this.project = project;
         this.createdAt = createdAt;
     }
@@ -124,6 +129,11 @@ public class ChatPendingMessageEntity implements Persistable<Long> {
     @Nullable
     public String getMode() {
         return mode;
+    }
+
+    @Nullable
+    public String getReasoning() {
+        return reasoning;
     }
 
     @Nullable

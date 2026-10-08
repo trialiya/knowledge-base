@@ -229,6 +229,7 @@ class AiTopicServiceTest {
                 null,
                 null,
                 null,
+                null,
                 LocalDateTime.now(),
                 LocalDateTime.now(),
                 false));

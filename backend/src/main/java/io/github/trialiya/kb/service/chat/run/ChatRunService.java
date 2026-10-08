@@ -12,6 +12,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 import com.openai.models.chat.completions.ChatCompletion;
 import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
+import io.github.trialiya.kb.config.model.ReasoningOptions;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
@@ -294,9 +295,9 @@ public class ChatRunService {
      * Настройки одного прогона: что выбрано в чате (или передано параметром запроса) поверх
      * дефолтов конфигурации. Собираются в контроллере — см. {@code ChatController#resolveRun}.
      *
-     * <p>Записью, а не отдельными параметрами: три из четырёх полей — строки, и две из них
-     * (инструкции режима и id проекта) в позиционном вызове меняются местами без единой ошибки
-     * компиляции.
+     * <p>Записью, а не отдельными параметрами: строк среди полей несколько, и любые две из них
+     * (например, инструкции режима и id проекта) в позиционном вызове меняются местами без единой
+     * ошибки компиляции.
      *
      * @param model результат резолва модели; {@code null} — «не переопределять», т.е. модель из
      *     конфигурации
@@ -306,6 +307,8 @@ public class ChatRunService {
      * @param streamUsage {@code ChatModelProperties#streamUsage} от {@link #model} — просить ли у
      *     эндпоинта счётчик токенов (см. {@code TokenUsageAdvisor})
      * @param modeInstructions инструкции выбранного режима; пустая строка — «без режима»
+     * @param reasoning уровень рассуждений, уже разрешённый под {@link #model} ({@code
+     *     ChatModelProperties#reasoningLevel}); {@code null} — ничего не отправлять
      * @param project id проекта, в котором работают инструменты прогона; {@code null} — дефолтный
      *     проект списка (см. {@code ProjectCatalog})
      * @param canonicalProject тот же проект, но названный: {@link #project}, разрешённый до
@@ -320,6 +323,7 @@ public class ChatRunService {
             boolean weakModel,
             boolean streamUsage,
             String modeInstructions,
+            ReasoningOptions.@Nullable Level reasoning,
             @Nullable String project,
             String canonicalProject,
             @Nullable ProjectSwitch projectSwitch) {}
@@ -469,7 +473,8 @@ public class ChatRunService {
                             weakModel,
                             options.project(),
                             options.modeInstructions(),
-                            chatModels.replayReasoning(resolvedModel)),
+                            chatModels.replayReasoning(resolvedModel),
+                            options.reasoning()),
                     scope::addCall);
             // The client, not just the model option, follows the resolved model: an entry of
             // kb.chat.models with its own base-url/api-key is served by a connection of its own.
@@ -506,6 +511,10 @@ public class ChatRunService {
             chatOptions.streamUsage(options.streamUsage());
             if (resolvedModel != null) {
                 chatOptions.model(resolvedModel);
+            }
+            final ReasoningOptions.@Nullable Level reasoningLevel = options.reasoning();
+            if (reasoningLevel != null) {
+                reasoningLevel.applyTo(chatOptions);
             }
             spec = spec.options(chatOptions);
 
@@ -727,14 +736,13 @@ public class ChatRunService {
      * отправил это сообщение.
      */
     private void answerQueued(String conversationId, PendingMessageService.Flushed flushed) {
-        final PendingMessageService.PendingOptions queued = flushed.options();
         try {
             start(
                     conversationId,
                     flushed.user(),
                     null,
                     List.of(),
-                    runOptions.resolve(conversationId, queued.model(), queued.mode(), queued.project()),
+                    runOptions.resolve(conversationId, flushed.options()),
                     null);
         } catch (RuntimeException e) {
             // Чат мог занять другая вкладка между cleanup и этим стартом (409) — вопрос уже в

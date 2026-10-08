@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.QueuedMessagePayload;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
@@ -47,13 +48,7 @@ class PendingMessageServiceTest {
         when(repository.save(any(ChatPendingMessageEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         service.enqueue(
-                CONV,
-                "admin",
-                "и добавь тесты",
-                List.of(),
-                new PendingMessageService.PendingOptions("gpt-5", null, "kb"),
-                RUN,
-                "client-1");
+                CONV, "admin", "и добавь тесты", List.of(), new RunChoice("gpt-5", null, null, "kb"), RUN, "client-1");
 
         final ArgumentCaptor<ChatPendingMessageEntity> row = ArgumentCaptor.forClass(ChatPendingMessageEntity.class);
         verify(repository).save(row.capture());
@@ -126,7 +121,7 @@ class PendingMessageServiceTest {
         givenQueued();
 
         assertThat(service.flushPlain(CONV).any()).isFalse();
-        assertThat(service.flushPlain(CONV).options()).isEqualTo(PendingMessageService.PendingOptions.NONE);
+        assertThat(service.flushPlain(CONV).options()).isEqualTo(RunChoice.NONE);
         assertThat(service.flushMidTurn(CONV, RUN)).isEmpty();
     }
 
@@ -136,7 +131,7 @@ class PendingMessageServiceTest {
 
     private static ChatPendingMessageEntity pending(long id, String text) {
         return new ChatPendingMessageEntity(
-                id, CONV, "admin", text, "client-" + id, null, null, null, null, LocalDateTime.now());
+                id, CONV, "admin", text, "client-" + id, null, null, null, null, null, LocalDateTime.now());
     }
 
     private static ChatMessageEntity deliveredRow(String text, boolean interjection) {
