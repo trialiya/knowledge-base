@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.config.model.ChatModeProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.dto.StartRunRequest;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -58,8 +59,8 @@ class ChatQueueMessageTest {
         when(contextItemService.resolve(anyString(), any())).thenReturn(List.of());
         when(runService.isGenerating(CONV, RUN)).thenReturn(true);
 
-        final ChatModelProperties models =
-                new ChatModelProperties(new ModelOption("gpt", "GPT", true, true, null, null, null, false), List.of());
+        final ChatModelProperties models = new ChatModelProperties(
+                new ModelOption("gpt", "GPT", true, true, null, null, null, false, null), List.of());
         controller = new ChatController(
                 models,
                 new ChatModeProperties(List.of()),
@@ -91,7 +92,7 @@ class ChatQueueMessageTest {
                         anyString(),
                         eq("и добавь тесты"),
                         eq(List.of()),
-                        eq(new PendingMessageService.PendingOptions("gpt", null, null)),
+                        eq(new RunChoice("gpt", null, null, null)),
                         eq(RUN),
                         eq("msg-1"));
     }
@@ -147,7 +148,7 @@ class ChatQueueMessageTest {
     }
 
     private void queue(String text, String model) {
-        controller.queueMessage(CONV, RUN, new StartRunRequest(text, null, model, null, null, "msg-1", false));
+        controller.queueMessage(CONV, RUN, new StartRunRequest(text, null, model, null, null, null, "msg-1", false));
     }
 
     private static RunOptionsResolver resolver(ChatModelProperties models) {

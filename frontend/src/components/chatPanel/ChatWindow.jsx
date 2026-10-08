@@ -1,13 +1,12 @@
-import { useState, useCallback, useRef, useEffect, useEffectEvent, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 // Перевод вне рендера берём у самого i18n, а не у t() из хука: колбэки стриминга
 // не должны пересоздаваться на смену языка, а зеркалить t в рефе — не за чем.
 import i18n from '@/i18n/index';
 import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '@/constants/storage';
-import { getLastModel, getLastMode, getLastProject } from './run/lastChoiceStore';
-import useModelConfig, { modelLabelOf } from './run/useModelConfig';
+import { getLastModel, getLastMode, getLastProject, getLastReasoning } from './run/lastChoiceStore';
+import useModelConfig from './run/useModelConfig';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
-import { resolveProjectChoice } from '@/components/common/config/projectChoice';
 import useModeConfig from './run/useModeConfig';
 import useChatList from './list/useChatList';
 import useChatMessages from './run/useChatMessages';
@@ -16,11 +15,12 @@ import useChatRun from './run/useChatRun';
 import useChatUsage from './run/useChatUsage';
 import useChatAttachments from './run/useChatAttachments';
 import useInChatSearch from './center/useInChatSearch';
+import useChatFindShortcut from './center/useChatFindShortcut';
 import useChatDrafts from './composer/useChatDrafts';
 import useChatDeletion from './list/useChatDeletion';
 import useNotice from '@/components/common/ui/useNotice';
 import { chatLoadErrorNotice, CHAT_DELETED_NOTICE } from './run/chatNotices';
-import { stampChipProject } from './composer/fileChips';
+import useComposerChoices from './composer/useComposerChoices';
 
 import ChatCenter from './center/ChatCenter';
 import { buildChatTabs, buildRepoTab } from './center/chatSidebar';
@@ -32,8 +32,6 @@ import PushDialog from '@/components/common/git/PushDialog';
 import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
-import { hasOpenModal, hasOverlay } from '@/components/common/layout/overlayStack';
-import { isFindShortcut, isTypingTarget } from '@/components/common/search/findShortcut';
 import { isChatEmpty as chatIsEmpty } from './messages/chatHistory';
 import { IconPlus } from '@/icons/index';
 import './chatWindow.css';
@@ -70,7 +68,7 @@ const ChatWindow = ({
   const [rememberedChatId] = useState(() => localStorage.getItem(STORAGE_KEY_ACTIVE_CHAT) || null);
 
   // Создаёт объект черновика. model берём из последней использованной (localStorage),
-  // иначе сработает фолбэк на дефолтную модель в selectedModelId/отправке.
+  // иначе сработает фолбэк на дефолтную модель в селекторе/отправке.
   const makeDraft = useCallback(
     () => ({
       id: DRAFT_CHAT_ID,
@@ -78,6 +76,7 @@ const ChatWindow = ({
       messages: [],
       model: getLastModel(),
       mode: getLastMode() || null,
+      reasoning: getLastReasoning() || null,
       project: getLastProject(),
       draft: true,
     }),
@@ -94,6 +93,7 @@ const ChatWindow = ({
   // сделанная здесь («удаление» черновика, простановка проекта в чипах), иначе до
   // него не дойдёт.
   const [composerDraftSignal, setComposerDraftSignal] = useState(0);
+  const bumpDraftSignal = useCallback(() => setComposerDraftSignal((n) => n + 1), []);
   // Неотправленные черновики по чатам ({ chatId: text }, localStorage) — вынесено
   // в useChatDrafts (отложенная запись + flush на beforeunload/размонтирование).
   const {
@@ -118,6 +118,7 @@ const ChatWindow = ({
     renameChat,
     changeModel,
     changeMode,
+    changeReasoning,
     changeProject,
     refreshChatMeta,
   } = useChatList({
@@ -126,11 +127,6 @@ const ChatWindow = ({
     makeDraft,
     selectChat,
   });
-
-  // Вернуть в поле ввода то, что там было. Текст поле стирает на отправке, а сама отправка
-  // может и не состояться (команда чату во время ответа) — черновик при этом не тронут, и
-  // сигнала достаточно, чтобы поле перечитало его из initialText.
-  const restoreDraft = useCallback(() => setComposerDraftSignal((n) => n + 1), []);
 
   const handleLoadError = useCallback((info) => notify(chatLoadErrorNotice(info)), [notify]);
 
@@ -161,7 +157,10 @@ const ChatWindow = ({
     selectChat,
     clearDraft,
     clearDraftText,
-    restoreDraft,
+    // Вернуть в поле ввода то, что там было. Текст поле стирает на отправке, а сама отправка
+    // может и не состояться (команда чату во время ответа) — черновик при этом не тронут, и
+    // сигнала достаточно, чтобы поле перечитало его из initialText.
+    restoreDraft: bumpDraftSignal,
     getStagedFor,
     modelConfig,
     modelOptions,
@@ -202,51 +201,10 @@ const ChatWindow = ({
     msg,
     onFindChange,
   });
-  const inChatSearchInputRef = useRef(null);
   const canSearchChat =
     !!activeChatId && activeChatId !== DRAFT_CHAT_ID && !activeChat?.notFound && !activeChat?.loadError;
-
-  // Тело шортката — useEffectEvent: слушатель вешается один раз на вкладку, но
-  // внутри читает всегда свежие canSearchChat/inChatSearch. Держать их в
-  // зависимостях эффекта нельзя — объект useInChatSearch пересоздаётся каждый
-  // рендер, то есть слушатель переподписывался бы на каждый чанк стриминга.
-  // Условия у Ctrl+F и Escape разные, и намеренно — те же, что у бара открытого
-  // файла (см. useAddressFind). Escape уступает любому оверлею (им закрывают
-  // верхнее, а верхнее сейчас диалог или поповер) и любому полю ввода: в чате
-  // Escape ждут отмена инлайн-переименования и @mention-подсказка композера, а
-  // наш слушатель на перехвате видит нажатие раньше них (см. isTypingTarget).
-  // Ctrl+F уступает только диалогу, у которого есть свой бар (ModalShell →
-  // useModalFind); поповер искать не умеет, и уступив ему, мы отдали бы нажатие
-  // браузерному поиску по всей странице.
-  const onChatSearchKey = useEffectEvent((e) => {
-    if (!canSearchChat) return;
-    if (e.key === 'Escape') {
-      if (hasOverlay() || isTypingTarget(e)) return;
-      if (inChatSearch.open) inChatSearch.close();
-      return;
-    }
-    if (hasOpenModal()) return;
-    e.preventDefault();
-    if (inChatSearch.open) {
-      inChatSearchInputRef.current?.focus();
-      inChatSearchInputRef.current?.select();
-    } else {
-      inChatSearch.openBar();
-    }
-  });
-
-  // Ctrl/Cmd+F открывает (или фокусирует уже открытый) find-бар текущего чата —
-  // только пока вкладка «Чат» активна, иначе перехватывали бы поиск в других
-  // вкладках. Перехват, а не всплытие: свои слушатели оверлеи вешают на
-  // всплытие, и к очереди чата меню от этого же Escape уже закрылось бы.
-  useEffect(() => {
-    if (!isActive) return undefined;
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape' || isFindShortcut(e)) onChatSearchKey(e);
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isActive]);
+  // Ctrl/Cmd+F и Escape для find-бара; поле бара — его ref, хук фокусирует его сам.
+  const inChatSearchInputRef = useChatFindShortcut({ isActive, canSearch: canSearchChat, search: inChatSearch });
 
   // Список для сайдбара: черновик «new» не показываем, пока в нём нет сообщений.
   // Он промоутится в реальный чат (с UUID и draft:false) при отправке первого
@@ -254,31 +212,23 @@ const ChatWindow = ({
   // этом остаётся активным (берётся из полного chats), печатать в него можно.
   const visibleChats = useMemo(() => chats.filter((c) => c.id !== DRAFT_CHAT_ID), [chats]);
 
-  // Выбранная в селекторе модель. Если у чата модель не задана или её больше нет
-  // в конфиге — показываем дефолтную (чтобы select оставался валидным).
-  const selectedModelId = useMemo(() => {
-    const def = modelConfig?.defaultModel?.id || '';
-    const m = activeChat?.model;
-    return m && modelOptions.some((o) => o.id === m) ? m : def;
-  }, [activeChat, modelOptions, modelConfig]);
-
-  // Выбранный режим чата. Нет режима / режим убран из конфига → «без режима» ('').
-  const selectedModeId = useMemo(() => {
-    const m = activeChat?.mode;
-    return m && modeOptions.some((o) => o.id === m) ? m : '';
-  }, [activeChat, modeOptions]);
-
-  // Проект, выбранный в селекторе: у чата → дефолтный. Отдельно — id, который у чата
-  // записан, но которого в конфиге больше нет: селектор показывает дефолт, а рядом
-  // должно стоять предупреждение, иначе подмена репозитория пройдёт незамеченной.
-  const { selected: selectedProjectId, missing: missingProjectId } = resolveProjectChoice(
-    activeChat?.project ?? null,
+  // Что выбрано в композере (модель, режим, рассуждения, проект) и подписи для «Инфо».
+  const choices = useComposerChoices({
+    t,
+    activeChat,
+    activeChatId,
+    modelConfig,
+    modelOptions,
+    modeOptions,
     projectOptions,
     defaultProjectId,
-  );
-  // Для адресов — только не-дефолтный проект: дефолтный в схеме не пишется, а
-  // пустое значение и означает его (см. urlScheme.filesUrl).
-  const projectInLinks = selectedProjectId && selectedProjectId !== defaultProjectId ? selectedProjectId : null;
+    changeModel,
+    changeMode,
+    changeReasoning,
+    changeProject,
+    drafts: { getDraftFor, handleTextChange: handleComposerTextChange, flushDrafts, bumpDraftSignal },
+  });
+  const { selectedProjectId } = choices;
 
   // Правку сделал инструмент прогона — значит, в проекте этого чата: сбрасывать
   // кэши файлов нужно именно там, иначе удар придётся по чужому репозиторию, в
@@ -397,12 +347,12 @@ const ChatWindow = ({
         // У черновика нет сущности на бэке — «удаление» лишь очищает поле ввода.
         // Сам черновик и выбранная модель остаются.
         clearDraft(DRAFT_CHAT_ID);
-        setComposerDraftSignal((n) => n + 1);
+        bumpDraftSignal();
         return;
       }
       requestDeleteChat(id);
     },
-    [clearDraft, requestDeleteChat],
+    [bumpDraftSignal, clearDraft, requestDeleteChat],
   );
 
   const handleSelectChat = useCallback(
@@ -426,55 +376,6 @@ const ChatWindow = ({
       handleSelectChat(result.conversationId, { find: result.messageMatchCount > 0 ? query : '' });
     },
     [handleSelectChat],
-  );
-
-  const handleModelChange = useCallback((newId) => changeModel(activeChatId, newId), [activeChatId, changeModel]);
-  const handleModeChange = useCallback((newId) => changeMode(activeChatId, newId), [activeChatId, changeMode]);
-  // Чип в черновике мог остаться без имени проекта: так писала прежняя версия
-  // формата, и означает это «репозиторий чата». Пока чат ещё работает в прежнем,
-  // вписываем его в такие чипы — после смены проекта тот же путь вёл бы уже в
-  // другой файл, и подставился бы он молча, в отправленном сообщении.
-  //
-  // Сравниваем с РАЗРЕШЁННЫМ проектом, а не с записанным у чата: выбрать дефолт в
-  // чате, чей проект исчез из конфигурации, — способ убрать предупреждение, и
-  // репозиторий при этом не меняется.
-  const handleProjectChange = useCallback(
-    (newId) => {
-      if (newId !== selectedProjectId) {
-        const draft = getDraftFor(activeChatId);
-        const stamped = stampChipProject(draft, selectedProjectId);
-        if (stamped !== draft) {
-          handleComposerTextChange(activeChatId, stamped);
-          // Пишем на диск сразу, не дожидаясь отложенной записи: проект у чата
-          // меняется немедленно, и вкладка, погибшая в эти полсекунды, оставила бы
-          // в хранилище чипы без проекта — то есть уже про новый репозиторий.
-          flushDrafts();
-          setComposerDraftSignal((n) => n + 1);
-        }
-      }
-      changeProject(activeChatId, newId);
-    },
-    [activeChatId, changeProject, flushDrafts, getDraftFor, handleComposerTextChange, selectedProjectId],
-  );
-
-  // Подписи модели и режима для вкладки «Инфо»: в чате хранятся id, а показывать
-  // осмысленно человекочитаемый label из конфига.
-  const selectedModelLabel = useMemo(
-    () => modelLabelOf(modelOptions, selectedModelId),
-    [modelOptions, selectedModelId],
-  );
-  const selectedModeLabel = useMemo(
-    () => modeOptions.find((o) => o.id === selectedModeId)?.label || null,
-    [modeOptions, selectedModeId],
-  );
-  // Исчезнувший проект показываем самим id и говорим, что его больше нет: подписи
-  // для него уже нет, а «пусто» читалось бы как «проект не выбран».
-  const selectedProjectLabel = useMemo(
-    () =>
-      missingProjectId
-        ? t('project.goneValue', { id: missingProjectId })
-        : projectOptions.find((o) => o.id === selectedProjectId)?.label || null,
-    [missingProjectId, projectOptions, selectedProjectId, t],
   );
 
   // Мемо ниже держится на этом срезе, а не на самом activeChat: объект чата
@@ -515,9 +416,7 @@ const ChatWindow = ({
         chatId: activeChatId,
         infoChat,
         usage: chatUsage,
-        modelLabel: selectedModelLabel,
-        modeLabel: selectedModeLabel,
-        projectLabel: selectedProjectLabel,
+        labels: choices.labels,
         attachmentCount: attachCount,
         onAttachmentCountChange: setAttachCount,
         attachmentsRefreshSignal: refreshSignal,
@@ -532,9 +431,7 @@ const ChatWindow = ({
       handleAttachmentDeleted,
       infoChat,
       chatUsage,
-      selectedModelLabel,
-      selectedModeLabel,
-      selectedProjectLabel,
+      choices.labels,
     ],
   );
 
@@ -588,25 +485,10 @@ const ChatWindow = ({
             staged={getStagedFor(activeChatId)}
             initialText={getDraftFor(activeChatId)}
             composerDraftSignal={composerDraftSignal}
-            model={{
-              config: modelConfig,
-              options: modelOptions,
-              selected: selectedModelId,
-              onChange: handleModelChange,
-            }}
-            mode={{
-              options: modeOptions,
-              selected: selectedModeId,
-              onChange: handleModeChange,
-            }}
-            project={{
-              options: projectOptions,
-              defaultId: defaultProjectId,
-              selected: selectedProjectId,
-              inLinks: projectInLinks,
-              missing: missingProjectId,
-              onChange: handleProjectChange,
-            }}
+            model={choices.model}
+            mode={choices.mode}
+            reasoning={choices.reasoning}
+            project={choices.project}
             onRename={renameChat}
             onDelete={handleDeleteChat}
             onNavigateToDoc={onNavigateToDoc}

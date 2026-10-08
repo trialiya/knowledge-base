@@ -121,7 +121,7 @@ class ChatHistoryReasoningTest {
 
     private static ChatModelProperties models() {
         return new ChatModelProperties(
-                new ModelOption("gpt-5", "GPT", false, true, null, null, null, false),
-                List.of(new ModelOption("deepseek", "DeepSeek", false, true, null, null, null, true)));
+                new ModelOption("gpt-5", "GPT", false, true, null, null, null, false, null),
+                List.of(new ModelOption("deepseek", "DeepSeek", false, true, null, null, null, true, null)));
     }
 }

@@ -4,6 +4,8 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 import io.github.trialiya.kb.config.model.ChatModeProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
+import io.github.trialiya.kb.config.model.ReasoningOptions;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
@@ -18,17 +20,18 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * «Что выбрано в этом чате» → {@link ChatRunService.RunOptions}: модель, режим и проект прогона,
- * собранные из параметров запроса поверх памяти чата ({@code chat_topic}). Одно место на все пути
- * генерации — синхронный, фоновый и автостарт по очереди, — чтобы выбор решался для них одинаково.
+ * «Что выбрано в этом чате» → {@link ChatRunService.RunOptions}: модель, режим, уровень
+ * рассуждений и проект прогона, собранные из параметров запроса поверх памяти чата ({@code
+ * chat_topic}). Одно место на все пути генерации — синхронный, фоновый и автостарт по очереди, —
+ * чтобы выбор решался для них одинаково.
  *
  * <p>Сервис, а не приватный метод контроллера: прогон, который запускается по накопившейся очереди
  * сообщений (см. {@link ChatRunService}), никакого HTTP-запроса под собой не имеет, а настройки ему
  * нужны те же самые.
  *
  * <p>Резолв — не чистая функция: он же и записывает выбор в {@code chat_topic}. Названные явно
- * модель и режим запоминаются как «последние», а проект приводится к тому, на чём прогон реально
- * пошёл (см. {@link #resolve}).
+ * модель, режим и уровень рассуждений запоминаются как «последние», а проект приводится к тому,
+ * на чём прогон реально пошёл (см. {@link #resolve}).
  */
 @Service
 public class RunOptionsResolver {
@@ -53,22 +56,18 @@ public class RunOptionsResolver {
     }
 
     /**
-     * Настройки одного прогона. {@code null} в любом из трёх параметров означает «не названо» — так
-     * же, как отсутствующий параметр запроса: решает память чата, а за ней конфигурация.
+     * Настройки одного прогона. {@code null} в любом поле {@code choice} означает «не названо» —
+     * так же, как отсутствующее поле запроса: решает память чата, а за ней конфигурация.
      */
-    public ChatRunService.RunOptions resolve(
-            final String conversationId,
-            final @Nullable String model,
-            final @Nullable String mode,
-            final @Nullable String project) {
-        // Одна строка chat_topic на все три разрешения (тремя отдельными чтениями это был бы тот
-        // же SELECT трижды на сообщение). Проекту она нужна даже при пришедшем параметре: прежнее
+    public ChatRunService.RunOptions resolve(final String conversationId, final RunChoice choice) {
+        // Одна строка chat_topic на все разрешения (отдельными чтениями это был бы один и тот же
+        // SELECT по разу на каждое). Проекту она нужна даже при пришедшем параметре: прежнее
         // значение колонки — это «на каком проекте шла история», и сравнение с ним даёт маркер
         // смены проекта.
         final Optional<ChatTopicEntity> stored = chatTopicRepository.findById(conversationId);
-        final String resolvedModel = resolveModel(conversationId, stored, model);
+        final String resolvedModel = resolveModel(conversationId, stored, choice.model());
         final String previousProject = stored.map(ChatTopicEntity::getProject).orElse(null);
-        final String resolvedProject = resolveProject(stored, project);
+        final String resolvedProject = resolveProject(stored, choice.project());
         final ProjectSwitch switched = projectSwitch(previousProject, resolvedProject);
         if (!Objects.equals(previousProject, resolvedProject)) {
             // Колонку приводим к тому, на чём прогон реально пошёл, — и когда проект назвали, и
@@ -82,7 +81,8 @@ public class RunOptionsResolver {
                 resolvedModel,
                 chatModelProperties.isWeak(resolvedModel),
                 chatModelProperties.streamUsage(resolvedModel),
-                chatModeService.instructionsFor(resolveMode(conversationId, stored, mode)),
+                chatModeService.instructionsFor(resolveMode(conversationId, stored, choice.mode())),
+                resolveReasoning(conversationId, stored, choice.reasoning(), resolvedModel),
                 resolvedProject,
                 projectCatalog.require(resolvedProject).id(),
                 switched);
@@ -104,7 +104,7 @@ public class RunOptionsResolver {
      * переводит.
      */
     public ChatRunService.RunOptions current(final String conversationId) {
-        // Ни один из трёх резолвов не пишет, пока ему не назвали значение явно (см. их javadoc).
+        // Ни один из резолвов не пишет, пока ему не назвали значение явно (см. их javadoc).
         final Optional<ChatTopicEntity> stored = chatTopicRepository.findById(conversationId);
         final String model = resolveModel(conversationId, stored, null);
         final String project = resolveProject(stored, null);
@@ -113,23 +113,31 @@ public class RunOptionsResolver {
                 chatModelProperties.isWeak(model),
                 chatModelProperties.streamUsage(model),
                 chatModeService.instructionsFor(resolveMode(conversationId, stored, null)),
+                resolveReasoning(conversationId, stored, null, model),
                 project,
                 projectCatalog.require(project).id(),
                 null);
     }
 
     /**
-     * Проверяет, что названные модель, режим и проект вообще существуют, ничего не резолвя и ничего
+     * Проверяет, что названные модель, режим, уровень рассуждений и проект вообще существуют, ничего не резолвя и ничего
      * не записывая. Нужно там, где выбор принимают сейчас, а прогон по нему пойдёт позже (очередь
      * сообщений): без этой проверки опечатка в модели обернулась бы не отказом на запросе, а
      * сообщением, которое приняли и на которое потом молча не ответили.
      */
-    public void validate(final @Nullable String model, final @Nullable String mode, final @Nullable String project) {
+    public void validate(final RunChoice choice) {
+        final String model = choice.model();
+        final String mode = choice.mode();
+        final String reasoning = choice.reasoning();
+        final String project = choice.project();
         if (StringUtils.hasText(model) && !chatModelProperties.isAllowed(model)) {
             throw new ResponseStatusException(BAD_REQUEST, "Unknown model: " + model);
         }
         if (StringUtils.hasText(mode) && !chatModeProperties.isAllowed(mode)) {
             throw new ResponseStatusException(BAD_REQUEST, "Unknown mode: " + mode);
+        }
+        if (StringUtils.hasText(reasoning) && !chatModelProperties.isKnownReasoningLevel(reasoning)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unknown reasoning level: " + reasoning);
         }
         if (StringUtils.hasText(project) && !projectCatalog.isAllowed(project)) {
             throw new ResponseStatusException(BAD_REQUEST, "Unknown project: " + project);
@@ -175,6 +183,46 @@ public class RunOptionsResolver {
                 .filter(StringUtils::hasText)
                 .filter(chatModeProperties::isAllowed) // на случай, если режим убрали из конфига
                 .orElse(null);
+    }
+
+    /**
+     * Параметр запроса → сохранённый уровень чата → уровень модели прогона. Пустая строка в
+     * запросе — не «не названо», а явный выбор «по умолчанию»: сохранённый уровень сбрасывается.
+     *
+     * <p>Записывается, как и режим, только названный явно — и записывается как назван, даже если
+     * у модели этого прогона его нет: выбор принадлежит чату, а модель в нём переключают, и
+     * вернувшись на модель с таким уровнем, чат обязан снова на нём пойти. Сам прогон при этом
+     * едет на том, что у модели есть (см. {@code ChatModelProperties#reasoningLevel}).
+     *
+     * <p>Уровень, которого нет ни у одной модели, сюда как выбор не доходит: опечатку в запросе
+     * отвергает {@link #validate} до резолва. Доходит он только снимком из очереди, сделанным до
+     * того, как уровень убрали из конфигурации, — и тогда, как и сохранённый в чате, тихо уступает
+     * умолчанию модели: отказать здесь значило бы оставить доставленный вопрос без ответа.
+     *
+     * @param model модель прогона, уже разрешённая ({@code null} — модель по умолчанию)
+     * @return {@code null} — отправлять нечего: у модели нет уровней, или ни выбора, ни умолчания
+     */
+    private ReasoningOptions.@Nullable Level resolveReasoning(
+            final String conversationId,
+            final Optional<ChatTopicEntity> stored,
+            final @Nullable String requested,
+            final @Nullable String model) {
+        final String saved = stored.map(ChatTopicEntity::getReasoning).orElse(null);
+        if (requested != null && requested.isBlank()) {
+            // Явный сброс к умолчанию модели — им отправка подтверждает выбор «по умолчанию», а не
+            // полагается на отдельный PUT, который мог не дойти или прийти после неё.
+            if (saved != null) {
+                chatTopicRepository.updateReasoning(conversationId, null);
+            }
+            return chatModelProperties.reasoningLevel(model, null).orElse(null);
+        }
+        if (requested == null || !chatModelProperties.isKnownReasoningLevel(requested)) {
+            return chatModelProperties.reasoningLevel(model, saved).orElse(null);
+        }
+        if (!requested.equals(saved)) {
+            chatTopicRepository.updateReasoning(conversationId, requested); // запоминаем как «последний»
+        }
+        return chatModelProperties.reasoningLevel(model, requested).orElse(null);
     }
 
     /**

@@ -68,3 +68,24 @@ export const projectGoneComposer = {
   busy: false,
   generating: false,
 };
+
+/**
+ * У модели заданы уровни рассуждений, но нет умолчания: в ряду четвёртый селектор,
+ * а в его списке первым стоит «по умолчанию» — ничего не отправлять. Уровень `deep`
+ * назван в конфигурации, остальные подписаны словарём по id.
+ */
+export const reasoningComposer = {
+  model,
+  mode,
+  reasoning: {
+    levels: {
+      default: null,
+      levels: [{ id: 'low' }, { id: 'high' }, { id: 'deep', label: 'Глубоко' }],
+    },
+    selected: 'high',
+    onChange: noop,
+  },
+  project,
+  busy: false,
+  generating: false,
+};

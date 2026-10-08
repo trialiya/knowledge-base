@@ -15,6 +15,7 @@ import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.AutoCompactService;
@@ -83,11 +84,12 @@ class ChatRunRetryTest {
                 mock(PendingSummaryService.class),
                 mock(AutoCompactService.class),
                 new ChatModelProperties(
-                        new ModelOption("default-model", "Default", true, true, null, null, null, false), List.of()),
+                        new ModelOption("default-model", "Default", true, true, null, null, null, false, null),
+                        List.of()),
                 events,
                 mock(SystemPromptService.class),
                 pendingMessages,
-                mock(RunOptionsResolver.class),
+                resolver(),
                 runs,
                 slots,
                 never);
@@ -101,7 +103,7 @@ class ChatRunRetryTest {
     void retryReusesTheUnansweredQuestionInsteadOfSavingItAgain() {
         when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow(42L)));
 
-        final ChatRunService.StartedRun started = runService.start(CONV, USER, null, List.of(), options(), null);
+        final ChatRunService.StartedRun started = runService.start(CONV, USER, null, List.of(), RunChoice.NONE, null);
 
         assertThat(started.userMessageId()).isEqualTo(42L);
         verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any(), any());
@@ -112,7 +114,7 @@ class ChatRunRetryTest {
     void retryIsRejectedOnceTheAnswerHasStarted() {
         when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> runService.start(CONV, USER, null, List.of(), options(), null))
+        assertThatThrownBy(() -> runService.start(CONV, USER, null, List.of(), RunChoice.NONE, null))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
@@ -130,7 +132,7 @@ class ChatRunRetryTest {
     void repairsDanglingToolCallsBeforeDecidingWhetherRetryIsPossible() {
         when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow(42L)));
 
-        runService.start(CONV, USER, null, List.of(), options(), null);
+        runService.start(CONV, USER, null, List.of(), RunChoice.NONE, null);
 
         final InOrder order = inOrder(chatHistory);
         order.verify(chatHistory).repairDanglingToolCalls(CONV);
@@ -142,14 +144,21 @@ class ChatRunRetryTest {
     void ordinarySendStillPersistsTheQuestion() {
         when(chatHistory.saveUserMessage(CONV, QUESTION, List.of(), "kb", null)).thenReturn(userRow(7L));
 
-        final ChatRunService.StartedRun started = runService.start(CONV, USER, QUESTION, List.of(), options(), "msg-1");
+        final ChatRunService.StartedRun started =
+                runService.start(CONV, USER, QUESTION, List.of(), RunChoice.NONE, "msg-1");
 
         assertThat(started.userMessageId()).isEqualTo(7L);
         verify(chatHistory, never()).unansweredUserMessage(anyString());
     }
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
+    private static RunOptionsResolver resolver() {
+        final RunOptionsResolver resolver = mock(RunOptionsResolver.class);
+        when(resolver.resolve(anyString(), any())).thenReturn(options());
+        return resolver;
+    }
+
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, true, "", null, "kb", null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, null, "kb", null);
     }
 }

@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.chat.run;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -16,6 +17,7 @@ import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.AutoCompactService;
@@ -24,7 +26,6 @@ import io.github.trialiya.kb.service.chat.memory.PendingSummaryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
-import io.github.trialiya.kb.service.chat.run.PendingMessageService.PendingOptions;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.topic.AiTopicService;
@@ -40,6 +41,7 @@ import org.mockito.InOrder;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Что происходит с очередью чата, когда прогон кончился. Сюда доезжает всё, что advisor не успел
@@ -73,7 +75,7 @@ class ChatRunQueuedDeliveryTest {
         events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
         runs = new RunRegistry();
         slots = new ConversationSlots(events);
-        when(runOptions.resolve(anyString(), any(), any(), any())).thenReturn(options());
+        when(runOptions.resolve(anyString(), any())).thenReturn(options());
         when(pendingMessages.flushPlain(anyString())).thenReturn(Flushed.NOTHING);
         runService = new ChatRunService(
                 new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
@@ -85,7 +87,8 @@ class ChatRunQueuedDeliveryTest {
                 mock(PendingSummaryService.class),
                 mock(AutoCompactService.class),
                 new ChatModelProperties(
-                        new ModelOption("default-model", "Default", true, true, null, null, null, false), List.of()),
+                        new ModelOption("default-model", "Default", true, true, null, null, null, false, null),
+                        List.of()),
                 events,
                 mock(SystemPromptService.class),
                 pendingMessages,
@@ -105,12 +108,12 @@ class ChatRunQueuedDeliveryTest {
      */
     @Test
     void aMessageAcceptedAsTheRunEndedIsDeliveredButNotAnswered() {
-        when(pendingMessages.flushPlain(CONV)).thenReturn(flushed(new PendingOptions("gpt-5", "review", "kb")));
+        when(pendingMessages.flushPlain(CONV)).thenReturn(flushed(new RunChoice("gpt-5", "review", "high", "kb")));
 
         runService.deliverIfNobodyGenerates(CONV);
 
         verify(pendingMessages).flushPlain(CONV);
-        verify(runOptions, never()).resolve(anyString(), any(), any(), any());
+        verify(runOptions, never()).resolve(anyString(), any());
         verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any(), any());
         assertThat(runs.size()).isZero();
     }
@@ -122,10 +125,24 @@ class ChatRunQueuedDeliveryTest {
      * assistant.tool_calls} и ответами инструментов. Очередь остаётся живому прогону.
      */
     @Test
+    void aSendRefusedForABusyChatResolvesAndWritesNothing() {
+        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any(), any()))
+                .thenReturn(userRow());
+        runService.start(CONV, USER, "вопрос", List.of(), RunChoice.NONE, null);
+        final RunChoice second = new RunChoice("gpt-5", null, "high", "kb");
+
+        assertThatThrownBy(() -> runService.start(CONV, USER, "ещё", List.of(), second, "msg-2"))
+                .isInstanceOf(ResponseStatusException.class);
+
+        // Резолв пишет выбор в chat_topic — отвергнутой отправке писать его нельзя.
+        verify(runOptions, never()).resolve(CONV, second);
+    }
+
+    @Test
     void aChatWithAnyLiveRunIsLeftAlone() {
         when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any(), any()))
                 .thenReturn(userRow());
-        runService.start(CONV, USER, "вопрос", List.of(), options(), null);
+        runService.start(CONV, USER, "вопрос", List.of(), RunChoice.NONE, null);
 
         runService.deliverIfNobodyGenerates(CONV);
 
@@ -138,7 +155,7 @@ class ChatRunQueuedDeliveryTest {
     void anEmptyQueueStartsNothing() {
         runService.deliverIfNobodyGenerates(CONV);
 
-        verify(runOptions, never()).resolve(anyString(), any(), any(), any());
+        verify(runOptions, never()).resolve(anyString(), any());
         assertThat(runs.size()).isZero();
     }
 
@@ -162,7 +179,7 @@ class ChatRunQueuedDeliveryTest {
         when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any(), any()))
                 .thenReturn(userRow());
 
-        runService.start(CONV, USER, "новый вопрос", List.of(), options(), "msg-1");
+        runService.start(CONV, USER, "новый вопрос", List.of(), RunChoice.NONE, "msg-1");
 
         final InOrder order = inOrder(chatHistory, pendingMessages);
         order.verify(chatHistory).repairDanglingToolCalls(CONV);
@@ -180,7 +197,7 @@ class ChatRunQueuedDeliveryTest {
     void aClaimIsReportedAsAnOperationThatStillKnowsHowLongItHasRun() {
         when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any(), any()))
                 .thenReturn(userRow());
-        runService.start(CONV, USER, "вопрос", List.of(), options(), null);
+        runService.start(CONV, USER, "вопрос", List.of(), RunChoice.NONE, null);
 
         final ChatRunService.ActiveRun generation = runService.activeRun(CONV).orElseThrow();
         assertThat(generation.kind()).isEqualTo(ChatRunService.ActiveRun.Kind.GENERATION);
@@ -202,7 +219,7 @@ class ChatRunQueuedDeliveryTest {
     void aGenerationLeavingTheRegistryIsStillReportedAsGeneration() {
         when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any(), any()))
                 .thenReturn(userRow());
-        runService.start(CONV, USER, "вопрос", List.of(), options(), null);
+        runService.start(CONV, USER, "вопрос", List.of(), RunChoice.NONE, null);
         final String runId = runService.activeRun(CONV).orElseThrow().runId();
 
         runs.close(runId);
@@ -220,7 +237,7 @@ class ChatRunQueuedDeliveryTest {
     }
 
     /** Доставлено одно сообщение на названных настройках. */
-    private static Flushed flushed(PendingOptions options) {
+    private static Flushed flushed(RunChoice options) {
         return new Flushed(List.of(userRow()), USER, options);
     }
 
@@ -230,6 +247,6 @@ class ChatRunQueuedDeliveryTest {
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, true, "", null, "kb", null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, null, "kb", null);
     }
 }

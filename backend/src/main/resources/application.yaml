@@ -200,6 +200,19 @@ kb:
 #        # move the default model to a host of its own, add it here with the same id.
 #        base-url: ${KB_CHAT_MODELS_0_BASE_URL:}
 #        api-key: ${KB_CHAT_MODELS_0_API_KEY:}
+#        # Reasoning levels the user picks from in the chat — optional; without the block the model
+#        # gets no selector. A level sends reasoning-effort and/or extra-body (merged by top-level
+#        # key over spring.ai.openai.chat.options.extra-body). default — the level a chat runs on
+#        # until the user picks one; omitted, nothing is sent until then. See ReasoningOptions.
+#        reasoning:
+#          default: medium
+#          levels:
+#            - id: low
+#              reasoning-effort: low
+#            - id: medium
+#              reasoning-effort: medium
+#            - id: high
+#              reasoning-effort: high
     # Preset assistant modes: inject instruction fragments into the system prompt
     # (placeholder {mode_instructions} in prompt/sys.md). No mode → empty.
     modes:

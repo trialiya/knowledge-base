@@ -522,6 +522,16 @@ const LIGHT = [
     render: (p) => <ComposerToolbar {...p} onAttach={noop} onSend={noop} onStop={noop} />,
   })),
 
+  // Селектор рассуждений — четвёртый в ряду, со списком открытым вверх: проверяет, что ряд
+  // не переносится и что подписи уровней (словарь, конфиг, «по умолчанию») читаются. Рамка
+  // `composer`: списку над полем нужно то же место, что в приложении даёт лента.
+  {
+    id: 'composerToolbar.js#reasoningComposer',
+    frame: 'composer',
+    render: (p) => <ComposerToolbar {...p} onAttach={noop} onSend={noop} onStop={noop} />,
+    steps: [{ click: 'button[aria-label="Рассуждения"]' }, { unhover: true }],
+  },
+
   // Композер в режиме команды и без него. Рамка `feed`: поле ввода живёт в
   // колонке ленты и меряется её шириной.
   ...['command', 'question', 'commandBlocked', 'foreignChips'].map((name) => ({

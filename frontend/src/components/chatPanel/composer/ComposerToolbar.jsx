@@ -2,10 +2,12 @@ import { useTranslation } from 'react-i18next';
 import DefaultNoteSelect from '@/components/common/config/DefaultNoteSelect';
 import { markUnavailable } from '@/components/common/config/projectChoice';
 import ModeSelector from './ModeSelector';
+import ReasoningSelector from './ReasoningSelector';
 import { IconSend, IconStop, IconPaperclip } from '@/icons/index';
 
 /**
- * Панель под полем ввода: слева — скрепка и селекторы модели и режима, справа —
+ * Панель под полем ввода: слева — скрепка и селекторы модели, режима, рассуждений и
+ * проекта, справа —
  * «отправить/остановить». Раньше кнопки жили внутри MessageInput, а модель — в
  * шапке чата; здесь всё сведено в один ряд.
  *
@@ -15,6 +17,8 @@ import { IconSend, IconStop, IconPaperclip } from '@/icons/index';
  * Props:
  *   model    — { config, options, selected, onChange } (может отсутствовать)
  *   mode     — { options, selected, onChange } (может отсутствовать)
+ *   reasoning — { levels, selected, onChange } (может отсутствовать); levels — уровни
+ *              выбранной модели (reasoningOf), null — у модели их нет, и селектора нет
  *   project  — { options, defaultId, selected, onChange } (может отсутствовать)
  *   busy     — писать некуда: идёт сжатие контекста или прогон ещё не назвал свой runId
  *   generating — идёт ответ модели: появляется «остановить», селекторы заблокированы.
@@ -30,6 +34,7 @@ import { IconSend, IconStop, IconPaperclip } from '@/icons/index';
 const ComposerToolbar = ({
   model,
   mode,
+  reasoning,
   project,
   busy,
   generating = false,
@@ -40,10 +45,10 @@ const ComposerToolbar = ({
   onSend,
 }) => {
   const { t } = useTranslation('chat');
-  // Выбор модели, режима и проекта запирается на всё время занятости чата: прогон уже
-  // едет на своих настройках, а сообщение из очереди поедет на тех, что стояли в момент
-  // отправки (см. PendingMessageService.PendingOptions). Разрешить переключение здесь
-  // значило бы обещать смену, которой не будет.
+  // Выбор модели, режима, рассуждений и проекта запирается на всё время занятости чата:
+  // прогон уже едет на своих настройках, а сообщение из очереди поедет на тех, что стояли
+  // в момент отправки (см. RunChoice на бэке). Разрешить переключение здесь значило бы
+  // обещать смену, которой не будет.
   const selectorsLocked = busy || generating;
 
   return (
@@ -78,6 +83,16 @@ const ComposerToolbar = ({
             value={mode.selected}
             options={mode.options}
             onChange={mode.onChange}
+            disabled={selectorsLocked}
+          />
+        )}
+        {/* Уровни — свойство модели: у модели без них селектора нет вовсе, а не
+            пустой или заблокированный — включить рассуждения ей нечем. */}
+        {reasoning?.levels && (
+          <ReasoningSelector
+            reasoning={reasoning.levels}
+            value={reasoning.selected}
+            onChange={reasoning.onChange}
             disabled={selectorsLocked}
           />
         )}

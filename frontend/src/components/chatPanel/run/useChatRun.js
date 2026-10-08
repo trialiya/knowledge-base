@@ -5,7 +5,9 @@ import { SENDER } from '@/constants/messageSender';
 import { RETRY_MODE } from '@/constants/retryMode';
 import { generateUUID } from '@/utils/uuid';
 import { nextMessageId } from '../messages/messageId';
-import { getLastModel, getLastMode } from './lastChoiceStore';
+import { getLastMode } from './lastChoiceStore';
+import { modelForChat } from './useModelConfig';
+import { reasoningForSend } from './reasoningChoice';
 import { chatLoadErrorNotice, COMMAND_BLOCK_NOTICE, scriptArgumentNotice, scriptFailedNotice } from './chatNotices';
 import { isChatEmpty } from '../messages/chatHistory';
 import { parseChatCommand, chatCommandBlock, isCompactCommand, CHAT_COMMAND, COMMAND_BLOCK } from './chatCommands';
@@ -66,15 +68,9 @@ export default function useChatRun({
     { getChats, patchChat, patchMessages, notify },
   );
 
-  // Модель для отправки — всегда явная: выбранная у чата → последняя → дефолтная.
+  // Модель для отправки — всегда явная, и та же, что стоит в селекторе (см. modelForChat).
   const resolveModelForSend = useCallback(
-    (chat) => {
-      const selected = chat?.model;
-      if (selected && modelOptions.some((o) => o.id === selected)) return selected;
-      const last = getLastModel();
-      if (last && modelOptions.some((o) => o.id === last)) return last;
-      return modelConfig?.defaultModel?.id || null;
-    },
+    (chat) => modelForChat(chat, modelOptions, modelConfig),
     [modelOptions, modelConfig],
   );
 
@@ -89,6 +85,14 @@ export default function useChatRun({
       return '';
     },
     [modeOptions],
+  );
+
+  // Уровень рассуждений для отправки (см. reasoningForSend): выбор чата, если он есть у
+  // модели этой отправки; '' — сброс к умолчанию; null — не названо. В каждом случае бэк
+  // решит ровно то, что показывает селектор.
+  const resolveReasoningForSend = useCallback(
+    (chat, modelId) => reasoningForSend(modelConfig, modelId, chat?.reasoning),
+    [modelConfig],
   );
 
   // Проект для отправки: выбранный у чата → дефолтный, если его убрали из конфига.
@@ -198,6 +202,7 @@ export default function useChatRun({
       trackLocalId(clientMsgId);
       const modelForSend = resolveModelForSend(chatForSend);
       const modeForSend = resolveModeForSend(chatForSend);
+      const reasoningToSend = resolveReasoningForSend(chatForSend, modelForSend);
       const projectForSend = resolveProjectForSend(chatForSend);
       // Отложенные вложения этого чата уходят с сообщением: бэк проверит ссылки
       // и запишет их в meta того же ряда (см. ContextItemService).
@@ -254,6 +259,7 @@ export default function useChatRun({
         contextItems,
         model: modelForSend,
         mode: modeForSend,
+        reasoning: reasoningToSend,
         project: projectForSend,
       };
       if (runIdForQueue) {
@@ -293,6 +299,7 @@ export default function useChatRun({
       getStagedFor,
       resolveModelForSend,
       resolveModeForSend,
+      resolveReasoningForSend,
       resolveProjectForSend,
       runConversation,
       queueMessage,
@@ -328,10 +335,11 @@ export default function useChatRun({
       if (!unanswered && (target.sender !== SENDER.AI || !target.error)) return;
       const model = resolveModelForSend(chat);
       const mode = resolveModeForSend(chat);
+      const reasoning = resolveReasoningForSend(chat, model);
       const project = resolveProjectForSend(chat);
 
       if (unanswered || target.retryMode === RETRY_MODE.CONTINUE) {
-        runConversation(activeChatId, { retry: true, retryMid: mid, model, mode, project });
+        runConversation(activeChatId, { retry: true, retryMid: mid, model, mode, reasoning, project });
         return;
       }
       if (target.retryMode !== RETRY_MODE.RESEND) return;
@@ -346,6 +354,7 @@ export default function useChatRun({
         clientMsgId,
         model,
         mode,
+        reasoning,
         project,
         contextItems: target.retryContextItems || [],
       });
@@ -357,6 +366,7 @@ export default function useChatRun({
       patchMessages,
       resolveModelForSend,
       resolveModeForSend,
+      resolveReasoningForSend,
       resolveProjectForSend,
       runConversation,
       trackLocalId,

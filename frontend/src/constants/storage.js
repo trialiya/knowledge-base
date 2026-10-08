@@ -7,6 +7,9 @@ export const STORAGE_KEY_LAST_MODEL = 'chat_lastModel';
 /** localStorage: режим последнего отправленного сообщения ('' — без режима). */
 export const STORAGE_KEY_LAST_MODE = 'chat_lastMode';
 
+/** Уровень рассуждений, выбранный последним ('' — умолчание модели), см. lastChoiceStore. */
+export const STORAGE_KEY_LAST_REASONING = 'chat_lastReasoning';
+
 /** Проект последней отправки — им стартует новый чат (см. lastChoiceStore). */
 export const STORAGE_KEY_LAST_PROJECT = 'chat_lastProject';
 

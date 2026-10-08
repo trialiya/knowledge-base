@@ -3,7 +3,9 @@ package io.github.trialiya.kb.config.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -62,6 +64,9 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      *     every past turn that carried reasoning, so the chats' cached prefixes are invalidated at
      *     once, and from then on every turn after one with tool calls is paid again in full. The
      *     reasoning stays stored either way — turning it back on needs no migration of history.
+     * @param reasoning the reasoning levels a user picks from in the chat, and what each of them
+     *     sends — see {@link ReasoningOptions}. Omitted — the model gets no selector, and its
+     *     requests carry only what its own options say.
      */
     public record ModelOption(
             String id,
@@ -71,7 +76,8 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
             @Nullable Integer contextTokens,
             @JsonIgnore @Nullable String baseUrl,
             @JsonIgnore @Nullable String apiKey,
-            @DefaultValue("true") boolean replayReasoning) {
+            @DefaultValue("true") boolean replayReasoning,
+            @Nullable ReasoningOptions reasoning) {
 
         public ModelOption {
             baseUrl = ConfigValues.trimToNull(baseUrl);
@@ -92,7 +98,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
         @Override
         public String toString() {
             return ("ModelOption[id=%s, label=%s, weak=%s, streamUsage=%s, contextTokens=%s,"
-                            + " baseUrl=%s, apiKey=%s, replayReasoning=%s]")
+                            + " baseUrl=%s, apiKey=%s, replayReasoning=%s, reasoning=%s]")
                     .formatted(
                             id,
                             label,
@@ -101,7 +107,8 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
                             contextTokens,
                             baseUrl,
                             apiKey == null ? null : "***",
-                            replayReasoning);
+                            replayReasoning,
+                            reasoning);
         }
 
         /**
@@ -158,6 +165,28 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      */
     public boolean replayReasoning(@Nullable String id) {
         return option(id).map(ModelOption::replayReasoning).orElse(true);
+    }
+
+    /**
+     * Уровень рассуждений, на котором пойдёт запрос к этой модели: {@code requested}, если он у неё
+     * есть, иначе её {@code reasoning.default}. Пусто — отправлять нечего: у модели нет уровней,
+     * или ни выбора, ни умолчания. Разбор {@code id} — тот же, что у {@link #isWeak}.
+     */
+    public Optional<ReasoningOptions.Level> reasoningLevel(@Nullable String id, @Nullable String requested) {
+        return option(id).map(ModelOption::reasoning).flatMap(r -> r.resolve(requested));
+    }
+
+    /**
+     * Есть ли такой уровень хоть у одной модели. Проверка выбора, принятого без модели на руках
+     * (очередь сообщений, {@code PUT /reasoning}): чей он, решится при прогоне, а опечатку видно
+     * уже сейчас.
+     */
+    public boolean isKnownReasoningLevel(@Nullable String level) {
+        return level != null
+                && Stream.concat(Stream.of(defaultModel), models.stream())
+                        .map(ModelOption::reasoning)
+                        .filter(Objects::nonNull)
+                        .anyMatch(r -> r.find(level).isPresent());
     }
 
     /**

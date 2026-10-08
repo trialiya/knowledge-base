@@ -70,6 +70,18 @@ class SampleDataFixtureTest {
     }
 
     /**
+     * The fixture runs with no {@code kb.chat.*.reasoning} configured, so its chats chose no
+     * reasoning level. Read through the entity rather than SQL: it is the mapping of the column
+     * from {@code db/migration-h2} that this pins, not just its existence.
+     */
+    @Test
+    void theFixtureChatsChoseNoReasoningLevel() {
+        assertThat(chatTopicRepo.findAll())
+                .hasSize(2)
+                .allSatisfy(topic -> assertThat(topic.getReasoning()).isNull());
+    }
+
+    /**
      * The second chat is what makes a chat search hit several chats at once, and several lines of
      * one message: the search card shows one row per matching line. Asserted on the data, not on
      * the search service — a row edited to lose the word would only show up as an empty card.

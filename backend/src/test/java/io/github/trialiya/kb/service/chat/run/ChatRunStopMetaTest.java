@@ -17,6 +17,7 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.TokenUsage;
@@ -106,7 +107,7 @@ class ChatRunStopMetaTest {
      */
     @Test
     void aStoppedRunSendsItsToolMetasBeforeTheTerminalEvent() {
-        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), RunChoice.NONE, "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
 
@@ -125,7 +126,7 @@ class ChatRunStopMetaTest {
     @Test
     void aStopWithoutTextAfterToolsLeavesAMarkerRow() {
         runService = runService(Flux.empty());
-        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), RunChoice.NONE, "msg-1");
 
         runService.stopAll();
 
@@ -147,7 +148,7 @@ class ChatRunStopMetaTest {
                 .thenReturn(Optional.of(new ChatMessageEntity(
                         1L, CONV, "привет", MessageType.USER, 1, false, false, LocalDateTime.now(), null)));
         runService = runService(Flux.empty());
-        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), RunChoice.NONE, "msg-1");
 
         runService.stopAll();
 
@@ -162,7 +163,7 @@ class ChatRunStopMetaTest {
     @Test
     void aStopMidReasoningKeepsTheReasoningOnTheMarkerRow() {
         runService = runService(Flux.just(thinking("Сначала"), thinking("Сначала история")));
-        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), RunChoice.NONE, "msg-1");
 
         runService.stopAll();
 
@@ -192,7 +193,7 @@ class ChatRunStopMetaTest {
                         null,
                         "Сначала история")));
         runService = runService(Flux.just(thinking("Сначала история")));
-        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), RunChoice.NONE, "msg-1");
 
         runService.stopAll();
 
@@ -259,18 +260,25 @@ class ChatRunStopMetaTest {
                 mock(PendingSummaryService.class),
                 mock(AutoCompactService.class),
                 new ChatModelProperties(
-                        new ModelOption("default-model", "Default", true, true, null, null, null, false), List.of()),
+                        new ModelOption("default-model", "Default", true, true, null, null, null, false, null),
+                        List.of()),
                 events,
                 mock(SystemPromptService.class),
                 pendingMessages,
-                mock(RunOptionsResolver.class),
+                resolver(),
                 runs,
                 new ConversationSlots(events),
                 Runnable::run);
     }
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
+    private static RunOptionsResolver resolver() {
+        final RunOptionsResolver resolver = mock(RunOptionsResolver.class);
+        when(resolver.resolve(anyString(), any())).thenReturn(options());
+        return resolver;
+    }
+
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, true, "", null, "kb", null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, null, "kb", null);
     }
 }

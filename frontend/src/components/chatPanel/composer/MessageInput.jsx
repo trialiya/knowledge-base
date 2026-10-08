@@ -46,6 +46,7 @@ const MessageInput = ({
   onTextChange,
   model,
   mode,
+  reasoning,
   project,
   staged,
   onUnstage,
@@ -200,6 +201,7 @@ const MessageInput = ({
       <ComposerToolbar
         model={model}
         mode={mode}
+        reasoning={reasoning}
         project={project}
         busy={busy}
         generating={generating}

@@ -69,6 +69,10 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
     void updateMode(@Param("convId") String convId, @Param("mode") @Nullable String mode);
 
     @Modifying
+    @Query("UPDATE chat_topic SET reasoning = :reasoning WHERE conversation_id = :convId")
+    void updateReasoning(@Param("convId") String convId, @Param("reasoning") @Nullable String reasoning);
+
+    @Modifying
     @Query("UPDATE chat_topic SET project = :project WHERE conversation_id = :convId")
     void updateProject(@Param("convId") String convId, @Param("project") @Nullable String project);
 

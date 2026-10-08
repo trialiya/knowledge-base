@@ -13,11 +13,11 @@ import { DRAFT_CHAT_ID } from '@/constants/storage';
  * лишней строки не будет.
  *
  * У черновика («новый чат», ещё не сохранён на бэке) нет ни дат, ни id — от
- * списка останутся только название и выбранные модель/режим.
+ * списка останутся только название и выбранные модель/режим/рассуждения/проект.
  *
  * Токенов здесь нет: они читаются как один набор и стоят своей вкладкой «Usage» (`ChatUsage`).
  */
-const ChatInfo = ({ chat, modelLabel, modeLabel, projectLabel }) => {
+const ChatInfo = ({ chat, modelLabel, modeLabel, reasoningLabel, projectLabel }) => {
   const { t, i18n } = useTranslation('chat');
 
   if (!chat) {
@@ -37,6 +37,7 @@ const ChatInfo = ({ chat, modelLabel, modeLabel, projectLabel }) => {
     { label: t('info.updated'), value: formatDateTime(chat.updatedAt, i18n.language) },
     { label: t('info.model'), value: modelLabel },
     { label: t('info.mode'), value: modeLabel },
+    { label: t('info.reasoning'), value: reasoningLabel },
     { label: t('info.project'), value: projectLabel },
     { label: t('info.id'), value: isDraft ? null : chat.id, mono: true },
   ];

@@ -252,7 +252,7 @@ class CompactPromptCacheTest {
                 new CompactService.CompactTarget(
                         CompactMeta.Kind.COMPACT, command.getPosition(), LocalDateTime.now(), (call, usage) -> null),
                 null,
-                new CompactService.CompactOptions(null, false, PROJECT, MODE, false));
+                new CompactService.CompactOptions(null, false, PROJECT, MODE, false, null));
     }
 
     // -------------------------------------------------------------------------
