@@ -1,8 +1,6 @@
 package io.github.trialiya.kb.utils;
 
 import io.github.trialiya.kb.config.model.BackgroundModelProperties;
-import java.util.HashMap;
-import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -34,26 +32,14 @@ public final class BackgroundCallOptions {
     private static OpenAiChatOptions.Builder of(OpenAiChatModel chatModel, BackgroundModelProperties properties) {
         final OpenAiChatOptions.Builder options = chatModel.getOptions().mutate();
         final @Nullable String model = properties.model();
-        final @Nullable String reasoningEffort = properties.reasoningEffort();
-        final @Nullable String thinking = properties.thinking();
         if (model != null) {
             options.model(model);
         }
-        if (reasoningEffort != null) {
-            options.reasoningEffort(reasoningEffort);
-        }
-        if (thinking != null) {
-            // Поверх extra-body модели, а не вместо него: остальные поля (маршрутизация, флаги
-            // провайдера) фоновому запросу нужны так же, как запросу чата.
-            final Map<String, Object> body = new HashMap<>();
-            final @Nullable Map<String, Object> configured =
-                    chatModel.getOptions().getExtraBody();
-            if (configured != null) {
-                body.putAll(configured);
-            }
-            body.put("thinking", Map.of("type", thinking));
-            options.extraBody(body);
-        }
+        ReasoningOptions.apply(
+                options,
+                properties.reasoningEffort(),
+                properties.thinking(),
+                chatModel.getOptions().getExtraBody());
         return options;
     }
 }
