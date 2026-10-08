@@ -25,19 +25,22 @@ public interface ReasoningSettings {
     String thinking();
 
     /**
-     * Кладёт заданное в опции запроса, как {@link ReasoningOptions.Level#applyTo}. {@code extraBody}
-     * здесь — только {@code thinking}, и сеттер билдера заменяет карту целиком: звать на чистом
-     * билдере, а с опциями модели сливать через {@code combineWith} (по ключам верхнего уровня —
-     * {@code thinking} заменяется целиком, остальные поля модели остаются).
+     * Кладёт заданное поверх того, что уже стоит в {@code options}, — на любом билдере, в том числе
+     * на опциях модели ({@code mutate()}). Через {@code combineWith}, а не сеттеры: сеттер {@code
+     * extraBody} заменил бы карту целиком и стёр бы {@code extra-body} модели (маршрутизацию,
+     * флаги провайдера), а {@code combineWith} сливает её по ключам верхнего уровня, как {@code
+     * ChatClient} сливает уровень чата ({@link ReasoningOptions.Level#applyTo}) с опциями модели.
      */
     default void applyTo(OpenAiChatOptions.Builder options) {
         final @Nullable String reasoningEffort = reasoningEffort();
         final @Nullable String thinking = thinking();
+        final OpenAiChatOptions.Builder overrides = OpenAiChatOptions.builder();
         if (reasoningEffort != null) {
-            options.reasoningEffort(reasoningEffort);
+            overrides.reasoningEffort(reasoningEffort);
         }
         if (thinking != null) {
-            options.extraBody(Map.of("thinking", Map.of("type", thinking)));
+            overrides.extraBody(Map.of("thinking", Map.of("type", thinking)));
         }
+        options.combineWith(overrides);
     }
 }

@@ -26,7 +26,13 @@ class ReasoningPropertiesBindingTest {
                 Arguments.of(
                         "kb.search.subagent",
                         SubAgentConfig.class,
-                        Map.of("model-id", "sub-model", "temperature", ""),
+                        Map.of(
+                                "enabled", "true",
+                                "model-id", "sub-model",
+                                "max-tokens", "12000",
+                                "max-iterations", "30",
+                                "allowed-tools[0]", "grepContent",
+                                "temperature", ""),
                         (Function<SubAgentConfig, List<Object>>)
                                 c -> Arrays.asList(c.reasoningEffort(), c.thinking(), c.temperature())),
                 Arguments.of("kb.chat.summarize", SummarizeProperties.class, Map.of("model", " "), (Function<

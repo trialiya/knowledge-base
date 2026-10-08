@@ -29,19 +29,14 @@ public final class BackgroundCallOptions {
         return ChatClient.builder(chatModel).defaultOptions(of(chatModel, properties));
     }
 
-    /**
-     * Своё — на чистом билдере, а с опциями модели сливается через {@code combineWith}: так ложатся
-     * и уровни рассуждений чата ({@code ReasoningOptions.Level#applyTo} поверх опций модели в {@code
-     * ChatClient}), и {@code extra-body} модели (маршрутизация, флаги провайдера) остаётся под
-     * {@code thinking} запроса, а не стирается им.
-     */
+    /** Package-private ради теста. */
     static OpenAiChatOptions.Builder of(OpenAiChatModel chatModel, BackgroundModelProperties properties) {
-        final OpenAiChatOptions.Builder overrides = OpenAiChatOptions.builder();
+        final OpenAiChatOptions.Builder options = chatModel.getOptions().mutate();
         final @Nullable String model = properties.model();
         if (model != null) {
-            overrides.model(model);
+            options.model(model);
         }
-        properties.applyTo(overrides);
-        return chatModel.getOptions().mutate().combineWith(overrides);
+        properties.applyTo(options);
+        return options;
     }
 }
