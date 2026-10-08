@@ -82,4 +82,15 @@ describe('RevisionPicker', () => {
     expect(screen.getByText('v1')).toBeInTheDocument();
     expect(container.querySelector('.rev-picker--snapshot')).not.toBeNull();
   });
+
+  /** База сравнения: пустое значение — «ни с чем», а не рабочее дерево. */
+  test('as a compare picker it names the base and leaves it with «stop comparing»', async () => {
+    const onChange = vi.fn();
+    renderPicker({ purpose: 'compare', rev: 'main', onChange });
+
+    expect(screen.getByText('revision.comparedWith')).toBeInTheDocument();
+    expect(screen.queryByText('revision.workingTree')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'revision.compareExit' }));
+    expect(onChange).toHaveBeenCalledWith('');
+  });
 });

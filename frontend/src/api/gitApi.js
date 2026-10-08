@@ -386,6 +386,22 @@ const gitApi = {
   },
 
   /**
+   * Чем ревизия `head` отличается от `base` (GitComparison): файлы, общий
+   * предок и коммиты между ними. `head` не передан — HEAD рабочего дерева;
+   * `direct` — сравнивать с самой `base`, а не с общим предком. Как у
+   * getCommit, патч — по одному файлу (`path`), и тогда истории в ответе нет.
+   */
+  compare: (base, { head, direct = false, path, patch = false, project, signal } = {}) => {
+    const params = new URLSearchParams({ base });
+    if (head) params.set('head', head);
+    if (direct) params.set('direct', 'true');
+    if (path) params.set('path', path);
+    if (patch) params.set('patch', 'true');
+    const [qs, init] = opts(params, project, signal);
+    return request(`/api/git/compare${qs}`, init);
+  },
+
+  /**
    * Поиск коммитов по префиксу хэша или подстроке заголовка (свежие первыми) —
    * для пикера. Возвращает { commits: GitCommit[], truncated }: обход истории
    * ограничен, и `truncated` говорит, что дальше могли быть ещё совпадения —

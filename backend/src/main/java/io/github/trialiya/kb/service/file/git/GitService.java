@@ -6,6 +6,7 @@ import io.github.trialiya.kb.model.git.dto.GitCommandResult;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitGrepResult;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
+import io.github.trialiya.kb.model.git.dto.GitComparison;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
@@ -544,19 +545,7 @@ public class GitService {
             AbstractTreeIterator oldTree = parent == null ? new EmptyTreeIterator() : treeIterator(reader, parent);
             AbstractTreeIterator newTree = treeIterator(reader, commit);
 
-            List<GitDiffEntry> entries = new ArrayList<>();
-            var patchOut = new ByteArrayOutputStream();
-            try (DiffFormatter formatter = new DiffFormatter(patchOut)) {
-                formatter.setRepository(repository);
-                formatter.setDetectRenames(true);
-                if (filePath != null) {
-                    formatter.setPathFilter(PathFilterGroup.createFromStrings(List.of(filePath)));
-                }
-                for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
-                    if (only != null && !only.equals(Diffs.reportedPath(entry))) continue;
-                    entries.add(Diffs.toGitDiffEntry(entry, formatter, includePatch, patchOut));
-                }
-            }
+            List<GitDiffEntry> entries = Diffs.scan(repository, oldTree, newTree, includePatch, filePath, only);
             return Diffs.toGitCommit(commit, entries, reader, includeBody, includeParents);
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + hash, e);
@@ -571,6 +560,30 @@ public class GitService {
         CanonicalTreeParser parser = new CanonicalTreeParser();
         parser.reset(reader, commit.getTree());
         return parser;
+    }
+
+    /**
+     * How {@code head} differs from {@code base} — the file browser's changes mode with a base to
+     * compare against: the files, the commits between the two and their common ancestor; see {@link
+     * GitComparison}.
+     *
+     * <p>As with {@link #getCommit}, {@code filePath} keeps that file's entry alone, matched after
+     * rename detection, and the answer then carries no history: the browser asks for it, with the
+     * patch, on every file it opens.
+     *
+     * @param base the revision compared against — anything git reads as a commit: a hash, a branch,
+     *     a tag, {@code HEAD~2}
+     * @param head the revision compared, read the same way
+     * @param direct diff against {@code base} itself rather than the common ancestor
+     */
+    public GitComparison compare(
+            @NonNull String base,
+            @NonNull String head,
+            boolean direct,
+            boolean includePatch,
+            @Nullable String filePath) {
+        String only = (filePath == null || filePath.isBlank()) ? null : RepoPaths.toForwardSlashes(filePath.strip());
+        return RevisionCompare.compare(repository, base.strip(), head.strip(), direct, includePatch, only);
     }
 
     // ── File search ─────────────────────────────────────────────────────────

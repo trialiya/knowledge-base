@@ -90,6 +90,11 @@ class GitControllerTest {
                                 .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag")),
                         get("/api/git/commit").param("rev", "nosuchtag")),
                 Arguments.of(
+                        "comparison with an unknown base",
+                        (Consumer<GitService>) g -> when(g.compare("nosuchtag", "HEAD", false, false, null))
+                                .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag")),
+                        get("/api/git/compare").param("base", "nosuchtag")),
+                Arguments.of(
                         "commit search from an unknown revision",
                         (Consumer<GitService>) g -> when(g.grepCommits("fix", 50, "nosuchtag"))
                                 .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag")),
@@ -108,6 +113,19 @@ class GitControllerTest {
                         (Consumer<GitService>) g -> when(g.getUncommittedChanges(false, "docs/a\u0007b.md"))
                                 .thenThrow(new IllegalArgumentException("Path contains unsupported characters")),
                         get("/api/git/status").param("path", "docs/a\u0007b.md")));
+    }
+
+    /** Сравнение без базы — не «сравнить ни с чем», а запрос, в котором нечего сравнивать. */
+    @Test
+    void aComparisonWithoutABaseIsABadRequest() throws Exception {
+        mockMvc.perform(get("/api/git/compare").param("base", " ")).andExpect(status().isBadRequest());
+    }
+
+    /** Патчи всех файлов диапазона, который может тянуться на годы истории, — не ответ, а отказ. */
+    @Test
+    void aComparisonWithPatchesButNoPathIsABadRequest() throws Exception {
+        mockMvc.perform(get("/api/git/compare").param("base", "main").param("patch", "true"))
+                .andExpect(status().isBadRequest());
     }
 
     /** Обзор с ревизией читает снимок, без неё — рабочее дерево. */

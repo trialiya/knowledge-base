@@ -60,6 +60,7 @@ function App() {
     openFilePath,
     setFileMode,
     setFileRev,
+    setFileCompare,
     setFileBlame,
     setFileFind,
     setChatFind,
@@ -291,12 +292,15 @@ function App() {
               mode={nav.fileMode}
               commit={nav.fileCommit}
               rev={nav.fileRev}
+              base={nav.fileBase}
+              direct={nav.fileDirect}
               blame={nav.fileBlame}
               find={nav.fileFind}
               findRegex={nav.fileFindRegex}
               lines={nav.fileLines}
               onModeChange={setFileMode}
               onRevChange={setFileRev}
+              onCompareChange={setFileCompare}
               onBlameToggle={setFileBlame}
               onFindChange={setFileFind}
               onPathChange={openFilePath}

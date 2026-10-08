@@ -446,3 +446,95 @@ describe('лента коммитов в «Файлах»', () => {
     expect(url()).toBe('/files/a/c.md');
   });
 });
+
+describe('сравнение ревизий в «Файлах»', () => {
+  it('база сравнения — в адресе режима изменений, вместе с «напрямую»', () => {
+    go('/files/a.js?changes=1');
+    const s = mount();
+    s.setFileCompare('main', true);
+    expect(url()).toBe('/files/a.js?changes=1&base=main&direct=1');
+    s.setFileCompare('main');
+    expect(url()).toBe('/files/a.js?changes=1&base=main');
+    s.setFileCompare('');
+    expect(url()).toBe('/files/a.js?changes=1');
+  });
+
+  it('выбор базы из другого режима переключает в изменения: сравнение — это их список', () => {
+    go('/files/a.js');
+    const s = mount();
+    s.setFileCompare('main');
+    expect(url()).toBe('/files/a.js?changes=1&base=main');
+  });
+
+  it('уход из режима изменений забывает базу, а «напрямую» без базы не пишется', () => {
+    go('/files/a.js?changes=1&base=main&direct=1');
+    const s = mount();
+    expect(s.nav()).toMatchObject({ fileBase: 'main', fileDirect: true });
+    s.setFileMode('tree');
+    expect(url()).toBe('/files/a.js');
+    s.setFileMode('changes');
+    expect(url()).toBe('/files/a.js?changes=1');
+  });
+
+  it('база вне режима изменений в адресе ничего не значит и отбрасывается', () => {
+    go('/files/a.js?base=main&direct=1');
+    const s = mount();
+    expect(s.nav()).toMatchObject({ fileBase: '', fileDirect: false });
+    expect(url()).toBe('/files/a.js');
+  });
+
+  it('клик по файлу списка остаётся в сравнении, смена ревизии — тоже', () => {
+    go('/files/a.js?changes=1&base=main');
+    const s = mount();
+    s.openFilePath('b.js');
+    expect(url()).toBe('/files/b.js?changes=1&base=main');
+    s.setFileRev('v1');
+    expect(url()).toBe('/files/b.js?changes=1&rev=v1&base=main');
+  });
+
+  it('ссылка на коммит и смена проекта уводят из сравнения', () => {
+    const hash = '0123456789abcdef0123456789abcdef01234567';
+    go('/files/a.js?changes=1&base=main');
+    const s = mount();
+    s.openFilePath('', undefined, { rev: hash, changes: true, right: 'commit' });
+    expect(s.nav().fileBase).toBe('');
+
+    go('/files/a.js?changes=1&base=main');
+    const t = mount();
+    t.openFilePath('', 'other');
+    expect(t.nav().fileBase).toBe('');
+  });
+
+  it('«поменять местами» — один переход со своей ревизией и базой', () => {
+    go('/files/a.js?changes=1&base=main');
+    const s = mount();
+    s.openFilePath('a.js', undefined, { rev: 'main', base: 'feature' });
+    expect(url()).toBe('/files/a.js?changes=1&rev=main&base=feature');
+  });
+
+  it('база при переходе в другой режим не остаётся в состоянии, которого нет в адресе', () => {
+    go('/files/a.js');
+    const s = mount();
+    s.openFilePath('a.js', undefined, { changes: false, base: 'main' });
+    expect(s.nav().fileBase).toBe('');
+    s.setFileMode('changes');
+    expect(url()).toBe('/files/a.js?changes=1');
+  });
+
+  it('ссылка на файл из другого раздела открывает файл, а не прежнее сравнение', () => {
+    go('/files/a.js?changes=1&base=main');
+    const s = mount();
+    s.switchView('chat');
+    s.openFilePath('b.js');
+    expect(s.nav().fileBase).toBe('');
+    expect(url()).toBe('/files/b.js?changes=1');
+  });
+
+  it('возврат в раздел оставляет сравнение, на котором из него ушли', () => {
+    go('/files?changes=1&base=main');
+    const s = mount();
+    s.switchView('chat');
+    s.switchView('files');
+    expect(url()).toBe('/files?changes=1&base=main');
+  });
+});

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useDismissable from '@/components/common/layout/useDismissable';
-import { IconBranch, IconChevronDown, IconHistory, IconX } from '@/icons/index';
+import { IconBranch, IconChevronDown, IconCommit, IconHistory, IconX } from '@/icons/index';
 import useRevisions from './useRevisions';
 import './revisionPicker.css';
 
@@ -16,8 +16,12 @@ import './revisionPicker.css';
  *
  * Хеши коммитов в списке не перечисляются: их вводят руками (или приходят по
  * ссылке из чата) — у истории нет полезного ответа «вот вся она».
+ *
+ * `purpose="compare"` — тот же выбор ревизии, но базы сравнения: пустое
+ * значение значит «ни с чем не сравнивать», а не рабочее дерево, и подписи
+ * говорят об этом. Список, ввод и выход — те же.
  */
-const RevisionPicker = ({ project, rev, refsToken, onChange }) => {
+const RevisionPicker = ({ project, rev, refsToken, onChange, purpose = 'snapshot' }) => {
   const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
@@ -39,6 +43,8 @@ const RevisionPicker = ({ project, rev, refsToken, onChange }) => {
     if (value) pick(value);
   };
 
+  const text = TEXT[purpose] ?? TEXT.snapshot;
+
   const groups = [
     { key: 'branches', items: refs.branches },
     { key: 'tags', items: refs.tags },
@@ -51,11 +57,11 @@ const RevisionPicker = ({ project, rev, refsToken, onChange }) => {
         className="rev-picker__trigger"
         aria-expanded={open}
         aria-haspopup="menu"
-        title={rev ? t('revision.viewingHint', { rev }) : t('revision.workingTreeHint')}
+        title={rev ? t(text.setHint, { rev }) : t(text.emptyHint)}
         onClick={() => setOpen((was) => !was)}
       >
-        {rev ? <IconHistory size={13} /> : <IconBranch size={13} />}
-        <span className="rev-picker__label">{rev || t('revision.workingTree')}</span>
+        {text.icon(!!rev)}
+        <span className="rev-picker__label">{label(rev, text, t)}</span>
         <IconChevronDown size={12} />
       </button>
 
@@ -65,8 +71,8 @@ const RevisionPicker = ({ project, rev, refsToken, onChange }) => {
         <button
           type="button"
           className="icon-btn rev-picker__exit"
-          title={t('revision.exit')}
-          aria-label={t('revision.exit')}
+          title={t(text.exit)}
+          aria-label={t(text.exit)}
           onClick={() => pick('')}
         >
           <IconX size={13} />
@@ -88,7 +94,7 @@ const RevisionPicker = ({ project, rev, refsToken, onChange }) => {
 
           {rev && (
             <button type="button" className="rev-picker__item" role="menuitem" onClick={() => pick('')}>
-              {t('revision.workingTree')}
+              {t(text.reset)}
             </button>
           )}
 
@@ -119,6 +125,33 @@ const RevisionPicker = ({ project, rev, refsToken, onChange }) => {
       )}
     </div>
   );
+};
+
+/** Снимок называется самой ревизией, база сравнения — с пояснением, что это база. */
+function label(rev, text, t) {
+  if (!rev) return t(text.empty);
+  return text.setLabel ? t(text.setLabel, { rev }) : rev;
+}
+
+/** Подписи контрола по назначению: что значит пустое значение и как из выбранного выйти. */
+const TEXT = {
+  snapshot: {
+    empty: 'revision.workingTree',
+    emptyHint: 'revision.workingTreeHint',
+    setHint: 'revision.viewingHint',
+    exit: 'revision.exit',
+    reset: 'revision.workingTree',
+    icon: (set) => (set ? <IconHistory size={13} /> : <IconBranch size={13} />),
+  },
+  compare: {
+    empty: 'revision.compare',
+    emptyHint: 'revision.compareHint',
+    setLabel: 'revision.comparedWith',
+    setHint: 'revision.comparingHint',
+    exit: 'revision.compareExit',
+    reset: 'revision.compareExit',
+    icon: () => <IconCommit size={13} />,
+  },
 };
 
 export default RevisionPicker;

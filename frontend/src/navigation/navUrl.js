@@ -44,6 +44,10 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  *                   в этом коммите (дефолт — сам файл)
  *   ?rev=<ревизия>  снимок коммита/ветки/тега (дефолт — рабочее дерево): и в
  *                   файлах, и как фильтр единого поиска
+ *   ?base=<ревизия> файлы, режим изменений: сравнение — слева файлы, которыми
+ *                   показанная ревизия (rev, без него — HEAD) отличается от этой
+ *                   (дефолт — нет сравнения)
+ *   ?direct=1       сравнение с самой base, а не с общим предком (дефолт — с предком)
  *   ?blame=1        файлы: колонка авторства строк у открытого файла (дефолт — нет)
  *   ?lines=<a>[-<b>] файлы: строки, выделенные в открытом файле и прокрученные к
  *                   себе, — так ячейка blame ведёт к ханку в снимке коммита (дефолт — нет)
@@ -141,6 +145,8 @@ export function readUrl() {
   let fileMode = FILE_MODE.TREE;
   let fileCommit = '';
   let fileRev = '';
+  let fileBase = '';
+  let fileDirect = false;
   let fileBlame = false;
   let fileFind = '';
   let fileFindRegex = false;
@@ -158,6 +164,10 @@ export function readUrl() {
     // Ревизия — тоже состояние экрана: путь в адресе один и тот же, меняется
     // только снимок, в котором его читают. Пусто — рабочее дерево.
     fileRev = p.get('rev') || '';
+    // База сравнения — только у режима изменений: список, который она меняет,
+    // есть лишь там, а в дереве или ленте она была бы мусором в адресе.
+    if (fileMode === FILE_MODE.CHANGES) fileBase = p.get('base') || '';
+    fileDirect = !!fileBase && p.get('direct') === '1';
     // Колонка blame — состояние экрана того же рода, что режим изменений: файл
     // тот же, меняется только то, что о нём показано рядом с текстом.
     fileBlame = p.get('blame') === '1';
@@ -213,6 +223,8 @@ export function readUrl() {
     fileMode,
     fileCommit,
     fileRev,
+    fileBase,
+    fileDirect,
     fileBlame,
     fileFind,
     fileFindRegex,
@@ -263,6 +275,10 @@ export function buildUrl(nav) {
       if (nav.fileMode === FILE_MODE.HISTORY) p.set('history', '1');
       if (nav.fileMode === FILE_MODE.HISTORY && nav.fileCommit) p.set('commit', nav.fileCommit);
       if (nav.fileRev) p.set('rev', nav.fileRev);
+      if (nav.fileMode === FILE_MODE.CHANGES && nav.fileBase) {
+        p.set('base', nav.fileBase);
+        if (nav.fileDirect) p.set('direct', '1');
+      }
       if (nav.fileBlame) p.set('blame', '1');
       if (nav.fileFind) p.set('find', nav.fileFind);
       // Флаг регулярки без самого запроса подсвечивать нечему.
@@ -323,6 +339,8 @@ function toNav(u, view, panels) {
     fileMode: u.fileMode,
     fileCommit: u.fileCommit,
     fileRev: u.fileRev,
+    fileBase: u.fileBase,
+    fileDirect: u.fileDirect,
     fileBlame: u.fileBlame,
     fileFind: u.fileFind,
     fileFindRegex: u.fileFindRegex,

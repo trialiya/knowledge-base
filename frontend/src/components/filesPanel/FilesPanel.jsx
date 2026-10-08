@@ -4,9 +4,8 @@ import FileTree from './FileTree';
 import FileContent from './FileContent';
 import FilesToolbar from './FilesToolbar';
 import ChangesList from './changes/ChangesList';
-import useSnapshotCommit from './commit/useSnapshotCommit';
-import useUncommittedChanges, { UNTRACKED_STATUS } from './changes/useUncommittedChanges';
-import useChangeDiff from './changes/useChangeDiff';
+import useDiffChoice from './changes/useDiffChoice';
+import useChangesSource from './changes/useChangesSource';
 import { readChangesFlat, saveChangesFlat } from './changes/changesLayout';
 import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
@@ -23,14 +22,13 @@ import { FILE_TAB } from '@/constants/fileTabs';
 import { FILE_MODE } from '@/constants/fileModes';
 import buildFileTabs from './filesSidebar';
 import useOutlineJump from './outline/useOutlineJump';
-import { previewKind } from '@/utils/filePreview';
 import './filesPanel.css';
 
 /**
  * GitHub-стиль просмотр репозитория: дерево слева, содержимое файла/каталога
  * в центре. Раскладка — общая (WorkspaceLayout); справа вкладка «Инфо»
  * (метаданные пути и последний коммит), как в чате и базе знаний, а в снимке
- * ревизии ещё и «Коммит» — о самом снимке.
+ * ревизии ещё и «Коммит» — о самом снимке, а в сравнении — «Сравнение».
  *
  * `project` — репозиторий, который показывает панель; приходит из адреса
  * (пусто — дефолтный). Смена проекта — это перемонтирование всего содержимого
@@ -43,12 +41,15 @@ const FilesPanelForProject = ({
   mode,
   commit,
   rev,
+  base,
+  direct,
   blame,
   find,
   findRegex,
   lines,
   onModeChange,
   onRevChange,
+  onCompareChange,
   onBlameToggle,
   onFindChange,
   onPathChange,
@@ -83,19 +84,7 @@ const FilesPanelForProject = ({
     refreshToken: contentToken,
   });
 
-  const diff = useChangeDiff({ project, path, rev, refreshToken, refsToken: gitRefsToken, enabled: showChanges });
-  // Коммит снимка нужен и вкладке «Коммит», и списку слева — один запрос на обоих,
-  // и только пока хоть один из них на экране: без пути ответ несёт строку каждого
-  // файла коммита, а у коммита с vendor-обновлением их тысячи.
-  const snapshotCommit = useSnapshotCommit({
-    project,
-    rev,
-    refreshToken,
-    refsToken: gitRefsToken,
-    enabled: showChanges || panels?.rightTab === FILE_TAB.COMMIT,
-  });
   const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
-
   // Одно уведомление на панель: git-команда отказывает словами самого git
   // («Permission denied (publickey)»), и это ровно то, что нужно показать —
   // своя формулировка сказала бы меньше. Кроме коммита и push: их отказ остаётся
@@ -103,14 +92,23 @@ const FilesPanelForProject = ({
   const { notice, notify, dismissNotice } = useNotice();
   const actions = useGitActions({ git, project, refreshToken, onRepoChanged, notify, t });
 
-  // Список незакоммиченного нужен и режиму «Изменения», и окну коммита — окно
-  // открывается и из режима дерева, где списка на экране нет.
-  const changeList = useUncommittedChanges({
+  // Чей список и чей патч показывает режим «Изменения»: незакоммиченное,
+  // изменения коммита снимка или разница с базой сравнения.
+  const { comparing, diff, snapshotCommit, compareTab, changeList, listed } = useChangesSource({
     project,
+    path,
+    rev,
+    base,
+    direct,
+    showChanges,
+    branch: git.status?.current,
     refreshToken,
-    enabled: (showChanges && !snapshot) || actions.dialog === 'commit',
+    refsToken: gitRefsToken,
+    commitTabOpen: panels?.rightTab === FILE_TAB.COMMIT,
+    commitDialogOpen: actions.dialog === 'commit',
+    onCompareChange,
+    onPathChange,
   });
-  const listed = snapshot ? snapshotCommit : changeList;
   // Панель дополняет контракт окон тем, чего сам `useGitActions` собрать не мог:
   // список спрашивается лениво, по открытому окну.
   const dialogGit = useMemo(
@@ -131,28 +129,7 @@ const FilesPanelForProject = ({
     saveChangesFlat(next);
   };
 
-  // Что показывать в центре — оригинал или diff. Дефолт зависит от открытого
-  // файла: у изменённого смотрят изменение, у неотслеживаемого его нет вовсе —
-  // весь файл и есть новое. Поэтому выбор следует пути и режиму и сбрасывается
-  // в рендере под своим prev-стражем (см. правила хуков), а не эффектом,
-  // который дорисовал бы кадр с выбором, сделанным для прошлого файла.
-  const [diffChoice, setDiffChoice] = useState(null);
-  const choiceKey = `${showChanges ? 1 : 0} ${path}`;
-  const [prevChoiceKey, setPrevChoiceKey] = useState(choiceKey);
-  if (prevChoiceKey !== choiceKey) {
-    setPrevChoiceKey(choiceKey);
-    setDiffChoice(null);
-  }
-  // Дефолт считаем по ответу про САМ файл, а не по списку слева: список — это
-  // отдельный запрос, он приходит позже и может не прийти вовсе, и тогда центр
-  // сначала показал бы исходник, а потом сам себя перерисовал в diff. По той же
-  // причине центр ждёт этот ответ наравне с содержимым — иначе кадр между ними
-  // показывает не то, на что кликнули (у удалённого файла — «не найдено»).
-  const diffPending = showChanges && !!path && diff.loading;
-  // Картинку смотрят рисунком: текстового патча у неё нет, и diff по умолчанию
-  // показал бы заглушку вместо самого изменения.
-  const diffByDefault = !!diff.entry && diff.entry.status !== UNTRACKED_STATUS && previewKind(path) !== 'image';
-  const showDiff = showChanges && (diffChoice ?? diffByDefault);
+  const { diffPending, showDiff, setDiffChoice } = useDiffChoice({ path, showChanges, diff });
 
   const { jump, onJump } = useOutlineJump(path);
 
@@ -177,6 +154,7 @@ const FilesPanelForProject = ({
         onModeChange,
         jump,
         onJump,
+        compare: compareTab,
       }),
     [
       t,
@@ -192,6 +170,7 @@ const FilesPanelForProject = ({
       onModeChange,
       jump,
       onJump,
+      compareTab,
     ],
   );
 
@@ -210,13 +189,15 @@ const FilesPanelForProject = ({
             ) : (
               t('panel.tree')
             ),
-          ariaLabel: t(leftLabelKey(mode, snapshot)),
+          ariaLabel: t(leftLabelKey(mode, snapshot, comparing)),
           toolbar: (
             <FilesToolbar
               project={project}
               mode={mode}
               rev={rev}
               onRevChange={onRevChange}
+              base={base}
+              onBaseChange={(next) => onCompareChange(next, direct)}
               gitRefsToken={gitRefsToken}
               onModeChange={onModeChange}
               flat={flat}
@@ -253,10 +234,13 @@ const FilesPanelForProject = ({
                   selectedPath={path}
                   onSelect={selectNode}
                   snapshot={snapshot}
+                  compare={comparing}
                   // Откат правки предлагается только там, где проекту разрешены
                   // команды: без разрешения кнопка отвечала бы отказом сервера.
                   // Коммит откатывать нечем — снимок только для чтения.
-                  onDiscard={!snapshot && git.capabilities?.commands && !git.running ? actions.askDiscard : null}
+                  onDiscard={
+                    !snapshot && !comparing && git.capabilities?.commands && !git.running ? actions.askDiscard : null
+                  }
                 />
               )}
               {mode === FILE_MODE.TREE && (
@@ -329,8 +313,9 @@ const FilesPanelForProject = ({
 };
 
 /** Имя левого блока для скринридера — по тому, что в нём сейчас. */
-function leftLabelKey(mode, snapshot) {
+function leftLabelKey(mode, snapshot, comparing) {
   if (mode === FILE_MODE.HISTORY) return 'panel.history';
+  if (comparing) return 'panel.compareChanges';
   if (mode === FILE_MODE.CHANGES) return snapshot ? 'panel.commitChanges' : 'panel.changes';
   return 'panel.tree';
 }
@@ -351,12 +336,15 @@ const FilesPanel = ({
   mode,
   commit,
   rev,
+  base,
+  direct,
   blame,
   find,
   findRegex,
   lines,
   onModeChange,
   onRevChange,
+  onCompareChange,
   onBlameToggle,
   onFindChange,
   onPathChange,
@@ -389,12 +377,15 @@ const FilesPanel = ({
       mode={mode || FILE_MODE.TREE}
       commit={commit || ''}
       rev={rev || ''}
+      base={base || ''}
+      direct={!!direct}
       blame={!!blame}
       find={find || ''}
       findRegex={!!findRegex}
       lines={lines || ''}
       onModeChange={onModeChange}
       onRevChange={onRevChange}
+      onCompareChange={onCompareChange}
       onBlameToggle={onBlameToggle}
       onFindChange={onFindChange}
       onPathChange={onPathChange}

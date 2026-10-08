@@ -7,7 +7,8 @@
     "modeChanges": "Changes",
     "commitChanges": "Commit changes",
     "modeHistory": "History",
-    "history": "Commit history"
+    "history": "Commit history",
+    "compareChanges": "Differences from the base"
   },
   "tree": {
     "loading": "Loading…",
@@ -67,7 +68,8 @@
     "info": "Info",
     "sections": "Sections",
     "outline": "Outline",
-    "commit": "Commit"
+    "commit": "Commit",
+    "compare": "Comparison"
   },
   "changes": {
     "tracked": "Tracked",
@@ -88,7 +90,10 @@
     "noPatch": "Change preview unavailable — binary or oversized file",
     "inCommit": "Changed in commit",
     "commitEmpty": "This commit changes no files",
-    "notInCommit": "This commit did not change the file"
+    "notInCommit": "This commit did not change the file",
+    "inComparison": "Differ",
+    "compareEmpty": "The revisions do not differ in any file",
+    "notInComparison": "The file is the same in both revisions"
   },
   "git": {
     "branch": "Branch",
@@ -204,5 +209,27 @@
     "detailTitle": "Commit {{hash}}",
     "openSnapshot": "Open snapshot",
     "openFile": "Open file"
+  },
+  "compare": {
+    "head": "Compared",
+    "base": "Base",
+    "mergeBase": "Common ancestor",
+    "noMergeBase": "none — unrelated histories",
+    "commits": "Commits",
+    "aheadBehind": "{{ahead}} ahead · {{behind}} behind",
+    "mode": "How to diff",
+    "fromMergeBase": "From the common ancestor",
+    "direct": "Directly",
+    "fromMergeBaseHint": "Only what changed in the compared revision since the two diverged — as a pull request shows it",
+    "directHint": "The difference of the two trees as a whole: the compared revision's edits and everything the base gained after diverging",
+    "explainMergeBase": "Showing what changed since diverging from {{base}}. Edits made on {{base}} after the fork are not included.",
+    "explainDirect": "Showing the difference of the trees directly: a file is listed if it differs from {{base}}, whichever side changed it.",
+    "commitsTitle": "Commits not in the base",
+    "moreCommits_one": "and {{count}} more commit",
+    "moreCommits_other": "and {{count}} more commits",
+    "swap": "Swap sides",
+    "exit": "Stop comparing",
+    "loadError": "Could not compare the revisions",
+    "onlyBehind": "Nothing changed here since the two diverged: every difference is in {{base}}. Choose «Directly» to see them."
   }
 }

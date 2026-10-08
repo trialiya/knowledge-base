@@ -31,6 +31,25 @@ describe('useChangeDiff', () => {
     expect(result.current.rev).toBe('v1');
   });
 
+  /** В сравнении изменение — разница показанной ревизии с базой, а не коммит и не рабочее дерево. */
+  test('while comparing the change is the difference from the base', async () => {
+    const entry = { status: 'M', path: 'a.js', patch: '@@' };
+    gitApi.compare.mockResolvedValue({ files: [entry] });
+
+    const { result } = renderHook(() =>
+      useChangeDiff({ project: 'kb', path: 'a.js', rev: 'feature', base: 'main', direct: true, enabled: true }),
+    );
+
+    await waitFor(() => expect(result.current.entry).toEqual(entry));
+    expect(gitApi.compare).toHaveBeenCalledWith(
+      'main',
+      expect.objectContaining({ head: 'feature', direct: true, path: 'a.js', patch: true }),
+    );
+    expect(gitApi.getCommit).not.toHaveBeenCalled();
+    expect(gitApi.getStatus).not.toHaveBeenCalled();
+    expect(result.current.base).toBe('main');
+  });
+
   test('a file the commit did not touch has no change, which is not an error', async () => {
     gitApi.getCommit.mockResolvedValue({ hash: 'abc', files: [] });
 

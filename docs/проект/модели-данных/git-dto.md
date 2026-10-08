@@ -43,6 +43,20 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 
 `GitCommitMatch`: `commit` (`GitCommit` без `body`), `subjectMatch` (запрос в теме), `hashMatch` (найден только по префиксу хеша), `lines` — строки описания с запросом, `[{ line, text }]`, номер — строка описания с 1.
 
+### GitComparison
+Ответ `GET /api/git/compare` — чем ревизия `head` отличается от `base` (режим «Изменения» с базой сравнения).
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `base` | GitCommit | Ревизия, с которой сравнивают, — без `files` и `body` |
+| `head` | GitCommit | Ревизия, которую сравнивают, — так же |
+| `mergeBase` | String | Полный SHA общего предка; `null`, если у историй его нет |
+| `diffBase` | String | Полный SHA коммита, против которого посчитан `files`: `mergeBase` или, при `direct=true` и без общего предка, сам `base` |
+| `log` | GitComparisonLog | История между ревизиями; `null` (ключа нет), когда запрошен один файл |
+| `files` | List\<GitDiffEntry\> | Файлы, которыми `head` отличается от `diffBase`; патчи — только по просьбе |
+
+`GitComparisonLog`: `ahead` — коммитов в `head`, которых нет в `base`; `behind` — наоборот; `aheadTruncated` / `behindTruncated` — счёт этой стороны остановился на пределе в 10 000 (`RevisionCompare.MAX_COUNT`), настоящее число больше (стороны помечаются порознь); `commits` — коммиты `head`, которых нет в `base`, свежие первыми, не больше 100 (`RevisionCompare.MAX_COMMITS`). Коммиты `base` не перечисляются: к списку файлов они отношения не имеют.
+
 ### GitDiffEntry
 Одна запись из diff коммита. Реализует `ToolCallResponseItem`.
 

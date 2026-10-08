@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -19,8 +20,11 @@ import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.patch.FileHeader;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.treewalk.AbstractTreeIterator;
+import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -194,6 +198,38 @@ final class Diffs {
         // formatter, и шапка занимает место наравне с ними, где бы её потом ни показали.
         Parts parts = includePatch ? split(truncate(formatted(entry, formatter, patchOut))) : new Parts(null, null);
         return new GitDiffEntry(status, path, reportedOldPath, add, del, parts.header(), parts.body());
+    }
+
+    /**
+     * Two trees diffed into the API's entries, renames detected — the one diff of two snapshots
+     * every reader shares: a commit against its parent, one revision against another.
+     *
+     * @param filePath narrows the diff itself — the tool's reading of a path, renames included
+     * @param only keeps the entry reported under this path, found among all the entries: a filter
+     *     would hide the other side of a rename, and a renamed file would come back as a new one
+     */
+    static List<GitDiffEntry> scan(
+            Repository repository,
+            AbstractTreeIterator oldTree,
+            AbstractTreeIterator newTree,
+            boolean includePatch,
+            @Nullable String filePath,
+            @Nullable String only)
+            throws IOException {
+        List<GitDiffEntry> entries = new ArrayList<>();
+        var patchOut = new ByteArrayOutputStream();
+        try (DiffFormatter formatter = new DiffFormatter(patchOut)) {
+            formatter.setRepository(repository);
+            formatter.setDetectRenames(true);
+            if (filePath != null) {
+                formatter.setPathFilter(PathFilterGroup.createFromStrings(List.of(filePath)));
+            }
+            for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
+                if (only != null && !only.equals(reportedPath(entry))) continue;
+                entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
+            }
+        }
+        return entries;
     }
 
     /** One entry's unified diff as text; the buffer is the formatter's own, hence the reset. */
