@@ -186,11 +186,13 @@ public class RunOptionsResolver {
     }
 
     /**
-     * Параметр запроса → сохранённый уровень чата → уровень модели прогона. Записывается, как и
-     * режим, только названный явно — и записывается как назван, даже если у модели этого прогона
-     * его нет: выбор принадлежит чату, а модель в нём переключают, и вернувшись на модель с таким
-     * уровнем, чат обязан снова на нём пойти. Сам прогон при этом едет на том, что у модели есть
-     * (см. {@code ChatModelProperties#reasoningLevel}).
+     * Параметр запроса → сохранённый уровень чата → уровень модели прогона. Пустая строка в
+     * запросе — не «не названо», а явный выбор «по умолчанию»: сохранённый уровень сбрасывается.
+     *
+     * <p>Записывается, как и режим, только названный явно — и записывается как назван, даже если
+     * у модели этого прогона его нет: выбор принадлежит чату, а модель в нём переключают, и
+     * вернувшись на модель с таким уровнем, чат обязан снова на нём пойти. Сам прогон при этом
+     * едет на том, что у модели есть (см. {@code ChatModelProperties#reasoningLevel}).
      *
      * <p>Уровень, которого нет ни у одной модели, сюда как выбор не доходит: опечатку в запросе
      * отвергает {@link #validate} до резолва. Доходит он только снимком из очереди, сделанным до
@@ -206,7 +208,15 @@ public class RunOptionsResolver {
             final @Nullable String requested,
             final @Nullable String model) {
         final String saved = stored.map(ChatTopicEntity::getReasoning).orElse(null);
-        if (!StringUtils.hasText(requested) || !chatModelProperties.isKnownReasoningLevel(requested)) {
+        if (requested != null && requested.isBlank()) {
+            // Явный сброс к умолчанию модели — им отправка подтверждает выбор «по умолчанию», а не
+            // полагается на отдельный PUT, который мог не дойти или прийти после неё.
+            if (saved != null) {
+                chatTopicRepository.updateReasoning(conversationId, null);
+            }
+            return chatModelProperties.reasoningLevel(model, null).orElse(null);
+        }
+        if (requested == null || !chatModelProperties.isKnownReasoningLevel(requested)) {
             return chatModelProperties.reasoningLevel(model, saved).orElse(null);
         }
         if (!requested.equals(saved)) {

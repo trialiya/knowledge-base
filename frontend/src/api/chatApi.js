@@ -15,7 +15,8 @@ const runBody = (text, contextItems, { model, mode, reasoning, project, clientMs
   contextItems: contextItems || [],
   model: model || null,
   mode: mode || null,
-  reasoning: reasoning || null,
+  // '' — явный сброс к умолчанию модели, null — «не названо»; не схлопывать одно в другое.
+  reasoning: reasoning ?? null,
   project: project || null,
   clientMsgId: clientMsgId || null,
   retry,

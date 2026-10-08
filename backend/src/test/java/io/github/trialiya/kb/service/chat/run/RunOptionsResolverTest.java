@@ -237,6 +237,31 @@ class RunOptionsResolverTest {
         verify(topicRepository, never()).updateReasoning(anyString(), any());
     }
 
+    /**
+     * Пустая строка — явный выбор «по умолчанию»: сохранённый уровень сбрасывается вместе с
+     * отправкой, а не только отдельным PUT, который мог не дойти.
+     */
+    @Test
+    void anEmptyReasoningResetsTheStoredLevelToTheModelDefault() {
+        when(topicRepository.findById(CONV)).thenReturn(Optional.of(topic(null, "on")));
+
+        assertThat(reasoningResolver()
+                        .resolve(CONV, new RunChoice("deepseek", null, "", null))
+                        .reasoning())
+                .isNotNull()
+                .extracting(ReasoningOptions.Level::id)
+                .isEqualTo("off");
+        verify(topicRepository).updateReasoning(CONV, null);
+    }
+
+    /** Сбрасывать нечего — и писать нечего. */
+    @Test
+    void anEmptyReasoningOnAChatWithoutALevelWritesNothing() {
+        reasoningResolver().resolve(CONV, new RunChoice(null, null, "", null));
+
+        verify(topicRepository, never()).updateReasoning(anyString(), any());
+    }
+
     /** Названный уровень, который у чата уже стоит, второй раз не пишется. */
     @Test
     void aReasoningLevelAlreadyStoredIsNotWrittenAgain() {

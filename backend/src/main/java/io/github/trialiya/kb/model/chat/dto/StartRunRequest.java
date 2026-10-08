@@ -17,7 +17,8 @@ import org.jspecify.annotations.Nullable;
  *     подписями на бэке
  * @param model id модели поверх выбранной в чате; {@code null} — модель чата
  * @param mode id режима ассистента поверх выбранного в чате; {@code null} — режим чата
- * @param reasoning id уровня рассуждений поверх выбранного в чате; {@code null} — уровень чата.
+ * @param reasoning id уровня рассуждений поверх выбранного в чате; {@code null} — уровень чата,
+ *     пустая строка — сброс к умолчанию модели.
  *     Уровень, которого у модели прогона нет, ошибкой не считается — прогон пойдёт на её умолчании
  *     (см. {@code ChatModelProperties#reasoningLevel})
  * @param project id проекта поверх выбранного в чате; {@code null} — проект чата

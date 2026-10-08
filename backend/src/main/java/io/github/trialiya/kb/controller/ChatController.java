@@ -377,21 +377,17 @@ public class ChatController {
             throw new ResponseStatusException(BAD_REQUEST, "Empty message");
         }
         checkChat(conversationId, true);
-        // Выбор проверяем целиком ДО резолва: резолв пишет модель и проект в chat_topic по ходу
-        // дела, и отказ на поле, разобранном позже, оставил бы за собой чужой выбор и съеденный
-        // маркер смены проекта у следующего сообщения.
+        // Выбор проверяем целиком здесь, а резолвит его start, уже заняв чат: резолв пишет модель,
+        // уровень рассуждений и проект в chat_topic, и отказ после первой записи — на поле,
+        // разобранном позже, или 409 на занятом чате — оставил бы за собой чужой выбор и
+        // съеденный маркер смены проекта у следующего сообщения.
         runOptions.validate(body.choice());
         // Проверяем приложенное ДО заявки на чат: 404 на чужое вложение не должен оставлять
         // за собой ни занятый чат, ни записанный вопрос.
         final List<ContextItem> contextItems =
                 retry ? List.of() : contextItemService.resolve(conversationId, body.contextItems());
         final ChatRunService.StartedRun started = chatRunService.start(
-                conversationId,
-                getUser(),
-                retry ? null : body.text(),
-                contextItems,
-                runOptions.resolve(conversationId, body.choice()),
-                body.clientMsgId());
+                conversationId, getUser(), retry ? null : body.text(), contextItems, body.choice(), body.clientMsgId());
         return Map.of("runId", started.runId(), "messageId", started.userMessageId());
     }
 

@@ -87,9 +87,9 @@ export default function useChatRun({
     [modeOptions],
   );
 
-  // Уровень рассуждений для отправки — только тот, что есть у модели этой отправки
-  // (см. reasoningForSend); иначе поле не названо, и бэк решит сам ровно то, что
-  // показывает селектор.
+  // Уровень рассуждений для отправки (см. reasoningForSend): выбор чата, если он есть у
+  // модели этой отправки; '' — сброс к умолчанию; null — не названо. В каждом случае бэк
+  // решит ровно то, что показывает селектор.
   const resolveReasoningForSend = useCallback(
     (chat, modelId) => reasoningForSend(modelConfig, modelId, chat?.reasoning),
     [modelConfig],

@@ -14,6 +14,7 @@ import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ReasoningOptions;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
+import io.github.trialiya.kb.model.chat.dto.RunChoice;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
@@ -160,8 +161,11 @@ public class ChatRunService {
      *     запрещён — 422.
      * @param contextItems приложенное к вопросу (вложения) — уже проверенное {@code
      *     ContextItemService}. На повторе игнорируется: контекст записан вместе с сообщением
-     * @param options чем этот прогон отличается от дефолтного — модель, режим, проект (см. {@link
-     *     RunOptions})
+     * @param choice выбор пользователя — модель, режим, рассуждения, проект; уже проверенный
+     *     ({@link RunOptionsResolver#validate}). Резолвится здесь, а не у вызывающего: резолв пишет
+     *     выбор в {@code chat_topic}, и делать это можно только заняв чат — отправка, отвергнутая
+     *     с 409, иначе оставила бы занятому чату чужую модель и уровень рассуждений, а следующее
+     *     сообщение не увидело бы смены проекта
      * @param clientMsgId вкладка-отправитель, чтобы она погасила своё эхо; {@code null} — вкладки
      *     нет вовсе: прогон запущен по очереди сообщений, а не запросом (см. {@link
      *     #deliverQueued})
@@ -171,14 +175,16 @@ public class ChatRunService {
             String user,
             @Nullable String userMessage,
             List<ContextItem> contextItems,
-            RunOptions options,
+            RunChoice choice,
             @Nullable String clientMsgId) {
         // Заявка на чат: если он уже занят (генерацией из другой вкладки, сжатием контекста,
         // git-командой) — 409, фронт предложит дождаться или остановить текущую. Хаб событий здесь
         // не заводим: RUN_STARTED уходит ниже, уже с сохранённым вопросом на руках.
         final String runId = slots.take(conversationId);
+        final RunOptions options;
         final ChatMessageEntity userRow;
         try {
+            options = runOptions.resolve(conversationId, choice);
             // Прошлый прогон могли оборвать во время выполнения инструментов (в т.ч. падением
             // процесса) — тогда в хвосте истории висит assistant.tool_calls без TOOL-ответа,
             // и модель отвергла бы такой диалог. Достраиваем пару СТРОГО ДО записи вопроса:
@@ -737,13 +743,7 @@ public class ChatRunService {
      */
     private void answerQueued(String conversationId, PendingMessageService.Flushed flushed) {
         try {
-            start(
-                    conversationId,
-                    flushed.user(),
-                    null,
-                    List.of(),
-                    runOptions.resolve(conversationId, flushed.options()),
-                    null);
+            start(conversationId, flushed.user(), null, List.of(), flushed.options(), null);
         } catch (RuntimeException e) {
             // Чат мог занять другая вкладка между cleanup и этим стартом (409) — вопрос уже в
             // истории, и «Повторить» на нём остаётся.

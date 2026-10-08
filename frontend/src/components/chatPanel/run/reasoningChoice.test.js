@@ -45,6 +45,8 @@ describe('reasoningForSend', () => {
     // The model default is never sent explicitly: the chat keeps its own choice for the next model.
     expect(reasoningForSend(config, 'deepseek', 'high')).toBeNull();
     expect(reasoningForSend(config, 'plain', 'high')).toBeNull();
-    expect(reasoningForSend(config, 'gpt-5', '')).toBeNull();
+    // No choice in the chat is an explicit reset: it travels with the message, not only with the PUT.
+    expect(reasoningForSend(config, 'gpt-5', '')).toBe(DEFAULT_REASONING);
+    expect(reasoningForSend(config, 'plain', null)).toBe(DEFAULT_REASONING);
   });
 });

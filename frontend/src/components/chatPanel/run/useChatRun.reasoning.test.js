@@ -63,6 +63,15 @@ describe('useChatRun — уровень рассуждений', () => {
     expect(chatApi.queueMessage).toHaveBeenCalledWith(CHAT, 'r1', 'ещё', expect.objectContaining({ reasoning: 'low' }));
   });
 
+  test('без выбора у чата уходит явный сброс — пустая строка, а не «не названо»', async () => {
+    chats = [{ id: CHAT, model: 'gpt', reasoning: null, runId: null, messages: [] }];
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('вопрос'));
+
+    expect(chatApi.startRun).toHaveBeenCalledWith(CHAT, 'вопрос', expect.objectContaining({ reasoning: '' }));
+  });
+
   test('у модели без такого уровня поле не названо', async () => {
     chats = [{ id: CHAT, model: 'plain', reasoning: 'low', runId: null, messages: [] }];
     const { result } = setup();
