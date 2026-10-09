@@ -148,16 +148,16 @@ public record ReasoningOptions(
         }
 
         /**
-         * Кладёт уровень в опции запроса. Только то, что задано: опции запроса ложатся поверх опций
-         * модели, и незаданное здесь оставляет настроенное у неё как есть. {@code extraBody} модели
-         * подмешивать не нужно — {@code OpenAiChatOptions} сам сливает его с этим по ключам.
+         * Кладёт уровень поверх того, что уже стоит в {@code options}. Только то, что задано:
+         * незаданное здесь оставляет настроенное у модели как есть; {@code extra-body} — через
+         * {@link ReasoningSettings#mergeExtraBody}.
          */
         public void applyTo(OpenAiChatOptions.Builder options) {
             if (reasoningEffort != null) {
                 options.reasoningEffort(reasoningEffort);
             }
             if (extraBody != null) {
-                options.extraBody(extraBody);
+                ReasoningSettings.mergeExtraBody(options, extraBody);
             }
         }
     }

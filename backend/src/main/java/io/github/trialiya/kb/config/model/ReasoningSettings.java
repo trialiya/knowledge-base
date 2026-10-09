@@ -26,21 +26,27 @@ public interface ReasoningSettings {
 
     /**
      * Кладёт заданное поверх того, что уже стоит в {@code options}, — на любом билдере, в том числе
-     * на опциях модели ({@code mutate()}). Через {@code combineWith}, а не сеттеры: сеттер {@code
-     * extraBody} заменил бы карту целиком и стёр бы {@code extra-body} модели (маршрутизацию,
-     * флаги провайдера), а {@code combineWith} сливает её по ключам верхнего уровня, как {@code
-     * ChatClient} сливает уровень чата ({@link ReasoningOptions.Level#applyTo}) с опциями модели.
+     * на опциях модели ({@code mutate()}); {@code extra-body} — через {@link #mergeExtraBody}.
      */
     default void applyTo(OpenAiChatOptions.Builder options) {
         final @Nullable String reasoningEffort = reasoningEffort();
         final @Nullable String thinking = thinking();
-        final OpenAiChatOptions.Builder overrides = OpenAiChatOptions.builder();
         if (reasoningEffort != null) {
-            overrides.reasoningEffort(reasoningEffort);
+            options.reasoningEffort(reasoningEffort);
         }
         if (thinking != null) {
-            overrides.extraBody(Map.of("thinking", Map.of("type", thinking)));
+            mergeExtraBody(options, Map.of("thinking", Map.of("type", thinking)));
         }
-        options.combineWith(overrides);
+    }
+
+    /**
+     * Дописывает поля в {@code extra-body} билдера по ключам верхнего уровня: поле с тем же ключом
+     * заменяется целиком (вложенное, вроде {@code thinking.budget_tokens}, не сохраняется),
+     * остальные остаются. Не сеттер {@code extraBody}: тот заменил бы карту целиком и стёр бы
+     * {@code extra-body} модели — маршрутизацию, флаги провайдера. Слияние — то же, что делает
+     * {@code ChatClient}, накладывая опции запроса на опции модели.
+     */
+    static void mergeExtraBody(OpenAiChatOptions.Builder options, Map<String, Object> fields) {
+        options.combineWith(OpenAiChatOptions.builder().extraBody(fields));
     }
 }
