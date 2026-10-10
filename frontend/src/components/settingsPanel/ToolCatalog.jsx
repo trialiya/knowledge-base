@@ -52,6 +52,7 @@ const ToolCatalog = () => {
             value={selected?.name}
             options={options}
             onChange={setChosen}
+            align="end"
             ariaLabel={t('tools.catalog.aria')}
           />
         )
