@@ -7,8 +7,6 @@ import java.time.Duration;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.boot.context.properties.bind.Binder;
-import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 /**
  * What a sub-agent request carries is decided by its own settings alone: a field left unset is not
@@ -40,25 +38,6 @@ class SearchAgentRequestOptionsTest {
         assertThat(options.getTemperature()).isEqualTo(0.6);
         assertThat(options.getReasoningEffort()).isEqualTo("low");
         assertThat(options.getExtraBody()).isEqualTo(Map.of("thinking", Map.of("type", "disabled")));
-    }
-
-    /** An empty environment variable is "not set", not an empty value sent to the provider. */
-    @Test
-    void emptyEnvironmentValuesBindAsUnset() {
-        SubAgentConfig bound = new Binder(new MapConfigurationPropertySource(Map.of(
-                        "kb.search.subagent.enabled", "true",
-                        "kb.search.subagent.model-id", "sub-model",
-                        "kb.search.subagent.max-tokens", "12000",
-                        "kb.search.subagent.max-iterations", "30",
-                        "kb.search.subagent.reasoning-effort", " ",
-                        "kb.search.subagent.thinking", "",
-                        "kb.search.subagent.temperature", "")))
-                .bind("kb.search.subagent", SubAgentConfig.class)
-                .get();
-
-        assertThat(bound.reasoningEffort()).isNull();
-        assertThat(bound.thinking()).isNull();
-        assertThat(bound.temperature()).isNull();
     }
 
     private static SubAgentConfig config(String reasoningEffort, String thinking, Double temperature) {

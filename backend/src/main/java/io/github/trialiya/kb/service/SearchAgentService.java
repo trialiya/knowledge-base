@@ -376,12 +376,7 @@ public class SearchAgentService {
         if (config.temperature() != null) {
             options.temperature(config.temperature());
         }
-        if (config.reasoningEffort() != null) {
-            options.reasoningEffort(config.reasoningEffort());
-        }
-        if (config.thinking() != null) {
-            options.extraBody(Map.of("thinking", Map.of("type", config.thinking())));
-        }
+        config.applyTo(options);
         return options;
     }
 

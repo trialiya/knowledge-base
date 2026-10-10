@@ -14,9 +14,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>The sampling fields are the sub-agent's own, not inherited from {@code
  * spring.ai.openai.chat.options}: its requests are built from scratch (see {@code
- * SearchAgentService#requestOptions}). {@code null} means the field is not sent at all — for
- * {@code thinking} that is the only safe default, since an endpoint that does not know the field
- * rejects the whole request instead of ignoring it.
+ * SearchAgentService#requestOptions}). {@code null} means the field is not sent at all; for the
+ * reasoning pair see {@link ReasoningSettings}.
  *
  * @param reasoningEffort {@code reasoning_effort} of every sub-agent request
  * @param thinking {@code type} of the {@code thinking} field in the request body
@@ -31,7 +30,8 @@ public record SubAgentConfig(
         Set<String> allowedTools,
         @Nullable String reasoningEffort,
         @Nullable String thinking,
-        @Nullable Double temperature) {
+        @Nullable Double temperature)
+        implements ReasoningSettings {
 
     public SubAgentConfig {
         reasoningEffort = ConfigValues.trimToNull(reasoningEffort);
