@@ -87,7 +87,7 @@ writer of `window.history`; `useAppNavigation` is the React adapter over it
 ```
 /chat/<chatId>                   /knowledge/doc/<docId>
 /knowledge/search?q=&mode=       /files/<path/to/file>?project=<id>
-/admin  /settings                (+ ?left=0 / ?right=<tab> anywhere)
+/admin/<group>  /settings/<group> (+ ?left=0 / ?right=<tab> anywhere)
 ```
 
 Only non-default values are written, so addresses stay short — the default

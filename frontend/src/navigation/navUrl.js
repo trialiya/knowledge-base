@@ -1,6 +1,7 @@
 import { SEARCH_MODE } from '@/constants/searchMode';
 import { FILE_MODE } from '@/constants/fileModes';
 import { normalizeScope } from '@/constants/searchScope';
+import { normalizeGroup } from '@/constants/settingsGroups';
 import { readPanelState } from './panelState';
 import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_PATH, SEARCH_PATH } from './urlScheme';
 
@@ -26,8 +27,8 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  *   /search?q=<q>&in=<категория>           единый поиск (файлы/документы/чаты)
  *   /files                                 корень репозитория
  *   /files/<path/to/file>                  файл или каталог (путь — в самом пути)
- *   /admin
- *   /settings
+ *   /admin | /admin/<группа>               админ-панель и её группа (дефолтная — без сегмента)
+ *   /settings | /settings/<группа>         настройки и их группа (дефолтная — без сегмента)
  *
  * Query-параметры (пишутся только когда отличаются от дефолта, чтобы адреса
  * оставались короткими и читаемыми):
@@ -182,6 +183,12 @@ export function readUrl() {
     fileLines = p.get('lines') || '';
   }
 
+  // Настройки и админ-панель: /settings/<группа>, /admin/<группа>. Группа — в
+  // пути, а не в query: это страница, которую открыли, а не то, как её показали,
+  // и ссылкой делятся именно на неё. Ключи — constants/settingsGroups.js.
+  const settingsGroup = view === 'settings' ? normalizeGroup('settings', segs[1]) : '';
+  const adminGroup = view === 'admin' ? normalizeGroup('admin', segs[1]) : '';
+
   // Единый поиск: /search?q=…&in=… — запрос и категория, дальше фильтры этой
   // категории. Всё это состояние экрана, а не ресурс: открытого объекта у
   // раздела нет, есть запрос и то, как его показать.
@@ -236,6 +243,8 @@ export function readUrl() {
     searchRev,
     searchRegex,
     searchUntracked,
+    settingsGroup,
+    adminGroup,
     leftCollapsed: p.get('left') === '0',
     rightTab: p.get('right') || legacyRightTab,
     // Есть ли в адресе явная раскладка панелей. Если нет — берём запомненную
@@ -305,10 +314,10 @@ export function buildUrl(nav) {
       if (nav.chatFind && nav.chatMsg) p.set('msg', nav.chatMsg);
       break;
     case 'admin':
-      path = '/admin';
+      path = nav.adminGroup ? `/admin/${nav.adminGroup}` : '/admin';
       break;
     case 'settings':
-      path = '/settings';
+      path = nav.settingsGroup ? `/settings/${nav.settingsGroup}` : '/settings';
       break;
     default:
       path = '/chat';
@@ -352,6 +361,8 @@ function toNav(u, view, panels) {
     searchRev: u.searchRev,
     searchRegex: u.searchRegex,
     searchUntracked: u.searchUntracked,
+    settingsGroup: u.settingsGroup,
+    adminGroup: u.adminGroup,
     leftCollapsed: panels.leftCollapsed,
     rightTab: panels.rightTab,
   };
@@ -398,10 +409,10 @@ export function popNav() {
  *   вложенные пути при прямом заходе/перезагрузке работают «из коробки».
  *
  * Prod: сервер статики должен отдавать index.html на неизвестные пути, ВКЛЮЧАЯ
- *   вложенные (/chat/<id>, /knowledge/doc/<id>, /files/<path…>).
+ *   вложенные (/chat/<id>, /knowledge/doc/<id>, /files/<path…>, /settings/<группа>).
  *   • Spring Boot (если он же раздаёт build) — см. SpaForwardController:
  *
- *       @GetMapping({ "/chat/**", "/knowledge/**", "/files/**", "/admin", "/settings" })
+ *       @GetMapping({ "/chat/**", "/knowledge/**", "/files/**", "/admin/**", "/settings/**" })
  *       String forward() { return "forward:/index.html"; }
  *
  *   • nginx:  location / { try_files $uri /index.html; }

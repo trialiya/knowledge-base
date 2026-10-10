@@ -1,5 +1,6 @@
 import { normalizeScope } from '@/constants/searchScope';
 import { FILE_MODE } from '@/constants/fileModes';
+import { normalizeGroup } from '@/constants/settingsGroups';
 import { readPanelState, savePanelState } from './panelState';
 import { readUrl, buildUrl, currentUrl, initialNav, popNav } from './navUrl';
 
@@ -95,6 +96,8 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
     docId: nav.docId || null,
     filePath: nav.filePath || '',
     fileProject: nav.fileProject || '',
+    settingsGroup: nav.settingsGroup || '',
+    adminGroup: nav.adminGroup || '',
   };
 
   // Отложенный переход: { updater, history, view } — ждёт ответа на вопрос
@@ -128,6 +131,10 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
       memory.filePath = next.filePath;
       memory.fileProject = next.fileProject || '';
     }
+    // Группа помнится и дефолтная (пустая): её тоже выбрали, и возврат в раздел
+    // должен показать её, а не ту, что открывали до неё.
+    if (next.view === 'settings') memory.settingsGroup = next.settingsGroup || '';
+    if (next.view === 'admin') memory.adminGroup = next.adminGroup || '';
     if (prev.view !== next.view || prev.leftCollapsed !== next.leftCollapsed || prev.rightTab !== next.rightTab) {
       savePanelState(next.view, { leftCollapsed: next.leftCollapsed, rightTab: next.rightTab });
     }
@@ -185,6 +192,8 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
         if (prev.view === view) return prev;
         const next = { ...entering(prev, view), view };
         if (view === 'chat') next.chatId = prev.chatId || memory.chatId || null;
+        if (view === 'settings') next.settingsGroup = memory.settingsGroup;
+        if (view === 'admin') next.adminGroup = memory.adminGroup;
         if (view === 'knowledge' && !prev.docId && !prev.search && memory.docId) next.docId = memory.docId;
         if (view === 'files' && !prev.filePath) {
           next.filePath = memory.filePath || '';
@@ -370,6 +379,19 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
         return;
       }
       push((prev) => ({ ...entering(prev, 'chat'), view: 'chat', chatId: id, chatFind, chatMsg }));
+    },
+
+    /**
+     * Открыть группу «Настроек» или «Админ-панели» (`view` — 'settings' |
+     * 'admin'). Переход, а не состояние экрана: группа — это страница, и
+     * «Назад» возвращает на предыдущую.
+     */
+    openGroup(view, group) {
+      const key = view === 'admin' ? 'adminGroup' : 'settingsGroup';
+      const value = normalizeGroup(view, group);
+      push((prev) =>
+        prev.view === view && prev[key] === value ? prev : { ...entering(prev, view), view, [key]: value },
+      );
     },
 
     // ── Состояние экрана (не переход) ──────────────────────────────────────

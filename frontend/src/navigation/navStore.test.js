@@ -538,3 +538,63 @@ describe('сравнение ревизий в «Файлах»', () => {
     expect(url()).toBe('/files?changes=1&base=main');
   });
 });
+
+describe('группы «Настроек» и «Админ-панели»', () => {
+  it('группа — в пути, дефолтная не пишется', () => {
+    go('/settings');
+    const s = mount();
+    s.openGroup('settings', 'tools');
+    expect(url()).toBe('/settings/tools');
+    s.openGroup('settings', 'phrases');
+    expect(url()).toBe('/settings');
+  });
+
+  it('открывается по ссылке и после перезагрузки', () => {
+    go('/admin/system?left=0');
+    const s = mount();
+    expect(s.nav().view).toBe('admin');
+    expect(s.nav().adminGroup).toBe('system');
+    expect(url()).toBe('/admin/system?left=0');
+  });
+
+  it('неизвестная группа канонизируется в дефолтную', () => {
+    go('/settings/nope');
+    const s = mount();
+    expect(s.nav().settingsGroup).toBe('');
+    expect(url()).toBe('/settings');
+  });
+
+  it('смена группы — переход: «Назад» возвращает на прежнюю', () => {
+    go('/settings');
+    const s = mount();
+    const before = window.history.length;
+    s.openGroup('settings', 'models');
+    s.openGroup('settings', 'models');
+    expect(window.history.length).toBe(before + 1);
+    back('/settings');
+    expect(s.nav().settingsGroup).toBe('');
+  });
+
+  it('возврат в раздел показывает последнюю открытую группу каждого раздела', () => {
+    go('/settings');
+    const s = mount();
+    s.openGroup('settings', 'scripts');
+    s.switchView('admin');
+    s.openGroup('admin', 'bulk');
+    s.switchView('chat');
+    // «Назад» на запись без группы не стирает память: она — «куда вернуться».
+    back('/chat');
+    s.switchView('settings');
+    expect(url()).toBe('/settings/scripts');
+    s.switchView('admin');
+    expect(url()).toBe('/admin/bulk');
+  });
+
+  it('группа из другого раздела открывает его одной записью', () => {
+    const s = mount();
+    const before = window.history.length;
+    s.openGroup('admin', 'system');
+    expect(url()).toBe('/admin/system');
+    expect(window.history.length).toBe(before + 1);
+  });
+});
