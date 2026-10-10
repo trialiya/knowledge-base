@@ -4,8 +4,10 @@ An AI assistant for working with a Git repository: search across code and
 change history, answers to questions about the project, and a knowledge base
 that lives alongside the code.
 
-Current version: **1.1.0**. See the [changelog](CHANGELOG.md) for the full
-feature set and the known limitations of this release.
+Current version: **1.2.0-RC1** — a release candidate for 1.2.0: the feature
+set is complete, what is left is testing it outside the machine it was built
+on. See the [changelog](CHANGELOG.md) for the full feature set and the known
+limitations of this release.
 
 ## What it is
 
@@ -37,21 +39,25 @@ history, documentation that doesn't drift from the code.
 
 - 🤖 **AI chat over the code** — natural-language questions about files,
   commits, and architecture; ready-made modes (Analyst / Developer / Tester)
-  and model selection. An answer runs in the background and streams over SSE,
+  and model selection, with a reasoning level per chat for models that think
+  before answering. An answer runs in the background and streams over SSE,
   so it survives a page reload
 - 🗜️ **Context compaction** — the chat summarizes its own history in the
   background, and `/compact` (or an automatic pass near the model's context
   limit) keeps a long conversation from dying on request length; `/compact-1`
   does the same but keeps the last turn verbatim
 - 🐙 **Git analysis** — reading files, commit history, diffs, grep across the
-  repository, structural code analysis (tree-sitter)
+  repository, line authorship (blame), structural code analysis (tree-sitter)
 - 📂 **"Files" panel** — browse the repository (tree, contents, latest
   commit) in a GitHub-like style, jump through a file by its structure —
   classes and methods, or the headings of a Markdown file — open any commit
-  with its message and changed files, insert files into the chat
-- 🔍 **Hybrid search** — keyword + semantic (vector), across three
-  categories: repository files, knowledge-base documents and chats; a result
-  opens straight at the match
+  with its message and changed files, scroll the commit history, compare two
+  revisions, see who last changed each line (blame), insert files into the
+  chat
+- 🔍 **Hybrid search** — keyword + semantic (vector), across repository
+  files, commit messages, knowledge-base documents and chats; a result opens
+  straight at the match, and a matching line can tell which commit brought
+  the query into it
 - 📜 **Scripted search** — instead of a dozen round-trips the model can write
   a short JavaScript program that walks the repository in one call. It has no
   filesystem: files are reached only through an injected API, under the same

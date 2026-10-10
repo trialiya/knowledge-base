@@ -13,6 +13,122 @@ An entry ends with the number of the pull request it came from — the
 reasoning behind a change lives there, not here. Sections released before
 this rule was adopted carry no such numbers.
 
+## [1.2.0-RC1] — 2026-10-10
+
+The first candidate for 1.2.0, about change history: who wrote a line and
+when (blame in Files and for the model), which commit brought a string into a
+line, a commit history feed, comparing two revisions, search over commit
+messages and links to commits everywhere a hash is shown. Chats get a
+reasoning level per chat, and tool answers sent to the model are leaner and
+say when they were cut short. Four changes touch the REST API, a config key
+or the log — they are listed under "Upgrading" below and spelled out in
+[`UPDATING.md`](UPDATING.md).
+
+### Added
+
+- Links to commits. The model links a commit as `/files?rev=<hash>` and a
+  file at a commit with `&path=…`; such a link shows a preview card on hover
+  and opens the commit snapshot in Files. Hashes across the interface — the
+  Info tab, tool-call details, the push dialog, the `git commit` card — lead
+  to their commit, and document and Jira export turn these links into text
+  with the short hash. (#466)
+- A "Commits" category in search: matches in a commit's subject, its
+  description, or the start of its hash, with the matching description lines
+  shown on the card. The model's `getCommitLog` takes the same `query`. The
+  walk covers the last 20 000 commits and says when it stopped before the
+  end. (#475, #477, #492, #497)
+- Blame in Files: a column with the date and description of the commit that
+  last changed each run of lines, honouring `.git-blame-ignore-revs`.
+  Hovering it highlights the whole run; clicking it opens the file in that
+  commit with the same lines selected, and "Back" returns to where you were.
+  (#478, #483, #485, #490)
+- `getBlame`, a model tool: who last changed a range of lines, by commit,
+  without the text — the model follows up with `getCommitDiff` for the why.
+  (#499)
+- "When did it appear" on a line found by file search: the commit in which
+  the query entered that line, with the line before and after and the path
+  the line took through the history. (#500)
+- A "History" mode in Files: the commit feed by day, unpushed commits marked,
+  a commit's files loaded when its plate is opened and each file's diff shown
+  in the centre. (#501)
+- Comparing two revisions in Files: "Compare with…" in the changes mode
+  lists what differs between the shown revision and a base, from the common
+  ancestor or directly, with ahead/behind counters and the commits the base
+  lacks. (#511)
+- A reasoning level per chat, chosen under the message box for a model that
+  declares levels (`kb.chat.default-model.reasoning`,
+  `kb.chat.models[].reasoning`); a level sets `reasoning-effort` and/or
+  `extra-body`, so it fits any provider. Compaction uses the chat's level
+  too. (#512, #513)
+- The search sub-agent has its own reasoning settings
+  (`kb.search.subagent.reasoning-effort`, `thinking`, `temperature`). (#507)
+- `runScript` and `runSavedScript` take `resultLimit` to trim the value the
+  model sees; the call's detail window still shows it whole. (#480)
+- The open group of Settings and the Admin panel is part of the address
+  (`/settings/tools`, `/admin/system`), so a reload, a link and "Back" keep
+  it. (#515)
+
+### Changed
+
+- Tool answers sent to the model leave out empty fields and fields only the
+  interface needs, and large outputs are capped: a line range of a file at
+  512 KB, the patches of a diff answer at 3000 lines, a grep line at 500
+  characters, the tree skeleton at 1000 nodes. The detail window and REST
+  still show everything. (#484)
+- A script answer gives the model the first five read files and a count of
+  the rest instead of the whole list. (#480)
+- A tool that cuts its output says so: `getCommitLog` with `query` and
+  `grepContent` carry `truncated`, and `kb.grep` adds a line to the script
+  log when it hit its limit rather than the script's own. (#488)
+- Markdown is split for search by sections, so a chunk no longer breaks a
+  fenced block or tears a heading from its body; export no longer rewrites
+  links inside code blocks, and Jira export handles any CommonMark fence.
+  (#486)
+- Per-call INFO log lines that `ToolCallLog` already covers moved to DEBUG.
+  (#482)
+
+### Fixed
+
+- A fenced block opened on a deeply indented list item is recognised, so the
+  headings inside it no longer become sections. (#474)
+- Output of fetch, pull, push and `merge --abort` is no longer split at a
+  bare carriage return. (#481)
+- A git read that is cut off also kills the processes git started (textconv,
+  hooks), which could keep the read hanging. (#496)
+- A grep whose output ended exactly at the line ceiling lost its last block.
+  (#488)
+- The search sub-agent honours `replay-reasoning: false`; on an endpoint that
+  rejects `reasoning_content` it used to fail on its second step. (#507)
+- When a run is stopped or fails after tool calls, the "stopped" / "error"
+  label appears below the tool plates, as it does after a reload. (#504)
+- "1 minute ago" under a chat message and elsewhere keeps counting without
+  new events. (#510)
+- Opening the tool selector in Settings → Tools no longer scrolls the page
+  sideways. (#514)
+
+### Upgrading
+
+Assembled from [`UPDATING.md`](UPDATING.md), which says what to do about each.
+None of them affects a fresh install or the bundled UI.
+
+- `GET /api/git/commits` and `GET /api/git/commits/search` answer
+  `{commits, truncated}` instead of a bare list. (#492, #497)
+- `kb.search.keyword.limit` is now applied; check it if you set it. (#488)
+- Git and search REST responses leave out empty fields; treat a missing key
+  as `null` / `false` / `[]`, and a missing `tracked` as `true`. (#484)
+- A scheduled script's returned value is logged at DEBUG, not INFO. (#482)
+
+### Build
+
+- Spotless formats the backend with Palantir Java Format instead of
+  google-java-format AOSP; the reformatting commit is in
+  `.git-blame-ignore-revs`. Prettier runs on the Node that the build
+  downloads. The frontend build no longer fails on macOS. (#476, #491, #503)
+- SpotBugs plugin 6.5.12, Spotless 8.10.3, Guava 33.7.2; in the frontend Vite
+  8.3.2, Vitest 5.0.3, globals 17.13.0, source-map-js 1.2.2 and
+  brace-expansion 1.1.21; `gradle/actions` 6.4.0. (#473, #503, #505, #506,
+  #508, #509)
+
 ## [1.1.0] — 2026-09-30
 
 The second feature release. Everything from `1.1.0-RC1` through `1.1.0-RC3`
@@ -578,6 +694,7 @@ a deployment that was already running from `main` before this release.
   meant for local development and demos, not for a public deployment.
 - The model cannot run builds, tests or arbitrary commands.
 
+[1.2.0-RC1]: https://github.com/trialiya/knowledge-base/releases/tag/v1.2.0-RC1
 [1.1.0]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0
 [1.1.0-RC3]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC3
 [1.1.0-RC2]: https://github.com/trialiya/knowledge-base/releases/tag/v1.1.0-RC2
