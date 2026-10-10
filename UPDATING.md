@@ -17,7 +17,7 @@ feature that just works after the upgrade belongs there, not here.
 stops working as before, and what to do about it. Name the config keys, files
 and commands involved — the reader is holding a deployment, not a diff.
 
-## Unreleased
+## 1.2.0-RC1
 
 ### `GET /api/git/commits/search` answers `{commits, truncated}`
 
@@ -28,18 +28,6 @@ back" (the walk stops at 20 000 commits). The bundled UI is updated with it. A
 script or integration of your own that reads this endpoint must take the list
 from `commits`.
 
-### `GET /api/git/commits/grep` answers where each commit matched
-
-The search page's commit search returned `{ commits: GitCommit[], truncated }`
-with each commit's full description in `body`, and the page found the matching
-lines itself. It now returns `{ commits: [{ commit, subjectMatch, hashMatch,
-lines }], truncated }`: `commit` without `body`, `lines` the description lines
-that hold the query (`{ line, text }`, numbered from 1), `subjectMatch` and
-`hashMatch` where else it matched. The bundled UI is updated with it. A script
-of your own that reads this endpoint must take the commit from `commit` and
-the matching lines from `lines`; the full description comes from
-`/api/git/commit`.
-
 ### `GET /api/git/commits` answers `{commits, truncated}`
 
 The history listing returned a bare `GitCommit[]`; it now returns the same shape
@@ -48,14 +36,6 @@ as `/api/git/commits/search` — `{ "commits": [...], "truncated": bool }` — a
 above 100 is still cut to 100, and now says so). The bundled
 UI is updated with it. A script or integration of your own that reads this
 endpoint must take the list from `commits`.
-
-### `GET /api/git/files/blame` hunks drop `shortHash` and `email`
-
-A blame hunk no longer carries the short hash or the author's email: the column
-never showed the email, and the short hash is the first seven characters of
-`hash`. The bundled UI is updated with it. A script or integration of your own
-that reads this endpoint should take `hash.slice(0, 7)` for the short form; the
-author's email is not returned any more.
 
 ### `kb.search.keyword.limit` is now applied
 
