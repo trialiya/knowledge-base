@@ -1,27 +1,35 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SettingsShell from '@/components/common/layout/SettingsShell';
 import { IconDatabase, IconDownload, IconInfo } from '@/icons/index';
+import { ADMIN_GROUP, defaultGroup } from '@/constants/settingsGroups';
 import BulkOperations from './BulkOperations';
 import IndexOperations from './IndexOperations';
 import SystemInfo from './SystemInfo';
 import './adminPanel.css';
 
-const AdminPanel = ({ panels }) => {
+// Выбранная группа живёт в адресе (`/admin/<группа>`, пусто — дефолтная),
+// поэтому она приходит пропом, а не хранится здесь.
+const AdminPanel = ({ group, onGroupChange, panels }) => {
   const { t } = useTranslation('settings');
-  const [group, setGroup] = useState('index');
+  const active = group || defaultGroup('admin');
 
   const groups = [
-    { key: 'index', label: t('admin.nav.index'), icon: <IconDatabase size={16} /> },
-    { key: 'bulk', label: t('admin.nav.bulk'), icon: <IconDownload size={16} /> },
-    { key: 'system', label: t('admin.nav.system'), icon: <IconInfo size={16} /> },
+    { key: ADMIN_GROUP.INDEX, label: t('admin.nav.index'), icon: <IconDatabase size={16} /> },
+    { key: ADMIN_GROUP.BULK, label: t('admin.nav.bulk'), icon: <IconDownload size={16} /> },
+    { key: ADMIN_GROUP.SYSTEM, label: t('admin.nav.system'), icon: <IconInfo size={16} /> },
   ];
 
   return (
-    <SettingsShell title={t('admin.nav.title')} groups={groups} activeKey={group} onSelect={setGroup} panels={panels}>
-      {group === 'index' && <IndexOperations />}
-      {group === 'bulk' && <BulkOperations />}
-      {group === 'system' && <SystemInfo />}
+    <SettingsShell
+      title={t('admin.nav.title')}
+      groups={groups}
+      activeKey={active}
+      onSelect={(key) => onGroupChange('admin', key)}
+      panels={panels}
+    >
+      {active === ADMIN_GROUP.INDEX && <IndexOperations />}
+      {active === ADMIN_GROUP.BULK && <BulkOperations />}
+      {active === ADMIN_GROUP.SYSTEM && <SystemInfo />}
     </SettingsShell>
   );
 };

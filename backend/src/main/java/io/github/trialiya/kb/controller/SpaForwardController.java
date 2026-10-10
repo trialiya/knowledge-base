@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
  * of returning a 500 "No static resource" error.
  *
  * <p>The nested wildcards matter: the frontend keeps the opened resource in the path itself
- * (/chat/&lt;id&gt;, /knowledge/doc/&lt;id&gt;, /files/&lt;path/to/file&gt;), so a plain "/chat"
+ * (/chat/&lt;id&gt;, /knowledge/doc/&lt;id&gt;, /files/&lt;path/to/file&gt;, /settings/&lt;group&gt;), so a plain "/chat"
  * mapping would leave every shared deep link returning an error.
  *
  * <p>All /api/** requests are matched by the REST controllers first (they are registered before the
@@ -27,7 +27,9 @@ public class SpaForwardController {
         "/files/**",
         "/search",
         "/admin",
-        "/settings"
+        "/admin/**",
+        "/settings",
+        "/settings/**"
     })
     public String forward() {
         return "forward:/index.html";

@@ -65,6 +65,7 @@ function App() {
     setFileFind,
     setChatFind,
     setDocFind,
+    openGroup,
     toggleLeftPanel,
     setRightTab,
   } = useAppNavigation({ canLeave: canLeaveView, canReplaceDoc });
@@ -329,12 +330,12 @@ function App() {
         )}
         {view === 'admin' && (
           <div className="app-tab-panel app-tab-panel--active">
-            <AdminPanel panels={panels} />
+            <AdminPanel group={nav.adminGroup} onGroupChange={openGroup} panels={panels} />
           </div>
         )}
         {view === 'settings' && (
           <div className="app-tab-panel app-tab-panel--active">
-            <SettingsPanel panels={panels} />
+            <SettingsPanel group={nav.settingsGroup} onGroupChange={openGroup} panels={panels} />
           </div>
         )}
       </main>

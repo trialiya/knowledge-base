@@ -41,7 +41,9 @@ class SpaForwardControllerTest {
                 "/files/backend/build.gradle",
                 "/search",
                 "/admin",
+                "/admin/system",
                 "/settings",
+                "/settings/tools",
             })
     void forwardsSpaRoutesToIndexHtml(String path) throws Exception {
         mockMvc.perform(get(path)).andExpect(forwardedUrl("/index.html"));
