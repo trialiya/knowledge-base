@@ -15,6 +15,8 @@ import './listboxSelect.css';
  *   disabled  — блокировка (например, во время стриминга)
  *   ariaLabel — доступное имя триггера/списка
  *   placement — 'down' (по умолчанию) или 'up' — для селектора у нижнего края
+ *   align     — 'start' (по умолчанию) или 'end' — меню прижато к правому краю
+ *               триггера; для селектора у правого края контейнера
  *   className — доп. класс на корень (для позиционирования от места вставки)
  */
 const ListboxSelect = ({
@@ -24,6 +26,7 @@ const ListboxSelect = ({
   disabled = false,
   ariaLabel,
   placement = 'down',
+  align = 'start',
   className = '',
 }) => {
   const [open, setOpen] = useState(false);
@@ -60,15 +63,22 @@ const ListboxSelect = ({
     }
   }
 
-  // Фокус на меню — чтобы клавиатура сразу попадала в список
+  // Фокус на меню — чтобы клавиатура сразу попадала в список. preventScroll:
+  // меню, вылезшее за край прокручиваемого предка, иначе сдвигает весь предок.
   useEffect(() => {
-    if (open) menuRef.current?.focus();
+    if (open) menuRef.current?.focus({ preventScroll: true });
   }, [open]);
 
-  // Прокрутка к активному пункту при навигации стрелками
+  // Прокрутка к активному пункту при навигации стрелками — только внутри меню.
+  // Не scrollIntoView: тот прокручивает и всех предков, и страница уезжает вбок.
   useEffect(() => {
-    if (open && activeIndex >= 0) {
-      optionRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
+    const menu = menuRef.current;
+    const option = optionRefs.current[activeIndex];
+    if (!open || !menu || !option) return;
+    if (option.offsetTop < menu.scrollTop) {
+      menu.scrollTop = option.offsetTop;
+    } else if (option.offsetTop + option.offsetHeight > menu.scrollTop + menu.clientHeight) {
+      menu.scrollTop = option.offsetTop + option.offsetHeight - menu.clientHeight;
     }
   }, [open, activeIndex]);
 
@@ -157,7 +167,11 @@ const ListboxSelect = ({
 
       {open && (
         <ul
-          className={`lb-select__menu${placement === 'up' ? ' lb-select__menu--up' : ''}`}
+          className={
+            'lb-select__menu' +
+            (placement === 'up' ? ' lb-select__menu--up' : '') +
+            (align === 'end' ? ' lb-select__menu--end' : '')
+          }
           role="listbox"
           aria-label={ariaLabel}
           tabIndex={-1}
