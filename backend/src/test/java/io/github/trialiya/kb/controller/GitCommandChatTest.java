@@ -64,7 +64,7 @@ class GitCommandChatTest {
 
         controller.fetch("kb", null);
 
-        verifyNoInteractions(chatGitLog);
+        verifyNoInteractions(chatGitLog, chatActionClaim);
     }
 
     /**
@@ -132,7 +132,10 @@ class GitCommandChatTest {
     void aBusyRepositoryLeavesNoTrace() {
         when(git.stashPush()).thenThrow(new GitBusyException("another command is running"));
 
-        assertThatThrownBy(() -> controller.stashPush("kb", CHAT)).isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> controller.stashPush("kb", CHAT))
+                .isInstanceOfSatisfying(
+                        ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
 
         verify(chatGitLog, never()).record(anyString(), anyString(), any(), anyBoolean(), anyString(), any(), any());
     }

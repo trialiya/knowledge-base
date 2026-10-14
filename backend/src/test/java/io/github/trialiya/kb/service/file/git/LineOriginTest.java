@@ -28,11 +28,12 @@ class LineOriginTest {
      */
     @Test
     void theOldLineCarryingTheSubstringIsTheMostAlikeOfThoseThatHaveIt() {
-        RawText old = text("int total = 0;\nlong total = sum(items);\nString label;\n");
+        // Самая похожая — первая из двух: выбор «последней с подстрокой» здесь ошибся бы.
+        RawText old = text("long total = sum(items);\nint total = 0;\nString label;\n");
         Pattern needle = LineOrigin.needle("total");
 
         assertThat(LineOrigin.carrying(old, 0, 3, needle, "long total = sum(items, tax);"))
-                .isEqualTo(1);
+                .isEqualTo(0);
         assertThat(LineOrigin.carrying(old, 2, 3, needle, "long total = sum(items, tax);"))
                 .isEqualTo(-1);
         assertThat(LineOrigin.closest(old, 0, 3, "String label = name;")).isEqualTo(2);

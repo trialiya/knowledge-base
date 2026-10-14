@@ -40,7 +40,8 @@ class RepoFilesLineCountTest {
      */
     @Test
     void aFileLongerThanOneChunkIsCountedWhole() throws IOException {
-        String line = "x".repeat(1023) + "\n";
+        // 1000 байт не делят 64-килобайтный кусок: куски кончаются посреди строки.
+        String line = "x".repeat(999) + "\n";
         Path file = Files.writeString(dir.resolve("big.txt"), line.repeat(200) + "tail");
 
         assertThat(RepoFiles.lineCount("big.txt", file)).isEqualTo(201);

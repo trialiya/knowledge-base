@@ -1,7 +1,6 @@
 package io.github.trialiya.kb.functions;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -14,7 +13,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
-import io.github.trialiya.kb.model.git.dto.GitBlameAnswer;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
@@ -39,10 +37,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ToolContext;
 
 /**
- * The optional {@code project} argument every read tool adds on top of the run's own context
- * project — resolving which repository is read is {@code GitRegistry}'s business ({@code
- * GitRegistryTest}), so these tests only pin down which id {@code GitFunction} asks it for, and
- * that the answer says which repository it came from.
+ * Which repository a read tool reads and how its answer names it — {@link GitReads}, shared by
+ * {@link GitFunction} and {@link GitHistoryFunction}. Resolving an id to a repository is {@code
+ * GitRegistry}'s business ({@code GitRegistryTest}), so these tests pin down which id the tools ask
+ * it for, that the answer names the repository by its canonical id rather than echoing the
+ * argument, and what the working-tree tools hand on to the service. The history tools' own
+ * arguments are {@code GitHistoryFunctionTest}.
  *
  * <p>The echo is checked tool by tool rather than trusted: it is what tells the model which
  * repository a path belongs to, and — through {@code ProjectScoped} — what keeps a file seen in one
@@ -129,83 +129,46 @@ class GitFunctionTest {
         verify(gitRegistry).forProject("billing");
     }
 
+    /**
+     * Ответ называет репозиторий его каноническим id, а не тем, как его назвали: модель подписывает
+     * этим id ссылки на файлы, а {@code ToolInvocationCollector#hasSeenFile} сверяет по нему, что
+     * файл видели именно в этом репозитории. Имя в контексте прогона — тот же случай, что и в
+     * аргументе.
+     */
     @Test
-    void theResponseEchoesWhichProjectActuallyAnswered() {
-        ToolContext context = new ToolContext(Map.of());
+    void theResponseNamesTheRepositoryByItsIdNotByHowItWasAskedFor() {
+        when(gitRegistry.forProject("Billing")).thenReturn(billing);
 
-        ToolResult<GitFileContent> result = function.getFileContent(context, "pom.xml", null, null, null, "billing");
+        ToolResult<GitFileContent> fromContext = function.getFileContent(
+                new ToolContext(Map.of(ProjectContext.KEY, "Billing")), "pom.xml", null, null, null, null);
 
-        assertThat(result.project()).isEqualTo("billing");
-        assertThat(result.result().path()).isEqualTo("pom.xml");
-    }
-
-    @Test
-    void grepContentAlsoHonoursTheExplicitProjectArgument() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
-
-        ToolResult<List<GitGrepMatch>> matches =
-                function.grepContent(context, "needle", null, null, null, null, null, "billing");
-
-        verify(gitRegistry).forProject("billing");
-        assertThat(matches.project()).isEqualTo("billing");
-        assertThat(matches.result()).isNotEmpty();
-        assertThat(matches.truncated()).isTrue();
+        assertThat(fromContext.project()).isEqualTo("billing");
     }
 
     /**
-     * Ровно один id на ответ, у каждого инструмента: перечислять их поимённо приходится потому, что
-     * забытая обёртка не ломает компиляцию соседей — она молча уносит из ответа единственное место,
-     * где сказано, чей это репозиторий.
+     * Каждый читающий инструмент, поимённо: забытая обёртка не ломает компиляцию соседей — она молча
+     * уносит из ответа единственное место, где сказано, чей это репозиторий. Аргумент назван не
+     * канонично, так что ответ, повторивший аргумент, здесь упадёт.
      */
     @Test
-    void everyReadToolAnswersWithTheProjectItActuallyRead() {
+    void everyReadToolAnswersWithTheIdOfTheRepositoryItRead() {
+        when(gitRegistry.forProject("Billing")).thenReturn(billing);
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
         assertThat(List.of(
-                        function.getFileTree(context, null, "billing"),
-                        function.searchFiles(context, "pom", null, "billing"),
-                        function.getFileOutline(context, "Foo.java", "billing"),
-                        history.getCommitLog(context, null, null, null, null, null, null, "billing"),
-                        history.getCommitDiff(context, "abc1234", null, null, "billing"),
-                        function.getUncommittedChanges(context, null, null, null, "billing"),
-                        history.getBlame(context, "pom.xml", 1, 2, null, null, "billing"),
-                        history.getLineOrigin(context, "pom.xml", 3, "junit", null, "billing")))
-                .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"))
-                .allSatisfy(r -> assertThat(r.result()).isNotNull());
+                        function.getFileContent(context, "pom.xml", null, null, null, "Billing"),
+                        function.grepContent(context, "needle", null, null, null, null, null, "Billing"),
+                        function.getFileTree(context, null, "Billing"),
+                        function.searchFiles(context, "pom", null, "Billing"),
+                        function.getFileOutline(context, "Foo.java", "Billing"),
+                        function.getUncommittedChanges(context, null, null, null, "Billing"),
+                        history.getCommitLog(context, null, null, null, null, null, null, "Billing"),
+                        history.getCommitDiff(context, "abc1234", null, null, "Billing"),
+                        history.getBlame(context, "pom.xml", 1, 2, null, null, "Billing"),
+                        history.getLineOrigin(context, "pom.xml", 3, "junit", null, "Billing")))
+                .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"));
 
-        verify(gitRegistry, times(8)).forProject("billing");
-    }
-
-    /**
-     * Репозиторий назван один раз — обёрткой. Элементы выдачи его не повторяют: вызов читает один
-     * репозиторий, и пятьсот копий одного id стоили бы контекста ровно на пустом месте.
-     */
-    @Test
-    void theItemsInsideCarryNoProjectOfTheirOwn() {
-        ToolContext context = new ToolContext(Map.of());
-
-        ToolResult<List<GitCommit>> log = history.getCommitLog(context, null, null, null, null, null, null, "billing");
-
-        assertThat(log.project()).isEqualTo("billing");
-        assertThat(log.result())
-                .isNotEmpty()
-                .allSatisfy(c -> assertThat(c).hasNoNullFieldsOrPropertiesExcept("files", "body", "parents"));
-        assertThat(GitCommit.class.getRecordComponents()).noneMatch(component -> "project".equals(component.getName()));
-    }
-
-    /**
-     * Пропущенный флаг — это «истории без тел», а не отказ вызова: {@code null} доезжает до сервиса
-     * как {@code false}, и модель, которая поле не заполнила, получает обычный лог.
-     */
-    @Test
-    void theMessageBodyIsOffUnlessTheCallAsksForIt() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
-
-        history.getCommitLog(context, null, null, null, null, null, null, null);
-        verify(billing).getCommitLog(20, null, false);
-
-        history.getCommitLog(context, 5, null, null, true, null, null, null);
-        verify(billing).getCommitLog(5, null, true);
+        verify(gitRegistry, times(10)).forProject("Billing");
     }
 
     /**
@@ -229,59 +192,6 @@ class GitFunctionTest {
         verify(billing).getFileContent("  ", "pom.xml", null, null);
         function.getFileContent(context, "pom.xml", null, null, null, null);
         verify(billing).getFileContent(null, "pom.xml", null, null);
-    }
-
-    /**
-     * Диапазон и ревизия доезжают до сервиса как есть — укладывает диапазон в файл сервис ({@code
-     * GitServiceBlameTest}), — а ответ в пределе ханков приходит целым и не помеченным усечённым.
-     */
-    @Test
-    void blameHandsTheRangeAndRevisionToTheService() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
-
-        ToolResult<GitBlameAnswer> answer = history.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null, null);
-
-        verify(billing).getBlame("HEAD~1", "pom.xml", 3, 9, false);
-        assertThat(answer.truncated()).isNotEqualTo(Boolean.TRUE);
-        assertThat(answer.result().hunks()).hasSize(1);
-    }
-
-    /**
-     * Пропущенный {@code exact} — «кто написал строки», а не отказ; {@code exact=true} доезжает до
-     * сервиса как есть. Какое сопоставление за этим стоит, решает сервис по нормализованному пути
-     * ({@code GitServiceBlameTest}).
-     */
-    @Test
-    void exactArrivesAtTheServiceAndDefaultsToAuthorship() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
-
-        history.getBlame(context, "app/charge.py", 1, 2, null, null, null);
-        history.getBlame(context, "app/charge.py", 1, 2, null, true, null);
-
-        verify(billing).getBlame(null, "app/charge.py", 1, 2, false);
-        verify(billing).getBlame(null, "app/charge.py", 1, 2, true);
-    }
-
-    /**
-     * Диапазон строк у лога — другой вопрос: история этих строк ({@code git log -L}), а не поиск по
-     * сообщениям; без файла его не задать, с {@code query} не совместить.
-     */
-    @Test
-    void aLineRangeTurnsTheLogIntoTheLinesHistory() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
-        when(billing.getLineLog(anyString(), any(), any(), anyInt(), anyBoolean()))
-                .thenReturn(new GitCommitSearchResult(List.of(commit()), false));
-
-        ToolResult<List<GitCommit>> lines = history.getCommitLog(context, 5, "pom.xml", null, null, 3, 9, null);
-
-        verify(billing).getLineLog("pom.xml", 3, 9, 5, false);
-        assertThat(lines.result()).hasSize(1);
-        assertThatThrownBy(() -> history.getCommitLog(context, 5, null, null, null, 3, 9, null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("filePath");
-        assertThatThrownBy(() -> history.getCommitLog(context, 5, "pom.xml", "retry", null, 3, 9, null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("query");
     }
 
     /**
@@ -318,36 +228,5 @@ class GitFunctionTest {
 
         function.getUncommittedChanges(context, null, false, null, null);
         verify(billing).getUncommittedChanges(false, false, List.of());
-    }
-
-    /**
-     * С запросом история ищется по сообщениям, без него — просто листается: пустой запрос — это «не
-     * задан», а не «совпадает со всем».
-     */
-    @Test
-    void aQueryTurnsTheLogIntoASearchThroughMessages() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
-
-        history.getCommitLog(context, 5, "src", "  retry  ", null, null, null, null);
-        verify(billing).searchCommitLog("retry", 5, "src", false);
-
-        history.getCommitLog(context, 5, "src", " ", true, null, null, null);
-        verify(billing).getCommitLog(5, "src", true);
-    }
-
-    /**
-     * И поиск, и простое листание говорят, дошли ли до конца: просьба о двухстах коммитах даёт сто,
-     * и без признака модель прочла бы сотый как самый старый.
-     */
-    @Test
-    void bothSearchAndListingSayWhetherTheyWereCutShort() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
-
-        assertThat(history.getCommitLog(context, 5, null, "retry", null, null, null, null)
-                        .truncated())
-                .isTrue();
-        assertThat(history.getCommitLog(context, 5, null, null, null, null, null, null)
-                        .truncated())
-                .isTrue();
     }
 }

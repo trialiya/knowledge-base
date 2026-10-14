@@ -210,9 +210,9 @@ class GitServiceGrepTest {
     }
 
     /**
-     * The whole output is not read for a handful of blocks: git is stopped once the cap's worth of
-     * lines is in, and what was read is the answer, complete and in order — no exit-code noise from
-     * the kill.
+     * A handful of blocks out of thousands: git is stopped once the cap's worth of lines is in, and
+     * what was read is the answer, complete and in order. What fails here if it breaks is the stop
+     * itself — the killed git's exit code must not turn the answer into an error.
      */
     @Test
     void outputIsReadOnlyUpToTheLimit() {
@@ -228,31 +228,10 @@ class GitServiceGrepTest {
     }
 
     /**
-     * With context the cap falls inside a block, and a cut block is dropped: its context is missing
-     * on one side, and a match shown with half of what surrounds it is worse than one not shown. A
-     * run whose whole output is a single unfinished block therefore answers with nothing — there is
-     * no complete block in it to keep.
-     */
-    @Test
-    void aBlockCutByTheOutputCapIsDroppedRatherThanShownHalfRead() {
-        String body = IntStream.range(0, GitGrepRunner.MAX_OUTPUT_LINES + 5_000)
-                .mapToObj(i -> "needle " + i)
-                .collect(Collectors.joining("\n", "", "\n"));
-        writeFile("big.txt", body);
-        commitAll("first");
-
-        // Every line matches, so git grep -C1 prints one uninterrupted run with no "--" in it.
-        assertThat(service.grepHits("needle", null, false, null, 1, 3, false).matches())
-                .isEmpty();
-        // Without context every line is a block of its own, so the same cut keeps what it read.
-        assertThat(service.grepHits("needle", null, false, null, 0, 3, false).matches())
-                .hasSize(3);
-    }
-
-    /**
      * The model's search says when its list is not the whole answer: a context run cut at the
-     * output ceiling comes back short — here empty — and only {@code truncated} tells that apart
-     * from "nothing else matches". A list exactly {@code maxResults} long that git finished is
+     * output ceiling comes back short — here empty, since every line matches and git prints one
+     * unfinished block, and a block shown with half its context is worse than none — and only
+     * {@code truncated} tells that apart from "nothing else matches". A list exactly {@code maxResults} long that git finished is
      * complete.
      */
     @Test

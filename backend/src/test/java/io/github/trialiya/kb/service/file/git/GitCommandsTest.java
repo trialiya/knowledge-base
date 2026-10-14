@@ -21,8 +21,9 @@ import org.junit.jupiter.api.io.TempDir;
  * The commands a user runs from the panel, against a real repository.
  *
  * <p>What is tested here is mostly what these commands <em>refuse</em> to do: the whole feature
- * turns on a switch never overwriting uncommitted work, a pop never losing a stash it could not
- * apply, and a commit never being signed with an identity nobody configured.
+ * turns on a switch never overwriting uncommitted work and a pop never losing a stash it could not
+ * apply. (A commit refused for want of a configured identity is checked by hand — see the note
+ * under the commit tests.)
  */
 class GitCommandsTest {
 

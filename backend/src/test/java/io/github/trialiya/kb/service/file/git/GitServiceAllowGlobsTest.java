@@ -279,12 +279,16 @@ class GitServiceAllowGlobsTest {
      */
     @Test
     void theResultLimitCountsOnlyVisibleMatches() {
-        writeFile("scratch.txt", "remember the milk\n");
         writeFile("src/App.java", "class App { String milk; }\n");
         runGit("add", "src/App.java");
+        // Под корнем глоба, но не под самим глобом: git их находит, а видеть их нельзя. По пути они
+        // встают раньше видимых, так что обрезка до фильтра отдала бы лимит им.
+        writeFile("notes/a.txt", "milk\n");
+        writeFile("notes/b.txt", "milk\n");
+        GitService mdOnly = TestProjects.gitService(repoDir, true, List.of("notes/*.md"));
 
         List<GitGrepMatch> hits =
-                service.grepHits("milk", null, false, null, 0, 2, true).matches();
+                mdOnly.grepHits("milk", null, false, null, 0, 2, true).matches();
 
         assertThat(hits).extracting(GitGrepMatch::path).containsExactly("notes/todo.md", "src/App.java");
     }

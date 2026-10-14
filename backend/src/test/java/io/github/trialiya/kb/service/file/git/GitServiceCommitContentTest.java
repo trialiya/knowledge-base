@@ -123,6 +123,7 @@ class GitServiceCommitContentTest {
     /** Диапазон строк считается от начала файла в коммите — так же, как при чтении с диска. */
     @Test
     void aLineRangeIsServedFromTheCommittedFile() {
+        write("src/App.java", "class App {\n    void changedOnDisk() {}\n}\n");
         GitFileContent content = service.getFileContent(head(), "src/App.java", 2, 2);
 
         assertThat(content.content()).isEqualTo("    void one() {}");
@@ -180,8 +181,10 @@ class GitServiceCommitContentTest {
     /** Путь наружу отвергается до всякого обращения к истории — как и в остальных чтениях. */
     @Test
     void aPathOutsideTheRepositoryIsRefused() {
+        // Отказ пути, а не «нет такого файла в коммите», которым кончился бы поиск по истории.
         assertThatThrownBy(() -> service.getFileContent(head(), "../outside.txt", null, null))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid path");
     }
 
     /** Двоичный файл в истории отвечает так же, как на диске: метаданные без содержимого. */

@@ -24,8 +24,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Unit tests for {@link GitService#getFileTree(String)} against a real, throwaway git repository
- * (built via the {@code git} binary itself, mirroring how {@link GitService} shells out).
+ * {@link GitService} reads of the working tree and plain history against a real, throwaway git
+ * repository built with the {@code git} binary itself: the file tree, file content, the commit log
+ * and diffs, commit search, {@code browsePath}, uncommitted changes and file search. Narrower slices
+ * have classes of their own — blame, line origin, grep, snapshots of a commit, {@code allow-globs},
+ * symlinks, edits.
  */
 class GitServiceTest {
 
@@ -102,8 +105,8 @@ class GitServiceTest {
 
         List<GitFileNode> root = service.getFileTree(null, null);
 
-        // Regression: without core.quotepath=false, git quotes/octal-escapes the Cyrillic path,
-        // which used to split into a bogus quoted "docs" node distinct from the real one.
+        // A non-ASCII path must land under the same "docs" node as its ASCII siblings, not as a
+        // second, escaped one.
         List<GitFileNode> docsNodes =
                 root.stream().filter(n -> n.name().equals("docs")).toList();
         assertThat(docsNodes).hasSize(1);
@@ -946,18 +949,12 @@ class GitServiceTest {
 
         assertThat(service.searchCommits("fix", 1).truncated()).isTrue();
         assertThat(service.searchCommits("fix", 10).truncated()).isFalse();
-        assertThat(service.searchCommits("nothing-like-this", 10).truncated()).isFalse();
+        GitCommitSearchResult none = service.searchCommits("nothing-like-this", 10);
+        assertThat(none.commits()).isEmpty();
+        assertThat(none.truncated()).isFalse();
     }
 
-    @Test
-    void searchCommitsReturnsEmptyWhenNothingMatches() {
-        writeFile("a.txt", "a\n");
-        commitAll("Only commit");
-
-        assertThat(service.searchCommits("nothing-like-this", 10).commits()).isEmpty();
-    }
-
-    /** A hash prefix must not be confused with a body hit: the picker only shows the subject. */
+    /** The picker searches the subject only: a word from the description finds nothing. */
     @Test
     void searchCommitsIgnoresTheMessageBody() {
         writeFile("a.txt", "a\n");
