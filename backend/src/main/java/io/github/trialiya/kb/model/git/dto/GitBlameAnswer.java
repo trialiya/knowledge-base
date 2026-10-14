@@ -1,9 +1,10 @@
 package io.github.trialiya.kb.model.git.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +31,6 @@ import org.jspecify.annotations.Nullable;
  * @param toLine последняя строка ответа (включительно); см. {@link GitFileBlame#toLine()}
  * @param commits коммиты ханков по полному хешу, в порядке первого появления
  * @param hunks диапазоны в порядке строк
- * @param gist плашка вызова — та же, что у {@link GitFileBlame}; в JSON не попадает
  */
 public record GitBlameAnswer(
         String path,
@@ -39,35 +39,36 @@ public record GitBlameAnswer(
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer fromLine,
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer toLine,
         @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, Commit> commits,
-        List<Hunk> hunks,
-        @JsonIgnore String gist)
+        List<Hunk> hunks)
         implements ToolCallResponseItem {
 
-    /** Ответ blame в плотной форме; плашку вызова считает сам {@link GitFileBlame}. */
+    /** Ответ blame в плотной форме. */
     public static GitBlameAnswer of(GitFileBlame blame) {
         Map<String, Commit> commits = new LinkedHashMap<>();
-        List<Hunk> hunks = blame.hunks().stream()
-                .map(hunk -> {
-                    if (hunk.hash() != null) {
-                        commits.putIfAbsent(hunk.hash(), Commit.of(hunk));
-                    }
-                    return Hunk.of(hunk, blame.path());
-                })
-                .toList();
+        List<Hunk> hunks = new ArrayList<>(blame.hunks().size());
+        for (GitFileBlame.Hunk hunk : blame.hunks()) {
+            if (hunk.hash() != null) {
+                commits.computeIfAbsent(hunk.hash(), hash -> Commit.of(hunk));
+            }
+            hunks.add(Hunk.of(hunk, blame.path()));
+        }
         return new GitBlameAnswer(
                 blame.path(),
                 blame.commit(),
                 blame.lineCount(),
                 blame.fromLine(),
                 blame.toLine(),
-                commits,
-                hunks,
-                blame.getFormattedResponse());
+                Collections.unmodifiableMap(commits),
+                List.copyOf(hunks));
     }
 
+    /** Плашка вызова — та же, что у развёрнутого {@link GitFileBlame}: строка на ханк, с автором. */
     @Override
     public String getFormattedResponse() {
-        return gist;
+        List<GitFileBlame.Hunk> expanded = hunks.stream()
+                .map(hunk -> hunk.expand(path, hunk.hash() == null ? null : commits.get(hunk.hash())))
+                .toList();
+        return new GitFileBlame(path, commit, lineCount, expanded, fromLine, toLine).getFormattedResponse();
     }
 
     /**
@@ -125,6 +126,23 @@ public record GitBlameAnswer(
                     hunk.hash(),
                     Objects.equals(hunk.path(), file) ? null : hunk.path(),
                     Objects.equals(hunk.sourceLine(), hunk.fromLine()) ? null : hunk.sourceLine());
+        }
+
+        /** Ханк в форме {@link GitFileBlame}: с полями своего коммита и подставленными путём и строкой. */
+        GitFileBlame.Hunk expand(String file, @Nullable Commit commit) {
+            if (hash == null) {
+                return new GitFileBlame.Hunk(fromLine, lineCount, null, null, null, null, null, null);
+            }
+            return new GitFileBlame.Hunk(
+                    fromLine,
+                    lineCount,
+                    hash,
+                    commit == null ? null : commit.author(),
+                    commit == null ? null : commit.date(),
+                    commit == null ? null : commit.summary(),
+                    path == null ? file : path,
+                    sourceLine == null ? Integer.valueOf(fromLine) : sourceLine,
+                    commit != null && commit.boundary());
         }
     }
 }
