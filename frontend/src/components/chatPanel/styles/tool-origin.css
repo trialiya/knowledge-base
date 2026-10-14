@@ -64,40 +64,14 @@
   border-top: 1px solid var(--kb-border-light);
 }
 
+.tool-origin__hint {
+  color: var(--kb-text-faint);
+}
+
 .tool-origin__step {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.tool-origin__commit {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-}
-
-.tool-origin__meta {
-  flex-shrink: 0;
-  color: var(--kb-text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.tool-origin__summary {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Граница неглубокого клона — подпись на месте автора и темы, тем же
-   приглушённым курсивом, что подписи границы в колонке blame. */
-.tool-origin__boundary,
-.tool-origin__hint {
-  color: var(--kb-text-faint);
-}
-.tool-origin__boundary {
-  font-style: italic;
 }
 
 /* Версия строки — ссылка, но читается как строка кода: номер и текст. Путь и

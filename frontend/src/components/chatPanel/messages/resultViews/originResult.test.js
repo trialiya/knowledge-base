@@ -39,8 +39,10 @@ describe('detectOriginResult — что попадает в «Обзор»', () 
   it('ответ — последний шаг; ссылка ведёт к строке в снимке того коммита, с запросом', () => {
     const data = detect(answer(found));
     expect(data.kind).toBe('found');
-    expect(data.origin).toMatchObject({ shortHash: 'e4f5a6b', boundary: false });
-    expect(data.origin.href).toBe(`/files/src/old/Foo.java?project=billing&rev=${OLD}&find=total&lines=10&right=commit`);
+    expect(data.origin).toMatchObject({ hash: OLD, boundary: false });
+    expect(data.origin.href).toBe(
+      `/files/src/old/Foo.java?project=billing&rev=${OLD}&find=total&lines=10&right=commit`,
+    );
     expect(data.before.text).toBe('int x = 1;');
     expect(data.versions).toHaveLength(2);
     expect(data.href).toBe('/files/src/Foo.java?project=billing&find=total&lines=12');

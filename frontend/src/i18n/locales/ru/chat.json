@@ -231,8 +231,7 @@
         "versions_few": "{{count}} версии",
         "versions_many": "{{count}} версий",
         "became": "стало",
-        "was": "было",
-        "boundaryStep": "начало истории клона"
+        "was": "было"
       },
       "grep": {
         "untracked": "вне git",

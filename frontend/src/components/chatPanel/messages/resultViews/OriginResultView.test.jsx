@@ -12,7 +12,14 @@ const OLD = 'e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3';
 
 const view = (result) => detectOriginResult(parseResult(JSON.stringify({ project: 'billing', result })));
 
-const step = (hash, text, extra = {}) => ({ hash, date: '2024-03-01T10:00:00Z', path: 'a.txt', line: 3, text, ...extra });
+const step = (hash, text, extra = {}) => ({
+  hash,
+  date: '2024-03-01T10:00:00Z',
+  path: 'a.txt',
+  line: 3,
+  text,
+  ...extra,
+});
 
 describe('OriginResultView', () => {
   it('коммит-ответ с автором и темой, «стало» и «было», путь строки', () => {
@@ -48,7 +55,7 @@ describe('OriginResultView', () => {
       />,
     );
 
-    expect(document.querySelector('.tool-origin__boundary')).toHaveTextContent(/start of the clone's history/);
+    expect(document.querySelector('.origin-commit__boundary')).toHaveTextContent(/start of the clone's history/);
     expect(document.querySelector('.tool-origin__hint')).toHaveTextContent(/shallow/);
     expect(document.querySelector('.tool-origin__versions')).toBeNull();
   });

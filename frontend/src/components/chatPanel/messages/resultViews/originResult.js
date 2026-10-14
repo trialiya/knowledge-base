@@ -24,7 +24,6 @@ const isStep = (step) =>
  */
 const toStep = (step, file, query, project) => ({
   ...step,
-  shortHash: shortRev(step.hash),
   boundary: step.boundary === true,
   href: filesUrl(typeof step.path === 'string' && step.path ? step.path : file, project, {
     rev: step.hash,

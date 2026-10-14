@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { formatCompactDateTime } from '@/utils/formatting';
-import CommitHashLink from '@/components/common/git/CommitHashLink';
+import LineOriginCommit from '@/components/common/git/LineOriginCommit';
 import { highlightSubstring } from '@/components/common/search/highlightMatch';
 import ResultSummary from './resultSummary';
 
@@ -12,35 +11,6 @@ import ResultSummary from './resultSummary';
 // внутри приложения увёл бы раздел из-под открытого окна.
 //
 // Разбор ответа — в originResult.js; сюда приходят уже готовые шаги.
-
-/**
- * Коммит строкой: хеш-ссылка, дата, автор и тема. Шаг на границе неглубокого
- * клона приходит без автора и темы — вместо них подпись: строку тот коммит мог и
- * не писать.
- */
-const Commit = ({ step, project }) => {
-  const { t, i18n } = useTranslation('chat');
-  return (
-    <span className="tool-origin__commit">
-      <CommitHashLink className="commit-hash-link" rev={step.hash} project={project} newTab>
-        {step.shortHash}
-      </CommitHashLink>
-      <span className="tool-origin__meta">{formatCompactDateTime(step.date, i18n.language)}</span>
-      {step.boundary ? (
-        <span className="tool-origin__boundary">{t('toolCall.detail.origin.boundaryStep')}</span>
-      ) : (
-        <>
-          {step.author && <span className="tool-origin__meta">{step.author}</span>}
-          {step.summary && (
-            <span className="tool-origin__summary" title={step.summary}>
-              {step.summary}
-            </span>
-          )}
-        </>
-      )}
-    </span>
-  );
-};
 
 /** Версия строки: номер в файле того коммита и сам текст, ссылкой на это место. */
 const VersionLine = ({ label, step, query }) => (
@@ -73,9 +43,14 @@ const OriginResultView = ({ data }) => {
 
       {origin && (
         <div className="tool-origin__answer">
-          <Commit step={origin} project={project} />
+          <LineOriginCommit step={origin} project={project} newTab />
           {kind !== 'found' && <div className="tool-origin__hint">{t(`toolCall.detail.origin.hint.${kind}`)}</div>}
-          <VersionLine label={t('toolCall.detail.origin.became')} step={origin} query={query} />
+          {/* «Стало» — только у ответа: при BOUNDARY и LIMIT это самая старая пройденная версия. */}
+          <VersionLine
+            label={kind === 'found' ? t('toolCall.detail.origin.became') : null}
+            step={origin}
+            query={query}
+          />
           {before ? (
             <VersionLine label={t('toolCall.detail.origin.was')} step={before} query={query} />
           ) : (
@@ -93,7 +68,7 @@ const OriginResultView = ({ data }) => {
         <ol className="tool-origin__versions">
           {versions.map((step) => (
             <li key={step.hash} className="tool-origin__step">
-              <Commit step={step} project={project} />
+              <LineOriginCommit step={step} project={project} newTab />
               <VersionLine step={step} query={query} />
             </li>
           ))}

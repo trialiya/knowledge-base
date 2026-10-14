@@ -538,7 +538,7 @@ public class GitFunction {
                     + " the last of steps is the commit that brought it into the line, before is"
                     + " the line just before (no before: that commit added the line itself);"
                     + " UNCOMMITTED — an uncommitted edit put it there, before is the line in"
-                    + " HEAD; NOT_IN_LINE — the line does not hold it (re-read the file, the"
+                    + " HEAD (no before: the edit added the line); NOT_IN_LINE — the line does not hold it (re-read the file, the"
                     + " numbering may have moved); BOUNDARY — the walk reached the cut of a"
                     + " shallow clone: the substring is at least that old and who added it is not"
                     + " in this clone, say so; LIMIT — stopped at its step or time limit, the"

@@ -71,6 +71,19 @@ describe('LineOrigin', () => {
     );
   });
 
+  it('граница клона: на месте автора и темы — подпись, хеш остаётся ссылкой', async () => {
+    gitApi.getLineOrigin.mockResolvedValue({
+      ...found,
+      status: 'BOUNDARY',
+      steps: [{ hash: HASH2, path: 'src/A.java', line: 12, text: 'x = total();', boundary: true }],
+      before: null,
+    });
+    renderOrigin();
+
+    expect(await screen.findByText('lineOrigin.boundary')).toBeInTheDocument();
+    expect(screen.getByText('files.origin.boundaryHint')).toBeInTheDocument();
+  });
+
   it('незакоммиченная правка: «было» — строка в HEAD, ссылкой на неё', async () => {
     gitApi.getLineOrigin.mockResolvedValue({
       status: 'UNCOMMITTED',

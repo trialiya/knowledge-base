@@ -1,0 +1,30 @@
+/* Коммит версии строки в ответе «когда появилось» (LineOriginCommit): одна строка —
+   хеш, дата, автор и тема с многоточием. */
+
+.origin-commit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.origin-commit__meta {
+  flex-shrink: 0;
+  color: var(--kb-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.origin-commit__summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Граница неглубокого клона — подпись на месте автора и темы, приглушённым
+   курсивом, как подписи границы в колонке blame. */
+.origin-commit__boundary {
+  min-width: 0;
+  font-style: italic;
+  color: var(--kb-text-faint);
+}
