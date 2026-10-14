@@ -11,6 +11,7 @@ import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
 import io.github.trialiya.kb.model.tool.ToolResult;
+import io.github.trialiya.kb.service.file.git.BlameMatching;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
@@ -158,7 +159,13 @@ public class GitHistoryFunction {
     /**
      * Who last changed the given lines — {@code git blame -L}, with the revisions {@code
      * .git-blame-ignore-revs} names skipped; see {@link GitService#getBlame(String, String, Integer,
-     * Integer)}.
+     * Integer, BlameMatching)}.
+     *
+     * <p>Unlike the blame column in Files, the walk looks past whitespace and follows lines moved
+     * within the file ({@code -w -M}, {@link BlameMatching}): the model asks who wrote the logic,
+     * and a block wrapped in a {@code try} or a method moved down the file would otherwise go to
+     * whoever re-indented or moved it. {@code ignoreWhitespace=false} turns {@code -w} off for the
+     * one question it hides — who changed the indentation.
      *
      * <p>Answers with the hunks alone, not the text of the lines: the model comes here about lines
      * it has already read, and the description points it on from a hunk to the commit that wrote
@@ -173,6 +180,7 @@ public class GitHistoryFunction {
      * @param fromLine first line (1-based, inclusive); null for start of file
      * @param toLine last line (1-based, inclusive); null for end of file
      * @param commit revision to blame the file as of; null blames the working tree
+     * @param ignoreWhitespace look past whitespace-only changes (default true)
      */
     @Tool(
             description = "Who last changed each line of a file (git blame). Answers with hunks —"
@@ -187,7 +195,10 @@ public class GitHistoryFunction {
                     + " this clone (no author, no summary) — say so, do not credit the commit,"
                     + " and do not diff it: with no parent here, its diff shows every line added."
                     + " Commits named in .git-blame-ignore-revs (mass reformatting) are skipped,"
-                    + " so their lines go to whoever changed them before. Give fromLine/toLine"
+                    + " so their lines go to whoever changed them before. Whitespace-only changes"
+                    + " are looked past and lines moved within the file keep the commit that"
+                    + " wrote them, so a re-indent or a moved method does not take the credit —"
+                    + " the answer can differ from GitHub's blame for that reason. Give fromLine/toLine"
                     + " for the lines you care about: the history of a range is walked, not"
                     + " the whole file. lineCount at the top is the whole file's length."
                     + " When a given text entered the line — getLineOrigin, not a chain of"
@@ -218,17 +229,25 @@ public class GitHistoryFunction {
                             required = false)
                     @Nullable
                     String commit,
+            @ToolParam(
+                            description = "Look past whitespace-only changes (default true). False"
+                                    + " only to find who changed the indentation itself.",
+                            required = false)
+                    @Nullable
+                    Boolean ignoreWhitespace,
             @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(filePath, "filePath");
+        final BlameMatching matching = new BlameMatching(orDefault(ignoreWhitespace, true), true);
         log.debug(
-                "getBlame called: filePath='{}', fromLine={}, toLine={}, commit='{}', project='{}'",
+                "getBlame called: filePath='{}', fromLine={}, toLine={}, commit='{}', matching={}, project='{}'",
                 filePath,
                 fromLine,
                 toLine,
                 commit,
+                matching,
                 project);
         GitService git = reads.git(context, project);
-        GitFileBlame blame = git.getBlame(commit, filePath, fromLine, toLine);
+        GitFileBlame blame = git.getBlame(commit, filePath, fromLine, toLine, matching);
         log.debug("getBlame called: {} hunks over lines {}-{}", blame.hunks().size(), blame.fromLine(), blame.toLine());
         return GitReads.answer(git, GitBlameAnswer.of(BlameBudget.cap(blame)), BlameBudget.cut(blame));
     }

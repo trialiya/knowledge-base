@@ -35,8 +35,8 @@ final class GitBlame {
     private GitBlame() {}
 
     /**
-     * One {@code git blame} invocation: {@code git blame --porcelain [-L <from>,<to>] [--ignore-rev
-     * <sha>…] [<commit>] -- <path>}.
+     * One {@code git blame} invocation: {@code git blame --porcelain [-w] [-M] [-L <from>,<to>]
+     * [--ignore-rev <sha>…] [<commit>] -- <path>}.
      *
      * <p>{@code --porcelain} rather than {@code --line-porcelain}: the commit's fields are printed
      * once, on its first hunk, and the parser keeps them — half the output on a file whose lines
@@ -51,14 +51,26 @@ final class GitBlame {
      * <p>{@code -L} narrows the walk itself, not just the output: git follows only those lines back
      * through history, which is what makes a few lines of a long file cheap to ask about.
      *
+     * @param matching how a line is paired with its earlier version ({@link BlameMatching})
      * @param lines when non-null, only these lines are blamed; already fitted to the file, since git
      *     refuses a range that starts past its last line
      * @param commit when non-null, the file as of this commit is blamed instead of the working tree.
      *     Callers pass a resolved hash, never user input: an argument starting with {@code -} would
      *     be read as an option
      */
-    static List<String> args(String path, List<String> ignoredRevs, @Nullable Lines lines, @Nullable String commit) {
+    static List<String> args(
+            String path,
+            List<String> ignoredRevs,
+            BlameMatching matching,
+            @Nullable Lines lines,
+            @Nullable String commit) {
         List<String> args = new ArrayList<>(List.of("git", "blame", "--porcelain"));
+        if (matching.ignoreWhitespace()) {
+            args.add("-w");
+        }
+        if (matching.detectMoves()) {
+            args.add("-M");
+        }
         if (lines != null) {
             args.add("-L");
             args.add(lines.from() + "," + lines.to());

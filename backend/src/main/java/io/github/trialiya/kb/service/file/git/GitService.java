@@ -634,7 +634,7 @@ public class GitService {
      * @param rev the commit to read; {@code null} or blank — the working tree
      */
     public GitFileBlame getBlame(@Nullable String rev, @NonNull String filePath) {
-        return blame(rev, filePath, null);
+        return blame(rev, filePath, null, BlameMatching.EXACT);
     }
 
     /**
@@ -647,15 +647,21 @@ public class GitService {
      *
      * @param fromLine first line (1-based, inclusive); null for start of file
      * @param toLine last line (1-based, inclusive); null for end of file
+     * @param matching how a line is paired with its earlier version — the two-argument form is
+     *     {@link BlameMatching#EXACT}
      * @throws IllegalArgumentException if {@code toLine} is before {@code fromLine}
      */
     public GitFileBlame getBlame(
-            @Nullable String rev, @NonNull String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
+            @Nullable String rev,
+            @NonNull String filePath,
+            @Nullable Integer fromLine,
+            @Nullable Integer toLine,
+            BlameMatching matching) {
         if (toLine != null && toLine < Math.max(1, fromLine == null ? 1 : fromLine)) {
             throw new IllegalArgumentException("toLine " + toLine + " is before fromLine " + fromLine);
         }
         boolean ranged = fromLine != null || toLine != null;
-        return blame(rev, filePath, ranged ? new GitBlameRunner.Range(fromLine, toLine) : null);
+        return blame(rev, filePath, ranged ? new GitBlameRunner.Range(fromLine, toLine) : null, matching);
     }
 
     /**
@@ -679,10 +685,11 @@ public class GitService {
         return origins.origin(normalizePath(filePath), snapshot(rev), line, query);
     }
 
-    private GitFileBlame blame(@Nullable String rev, String filePath, GitBlameRunner.@Nullable Range range) {
+    private GitFileBlame blame(
+            @Nullable String rev, String filePath, GitBlameRunner.@Nullable Range range, BlameMatching matching) {
         String at = snapshot(rev);
         String normalized = normalizePath(filePath);
-        return at == null ? blame.blame(normalized, range) : blame.blameAt(at, normalized, range);
+        return at == null ? blame.blame(normalized, range, matching) : blame.blameAt(at, normalized, range, matching);
     }
 
     // ── File content ────────────────────────────────────────────────────────

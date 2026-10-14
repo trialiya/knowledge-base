@@ -22,7 +22,7 @@ class GitBlameTest {
     /** Путь идёт за {@code --}, ревизия — перед ним, игнорируемые коммиты — по опции на каждый. */
     @Test
     void thePathSitsBehindTheSeparatorAndEveryIgnoredRevIsAnOption() {
-        List<String> args = GitBlame.args("--others", List.of(A, B), null, "deadbee");
+        List<String> args = GitBlame.args("--others", List.of(A, B), BlameMatching.EXACT, null, "deadbee");
 
         assertThat(args)
                 .containsExactly(
@@ -40,15 +40,24 @@ class GitBlameTest {
 
     @Test
     void withoutARevisionTheWorkingTreeIsBlamed() {
-        assertThat(GitBlame.args("src/App.java", List.of(), null, null))
+        assertThat(GitBlame.args("src/App.java", List.of(), BlameMatching.EXACT, null, null))
                 .containsExactly("git", "blame", "--porcelain", "--", "src/App.java");
     }
 
     /** Диапазон строк — одна опция {@code -L from,to} перед ревизией, путь всё так же за {@code --}. */
     @Test
     void aLineRangeIsOneOptionBeforeTheRevision() {
-        assertThat(GitBlame.args("f.txt", List.of(), new GitBlame.Lines(3, 7), "deadbee"))
+        assertThat(GitBlame.args("f.txt", List.of(), BlameMatching.EXACT, new GitBlame.Lines(3, 7), "deadbee"))
                 .containsExactly("git", "blame", "--porcelain", "-L", "3,7", "deadbee", "--", "f.txt");
+    }
+
+    /** Сопоставление строк — опции сразу за {@code --porcelain}, каждая только когда включена. */
+    @Test
+    void matchingAddsItsOwnOptions() {
+        assertThat(GitBlame.args("f.txt", List.of(), new BlameMatching(true, true), null, null))
+                .containsExactly("git", "blame", "--porcelain", "-w", "-M", "--", "f.txt");
+        assertThat(GitBlame.args("f.txt", List.of(), new BlameMatching(false, true), null, null))
+                .containsExactly("git", "blame", "--porcelain", "-M", "--", "f.txt");
     }
 
     /**

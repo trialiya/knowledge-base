@@ -225,7 +225,7 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\ntwo\nthree\nfour\nfive\n");
         commitAll("second");
 
-        GitFileBlame blame = service.getBlame(null, "f.txt", 2, 4);
+        GitFileBlame blame = service.getBlame(null, "f.txt", 2, 4, BlameMatching.EXACT);
 
         assertThat(blame.lineCount()).isEqualTo(5);
         assertThat(blame.fromLine()).isEqualTo(2);
@@ -233,6 +233,29 @@ class GitServiceBlameTest {
         assertThat(blame.hunks())
                 .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::lineCount, GitFileBlame.Hunk::summary)
                 .containsExactly(tuple(2, 2, "first"), tuple(4, 1, "second"));
+    }
+
+    /**
+     * Инструмент модели смотрит сквозь переотступ ({@code -w}) и за перенос строк внутри файла
+     * ({@code -M}): блок, обёрнутый в условие, и перенесённый вниз метод остаются за тем, кто их
+     * написал. Колонка в «Файлах» ({@link BlameMatching#EXACT}) отдаёт их последней правке, как
+     * GitHub.
+     */
+    @Test
+    void lenientMatchingLooksPastIndentationAndMoves() {
+        String method = "void a() {\n  first();\n  second();\n  third();\n}\n";
+        writeFile("f.txt", method + "x\ny\nz\n");
+        commitAll("written");
+        writeFile("f.txt", "x\ny\nz\n" + method.replace("  ", "    "));
+        commitAll("moved and re-indented");
+
+        BlameMatching lenient = new BlameMatching(true, true);
+        GitFileBlame exact = service.getBlame(null, "f.txt", 4, 8, BlameMatching.EXACT);
+        GitFileBlame model = service.getBlame(null, "f.txt", 4, 8, lenient);
+
+        assertThat(exact.hunks()).extracting(GitFileBlame.Hunk::summary).doesNotContain("written");
+        assertThat(model.hunks()).extracting(GitFileBlame.Hunk::summary).containsOnly("written");
+        assertThat(model.hunks().getFirst().sourceLine()).isEqualTo(1);
     }
 
     /**
@@ -244,8 +267,8 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\ntwo\nthree");
         commitAll("first");
 
-        GitFileBlame tail = service.getBlame(null, "f.txt", 3, 100);
-        GitFileBlame past = service.getBlame(null, "f.txt", 4, null);
+        GitFileBlame tail = service.getBlame(null, "f.txt", 3, 100, BlameMatching.EXACT);
+        GitFileBlame past = service.getBlame(null, "f.txt", 4, null, BlameMatching.EXACT);
 
         assertThat(tail.lineCount()).isEqualTo(3);
         assertThat(tail.toLine()).isEqualTo(3);
@@ -264,10 +287,11 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\ntwo\nthree\n");
         commitAll("first");
 
-        assertThatThrownBy(() -> service.getBlame(null, "f.txt", 3, 2))
+        assertThatThrownBy(() -> service.getBlame(null, "f.txt", 3, 2, BlameMatching.EXACT))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("before fromLine");
-        assertThatThrownBy(() -> service.getBlame(null, "f.txt", null, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.getBlame(null, "f.txt", null, 0, BlameMatching.EXACT))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     /** Диапазон у снимка считается по файлу того коммита, а не рабочего дерева. */
@@ -278,7 +302,7 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\ntwo\nthree\nfour\n");
         commitAll("second");
 
-        GitFileBlame blame = service.getBlame("HEAD~1", "f.txt", 2, 4);
+        GitFileBlame blame = service.getBlame("HEAD~1", "f.txt", 2, 4, BlameMatching.EXACT);
 
         assertThat(blame.lineCount()).isEqualTo(2);
         assertThat(blame.toLine()).isEqualTo(2);
@@ -337,7 +361,8 @@ class GitServiceBlameTest {
             GitBlameRunner runner = new GitBlameRunner(
                     paths, repository, new VisibleFiles(service.project(), paths, repository), Duration.ZERO);
 
-            assertThatThrownBy(() -> runner.blame("f.txt", null)).isInstanceOf(GitReadTimeoutException.class);
+            assertThatThrownBy(() -> runner.blame("f.txt", null, BlameMatching.EXACT))
+                    .isInstanceOf(GitReadTimeoutException.class);
         }
     }
 
@@ -357,7 +382,7 @@ class GitServiceBlameTest {
         GitService shallow = TestProjects.gitService(cloneDir.resolve("shallow"), false);
 
         GitFileBlame blame = shallow.getBlame(null, "f.txt");
-        GitFileBlame ranged = shallow.getBlame("HEAD", "f.txt", 1, 1);
+        GitFileBlame ranged = shallow.getBlame("HEAD", "f.txt", 1, 1, BlameMatching.EXACT);
 
         assertThat(blame.hunks())
                 .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::summary, GitFileBlame.Hunk::boundary)

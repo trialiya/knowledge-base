@@ -26,6 +26,7 @@ import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.tool.ToolResult;
+import io.github.trialiya.kb.service.file.git.BlameMatching;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.tools.ProjectContext;
@@ -81,7 +82,7 @@ class GitFunctionTest {
         when(billing.searchCommitLog(anyString(), anyInt(), any(), anyBoolean()))
                 .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
-        when(billing.getBlame(any(), anyString(), any(), any()))
+        when(billing.getBlame(any(), anyString(), any(), any(), any()))
                 .thenReturn(new GitFileBlame(
                         "pom.xml",
                         null,
@@ -167,7 +168,7 @@ class GitFunctionTest {
                         history.getCommitLog(context, null, null, null, null, "billing"),
                         history.getCommitDiff(context, "abc1234", null, null, "billing"),
                         function.getUncommittedChanges(context, null, null, null, "billing"),
-                        history.getBlame(context, "pom.xml", 1, 2, null, "billing"),
+                        history.getBlame(context, "pom.xml", 1, 2, null, null, "billing"),
                         history.getLineOrigin(context, "pom.xml", 3, "junit", null, "billing")))
                 .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"))
                 .allSatisfy(r -> assertThat(r.result()).isNotNull());
@@ -238,11 +239,24 @@ class GitFunctionTest {
     void blameHandsTheRangeAndRevisionToTheService() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        ToolResult<GitBlameAnswer> answer = history.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null);
+        ToolResult<GitBlameAnswer> answer = history.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null, null);
 
-        verify(billing).getBlame("HEAD~1", "pom.xml", 3, 9);
+        verify(billing).getBlame("HEAD~1", "pom.xml", 3, 9, new BlameMatching(true, true));
         assertThat(answer.truncated()).isNotEqualTo(Boolean.TRUE);
         assertThat(answer.result().hunks()).hasSize(1);
+    }
+
+    /**
+     * Модель спрашивает, кто написал логику: по умолчанию blame смотрит сквозь пробелы и за
+     * перенос строк. {@code ignoreWhitespace=false} выключает только {@code -w} — перенос остаётся.
+     */
+    @Test
+    void blameLooksPastWhitespaceUnlessTheCallSaysOtherwise() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+
+        history.getBlame(context, "pom.xml", 1, 2, null, false, null);
+
+        verify(billing).getBlame(null, "pom.xml", 1, 2, new BlameMatching(false, true));
     }
 
     /**

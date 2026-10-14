@@ -72,14 +72,15 @@ final class GitBlameRunner {
      *
      * @param normalized a path {@link RepoPaths#normalize} has cleaned
      * @param range the lines to blame; {@code null} — the whole file
+     * @param matching how a line is paired with its earlier version
      * @throws IllegalArgumentException if the path is not served, is not tracked (blame needs
      *     history, and an untracked file has none), or is binary
      * @throws GitReadTimeoutException if git did not answer in time
      */
-    GitFileBlame blame(String normalized, @Nullable Range range) {
+    GitFileBlame blame(String normalized, @Nullable Range range, BlameMatching matching) {
         Target target = workingTree(normalized);
         int total = range == null ? 0 : target.count().getAsInt();
-        return run(normalized, target.ignored(), null, range, total, target.count());
+        return run(new Run(normalized, target.ignored(), matching, null), range, total, target.count());
     }
 
     /**
@@ -89,13 +90,14 @@ final class GitBlameRunner {
      * @param rev hash (full or short), branch, tag or {@code HEAD~2}; resolved through JGit first,
      *     so only a hash ever reaches the command line
      * @param range the lines to blame; {@code null} — the whole file
+     * @param matching how a line is paired with its earlier version
      * @throws IllegalArgumentException if the revision is unknown or ambiguous, the commit holds no
      *     file at that path, or the file is binary
      */
-    GitFileBlame blameAt(String rev, String normalized, @Nullable Range range) {
+    GitFileBlame blameAt(String rev, String normalized, @Nullable Range range, BlameMatching matching) {
         Target target = snapshot(rev, normalized);
         int total = range == null ? 0 : target.count().getAsInt();
-        return run(normalized, target.ignored(), target.commit(), range, total, null);
+        return run(new Run(normalized, target.ignored(), matching, target.commit()), range, total, null);
     }
 
     /**
@@ -133,6 +135,21 @@ final class GitBlameRunner {
     }
 
     /**
+     * What every git run of one blame shares: the file, the revisions skipped, the matching, and the
+     * commit read at ({@code null} — the working tree).
+     */
+    private record Run(
+            String path,
+            List<String> ignored,
+            BlameMatching matching,
+            @Nullable String commit) {
+
+        List<String> command(GitBlame.@Nullable Lines lines) {
+            return GitBlame.args(path, ignored, matching, lines, commit);
+        }
+    }
+
+    /**
      * The lines asked about, before they are fitted to the file: either bound may be missing — the
      * file's own edge — or lie outside it.
      */
@@ -165,24 +182,18 @@ final class GitBlameRunner {
      * @param recount for the working tree, a fresh count of its lines; {@code null} for a snapshot,
      *     whose count cannot change
      */
-    private GitFileBlame run(
-            String normalized,
-            List<String> ignored,
-            @Nullable String commit,
-            @Nullable Range range,
-            int total,
-            @Nullable IntSupplier recount) {
+    private GitFileBlame run(Run run, @Nullable Range range, int total, @Nullable IntSupplier recount) {
         Set<String> cut = ShallowClone.boundaries(repository);
         if (range == null) {
-            List<String> command = GitBlame.args(normalized, ignored, null, commit);
-            GitReadProcess.Output out = exec(command, normalized);
+            List<String> command = run.command(null);
+            GitReadProcess.Output out = exec(command, run.path());
             out.requireExit(command, 0);
             List<GitFileBlame.Hunk> hunks = hunks(out, cut);
             int lineCount =
                     hunks.stream().mapToInt(GitFileBlame.Hunk::lineCount).sum();
-            return new GitFileBlame(normalized, commit, lineCount, hunks, null, null);
+            return new GitFileBlame(run.path(), run.commit(), lineCount, hunks, null, null);
         }
-        return ranged(normalized, ignored, commit, range, total, recount, cut);
+        return ranged(run, range, total, recount, cut);
     }
 
     /**
@@ -194,31 +205,25 @@ final class GitBlameRunner {
      * @param cut the shallow clone's boundary commits, read before the first run (see {@link
      *     #hunks})
      */
-    private GitFileBlame ranged(
-            String normalized,
-            List<String> ignored,
-            @Nullable String commit,
-            Range range,
-            int total,
-            @Nullable IntSupplier recount,
-            Set<String> cut) {
+    private GitFileBlame ranged(Run run, Range range, int total, @Nullable IntSupplier recount, Set<String> cut) {
+        String normalized = run.path();
         GitBlame.Lines lines = GitBlame.fit(range.fromLine(), range.toLine(), total);
         if (lines == null) {
             // The range starts past the file's end (GitService refuses a reversed one): git would
             // refuse it outright, and an empty answer naming the file's length says more.
             int from = range.fromLine() == null ? 1 : Math.max(1, range.fromLine());
-            return new GitFileBlame(normalized, commit, total, List.of(), from, from - 1);
+            return new GitFileBlame(normalized, run.commit(), total, List.of(), from, from - 1);
         }
-        List<String> command = GitBlame.args(normalized, ignored, lines, commit);
+        List<String> command = run.command(lines);
         GitReadProcess.Output out = exec(command, normalized);
         if (out.exit() != 0 && recount != null) {
             int now = recount.getAsInt();
             if (now < total) {
-                return ranged(normalized, ignored, commit, range, now, null, cut);
+                return ranged(run, range, now, null, cut);
             }
         }
         out.requireExit(command, 0);
-        return new GitFileBlame(normalized, commit, total, hunks(out, cut), lines.from(), lines.to());
+        return new GitFileBlame(normalized, run.commit(), total, hunks(out, cut), lines.from(), lines.to());
     }
 
     /**
