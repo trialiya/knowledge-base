@@ -5,6 +5,7 @@ import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 import static io.github.trialiya.kb.tools.ToolArgs.requireValue;
 
+import io.github.trialiya.kb.model.git.dto.GitBlameAnswer;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
@@ -162,9 +163,10 @@ public class GitHistoryFunction {
      * <p>Answers with the hunks alone, not the text of the lines: the model comes here about lines
      * it has already read, and the description points it on from a hunk to the commit that wrote
      * it. A long history is cut at {@link BlameBudget#MAX_HUNKS} hunks, with {@code truncated} and
-     * the answer's {@code toLine} saying where to go on from.
+     * the answer's {@code toLine} saying where to go on from. Each commit is described once, not on
+     * every hunk ({@link GitBlameAnswer}).
      *
-     * <p>In a shallow clone the oldest commit takes every line older than the clone; the hunk says
+     * <p>In a shallow clone the oldest commit takes every line older than the clone; the commit says
      * {@code boundary} so the model does not name it the author (see {@link GitFileBlame.Hunk}).
      *
      * @param filePath path relative to repo root
@@ -174,11 +176,13 @@ public class GitHistoryFunction {
      */
     @Tool(
             description = "Who last changed each line of a file (git blame). Answers with hunks —"
-                    + " consecutive lines from one commit: fromLine, lineCount, hash, author,"
-                    + " date, summary (commit subject), and path + sourceLine (the file's path"
-                    + " and the hunk's first line in that commit — they differ after a rename"
-                    + " or after edits above). A hunk with no hash is an uncommitted edit."
-                    + " \"boundary\": true marks a hunk at the cut of a shallow clone: its"
+                    + " consecutive lines from one commit: fromLine, lineCount, hash, and"
+                    + " path + sourceLine (the file's path and the hunk's first line in that"
+                    + " commit — they differ after a rename or after edits above; absent means"
+                    + " the same as the file's path and fromLine). Each commit is described once"
+                    + " in \"commits\", keyed by the full hash: author, date, summary (commit"
+                    + " subject). A hunk with no hash is an uncommitted edit."
+                    + " \"boundary\": true marks a commit at the cut of a shallow clone: its"
                     + " lines are as old as that commit or older, and who wrote them is not in"
                     + " this clone (no author, no summary) — say so, do not credit the commit,"
                     + " and do not diff it: with no parent here, its diff shows every line added."
@@ -197,7 +201,7 @@ public class GitHistoryFunction {
                     + " [shortHash](/files?rev=HASH&project=ID) with the full hash and the"
                     + " response's project field.",
             resultConverter = CompactToolResultConverter.class)
-    public ToolResult<GitFileBlame> getBlame(
+    public ToolResult<GitBlameAnswer> getBlame(
             ToolContext context,
             @ToolParam(description = "File path relative to repo root.") String filePath,
             @ToolParam(description = "First line (1-based, inclusive). Null for start of file.", required = false)
@@ -226,7 +230,7 @@ public class GitHistoryFunction {
         GitService git = reads.git(context, project);
         GitFileBlame blame = git.getBlame(commit, filePath, fromLine, toLine);
         log.debug("getBlame called: {} hunks over lines {}-{}", blame.hunks().size(), blame.fromLine(), blame.toLine());
-        return GitReads.answer(git, BlameBudget.cap(blame), BlameBudget.cut(blame));
+        return GitReads.answer(git, GitBlameAnswer.of(BlameBudget.cap(blame)), BlameBudget.cut(blame));
     }
 
     /**

@@ -1,8 +1,9 @@
 import { detectBlameResult } from './blameResult';
 import { detectResultView, parseResult } from './registry';
 
-// Данные — форма настоящего ответа getBlame: ToolResult вокруг GitFileBlame,
-// пустые поля Jackson не печатает (у незакоммиченного ханка нет ничего о коммите).
+// Данные — две формы ответа getBlame, обе в ToolResult: нынешняя (GitBlameAnswer —
+// коммиты в словаре `commits`, ханк без совпадающих пути и строки) и сохранённая в
+// старых чатах (GitFileBlame — всё в ханке). Пустые поля Jackson не печатает.
 
 const HASH = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
 
@@ -69,6 +70,39 @@ describe('detectBlameResult — что попадает в «Обзор»', () =
     const data = detect(answer({ path: 'a.txt', lineCount: 3, hunks: [], fromLine: 10, toLine: 9 }));
     expect(data.range.empty).toBe(true);
     expect(data.rows).toEqual([]);
+  });
+
+  it('словарь коммитов: поля коммита, путь файла и fromLine вместо опущенных', () => {
+    const data = detect(
+      answer({
+        path: 'src/Foo.java',
+        lineCount: 40,
+        commits: { [HASH]: { author: 'Alice', date: '2024-03-01T10:00:00+03:00', summary: 'Fix parser' } },
+        hunks: [
+          { fromLine: 12, lineCount: 2, hash: HASH },
+          { fromLine: 14, lineCount: 1, hash: HASH, path: 'src/old/Foo.java', sourceLine: 3 },
+        ],
+      }),
+    );
+    expect(data.rows[0]).toMatchObject({ author: 'Alice', summary: 'Fix parser', boundary: false });
+    expect(data.rows[0].href).toBe(`/files/src/Foo.java?project=billing&rev=${HASH}&lines=12-13&right=commit`);
+    expect(data.rows[1].href).toBe(`/files/src/old/Foo.java?project=billing&rev=${HASH}&lines=3&right=commit`);
+  });
+
+  it('граница клона в словаре — у всех ханков этого коммита', () => {
+    const data = detect(
+      answer({
+        path: 'a.txt',
+        lineCount: 3,
+        commits: { [HASH]: { date: '2024-03-01T10:00:00Z', boundary: true } },
+        hunks: [
+          { fromLine: 1, lineCount: 2, hash: HASH },
+          { fromLine: 3, lineCount: 1 },
+        ],
+      }),
+    );
+    expect(data.rows[0]).toMatchObject({ boundary: true, author: null });
+    expect(data.rows[1].uncommitted).toBe(true);
   });
 
   it('объект не той формы вид не берёт', () => {

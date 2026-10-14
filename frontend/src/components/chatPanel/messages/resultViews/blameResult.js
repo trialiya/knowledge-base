@@ -3,9 +3,11 @@
 // описанием коммита.
 //
 // Разбор — по форме (см. registry.js): объект с путём и массивом `hunks`, у
-// каждого ханка числовые `fromLine` и `lineCount`. Так выглядит и ответ REST
-// колонки blame (`GitFileBlame`), но в модалку вызова приходит только ответ
-// инструмента.
+// каждого ханка числовые `fromLine` и `lineCount`. Инструмент описывает каждый
+// коммит один раз, в словаре `commits` по хешу (`GitBlameAnswer`), а ханк
+// опускает путь и строку, совпадающие с путём файла и `fromLine`. Вызовы,
+// сохранённые до этой формы, несут поля коммита в самом ханке (`GitFileBlame`) —
+// разбор принимает обе.
 
 import { isPlainObject } from './contentResult';
 import { filesUrl, formatLines } from '@/navigation/urlScheme';
@@ -18,6 +20,12 @@ const isHunk = (hunk) => isPlainObject(hunk) && isLine(hunk.fromLine) && isLine(
 
 const HASH = /^[0-9a-f]{7,64}$/i;
 
+/** Ханк с полями своего коммита: из словаря `commits`, если они не в самом ханке. */
+const withCommit = (hunk, commits) => {
+  const commit = typeof hunk.hash === 'string' ? commits[hunk.hash] : null;
+  return isPlainObject(commit) ? { ...commit, ...hunk } : hunk;
+};
+
 /**
  * Ханк → строка вида. Ссылка с номеров строк ведёт туда же, куда ячейка
  * колонки blame в «Файлах»: файл в снимке того коммита, по его пути и его
@@ -29,7 +37,7 @@ const toRow = (hunk, i, file, project) => {
   const hash = typeof hunk.hash === 'string' && HASH.test(hunk.hash) ? hunk.hash : null;
   if (!hash) return { key: `hunk-${i}`, lines, uncommitted: true };
 
-  const source = isLine(hunk.sourceLine) ? formatLines(hunk.sourceLine, hunk.lineCount) : undefined;
+  const source = formatLines(isLine(hunk.sourceLine) ? hunk.sourceLine : hunk.fromLine, hunk.lineCount);
   return {
     key: `hunk-${i}`,
     lines,
@@ -52,11 +60,12 @@ const toRow = (hunk, i, file, project) => {
 /** Разобранный ответ вызова → данные для `<BlameResultView>`, либо null. */
 export const detectBlameResult = ({ parsed, isJson, project = null, truncated = false }) => {
   if (!isJson || !isPlainObject(parsed)) return null;
-  const { path, commit, lineCount, hunks, fromLine, toLine } = parsed;
+  const { path, commit, lineCount, hunks, fromLine, toLine, commits } = parsed;
   if (typeof path !== 'string' || !path || !Number.isInteger(lineCount) || !Array.isArray(hunks)) return null;
   if (!hunks.every(isHunk)) return null;
 
   const rev = typeof commit === 'string' && commit ? commit : null;
+  const described = isPlainObject(commits) ? commits : {};
   const ranged = isLine(fromLine) && Number.isInteger(toLine);
   return {
     path,
@@ -69,7 +78,7 @@ export const detectBlameResult = ({ parsed, isJson, project = null, truncated = 
       rev: rev ?? undefined,
       lines: ranged && toLine >= fromLine ? formatLines(fromLine, toLine - fromLine + 1) : undefined,
     }),
-    rows: hunks.map((hunk, i) => toRow(hunk, i, path, project)),
+    rows: hunks.map((hunk, i) => toRow(withCommit(hunk, described), i, path, project)),
     project,
     truncated,
   };

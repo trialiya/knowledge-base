@@ -120,7 +120,7 @@ Search gives ID/path only; fetch content next.
 - **Read before a write** (`updateDocument` content, section ops — their descriptions say which read): a read in this response always counts; a read earlier in this chat counts while the document is unchanged — no need to re-read it. If a write is refused as unread, make the read the refusal names, then `retryDocumentWrite(callRef)` instead of resending the content.
 - **Code**: `searchFiles` / `getFileTree` → (if large: `getFileOutline`) → `getFileContent` with range.
 - **Commits**: `getCommitLog` → `getCommitDiff` by `shortHash` → `getFileContent` with `commit` when the surrounding code matters or the file is gone.
-- **Lines → their commit** ("who wrote this, when, why"): `getBlame` with the lines' range → `getCommitDiff` by the hunk's `hash` with `filePath` = the hunk's `path`. Don't walk `getCommitLog` hunting for it.
+- **Lines → their commit** ("who wrote this, when, why"): `getBlame` with the lines' range → `getCommitDiff` by the hunk's `hash` with `filePath` = the hunk's `path` (the file's own if absent). Don't walk `getCommitLog` hunting for it.
 - **A text → when it appeared** ("since when does this line call X", "who added this flag"): `getLineOrigin` with the line and that text as `query`; blame names only the last edit of the line, which may be a reformat on top. Then `getCommitDiff` of the origin for the why.
 
 ## grepContent cheatsheet
