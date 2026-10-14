@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.function.IntSupplier;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Repository;
@@ -170,16 +171,19 @@ final class GitBlameRunner {
             @Nullable Range range,
             int total,
             @Nullable IntSupplier recount) {
+        // Read before git runs, not after: a fetch that deepens the clone meanwhile then leaves a
+        // mark too many ("this old or older" on lines git did credit), never one too few.
+        Set<String> cut = ShallowClone.boundaries(repository);
         if (range == null) {
             List<String> command = GitBlame.args(normalized, ignored, null, commit);
             GitReadProcess.Output out = exec(command, normalized);
             out.requireExit(command, 0);
-            List<GitFileBlame.Hunk> hunks = hunks(out);
+            List<GitFileBlame.Hunk> hunks = GitBlame.markBoundaries(GitBlame.parse(out.lines()), cut);
             int lineCount =
                     hunks.stream().mapToInt(GitFileBlame.Hunk::lineCount).sum();
             return new GitFileBlame(normalized, commit, lineCount, hunks, null, null);
         }
-        return ranged(normalized, ignored, commit, range, total, recount);
+        return ranged(normalized, ignored, commit, range, total, recount, cut);
     }
 
     /**
@@ -188,6 +192,7 @@ final class GitBlameRunner {
      *     and a range fitted to the old length then starts past the new end. A shorter recount
      *     fits the range again and asks once more; anything else is git's refusal as it stands.
      *     The refusal's own text is not read for the length: git translates it
+     * @param cut the shallow clone's boundary commits, read before the first run
      */
     private GitFileBlame ranged(
             String normalized,
@@ -195,7 +200,8 @@ final class GitBlameRunner {
             @Nullable String commit,
             Range range,
             int total,
-            @Nullable IntSupplier recount) {
+            @Nullable IntSupplier recount,
+            Set<String> cut) {
         GitBlame.Lines lines = GitBlame.fit(range.fromLine(), range.toLine(), total);
         if (lines == null) {
             // The range starts past the file's end (GitService refuses a reversed one): git would
@@ -208,16 +214,12 @@ final class GitBlameRunner {
         if (out.exit() != 0 && recount != null) {
             int now = recount.getAsInt();
             if (now < total) {
-                return ranged(normalized, ignored, commit, range, now, null);
+                return ranged(normalized, ignored, commit, range, now, null, cut);
             }
         }
         out.requireExit(command, 0);
-        return new GitFileBlame(normalized, commit, total, hunks(out), lines.from(), lines.to());
-    }
-
-    /** The run's hunks, those that reached the edge of a shallow clone's history marked. */
-    private List<GitFileBlame.Hunk> hunks(GitReadProcess.Output out) {
-        return GitBlame.markBoundaries(GitBlame.parse(out.lines()), ShallowClone.boundaries(repository));
+        List<GitFileBlame.Hunk> hunks = GitBlame.markBoundaries(GitBlame.parse(out.lines()), cut);
+        return new GitFileBlame(normalized, commit, total, hunks, lines.from(), lines.to());
     }
 
     /** One run, refused when it fills the output ceiling; the exit code is the caller's to read. */

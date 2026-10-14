@@ -18,8 +18,8 @@ import org.jspecify.annotations.Nullable;
  * пропущены: их строки приписаны тому, кто менял их до этого.
  *
  * <p>В неглубоком (shallow) клоне git приписывает самому старому коммиту клона все строки, которые
- * старше него, — такой ханк помечен {@code boundary}: строки не моложе этого коммита, но не
- * обязательно им написаны, и настоящего автора клон не знает.
+ * старше него, — такой ханк помечен {@code boundary} и идёт без автора и описания коммита: строки не
+ * моложе этого коммита, но не обязательно им написаны, и настоящего автора клон не знает.
  *
  * <p>Репозиторий ответ не называет: он один на всю выдачу и известен клиенту из запроса, а модели —
  * из обёртки ответа ({@code ToolResult}). Пустые поля в JSON не печатаются: отсутствующее поле
@@ -64,7 +64,8 @@ public record GitFileBlame(
      * Строки {@code fromLine}…{@code fromLine + lineCount - 1}, последними изменённые одним коммитом.
      *
      * <p>Все поля о коммите либо заполнены, либо все {@code null}: второе — строки, которых ещё нет
-     * ни в одном коммите (незакоммиченная правка в рабочем дереве).
+     * ни в одном коммите (незакоммиченная правка в рабочем дереве). Исключение — ханк на границе
+     * клона ({@code boundary}): у него нет автора и описания.
      *
      * @param fromLine первая строка диапазона (1-based)
      * @param lineCount сколько строк в диапазоне
@@ -117,15 +118,19 @@ public record GitFileBlame(
             this(fromLine, lineCount, hash, author, date, summary, path, sourceLine, false);
         }
 
-        /** Тот же ханк, помеченный границей неглубокого клона. */
+        /**
+         * Тот же ханк, помеченный границей неглубокого клона, — без автора и описания коммита: они
+         * говорили бы, кто и зачем написал строки, а этого клон не знает. Хеш, дата, путь и строка
+         * остаются: по ним ссылка ведёт в тот коммит, и строки не моложе его даты.
+         */
         public Hunk atBoundary() {
-            return new Hunk(fromLine, lineCount, hash, author, date, summary, path, sourceLine, true);
+            return new Hunk(fromLine, lineCount, hash, null, date, null, path, sourceLine, true);
         }
 
         /**
          * {@code 12-18 a1b2c3d Alice 2024-03-01 Fix parser}; без коммита — {@code 19 uncommitted};
-         * на границе клона — без автора и описания, которые строкам не принадлежат: {@code 12-18
-         * a1b2c3d boundary 2024-03-01}.
+         * на границе клона — {@code 12-18 a1b2c3d boundary 2024-03-01} (автора и описания у такого
+         * ханка нет).
          */
         String gist() {
             int to = fromLine + lineCount - 1;
@@ -138,10 +143,6 @@ public record GitFileBlame(
             StringJoiner gist = new StringJoiner(" ").add(lines).add(hash.substring(0, 7));
             if (boundary) {
                 gist.add("boundary");
-                if (date != null) {
-                    gist.add(date.toLocalDate().toString());
-                }
-                return gist.toString();
             }
             if (author != null) {
                 gist.add(author);

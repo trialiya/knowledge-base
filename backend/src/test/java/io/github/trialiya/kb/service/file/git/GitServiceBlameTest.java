@@ -361,7 +361,7 @@ class GitServiceBlameTest {
 
         assertThat(blame.hunks())
                 .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::summary, GitFileBlame.Hunk::boundary)
-                .containsExactly(tuple(1, "second", true), tuple(3, "third", false));
+                .containsExactly(tuple(1, null, true), tuple(3, "third", false));
         assertThat(ranged.hunks())
                 .singleElement()
                 .extracting(GitFileBlame.Hunk::boundary)

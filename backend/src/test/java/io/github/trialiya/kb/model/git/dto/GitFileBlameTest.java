@@ -49,7 +49,7 @@ class GitFileBlameTest {
     }
 
     @Test
-    void aBoundaryHunkIsMarkedInTheGistWithoutTheCommitsAuthor() {
+    void aBoundaryHunkIsMarkedInTheGist() {
         GitFileBlame blame = new GitFileBlame(
                 "a.txt",
                 null,

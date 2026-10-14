@@ -32,7 +32,7 @@ describe('BlameResultView', () => {
     expect(document.querySelector('.tool-blame__uncommitted')).not.toBeNull();
   });
 
-  it('граница клона — подпись вместо автора и описания того коммита, хеш остаётся ссылкой', () => {
+  it('граница клона — подпись на месте описания, хеш остаётся ссылкой', () => {
     render(
       <BlameResultView
         data={view({
@@ -43,8 +43,7 @@ describe('BlameResultView', () => {
               fromLine: 1,
               lineCount: 2,
               hash: HASH,
-              author: 'Alice',
-              summary: 'Squash',
+              date: '2024-03-01T10:00:00Z',
               sourceLine: 1,
               boundary: true,
             },
@@ -54,9 +53,8 @@ describe('BlameResultView', () => {
     );
 
     expect(screen.getByText('a1b2c3d').closest('a')).toHaveAttribute('href', commitUrl(HASH, 'billing'));
-    expect(screen.queryByText('Squash')).toBeNull();
-    expect(screen.queryByText('Alice')).toBeNull();
-    expect(document.querySelector('.tool-blame__boundary')).not.toBeNull();
+    expect(document.querySelector('.tool-blame__boundary')).toHaveTextContent(/start of the clone's history/);
+    expect(document.querySelector('.tool-blame__date')).not.toBeEmptyDOMElement();
   });
 
   it('диапазон за концом файла — подпись вместо строк', () => {

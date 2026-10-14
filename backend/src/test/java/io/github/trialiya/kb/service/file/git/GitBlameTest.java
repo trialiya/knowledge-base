@@ -207,6 +207,10 @@ class GitBlameTest {
         assertThat(GitBlame.markBoundaries(hunks, Set.of(cut)))
                 .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::boundary)
                 .containsExactly(tuple(1, true), tuple(3, false), tuple(4, false), tuple(5, true));
+        // Кто и зачем писал строки на границе, клон не знает: ни автора, ни описания.
+        assertThat(GitBlame.markBoundaries(hunks, Set.of(cut)).getFirst())
+                .extracting(GitFileBlame.Hunk::hash, GitFileBlame.Hunk::author, GitFileBlame.Hunk::summary)
+                .containsExactly(cut, null, null);
         assertThat(GitBlame.markBoundaries(hunks, Set.of())).isSameAs(hunks);
     }
 }
