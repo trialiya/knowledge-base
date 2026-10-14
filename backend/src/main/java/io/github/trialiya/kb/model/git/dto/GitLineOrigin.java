@@ -42,7 +42,11 @@ public record GitLineOrigin(
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Step before)
         implements ToolCallResponseItem {
 
-    /** Плашка вызова: что спрашивали, чем кончилось, и коммит-ответ с версией «до». */
+    /**
+     * Плашка вызова: что спрашивали, чем кончилось, последний шаг и версия «до». Последний шаг —
+     * ответ ({@code origin}) только при {@link Status#FOUND}; иначе это самый старый из пройденных
+     * ({@code oldest}), и называть его ответом плашка не должна.
+     */
     @Override
     public String getFormattedResponse() {
         StringBuilder gist = new StringBuilder(Compact.tag("origin:" + path + ":" + line)
@@ -52,7 +56,8 @@ public record GitLineOrigin(
                 .add("steps", steps.size())
                 .done());
         if (!steps.isEmpty()) {
-            gist.append("\norigin ").append(steps.getLast().gist());
+            gist.append(status == Status.FOUND ? "\norigin " : "\noldest ")
+                    .append(steps.getLast().gist());
         }
         if (before != null) {
             gist.append("\nbefore ").append(before.gist());

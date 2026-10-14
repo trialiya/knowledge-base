@@ -33,6 +33,21 @@ class GitLineOriginTest {
                 .endsWith("\nbefore e4f5a6b");
     }
 
+    /** Обход, оборванный пределом, называет последний шаг самым старым, а не ответом. */
+    @Test
+    void aWalkCutShortNamesItsLastStepTheOldestNotTheOrigin() {
+        GitLineOrigin origin = new GitLineOrigin(
+                "a.txt",
+                1,
+                "x",
+                null,
+                GitLineOrigin.Status.LIMIT,
+                List.of(new GitLineOrigin.Step(OLD, "Alice", DATE, "Old", "a.txt", 1, "x")),
+                null);
+
+        assertThat(origin.getFormattedResponse()).endsWith("\noldest e4f5a6b Alice 2024-03-01 Old");
+    }
+
     /** На границе клона автор и тема коммита не печатаются: строку он мог и не писать. */
     @Test
     void aBoundaryStepCarriesNoAuthorAndSaysSo() {

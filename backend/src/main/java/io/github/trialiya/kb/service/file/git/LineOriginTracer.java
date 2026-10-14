@@ -342,7 +342,8 @@ final class LineOriginTracer {
             if (answer.walked() == LineOrigin.MAX_STEPS) {
                 return answer.status(Status.LIMIT);
             }
-            answer.step(step(version));
+            GitLineOrigin.Step step = step(version);
+            answer.step(step);
             Next next;
             try {
                 next = previous(walk, version, needle, deadline);
@@ -357,7 +358,7 @@ final class LineOriginTracer {
                     return settleWithBefore(walk, answer, Status.FOUND, without.at(), without.text(), deadline);
                 }
                 case Next.None() -> {
-                    return answer.status(shallowBoundary(version.commit()) ? Status.BOUNDARY : Status.FOUND);
+                    return answer.status(step.boundary() ? Status.BOUNDARY : Status.FOUND);
                 }
             }
         }
@@ -373,8 +374,9 @@ final class LineOriginTracer {
             RevWalk walk, Answer answer, Status status, @Nullable At before, @Nullable String text, long deadline)
             throws IOException {
         if (before != null && text != null) {
-            answer.before(new GitLineOrigin.Step(
-                    before.commit().name(), null, null, null, before.path(), before.line() + 1, LineOrigin.cap(text)));
+            GitLineOrigin.Step placed = new GitLineOrigin.Step(
+                    before.commit().name(), null, null, null, before.path(), before.line() + 1, LineOrigin.cap(text));
+            answer.before(shallowBoundary(before.commit()) ? placed.atBoundary() : placed);
         }
         answer.settle(status);
         if (before != null) {
