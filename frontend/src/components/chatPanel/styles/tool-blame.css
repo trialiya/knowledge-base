@@ -88,18 +88,14 @@
   padding-right: 10px;
 }
 
-/* Незакоммиченные строки: подпись занимает всё место за номерами. */
+/* Незакоммиченные строки: подпись занимает всё место за номерами. Граница
+   неглубокого клона — подпись на месте описания: описание того коммита ничего
+   не говорит о строках. */
 .tool-blame__uncommitted {
   grid-column: 2 / -1;
-  padding-right: 10px;
-  font-style: italic;
-  color: var(--kb-text-faint);
 }
-
-/* Граница неглубокого клона: автор и описание того коммита ничего не говорят о
-   строках, поэтому вместо них — одна подпись, как у незакоммиченных. */
+.tool-blame__uncommitted,
 .tool-blame__boundary {
-  grid-column: 3 / -1;
   padding-right: 10px;
   font-style: italic;
   color: var(--kb-text-faint);

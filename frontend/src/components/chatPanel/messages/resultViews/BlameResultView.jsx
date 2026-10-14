@@ -5,9 +5,9 @@ import ResultSummary from './resultSummary';
 
 // Режим «Обзор» для ответа `getBlame`: файл и диапазон, под ними строка на
 // ханк — номера строк, хеш, автор, дата, описание коммита. Ханки не
-// сворачиваются: строка ханка и есть всё, что о нём известно. Ханк на границе
-// неглубокого клона вместо автора и описания говорит, что история здесь обрезана:
-// автор того коммита строк не писал.
+// сворачиваются: строка ханка и есть всё, что о нём известно. У ханка на границе
+// неглубокого клона нет автора, а вместо описания — что история здесь обрезана:
+// автор того коммита этих строк мог и не писать. Дата остаётся: строки не моложе её.
 //
 // Ссылки открываются в новой вкладке, как и остальные ссылки модалки: переход
 // внутри приложения увёл бы раздел из-под открытого окна.
@@ -39,14 +39,12 @@ const BlameRow = ({ row, project }) => {
       <CommitHashLink className="commit-hash-link" rev={row.hash} project={project} newTab>
         {row.shortHash}
       </CommitHashLink>
+      <span className="tool-blame__author">{row.boundary ? null : row.author}</span>
+      <span className="tool-blame__date">{formatCompactDateTime(row.date, i18n.language)}</span>
       {row.boundary ? (
-        <span className="tool-blame__boundary">{t('toolCall.detail.blame.boundary')}</span>
+        <span className="tool-blame__summary tool-blame__boundary">{t('toolCall.detail.blame.boundary')}</span>
       ) : (
-        <>
-          <span className="tool-blame__author">{row.author}</span>
-          <span className="tool-blame__date">{formatCompactDateTime(row.date, i18n.language)}</span>
-          <span className="tool-blame__summary">{row.summary}</span>
-        </>
+        <span className="tool-blame__summary">{row.summary}</span>
       )}
     </div>
   );

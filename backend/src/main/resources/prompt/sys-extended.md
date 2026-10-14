@@ -42,7 +42,7 @@ The sub-agent starts from a blank conversation: it sees this one call and nothin
 **I need to understand what changed:**
 1. Know commit hash? → `getCommitDiff` by `shortHash`
 2. Know what the change was about (a feature, a bug, a word from its message)? → `getCommitLog` with `query` — it searches subjects and descriptions — then `getCommitDiff`
-3. Know the lines, not the commit ("who wrote this / when / why is it like this")? → `getBlame` with `fromLine`/`toLine` of just those lines, then `getCommitDiff` by the hunk's `hash` with `filePath`
+3. Know the lines, not the commit ("who wrote this / when / why is it like this")? → `getBlame` with `fromLine`/`toLine` of just those lines, then `getCommitDiff` by the hunk's `hash` with `filePath` = the hunk's `path` (after a rename the current path is not in that commit)
 4. Not sure what to look for? → `getCommitLog` (narrow with `filePath`), then `getCommitDiff`
 5. Current working tree changes? → `getUncommittedChanges`
 

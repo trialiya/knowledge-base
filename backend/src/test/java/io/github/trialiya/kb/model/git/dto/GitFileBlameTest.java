@@ -49,16 +49,18 @@ class GitFileBlameTest {
     }
 
     @Test
-    void aBoundaryHunkIsMarkedInTheGist() {
+    void aBoundaryHunkIsMarkedInTheGistWithoutTheCommitsAuthor() {
         GitFileBlame blame = new GitFileBlame(
                 "a.txt",
                 null,
                 3,
-                List.of(new GitFileBlame.Hunk(1, 3, HASH, "Alice", null, "Squash", "a.txt", 1).atBoundary()),
+                List.of(new GitFileBlame.Hunk(
+                                1, 3, HASH, "Alice", OffsetDateTime.parse("2024-03-01T10:00:00Z"), "Squash", "a.txt", 1)
+                        .atBoundary()),
                 null,
                 null);
 
-        assertThat(blame.getFormattedResponse()).endsWith("\n1-3 a1b2c3d(boundary) Alice Squash");
+        assertThat(blame.getFormattedResponse()).endsWith("\n1-3 a1b2c3d boundary 2024-03-01");
     }
 
     /** Флаг печатается только там, где он есть: у обычного ханка ключа {@code boundary} нет. */

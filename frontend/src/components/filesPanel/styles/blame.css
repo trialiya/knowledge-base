@@ -67,12 +67,13 @@
   text-overflow: ellipsis;
   color: var(--kb-text);
 }
-.file-code__blame-summary--boundary {
+/* Граница неглубокого клона подписана на месте описания — тем же приглушённым
+   курсивом, что и незакоммиченные строки. */
+.file-code__blame-summary--boundary,
+.file-code__blame-uncommitted {
   font-style: italic;
   opacity: 0.7;
 }
 .file-code__blame-uncommitted {
-  font-style: italic;
-  opacity: 0.7;
   line-height: calc(0.82rem * 1.6);
 }

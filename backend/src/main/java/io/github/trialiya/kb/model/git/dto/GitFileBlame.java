@@ -18,8 +18,8 @@ import org.jspecify.annotations.Nullable;
  * пропущены: их строки приписаны тому, кто менял их до этого.
  *
  * <p>В неглубоком (shallow) клоне git приписывает самому старому коммиту клона все строки, которые
- * старше него, — такой ханк помечен {@code boundary}: строки не написаны этим коммитом, а лишь не
- * моложе его, и настоящего автора клон не знает.
+ * старше него, — такой ханк помечен {@code boundary}: строки не моложе этого коммита, но не
+ * обязательно им написаны, и настоящего автора клон не знает.
  *
  * <p>Репозиторий ответ не называет: он один на всю выдачу и известен клиенту из запроса, а модели —
  * из обёртки ответа ({@code ToolResult}). Пустые поля в JSON не печатаются: отсутствующее поле
@@ -78,7 +78,7 @@ public record GitFileBlame(
      *     диапазона и там идут подряд, так что ссылка на снимок выделяет их {@code sourceLine}…
      *     {@code sourceLine + lineCount - 1}
      * @param boundary коммит — граница неглубокого клона: история за ним обрезана, и строки ханка
-     *     могут быть старше него. {@code false} в JSON не печатается
+     *     могут быть старше него
      */
     public record Hunk(
             int fromLine,
@@ -124,7 +124,8 @@ public record GitFileBlame(
 
         /**
          * {@code 12-18 a1b2c3d Alice 2024-03-01 Fix parser}; без коммита — {@code 19 uncommitted};
-         * на границе клона хеш помечен: {@code 12-18 a1b2c3d(boundary) …}.
+         * на границе клона — без автора и описания, которые строкам не принадлежат: {@code 12-18
+         * a1b2c3d boundary 2024-03-01}.
          */
         String gist() {
             int to = fromLine + lineCount - 1;
@@ -134,8 +135,14 @@ public record GitFileBlame(
             }
             // Поля коммита приходят вместе, но парсер оставляет голый ханк, если коммит не
             // описан, — плашка тогда без них, а не с «null».
-            StringJoiner gist =
-                    new StringJoiner(" ").add(lines).add(hash.substring(0, 7) + (boundary ? "(boundary)" : ""));
+            StringJoiner gist = new StringJoiner(" ").add(lines).add(hash.substring(0, 7));
+            if (boundary) {
+                gist.add("boundary");
+                if (date != null) {
+                    gist.add(date.toLocalDate().toString());
+                }
+                return gist.toString();
+            }
             if (author != null) {
                 gist.add(author);
             }

@@ -42,8 +42,8 @@
     "showBlame": "Blame",
     "blameTitle": "Who last changed each line; reformatting commits from .git-blame-ignore-revs are skipped",
     "blameUncommitted": "Not committed",
-    "blameBoundary": "Older than the clone",
-    "blameBoundaryTitle": "Shallow clone: its history ends at this commit, and git credits it with every line older than the clone. Who wrote them is not in this clone.",
+    "blameBoundary": "Start of clone history",
+    "blameBoundaryTitle": "Shallow clone: its history starts at this commit, and git credits it with every line older than the clone. The lines are this old or older; who wrote them is not in this clone.",
     "blameError": "Failed to load blame"
   },
   "info": {
