@@ -376,7 +376,7 @@ final class LineOriginTracer {
         if (before != null && text != null) {
             GitLineOrigin.Step placed = new GitLineOrigin.Step(
                     before.commit().name(), null, null, null, before.path(), before.line() + 1, LineOrigin.cap(text));
-            answer.before(shallowBoundary(before.commit()) ? placed.atBoundary() : placed);
+            answer.before(marked(before.commit(), placed));
         }
         answer.settle(status);
         if (before != null) {
@@ -546,7 +546,15 @@ final class LineOriginTracer {
                 version.path(),
                 version.line() + 1,
                 LineOrigin.cap(version.text()));
-        return shallowBoundary(version.commit()) ? step.atBoundary() : step;
+        return marked(version.commit(), step);
+    }
+
+    /**
+     * The step as built, or marked as standing at a shallow clone's cut — the one rule every step
+     * of the answer goes through, wherever it was built.
+     */
+    private GitLineOrigin.Step marked(RevCommit commit, GitLineOrigin.Step step) {
+        return shallowBoundary(commit) ? step.atBoundary() : step;
     }
 
     /** The answer as the walk builds it: steps as they are taken, then {@code before} and the end. */

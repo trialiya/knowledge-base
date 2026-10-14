@@ -1,4 +1,4 @@
-import { describeOrigin } from './lineOrigin';
+import { describeOrigin, versionLink } from './lineOrigin';
 
 // Данные — форма GitLineOrigin с бэкенда: steps от новой версии к старой.
 
@@ -28,5 +28,17 @@ describe('describeOrigin', () => {
     expect(describeOrigin({ status: 'UNCOMMITTED', steps: [], before: step('h', 'x') }).before.hash).toBe('h');
     expect(describeOrigin({ status: 'NOT_IN_LINE', steps: [] })).toMatchObject({ kind: 'notInLine', origin: null });
     expect(describeOrigin({ status: 'SOMETHING_NEW' }).origin).toBeNull();
+  });
+});
+
+describe('versionLink', () => {
+  const at = { hash: 'c1', line: 7 };
+
+  it('версия ведёт в снимок своего коммита на свою строку, с запросом и вкладкой «Коммит»', () => {
+    expect(versionLink(at, 'total')).toEqual({ rev: 'c1', lines: '7', find: 'total', right: 'commit' });
+  });
+
+  it('у «было» запроса нет: в этой версии подстроки по определению нет', () => {
+    expect(versionLink(at, 'total', { before: true })).not.toHaveProperty('find');
   });
 });

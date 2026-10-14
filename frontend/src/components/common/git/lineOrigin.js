@@ -3,6 +3,23 @@
 // (searchPanel/results/LineOrigin.jsx) и «Обзор» вызова в чате: какая подпись,
 // какой коммит назван ответом, есть ли путь строки, который стоит показывать.
 
+import { FILE_TAB } from '@/constants/fileTabs';
+
+/**
+ * Куда ведёт версия строки: файл в снимке того коммита, его номер строки и вкладка
+ * «Коммит». Запрос уходит в find-бар везде, кроме `before`: в той версии подстроки
+ * по определению нет, и find-бар искал бы впустую.
+ *
+ * @param before это версия «до» — строка уже без подстроки
+ * @returns параметры `filesUrl`/`openFilePath` (без пути: путь — `step.path`)
+ */
+export const versionLink = (step, query, { before = false } = {}) => ({
+  rev: step.hash,
+  lines: String(step.line),
+  ...(before ? {} : { find: query }),
+  right: FILE_TAB.COMMIT,
+});
+
 /**
  * @returns {{
  *   kind: 'found' | 'boundary' | 'limit' | 'uncommitted' | 'notInLine',

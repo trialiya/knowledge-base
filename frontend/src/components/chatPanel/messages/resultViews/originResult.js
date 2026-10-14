@@ -7,9 +7,8 @@
 // статусом и массивом `steps`, у каждого шага — хеш, номер строки и текст.
 
 import { isPlainObject } from './contentResult';
-import { describeOrigin } from '@/components/common/git/lineOrigin';
+import { describeOrigin, versionLink } from '@/components/common/git/lineOrigin';
 import { filesUrl } from '@/navigation/urlScheme';
-import { FILE_TAB } from '@/constants/fileTabs';
 import shortRev from '@/components/common/git/shortRev';
 
 const isLine = (value) => Number.isInteger(value) && value >= 1;
@@ -18,19 +17,17 @@ const isStep = (step) =>
   isPlainObject(step) && typeof step.hash === 'string' && isLine(step.line) && typeof step.text === 'string';
 
 /**
- * Шаг → строка вида. Ссылка ведёт туда же, куда строка версии в поиске: файл в
- * снимке того коммита, по его пути и его номеру строки, с запросом в find-баре
- * и вкладкой «Коммит».
+ * Шаг → строка вида. Ссылка — общая с панелью поиска (`versionLink`): файл в
+ * снимке того коммита по его пути и номеру строки, с вкладкой «Коммит».
  */
-const toStep = (step, file, query, project) => ({
+const toStep = (step, file, query, project, before) => ({
   ...step,
   boundary: step.boundary === true,
-  href: filesUrl(typeof step.path === 'string' && step.path ? step.path : file, project, {
-    rev: step.hash,
-    lines: String(step.line),
-    find: query,
-    right: FILE_TAB.COMMIT,
-  }),
+  href: filesUrl(
+    typeof step.path === 'string' && step.path ? step.path : file,
+    project,
+    versionLink(step, query, { before }),
+  ),
 });
 
 /** Разобранный ответ вызова → данные для `<OriginResultView>`, либо null. */
@@ -42,7 +39,7 @@ export const detectOriginResult = ({ parsed, isJson, project = null }) => {
   if (before != null && !isStep(before)) return null;
 
   const view = describeOrigin(parsed);
-  const step = (value) => (value ? toStep(value, path, query, project) : null);
+  const step = (value, before = false) => (value ? toStep(value, path, query, project, before) : null);
   const rev = typeof commit === 'string' && commit ? commit : null;
   return {
     kind: view.kind,
@@ -52,8 +49,8 @@ export const detectOriginResult = ({ parsed, isJson, project = null }) => {
     shortRev: rev ? shortRev(rev) : null,
     href: filesUrl(path, project, { rev: rev ?? undefined, lines: String(line), find: query }),
     origin: step(view.origin),
-    before: step(view.before),
-    versions: view.path.map(step),
+    before: step(view.before, true),
+    versions: view.path.map((value) => step(value)),
     project,
   };
 };

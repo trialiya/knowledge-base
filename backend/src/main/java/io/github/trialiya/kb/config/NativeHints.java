@@ -6,6 +6,7 @@ import io.github.trialiya.kb.functions.ChatInfoFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitEditFunction;
 import io.github.trialiya.kb.functions.GitFunction;
+import io.github.trialiya.kb.functions.GitHistoryFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.functions.SavedScriptFunction;
 import io.github.trialiya.kb.functions.ScriptFunction;
@@ -94,6 +95,7 @@ public class NativeHints implements RuntimeHintsRegistrar {
             DocumentFunction.class,
             GitEditFunction.class,
             GitFunction.class,
+            GitHistoryFunction.class,
             MessageLookupFunction.class,
             SavedScriptFunction.class,
             ScriptFunction.class,

@@ -34,7 +34,8 @@ git-команды — переключение ветки, stash, коммит,
 
 ```
    Модель (@Tool)                          Человек (панель «Файлы», вкладка «Репозиторий» в чате)
-   GitFunction · GitEditFunction ·                 gitApi.js  (?project=…)
+   GitFunction · GitHistoryFunction ·              gitApi.js  (?project=…)
+   GitEditFunction ·
    runScript (kb.*)                                     │
         │ ToolContext.project                           ├── GitController         GET /api/git/**   чтение
         │                                               ├── GitCommandController  POST /api/git/**  команды

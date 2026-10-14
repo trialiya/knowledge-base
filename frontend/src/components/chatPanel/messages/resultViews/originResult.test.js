@@ -44,6 +44,7 @@ describe('detectOriginResult — что попадает в «Обзор»', () 
       `/files/src/old/Foo.java?project=billing&rev=${OLD}&find=total&lines=10&right=commit`,
     );
     expect(data.before.text).toBe('int x = 1;');
+    expect(data.before.href).not.toContain('find=');
     expect(data.versions).toHaveLength(2);
     expect(data.href).toBe('/files/src/Foo.java?project=billing&find=total&lines=12');
   });

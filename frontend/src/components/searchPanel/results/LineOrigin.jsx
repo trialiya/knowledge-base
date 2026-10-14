@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next';
 import AppLink from '@/components/common/ui/AppLink';
 import LineOriginCommit from '@/components/common/git/LineOriginCommit';
 import { highlightSubstring } from '@/components/common/search/highlightMatch';
-import { describeOrigin } from '@/components/common/git/lineOrigin';
-import { FILE_TAB } from '@/constants/fileTabs';
+import { describeOrigin, versionLink } from '@/components/common/git/lineOrigin';
 import { filesUrl } from '@/navigation/urlScheme';
 import useLineOrigin from './useLineOrigin';
 
@@ -29,8 +28,8 @@ const LineOrigin = ({ path, line, query, rev, project, onOpenFile }) => {
   }
 
   const view = describeOrigin(value);
-  const open = (step) => {
-    const options = { rev: step.hash, lines: String(step.line), find: query, right: FILE_TAB.COMMIT };
+  const open = (step, before = false) => {
+    const options = versionLink(step, query, { before });
     return {
       href: filesUrl(step.path, project, options),
       onNavigate: () => onOpenFile(step.path, project, options),
@@ -46,7 +45,7 @@ const LineOrigin = ({ path, line, query, rev, project, onOpenFile }) => {
           <span className="search-origin__label">{t('files.origin.uncommitted')}</span>
         </div>
         {view.before && (
-          <VersionLine label={t('files.origin.was')} step={view.before} query={query} link={open(view.before)} />
+          <VersionLine label={t('files.origin.was')} step={view.before} query={query} link={open(view.before, true)} />
         )}
       </div>
     );
@@ -60,9 +59,15 @@ const LineOrigin = ({ path, line, query, rev, project, onOpenFile }) => {
         <LineOriginCommit step={view.origin} project={project} />
       </div>
       {view.kind === 'boundary' && <div className="search-origin__hint">{t('files.origin.boundaryHint')}</div>}
-      <VersionLine label={t('files.origin.became')} step={view.origin} query={query} link={open(view.origin)} />
+      {/* «Стало» — только у ответа: при BOUNDARY и LIMIT это самая старая пройденная версия. */}
+      <VersionLine
+        label={view.kind === 'found' ? t('files.origin.became') : null}
+        step={view.origin}
+        query={query}
+        link={open(view.origin)}
+      />
       {view.before ? (
-        <VersionLine label={t('files.origin.was')} step={view.before} query={query} link={open(view.before)} />
+        <VersionLine label={t('files.origin.was')} step={view.before} query={query} link={open(view.before, true)} />
       ) : (
         view.kind === 'found' && <div className="search-origin__hint">{t('files.origin.added')}</div>
       )}

@@ -13,6 +13,7 @@ import io.github.trialiya.kb.functions.ChatInfoFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitEditFunction;
 import io.github.trialiya.kb.functions.GitFunction;
+import io.github.trialiya.kb.functions.GitHistoryFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.functions.SavedScriptFunction;
 import io.github.trialiya.kb.functions.ScriptFunction;
@@ -104,6 +105,11 @@ public class ChatConfig {
     @Bean
     public GitFunction gitFunction(GitRegistry gitRegistry) {
         return new GitFunction(gitRegistry);
+    }
+
+    @Bean
+    public GitHistoryFunction gitHistoryFunction(GitRegistry gitRegistry) {
+        return new GitHistoryFunction(gitRegistry);
     }
 
     /**
@@ -458,6 +464,7 @@ public class ChatConfig {
     public ChatToolset chatToolset(
             ChatMessageRepository chatMessageRepository,
             GitFunction gitFunction,
+            GitHistoryFunction gitHistoryFunction,
             ObjectProvider<GitEditFunction> gitEditFunction,
             DocumentFunction documentFunction,
             AttachmentService attachmentService,
@@ -473,6 +480,7 @@ public class ChatConfig {
                 new MessageLookupFunction(chatMessageRepository, contextItemService),
                 documentFunction,
                 gitFunction,
+                gitHistoryFunction,
                 new AttachmentFunction(attachmentService)));
         // Present only when kb.search.subagent.enabled=true (see searchAgentService bean).
         searchAgentService.ifAvailable(svc -> functions.add(new SearchAgentFunction(svc)));
