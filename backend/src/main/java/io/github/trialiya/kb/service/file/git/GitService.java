@@ -76,12 +76,13 @@ import org.jspecify.annotations.Nullable;
  * from ever sharing a repository handle.
  *
  * <p>All operations run against this project's repository via JGit, in-process — no {@code git}
- * subprocess, no argv, no output parsing — except {@link #grepHits} and {@link #getBlame},
- * which shell out to {@code git grep} and {@code git blame} through {@link GitGrepRunner} and
- * {@link GitBlameRunner} (JGit has no grep, and its blame cannot skip {@code
- * .git-blame-ignore-revs}), and the user's network commands ({@link #fetch}, see {@code
- * GitCommands}), which shell out to reuse the host's credentials. Files matched by {@code .gitignore} are excluded from tree/search/status results the
- * same way native git excludes them.
+ * subprocess, no argv, no output parsing — except {@link #grepHits}, {@link #getBlame} and {@link
+ * #getLineLog}, which shell out to {@code git grep}, {@code git blame} and {@code git log -L}
+ * through {@link GitGrepRunner}, {@link GitBlameRunner} and {@link GitLineLog} (JGit has no grep
+ * and no line-range log, and its blame cannot skip {@code .git-blame-ignore-revs}), and the
+ * user's network commands ({@link #fetch}, see {@code GitCommands}), which shell out to reuse the
+ * host's credentials. Files matched by {@code .gitignore} are excluded from tree/search/status
+ * results the same way native git excludes them.
  */
 @Slf4j
 public class GitService {
@@ -626,7 +627,7 @@ public class GitService {
      * @param rev the commit to read; {@code null} or blank — the working tree
      */
     public GitFileBlame getBlame(@Nullable String rev, @NonNull String filePath) {
-        return blame(rev, filePath, null, BlameMatching.EXACT);
+        return getBlame(rev, filePath, null, null, BlameMatching.EXACT);
     }
 
     /**
@@ -655,7 +656,10 @@ public class GitService {
         return getBlame(rev, filePath, fromLine, toLine, matching);
     }
 
-    /** The ranged blame with the matching spelled out — a test's way of trying each switch alone. */
+    /**
+     * The blame with the matching spelled out — what both public forms come down to, and a test's
+     * way of trying each switch alone.
+     */
     GitFileBlame getBlame(
             @Nullable String rev,
             @NonNull String filePath,
@@ -663,8 +667,11 @@ public class GitService {
             @Nullable Integer toLine,
             BlameMatching matching) {
         GitBlame.requireOrdered(fromLine, toLine);
-        boolean ranged = fromLine != null || toLine != null;
-        return blame(rev, filePath, ranged ? new GitBlameRunner.Range(fromLine, toLine) : null, matching);
+        GitBlameRunner.@Nullable Range range =
+                fromLine == null && toLine == null ? null : new GitBlameRunner.Range(fromLine, toLine);
+        String at = snapshot(rev);
+        String normalized = normalizePath(filePath);
+        return at == null ? blame.blame(normalized, range, matching) : blame.blameAt(at, normalized, range, matching);
     }
 
     /**
@@ -686,13 +693,6 @@ public class GitService {
             throw new IllegalArgumentException("query must not be blank");
         }
         return origins.origin(normalizePath(filePath), snapshot(rev), line, query);
-    }
-
-    private GitFileBlame blame(
-            @Nullable String rev, String filePath, GitBlameRunner.@Nullable Range range, BlameMatching matching) {
-        String at = snapshot(rev);
-        String normalized = normalizePath(filePath);
-        return at == null ? blame.blame(normalized, range, matching) : blame.blameAt(at, normalized, range, matching);
     }
 
     // ── File content ────────────────────────────────────────────────────────

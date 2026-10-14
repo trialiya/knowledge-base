@@ -272,14 +272,7 @@ final class LineOriginTracer {
         if (head == null) {
             throw new IllegalArgumentException("Repository has no commits yet: " + normalized);
         }
-        if (RepoFiles.sizeOf(normalized, resolved.absolute()) > CommitFiles.MAX_BLOB_SIZE) {
-            throw new IllegalArgumentException("File too large to trace: " + normalized);
-        }
-        byte[] bytes = RepoFiles.readAll(normalized, resolved.absolute());
-        if (RepoFiles.isBinary(bytes)) {
-            throw new IllegalArgumentException("Binary file has no line history: " + normalized);
-        }
-        RawText work = new RawText(bytes);
+        RawText work = new RawText(RepoFiles.workingText(normalized, resolved));
         int index = line - 1;
         if (index >= work.size()) {
             return Start.pastTheEnd(null);

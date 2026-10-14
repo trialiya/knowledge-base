@@ -44,6 +44,21 @@ class GitServiceLineOriginTest {
     }
 
     /**
+     * Символьная ссылка: её blob хранит имя цели, а путь читает текст цели — сравнивать их значит
+     * объявить файл переписанным целиком. Отказ, а не ответ про чужие строки.
+     */
+    @Test
+    void aSymbolicLinkHasNoLineHistory() throws IOException {
+        writeFile("target.txt", "head\nint x = 1;\ntail\n");
+        Files.createSymbolicLink(repoDir.resolve("link.txt"), Path.of("target.txt"));
+        commitAll("files");
+
+        assertThatThrownBy(() -> service.getLineOrigin(null, "link.txt", 2, "int"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Symbolic link");
+    }
+
+    /**
      * Строку правили трижды; подстрока вошла во второй правке. Цепочка проходит версии от новой к
      * старой и останавливается на первой, где подстроки нет, — она и есть {@code before}.
      */

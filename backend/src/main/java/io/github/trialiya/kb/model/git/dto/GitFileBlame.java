@@ -1,18 +1,15 @@
 package io.github.trialiya.kb.model.git.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
-import io.github.trialiya.kb.tools.Compact;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.StringJoiner;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Авторство строк файла ({@code git blame}) — для колонки blame файлового браузера: файл разбит на
  * диапазоны подряд идущих строк, пришедших из одного коммита, — как их и показывает интерфейс,
  * подписью на первой строке диапазона. Инструмент модели {@code getBlame} отвечает им же, но
- * сложенным плотнее ({@link GitBlameAnswer}); плашку вызова считает этот класс.
+ * сложенным плотнее, — {@link GitBlameAnswer}.
  *
  * <p>Коммиты из {@code .git-blame-ignore-revs} репозитория (массовые переформатирования) уже
  * пропущены: их строки приписаны тому, кто менял их до этого.
@@ -42,23 +39,7 @@ public record GitFileBlame(
         int lineCount,
         List<Hunk> hunks,
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer fromLine,
-        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer toLine)
-        implements ToolCallResponseItem {
-
-    /** Ханков в плашке вызова: она — напоминание о том, что пришло, а не сам ответ. */
-    private static final int GIST_HUNKS = 5;
-
-    @Override
-    public String getFormattedResponse() {
-        StringBuilder gist = new StringBuilder(Compact.tag("blame:" + path)
-                .add("at", commit == null ? null : commit.substring(0, 7))
-                .add("lines", lineCount)
-                .add("range", fromLine == null ? null : fromLine + "-" + toLine)
-                .add("hunks", hunks.size())
-                .done());
-        hunks.stream().limit(GIST_HUNKS).forEach(h -> gist.append('\n').append(h.gist()));
-        return gist.toString();
-    }
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer toLine) {
 
     /**
      * Строки {@code fromLine}…{@code fromLine + lineCount - 1}, последними изменённые одним коммитом.
@@ -126,35 +107,6 @@ public record GitFileBlame(
          */
         public Hunk atBoundary() {
             return new Hunk(fromLine, lineCount, hash, null, date, null, path, sourceLine, true);
-        }
-
-        /**
-         * {@code 12-18 a1b2c3d Alice 2024-03-01 Fix parser}; без коммита — {@code 19 uncommitted};
-         * на границе клона — {@code 12-18 a1b2c3d boundary 2024-03-01} (автора и описания у такого
-         * ханка нет).
-         */
-        String gist() {
-            int to = fromLine + lineCount - 1;
-            String lines = to == fromLine ? String.valueOf(fromLine) : fromLine + "-" + to;
-            if (hash == null) {
-                return lines + " uncommitted";
-            }
-            // Поля коммита приходят вместе, но парсер оставляет голый ханк, если коммит не
-            // описан, — плашка тогда без них, а не с «null».
-            StringJoiner gist = new StringJoiner(" ").add(lines).add(hash.substring(0, 7));
-            if (boundary) {
-                gist.add("boundary");
-            }
-            if (author != null) {
-                gist.add(author);
-            }
-            if (date != null) {
-                gist.add(date.toLocalDate().toString());
-            }
-            if (summary != null) {
-                gist.add(Compact.oneLine(summary, 60));
-            }
-            return gist.toString();
         }
     }
 }

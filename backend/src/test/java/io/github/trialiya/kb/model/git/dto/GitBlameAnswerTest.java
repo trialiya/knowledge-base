@@ -83,21 +83,64 @@ class GitBlameAnswerTest {
                 .doesNotContain("author");
     }
 
-    /** Плашка вызова не меняется с формой ответа: строка на ханк, с автором и границей клона. */
     @Test
-    void theGistIsTheBlamesOwn() {
+    void theGistNamesTheRangeAndOneLinePerHunk() {
         GitFileBlame blame = new GitFileBlame(
                 "src/A.java",
                 null,
                 40,
                 List.of(
-                        alice(12, 7, 12).atBoundary(),
-                        new GitFileBlame.Hunk(19, 2, BOB, "Bob", DATE, "Rename", "src/Old.java", 9),
-                        new GitFileBlame.Hunk(21, 1, null, null, null, null, null, null)),
+                        new GitFileBlame.Hunk(
+                                12,
+                                7,
+                                ALICE,
+                                "Alice",
+                                OffsetDateTime.parse("2024-03-01T10:00:00+03:00"),
+                                "Fix parser",
+                                "src/A.java",
+                                12),
+                        new GitFileBlame.Hunk(19, 1, null, null, null, null, null, null)),
                 12,
-                21);
+                19);
 
-        assertThat(GitBlameAnswer.of(blame).getFormattedResponse()).isEqualTo(blame.getFormattedResponse());
+        assertThat(GitBlameAnswer.of(blame).getFormattedResponse())
+                .contains("blame:src/A.java")
+                .contains("range=12-19")
+                .contains("\n12-18 a1b2c3d Alice 2024-03-01 Fix parser")
+                .endsWith("\n19 uncommitted");
+    }
+
+    /** Ханк с хешем, но без описания коммита (парсер оставил его голым), — без «null» в плашке. */
+    @Test
+    void aHunkWithoutItsCommitsFieldsPrintsNoNulls() {
+        GitFileBlame blame = new GitFileBlame(
+                "a.txt", null, 1, List.of(new GitFileBlame.Hunk(1, 1, ALICE, null, null, null, null, 1)), null, null);
+
+        assertThat(GitBlameAnswer.of(blame).getFormattedResponse())
+                .endsWith("\n1 a1b2c3d")
+                .doesNotContain("null");
+    }
+
+    @Test
+    void aBoundaryHunkIsMarkedInTheGist() {
+        GitFileBlame blame = new GitFileBlame(
+                "a.txt",
+                null,
+                3,
+                List.of(new GitFileBlame.Hunk(
+                                1,
+                                3,
+                                ALICE,
+                                "Alice",
+                                OffsetDateTime.parse("2024-03-01T10:00:00Z"),
+                                "Squash",
+                                "a.txt",
+                                1)
+                        .atBoundary()),
+                null,
+                null);
+
+        assertThat(GitBlameAnswer.of(blame).getFormattedResponse()).endsWith("\n1-3 a1b2c3d boundary 2024-03-01");
     }
 
     /** Файл без строк в диапазоне — пустой словарь коммитов в JSON не печатается. */

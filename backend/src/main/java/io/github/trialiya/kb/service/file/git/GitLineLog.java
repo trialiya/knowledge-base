@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -88,11 +89,16 @@ final class GitLineLog {
         List<String> hashes = hashes(out.lines());
         boolean more = hashes.size() > maxCount;
         List<String> shown = more ? hashes.subList(0, maxCount) : hashes;
-        // Any commit listed, not only the last: past a merge the walk can stop on the cut of one
-        // side and go on down the other.
+        return new GitCommitSearchResult(commits(shown, includeBody), more || reachesCut(shown));
+    }
+
+    /**
+     * Whether a commit listed is the cut of a shallow clone — any of them, not only the last: past
+     * a merge the walk can stop on the cut of one side and go on down the other.
+     */
+    private boolean reachesCut(List<String> shown) {
         Set<String> boundaries = ShallowClone.boundaries(repository);
-        boolean cut = !more && shown.stream().anyMatch(boundaries::contains);
-        return new GitCommitSearchResult(commits(shown, includeBody), more || cut);
+        return !boundaries.isEmpty() && shown.stream().anyMatch(boundaries::contains);
     }
 
     /**
@@ -140,20 +146,11 @@ final class GitLineLog {
         }
         // Refused like blame refuses it: numbering a changed file by HEAD would follow other lines.
         VisibleFiles.Resolved resolved = visible.require(normalized);
-        // A symlink's blob is its target's name: the file it points to is not the one to number.
-        if (!resolved.tracked()
-                || Files.isSymbolicLink(resolved.absolute())
-                || !Files.isRegularFile(resolved.absolute())) {
+        // Changed in the working tree or the index, so tracked; deleted, nothing to number.
+        if (!Files.exists(resolved.absolute(), LinkOption.NOFOLLOW_LINKS)) {
             return null;
         }
-        if (RepoFiles.sizeOf(normalized, resolved.absolute()) > CommitFiles.MAX_BLOB_SIZE) {
-            throw new IllegalArgumentException("File too large to number its lines: " + normalized);
-        }
-        byte[] bytes = RepoFiles.readAll(normalized, resolved.absolute());
-        if (RepoFiles.isBinary(bytes)) {
-            throw new IllegalArgumentException("Binary file has no line history: " + normalized);
-        }
-        return bytes;
+        return RepoFiles.workingText(normalized, resolved);
     }
 
     /**
