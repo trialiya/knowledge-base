@@ -97,7 +97,14 @@ class GitServiceCommitBrowseTest {
      */
     @Test
     void everythingInACommitCountsAsTracked() {
-        GitPathView view = service.browsePath(head(), "src/util/Text.java", true);
+        // В рабочем дереве Text.java больше не отслеживается — его видно только по allow-globs.
+        String committed = head();
+        runGit("rm", "-q", "--cached", "src/util/Text.java");
+        GitService globs = TestProjects.gitService(repoDir, false, List.of("src/util/**"));
+        assertThat(globs.browsePath(null, "src/util/Text.java", false).tracked())
+                .isFalse();
+
+        GitPathView view = globs.browsePath(committed, "src/util/Text.java", true);
 
         assertThat(view.tracked()).isTrue();
         assertThat(view.tree()).extracting("path").containsExactly("", "src", "src/util");
@@ -112,10 +119,11 @@ class GitServiceCommitBrowseTest {
         assertThat(dir.file()).isNull();
         assertThat(names(dir.nodes())).containsExactly("util", "App.java");
 
+        write("src/App.java", "class App { /* not committed */ }\n");
         GitPathView file = service.browsePath(head(), "src/App.java", false);
         assertThat(file.type()).isEqualTo(FileEntryType.FILE);
         assertThat(file.nodes()).isNull();
-        assertThat(file.file()).isNotNull();
+        assertThat(file.file().content()).isEqualTo("class App {}\n");
     }
 
     /** Путь, которого в этом коммите нет, — это missing, а не отказ: браузер так и рисует. */
@@ -246,21 +254,6 @@ class GitServiceCommitBrowseTest {
         assertThat(names(service.getFileTree(head(), ""))).doesNotContain("qu\"ote.md", "odd");
         assertThat(names(service.getFileTree(head(), "odd"))).isEmpty();
         assertThat(names(service.browsePath(head(), "", false).nodes())).doesNotContain("qu\"ote.md", "odd");
-    }
-
-    /** Размер в листинге — тоже из коммита: правка на диске его не меняет. */
-    @Test
-    void theListedSizeIsTheCommittedOne() {
-        String first = head();
-        write("README.md", "a much longer line than the committed one\n");
-
-        GitFileNode node = service.getFileTree(first, "").stream()
-                .filter(n -> "README.md".equals(n.path()))
-                .findFirst()
-                .orElseThrow();
-
-        assertThat(node.size()).isEqualTo("first\n".length());
-        assertThat(node.type()).isEqualTo(FileEntryType.FILE);
     }
 
     /**

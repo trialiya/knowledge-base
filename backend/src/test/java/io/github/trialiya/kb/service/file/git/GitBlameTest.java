@@ -58,6 +58,8 @@ class GitBlameTest {
                 .containsExactly("git", "blame", "--porcelain", "-w", "-M", "--", "f.txt");
         assertThat(GitBlame.args("f.txt", List.of(), new BlameMatching(false, true), null, null))
                 .containsExactly("git", "blame", "--porcelain", "-M", "--", "f.txt");
+        assertThat(GitBlame.args("f.txt", List.of(), new BlameMatching(true, false), null, null))
+                .containsExactly("git", "blame", "--porcelain", "-w", "--", "f.txt");
     }
 
     /**
