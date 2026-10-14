@@ -25,16 +25,18 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * Read-only tools over a repository's history: the commit log, a commit's diff, who last changed
  * lines ({@code getBlame}) and when a text entered a line ({@code getLineOrigin}). Which
  * repository a call reads, and the {@code project} argument every tool takes, are {@link
- * GitReadTools}'.
+ * GitReads}.
  */
 @Slf4j
-public class GitHistoryFunction extends GitReadTools {
+public class GitHistoryFunction {
 
     /** Хешей в одном {@code getCommitDiff}: больше — это уже выгрузка истории, а не вопрос о ней. */
     static final int MAX_DIFF_COMMITS = 20;
 
+    private final GitReads reads;
+
     public GitHistoryFunction(GitRegistry gitRegistry) {
-        super(gitRegistry);
+        this.reads = new GitReads(gitRegistry);
     }
 
     // ── Commit history ───────────────────────────────────────────────────────
@@ -97,15 +99,15 @@ public class GitHistoryFunction extends GitReadTools {
                 query,
                 withBody,
                 project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         if (query == null || query.isBlank()) {
             GitCommitSearchResult commitLog = git.getCommitLog(limit, filePath, withBody);
             log.debug("getCommitLog called: commitLog={}", commitLog);
-            return answer(git, commitLog.commits(), commitLog.truncated());
+            return GitReads.answer(git, commitLog.commits(), commitLog.truncated());
         }
         GitCommitSearchResult found = git.searchCommitLog(query.strip(), limit, filePath, withBody);
         log.debug("getCommitLog called: found={}", found);
-        return answer(git, found.commits(), found.truncated());
+        return GitReads.answer(git, found.commits(), found.truncated());
     }
 
     // ── Commit diff ─────────────────────────────────────────────────────────
@@ -160,10 +162,10 @@ public class GitHistoryFunction extends GitReadTools {
             throw new IllegalArgumentException("At most " + MAX_DIFF_COMMITS + " commits per call, got " + count
                     + " — split the list into several calls.");
         }
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         List<GitCommit> commitDiff = PatchBudget.ofCommits(git.getCommitDiff(commitHashes, patch, filePath));
         log.debug("getCommitDiff called: commitDiff={}", commitDiff);
-        return answer(git, commitDiff);
+        return GitReads.answer(git, commitDiff);
     }
 
     /**
@@ -242,10 +244,10 @@ public class GitHistoryFunction extends GitReadTools {
                 toLine,
                 commit,
                 project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         GitFileBlame blame = git.getBlame(commit, filePath, fromLine, toLine);
         log.debug("getBlame called: {} hunks over lines {}-{}", blame.hunks().size(), blame.fromLine(), blame.toLine());
-        return answer(git, BlameBudget.cap(blame), BlameBudget.cut(blame));
+        return GitReads.answer(git, BlameBudget.cap(blame), BlameBudget.cut(blame));
     }
 
     /**
@@ -318,12 +320,12 @@ public class GitHistoryFunction extends GitReadTools {
                 query,
                 commit,
                 project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         GitLineOrigin origin = git.getLineOrigin(commit, filePath, line, query);
         log.debug(
                 "getLineOrigin called: {} after {} steps",
                 origin.status(),
                 origin.steps().size());
-        return answer(git, origin);
+        return GitReads.answer(git, origin);
     }
 }

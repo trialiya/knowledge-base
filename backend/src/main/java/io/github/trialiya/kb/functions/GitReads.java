@@ -8,7 +8,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ToolContext;
 
 /**
- * What every read-only Git tool class shares: which repository a call reads, and the answer
+ * What every read-only Git tool class shares, held by each as a field: which repository a call reads, and the answer
  * wrapper that names it. The tools themselves live in {@link GitFunction} (the working tree: tree,
  * search, content, grep, uncommitted changes) and {@link GitHistoryFunction} (commits and line
  * history).
@@ -41,11 +41,11 @@ import org.springframework.ai.chat.model.ToolContext;
  * than 512 KB read whole comes back as a head+tail excerpt, and a line range stops at the same
  * 512 KB, so neither way of reading brings a big file into the model context in full.
  */
-abstract class GitReadTools {
+final class GitReads {
 
     private final GitRegistry gitRegistry;
 
-    GitReadTools(GitRegistry gitRegistry) {
+    GitReads(GitRegistry gitRegistry) {
         this.gitRegistry = gitRegistry;
     }
 
@@ -54,7 +54,7 @@ abstract class GitReadTools {
      * the default one. Every read tool here resolves through this — naming a project is always the
      * model's option, never its obligation.
      */
-    final GitService git(@Nullable ToolContext context, @Nullable String project) {
+    GitService git(@Nullable ToolContext context, @Nullable String project) {
         return gitRegistry.forProject(ProjectContext.resolve(context, project));
     }
 

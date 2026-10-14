@@ -26,13 +26,15 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * Read-only tools over a repository's working tree: the file tree, search by name, outlines,
  * content, grep and uncommitted changes. The history tools are {@link GitHistoryFunction}; which
  * repository a call reads, the {@code project} argument every tool takes and the security
- * constraints of both are {@link GitReadTools}'.
+ * constraints of both are {@link GitReads}.
  */
 @Slf4j
-public class GitFunction extends GitReadTools {
+public class GitFunction {
+
+    private final GitReads reads;
 
     public GitFunction(GitRegistry gitRegistry) {
-        super(gitRegistry);
+        this.reads = new GitReads(gitRegistry);
     }
 
     /**
@@ -88,10 +90,10 @@ public class GitFunction extends GitReadTools {
                     @Nullable
                     String project) {
         log.debug("getFileTree called: path='{}', project='{}'", path, project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         List<GitFileNode> fileTree = git.getFileTree(null, path);
         log.debug("getFileTree called: fileTree={}", fileTree);
-        return answer(git, fileTree);
+        return GitReads.answer(git, fileTree);
     }
 
     // ── File search ─────────────────────────────────────────────────────────
@@ -125,10 +127,10 @@ public class GitFunction extends GitReadTools {
         requireText(pattern, "pattern");
         final int limit = positiveOrDefault(maxResults, 20);
         log.debug("searchFiles called: pattern='{}', maxResults={}, project='{}'", pattern, limit, project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         List<GitFileNode> gitFileNodes = git.searchFiles(pattern, limit);
         log.debug("searchFiles called: gitFileNodes={}", gitFileNodes);
-        return answer(git, gitFileNodes);
+        return GitReads.answer(git, gitFileNodes);
     }
 
     // ── File outline ──────────────────────────────────────────────────────────
@@ -162,10 +164,10 @@ public class GitFunction extends GitReadTools {
                     String project) {
         requireText(filePath, "filePath");
         log.debug("getFileOutline called: filePath='{}', project='{}'", filePath, project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         GitFileOutline outline = git.getFileOutline(null, filePath);
         log.debug("getFileOutline called: outline={}", outline);
-        return answer(git, outline);
+        return GitReads.answer(git, outline);
     }
 
     // ── File content ────────────────────────────────────────────────────────
@@ -238,10 +240,10 @@ public class GitFunction extends GitReadTools {
                 toLine,
                 commit,
                 project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         GitFileContent fileContent = git.getFileContent(commit, filePath, fromLine, toLine);
         log.debug("getFileContent called: fileContent='{}'", fileContent);
-        return answer(git, fileContent);
+        return GitReads.answer(git, fileContent);
     }
 
     /**
@@ -307,10 +309,10 @@ public class GitFunction extends GitReadTools {
                 untracked,
                 filters,
                 project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         List<GitDiffEntry> gitDiffEntries = PatchBudget.ofEntries(git.getUncommittedChanges(patch, untracked, filters));
         log.debug("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
-        return answer(git, gitDiffEntries);
+        return GitReads.answer(git, gitDiffEntries);
     }
 
     // ── Content grep ────────────────────────────────────────────────────────
@@ -382,12 +384,12 @@ public class GitFunction extends GitReadTools {
                 limit,
                 untracked,
                 project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         GitGrepHits hits = git.grepHits(pattern, pathGlob, useRegex, null, ctx, limit, untracked);
         List<GitGrepMatch> matches = hits.matches().stream()
                 .map(m -> new GitGrepMatch(m.path(), m.matchLine(), GrepLines.cap(m.text()), m.tracked()))
                 .toList();
         log.debug("grepContent called: {} matches found, truncated={}", matches.size(), hits.truncated());
-        return answer(git, matches, hits.truncated());
+        return GitReads.answer(git, matches, hits.truncated());
     }
 }
