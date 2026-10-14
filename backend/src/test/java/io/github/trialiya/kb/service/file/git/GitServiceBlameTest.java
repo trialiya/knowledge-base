@@ -263,7 +263,9 @@ class GitServiceBlameTest {
      */
     @Test
     void detectingMovesKeepsAMovedBlocksAuthor() {
-        String method = "void a() {\n  first();\n  second();\n  third();\n}\n";
+        // Втрое выше порога git'а (20 букв и цифр на блок): тест о переносе, не о пороге.
+        String method = "void settle() {\n  ledger.reconcile(account);\n  ledger.notifyOwner(account);\n"
+                + "  audit.record(account, total);\n}\n";
         String others = "p\nq\nr\ns\nt\nu\n";
         writeFile("f.txt", method + others);
         commitAll("written");

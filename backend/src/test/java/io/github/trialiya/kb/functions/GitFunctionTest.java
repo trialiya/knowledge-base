@@ -259,6 +259,18 @@ class GitFunctionTest {
         verify(billing).getBlame(null, "pom.xml", 1, 2, new BlameMatching(false, true));
     }
 
+    /** Там, где отступ — синтаксис, по умолчанию пробелы не пропускаются: строка, выведенная из блока, — правка. */
+    @Test
+    void blameOfAPythonFileKeepsWhitespaceUnlessAsked() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+
+        history.getBlame(context, "app/charge.py", 1, 2, null, null, null);
+        history.getBlame(context, "app/charge.py", 1, 2, null, true, null);
+
+        verify(billing).getBlame(null, "app/charge.py", 1, 2, new BlameMatching(false, true));
+        verify(billing).getBlame(null, "app/charge.py", 1, 2, new BlameMatching(true, true));
+    }
+
     /**
      * Список путей модель шлёт одной строкой, и разбирает её инструмент: запятая — заявленный
      * разделитель, перенос строки принимается заодно, пустой аргумент значит «всё дерево».

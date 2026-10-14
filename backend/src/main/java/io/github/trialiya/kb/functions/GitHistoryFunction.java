@@ -164,8 +164,10 @@ public class GitHistoryFunction {
      * <p>Unlike the blame column in Files, the walk looks past whitespace and follows lines moved
      * within the file ({@code -w -M}, {@link BlameMatching}): the model asks who wrote the logic,
      * and a block wrapped in a {@code try} or a method moved down the file would otherwise go to
-     * whoever re-indented or moved it. {@code ignoreWhitespace=false} turns {@code -w} off for the
-     * one question it hides — who changed the indentation.
+     * whoever re-indented or moved it. Where indentation is syntax ({@link
+     * BlameMatching#whitespaceMatters}: Python, YAML, Makefiles) {@code -w} is off unless asked for:
+     * a line dedented out of an {@code if} is a change in behaviour, and {@code -w} would hide the
+     * commit that made it.
      *
      * <p>Answers with the hunks alone, not the text of the lines: the model comes here about lines
      * it has already read, and the description points it on from a hunk to the commit that wrote
@@ -180,25 +182,30 @@ public class GitHistoryFunction {
      * @param fromLine first line (1-based, inclusive); null for start of file
      * @param toLine last line (1-based, inclusive); null for end of file
      * @param commit revision to blame the file as of; null blames the working tree
-     * @param ignoreWhitespace look past whitespace-only changes; {@code false} turns {@code -w} off
+     * @param ignoreWhitespace look past whitespace-only changes; {@code null} — yes, unless whitespace
+     *     is syntax in this file
      */
     @Tool(
             description = "Who last changed each line of a file (git blame). Answers with hunks —"
                     + " consecutive lines from one commit: fromLine, lineCount, hash, and"
                     + " path + sourceLine (the file's path and the hunk's first line in that"
-                    + " commit — they differ after a rename, edits above, or a move within the"
-                    + " file; absent means"
+                    + " commit — they differ after a rename, edits above, or a move or copy"
+                    + " within the file; absent means"
                     + " the same as the file's path and fromLine). Each commit is described once"
                     + " in \"commits\", keyed by the full hash: author, date, summary (commit"
-                    + " subject). A hunk with no hash is an uncommitted edit."
+                    + " subject). A hunk with no hash is an uncommitted edit (an uncommitted"
+                    + " re-indent does not show while whitespace is ignored — getUncommittedChanges"
+                    + " does)."
                     + " \"boundary\": true marks a commit at the cut of a shallow clone: its"
                     + " lines are as old as that commit or older, and who wrote them is not in"
                     + " this clone (no author, no summary) — say so, do not credit the commit,"
                     + " and do not diff it: with no parent here, its diff shows every line added."
                     + " Commits named in .git-blame-ignore-revs (mass reformatting) are skipped,"
                     + " so their lines go to whoever changed them before. Whitespace-only changes"
-                    + " are looked past and lines moved within the file keep the commit that"
-                    + " wrote them, so a re-indent or a moved method does not take the credit —"
+                    + " are looked past (not in Python, YAML, Makefiles — indentation is code"
+                    + " there) and lines moved or copied within the file keep the commit that"
+                    + " wrote the original, so a re-indent or a moved method does not take the"
+                    + " credit, and a pasted copy names where it was copied from, not who pasted it —"
                     + " the answer can differ from GitHub's blame and from the blame column in"
                     + " Files for that reason. Give fromLine/toLine"
                     + " for the lines you care about: the history of a range is walked, not"
@@ -232,14 +239,17 @@ public class GitHistoryFunction {
                     @Nullable
                     String commit,
             @ToolParam(
-                            description = "Look past whitespace-only changes (default true). False"
-                                    + " only to find who changed the indentation itself.",
+                            description = "Look past whitespace-only changes. Default: true, false"
+                                    + " where indentation is syntax (Python, YAML, Makefiles)."
+                                    + " Set false to find who changed indentation or spacing,"
+                                    + " e.g. when a whitespace change may be the bug.",
                             required = false)
                     @Nullable
                     Boolean ignoreWhitespace,
             @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(filePath, "filePath");
-        final BlameMatching matching = new BlameMatching(orDefault(ignoreWhitespace, true), true);
+        final BlameMatching matching =
+                new BlameMatching(orDefault(ignoreWhitespace, !BlameMatching.whitespaceMatters(filePath)), true);
         log.debug(
                 "getBlame called: filePath='{}', fromLine={}, toLine={}, commit='{}', matching={}, project='{}'",
                 filePath,
