@@ -1,13 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AppLink from '@/components/common/ui/AppLink';
-import CommitHashLink from '@/components/common/git/CommitHashLink';
-import shortRev from '@/components/common/git/shortRev';
+import LineOriginCommit from '@/components/common/git/LineOriginCommit';
 import { highlightSubstring } from '@/components/common/search/highlightMatch';
-import { FILE_TAB } from '@/constants/fileTabs';
+import { describeOrigin, versionLink } from '@/components/common/git/lineOrigin';
 import { filesUrl } from '@/navigation/urlScheme';
-import { formatCompactDateTime } from '@/utils/formatting';
-import { describeOrigin } from './originAnswer';
 import useLineOrigin from './useLineOrigin';
 
 /**
@@ -31,8 +28,8 @@ const LineOrigin = ({ path, line, query, rev, project, onOpenFile }) => {
   }
 
   const view = describeOrigin(value);
-  const open = (step) => {
-    const options = { rev: step.hash, lines: String(step.line), find: query, right: FILE_TAB.COMMIT };
+  const open = (step, before = false) => {
+    const options = versionLink(step, query, { before });
     return {
       href: filesUrl(step.path, project, options),
       onNavigate: () => onOpenFile(step.path, project, options),
@@ -48,7 +45,7 @@ const LineOrigin = ({ path, line, query, rev, project, onOpenFile }) => {
           <span className="search-origin__label">{t('files.origin.uncommitted')}</span>
         </div>
         {view.before && (
-          <VersionLine label={t('files.origin.was')} step={view.before} query={query} link={open(view.before)} />
+          <VersionLine label={t('files.origin.was')} step={view.before} query={query} link={open(view.before, true)} />
         )}
       </div>
     );
@@ -59,12 +56,18 @@ const LineOrigin = ({ path, line, query, rev, project, onOpenFile }) => {
     <div className="search-origin">
       <div className="search-origin__head">
         <span className="search-origin__label">{t(`files.origin.${view.kind}`)}</span>
-        <Commit step={view.origin} project={project} />
+        <LineOriginCommit step={view.origin} project={project} />
       </div>
       {view.kind === 'boundary' && <div className="search-origin__hint">{t('files.origin.boundaryHint')}</div>}
-      <VersionLine label={t('files.origin.became')} step={view.origin} query={query} link={open(view.origin)} />
+      {/* «Стало» — только у ответа: при BOUNDARY и LIMIT это самая старая пройденная версия. */}
+      <VersionLine
+        label={view.kind === 'found' ? t('files.origin.became') : null}
+        step={view.origin}
+        query={query}
+        link={open(view.origin)}
+      />
       {view.before ? (
-        <VersionLine label={t('files.origin.was')} step={view.before} query={query} link={open(view.before)} />
+        <VersionLine label={t('files.origin.was')} step={view.before} query={query} link={open(view.before, true)} />
       ) : (
         view.kind === 'found' && <div className="search-origin__hint">{t('files.origin.added')}</div>
       )}
@@ -82,7 +85,7 @@ const LineOrigin = ({ path, line, query, rev, project, onOpenFile }) => {
             <ol className="search-origin__path">
               {view.path.map((step) => (
                 <li key={step.hash} className="search-origin__step">
-                  <Commit step={step} project={project} />
+                  <LineOriginCommit step={step} project={project} />
                   <VersionLine step={step} query={query} link={open(step)} />
                 </li>
               ))}
@@ -91,25 +94,6 @@ const LineOrigin = ({ path, line, query, rev, project, onOpenFile }) => {
         </>
       )}
     </div>
-  );
-};
-
-/** Коммит строкой: хеш-ссылка, дата, автор и тема. */
-const Commit = ({ step, project }) => {
-  const { i18n } = useTranslation('search');
-  return (
-    <span className="search-origin__commit">
-      <CommitHashLink className="commit-hash-link" rev={step.hash} project={project}>
-        {shortRev(step.hash)}
-      </CommitHashLink>
-      <span className="search-origin__meta">{formatCompactDateTime(step.date, i18n.language)}</span>
-      {step.author && <span className="search-origin__meta">{step.author}</span>}
-      {step.summary && (
-        <span className="search-origin__summary" title={step.summary}>
-          {step.summary}
-        </span>
-      )}
-    </span>
   );
 };
 

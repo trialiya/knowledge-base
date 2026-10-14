@@ -342,7 +342,8 @@ final class LineOriginTracer {
             if (answer.walked() == LineOrigin.MAX_STEPS) {
                 return answer.status(Status.LIMIT);
             }
-            answer.step(step(version));
+            GitLineOrigin.Step step = step(version);
+            answer.step(step);
             Next next;
             try {
                 next = previous(walk, version, needle, deadline);
@@ -357,7 +358,7 @@ final class LineOriginTracer {
                     return settleWithBefore(walk, answer, Status.FOUND, without.at(), without.text(), deadline);
                 }
                 case Next.None() -> {
-                    return answer.status(shallowBoundary(version.commit()) ? Status.BOUNDARY : Status.FOUND);
+                    return answer.status(step.boundary() ? Status.BOUNDARY : Status.FOUND);
                 }
             }
         }
@@ -373,8 +374,9 @@ final class LineOriginTracer {
             RevWalk walk, Answer answer, Status status, @Nullable At before, @Nullable String text, long deadline)
             throws IOException {
         if (before != null && text != null) {
-            answer.before(new GitLineOrigin.Step(
-                    before.commit().name(), null, null, null, before.path(), before.line() + 1, LineOrigin.cap(text)));
+            GitLineOrigin.Step placed = new GitLineOrigin.Step(
+                    before.commit().name(), null, null, null, before.path(), before.line() + 1, LineOrigin.cap(text));
+            answer.before(marked(before.commit(), placed));
         }
         answer.settle(status);
         if (before != null) {
@@ -527,11 +529,16 @@ final class LineOriginTracer {
                 "Tracing the line did not finish within " + timeout.toSeconds() + "s: " + path);
     }
 
-    private static GitLineOrigin.Step step(Version version) {
+    /**
+     * The version as a step of the answer. A version blame reached at a shallow clone's cut is not
+     * necessarily that commit's work — every older change lands there too — so its author and
+     * subject are left out ({@link GitLineOrigin.Step#atBoundary}).
+     */
+    private GitLineOrigin.Step step(Version version) {
         PersonIdent author = version.commit().getAuthorIdent();
         OffsetDateTime date =
                 author == null ? null : OffsetDateTime.ofInstant(author.getWhenAsInstant(), author.getZoneId());
-        return new GitLineOrigin.Step(
+        GitLineOrigin.Step step = new GitLineOrigin.Step(
                 version.commit().name(),
                 author == null ? null : author.getName(),
                 date,
@@ -539,6 +546,15 @@ final class LineOriginTracer {
                 version.path(),
                 version.line() + 1,
                 LineOrigin.cap(version.text()));
+        return marked(version.commit(), step);
+    }
+
+    /**
+     * The step as built, or marked as standing at a shallow clone's cut — the one rule every step
+     * of the answer goes through, wherever it was built.
+     */
+    private GitLineOrigin.Step marked(RevCommit commit, GitLineOrigin.Step step) {
+        return shallowBoundary(commit) ? step.atBoundary() : step;
     }
 
     /** The answer as the walk builds it: steps as they are taken, then {@code before} and the end. */

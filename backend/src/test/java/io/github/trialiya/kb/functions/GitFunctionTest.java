@@ -22,6 +22,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.tool.ToolResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -51,12 +52,14 @@ class GitFunctionTest {
 
     private GitRegistry gitRegistry;
     private GitFunction function;
+    private GitHistoryFunction history;
     private GitService billing;
 
     @BeforeEach
     void setUp() {
         gitRegistry = mock(GitRegistry.class);
         function = new GitFunction(gitRegistry);
+        history = new GitHistoryFunction(gitRegistry);
         billing = mock(GitService.class);
         when(billing.project())
                 .thenReturn(new Project(
@@ -85,6 +88,9 @@ class GitFunctionTest {
                         List.of(new GitFileBlame.Hunk(1, 2, null, null, null, null, null, null)),
                         1,
                         2));
+        when(billing.getLineOrigin(any(), anyString(), anyInt(), anyString()))
+                .thenReturn(new GitLineOrigin(
+                        "pom.xml", 3, "junit", null, GitLineOrigin.Status.NOT_IN_LINE, List.of(), null));
         when(billing.getUncommittedChanges(anyBoolean(), anyBoolean(), anyList()))
                 .thenReturn(List.of(new GitDiffEntry("M", "pom.xml", null, 1, 0, null, null)));
         when(gitRegistry.forProject("billing")).thenReturn(billing);
@@ -157,14 +163,15 @@ class GitFunctionTest {
                         function.getFileTree(context, null, "billing"),
                         function.searchFiles(context, "pom", null, "billing"),
                         function.getFileOutline(context, "Foo.java", "billing"),
-                        function.getCommitLog(context, null, null, null, null, "billing"),
-                        function.getCommitDiff(context, "abc1234", null, null, "billing"),
+                        history.getCommitLog(context, null, null, null, null, "billing"),
+                        history.getCommitDiff(context, "abc1234", null, null, "billing"),
                         function.getUncommittedChanges(context, null, null, null, "billing"),
-                        function.getBlame(context, "pom.xml", 1, 2, null, "billing")))
+                        history.getBlame(context, "pom.xml", 1, 2, null, "billing"),
+                        history.getLineOrigin(context, "pom.xml", 3, "junit", null, "billing")))
                 .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"))
                 .allSatisfy(r -> assertThat(r.result()).isNotNull());
 
-        verify(gitRegistry, times(7)).forProject("billing");
+        verify(gitRegistry, times(8)).forProject("billing");
     }
 
     /**
@@ -175,7 +182,7 @@ class GitFunctionTest {
     void theItemsInsideCarryNoProjectOfTheirOwn() {
         ToolContext context = new ToolContext(Map.of());
 
-        ToolResult<List<GitCommit>> log = function.getCommitLog(context, null, null, null, null, "billing");
+        ToolResult<List<GitCommit>> log = history.getCommitLog(context, null, null, null, null, "billing");
 
         assertThat(log.project()).isEqualTo("billing");
         assertThat(log.result())
@@ -192,10 +199,10 @@ class GitFunctionTest {
     void theMessageBodyIsOffUnlessTheCallAsksForIt() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        function.getCommitLog(context, null, null, null, null, null);
+        history.getCommitLog(context, null, null, null, null, null);
         verify(billing).getCommitLog(20, null, false);
 
-        function.getCommitLog(context, 5, null, null, true, null);
+        history.getCommitLog(context, 5, null, null, true, null);
         verify(billing).getCommitLog(5, null, true);
     }
 
@@ -230,7 +237,7 @@ class GitFunctionTest {
     void blameHandsTheRangeAndRevisionToTheService() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        ToolResult<GitFileBlame> answer = function.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null);
+        ToolResult<GitFileBlame> answer = history.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null);
 
         verify(billing).getBlame("HEAD~1", "pom.xml", 3, 9);
         assertThat(answer.truncated()).isNotEqualTo(Boolean.TRUE);
@@ -281,10 +288,10 @@ class GitFunctionTest {
     void aQueryTurnsTheLogIntoASearchThroughMessages() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        function.getCommitLog(context, 5, "src", "  retry  ", null, null);
+        history.getCommitLog(context, 5, "src", "  retry  ", null, null);
         verify(billing).searchCommitLog("retry", 5, "src", false);
 
-        function.getCommitLog(context, 5, "src", " ", true, null);
+        history.getCommitLog(context, 5, "src", " ", true, null);
         verify(billing).getCommitLog(5, "src", true);
     }
 
@@ -296,9 +303,9 @@ class GitFunctionTest {
     void bothSearchAndListingSayWhetherTheyWereCutShort() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        assertThat(function.getCommitLog(context, 5, null, "retry", null, null).truncated())
+        assertThat(history.getCommitLog(context, 5, null, "retry", null, null).truncated())
                 .isTrue();
-        assertThat(function.getCommitLog(context, 5, null, null, null, null).truncated())
+        assertThat(history.getCommitLog(context, 5, null, null, null, null).truncated())
                 .isTrue();
     }
 }

@@ -212,6 +212,24 @@
         "boundaryTitle": "Shallow clone: its history starts at this commit, and git credits it with every line older than the clone. The lines are this old or older; who wrote them is not in this clone.",
         "empty": "The range lies past the end of the file"
       },
+      "origin": {
+        "status": {
+          "found": "Appeared in this commit",
+          "boundary": "The clone's history is cut before it was found",
+          "limit": "The walk stopped before the line's history ended",
+          "uncommitted": "Appeared in an uncommitted edit",
+          "notInLine": "The line does not contain the text"
+        },
+        "hint": {
+          "boundary": "The clone is shallow: the text may be older than this commit, and who added it is not in this clone.",
+          "limit": "Out of steps or time, or a version of the file is not text; the text is in every version walked, this is the oldest.",
+          "added": "The line has no earlier version: this commit added it — or moved it from somewhere that could not be found."
+        },
+        "versions_one": "{{count}} version",
+        "versions_other": "{{count}} versions",
+        "became": "now",
+        "was": "before"
+      },
       "grep": {
         "untracked": "untracked",
         "matches": "{{count}} matches",
@@ -436,6 +454,7 @@
     "getFileOutline": "File outline",
     "getFileContent": "Read file",
     "getBlame": "Line authorship",
+    "getLineOrigin": "When text appeared",
     "getUncommittedChanges": "Uncommitted changes",
     "grepContent": "Search in code",
     "searchCodebase": "Smart search",

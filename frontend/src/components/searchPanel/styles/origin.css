@@ -42,8 +42,7 @@
   color: var(--kb-text-muted);
 }
 
-.search-origin__head,
-.search-origin__commit {
+.search-origin__head {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -53,19 +52,6 @@
 .search-origin__label {
   flex-shrink: 0;
   font-weight: 600;
-}
-
-.search-origin__meta {
-  flex-shrink: 0;
-  color: var(--kb-text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.search-origin__summary {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .search-origin__hint {

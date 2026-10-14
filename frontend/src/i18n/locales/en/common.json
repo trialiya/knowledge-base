@@ -119,6 +119,10 @@
     "comparingHint": "On the left: how the shown revision differs from {{rev}}",
     "compareExit": "Stop comparing"
   },
+  "lineOrigin": {
+    "boundary": "start of the clone's history",
+    "boundaryTitle": "Shallow clone: its history starts at this commit, and git credits it with everything older than the clone. The line is this old or older; who wrote it is not in this clone."
+  },
   "commitSearch": {
     "refine": "Not all matches shown — refine the query",
     "olderNotSearched": "Older commits were not searched",

@@ -9,7 +9,7 @@
 **Связанные документы:**
 
 - [AI-инструменты](ai-инструменты.md), §4 — аргументы и ответы `getFileTree`, `getFileContent`,
-  `getBlame`, `grepContent`, `getCommitLog`, `getUncommittedChanges`, `createFile`, `editFile`
+  `getBlame`, `getLineOrigin`, `grepContent`, `getCommitLog`, `getUncommittedChanges`, `createFile`, `editFile`
 - [API Reference](api-reference.md) — `GitController` (`GET /api/git/**`), `GitCommandController`
   (`POST /api/git/**`), `POST /api/chats/{id}/revert-files`
 - [Конфигурация](конфигурация.md), «Проекты (`kb.projects`)» — ключи, которые здесь только
@@ -34,7 +34,8 @@ git-команды — переключение ветки, stash, коммит,
 
 ```
    Модель (@Tool)                          Человек (панель «Файлы», вкладка «Репозиторий» в чате)
-   GitFunction · GitEditFunction ·                 gitApi.js  (?project=…)
+   GitFunction · GitHistoryFunction ·              gitApi.js  (?project=…)
+   GitEditFunction ·
    runScript (kb.*)                                     │
         │ ToolContext.project                           ├── GitController         GET /api/git/**   чтение
         │                                               ├── GitCommandController  POST /api/git/**  команды
@@ -128,10 +129,10 @@ Unicode — bidi-переопределения и разделители чип
 |---|---|
 | Файл больше 512 КБ отдаётся фрагментом (`truncated=true`), бинарный — без содержимого; диапазон строк — тоже не больше 512 КБ | `RepoFiles.MAX_FILE_SIZE`, `BINARY_SNIFF_BYTES`, `FileViews` |
 | Патч одного файла — до 500 строк | `Diffs.MAX_DIFF_LINES` |
-| Только для модели: патчи одного ответа `getCommitDiff` / `getUncommittedChanges` вместе — до 3000 строк, хешей в `getCommitDiff` — до 20 | `PatchBudget.MAX_LINES`, `GitFunction.MAX_DIFF_COMMITS` |
+| Только для модели: патчи одного ответа `getCommitDiff` / `getUncommittedChanges` вместе — до 3000 строк, хешей в `getCommitDiff` — до 20 | `PatchBudget.MAX_LINES`, `GitHistoryFunction.MAX_DIFF_COMMITS` |
 | Только для модели: строка в совпадении `grepContent` / `grepDocuments` — до 500 символов | `GrepLines.MAX_LINE_CHARS` |
 | Только для модели: ханков в одном ответе `getBlame` — до 100 (дальше `truncated` и продолжение с `toLine + 1`) | `BlameBudget.MAX_HUNKS` |
-| Происхождение подстроки в строке (`GET /api/git/files/origin`) — до 30 шагов, все в одни 20 секунд; не больше 4 обходов одного репозитория разом; перенос ищется только в коммитах до 300 файлов | `LineOrigin.MAX_STEPS`, `LineOriginTracer.TIMEOUT`, `LineOriginTracer.MAX_WALKS`, `MovedBlocks.MAX_FILES` |
+| Происхождение подстроки в строке (`GET /api/git/files/origin`, инструмент `getLineOrigin`) — до 30 шагов, все в одни 20 секунд; не больше 4 обходов одного репозитория разом; перенос ищется только в коммитах до 300 файлов | `LineOrigin.MAX_STEPS`, `LineOriginTracer.TIMEOUT`, `LineOriginTracer.MAX_WALKS`, `MovedBlocks.MAX_FILES` |
 | Блоб из истории, который поднимается в память целиком, — до 32 МБ | `CommitFiles.MAX_BLOB_SIZE` |
 | Сравнение ревизий: коммитов по каждую сторону считается до 10 000, поимённо перечисляется до 100 | `RevisionCompare.MAX_COUNT`, `MAX_COMMITS` |
 | `git grep` — 20 секунд и 20 000 строк вывода | `GitGrepRunner.GREP_TIMEOUT`, `MAX_OUTPUT_LINES` |
@@ -203,7 +204,7 @@ Unicode — bidi-переопределения и разделители чип
 |---|---|---|
 | `git grep` (`grepContent`, `GET /api/git/grep`) | subprocess `git grep` (`GitGrepRunner`, командная строка — `GitGrep`) | У JGit нет grep |
 | `git blame` (`GitService.getBlame`: инструмент `getBlame`, `GET /api/git/files/blame`) | subprocess `git blame --porcelain [-L from,to]` (`GitBlameRunner`, командная строка — `GitBlame`) | Коммиты из `.git-blame-ignore-revs` надо пропускать — колонка, приписывающая каждую строку переформатированию, бесполезна. Blame JGit пропускать их умеет, но строки пропущенного коммита отдаёт прежним по позиции, а git — по похожести: колонка разошлась бы с blame на GitHub и с `git blame` того же файла. Список игнорируемых коммитов уезжает по `--ignore-rev` на каждый: файл читается из того дерева, которое смотрят (для снимка — из коммита), и кривая строка в нём не валит запрос, как сделал бы `--ignore-revs-file`. Диапазон инструмента уходит в `-L` и сужает сам обход истории; начало диапазона заранее укладывается в файл (`GitBlame.fit` по `RepoFiles.lineCount`), потому что git отвергает диапазон, начинающийся за концом файла. Если рабочий файл укоротили между подсчётом и запуском, отказ git'а ведёт к пересчёту строк и одному повтору — текст отказа не разбирается, git его переводит. В неглубоком клоне ханки коммитов из файла `shallow` (`ShallowClone`, его же читает `LineOriginTracer` для статуса `BOUNDARY`) помечаются `boundary`: git отдаёт такому коммиту все строки старше клона, и без пометки модель назвала бы его автором |
-| Происхождение подстроки в строке (`GitService.getLineOrigin`, `GET /api/git/files/origin`) | JGit в процессе (`LineOriginTracer`: blame строки — `BlameGenerator`, шаг к прежней версии — свой diff с родителем; версии файла — `FileVersions`, перенос — `MovedBlocks`, текстовая сторона — `LineOrigin`) | Git сам не отвечает, где в строке появилась подстрока: blame называет последний коммит, менявший строку целиком. Шаг к прежней версии делается своим diff'ом, чтобы выбирать её **по подстроке**: и `git blame --ignore-rev` (по похожести), и пропуск коммитов JGit (по позиции) связывают добавленную строку с соседней, где та же подстрока, и уводят в её историю. Перенос — свой аналог `-C`: такой же блок, удалённый тем же коммитом в другом файле или в другом месте того же, от 40 букв и цифр. Без подпроцесса на ответ не влияют ни git-конфиг, ни локаль. `git log -S` отвечает на другой вопрос — где подстрока впервые появилась где угодно |
+| Происхождение подстроки в строке (`GitService.getLineOrigin`: инструмент `getLineOrigin`, `GET /api/git/files/origin`) | JGit в процессе (`LineOriginTracer`: blame строки — `BlameGenerator`, шаг к прежней версии — свой diff с родителем; версии файла — `FileVersions`, перенос — `MovedBlocks`, текстовая сторона — `LineOrigin`) | Git сам не отвечает, где в строке появилась подстрока: blame называет последний коммит, менявший строку целиком. Шаг к прежней версии делается своим diff'ом, чтобы выбирать её **по подстроке**: и `git blame --ignore-rev` (по похожести), и пропуск коммитов JGit (по позиции) связывают добавленную строку с соседней, где та же подстрока, и уводят в её историю. Перенос — свой аналог `-C`: такой же блок, удалённый тем же коммитом в другом файле или в другом месте того же, от 40 букв и цифр. Без подпроцесса на ответ не влияют ни git-конфиг, ни локаль. `git log -S` отвечает на другой вопрос — где подстрока впервые появилась где угодно |
 | `fetch`, `pull`, `push` | subprocess `git` | Нужны учётные данные хоста — ssh-agent, credential helper, `insteadOf`; системный git их уже знает, а учить им JGit значило бы воспроизводить окружение вместо того, чтобы им пользоваться |
 | `merge --abort` | subprocess `git` | JGit этого не умеет |
 | `switch`, `stash`, `commit`, `discard`, статус, история, диффы, чтение | JGit | Ничего, кроме этого репозитория, им не нужно |
@@ -376,7 +377,7 @@ stash и только потом отказывает, и панель, обно
 |---|---|
 | Проекты | `config/model/ProjectProperties.java`, `config/model/GitProperties.java` (запасная однопроектная форма `kb.git.project-path`, когда `kb.projects` пуст), `model/project/Project.java`, `service/file/project/ProjectCatalog.java`, `tools/ProjectContext.java` |
 | Репозиторий | `service/file/git/` — `GitRegistry`, `GitService`, `GitWriter`, `GitBranches`, `GitCommands`, `GitGrepRunner`/`GitGrep`, `GitBlameRunner`/`GitBlame`, `GitReadProcess`, `RepoPaths`, `VisibleFiles`, `Pathspec`, `RepoFiles`, `FileViews`, `CommitFiles`, `RepoBrowse`, `Diffs`, `RevisionCompare`, `PreviewMedia` |
-| Инструменты | `functions/GitFunction.java`, `functions/GitEditFunction.java`, `service/chat/script/ScriptEditPolicy.java` |
+| Инструменты | `functions/GitFunction.java` (рабочее дерево), `functions/GitHistoryFunction.java` (история), `functions/GitReads.java` (общее: репозиторий вызова и обёртка ответа), `functions/GitEditFunction.java`, `service/chat/script/ScriptEditPolicy.java` |
 | Эндпоинты | `controller/GitController.java`, `controller/GitCommandController.java`, `controller/ChatFileRevertController.java` |
 | Чат | `service/chat/git/` — `ChatGitLog`, `ChatFileRevert`, `FileRevertPlan`; `model/chat/entity/GitEventMeta.java` |
 | DTO | `model/git/dto/` — см. [Git DTO](модели-данных/git-dto.md) |

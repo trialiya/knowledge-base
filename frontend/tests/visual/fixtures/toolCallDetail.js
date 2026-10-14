@@ -528,6 +528,64 @@ export const blameCall = {
 };
 
 /**
+ * Когда появилось (`getLineOrigin`): подстрока прослежена через три версии
+ * строки. Самая старая — до переименования файла (свой `path` и номер), у неё
+ * длинное описание коммита; «было» — строка без подстроки в родителе.
+ */
+export const originCall = {
+  name: 'getLineOrigin',
+  argumentsRaw: JSON.stringify({
+    filePath: 'backend/src/main/java/io/github/trialiya/kb/functions/GitFunction.java',
+    line: 466,
+    query: 'BlameBudget',
+  }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify({
+    project: 'knowledge-base',
+    result: {
+      path: 'backend/src/main/java/io/github/trialiya/kb/functions/GitFunction.java',
+      line: 466,
+      query: 'BlameBudget',
+      status: 'FOUND',
+      steps: [
+        {
+          hash: 'b959119a4c2e8f0d1e3a5b7c9d1f3a5b7c9e1f30',
+          author: 'Ирина Котова',
+          date: '2026-09-14T18:22:05+03:00',
+          summary: 'getBlame: граница неглубокого клона помечена',
+          path: 'backend/src/main/java/io/github/trialiya/kb/functions/GitFunction.java',
+          line: 466,
+          text: '        return answer(git, BlameBudget.cap(blame), BlameBudget.cut(blame));',
+        },
+        {
+          hash: '7c1e2d3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d',
+          author: 'Alex Morgan',
+          date: '2026-08-02T09:41:47Z',
+          summary:
+            'Чтение файлов для модели переехало в GitFunction: описание инструментов, ссылки на репозиторий и проект в аргументах собраны в одном месте',
+          path: 'backend/src/main/java/io/github/trialiya/kb/tools/GitTools.java',
+          line: 212,
+          text: '        return new ToolResult<>(git.project().id(), BlameBudget.cap(blame));',
+        },
+      ],
+      before: {
+        hash: '3a5b7c9d1f3a5b7c9e1f30b959119a4c2e8f0d1e',
+        author: 'Alex Morgan',
+        date: '2026-07-20T15:03:11Z',
+        summary: 'Инструмент модели getBlame',
+        path: 'backend/src/main/java/io/github/trialiya/kb/tools/GitTools.java',
+        line: 210,
+        text: '        return new ToolResult<>(git.project().id(), blame);',
+      },
+    },
+    truncated: false,
+  }),
+  resultMeta: null,
+  createdAt: '2026-09-15T10:12:40',
+};
+
+/**
  * Документная мутация: карточка правки со ссылкой в историю версий. В
  * аргументах — весь markdown документа, то есть тот самый случай, ради которого
  * длинное значение показывается блоком, а не строкой с экранированными `\n`.

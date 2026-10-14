@@ -19,6 +19,16 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### `GET /api/git/files/origin`: steps at a shallow clone's cut lose `author` and `summary`
+
+The same rule as for blame below, for the line-origin trace: in a shallow clone
+a step (or `before`) that blame traced to the oldest fetched commit now carries
+`"boundary": true` and comes without `author` and `summary` — that commit did
+not necessarily write the line. `hash`, `date`, `path`, `line` and `text` stay.
+A full clone answers as before. A script or integration of your own that reads
+this endpoint and expects an author on every step must allow for the missing
+fields.
+
 ### `GET /api/git/files/blame`: hunks at a shallow clone's cut lose `author` and `summary`
 
 In a shallow clone (`git clone --depth N`) git credits the oldest fetched

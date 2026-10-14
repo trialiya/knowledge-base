@@ -4,10 +4,7 @@ import static io.github.trialiya.kb.tools.ToolArgs.orDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 
-import io.github.trialiya.kb.model.git.dto.GitCommit;
-import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
-import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
@@ -17,10 +14,8 @@ import io.github.trialiya.kb.model.tool.ToolResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
-import io.github.trialiya.kb.tools.ProjectContext;
 import java.util.Arrays;
 import java.util.List;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ToolContext;
@@ -28,68 +23,18 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
 /**
- * Spring AI tools that give the chat model read-only access to a configured Git repository.
- *
- * <p>Which repository is decided per call, not per bean: the project comes from the run's {@link
- * ToolContext} (see {@code ProjectContext}) and is resolved through {@code GitRegistry}, so a call
- * that names no project reads the default one. The {@code ToolContext} parameter is not part of a
- * tool's schema, so the model neither sees nor fills it in.
- *
- * <p>Every tool here additionally takes an optional {@code project} argument that overrides the
- * context's project for that one call — the model's way to ask a cross-project question ("how does
- * A do this, versus B") without switching the chat's project, and the way it reaches a repository
- * the chat selected earlier and has since moved off. Which ids it may name it learns from the
- * prompt ({@code ProjectPromptService}); an id nobody configured fails loudly in {@code
- * ProjectCatalog#require} rather than quietly reading something else.
- *
- * <p>Every answer here is wrapped in a {@link ToolResult}, whose top-level {@code project} field
- * names the repository that actually served it — one field per response, not per item, since a call
- * reads exactly one repository. A model that forgets which call carried the override still knows
- * what it is looking at, and the same field is what {@code ToolInvocationCollector#hasSeenFile}
- * checks so a file seen in one repository never counts as "seen" for a write into another.
- *
- * <p>The edit tools ({@code GitEditFunction}) deliberately have no such argument: writes always
- * land in the project the user selected for the chat.
- *
- * <p><b>Security constraints:</b> all operations are strictly read-only. Only files tracked by Git
- * are accessible — an untracked file is refused even if it exists on disk, unless the project
- * configures {@code allow-globs} and the path falls inside them, which opens that named area as it
- * is on disk, {@code .gitignore} included. Binary files come back without content; a file larger
- * than 512 KB read whole comes back as a head+tail excerpt, and a line range stops at the same
- * 512 KB, so neither way of reading brings a big file into the model context in full.
+ * Read-only tools over a repository's working tree: the file tree, search by name, outlines,
+ * content, grep and uncommitted changes. The history tools are {@link GitHistoryFunction}; which
+ * repository a call reads, the {@code project} argument every tool takes and the security
+ * constraints of both are {@link GitReads}.
  */
 @Slf4j
-@AllArgsConstructor
 public class GitFunction {
 
-    /** Хешей в одном {@code getCommitDiff}: больше — это уже выгрузка истории, а не вопрос о ней. */
-    static final int MAX_DIFF_COMMITS = 20;
+    private final GitReads reads;
 
-    private final GitRegistry gitRegistry;
-
-    /**
-     * The repository this call works on: the one the model named, else the run's own project, else
-     * the default one. Every read tool here resolves through this — naming a project is always the
-     * model's option, never its obligation.
-     */
-    private GitService git(@Nullable ToolContext context, @Nullable String project) {
-        return gitRegistry.forProject(ProjectContext.resolve(context, project));
-    }
-
-    /**
-     * Ответ инструмента вместе с id репозитория, который на него ответил.
-     *
-     * <p>Id берётся у самого {@link GitService}, а не у аргумента вызова: аргумент мог быть пуст
-     * (разрешится в проект прогона) или назвать проект неканонично, и в обоих случаях модели нужен
-     * тот id, которым потом подписывается ссылка на файл.
-     */
-    private static <T> ToolResult<T> answer(GitService git, T payload) {
-        return new ToolResult<>(git.project().id(), payload);
-    }
-
-    /** {@link #answer(GitService, Object)} of a bounded answer, saying whether it was cut. */
-    private static <T> ToolResult<T> answer(GitService git, T payload, boolean truncated) {
-        return new ToolResult<>(git.project().id(), payload, truncated);
+    public GitFunction(GitRegistry gitRegistry) {
+        this.reads = new GitReads(gitRegistry);
     }
 
     /**
@@ -136,148 +81,12 @@ public class GitFunction {
                             required = false)
                     @Nullable
                     String path,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         log.debug("getFileTree called: path='{}', project='{}'", path, project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         List<GitFileNode> fileTree = git.getFileTree(null, path);
         log.debug("getFileTree called: fileTree={}", fileTree);
-        return answer(git, fileTree);
-    }
-
-    // ── Commit history ───────────────────────────────────────────────────────
-
-    /**
-     * Returns recent commit history from the repository.
-     *
-     * @param maxCount maximum number of commits to return (default 20, max {@value GitService#MAX_COMMITS})
-     * @param filePath optional — show only commits that touched this file
-     * @param query optional — only commits whose message (subject or description) contains it, or
-     *     whose hash starts with it
-     * @param includeMessageBody include each commit's message below the subject (default false)
-     * @return list of commits with hash, author, date, and message
-     */
-    @Tool(
-            description =
-                    "Recent commit history (newest first). Commit: hash, shortHash, author, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set); \"truncated\": true means there is more — without query, history goes on past the last commit; with query, a match was found past maxCount or the walk hit that bound before history ended, so an empty or short result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
-            resultConverter = CompactToolResultConverter.class)
-    public ToolResult<List<GitCommit>> getCommitLog(
-            ToolContext context,
-            @ToolParam(
-                            description = "Maximum commits to return (1–" + GitService.MAX_COMMITS + ", default 20).",
-                            required = false)
-                    @Nullable
-                    Integer maxCount,
-            @ToolParam(
-                            description =
-                                    "Optional: file path (relative to repo root) to filter commits that touched it.",
-                            required = false)
-                    @Nullable
-                    String filePath,
-            @ToolParam(
-                            description = "Optional: text to find in commit messages — subject and"
-                                    + " description — or a hash prefix. The"
-                                    + " description is searched even without"
-                                    + " includeMessageBody.",
-                            required = false)
-                    @Nullable
-                    String query,
-            @ToolParam(
-                            description = "Add each commit's full message body in \"body\". Turn on"
-                                    + " carefully, it may contain long bodies.",
-                            required = false)
-                    @Nullable
-                    Boolean includeMessageBody,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
-        final int limit = positiveOrDefault(maxCount, 20);
-        final boolean withBody = orDefault(includeMessageBody, false);
-        log.debug(
-                "getCommitLog called: maxCount={}, filePath='{}', query='{}'," + " includeMessageBody={}, project='{}'",
-                limit,
-                filePath,
-                query,
-                withBody,
-                project);
-        GitService git = git(context, project);
-        if (query == null || query.isBlank()) {
-            GitCommitSearchResult commitLog = git.getCommitLog(limit, filePath, withBody);
-            log.debug("getCommitLog called: commitLog={}", commitLog);
-            return answer(git, commitLog.commits(), commitLog.truncated());
-        }
-        GitCommitSearchResult found = git.searchCommitLog(query.strip(), limit, filePath, withBody);
-        log.debug("getCommitLog called: found={}", found);
-        return answer(git, found.commits(), found.truncated());
-    }
-
-    // ── Commit diff ─────────────────────────────────────────────────────────
-
-    /**
-     * Returns the list of changed files (and optionally unified diff patches) for one or more
-     * commits.
-     *
-     * @param commitHashes one or more commit hashes, comma-separated
-     * @param includePatch if true, include the unified diff text for each file
-     * @return list of commits with their changed files
-     */
-    @Tool(
-            description =
-                    "Changed files and diffs for one or more commits (at most 20). A single hash also returns that commit's full message in \"body\". Files include status (A/M/D/R), path, additions, deletions, and optional unified diff; all patches of one answer together stop at 3000 lines, a file past that keeps its counts and says how to get its patch. Link a commit as [shortHash](/files?rev=HASH&project=ID) with the full hash and the response's project field.",
-            resultConverter = CompactToolResultConverter.class)
-    public ToolResult<List<GitCommit>> getCommitDiff(
-            ToolContext context,
-            @ToolParam(
-                            description =
-                                    "Commit hash (full or short) or comma-separated list (e.g., \"abc1234\" or \"abc1234,def5678\").")
-                    String commitHashes,
-            @ToolParam(
-                            description =
-                                    "Include unified diff for each file (false=list only, true=includes patch text).",
-                            required = false)
-                    @Nullable
-                    Boolean includePatch,
-            @ToolParam(description = "Optional: file path to filter diff output to only that file.", required = false)
-                    @Nullable
-                    String filePath,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
-        requireText(commitHashes, "commitHashes");
-        final boolean patch = orDefault(includePatch, false);
-        log.debug(
-                "getCommitDiff called: hashes='{}', includePatch={}, filePath='{}', project='{}'",
-                commitHashes,
-                patch,
-                filePath,
-                project);
-        long count = Arrays.stream(commitHashes.split(","))
-                .filter(hash -> !hash.isBlank())
-                .count();
-        if (count > MAX_DIFF_COMMITS) {
-            throw new IllegalArgumentException("At most " + MAX_DIFF_COMMITS + " commits per call, got " + count
-                    + " — split the list into several calls.");
-        }
-        GitService git = git(context, project);
-        List<GitCommit> commitDiff = PatchBudget.ofCommits(git.getCommitDiff(commitHashes, patch, filePath));
-        log.debug("getCommitDiff called: commitDiff={}", commitDiff);
-        return answer(git, commitDiff);
+        return GitReads.answer(git, fileTree);
     }
 
     // ── File search ─────────────────────────────────────────────────────────
@@ -300,21 +109,14 @@ public class GitFunction {
                     String pattern,
             @ToolParam(description = "Maximum results to return (1–50, default 20).", required = false) @Nullable
                     Integer maxResults,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(pattern, "pattern");
         final int limit = positiveOrDefault(maxResults, 20);
         log.debug("searchFiles called: pattern='{}', maxResults={}, project='{}'", pattern, limit, project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         List<GitFileNode> gitFileNodes = git.searchFiles(pattern, limit);
         log.debug("searchFiles called: gitFileNodes={}", gitFileNodes);
-        return answer(git, gitFileNodes);
+        return GitReads.answer(git, gitFileNodes);
     }
 
     // ── File outline ──────────────────────────────────────────────────────────
@@ -338,20 +140,13 @@ public class GitFunction {
     public ToolResult<GitFileOutline> getFileOutline(
             ToolContext context,
             @ToolParam(description = "Source file path relative to repo root.") String filePath,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(filePath, "filePath");
         log.debug("getFileOutline called: filePath='{}', project='{}'", filePath, project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         GitFileOutline outline = git.getFileOutline(null, filePath);
         log.debug("getFileOutline called: outline={}", outline);
-        return answer(git, outline);
+        return GitReads.answer(git, outline);
     }
 
     // ── File content ────────────────────────────────────────────────────────
@@ -408,14 +203,7 @@ public class GitFunction {
                             required = false)
                     @Nullable
                     String commit,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(filePath, "filePath");
         log.debug(
                 "getFileContent called: filePath='{}', fromLine={}, toLine={}, commit='{}'," + " project='{}'",
@@ -424,90 +212,10 @@ public class GitFunction {
                 toLine,
                 commit,
                 project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         GitFileContent fileContent = git.getFileContent(commit, filePath, fromLine, toLine);
         log.debug("getFileContent called: fileContent='{}'", fileContent);
-        return answer(git, fileContent);
-    }
-
-    /**
-     * Who last changed the given lines — {@code git blame -L}, with the revisions {@code
-     * .git-blame-ignore-revs} names skipped; see {@link GitService#getBlame(String, String, Integer,
-     * Integer)}.
-     *
-     * <p>Answers with the hunks alone, not the text of the lines: the model comes here about lines
-     * it has already read, and the description points it on from a hunk to the commit that wrote
-     * it. A long history is cut at {@link BlameBudget#MAX_HUNKS} hunks, with {@code truncated} and
-     * the answer's {@code toLine} saying where to go on from.
-     *
-     * <p>In a shallow clone the oldest commit takes every line older than the clone; the hunk says
-     * {@code boundary} so the model does not name it the author (see {@link GitFileBlame.Hunk}).
-     *
-     * @param filePath path relative to repo root
-     * @param fromLine first line (1-based, inclusive); null for start of file
-     * @param toLine last line (1-based, inclusive); null for end of file
-     * @param commit revision to blame the file as of; null blames the working tree
-     */
-    @Tool(
-            description = "Who last changed each line of a file (git blame). Answers with hunks —"
-                    + " consecutive lines from one commit: fromLine, lineCount, hash, author,"
-                    + " date, summary (commit subject), and path + sourceLine (the file's path"
-                    + " and the hunk's first line in that commit — they differ after a rename"
-                    + " or after edits above). A hunk with no hash is an uncommitted edit."
-                    + " \"boundary\": true marks a hunk at the cut of a shallow clone: its"
-                    + " lines are as old as that commit or older, and who wrote them is not in"
-                    + " this clone (no author, no summary) — say so, do not credit the commit,"
-                    + " and do not diff it: with no parent here, its diff shows every line added."
-                    + " Commits named in .git-blame-ignore-revs (mass reformatting) are skipped,"
-                    + " so their lines go to whoever changed them before. Give fromLine/toLine"
-                    + " for the lines you care about: the history of a range is walked, not"
-                    + " the whole file. lineCount at the top is the whole file's length."
-                    + " \"truncated\": true means more hunks past toLine — continue from the"
-                    + " next line. Why a change was made (not boundary): getCommitDiff with the hash and"
-                    + " filePath=path (the hunk's: after a rename the current one is not in"
-                    + " that commit). The lines as that commit wrote them: getFileContent with"
-                    + " commit=hash, filePath=path, fromLine=sourceLine. Untracked and binary"
-                    + " files have no blame. Link a commit as"
-                    + " [shortHash](/files?rev=HASH&project=ID) with the full hash and the"
-                    + " response's project field.",
-            resultConverter = CompactToolResultConverter.class)
-    public ToolResult<GitFileBlame> getBlame(
-            ToolContext context,
-            @ToolParam(description = "File path relative to repo root.") String filePath,
-            @ToolParam(description = "First line (1-based, inclusive). Null for start of file.", required = false)
-                    @Nullable
-                    Integer fromLine,
-            @ToolParam(description = "Last line (1-based, inclusive). Null for end of file.", required = false)
-                    @Nullable
-                    Integer toLine,
-            @ToolParam(
-                            description = "Optional: blame the file as of this commit instead of the"
-                                    + " working tree — a full or short hash, a branch, a"
-                                    + " tag, or a revision like HEAD~2. Give the path as"
-                                    + " it was spelled in that commit.",
-                            required = false)
-                    @Nullable
-                    String commit,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
-        requireText(filePath, "filePath");
-        log.debug(
-                "getBlame called: filePath='{}', fromLine={}, toLine={}, commit='{}', project='{}'",
-                filePath,
-                fromLine,
-                toLine,
-                commit,
-                project);
-        GitService git = git(context, project);
-        GitFileBlame blame = git.getBlame(commit, filePath, fromLine, toLine);
-        log.debug("getBlame called: {} hunks over lines {}-{}", blame.hunks().size(), blame.fromLine(), blame.toLine());
-        return answer(git, BlameBudget.cap(blame), BlameBudget.cut(blame));
+        return GitReads.answer(git, fileContent);
     }
 
     /**
@@ -556,14 +264,7 @@ public class GitFunction {
                             required = false)
                     @Nullable
                     String paths,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         final boolean patch = orDefault(includePatch, false);
         final boolean untracked = orDefault(includeUntracked, false);
         final List<String> filters = pathList(paths);
@@ -573,10 +274,10 @@ public class GitFunction {
                 untracked,
                 filters,
                 project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         List<GitDiffEntry> gitDiffEntries = PatchBudget.ofEntries(git.getUncommittedChanges(patch, untracked, filters));
         log.debug("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
-        return answer(git, gitDiffEntries);
+        return GitReads.answer(git, gitDiffEntries);
     }
 
     // ── Content grep ────────────────────────────────────────────────────────
@@ -623,14 +324,7 @@ public class GitFunction {
                             required = false)
                     @Nullable
                     Boolean includeUntracked,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(pattern, "pattern");
         final boolean useRegex = orDefault(regex, true);
         // contextLines defaults through orDefault rather than positiveOrDefault: 0 means "the
@@ -648,12 +342,12 @@ public class GitFunction {
                 limit,
                 untracked,
                 project);
-        GitService git = git(context, project);
+        GitService git = reads.git(context, project);
         GitGrepHits hits = git.grepHits(pattern, pathGlob, useRegex, null, ctx, limit, untracked);
         List<GitGrepMatch> matches = hits.matches().stream()
                 .map(m -> new GitGrepMatch(m.path(), m.matchLine(), GrepLines.cap(m.text()), m.tracked()))
                 .toList();
         log.debug("grepContent called: {} matches found, truncated={}", matches.size(), hits.truncated());
-        return answer(git, matches, hits.truncated());
+        return GitReads.answer(git, matches, hits.truncated());
     }
 }
