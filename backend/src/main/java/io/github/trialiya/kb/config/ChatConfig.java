@@ -312,6 +312,7 @@ public class ChatConfig {
             SubAgentConfig subAgentConfig,
             @Value("classpath:prompt/search-agent.md") Resource searchAgentPrompt,
             GitFunction gitFunction,
+            GitHistoryFunction gitHistoryFunction,
             DocumentFunction documentFunction,
             ScriptProperties scriptProperties,
             ScriptRunner scriptRunner,
@@ -324,7 +325,7 @@ public class ChatConfig {
         // sub-agent gets its own copy, forced read-only: its allow-list may include runScript, but
         // never the ability to write, whatever the main chat is allowed to do.
         boolean scriptsAvailable = subAgentScriptsAvailable(scriptProperties, subAgentConfig);
-        List<Object> functions = new ArrayList<>(List.of(gitFunction, documentFunction));
+        List<Object> functions = new ArrayList<>(List.of(gitFunction, gitHistoryFunction, documentFunction));
         if (scriptsAvailable) {
             functions.add(ScriptFunction.readOnly(scriptRunner, gitRegistry));
         }

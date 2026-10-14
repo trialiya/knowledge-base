@@ -18,14 +18,14 @@ import org.springframework.ai.chat.model.ToolContext;
  * that names no project reads the default one. The {@code ToolContext} parameter is not part of a
  * tool's schema, so the model neither sees nor fills it in.
  *
- * <p>Every tool here additionally takes an optional {@code project} argument that overrides the
+ * <p>Every read tool additionally takes an optional {@code project} argument that overrides the
  * context's project for that one call — the model's way to ask a cross-project question ("how does
  * A do this, versus B") without switching the chat's project, and the way it reaches a repository
  * the chat selected earlier and has since moved off. Which ids it may name it learns from the
  * prompt ({@code ProjectPromptService}); an id nobody configured fails loudly in {@code
  * ProjectCatalog#require} rather than quietly reading something else.
  *
- * <p>Every answer here is wrapped in a {@link ToolResult}, whose top-level {@code project} field
+ * <p>Every read tool answers wrapped in a {@link ToolResult}, whose top-level {@code project} field
  * names the repository that actually served it — one field per response, not per item, since a call
  * reads exactly one repository. A model that forgets which call carried the override still knows
  * what it is looking at, and the same field is what {@code ToolInvocationCollector#hasSeenFile}
@@ -34,7 +34,7 @@ import org.springframework.ai.chat.model.ToolContext;
  * <p>The edit tools ({@code GitEditFunction}) deliberately have no such argument: writes always
  * land in the project the user selected for the chat.
  *
- * <p><b>Security constraints:</b> all operations are strictly read-only. Only files tracked by Git
+ * <p><b>Security constraints:</b> every read tool is strictly read-only. Only files tracked by Git
  * are accessible — an untracked file is refused even if it exists on disk, unless the project
  * configures {@code allow-globs} and the path falls inside them, which opens that named area as it
  * is on disk, {@code .gitignore} included. Binary files come back without content; a file larger
@@ -42,6 +42,10 @@ import org.springframework.ai.chat.model.ToolContext;
  * 512 KB, so neither way of reading brings a big file into the model context in full.
  */
 final class GitReads {
+
+    /** The {@code project} argument every read tool takes, described once for all of them. */
+    static final String PROJECT_PARAM = "Optional: another project (repository id) to read instead of the chat's"
+            + " active one; the response's top-level \"project\" field says which one answered.";
 
     private final GitRegistry gitRegistry;
 

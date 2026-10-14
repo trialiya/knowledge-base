@@ -82,14 +82,7 @@ public class GitHistoryFunction {
                             required = false)
                     @Nullable
                     Boolean includeMessageBody,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         final int limit = positiveOrDefault(maxCount, 20);
         final boolean withBody = orDefault(includeMessageBody, false);
         log.debug(
@@ -139,14 +132,7 @@ public class GitHistoryFunction {
             @ToolParam(description = "Optional: file path to filter diff output to only that file.", required = false)
                     @Nullable
                     String filePath,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(commitHashes, "commitHashes");
         final boolean patch = orDefault(includePatch, false);
         log.debug(
@@ -228,14 +214,7 @@ public class GitHistoryFunction {
                             required = false)
                     @Nullable
                     String commit,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(filePath, "filePath");
         log.debug(
                 "getBlame called: filePath='{}', fromLine={}, toLine={}, commit='{}', project='{}'",
@@ -302,14 +281,7 @@ public class GitHistoryFunction {
                             required = false)
                     @Nullable
                     String commit,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(filePath, "filePath");
         requireValue(line, "line");
         requireText(query, "query");

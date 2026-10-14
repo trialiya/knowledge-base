@@ -81,14 +81,7 @@ public class GitFunction {
                             required = false)
                     @Nullable
                     String path,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         log.debug("getFileTree called: path='{}', project='{}'", path, project);
         GitService git = reads.git(context, project);
         List<GitFileNode> fileTree = git.getFileTree(null, path);
@@ -116,14 +109,7 @@ public class GitFunction {
                     String pattern,
             @ToolParam(description = "Maximum results to return (1–50, default 20).", required = false) @Nullable
                     Integer maxResults,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(pattern, "pattern");
         final int limit = positiveOrDefault(maxResults, 20);
         log.debug("searchFiles called: pattern='{}', maxResults={}, project='{}'", pattern, limit, project);
@@ -154,14 +140,7 @@ public class GitFunction {
     public ToolResult<GitFileOutline> getFileOutline(
             ToolContext context,
             @ToolParam(description = "Source file path relative to repo root.") String filePath,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(filePath, "filePath");
         log.debug("getFileOutline called: filePath='{}', project='{}'", filePath, project);
         GitService git = reads.git(context, project);
@@ -224,14 +203,7 @@ public class GitFunction {
                             required = false)
                     @Nullable
                     String commit,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(filePath, "filePath");
         log.debug(
                 "getFileContent called: filePath='{}', fromLine={}, toLine={}, commit='{}'," + " project='{}'",
@@ -292,14 +264,7 @@ public class GitFunction {
                             required = false)
                     @Nullable
                     String paths,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         final boolean patch = orDefault(includePatch, false);
         final boolean untracked = orDefault(includeUntracked, false);
         final List<String> filters = pathList(paths);
@@ -359,14 +324,7 @@ public class GitFunction {
                             required = false)
                     @Nullable
                     Boolean includeUntracked,
-            @ToolParam(
-                            description = "Optional: another project (repository id) to read instead of"
-                                    + " the chat's active one; the response's"
-                                    + " top-level \"project\" field says which"
-                                    + " one answered.",
-                            required = false)
-                    @Nullable
-                    String project) {
+            @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(pattern, "pattern");
         final boolean useRegex = orDefault(regex, true);
         // contextLines defaults through orDefault rather than positiveOrDefault: 0 means "the

@@ -129,7 +129,7 @@ Unicode — bidi-переопределения и разделители чип
 |---|---|
 | Файл больше 512 КБ отдаётся фрагментом (`truncated=true`), бинарный — без содержимого; диапазон строк — тоже не больше 512 КБ | `RepoFiles.MAX_FILE_SIZE`, `BINARY_SNIFF_BYTES`, `FileViews` |
 | Патч одного файла — до 500 строк | `Diffs.MAX_DIFF_LINES` |
-| Только для модели: патчи одного ответа `getCommitDiff` / `getUncommittedChanges` вместе — до 3000 строк, хешей в `getCommitDiff` — до 20 | `PatchBudget.MAX_LINES`, `GitFunction.MAX_DIFF_COMMITS` |
+| Только для модели: патчи одного ответа `getCommitDiff` / `getUncommittedChanges` вместе — до 3000 строк, хешей в `getCommitDiff` — до 20 | `PatchBudget.MAX_LINES`, `GitHistoryFunction.MAX_DIFF_COMMITS` |
 | Только для модели: строка в совпадении `grepContent` / `grepDocuments` — до 500 символов | `GrepLines.MAX_LINE_CHARS` |
 | Только для модели: ханков в одном ответе `getBlame` — до 100 (дальше `truncated` и продолжение с `toLine + 1`) | `BlameBudget.MAX_HUNKS` |
 | Происхождение подстроки в строке (`GET /api/git/files/origin`, инструмент `getLineOrigin`) — до 30 шагов, все в одни 20 секунд; не больше 4 обходов одного репозитория разом; перенос ищется только в коммитах до 300 файлов | `LineOrigin.MAX_STEPS`, `LineOriginTracer.TIMEOUT`, `LineOriginTracer.MAX_WALKS`, `MovedBlocks.MAX_FILES` |
@@ -377,7 +377,7 @@ stash и только потом отказывает, и панель, обно
 |---|---|
 | Проекты | `config/model/ProjectProperties.java`, `config/model/GitProperties.java` (запасная однопроектная форма `kb.git.project-path`, когда `kb.projects` пуст), `model/project/Project.java`, `service/file/project/ProjectCatalog.java`, `tools/ProjectContext.java` |
 | Репозиторий | `service/file/git/` — `GitRegistry`, `GitService`, `GitWriter`, `GitBranches`, `GitCommands`, `GitGrepRunner`/`GitGrep`, `GitBlameRunner`/`GitBlame`, `GitReadProcess`, `RepoPaths`, `VisibleFiles`, `Pathspec`, `RepoFiles`, `FileViews`, `CommitFiles`, `RepoBrowse`, `Diffs`, `RevisionCompare`, `PreviewMedia` |
-| Инструменты | `functions/GitFunction.java`, `functions/GitEditFunction.java`, `service/chat/script/ScriptEditPolicy.java` |
+| Инструменты | `functions/GitFunction.java` (рабочее дерево), `functions/GitHistoryFunction.java` (история), `functions/GitReads.java` (общее: репозиторий вызова и обёртка ответа), `functions/GitEditFunction.java`, `service/chat/script/ScriptEditPolicy.java` |
 | Эндпоинты | `controller/GitController.java`, `controller/GitCommandController.java`, `controller/ChatFileRevertController.java` |
 | Чат | `service/chat/git/` — `ChatGitLog`, `ChatFileRevert`, `FileRevertPlan`; `model/chat/entity/GitEventMeta.java` |
 | DTO | `model/git/dto/` — см. [Git DTO](модели-данных/git-dto.md) |
