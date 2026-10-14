@@ -130,6 +130,19 @@ class GitServiceLineLogTest {
                 .containsExactly("changed inside", "written");
     }
 
+    /**
+     * Символьная ссылка — не файл со строками: HEAD хранит в её blob имя цели, и истории строк у
+     * неё нет. Отказ, как у {@code getLineOrigin}, а не история чужих строк.
+     */
+    @Test
+    void aSymbolicLinkHasNoLineHistory() throws IOException {
+        Files.createSymbolicLink(repoDir.resolve("link.txt"), Path.of("g.txt"));
+        commitAll("link");
+
+        assertThatThrownBy(() -> service.getLineLog("link.txt", 1, 1, 20, false))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     /** Строки, которых нет ни в одном коммите, истории не имеют — это ошибка, а не пустой ответ. */
     @Test
     void uncommittedAdditionsHaveNoHistory() {

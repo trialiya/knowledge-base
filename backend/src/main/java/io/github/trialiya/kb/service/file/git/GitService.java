@@ -76,12 +76,13 @@ import org.jspecify.annotations.Nullable;
  * from ever sharing a repository handle.
  *
  * <p>All operations run against this project's repository via JGit, in-process — no {@code git}
- * subprocess, no argv, no output parsing — except {@link #grepHits} and {@link #getBlame},
- * which shell out to {@code git grep} and {@code git blame} through {@link GitGrepRunner} and
- * {@link GitBlameRunner} (JGit has no grep, and its blame cannot skip {@code
- * .git-blame-ignore-revs}), and the user's network commands ({@link #fetch}, see {@code
- * GitCommands}), which shell out to reuse the host's credentials. Files matched by {@code .gitignore} are excluded from tree/search/status results the
- * same way native git excludes them.
+ * subprocess, no argv, no output parsing — except {@link #grepHits}, {@link #getBlame} and {@link
+ * #getLineLog}, which shell out to {@code git grep}, {@code git blame} and {@code git log -L}
+ * through {@link GitGrepRunner}, {@link GitBlameRunner} and {@link GitLineLog} (JGit has no grep
+ * and no line-range log, and its blame cannot skip {@code .git-blame-ignore-revs}), and the
+ * user's network commands ({@link #fetch}, see {@code GitCommands}), which shell out to reuse the
+ * host's credentials. Files matched by {@code .gitignore} are excluded from tree/search/status
+ * results the same way native git excludes them.
  */
 @Slf4j
 public class GitService {

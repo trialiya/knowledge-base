@@ -40,6 +40,30 @@ final class RepoFiles {
         }
     }
 
+    /**
+     * A tracked working-tree file's text, to number its lines against a committed version of it —
+     * what {@code getLineOrigin} and the line-range history do with a file the model read as it is
+     * now. Refused, each with its reason, where a committed version cannot be compared to it: a
+     * symlink (its blob holds the target's name, the path reads the target's text), a file past
+     * {@link CommitFiles#MAX_BLOB_SIZE} (no committed version that large is read either), a binary
+     * file.
+     *
+     * @param resolved what {@link VisibleFiles#require} answered for {@code normalized}
+     */
+    static byte[] workingText(String normalized, VisibleFiles.Resolved resolved) {
+        if (Files.isSymbolicLink(resolved.absolute())) {
+            throw new IllegalArgumentException("Symbolic link has no line history: " + normalized);
+        }
+        if (sizeOf(normalized, resolved.absolute()) > CommitFiles.MAX_BLOB_SIZE) {
+            throw new IllegalArgumentException("File too large to trace: " + normalized);
+        }
+        byte[] bytes = readAll(normalized, resolved.absolute());
+        if (isBinary(bytes)) {
+            throw new IllegalArgumentException("Binary file has no line history: " + normalized);
+        }
+        return bytes;
+    }
+
     static byte[] readAll(String normalized, Path absolute) {
         try {
             return Files.readAllBytes(absolute);

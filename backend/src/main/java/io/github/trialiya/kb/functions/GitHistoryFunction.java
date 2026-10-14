@@ -23,10 +23,10 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
 /**
- * Read-only tools over a repository's history: the commit log, a commit's diff, who last changed
- * lines ({@code getBlame}) and when a text entered a line ({@code getLineOrigin}). Which
- * repository a call reads, and the {@code project} argument every tool takes, are {@link
- * GitReads}.
+ * Read-only tools over a repository's history: the commit log (with a line range, the history of
+ * those lines), a commit's diff, who wrote lines ({@code getBlame}) and when a text entered a line
+ * ({@code getLineOrigin}). Which repository a call reads, and the {@code project} argument every
+ * tool takes, are {@link GitReads}.
  */
 @Slf4j
 public class GitHistoryFunction {
