@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.functions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -164,7 +165,7 @@ class GitFunctionTest {
                         function.getFileTree(context, null, "billing"),
                         function.searchFiles(context, "pom", null, "billing"),
                         function.getFileOutline(context, "Foo.java", "billing"),
-                        history.getCommitLog(context, null, null, null, null, "billing"),
+                        history.getCommitLog(context, null, null, null, null, null, null, "billing"),
                         history.getCommitDiff(context, "abc1234", null, null, "billing"),
                         function.getUncommittedChanges(context, null, null, null, "billing"),
                         history.getBlame(context, "pom.xml", 1, 2, null, null, "billing"),
@@ -183,7 +184,7 @@ class GitFunctionTest {
     void theItemsInsideCarryNoProjectOfTheirOwn() {
         ToolContext context = new ToolContext(Map.of());
 
-        ToolResult<List<GitCommit>> log = history.getCommitLog(context, null, null, null, null, "billing");
+        ToolResult<List<GitCommit>> log = history.getCommitLog(context, null, null, null, null, null, null, "billing");
 
         assertThat(log.project()).isEqualTo("billing");
         assertThat(log.result())
@@ -200,10 +201,10 @@ class GitFunctionTest {
     void theMessageBodyIsOffUnlessTheCallAsksForIt() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        history.getCommitLog(context, null, null, null, null, null);
+        history.getCommitLog(context, null, null, null, null, null, null, null);
         verify(billing).getCommitLog(20, null, false);
 
-        history.getCommitLog(context, 5, null, null, true, null);
+        history.getCommitLog(context, 5, null, null, true, null, null, null);
         verify(billing).getCommitLog(5, null, true);
     }
 
@@ -262,6 +263,28 @@ class GitFunctionTest {
     }
 
     /**
+     * Диапазон строк у лога — другой вопрос: история этих строк ({@code git log -L}), а не поиск по
+     * сообщениям; без файла его не задать, с {@code query} не совместить.
+     */
+    @Test
+    void aLineRangeTurnsTheLogIntoTheLinesHistory() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+        when(billing.getLineLog(anyString(), any(), any(), anyInt(), anyBoolean()))
+                .thenReturn(new GitCommitSearchResult(List.of(commit()), false));
+
+        ToolResult<List<GitCommit>> lines = history.getCommitLog(context, 5, "pom.xml", null, null, 3, 9, null);
+
+        verify(billing).getLineLog("pom.xml", 3, 9, 5, false);
+        assertThat(lines.result()).hasSize(1);
+        assertThatThrownBy(() -> history.getCommitLog(context, 5, null, null, null, 3, 9, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("filePath");
+        assertThatThrownBy(() -> history.getCommitLog(context, 5, "pom.xml", "retry", null, 3, 9, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("query");
+    }
+
+    /**
      * Список путей модель шлёт одной строкой, и разбирает её инструмент: запятая — заявленный
      * разделитель, перенос строки принимается заодно, пустой аргумент значит «всё дерево».
      */
@@ -305,10 +328,10 @@ class GitFunctionTest {
     void aQueryTurnsTheLogIntoASearchThroughMessages() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        history.getCommitLog(context, 5, "src", "  retry  ", null, null);
+        history.getCommitLog(context, 5, "src", "  retry  ", null, null, null, null);
         verify(billing).searchCommitLog("retry", 5, "src", false);
 
-        history.getCommitLog(context, 5, "src", " ", true, null);
+        history.getCommitLog(context, 5, "src", " ", true, null, null, null);
         verify(billing).getCommitLog(5, "src", true);
     }
 
@@ -320,9 +343,11 @@ class GitFunctionTest {
     void bothSearchAndListingSayWhetherTheyWereCutShort() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        assertThat(history.getCommitLog(context, 5, null, "retry", null, null).truncated())
+        assertThat(history.getCommitLog(context, 5, null, "retry", null, null, null, null)
+                        .truncated())
                 .isTrue();
-        assertThat(history.getCommitLog(context, 5, null, null, null, null).truncated())
+        assertThat(history.getCommitLog(context, 5, null, null, null, null, null, null)
+                        .truncated())
                 .isTrue();
     }
 }

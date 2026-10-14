@@ -1,8 +1,10 @@
 package io.github.trialiya.kb.service.file.git;
 
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
+import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitRefs;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -12,6 +14,7 @@ import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.BranchTrackingStatus;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryState;
@@ -199,6 +202,41 @@ class GitBranches {
                     .toList();
         } catch (GitAPIException e) {
             throw new IllegalStateException("Failed to list branches", e);
+        }
+    }
+
+    /**
+     * The commits this branch would publish, newest first — see {@link GitService#getOutgoingCommits}
+     * for what "publish" means with and without an upstream.
+     *
+     * @param limit how many to return, already capped
+     */
+    List<GitCommit> outgoing(int limit) {
+        GitBranchStatus status = status();
+        // Neither has anything to publish: a detached HEAD is not a branch, an unborn one has no
+        // commits. The dialog says that instead of showing an empty list it cannot explain.
+        if (status.detached() || status.unborn()) return List.of();
+        try (CommitWalk walk = new CommitWalk(repository)) {
+            ObjectId head = repository.resolve(Constants.HEAD);
+            if (head == null) return List.of();
+            walk.from(head);
+            ObjectId upstream = status.upstream() == null ? null : repository.resolve(status.upstream());
+            if (upstream == null) {
+                for (Ref remote : repository.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES)) {
+                    ObjectId id = remote.getObjectId();
+                    if (id != null) walk.exclude(id);
+                }
+            } else {
+                walk.exclude(upstream);
+            }
+            List<GitCommit> commits = new ArrayList<>();
+            for (RevCommit commit : walk) {
+                if (commits.size() == limit) break;
+                commits.add(Diffs.toGitCommit(commit, null, walk.reader(), false));
+            }
+            return commits;
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read outgoing commits", e);
         }
     }
 }

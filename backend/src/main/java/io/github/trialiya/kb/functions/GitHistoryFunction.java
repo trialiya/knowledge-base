@@ -50,11 +50,14 @@ public class GitHistoryFunction {
      * @param query optional — only commits whose message (subject or description) contains it, or
      *     whose hash starts with it
      * @param includeMessageBody include each commit's message below the subject (default false)
+     * @param fromLine with {@code filePath}: only commits that changed this line range ({@code git
+     *     log -L}, {@link GitService#getLineLog}); numbered as the file is at HEAD
+     * @param toLine last line of that range
      * @return list of commits with hash, author, date, and message
      */
     @Tool(
             description =
-                    "Recent commit history (newest first). Commit: hash, shortHash, author, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set); \"truncated\": true means there is more — without query, history goes on past the last commit; with query, a match was found past maxCount or the walk hit that bound before history ended, so an empty or short result means none there, not none ever. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
+                    "Recent commit history (newest first). Commit: hash, shortHash, author, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). With query, only commits whose subject or description contains it (case-insensitive) or whose hash starts with it; the search looks at the latest 20000 commits only (of filePath's history when set); \"truncated\": true means there is more — without query, history goes on past the last commit; with query, a match was found past maxCount or the walk hit that bound before history ended, so an empty or short result means none there, not none ever. With filePath and fromLine/toLine (not with query): only the commits that changed those lines (git log -L) — how a method or a block evolved, every commit it went through, where getBlame names only the latest one per line; the range follows the lines as edits above shift them. Lines are numbered as the file is at HEAD (uncommitted edits shift the working tree's numbering). In a shallow clone the walk stops at the clone's cut: the oldest commit listed may be that cut rather than where the lines came from. Use getCommitDiff to see file changes. When mentioning a commit in your response, link it as [shortHash](/files?rev=HASH&project=ID), where HASH is the full hash and ID is the response's project field.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
@@ -83,6 +86,14 @@ public class GitHistoryFunction {
                             required = false)
                     @Nullable
                     Boolean includeMessageBody,
+            @ToolParam(
+                            description = "Optional, with filePath: first line of a range — only"
+                                    + " commits that changed those lines. Numbered as at HEAD.",
+                            required = false)
+                    @Nullable
+                    Integer fromLine,
+            @ToolParam(description = "Optional, with filePath: last line of that range.", required = false) @Nullable
+                    Integer toLine,
             @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         final int limit = positiveOrDefault(maxCount, 20);
         final boolean withBody = orDefault(includeMessageBody, false);
@@ -94,6 +105,19 @@ public class GitHistoryFunction {
                 withBody,
                 project);
         GitService git = reads.git(context, project);
+        if (fromLine != null || toLine != null) {
+            if (query != null && !query.isBlank()) {
+                throw new IllegalArgumentException("query and a line range do not combine: ask one, then the other");
+            }
+            GitCommitSearchResult lineLog =
+                    git.getLineLog(requireText(filePath, "filePath"), fromLine, toLine, limit, withBody);
+            log.debug(
+                    "getCommitLog called: lines {}-{}, {} commits",
+                    fromLine,
+                    toLine,
+                    lineLog.commits().size());
+            return GitReads.answer(git, lineLog.commits(), lineLog.truncated());
+        }
         if (query == null || query.isBlank()) {
             GitCommitSearchResult commitLog = git.getCommitLog(limit, filePath, withBody);
             log.debug("getCommitLog called: commitLog={}", commitLog);

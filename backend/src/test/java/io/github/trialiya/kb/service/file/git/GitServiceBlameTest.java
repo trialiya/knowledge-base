@@ -413,8 +413,10 @@ class GitServiceBlameTest {
             GitBlameRunner runner = new GitBlameRunner(
                     paths, repository, new VisibleFiles(service.project(), paths, repository), Duration.ZERO);
 
+            // Сообщение — ответ инструмента модели: кроме «не успел», оно говорит, что спросить вместо.
             assertThatThrownBy(() -> runner.blame("f.txt", null, BlameMatching.EXACT))
-                    .isInstanceOf(GitReadTimeoutException.class);
+                    .isInstanceOf(GitReadTimeoutException.class)
+                    .hasMessageContaining("fromLine/toLine");
         }
     }
 
