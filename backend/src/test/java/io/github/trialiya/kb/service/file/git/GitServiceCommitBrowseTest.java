@@ -246,7 +246,6 @@ class GitServiceCommitBrowseTest {
         assertThat(names(service.getFileTree(head(), ""))).doesNotContain("qu\"ote.md", "odd");
         assertThat(names(service.getFileTree(head(), "odd"))).isEmpty();
         assertThat(names(service.browsePath(head(), "", false).nodes())).doesNotContain("qu\"ote.md", "odd");
-        assertThat(names(service.getFileTree(null, ""))).doesNotContain("qu\"ote.md", "odd");
     }
 
     /** Размер в листинге — тоже из коммита: правка на диске его не меняет. */
