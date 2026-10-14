@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.file.git;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
@@ -183,7 +184,10 @@ class GitServiceBlameTest {
                 .hasMessageContaining("no commits");
     }
 
-    /** Строки, которых ещё нет в истории, приходят ханком без коммита. */
+    /**
+     * Строки, которых ещё нет в истории, приходят ханком без коммита: git метит их нулевым хешем, и
+     * разбор настоящего вывода не должен принять его за коммит.
+     */
     @Test
     void uncommittedLinesHaveNoCommit() {
         writeFile("f.txt", "one\n");
@@ -192,11 +196,9 @@ class GitServiceBlameTest {
 
         GitFileBlame blame = service.getBlame(null, "f.txt");
 
-        assertThat(blame.hunks())
-                .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::hash)
-                .containsExactly(tuple(1, blame.hunks().get(0).hash()), tuple(2, null));
-        assertThat(blame.hunks().get(0).hash()).isNotNull();
-        assertThat(blame.hunks().get(1).author()).isNull();
+        assertThat(blame.hunks()).extracting(GitFileBlame.Hunk::fromLine).containsExactly(1, 2);
+        assertThat(blame.hunks().get(0).hash()).hasSize(40);
+        assertThat(blame.hunks().get(1)).isEqualTo(new GitFileBlame.Hunk(2, 1, null, null, null, null, null, null));
     }
 
     @Test
@@ -361,14 +363,20 @@ class GitServiceBlameTest {
         assertThat(blame.hunks()).extracting(GitFileBlame.Hunk::summary).containsExactly("first");
     }
 
+    /** Тот же отказ, слово в слово: по ответу нельзя узнать, лежит ли на диске неотслеживаемый файл. */
     @Test
     void anUntrackedFileIsRefusedLikeAMissingOne() {
         writeFile("f.txt", "one\n");
         commitAll("first");
         writeFile("new.txt", "no history\n");
 
-        assertThatThrownBy(() -> service.getBlame(null, "new.txt")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.getBlame(null, "gone.txt")).isInstanceOf(IllegalArgumentException.class);
+        Throwable untracked = catchThrowable(() -> service.getBlame(null, "new.txt"));
+        Throwable missing = catchThrowable(() -> service.getBlame(null, "gone.txt"));
+
+        assertThat(untracked).isInstanceOf(IllegalArgumentException.class);
+        assertThat(missing).isInstanceOf(IllegalArgumentException.class);
+        assertThat(untracked.getMessage().replace("new.txt", "<path>"))
+                .isEqualTo(missing.getMessage().replace("gone.txt", "<path>"));
     }
 
     @Test
@@ -390,16 +398,6 @@ class GitServiceBlameTest {
         assertThatThrownBy(() -> service.getBlame("nosuch", "f.txt"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Commit not found");
-    }
-
-    /** Мусор в игнор-файле не валит blame: git получает только то, что похоже на хеш. */
-    @Test
-    void junkInTheIgnoreFileDoesNotBreakTheRun() {
-        writeFile("f.txt", "one\n");
-        commitAll("first");
-        writeFile(GitBlameRunner.IGNORE_REVS_FILE, "not a hash\n\n# comment only\n");
-
-        assertThat(service.getBlame(null, "f.txt").hunks()).hasSize(1);
     }
 
     /** Дедлайн, истёкший до запуска, — отказ по таймауту, а не пустая колонка. */

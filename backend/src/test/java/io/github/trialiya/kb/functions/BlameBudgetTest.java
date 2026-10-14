@@ -41,17 +41,22 @@ class BlameBudgetTest {
     /** У ответа о диапазоне начало остаётся началом диапазона. */
     @Test
     void aCappedRangeKeepsItsStart() {
-        GitFileBlame capped = BlameBudget.cap(blame(BlameBudget.MAX_HUNKS + 5, 1));
+        GitFileBlame capped = BlameBudget.cap(blame(BlameBudget.MAX_HUNKS + 5, 41));
 
-        assertThat(capped.fromLine()).isEqualTo(1);
-        assertThat(capped.hunks().getLast().fromLine()).isEqualTo(2 * BlameBudget.MAX_HUNKS - 1);
+        assertThat(capped.fromLine()).isEqualTo(41);
+        assertThat(capped.toLine()).isEqualTo(41 + 2 * BlameBudget.MAX_HUNKS - 1);
     }
 
-    /** {@code count} ханков по две строки с первой; {@code from} — начало спрошенного диапазона. */
+    /**
+     * {@code count} ханков по две строки с начала диапазона; {@code from} — начало спрошенного
+     * диапазона, {@code null} — весь файл с первой строки.
+     */
     private static GitFileBlame blame(int count, Integer from) {
+        int start = from == null ? 1 : from;
         List<GitFileBlame.Hunk> hunks = IntStream.range(0, count)
-                .mapToObj(i -> new GitFileBlame.Hunk(1 + 2 * i, 2, "a".repeat(40), "A", null, "s", "f", 1))
+                .mapToObj(i -> new GitFileBlame.Hunk(start + 2 * i, 2, "a".repeat(40), "A", null, "s", "f", 1))
                 .toList();
-        return new GitFileBlame("f", null, 2 * count, hunks, from, from == null ? null : 2 * count);
+        return new GitFileBlame(
+                "f", null, start + 2 * count - 1, hunks, from, from == null ? null : start + 2 * count - 1);
     }
 }

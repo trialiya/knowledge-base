@@ -22,7 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Где подстрока появилась в строке файла — через настоящий {@code git blame}: цепочка по версиям
+ * Где подстрока появилась в строке файла — на настоящем репозитории, обходом JGit по версиям строки
+ * ({@code LineOriginTracer}): цепочка по версиям
  * строки, переименование, перенос в другой файл, и все способы, которыми цепочка кончается.
  */
 class GitServiceLineOriginTest {

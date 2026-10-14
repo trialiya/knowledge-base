@@ -10,19 +10,20 @@ class GitGrepResultTest {
 
     @Test
     void linesOfOneFileGatherUnderItInTheOrderTheyCame() {
+        // Не по алфавиту и не по номеру строки: порядок — тот, в каком пришли совпадения.
         List<GitGrepMatch> matches = List.of(
-                new GitGrepMatch("a.txt", 1, "needle one"),
+                new GitGrepMatch("b.txt", 2, "needle three"),
                 new GitGrepMatch("a.txt", 5, "needle two"),
-                new GitGrepMatch("b.txt", 2, "needle three"));
+                new GitGrepMatch("a.txt", 1, "needle one"));
 
         GitGrepResult result = GitGrepResult.group(matches, false);
 
         assertThat(result.total()).isEqualTo(3);
         assertThat(result.truncated()).isFalse();
-        assertThat(result.files()).extracting(GitGrepResult.File::path).containsExactly("a.txt", "b.txt");
-        assertThat(result.files().getFirst().lines())
+        assertThat(result.files()).extracting(GitGrepResult.File::path).containsExactly("b.txt", "a.txt");
+        assertThat(result.files().getLast().lines())
                 .extracting(GitGrepResult.Line::line)
-                .containsExactly(1, 5);
+                .containsExactly(5, 1);
     }
 
     /** Обрезана ли выдача, по её размеру не узнать — это слово вызывающего, и оно передаётся как есть. */

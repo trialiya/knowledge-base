@@ -64,9 +64,12 @@ class GitServiceLineLogTest {
         assertThat(log.truncated()).isTrue();
     }
 
-    /** Конец за краем файла подтягивается, как у blame; начало за краем — ошибка с длиной файла. */
+    /**
+     * Конец за краем файла подтягивается, как у blame; начало за краем — ошибка с длиной файла;
+     * конец раньше начала — ошибка вызова, а не пустой диапазон.
+     */
     @Test
-    void theRangeIsFittedToTheFileAtHead() {
+    void theRangeIsFittedToTheFile() {
         assertThat(service.getLineLog("g.txt", 6, 100, 20, false).commits())
                 .extracting(GitCommit::message)
                 .containsExactly("changed below", "written");
@@ -131,8 +134,8 @@ class GitServiceLineLogTest {
     }
 
     /**
-     * Символьная ссылка — не файл со строками: HEAD хранит в её blob имя цели, и истории строк у
-     * неё нет. Отказ, как у {@code getLineOrigin}, а не история чужих строк.
+     * Символьная ссылка — не файл со строками: в HEAD она лежит ссылкой, и чтение файла из HEAD
+     * отказывает ещё до git — а не отдаёт историю строк цели.
      */
     @Test
     void aSymbolicLinkHasNoLineHistory() throws IOException {
@@ -140,7 +143,9 @@ class GitServiceLineLogTest {
         commitAll("link");
 
         assertThatThrownBy(() -> service.getLineLog("link.txt", 1, 1, 20, false))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("File not found")
+                .hasMessageContaining("link.txt");
     }
 
     /** Строки, которых нет ни в одном коммите, истории не имеют — это ошибка, а не пустой ответ. */
