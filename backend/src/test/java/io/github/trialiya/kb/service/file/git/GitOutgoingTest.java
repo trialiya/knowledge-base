@@ -75,9 +75,11 @@ class GitOutgoingTest {
      */
     @Test
     void aRemoteRefToAnAnnotatedTagIsReadAsItsCommit() {
+        git("switch", "-q", "-c", "feature/y");
+        // Только тег достаёт этот коммит: исключит его лишь ссылка, прочитанная как коммит.
+        commit("tagged");
         git("tag", "-a", "v1", "-m", "release");
         git("update-ref", "refs/remotes/origin/v1", "v1");
-        git("switch", "-q", "-c", "feature/y");
         commit("after the tag");
 
         assertThat(service.getOutgoingCommits(20))
