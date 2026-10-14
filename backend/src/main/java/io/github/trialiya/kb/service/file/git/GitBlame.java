@@ -88,6 +88,19 @@ final class GitBlame {
     }
 
     /**
+     * Refuses an end before the start — the caller's mistake, not an empty range: told apart from a
+     * start past the file's end, which only the file can answer. A missing bound is never wrong.
+     *
+     * @throws IllegalArgumentException if {@code toLine} is before {@code fromLine} (or below 1)
+     */
+    static void requireOrdered(@Nullable Integer fromLine, @Nullable Integer toLine) {
+        if (toLine != null && toLine < Math.max(1, fromLine == null ? 1 : fromLine)) {
+            throw new IllegalArgumentException(
+                    "toLine " + toLine + " is before fromLine " + (fromLine == null ? 1 : fromLine));
+        }
+    }
+
+    /**
      * The asked range fitted into a file of {@code total} lines: a missing bound is the file's edge,
      * the start is at least 1, the end at most {@code total}. {@code null} when nothing of the file
      * is left — a start past the end, or a start after the end.

@@ -37,6 +37,7 @@ final class GitReadProcess {
 
     private final Path root;
     private final Duration timeout;
+    private final String timeoutHint;
 
     /**
      * @param root the working directory git runs in — the repository root
@@ -44,8 +45,18 @@ final class GitReadProcess {
      *     is the deadline handed to {@link #run}
      */
     GitReadProcess(Path root, Duration timeout) {
+        this(root, timeout, "");
+    }
+
+    /**
+     * @param timeoutHint appended to the timeout's message: what the caller can ask instead — the
+     *     model reads that message as the tool's answer, and "it took too long" alone leaves it
+     *     nothing to try
+     */
+    GitReadProcess(Path root, Duration timeout, String timeoutHint) {
         this.root = root;
         this.timeout = timeout;
+        this.timeoutHint = timeoutHint;
     }
 
     Duration timeout() {
@@ -256,6 +267,6 @@ final class GitReadProcess {
 
     private GitReadTimeoutException timedOut(List<String> command) {
         return new GitReadTimeoutException(command.get(0) + " " + command.get(1) + " did not finish within "
-                + timeout.toSeconds() + "s: " + String.join(" ", command));
+                + timeout.toSeconds() + "s: " + String.join(" ", command) + timeoutHint);
     }
 }

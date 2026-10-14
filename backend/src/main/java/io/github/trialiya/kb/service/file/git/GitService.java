@@ -51,10 +51,8 @@ import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
-import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -134,6 +132,9 @@ public class GitService {
     /** Line authorship, through a {@code git blame} subprocess. */
     private final GitBlameRunner blame;
 
+    /** {@code git log -L}: the commits that changed a range of lines. */
+    private final GitLineLog lineLog;
+
     /** Where a substring entered a line, through JGit. */
     private final LineOriginTracer origins;
 
@@ -169,6 +170,7 @@ public class GitService {
         this.visible = new VisibleFiles(project, paths, repository);
         this.grep = new GitGrepRunner(paths, repository, visible);
         this.blame = new GitBlameRunner(paths, repository, visible);
+        this.lineLog = new GitLineLog(paths, repository, git, visible);
         this.origins = new LineOriginTracer(repository, visible);
         this.writer = new GitWriter(project, paths, visible, git);
         this.branches = new GitBranches(repository, git);
@@ -380,6 +382,22 @@ public class GitService {
     }
 
     /**
+     * The commits that changed lines {@code fromLine}…{@code toLine} of the file, numbered as the
+     * working tree has it, newest first; see {@link GitLineLog}.
+     *
+     * @param maxCount max commits to return, capped at {@value #MAX_COMMITS}
+     */
+    public GitCommitSearchResult getLineLog(
+            @NonNull String filePath,
+            @Nullable Integer fromLine,
+            @Nullable Integer toLine,
+            int maxCount,
+            boolean includeBody) {
+        int limit = Math.min(Math.max(maxCount, 1), MAX_COMMITS);
+        return lineLog.log(normalizePath(filePath), fromLine, toLine, limit, includeBody);
+    }
+
+    /**
      * The commits this branch would publish — what the push dialog lists before the push runs.
      *
      * <p>Read off the refs on disk like every other count here, so it is as fresh as the last
@@ -392,33 +410,7 @@ public class GitService {
      * @param maxCount how many to return, capped at {@value #MAX_OUTGOING}
      */
     public List<GitCommit> getOutgoingCommits(int maxCount) {
-        int limit = Math.min(Math.max(maxCount, 1), MAX_OUTGOING);
-        GitBranchStatus status = branches.status();
-        // Neither has anything to publish: a detached HEAD is not a branch, an unborn one has no
-        // commits. The dialog says that instead of showing an empty list it cannot explain.
-        if (status.detached() || status.unborn()) return List.of();
-        try (CommitWalk walk = new CommitWalk(repository)) {
-            ObjectId head = repository.resolve(Constants.HEAD);
-            if (head == null) return List.of();
-            walk.from(head);
-            ObjectId upstream = status.upstream() == null ? null : repository.resolve(status.upstream());
-            if (upstream == null) {
-                for (Ref remote : repository.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES)) {
-                    ObjectId id = remote.getObjectId();
-                    if (id != null) walk.exclude(id);
-                }
-            } else {
-                walk.exclude(upstream);
-            }
-            List<GitCommit> commits = new ArrayList<>();
-            for (RevCommit commit : walk) {
-                if (commits.size() == limit) break;
-                commits.add(Diffs.toGitCommit(commit, null, walk.reader(), false));
-            }
-            return commits;
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read outgoing commits", e);
-        }
+        return branches.outgoing(Math.min(Math.max(maxCount, 1), MAX_OUTGOING));
     }
 
     /**
@@ -670,9 +662,7 @@ public class GitService {
             @Nullable Integer fromLine,
             @Nullable Integer toLine,
             BlameMatching matching) {
-        if (toLine != null && toLine < Math.max(1, fromLine == null ? 1 : fromLine)) {
-            throw new IllegalArgumentException("toLine " + toLine + " is before fromLine " + fromLine);
-        }
+        GitBlame.requireOrdered(fromLine, toLine);
         boolean ranged = fromLine != null || toLine != null;
         return blame(rev, filePath, ranged ? new GitBlameRunner.Range(fromLine, toLine) : null, matching);
     }
