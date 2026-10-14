@@ -627,7 +627,7 @@ public class GitService {
      * @param rev the commit to read; {@code null} or blank — the working tree
      */
     public GitFileBlame getBlame(@Nullable String rev, @NonNull String filePath) {
-        return blame(rev, filePath, null, BlameMatching.EXACT);
+        return getBlame(rev, filePath, null, null, BlameMatching.EXACT);
     }
 
     /**
@@ -656,7 +656,10 @@ public class GitService {
         return getBlame(rev, filePath, fromLine, toLine, matching);
     }
 
-    /** The ranged blame with the matching spelled out — a test's way of trying each switch alone. */
+    /**
+     * The blame with the matching spelled out — what both public forms come down to, and a test's
+     * way of trying each switch alone.
+     */
     GitFileBlame getBlame(
             @Nullable String rev,
             @NonNull String filePath,
@@ -664,8 +667,11 @@ public class GitService {
             @Nullable Integer toLine,
             BlameMatching matching) {
         GitBlame.requireOrdered(fromLine, toLine);
-        boolean ranged = fromLine != null || toLine != null;
-        return blame(rev, filePath, ranged ? new GitBlameRunner.Range(fromLine, toLine) : null, matching);
+        GitBlameRunner.@Nullable Range range =
+                fromLine == null && toLine == null ? null : new GitBlameRunner.Range(fromLine, toLine);
+        String at = snapshot(rev);
+        String normalized = normalizePath(filePath);
+        return at == null ? blame.blame(normalized, range, matching) : blame.blameAt(at, normalized, range, matching);
     }
 
     /**
@@ -687,13 +693,6 @@ public class GitService {
             throw new IllegalArgumentException("query must not be blank");
         }
         return origins.origin(normalizePath(filePath), snapshot(rev), line, query);
-    }
-
-    private GitFileBlame blame(
-            @Nullable String rev, String filePath, GitBlameRunner.@Nullable Range range, BlameMatching matching) {
-        String at = snapshot(rev);
-        String normalized = normalizePath(filePath);
-        return at == null ? blame.blame(normalized, range, matching) : blame.blameAt(at, normalized, range, matching);
     }
 
     // ── File content ────────────────────────────────────────────────────────

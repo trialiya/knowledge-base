@@ -112,7 +112,7 @@ public class GitHistoryFunction {
             GitCommitSearchResult lineLog =
                     git.getLineLog(requireText(filePath, "filePath"), fromLine, toLine, limit, withBody);
             log.debug(
-                    "getCommitLog called: lines {}-{}, {} commits",
+                    "getCommitLog answered: lines {}-{}, {} commits",
                     fromLine,
                     toLine,
                     lineLog.commits().size());
@@ -120,11 +120,11 @@ public class GitHistoryFunction {
         }
         if (query == null || query.isBlank()) {
             GitCommitSearchResult commitLog = git.getCommitLog(limit, filePath, withBody);
-            log.debug("getCommitLog called: commitLog={}", commitLog);
+            log.debug("getCommitLog answered: commitLog={}", commitLog);
             return GitReads.answer(git, commitLog.commits(), commitLog.truncated());
         }
         GitCommitSearchResult found = git.searchCommitLog(query.strip(), limit, filePath, withBody);
-        log.debug("getCommitLog called: found={}", found);
+        log.debug("getCommitLog answered: found={}", found);
         return GitReads.answer(git, found.commits(), found.truncated());
     }
 
@@ -175,7 +175,7 @@ public class GitHistoryFunction {
         }
         GitService git = reads.git(context, project);
         List<GitCommit> commitDiff = PatchBudget.ofCommits(git.getCommitDiff(commitHashes, patch, filePath));
-        log.debug("getCommitDiff called: commitDiff={}", commitDiff);
+        log.debug("getCommitDiff answered: commitDiff={}", commitDiff);
         return GitReads.answer(git, commitDiff);
     }
 
@@ -281,7 +281,8 @@ public class GitHistoryFunction {
                 project);
         GitService git = reads.git(context, project);
         GitFileBlame blame = git.getBlame(commit, filePath, fromLine, toLine, lastTouch);
-        log.debug("getBlame called: {} hunks over lines {}-{}", blame.hunks().size(), blame.fromLine(), blame.toLine());
+        log.debug(
+                "getBlame answered: {} hunks over lines {}-{}", blame.hunks().size(), blame.fromLine(), blame.toLine());
         return GitReads.answer(git, GitBlameAnswer.of(BlameBudget.cap(blame)), BlameBudget.cut(blame));
     }
 
@@ -351,7 +352,7 @@ public class GitHistoryFunction {
         GitService git = reads.git(context, project);
         GitLineOrigin origin = git.getLineOrigin(commit, filePath, line, query);
         log.debug(
-                "getLineOrigin called: {} after {} steps",
+                "getLineOrigin answered: {} after {} steps",
                 origin.status(),
                 origin.steps().size());
         return GitReads.answer(git, origin);

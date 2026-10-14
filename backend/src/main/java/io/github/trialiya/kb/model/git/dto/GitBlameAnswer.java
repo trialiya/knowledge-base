@@ -2,6 +2,7 @@ package io.github.trialiya.kb.model.git.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.tools.Compact;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -9,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.StringJoiner;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -42,6 +44,9 @@ public record GitBlameAnswer(
         List<Hunk> hunks)
         implements ToolCallResponseItem {
 
+    /** Ханков в плашке вызова. */
+    private static final int GIST_HUNKS = 5;
+
     /** Ответ blame в плотной форме. */
     public static GitBlameAnswer of(GitFileBlame blame) {
         Map<String, Commit> commits = new LinkedHashMap<>();
@@ -62,13 +67,23 @@ public record GitBlameAnswer(
                 List.copyOf(hunks));
     }
 
-    /** Плашка вызова — та же, что у развёрнутого {@link GitFileBlame}: строка на ханк, с автором. */
+    /**
+     * Плашка вызова: заголовок и первые ханки строкой каждый, с автором из словаря. Напоминание о
+     * том, что пришло, а не сам ответ.
+     */
     @Override
     public String getFormattedResponse() {
-        List<GitFileBlame.Hunk> expanded = hunks.stream()
-                .map(hunk -> hunk.expand(path, hunk.hash() == null ? null : commits.get(hunk.hash())))
-                .toList();
-        return new GitFileBlame(path, commit, lineCount, expanded, fromLine, toLine).getFormattedResponse();
+        StringBuilder gist = new StringBuilder(Compact.tag("blame:" + path)
+                .add("at", commit == null ? null : commit.substring(0, 7))
+                .add("lines", lineCount)
+                .add("range", fromLine == null ? null : fromLine + "-" + toLine)
+                .add("hunks", hunks.size())
+                .done());
+        hunks.stream()
+                .limit(GIST_HUNKS)
+                .forEach(hunk ->
+                        gist.append('\n').append(hunk.gist(hunk.hash() == null ? null : commits.get(hunk.hash()))));
+        return gist.toString();
     }
 
     /**
@@ -128,21 +143,36 @@ public record GitBlameAnswer(
                     Objects.equals(hunk.sourceLine(), hunk.fromLine()) ? null : hunk.sourceLine());
         }
 
-        /** Ханк в форме {@link GitFileBlame}: с полями своего коммита и подставленными путём и строкой. */
-        GitFileBlame.Hunk expand(String file, @Nullable Commit commit) {
+        /**
+         * {@code 12-18 a1b2c3d Alice 2024-03-01 Fix parser}; без коммита — {@code 19 uncommitted};
+         * на границе клона — {@code 12-18 a1b2c3d boundary 2024-03-01} (автора и описания у такого
+         * коммита нет).
+         */
+        String gist(@Nullable Commit commit) {
+            int to = fromLine + lineCount - 1;
+            String lines = to == fromLine ? String.valueOf(fromLine) : fromLine + "-" + to;
             if (hash == null) {
-                return new GitFileBlame.Hunk(fromLine, lineCount, null, null, null, null, null, null);
+                return lines + " uncommitted";
             }
-            return new GitFileBlame.Hunk(
-                    fromLine,
-                    lineCount,
-                    hash,
-                    commit == null ? null : commit.author(),
-                    commit == null ? null : commit.date(),
-                    commit == null ? null : commit.summary(),
-                    path == null ? file : path,
-                    sourceLine == null ? Integer.valueOf(fromLine) : sourceLine,
-                    commit != null && commit.boundary());
+            StringJoiner gist = new StringJoiner(" ").add(lines).add(hash.substring(0, 7));
+            // Поля коммита приходят вместе, но парсер оставляет голый ханк, если коммит не
+            // описан, — плашка тогда без них, а не с «null».
+            if (commit == null) {
+                return gist.toString();
+            }
+            if (commit.boundary()) {
+                gist.add("boundary");
+            }
+            if (commit.author() != null) {
+                gist.add(commit.author());
+            }
+            if (commit.date() != null) {
+                gist.add(commit.date().toLocalDate().toString());
+            }
+            if (commit.summary() != null) {
+                gist.add(Compact.oneLine(commit.summary(), 60));
+            }
+            return gist.toString();
         }
     }
 }

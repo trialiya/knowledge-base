@@ -89,11 +89,16 @@ final class GitLineLog {
         List<String> hashes = hashes(out.lines());
         boolean more = hashes.size() > maxCount;
         List<String> shown = more ? hashes.subList(0, maxCount) : hashes;
-        // Any commit listed, not only the last: past a merge the walk can stop on the cut of one
-        // side and go on down the other.
+        return new GitCommitSearchResult(commits(shown, includeBody), more || reachesCut(shown));
+    }
+
+    /**
+     * Whether a commit listed is the cut of a shallow clone — any of them, not only the last: past
+     * a merge the walk can stop on the cut of one side and go on down the other.
+     */
+    private boolean reachesCut(List<String> shown) {
         Set<String> boundaries = ShallowClone.boundaries(repository);
-        boolean cut = !more && shown.stream().anyMatch(boundaries::contains);
-        return new GitCommitSearchResult(commits(shown, includeBody), more || cut);
+        return !boundaries.isEmpty() && shown.stream().anyMatch(boundaries::contains);
     }
 
     /**
