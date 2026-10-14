@@ -180,13 +180,14 @@ public class GitHistoryFunction {
      * @param fromLine first line (1-based, inclusive); null for start of file
      * @param toLine last line (1-based, inclusive); null for end of file
      * @param commit revision to blame the file as of; null blames the working tree
-     * @param ignoreWhitespace look past whitespace-only changes (default true)
+     * @param ignoreWhitespace look past whitespace-only changes; {@code false} turns {@code -w} off
      */
     @Tool(
             description = "Who last changed each line of a file (git blame). Answers with hunks —"
                     + " consecutive lines from one commit: fromLine, lineCount, hash, and"
                     + " path + sourceLine (the file's path and the hunk's first line in that"
-                    + " commit — they differ after a rename or after edits above; absent means"
+                    + " commit — they differ after a rename, edits above, or a move within the"
+                    + " file; absent means"
                     + " the same as the file's path and fromLine). Each commit is described once"
                     + " in \"commits\", keyed by the full hash: author, date, summary (commit"
                     + " subject). A hunk with no hash is an uncommitted edit."
@@ -198,7 +199,8 @@ public class GitHistoryFunction {
                     + " so their lines go to whoever changed them before. Whitespace-only changes"
                     + " are looked past and lines moved within the file keep the commit that"
                     + " wrote them, so a re-indent or a moved method does not take the credit —"
-                    + " the answer can differ from GitHub's blame for that reason. Give fromLine/toLine"
+                    + " the answer can differ from GitHub's blame and from the blame column in"
+                    + " Files for that reason. Give fromLine/toLine"
                     + " for the lines you care about: the history of a range is walked, not"
                     + " the whole file. lineCount at the top is the whole file's length."
                     + " When a given text entered the line — getLineOrigin, not a chain of"

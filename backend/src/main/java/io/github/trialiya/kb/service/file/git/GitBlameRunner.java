@@ -80,7 +80,7 @@ final class GitBlameRunner {
     GitFileBlame blame(String normalized, @Nullable Range range, BlameMatching matching) {
         Target target = workingTree(normalized);
         int total = range == null ? 0 : target.count().getAsInt();
-        return run(new Run(normalized, target.ignored(), matching, null), range, total, target.count());
+        return run(target.run(normalized, matching), range, total, target.count());
     }
 
     /**
@@ -97,7 +97,7 @@ final class GitBlameRunner {
     GitFileBlame blameAt(String rev, String normalized, @Nullable Range range, BlameMatching matching) {
         Target target = snapshot(rev, normalized);
         int total = range == null ? 0 : target.count().getAsInt();
-        return run(new Run(normalized, target.ignored(), matching, target.commit()), range, total, null);
+        return run(target.run(normalized, matching), range, total, null);
     }
 
     /**
@@ -105,7 +105,12 @@ final class GitBlameRunner {
      * tree), the revisions it skips, and the file's line count as git counts it, read only when
      * asked for.
      */
-    private record Target(@Nullable String commit, List<String> ignored, IntSupplier count) {}
+    private record Target(@Nullable String commit, List<String> ignored, IntSupplier count) {
+
+        Run run(String normalized, BlameMatching matching) {
+            return new Run(normalized, ignored, matching, commit);
+        }
+    }
 
     /** The working-tree file, refused unless git has history for it and it is text. */
     private Target workingTree(String normalized) {

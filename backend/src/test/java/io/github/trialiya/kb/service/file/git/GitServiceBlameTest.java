@@ -236,26 +236,48 @@ class GitServiceBlameTest {
     }
 
     /**
-     * Инструмент модели смотрит сквозь переотступ ({@code -w}) и за перенос строк внутри файла
-     * ({@code -M}): блок, обёрнутый в условие, и перенесённый вниз метод остаются за тем, кто их
-     * написал. Колонка в «Файлах» ({@link BlameMatching#EXACT}) отдаёт их последней правке, как
-     * GitHub.
+     * {@code -w}: блок, только переотступленный (обёрнутый в условие), остаётся за тем, кто его
+     * написал. Без {@code -w} — даже с {@code -M} — его строки отходят переотступу, как в колонке
+     * «Файлов» ({@link BlameMatching#EXACT}) и на GitHub.
      */
     @Test
-    void lenientMatchingLooksPastIndentationAndMoves() {
-        String method = "void a() {\n  first();\n  second();\n  third();\n}\n";
-        writeFile("f.txt", method + "x\ny\nz\n");
+    void ignoringWhitespaceLooksPastAReindent() {
+        writeFile("f.txt", "first();\nsecond();\nthird();\n");
         commitAll("written");
-        writeFile("f.txt", "x\ny\nz\n" + method.replace("  ", "    "));
-        commitAll("moved and re-indented");
+        writeFile("f.txt", "if (on) {\n    first();\n    second();\n    third();\n}\n");
+        commitAll("wrapped");
 
-        BlameMatching lenient = new BlameMatching(true, true);
-        GitFileBlame exact = service.getBlame(null, "f.txt", 4, 8, BlameMatching.EXACT);
-        GitFileBlame model = service.getBlame(null, "f.txt", 4, 8, lenient);
+        GitFileBlame exact = service.getBlame(null, "f.txt", 2, 4, BlameMatching.EXACT);
+        GitFileBlame movesOnly = service.getBlame(null, "f.txt", 2, 4, new BlameMatching(false, true));
+        GitFileBlame lenient = service.getBlame(null, "f.txt", 2, 4, new BlameMatching(true, true));
 
-        assertThat(exact.hunks()).extracting(GitFileBlame.Hunk::summary).doesNotContain("written");
-        assertThat(model.hunks()).extracting(GitFileBlame.Hunk::summary).containsOnly("written");
-        assertThat(model.hunks().getFirst().sourceLine()).isEqualTo(1);
+        assertThat(exact.hunks()).extracting(GitFileBlame.Hunk::summary).containsOnly("wrapped");
+        assertThat(movesOnly.hunks()).extracting(GitFileBlame.Hunk::summary).containsOnly("wrapped");
+        assertThat(lenient.hunks()).extracting(GitFileBlame.Hunk::summary).containsOnly("written");
+    }
+
+    /**
+     * {@code -M}: метод, перенесённый вниз файла без единой правки, остаётся за тем, кто его
+     * написал, и {@code sourceLine} показывает, где он стоял. Без {@code -M} — даже с {@code -w} —
+     * diff видит его удалённым сверху и добавленным снизу.
+     */
+    @Test
+    void detectingMovesKeepsAMovedBlocksAuthor() {
+        String method = "void a() {\n  first();\n  second();\n  third();\n}\n";
+        String others = "p\nq\nr\ns\nt\nu\n";
+        writeFile("f.txt", method + others);
+        commitAll("written");
+        writeFile("f.txt", others + method);
+        commitAll("moved");
+
+        GitFileBlame whitespaceOnly = service.getBlame(null, "f.txt", 7, 11, new BlameMatching(true, false));
+        GitFileBlame lenient = service.getBlame(null, "f.txt", 7, 11, new BlameMatching(true, true));
+
+        assertThat(whitespaceOnly.hunks())
+                .extracting(GitFileBlame.Hunk::summary)
+                .containsOnly("moved");
+        assertThat(lenient.hunks()).extracting(GitFileBlame.Hunk::summary).containsOnly("written");
+        assertThat(lenient.hunks().getFirst().sourceLine()).isEqualTo(1);
     }
 
     /**
