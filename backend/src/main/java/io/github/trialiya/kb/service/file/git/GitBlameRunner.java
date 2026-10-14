@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntSupplier;
@@ -171,14 +172,12 @@ final class GitBlameRunner {
             @Nullable Range range,
             int total,
             @Nullable IntSupplier recount) {
-        // Read before git runs, not after: a fetch that deepens the clone meanwhile then leaves a
-        // mark too many ("this old or older" on lines git did credit), never one too few.
         Set<String> cut = ShallowClone.boundaries(repository);
         if (range == null) {
             List<String> command = GitBlame.args(normalized, ignored, null, commit);
             GitReadProcess.Output out = exec(command, normalized);
             out.requireExit(command, 0);
-            List<GitFileBlame.Hunk> hunks = GitBlame.markBoundaries(GitBlame.parse(out.lines()), cut);
+            List<GitFileBlame.Hunk> hunks = hunks(out, cut);
             int lineCount =
                     hunks.stream().mapToInt(GitFileBlame.Hunk::lineCount).sum();
             return new GitFileBlame(normalized, commit, lineCount, hunks, null, null);
@@ -192,7 +191,8 @@ final class GitBlameRunner {
      *     and a range fitted to the old length then starts past the new end. A shorter recount
      *     fits the range again and asks once more; anything else is git's refusal as it stands.
      *     The refusal's own text is not read for the length: git translates it
-     * @param cut the shallow clone's boundary commits, read before the first run
+     * @param cut the shallow clone's boundary commits, read before the first run (see {@link
+     *     #hunks})
      */
     private GitFileBlame ranged(
             String normalized,
@@ -218,8 +218,29 @@ final class GitBlameRunner {
             }
         }
         out.requireExit(command, 0);
-        List<GitFileBlame.Hunk> hunks = GitBlame.markBoundaries(GitBlame.parse(out.lines()), cut);
-        return new GitFileBlame(normalized, commit, total, hunks, lines.from(), lines.to());
+        return new GitFileBlame(normalized, commit, total, hunks(out, cut), lines.from(), lines.to());
+    }
+
+    /**
+     * The run's hunks, those of the shallow clone's boundary commits marked. The cut is read on
+     * both sides of the run and the two joined: a fetch meanwhile can deepen the clone (a cut
+     * commit no longer is one) or cut it anew ({@code fetch --depth} of another branch), and git
+     * walked whichever history it saw. A hunk marked by the stale side says "this old or older" of
+     * lines git did credit — wrong only by caution; an unmarked one would credit an author who may
+     * not have written them.
+     *
+     * @param before the cut as read before the run
+     */
+    private List<GitFileBlame.Hunk> hunks(GitReadProcess.Output out, Set<String> before) {
+        Set<String> after = ShallowClone.boundaries(repository);
+        Set<String> cut = after.equals(before) ? before : union(before, after);
+        return GitBlame.markBoundaries(GitBlame.parse(out.lines()), cut);
+    }
+
+    private static Set<String> union(Set<String> a, Set<String> b) {
+        Set<String> both = new HashSet<>(a);
+        both.addAll(b);
+        return both;
     }
 
     /** One run, refused when it fills the output ceiling; the exit code is the caller's to read. */

@@ -26,7 +26,9 @@ final class ShallowClone {
 
     /**
      * The boundary commits' full hashes; empty for a complete clone, including one a {@code fetch
-     * --unshallow} has just completed (the file is gone). Read from the common git directory, not
+     * --unshallow} has just completed (the file is gone). The existence check spares a full
+     * clone — the usual case — an exception per call; the catch covers the file going between the
+     * check and the read. Read from the common git directory, not
      * the worktree's own: a linked worktree has a git directory apart, the {@code shallow} file is
      * shared.
      *
@@ -35,6 +37,9 @@ final class ShallowClone {
      */
     static Set<String> boundaries(Repository repository) {
         Path shallow = repository.getCommonDirectory().toPath().resolve("shallow");
+        if (!Files.isRegularFile(shallow)) {
+            return Set.of();
+        }
         try {
             return Files.readAllLines(shallow, StandardCharsets.US_ASCII).stream()
                     .map(String::strip)

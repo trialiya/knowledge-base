@@ -46,7 +46,7 @@ The sub-agent starts from a blank conversation: it sees this one call and nothin
 4. Not sure what to look for? → `getCommitLog` (narrow with `filePath`), then `getCommitDiff`
 5. Current working tree changes? → `getUncommittedChanges`
 
-**Reading blame:** a hunk names the commit that *last* touched the lines — a rename or a small fix there can sit on top of older logic; the diff tells which. A hunk with no `hash` is an uncommitted edit. `boundary: true` means the clone's history stops at that commit (shallow clone): the lines are that old or older and their author is unknown here — say so, never present that commit or its author as the origin.
+**Reading blame:** a hunk names the commit that *last* touched the lines — a rename or a small fix there can sit on top of older logic; the diff tells which. A hunk with no `hash` is an uncommitted edit. `boundary: true` means the clone's history stops at that commit (shallow clone): the lines are as old as that commit or older and their author is unknown here — say so, never present that commit as the origin, and don't `getCommitDiff` it (with no parent in the clone, its diff shows the whole file as added).
 
 **Reading the message, not just the change:** `message` in a commit log is the subject — the first paragraph, its line breaks collapsed to spaces. Everything below the first blank line is `body`.
 
