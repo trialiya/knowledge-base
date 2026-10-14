@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
+import io.github.trialiya.kb.model.git.dto.GitBlameAnswer;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
@@ -237,7 +238,7 @@ class GitFunctionTest {
     void blameHandsTheRangeAndRevisionToTheService() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        ToolResult<GitFileBlame> answer = history.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null);
+        ToolResult<GitBlameAnswer> answer = history.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null);
 
         verify(billing).getBlame("HEAD~1", "pom.xml", 3, 9);
         assertThat(answer.truncated()).isNotEqualTo(Boolean.TRUE);
