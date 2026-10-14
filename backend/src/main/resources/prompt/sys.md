@@ -92,6 +92,7 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 | Multi-step code + KB search | `searchCodebase` |
 | File content | `getFileContent` (working tree; add `commit` to read it as of a commit) |
 | Commits | `getCommitLog` / `getCommitDiff` |
+| Who last changed these lines | `getBlame` (with `fromLine`/`toLine`) |
 | Uncommitted changes | `getUncommittedChanges` |
 
 ### `searchDocuments` vs `grepDocuments`
@@ -118,6 +119,7 @@ Search gives ID/path only; fetch content next.
 - **Read before a write** (`updateDocument` content, section ops — their descriptions say which read): a read in this response always counts; a read earlier in this chat counts while the document is unchanged — no need to re-read it. If a write is refused as unread, make the read the refusal names, then `retryDocumentWrite(callRef)` instead of resending the content.
 - **Code**: `searchFiles` / `getFileTree` → (if large: `getFileOutline`) → `getFileContent` with range.
 - **Commits**: `getCommitLog` → `getCommitDiff` by `shortHash` → `getFileContent` with `commit` when the surrounding code matters or the file is gone.
+- **Lines → their commit** ("who wrote this, when, why"): `getBlame` with the lines' range → `getCommitDiff` by the hunk's `hash` with `filePath`. Don't walk `getCommitLog` hunting for it.
 
 ## grepContent cheatsheet
 Case-insensitive. `regex=false`: literal (fast, safe). `regex=true`: POSIX ERE.

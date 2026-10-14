@@ -5,7 +5,9 @@ import ResultSummary from './resultSummary';
 
 // Режим «Обзор» для ответа `getBlame`: файл и диапазон, под ними строка на
 // ханк — номера строк, хеш, автор, дата, описание коммита. Ханки не
-// сворачиваются: строка ханка и есть всё, что о нём известно.
+// сворачиваются: строка ханка и есть всё, что о нём известно. Ханк на границе
+// неглубокого клона вместо автора и описания говорит, что история здесь обрезана:
+// автор того коммита строк не писал.
 //
 // Ссылки открываются в новой вкладке, как и остальные ссылки модалки: переход
 // внутри приложения увёл бы раздел из-под открытого окна.
@@ -26,7 +28,9 @@ const BlameRow = ({ row, project }) => {
 
   // Подсказка — как у ячейки blame в «Файлах»: описание целиком, под ним автор, хеш и дата.
   const byline = [row.author, row.shortHash, formatDateTime(row.date, i18n.language)].filter(Boolean).join(' · ');
-  const title = [row.summary, byline].filter(Boolean).join('\n');
+  const title = [row.boundary && t('toolCall.detail.blame.boundaryTitle'), row.summary, byline]
+    .filter(Boolean)
+    .join('\n');
   return (
     <div className="tool-blame__row" title={title}>
       <a className="tool-blame__lines" href={row.href} target="_blank" rel="noreferrer">
@@ -35,9 +39,15 @@ const BlameRow = ({ row, project }) => {
       <CommitHashLink className="commit-hash-link" rev={row.hash} project={project} newTab>
         {row.shortHash}
       </CommitHashLink>
-      <span className="tool-blame__author">{row.author}</span>
-      <span className="tool-blame__date">{formatCompactDateTime(row.date, i18n.language)}</span>
-      <span className="tool-blame__summary">{row.summary}</span>
+      {row.boundary ? (
+        <span className="tool-blame__boundary">{t('toolCall.detail.blame.boundary')}</span>
+      ) : (
+        <>
+          <span className="tool-blame__author">{row.author}</span>
+          <span className="tool-blame__date">{formatCompactDateTime(row.date, i18n.language)}</span>
+          <span className="tool-blame__summary">{row.summary}</span>
+        </>
+      )}
     </div>
   );
 };

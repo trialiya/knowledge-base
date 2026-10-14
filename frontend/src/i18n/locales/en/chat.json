@@ -208,6 +208,8 @@
         "range": "lines {{from}}–{{to}} of {{count}}",
         "truncated": "more hunks not shown",
         "uncommitted": "not committed yet",
+        "boundary": "this commit's age or older — the clone's history is cut here",
+        "boundaryTitle": "Shallow clone: its history ends at this commit, and git credits it with every line older than the clone. Who wrote them is not in this clone.",
         "empty": "The range lies past the end of the file"
       },
       "grep": {

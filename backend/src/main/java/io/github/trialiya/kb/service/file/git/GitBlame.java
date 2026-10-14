@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
@@ -164,6 +165,22 @@ final class GitBlame {
     }
 
     private static final String FILENAME = "filename ";
+
+    /**
+     * The hunks with every one whose commit is a shallow clone's boundary marked so ({@link
+     * GitFileBlame.Hunk#atBoundary}). Git's own {@code boundary} field is not read for this: it also
+     * marks the root commit of a complete history, whose lines are its own.
+     *
+     * @param boundaries the full hashes the clone is cut at ({@link ShallowClone#boundaries})
+     */
+    static List<GitFileBlame.Hunk> markBoundaries(List<GitFileBlame.Hunk> hunks, Set<String> boundaries) {
+        if (boundaries.isEmpty()) {
+            return hunks;
+        }
+        return hunks.stream()
+                .map(hunk -> hunk.hash() != null && boundaries.contains(hunk.hash()) ? hunk.atBoundary() : hunk)
+                .toList();
+    }
 
     /**
      * A hunk as its header names it, before the commit's fields are known. The source line is kept

@@ -174,7 +174,7 @@ final class GitBlameRunner {
             List<String> command = GitBlame.args(normalized, ignored, null, commit);
             GitReadProcess.Output out = exec(command, normalized);
             out.requireExit(command, 0);
-            List<GitFileBlame.Hunk> hunks = GitBlame.parse(out.lines());
+            List<GitFileBlame.Hunk> hunks = hunks(out);
             int lineCount =
                     hunks.stream().mapToInt(GitFileBlame.Hunk::lineCount).sum();
             return new GitFileBlame(normalized, commit, lineCount, hunks, null, null);
@@ -212,7 +212,12 @@ final class GitBlameRunner {
             }
         }
         out.requireExit(command, 0);
-        return new GitFileBlame(normalized, commit, total, GitBlame.parse(out.lines()), lines.from(), lines.to());
+        return new GitFileBlame(normalized, commit, total, hunks(out), lines.from(), lines.to());
+    }
+
+    /** The run's hunks, those that reached the edge of a shallow clone's history marked. */
+    private List<GitFileBlame.Hunk> hunks(GitReadProcess.Output out) {
+        return GitBlame.markBoundaries(GitBlame.parse(out.lines()), ShallowClone.boundaries(repository));
     }
 
     /** One run, refused when it fills the output ceiling; the exit code is the caller's to read. */

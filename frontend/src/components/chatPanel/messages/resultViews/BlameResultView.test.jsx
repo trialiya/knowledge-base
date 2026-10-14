@@ -32,6 +32,33 @@ describe('BlameResultView', () => {
     expect(document.querySelector('.tool-blame__uncommitted')).not.toBeNull();
   });
 
+  it('граница клона — подпись вместо автора и описания того коммита, хеш остаётся ссылкой', () => {
+    render(
+      <BlameResultView
+        data={view({
+          path: 'a.txt',
+          lineCount: 2,
+          hunks: [
+            {
+              fromLine: 1,
+              lineCount: 2,
+              hash: HASH,
+              author: 'Alice',
+              summary: 'Squash',
+              sourceLine: 1,
+              boundary: true,
+            },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText('a1b2c3d').closest('a')).toHaveAttribute('href', commitUrl(HASH, 'billing'));
+    expect(screen.queryByText('Squash')).toBeNull();
+    expect(screen.queryByText('Alice')).toBeNull();
+    expect(document.querySelector('.tool-blame__boundary')).not.toBeNull();
+  });
+
   it('диапазон за концом файла — подпись вместо строк', () => {
     render(<BlameResultView data={view({ path: 'a.txt', lineCount: 3, hunks: [], fromLine: 10, toLine: 9 })} />);
 

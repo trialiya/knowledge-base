@@ -17,7 +17,9 @@ import AppLink from '@/components/common/ui/AppLink';
  * номера — те, что были у файла в том коммите (`hunk.path`, `hunk.sourceLine`):
  * после переименования нынешнее имя там не найдётся, а строки, сдвинутые
  * позднейшими правками, стояли там на другом месте. Ханк без коммита —
- * незакоммиченная правка: вести некуда. Строки ханка в ЭТОМ файле переход
+ * незакоммиченная правка: вести некуда. Ханк на границе неглубокого клона
+ * (`hunk.boundary`) ведёт в тот коммит, как обычный, но вместо описания говорит,
+ * что история здесь обрезана: автор того коммита этих строк не писал. Строки ханка в ЭТОМ файле переход
  * пишет в текущую запись истории (`backLines`): «Назад» вернёт к ним, выделенным
  * и прокрученным, а не к началу файла.
  *
@@ -45,12 +47,16 @@ const BlameCell = ({ hunk, span, path, project }) => {
   const byline = [hunk.author, shortRev(hunk.hash), formatDateTime(hunk.date, i18n.language)]
     .filter(Boolean)
     .join(' · ');
-  const title = [hunk.summary, byline].filter(Boolean).join('\n');
+  const title = [hunk.boundary && t('file.blameBoundaryTitle'), hunk.summary, byline].filter(Boolean).join('\n');
   return (
     <td className="file-code__blame" rowSpan={span} data-find-skip="">
       <AppLink className="file-code__blame-link" href={href} onNavigate={open} title={title}>
         <span className="file-code__blame-date">{formatCompactDateTime(hunk.date, i18n.language)}</span>
-        <span className="file-code__blame-summary">{hunk.summary}</span>
+        {hunk.boundary ? (
+          <span className="file-code__blame-summary file-code__blame-summary--boundary">{t('file.blameBoundary')}</span>
+        ) : (
+          <span className="file-code__blame-summary">{hunk.summary}</span>
+        )}
       </AppLink>
     </td>
   );

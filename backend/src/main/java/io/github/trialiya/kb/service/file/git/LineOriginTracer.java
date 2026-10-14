@@ -5,9 +5,6 @@ import io.github.trialiya.kb.model.git.dto.GitLineOrigin.Status;
 import io.github.trialiya.kb.service.file.git.FileVersions.At;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -507,24 +504,12 @@ final class LineOriginTracer {
     }
 
     /**
-     * Whether git cannot look past the commit because this clone's history was cut there ({@code
-     * shallow} in the common git directory names it — not the worktree's own, which a linked
-     * worktree has apart): the line may be older than the clone.
+     * Whether git cannot look past the commit because this clone's history was cut there (see
+     * {@link ShallowClone}): the line may be older than the clone.
      */
     private boolean shallowBoundary(RevCommit commit) {
-        if (commit.getParentCount() > 0) {
-            return false;
-        }
-        Path shallow = repository.getCommonDirectory().toPath().resolve("shallow");
-        if (!Files.isRegularFile(shallow)) {
-            return false;
-        }
-        try {
-            return Files.readAllLines(shallow, StandardCharsets.US_ASCII).stream()
-                    .anyMatch(commit.name()::equals);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Cannot read " + shallow, e);
-        }
+        return commit.getParentCount() == 0
+                && ShallowClone.boundaries(repository).contains(commit.name());
     }
 
     private static long remaining(long deadline) {

@@ -17,6 +17,10 @@ import org.jspecify.annotations.Nullable;
  * <p>Коммиты из {@code .git-blame-ignore-revs} репозитория (массовые переформатирования) уже
  * пропущены: их строки приписаны тому, кто менял их до этого.
  *
+ * <p>В неглубоком (shallow) клоне git приписывает самому старому коммиту клона все строки, которые
+ * старше него, — такой ханк помечен {@code boundary}: строки не написаны этим коммитом, а лишь не
+ * моложе его, и настоящего автора клон не знает.
+ *
  * <p>Репозиторий ответ не называет: он один на всю выдачу и известен клиенту из запроса, а модели —
  * из обёртки ответа ({@code ToolResult}). Пустые поля в JSON не печатаются: отсутствующее поле
  * значит {@code null}.
@@ -73,6 +77,8 @@ public record GitFileBlame(
      * @param sourceLine номер первой строки диапазона в файле того коммита (1-based) — строки
      *     диапазона и там идут подряд, так что ссылка на снимок выделяет их {@code sourceLine}…
      *     {@code sourceLine + lineCount - 1}
+     * @param boundary коммит — граница неглубокого клона: история за ним обрезана, и строки ханка
+     *     могут быть старше него. {@code false} в JSON не печатается
      */
     public record Hunk(
             int fromLine,
@@ -94,9 +100,32 @@ public record GitFileBlame(
             String path,
 
             @Nullable @JsonInclude(JsonInclude.Include.NON_NULL)
-            Integer sourceLine) {
+            Integer sourceLine,
 
-        /** {@code 12-18 a1b2c3d Alice 2024-03-01 Fix parser}; без коммита — {@code 19 uncommitted}. */
+            @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean boundary) {
+
+        /** Ханк не на границе клона — таких подавляющее большинство. */
+        public Hunk(
+                int fromLine,
+                int lineCount,
+                @Nullable String hash,
+                @Nullable String author,
+                @Nullable OffsetDateTime date,
+                @Nullable String summary,
+                @Nullable String path,
+                @Nullable Integer sourceLine) {
+            this(fromLine, lineCount, hash, author, date, summary, path, sourceLine, false);
+        }
+
+        /** Тот же ханк, помеченный границей неглубокого клона. */
+        public Hunk atBoundary() {
+            return new Hunk(fromLine, lineCount, hash, author, date, summary, path, sourceLine, true);
+        }
+
+        /**
+         * {@code 12-18 a1b2c3d Alice 2024-03-01 Fix parser}; без коммита — {@code 19 uncommitted};
+         * на границе клона хеш помечен: {@code 12-18 a1b2c3d(boundary) …}.
+         */
         String gist() {
             int to = fromLine + lineCount - 1;
             String lines = to == fromLine ? String.valueOf(fromLine) : fromLine + "-" + to;
@@ -105,7 +134,8 @@ public record GitFileBlame(
             }
             // Поля коммита приходят вместе, но парсер оставляет голый ханк, если коммит не
             // описан, — плашка тогда без них, а не с «null».
-            StringJoiner gist = new StringJoiner(" ").add(lines).add(hash.substring(0, 7));
+            StringJoiner gist =
+                    new StringJoiner(" ").add(lines).add(hash.substring(0, 7) + (boundary ? "(boundary)" : ""));
             if (author != null) {
                 gist.add(author);
             }

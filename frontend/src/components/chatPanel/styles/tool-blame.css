@@ -96,6 +96,15 @@
   color: var(--kb-text-faint);
 }
 
+/* Граница неглубокого клона: автор и описание того коммита ничего не говорят о
+   строках, поэтому вместо них — одна подпись, как у незакоммиченных. */
+.tool-blame__boundary {
+  grid-column: 3 / -1;
+  padding-right: 10px;
+  font-style: italic;
+  color: var(--kb-text-faint);
+}
+
 .tool-blame__empty {
   font-size: 0.75rem;
   color: var(--kb-text-faint);

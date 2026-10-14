@@ -341,6 +341,45 @@ class GitServiceBlameTest {
         }
     }
 
+    /**
+     * В неглубоком клоне git отдаёт его самому старому коммиту все строки, что старше клона: ханк
+     * это говорит, а строки, которые клон видит изменёнными, — нет.
+     */
+    @Test
+    void linesOlderThanAShallowCloneAreMarkedAsItsBoundary(@TempDir Path cloneDir) {
+        writeFile("f.txt", "old\n");
+        commitAll("first");
+        writeFile("f.txt", "old\nmiddle\n");
+        commitAll("second");
+        writeFile("f.txt", "old\nmiddle\nnew\n");
+        commitAll("third");
+        runGit(cloneDir, "clone", "-q", "--depth", "2", repoDir.toUri().toString(), "shallow");
+        GitService shallow = TestProjects.gitService(cloneDir.resolve("shallow"), false);
+
+        GitFileBlame blame = shallow.getBlame(null, "f.txt");
+        GitFileBlame ranged = shallow.getBlame("HEAD", "f.txt", 1, 1);
+
+        assertThat(blame.hunks())
+                .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::summary, GitFileBlame.Hunk::boundary)
+                .containsExactly(tuple(1, "second", true), tuple(3, "third", false));
+        assertThat(ranged.hunks())
+                .singleElement()
+                .extracting(GitFileBlame.Hunk::boundary)
+                .isEqualTo(true);
+    }
+
+    /** Корневой коммит полной истории — настоящий автор своих строк, хотя git и зовёт его boundary. */
+    @Test
+    void theRootOfACompleteHistoryIsNotABoundary() {
+        writeFile("f.txt", "one\n");
+        commitAll("first");
+
+        assertThat(service.getBlame(null, "f.txt").hunks())
+                .singleElement()
+                .extracting(GitFileBlame.Hunk::boundary)
+                .isEqualTo(false);
+    }
+
     private String head() {
         return runGit("rev-parse", "HEAD").strip();
     }
@@ -361,11 +400,15 @@ class GitServiceBlameTest {
     }
 
     private String runGit(String... args) {
+        return runGit(repoDir, args);
+    }
+
+    private static String runGit(Path dir, String... args) {
         try {
             List<String> command = new java.util.ArrayList<>(List.of("git"));
             command.addAll(List.of(args));
             Process process = new ProcessBuilder(command)
-                    .directory(repoDir.toFile())
+                    .directory(dir.toFile())
                     .redirectErrorStream(true)
                     .start();
             String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
