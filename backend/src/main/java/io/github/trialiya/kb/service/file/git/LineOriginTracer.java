@@ -527,11 +527,16 @@ final class LineOriginTracer {
                 "Tracing the line did not finish within " + timeout.toSeconds() + "s: " + path);
     }
 
-    private static GitLineOrigin.Step step(Version version) {
+    /**
+     * The version as a step of the answer. A version blame reached at a shallow clone's cut is not
+     * necessarily that commit's work — every older change lands there too — so its author and
+     * subject are left out ({@link GitLineOrigin.Step#atBoundary}).
+     */
+    private GitLineOrigin.Step step(Version version) {
         PersonIdent author = version.commit().getAuthorIdent();
         OffsetDateTime date =
                 author == null ? null : OffsetDateTime.ofInstant(author.getWhenAsInstant(), author.getZoneId());
-        return new GitLineOrigin.Step(
+        GitLineOrigin.Step step = new GitLineOrigin.Step(
                 version.commit().name(),
                 author == null ? null : author.getName(),
                 date,
@@ -539,6 +544,7 @@ final class LineOriginTracer {
                 version.path(),
                 version.line() + 1,
                 LineOrigin.cap(version.text()));
+        return shallowBoundary(version.commit()) ? step.atBoundary() : step;
     }
 
     /** The answer as the walk builds it: steps as they are taken, then {@code before} and the end. */

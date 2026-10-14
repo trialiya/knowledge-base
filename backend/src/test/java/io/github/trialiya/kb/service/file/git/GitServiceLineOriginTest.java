@@ -236,7 +236,40 @@ class GitServiceLineOriginTest {
         GitLineOrigin origin = shallow.getLineOrigin(null, "f.txt", 1, "needle");
 
         assertThat(origin.status()).isEqualTo(Status.BOUNDARY);
-        assertThat(origin.steps()).hasSize(1);
+        assertThat(origin.steps()).singleElement().satisfies(step -> {
+            assertThat(step.boundary()).isTrue();
+            assertThat(step.author()).isNull();
+            assertThat(step.summary()).isNull();
+        });
+    }
+
+    /**
+     * Подстрока вошла внутри клона, а прежнюю версию строки blame довёл до его границы: коммит-ответ
+     * назван полностью, а у «до» — граница без автора, которого клон не знает.
+     */
+    @Test
+    void aBeforeLineReachingTheCutOfAShallowCloneIsMarked() {
+        writeFile("f.txt", "int x = 1;\n");
+        commitAll("first");
+        writeFile("f.txt", "int x = 2;\n");
+        commitAll("second");
+        writeFile("f.txt", "int x = 2; // needle\n");
+        commitAll("third");
+        runGit(cloneDir, "clone", "-q", "--depth", "2", repoDir.toUri().toString(), "shallow");
+        GitService shallow = TestProjects.gitService(cloneDir.resolve("shallow"), false);
+
+        GitLineOrigin origin = shallow.getLineOrigin(null, "f.txt", 1, "needle");
+
+        assertThat(origin.status()).isEqualTo(Status.FOUND);
+        assertThat(origin.steps()).singleElement().satisfies(step -> {
+            assertThat(step.summary()).isEqualTo("third");
+            assertThat(step.boundary()).isFalse();
+        });
+        assertThat(origin.before()).isNotNull().satisfies(before -> {
+            assertThat(before.text()).isEqualTo("int x = 2;");
+            assertThat(before.boundary()).isTrue();
+            assertThat(before.author()).isNull();
+        });
     }
 
     /**

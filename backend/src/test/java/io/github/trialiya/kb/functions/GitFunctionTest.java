@@ -22,6 +22,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.tool.ToolResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -85,6 +86,9 @@ class GitFunctionTest {
                         List.of(new GitFileBlame.Hunk(1, 2, null, null, null, null, null, null)),
                         1,
                         2));
+        when(billing.getLineOrigin(any(), anyString(), anyInt(), anyString()))
+                .thenReturn(new GitLineOrigin(
+                        "pom.xml", 3, "junit", null, GitLineOrigin.Status.NOT_IN_LINE, List.of(), null));
         when(billing.getUncommittedChanges(anyBoolean(), anyBoolean(), anyList()))
                 .thenReturn(List.of(new GitDiffEntry("M", "pom.xml", null, 1, 0, null, null)));
         when(gitRegistry.forProject("billing")).thenReturn(billing);
@@ -160,11 +164,12 @@ class GitFunctionTest {
                         function.getCommitLog(context, null, null, null, null, "billing"),
                         function.getCommitDiff(context, "abc1234", null, null, "billing"),
                         function.getUncommittedChanges(context, null, null, null, "billing"),
-                        function.getBlame(context, "pom.xml", 1, 2, null, "billing")))
+                        function.getBlame(context, "pom.xml", 1, 2, null, "billing"),
+                        function.getLineOrigin(context, "pom.xml", 3, "junit", null, "billing")))
                 .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"))
                 .allSatisfy(r -> assertThat(r.result()).isNotNull());
 
-        verify(gitRegistry, times(7)).forProject("billing");
+        verify(gitRegistry, times(8)).forProject("billing");
     }
 
     /**

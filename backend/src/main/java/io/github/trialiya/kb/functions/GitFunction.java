@@ -3,6 +3,7 @@ package io.github.trialiya.kb.functions;
 import static io.github.trialiya.kb.tools.ToolArgs.orDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.requireText;
+import static io.github.trialiya.kb.tools.ToolArgs.requireValue;
 
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
@@ -13,6 +14,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepHits;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
 import io.github.trialiya.kb.model.tool.ToolResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
@@ -462,6 +464,8 @@ public class GitFunction {
                     + " so their lines go to whoever changed them before. Give fromLine/toLine"
                     + " for the lines you care about: the history of a range is walked, not"
                     + " the whole file. lineCount at the top is the whole file's length."
+                    + " When a given text entered the line — getLineOrigin, not a chain of"
+                    + " blames."
                     + " \"truncated\": true means more hunks past toLine — continue from the"
                     + " next line. Why a change was made (not boundary): getCommitDiff with the hash and"
                     + " filePath=path (the hunk's: after a rename the current one is not in"
@@ -508,6 +512,85 @@ public class GitFunction {
         GitFileBlame blame = git.getBlame(commit, filePath, fromLine, toLine);
         log.debug("getBlame called: {} hunks over lines {}-{}", blame.hunks().size(), blame.fromLine(), blame.toLine());
         return answer(git, BlameBudget.cap(blame), BlameBudget.cut(blame));
+    }
+
+    /**
+     * The commit where a substring entered one line of a file — a walk back through that line's
+     * versions while each still holds the substring; see {@link GitService#getLineOrigin}.
+     *
+     * <p>A question {@link #getBlame} answers badly: blame names the last commit to touch the line,
+     * and a chain of blames by hand drifts — git pairs a changed line by similarity and follows a
+     * neighbour that holds the same text into its history. The walk here picks the earlier version
+     * by the substring itself.
+     *
+     * @param filePath path relative to repo root
+     * @param line the line (1-based) as numbered in the working tree, or in {@code commit} when given
+     * @param query a literal substring of that line, matched case-insensitively
+     * @param commit revision the line is numbered in; null for the working tree
+     */
+    @Tool(
+            description = "When a substring entered one line of a file: walks back through that"
+                    + " line's versions while each still holds the substring, and names the commit"
+                    + " that put it there. Not who last touched the line (getBlame), and not where"
+                    + " the text first appeared anywhere in the repository. query is a literal"
+                    + " substring of that line (case-insensitive, no regex) — the identifier,"
+                    + " call or value the question is about, not the whole line. status: FOUND —"
+                    + " the last of steps is the commit that brought it into the line, before is"
+                    + " the line just before (no before: that commit added the line itself);"
+                    + " UNCOMMITTED — an uncommitted edit put it there, before is the line in"
+                    + " HEAD; NOT_IN_LINE — the line does not hold it (re-read the file, the"
+                    + " numbering may have moved); BOUNDARY — the walk reached the cut of a"
+                    + " shallow clone: the substring is at least that old and who added it is not"
+                    + " in this clone, say so; LIMIT — stopped at 30 versions or 20 s, the last"
+                    + " step is the oldest reached. steps run newest to oldest: hash, author,"
+                    + " date, summary, and path + line + text — the line as it read in that"
+                    + " commit, under that commit's path and numbering. A step with"
+                    + " \"boundary\": true sits at a shallow clone's cut and has no author or"
+                    + " summary: do not credit that commit. Why it was added: getCommitDiff with"
+                    + " the origin's hash and filePath=its path. Link a commit as"
+                    + " [shortHash](/files?rev=HASH&project=ID) with the full hash and the"
+                    + " response's project field.",
+            resultConverter = CompactToolResultConverter.class)
+    public ToolResult<GitLineOrigin> getLineOrigin(
+            ToolContext context,
+            @ToolParam(description = "File path relative to repo root.") String filePath,
+            @ToolParam(
+                            description = "The line (1-based), numbered as getFileContent or grepContent"
+                                    + " showed it — in commit when that is given.")
+                    Integer line,
+            @ToolParam(description = "Literal substring of that line to trace (case-insensitive).") String query,
+            @ToolParam(
+                            description = "Optional: the revision the line is numbered in — a full or short"
+                                    + " hash, a branch, a tag, or HEAD~2. Omit for the"
+                                    + " working tree, uncommitted edits included.",
+                            required = false)
+                    @Nullable
+                    String commit,
+            @ToolParam(
+                            description = "Optional: another project (repository id) to read instead of"
+                                    + " the chat's active one; the response's"
+                                    + " top-level \"project\" field says which"
+                                    + " one answered.",
+                            required = false)
+                    @Nullable
+                    String project) {
+        requireText(filePath, "filePath");
+        requireValue(line, "line");
+        requireText(query, "query");
+        log.debug(
+                "getLineOrigin called: filePath='{}', line={}, query='{}', commit='{}', project='{}'",
+                filePath,
+                line,
+                query,
+                commit,
+                project);
+        GitService git = git(context, project);
+        GitLineOrigin origin = git.getLineOrigin(commit, filePath, line, query);
+        log.debug(
+                "getLineOrigin called: {} after {} steps",
+                origin.status(),
+                origin.steps().size());
+        return answer(git, origin);
     }
 
     /**

@@ -442,6 +442,7 @@
     "getFileOutline": "Структура файла",
     "getFileContent": "Чтение файла",
     "getBlame": "Авторство строк",
+    "getLineOrigin": "Когда появилось",
     "getUncommittedChanges": "Незакоммиченные изменения",
     "grepContent": "Поиск по коду",
     "searchCodebase": "Умный поиск",

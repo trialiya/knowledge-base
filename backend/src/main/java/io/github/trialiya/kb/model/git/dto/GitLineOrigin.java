@@ -1,8 +1,11 @@
 package io.github.trialiya.kb.model.git.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.tools.Compact;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.StringJoiner;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -13,7 +16,8 @@ import org.jspecify.annotations.Nullable;
  * встречаться раньше в другом месте, и {@code git log -S} нашёл бы то место. Здесь — коммит, с
  * которого подстрока живёт в той строке, что нашёл поиск.
  *
- * <p>Пустые поля в JSON не печатаются: отсутствующее поле значит {@code null}.
+ * <p>Отдаётся и действию «Когда появилось» на странице поиска, и инструменту модели {@code
+ * getLineOrigin}. Пустые поля в JSON не печатаются: отсутствующее поле значит {@code null}.
  *
  * @param path относительный путь файла, как его спросили
  * @param line номер строки в файле, как его спросили (1-based)
@@ -35,7 +39,26 @@ public record GitLineOrigin(
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String commit,
         Status status,
         List<Step> steps,
-        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Step before) {
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Step before)
+        implements ToolCallResponseItem {
+
+    /** Плашка вызова: что спрашивали, чем кончилось, и коммит-ответ с версией «до». */
+    @Override
+    public String getFormattedResponse() {
+        StringBuilder gist = new StringBuilder(Compact.tag("origin:" + path + ":" + line)
+                .add("query", Compact.oneLine(query, 60))
+                .add("at", commit == null ? null : commit.substring(0, 7))
+                .add("status", status)
+                .add("steps", steps.size())
+                .done());
+        if (!steps.isEmpty()) {
+            gist.append("\norigin ").append(steps.getLast().gist());
+        }
+        if (before != null) {
+            gist.append("\nbefore ").append(before.gist());
+        }
+        return gist.toString();
+    }
 
     public enum Status {
         /** Найдено: последний шаг — коммит, где подстрока появилась в этой строке. */
@@ -64,6 +87,10 @@ public record GitLineOrigin(
     /**
      * Одна версия строки — в том коммите, который её последним менял.
      *
+     * <p>В неглубоком (shallow) клоне таким коммитом может оказаться граница клона: история за ним
+     * обрезана, и git отдаёт ему всё, что старше. Такой шаг помечен {@code boundary} и идёт без
+     * автора и темы — они говорили бы, кто и зачем написал строку, а этого клон не знает.
+     *
      * @param hash полный хеш коммита
      * @param author имя автора
      * @param date дата авторства
@@ -71,6 +98,7 @@ public record GitLineOrigin(
      * @param path путь файла в том коммите — после переименования он другой
      * @param line номер строки в файле того коммита (1-based)
      * @param text текст строки в том коммите, не длиннее 500 символов
+     * @param boundary коммит — граница неглубокого клона
      */
     public record Step(
             String hash,
@@ -86,5 +114,43 @@ public record GitLineOrigin(
 
             String path,
             int line,
-            String text) {}
+            String text,
+
+            @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean boundary) {
+
+        /** Шаг не на границе клона. */
+        public Step(
+                String hash,
+                @Nullable String author,
+                @Nullable OffsetDateTime date,
+                @Nullable String summary,
+                String path,
+                int line,
+                String text) {
+            this(hash, author, date, summary, path, line, text, false);
+        }
+
+        /** Тот же шаг, помеченный границей неглубокого клона, — без автора и темы коммита. */
+        public Step atBoundary() {
+            return new Step(hash, null, date, null, path, line, text, true);
+        }
+
+        /** {@code a1b2c3d Alice 2024-03-01 Fix parser}; на границе клона — {@code a1b2c3d boundary …}. */
+        String gist() {
+            StringJoiner gist = new StringJoiner(" ").add(hash.substring(0, 7));
+            if (boundary) {
+                gist.add("boundary");
+            }
+            if (author != null) {
+                gist.add(author);
+            }
+            if (date != null) {
+                gist.add(date.toLocalDate().toString());
+            }
+            if (summary != null) {
+                gist.add(Compact.oneLine(summary, 60));
+            }
+            return gist.toString();
+        }
+    }
 }

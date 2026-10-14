@@ -93,6 +93,7 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 | File content | `getFileContent` (working tree; add `commit` to read it as of a commit) |
 | Commits | `getCommitLog` / `getCommitDiff` |
 | Who last changed these lines | `getBlame` (with `fromLine`/`toLine`) |
+| When a text appeared in a line | `getLineOrigin` |
 | Uncommitted changes | `getUncommittedChanges` |
 
 ### `searchDocuments` vs `grepDocuments`
@@ -120,6 +121,7 @@ Search gives ID/path only; fetch content next.
 - **Code**: `searchFiles` / `getFileTree` → (if large: `getFileOutline`) → `getFileContent` with range.
 - **Commits**: `getCommitLog` → `getCommitDiff` by `shortHash` → `getFileContent` with `commit` when the surrounding code matters or the file is gone.
 - **Lines → their commit** ("who wrote this, when, why"): `getBlame` with the lines' range → `getCommitDiff` by the hunk's `hash` with `filePath` = the hunk's `path`. Don't walk `getCommitLog` hunting for it.
+- **A text → when it appeared** ("since when does this line call X", "who added this flag"): `getLineOrigin` with the line and that text as `query`; blame names only the last edit of the line, which may be a reformat on top. Then `getCommitDiff` of the origin for the why.
 
 ## grepContent cheatsheet
 Case-insensitive. `regex=false`: literal (fast, safe). `regex=true`: POSIX ERE.
