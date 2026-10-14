@@ -634,7 +634,7 @@ public class GitService {
      * @param rev the commit to read; {@code null} or blank — the working tree
      */
     public GitFileBlame getBlame(@Nullable String rev, @NonNull String filePath) {
-        return blame(rev, filePath, null);
+        return blame(rev, filePath, null, BlameMatching.EXACT);
     }
 
     /**
@@ -645,17 +645,36 @@ public class GitService {
      * file, as with the two-argument form. An end before the start is the caller's mistake, not an
      * empty range: told apart from a start past the file's end, which only the file can answer.
      *
+     * <p>Two questions ({@link BlameMatching}): {@code exact} — which commit last touched each line,
+     * any edit counted, as the two-argument form and GitHub answer; otherwise who wrote the lines,
+     * past re-indents and moves within the file, chosen for the file by its normalized name.
+     *
      * @param fromLine first line (1-based, inclusive); null for start of file
      * @param toLine last line (1-based, inclusive); null for end of file
      * @throws IllegalArgumentException if {@code toLine} is before {@code fromLine}
      */
     public GitFileBlame getBlame(
-            @Nullable String rev, @NonNull String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
+            @Nullable String rev,
+            @NonNull String filePath,
+            @Nullable Integer fromLine,
+            @Nullable Integer toLine,
+            boolean exact) {
+        BlameMatching matching = exact ? BlameMatching.EXACT : BlameMatching.authorship(normalizePath(filePath));
+        return getBlame(rev, filePath, fromLine, toLine, matching);
+    }
+
+    /** The ranged blame with the matching spelled out — a test's way of trying each switch alone. */
+    GitFileBlame getBlame(
+            @Nullable String rev,
+            @NonNull String filePath,
+            @Nullable Integer fromLine,
+            @Nullable Integer toLine,
+            BlameMatching matching) {
         if (toLine != null && toLine < Math.max(1, fromLine == null ? 1 : fromLine)) {
             throw new IllegalArgumentException("toLine " + toLine + " is before fromLine " + fromLine);
         }
         boolean ranged = fromLine != null || toLine != null;
-        return blame(rev, filePath, ranged ? new GitBlameRunner.Range(fromLine, toLine) : null);
+        return blame(rev, filePath, ranged ? new GitBlameRunner.Range(fromLine, toLine) : null, matching);
     }
 
     /**
@@ -679,10 +698,11 @@ public class GitService {
         return origins.origin(normalizePath(filePath), snapshot(rev), line, query);
     }
 
-    private GitFileBlame blame(@Nullable String rev, String filePath, GitBlameRunner.@Nullable Range range) {
+    private GitFileBlame blame(
+            @Nullable String rev, String filePath, GitBlameRunner.@Nullable Range range, BlameMatching matching) {
         String at = snapshot(rev);
         String normalized = normalizePath(filePath);
-        return at == null ? blame.blame(normalized, range) : blame.blameAt(at, normalized, range);
+        return at == null ? blame.blame(normalized, range, matching) : blame.blameAt(at, normalized, range, matching);
     }
 
     // ── File content ────────────────────────────────────────────────────────

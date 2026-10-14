@@ -81,7 +81,7 @@ class GitFunctionTest {
         when(billing.searchCommitLog(anyString(), anyInt(), any(), anyBoolean()))
                 .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
-        when(billing.getBlame(any(), anyString(), any(), any()))
+        when(billing.getBlame(any(), anyString(), any(), any(), anyBoolean()))
                 .thenReturn(new GitFileBlame(
                         "pom.xml",
                         null,
@@ -167,7 +167,7 @@ class GitFunctionTest {
                         history.getCommitLog(context, null, null, null, null, "billing"),
                         history.getCommitDiff(context, "abc1234", null, null, "billing"),
                         function.getUncommittedChanges(context, null, null, null, "billing"),
-                        history.getBlame(context, "pom.xml", 1, 2, null, "billing"),
+                        history.getBlame(context, "pom.xml", 1, 2, null, null, "billing"),
                         history.getLineOrigin(context, "pom.xml", 3, "junit", null, "billing")))
                 .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"))
                 .allSatisfy(r -> assertThat(r.result()).isNotNull());
@@ -238,11 +238,27 @@ class GitFunctionTest {
     void blameHandsTheRangeAndRevisionToTheService() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
-        ToolResult<GitBlameAnswer> answer = history.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null);
+        ToolResult<GitBlameAnswer> answer = history.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null, null);
 
-        verify(billing).getBlame("HEAD~1", "pom.xml", 3, 9);
+        verify(billing).getBlame("HEAD~1", "pom.xml", 3, 9, false);
         assertThat(answer.truncated()).isNotEqualTo(Boolean.TRUE);
         assertThat(answer.result().hunks()).hasSize(1);
+    }
+
+    /**
+     * Пропущенный {@code exact} — «кто написал строки», а не отказ; {@code exact=true} доезжает до
+     * сервиса как есть. Какое сопоставление за этим стоит, решает сервис по нормализованному пути
+     * ({@code GitServiceBlameTest}).
+     */
+    @Test
+    void exactArrivesAtTheServiceAndDefaultsToAuthorship() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+
+        history.getBlame(context, "app/charge.py", 1, 2, null, null, null);
+        history.getBlame(context, "app/charge.py", 1, 2, null, true, null);
+
+        verify(billing).getBlame(null, "app/charge.py", 1, 2, false);
+        verify(billing).getBlame(null, "app/charge.py", 1, 2, true);
     }
 
     /**

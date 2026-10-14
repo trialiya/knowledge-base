@@ -72,14 +72,15 @@ final class GitBlameRunner {
      *
      * @param normalized a path {@link RepoPaths#normalize} has cleaned
      * @param range the lines to blame; {@code null} — the whole file
+     * @param matching how a line is paired with its earlier version
      * @throws IllegalArgumentException if the path is not served, is not tracked (blame needs
      *     history, and an untracked file has none), or is binary
      * @throws GitReadTimeoutException if git did not answer in time
      */
-    GitFileBlame blame(String normalized, @Nullable Range range) {
+    GitFileBlame blame(String normalized, @Nullable Range range, BlameMatching matching) {
         Target target = workingTree(normalized);
         int total = range == null ? 0 : target.count().getAsInt();
-        return run(normalized, target.ignored(), null, range, total, target.count());
+        return run(target, matching, range, total, target.count());
     }
 
     /**
@@ -89,21 +90,27 @@ final class GitBlameRunner {
      * @param rev hash (full or short), branch, tag or {@code HEAD~2}; resolved through JGit first,
      *     so only a hash ever reaches the command line
      * @param range the lines to blame; {@code null} — the whole file
+     * @param matching how a line is paired with its earlier version
      * @throws IllegalArgumentException if the revision is unknown or ambiguous, the commit holds no
      *     file at that path, or the file is binary
      */
-    GitFileBlame blameAt(String rev, String normalized, @Nullable Range range) {
+    GitFileBlame blameAt(String rev, String normalized, @Nullable Range range, BlameMatching matching) {
         Target target = snapshot(rev, normalized);
         int total = range == null ? 0 : target.count().getAsInt();
-        return run(normalized, target.ignored(), target.commit(), range, total, null);
+        return run(target, matching, range, total, null);
     }
 
     /**
-     * What a blame of one file starts from: the commit it is read at ({@code null} — the working
-     * tree), the revisions it skips, and the file's line count as git counts it, read only when
-     * asked for.
+     * What a blame of one file starts from: the file, the commit it is read at ({@code null} — the
+     * working tree), the revisions it skips, and the file's line count as git counts it, read only
+     * when asked for.
      */
-    private record Target(@Nullable String commit, List<String> ignored, IntSupplier count) {}
+    private record Target(String path, @Nullable String commit, List<String> ignored, IntSupplier count) {
+
+        List<String> command(BlameMatching matching, GitBlame.@Nullable Lines lines) {
+            return GitBlame.args(path, ignored, matching, lines, commit);
+        }
+    }
 
     /** The working-tree file, refused unless git has history for it and it is text. */
     private Target workingTree(String normalized) {
@@ -119,7 +126,7 @@ final class GitBlameRunner {
         byte[] head = RepoFiles.readWindow(normalized, resolved.absolute(), 0, RepoFiles.BINARY_SNIFF_BYTES);
         requireText(normalized, head);
         List<String> ignored = resolvable(GitBlame.ignoredRevs(workingTreeIgnoreFile()));
-        return new Target(null, ignored, () -> RepoFiles.lineCount(normalized, resolved.absolute()));
+        return new Target(normalized, null, ignored, () -> RepoFiles.lineCount(normalized, resolved.absolute()));
     }
 
     /** The file as of a commit, refused unless the commit holds it and it is text. */
@@ -129,7 +136,7 @@ final class GitBlameRunner {
         requireText(normalized, blob.bytes());
         int total = RepoFiles.lineCount(blob.bytes());
         List<String> ignored = resolvable(GitBlame.ignoredRevs(snapshotIgnoreFile(commit)));
-        return new Target(commit, ignored, () -> total);
+        return new Target(normalized, commit, ignored, () -> total);
     }
 
     /**
@@ -159,6 +166,7 @@ final class GitBlameRunner {
     }
 
     /**
+     * @param matching how a line is paired with its earlier version
      * @param range the lines asked about, or {@code null} for the whole file
      * @param total the file's line count as git counts it; read only when {@code range} is set —
      *     the whole file's count is the sum of its hunks, and costs no second read
@@ -166,23 +174,18 @@ final class GitBlameRunner {
      *     whose count cannot change
      */
     private GitFileBlame run(
-            String normalized,
-            List<String> ignored,
-            @Nullable String commit,
-            @Nullable Range range,
-            int total,
-            @Nullable IntSupplier recount) {
+            Target target, BlameMatching matching, @Nullable Range range, int total, @Nullable IntSupplier recount) {
         Set<String> cut = ShallowClone.boundaries(repository);
         if (range == null) {
-            List<String> command = GitBlame.args(normalized, ignored, null, commit);
-            GitReadProcess.Output out = exec(command, normalized);
+            List<String> command = target.command(matching, null);
+            GitReadProcess.Output out = exec(command, target.path());
             out.requireExit(command, 0);
             List<GitFileBlame.Hunk> hunks = hunks(out, cut);
             int lineCount =
                     hunks.stream().mapToInt(GitFileBlame.Hunk::lineCount).sum();
-            return new GitFileBlame(normalized, commit, lineCount, hunks, null, null);
+            return new GitFileBlame(target.path(), target.commit(), lineCount, hunks, null, null);
         }
-        return ranged(normalized, ignored, commit, range, total, recount, cut);
+        return ranged(target, matching, range, total, recount, cut);
     }
 
     /**
@@ -195,30 +198,30 @@ final class GitBlameRunner {
      *     #hunks})
      */
     private GitFileBlame ranged(
-            String normalized,
-            List<String> ignored,
-            @Nullable String commit,
+            Target target,
+            BlameMatching matching,
             Range range,
             int total,
             @Nullable IntSupplier recount,
             Set<String> cut) {
+        String normalized = target.path();
         GitBlame.Lines lines = GitBlame.fit(range.fromLine(), range.toLine(), total);
         if (lines == null) {
             // The range starts past the file's end (GitService refuses a reversed one): git would
             // refuse it outright, and an empty answer naming the file's length says more.
             int from = range.fromLine() == null ? 1 : Math.max(1, range.fromLine());
-            return new GitFileBlame(normalized, commit, total, List.of(), from, from - 1);
+            return new GitFileBlame(normalized, target.commit(), total, List.of(), from, from - 1);
         }
-        List<String> command = GitBlame.args(normalized, ignored, lines, commit);
+        List<String> command = target.command(matching, lines);
         GitReadProcess.Output out = exec(command, normalized);
         if (out.exit() != 0 && recount != null) {
             int now = recount.getAsInt();
             if (now < total) {
-                return ranged(normalized, ignored, commit, range, now, null, cut);
+                return ranged(target, matching, range, now, null, cut);
             }
         }
         out.requireExit(command, 0);
-        return new GitFileBlame(normalized, commit, total, hunks(out, cut), lines.from(), lines.to());
+        return new GitFileBlame(normalized, target.commit(), total, hunks(out, cut), lines.from(), lines.to());
     }
 
     /**

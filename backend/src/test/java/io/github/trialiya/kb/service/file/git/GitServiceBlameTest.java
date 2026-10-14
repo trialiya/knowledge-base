@@ -225,7 +225,7 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\ntwo\nthree\nfour\nfive\n");
         commitAll("second");
 
-        GitFileBlame blame = service.getBlame(null, "f.txt", 2, 4);
+        GitFileBlame blame = service.getBlame(null, "f.txt", 2, 4, BlameMatching.EXACT);
 
         assertThat(blame.lineCount()).isEqualTo(5);
         assertThat(blame.fromLine()).isEqualTo(2);
@@ -233,6 +233,81 @@ class GitServiceBlameTest {
         assertThat(blame.hunks())
                 .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::lineCount, GitFileBlame.Hunk::summary)
                 .containsExactly(tuple(2, 2, "first"), tuple(4, 1, "second"));
+    }
+
+    /**
+     * {@code -w}: блок, только переотступленный (обёрнутый в условие), остаётся за тем, кто его
+     * написал. Без {@code -w} — даже с {@code -M} — его строки отходят переотступу, как в колонке
+     * «Файлов» ({@link BlameMatching#EXACT}) и на GitHub.
+     */
+    @Test
+    void ignoringWhitespaceLooksPastAReindent() {
+        writeFile("f.txt", "first();\nsecond();\nthird();\n");
+        commitAll("written");
+        writeFile("f.txt", "if (on) {\n    first();\n    second();\n    third();\n}\n");
+        commitAll("wrapped");
+
+        GitFileBlame exact = service.getBlame(null, "f.txt", 2, 4, BlameMatching.EXACT);
+        GitFileBlame movesOnly = service.getBlame(null, "f.txt", 2, 4, new BlameMatching(false, true));
+        GitFileBlame lenient = service.getBlame(null, "f.txt", 2, 4, new BlameMatching(true, true));
+
+        assertThat(exact.hunks()).extracting(GitFileBlame.Hunk::summary).containsOnly("wrapped");
+        assertThat(movesOnly.hunks()).extracting(GitFileBlame.Hunk::summary).containsOnly("wrapped");
+        assertThat(lenient.hunks()).extracting(GitFileBlame.Hunk::summary).containsOnly("written");
+    }
+
+    /**
+     * Вопрос, а не флаги: без {@code exact} сервис сам выбирает сопоставление по имени файла —
+     * путь, как его написала модель (обратный слеш, пробел по краям), сперва нормализуется. В
+     * Python отступ — синтаксис, и обёртка в {@code if} остаётся правкой; в тексте — нет. {@code
+     * exact} — обычный blame.
+     */
+    @Test
+    void withoutExactTheMatchingFollowsTheNormalizedFileName() {
+        for (String file : List.of("f.txt", "dir/f.py")) {
+            writeFile(file, "first()\nsecond()\nthird()\n");
+        }
+        commitAll("written");
+        for (String file : List.of("f.txt", "dir/f.py")) {
+            writeFile(file, "if on:\n    first()\n    second()\n    third()\n");
+        }
+        commitAll("wrapped");
+
+        assertThat(service.getBlame(null, "f.txt", 2, 4, false).hunks())
+                .extracting(GitFileBlame.Hunk::summary)
+                .containsOnly("written");
+        assertThat(service.getBlame(null, "f.txt", 2, 4, true).hunks())
+                .extracting(GitFileBlame.Hunk::summary)
+                .containsOnly("wrapped");
+        assertThat(service.getBlame(null, " dir\\f.py ", 2, 4, false).hunks())
+                .extracting(GitFileBlame.Hunk::summary)
+                .containsOnly("wrapped");
+    }
+
+    /**
+     * {@code -M}: метод, перенесённый вниз файла без единой правки, остаётся за тем, кто его
+     * написал, и {@code sourceLine} показывает, где он стоял. Без {@code -M} — даже с {@code -w} —
+     * diff видит его удалённым сверху и добавленным снизу.
+     */
+    @Test
+    void detectingMovesKeepsAMovedBlocksAuthor() {
+        // Втрое выше порога git'а (20 букв и цифр на блок): тест о переносе, не о пороге.
+        String method = "void settle() {\n  ledger.reconcile(account);\n  ledger.notifyOwner(account);\n"
+                + "  audit.record(account, total);\n}\n";
+        String others = "p\nq\nr\ns\nt\nu\n";
+        writeFile("f.txt", method + others);
+        commitAll("written");
+        writeFile("f.txt", others + method);
+        commitAll("moved");
+
+        GitFileBlame whitespaceOnly = service.getBlame(null, "f.txt", 7, 11, new BlameMatching(true, false));
+        GitFileBlame lenient = service.getBlame(null, "f.txt", 7, 11, new BlameMatching(true, true));
+
+        assertThat(whitespaceOnly.hunks())
+                .extracting(GitFileBlame.Hunk::summary)
+                .containsOnly("moved");
+        assertThat(lenient.hunks()).extracting(GitFileBlame.Hunk::summary).containsOnly("written");
+        assertThat(lenient.hunks().getFirst().sourceLine()).isEqualTo(1);
     }
 
     /**
@@ -244,8 +319,8 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\ntwo\nthree");
         commitAll("first");
 
-        GitFileBlame tail = service.getBlame(null, "f.txt", 3, 100);
-        GitFileBlame past = service.getBlame(null, "f.txt", 4, null);
+        GitFileBlame tail = service.getBlame(null, "f.txt", 3, 100, BlameMatching.EXACT);
+        GitFileBlame past = service.getBlame(null, "f.txt", 4, null, BlameMatching.EXACT);
 
         assertThat(tail.lineCount()).isEqualTo(3);
         assertThat(tail.toLine()).isEqualTo(3);
@@ -264,10 +339,11 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\ntwo\nthree\n");
         commitAll("first");
 
-        assertThatThrownBy(() -> service.getBlame(null, "f.txt", 3, 2))
+        assertThatThrownBy(() -> service.getBlame(null, "f.txt", 3, 2, BlameMatching.EXACT))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("before fromLine");
-        assertThatThrownBy(() -> service.getBlame(null, "f.txt", null, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.getBlame(null, "f.txt", null, 0, BlameMatching.EXACT))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     /** Диапазон у снимка считается по файлу того коммита, а не рабочего дерева. */
@@ -278,7 +354,7 @@ class GitServiceBlameTest {
         writeFile("f.txt", "one\ntwo\nthree\nfour\n");
         commitAll("second");
 
-        GitFileBlame blame = service.getBlame("HEAD~1", "f.txt", 2, 4);
+        GitFileBlame blame = service.getBlame("HEAD~1", "f.txt", 2, 4, BlameMatching.EXACT);
 
         assertThat(blame.lineCount()).isEqualTo(2);
         assertThat(blame.toLine()).isEqualTo(2);
@@ -337,7 +413,8 @@ class GitServiceBlameTest {
             GitBlameRunner runner = new GitBlameRunner(
                     paths, repository, new VisibleFiles(service.project(), paths, repository), Duration.ZERO);
 
-            assertThatThrownBy(() -> runner.blame("f.txt", null)).isInstanceOf(GitReadTimeoutException.class);
+            assertThatThrownBy(() -> runner.blame("f.txt", null, BlameMatching.EXACT))
+                    .isInstanceOf(GitReadTimeoutException.class);
         }
     }
 
@@ -357,7 +434,7 @@ class GitServiceBlameTest {
         GitService shallow = TestProjects.gitService(cloneDir.resolve("shallow"), false);
 
         GitFileBlame blame = shallow.getBlame(null, "f.txt");
-        GitFileBlame ranged = shallow.getBlame("HEAD", "f.txt", 1, 1);
+        GitFileBlame ranged = shallow.getBlame("HEAD", "f.txt", 1, 1, BlameMatching.EXACT);
 
         assertThat(blame.hunks())
                 .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::summary, GitFileBlame.Hunk::boundary)
