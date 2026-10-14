@@ -6,9 +6,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.ObjectId;
@@ -42,11 +45,13 @@ final class GitLineLog {
     private static final Pattern HASH = Pattern.compile("[0-9a-f]{40}|[0-9a-f]{64}");
 
     private final Repository repository;
+    private final Git jgit;
     private final VisibleFiles visible;
     private final GitReadProcess git;
 
-    GitLineLog(RepoPaths paths, Repository repository, VisibleFiles visible) {
+    GitLineLog(RepoPaths paths, Repository repository, Git jgit, VisibleFiles visible) {
         this.repository = repository;
+        this.jgit = jgit;
         this.visible = visible;
         this.git = new GitReadProcess(
                 paths.root(), TIMEOUT, " — narrow fromLine/toLine or lower maxCount: git stops at that many commits");
@@ -83,14 +88,16 @@ final class GitLineLog {
         List<String> hashes = hashes(out.lines());
         boolean more = hashes.size() > maxCount;
         List<String> shown = more ? hashes.subList(0, maxCount) : hashes;
-        boolean cut =
-                !more && !shown.isEmpty() && ShallowClone.boundaries(repository).contains(shown.getLast());
+        // Any commit listed, not only the last: past a merge the walk can stop on the cut of one
+        // side and go on down the other.
+        Set<String> boundaries = ShallowClone.boundaries(repository);
+        boolean cut = !more && shown.stream().anyMatch(boundaries::contains);
         return new GitCommitSearchResult(commits(shown, includeBody), more || cut);
     }
 
     /**
-     * The asked range in HEAD's numbering. The working-tree file is read when git tracks it there;
-     * without it — deleted, or not served — the numbers are taken as HEAD's.
+     * The asked range in HEAD's numbering. The working-tree file is read only when git sees it
+     * changed against HEAD; unchanged, missing or not served, the numbers are already HEAD's.
      */
     private GitBlame.Lines atHead(
             String normalized, String head, @Nullable Integer fromLine, @Nullable Integer toLine) {
@@ -107,7 +114,7 @@ final class GitLineLog {
                     + (toLine == null ? "end" : toLine) + " are not in " + normalized + ": it has " + total
                     + " lines");
         }
-        if (work == null || Arrays.equals(work, committed)) {
+        if (work == null) {
             return asked;
         }
         // Trailing whitespace aside: a working copy checked out with CRLF must not read as every
@@ -121,21 +128,47 @@ final class GitLineLog {
         return carried;
     }
 
-    /** The file as the working tree has it, or {@code null} when git has no working copy of it to number. */
+    /**
+     * The file as the working tree has it, when its numbering can differ from HEAD's; {@code null}
+     * otherwise. Whether it changed is git's status, not a byte comparison: status reads through
+     * the checkout filters (line endings, LFS), so a clean file is never diffed against a blob it
+     * only looks unlike — and is not read at all, which is the common case.
+     */
     private byte @Nullable [] workingCopy(String normalized) {
+        if (!changedAgainstHead(normalized)) {
+            return null;
+        }
         VisibleFiles.Resolved resolved;
         try {
             resolved = visible.require(normalized);
         } catch (IllegalArgumentException e) {
             return null;
         }
-        if (!resolved.tracked() || !Files.isRegularFile(resolved.absolute())) {
+        // A symlink's blob is its target's name: the file it points to is not the one to number.
+        if (!resolved.tracked()
+                || Files.isSymbolicLink(resolved.absolute())
+                || !Files.isRegularFile(resolved.absolute())) {
             return null;
         }
         if (RepoFiles.sizeOf(normalized, resolved.absolute()) > CommitFiles.MAX_BLOB_SIZE) {
             throw new IllegalArgumentException("File too large to number its lines: " + normalized);
         }
-        return RepoFiles.readAll(normalized, resolved.absolute());
+        byte[] bytes = RepoFiles.readAll(normalized, resolved.absolute());
+        if (RepoFiles.isBinary(bytes)) {
+            throw new IllegalArgumentException("Binary file has no line history: " + normalized);
+        }
+        return bytes;
+    }
+
+    /** Whether the working tree or the index holds the file other than HEAD does. */
+    private boolean changedAgainstHead(String normalized) {
+        try {
+            Status status = jgit.status().addPath(normalized).call();
+            return status.getModified().contains(normalized)
+                    || status.getChanged().contains(normalized);
+        } catch (GitAPIException e) {
+            throw new IllegalStateException("Cannot read the status of " + normalized, e);
+        }
     }
 
     /**

@@ -170,7 +170,7 @@ public class GitService {
         this.visible = new VisibleFiles(project, paths, repository);
         this.grep = new GitGrepRunner(paths, repository, visible);
         this.blame = new GitBlameRunner(paths, repository, visible);
-        this.lineLog = new GitLineLog(paths, repository, visible);
+        this.lineLog = new GitLineLog(paths, repository, git, visible);
         this.origins = new LineOriginTracer(repository, visible);
         this.writer = new GitWriter(project, paths, visible, git);
         this.branches = new GitBranches(repository, git);

@@ -66,7 +66,7 @@ final class GitBlameRunner {
         this.git = new GitReadProcess(
                 paths.root(),
                 timeout,
-                " — narrow fromLine/toLine to just the lines you need: git walks the history of those" + " lines only");
+                " — narrow fromLine/toLine to just the lines you need: git walks the history of those lines only");
     }
 
     /**

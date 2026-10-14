@@ -95,7 +95,8 @@ final class GitBlame {
      */
     static void requireOrdered(@Nullable Integer fromLine, @Nullable Integer toLine) {
         if (toLine != null && toLine < Math.max(1, fromLine == null ? 1 : fromLine)) {
-            throw new IllegalArgumentException("toLine " + toLine + " is before fromLine " + fromLine);
+            throw new IllegalArgumentException(
+                    "toLine " + toLine + " is before fromLine " + (fromLine == null ? 1 : fromLine));
         }
     }
 
