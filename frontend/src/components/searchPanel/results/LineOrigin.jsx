@@ -4,10 +4,10 @@ import AppLink from '@/components/common/ui/AppLink';
 import CommitHashLink from '@/components/common/git/CommitHashLink';
 import shortRev from '@/components/common/git/shortRev';
 import { highlightSubstring } from '@/components/common/search/highlightMatch';
+import { describeOrigin } from '@/components/common/git/lineOrigin';
 import { FILE_TAB } from '@/constants/fileTabs';
 import { filesUrl } from '@/navigation/urlScheme';
 import { formatCompactDateTime } from '@/utils/formatting';
-import { describeOrigin } from './originAnswer';
 import useLineOrigin from './useLineOrigin';
 
 /**

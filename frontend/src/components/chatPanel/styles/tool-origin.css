@@ -1,0 +1,141 @@
+/* ── Режим «Обзор» в модалке вызова инструмента ──
+   Ответ `getLineOrigin`: коммит-ответ, «стало»/«было» и путь строки.
+   Импортируется из tool-call-detail.css. */
+
+.tool-origin {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--kb-text);
+}
+
+.tool-origin__file {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-family: var(--kb-font-mono);
+}
+
+.tool-origin__path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kb-text);
+  text-decoration: none;
+}
+
+.tool-origin__rev {
+  flex: none;
+  color: var(--kb-text-faint);
+}
+
+.tool-origin__query {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--kb-surface-app);
+  color: var(--kb-text-muted);
+}
+
+/* Подложка та же, что у блоков кода в модалке (см. tool-code.css). */
+.tool-origin__answer,
+.tool-origin__versions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 10px;
+  background: var(--kb-surface-app);
+  border: 1px solid var(--kb-border);
+  border-radius: 6px;
+}
+
+.tool-origin__versions {
+  gap: 4px;
+  margin: 0;
+  list-style: none;
+}
+
+.tool-origin__step + .tool-origin__step {
+  padding-top: 4px;
+  border-top: 1px solid var(--kb-border-light);
+}
+
+.tool-origin__step {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-origin__commit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tool-origin__meta {
+  flex-shrink: 0;
+  color: var(--kb-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-origin__summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Граница неглубокого клона — подпись на месте автора и темы, тем же
+   приглушённым курсивом, что подписи границы в колонке blame. */
+.tool-origin__boundary,
+.tool-origin__hint {
+  color: var(--kb-text-faint);
+}
+.tool-origin__boundary {
+  font-style: italic;
+}
+
+/* Версия строки — ссылка, но читается как строка кода: номер и текст. Путь и
+   переход — по наведению, как у номеров строк в виде blame. */
+.tool-origin__line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 3px;
+}
+.tool-origin__line:hover {
+  background: var(--kb-accent-surface-subtle);
+}
+.tool-origin__path:hover,
+.tool-origin__line:hover .tool-origin__no {
+  text-decoration: underline;
+}
+
+.tool-origin__line-label {
+  flex-shrink: 0;
+  min-width: 36px;
+  color: var(--kb-text-muted);
+}
+
+.tool-origin__no {
+  flex-shrink: 0;
+  font-family: var(--kb-font-mono);
+  color: var(--kb-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-origin__code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--kb-font-mono);
+}

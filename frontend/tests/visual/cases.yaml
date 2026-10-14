@@ -1894,6 +1894,36 @@
     Снято на стенде (harness) в обеих темах; сверка с эталонами — в образе
     (./run/test.sh harness-image).
 
+- id: tool-call-detail-origin
+  component: ToolCallDetailModal + OriginResultView
+  path: frontend/src/components/chatPanel/messages/resultViews/OriginResultView.jsx
+  title: Детали вызова — когда появилось (getLineOrigin)
+  status: verified
+  origin:
+    - Сессия 2026-10-14, инструмент getLineOrigin и вид origin
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: стенд (./run/test.sh harness), вызова getLineOrigin в сэмпле нет
+    profile: h2
+    click: модалка деталей вызова, режим «Обзор»
+    data: |
+      Подстрока прослежена через две версии строки: свежая и старая — до
+      переименования файла, с длинным описанием коммита; «было» — строка
+      без подстроки в родителе.
+  fixtures:
+    - ./fixtures/toolCallDetail.js#originCall
+  expected:
+    - 'Шапка: «Появилось в этом коммите», число версий, проект ответа'
+    - 'Строка файла path:line — ссылка на неё с запросом в find-баре; рядом запрос моноширинным'
+    - 'Блок ответа: короткий хеш (ссылка на коммит), дата, автор, описание с многоточием; строки «стало» и «было» с номерами в том коммите и подсвеченным запросом'
+    - 'Путь строки: каждая версия — коммит и строка, отделены чертой; самая старая — под старым путём'
+    - 'Все ссылки открываются в новой вкладке'
+  notes: |
+    Снято на стенде (harness) в обеих темах; сверка с эталонами — в образе
+    (./run/test.sh harness-image). Граница клона (BOUNDARY) отличается
+    подписью вместо автора и подсказкой — покрыта тестом вида, не снимком.
+
 - id: tool-call-detail-doc-script-args
   component: ToolCallDetailModal + DocMutationView + ScriptRunView + ArgumentListView
   path: frontend/src/components/chatPanel/messages/resultViews/ScriptRunView.jsx

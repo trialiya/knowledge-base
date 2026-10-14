@@ -18,6 +18,8 @@ import { detectGrepMatches } from './grepMatches';
 import GrepMatchesView from './GrepMatchesView';
 import { detectBlameResult } from './blameResult';
 import BlameResultView from './BlameResultView';
+import { detectOriginResult } from './originResult';
+import OriginResultView from './OriginResultView';
 import { detectTreeResult } from './treeResult';
 import TreeResultView from './TreeResultView';
 import { detectRecordList } from './recordList';
@@ -47,6 +49,7 @@ const VIEWS = [
   { id: 'docMutation', detect: detectDocMutation, View: DocMutationView },
   { id: 'grepMatches', detect: detectGrepMatches, View: GrepMatchesView },
   { id: 'blame', detect: detectBlameResult, View: BlameResultView },
+  { id: 'origin', detect: detectOriginResult, View: OriginResultView },
   { id: 'tree', detect: detectTreeResult, View: TreeResultView },
   { id: 'recordList', detect: detectRecordList, View: RecordListView },
   { id: 'content', detect: detectContentResult, View: ContentResultView },
