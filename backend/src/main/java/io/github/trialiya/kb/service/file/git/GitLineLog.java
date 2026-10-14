@@ -97,7 +97,7 @@ final class GitLineLog {
 
     /**
      * The asked range in HEAD's numbering. The working-tree file is read only when git sees it
-     * changed against HEAD; unchanged, missing or not served, the numbers are already HEAD's.
+     * changed against HEAD; unchanged or deleted, the numbers are already HEAD's.
      */
     private GitBlame.Lines atHead(
             String normalized, String head, @Nullable Integer fromLine, @Nullable Integer toLine) {
@@ -138,12 +138,8 @@ final class GitLineLog {
         if (!changedAgainstHead(normalized)) {
             return null;
         }
-        VisibleFiles.Resolved resolved;
-        try {
-            resolved = visible.require(normalized);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+        // Refused like blame refuses it: numbering a changed file by HEAD would follow other lines.
+        VisibleFiles.Resolved resolved = visible.require(normalized);
         // A symlink's blob is its target's name: the file it points to is not the one to number.
         if (!resolved.tracked()
                 || Files.isSymbolicLink(resolved.absolute())
@@ -160,12 +156,16 @@ final class GitLineLog {
         return bytes;
     }
 
-    /** Whether the working tree or the index holds the file other than HEAD does. */
+    /**
+     * Whether the working tree or the index holds the file other than HEAD does — a conflicted file
+     * too: its working copy, markers and all, is what the model read.
+     */
     private boolean changedAgainstHead(String normalized) {
         try {
             Status status = jgit.status().addPath(normalized).call();
             return status.getModified().contains(normalized)
-                    || status.getChanged().contains(normalized);
+                    || status.getChanged().contains(normalized)
+                    || status.getConflicting().contains(normalized);
         } catch (GitAPIException e) {
             throw new IllegalStateException("Cannot read the status of " + normalized, e);
         }

@@ -98,6 +98,38 @@ class GitServiceLineLogTest {
                 .containsExactly("changed inside", "written");
     }
 
+    /**
+     * Застейдженная правка выше и файл в конфликте слияния — тоже «изменён»: модель читала рабочую
+     * копию, и номера переводятся к HEAD.
+     */
+    @Test
+    void stagedEditsAndConflictsAreNumberedAsTheWorkingTreeHasThem() {
+        writeFile("g.txt", "one\ntwo\ntop\na\nvoid m() {\n  two();\n}\nz changed\n");
+        runGit("add", "g.txt");
+
+        assertThat(service.getLineLog("g.txt", 5, 7, 20, false).commits())
+                .extracting(GitCommit::message)
+                .containsExactly("changed inside", "written");
+
+        runGit("reset", "-q", "--hard");
+        runGit("checkout", "-q", "-b", "side", "HEAD~1");
+        writeFile("g.txt", "side\ntop\na\nvoid m() {\n  two();\n}\nz changed\n");
+        commitAll("side edit");
+        runGit("checkout", "-q", "-");
+        writeFile("g.txt", "main\ntop\na\nvoid m() {\n  two();\n}\nz changed\n");
+        commitAll("main edit");
+        try {
+            runGit("merge", "-q", "side");
+        } catch (IllegalStateException conflict) {
+            // Ожидаемо: обе ветки правили первую строку.
+        }
+
+        // Маркеры конфликта сдвинули метод на строки 8–10.
+        assertThat(service.getLineLog("g.txt", 8, 10, 20, false).commits())
+                .extracting(GitCommit::message)
+                .containsExactly("changed inside", "written");
+    }
+
     /** Строки, которых нет ни в одном коммите, истории не имеют — это ошибка, а не пустой ответ. */
     @Test
     void uncommittedAdditionsHaveNoHistory() {

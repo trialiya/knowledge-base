@@ -44,7 +44,7 @@ The sub-agent starts from a blank conversation: it sees this one call and nothin
 2. Know what the change was about (a feature, a bug, a word from its message)? → `getCommitLog` with `query` — it searches subjects and descriptions — then `getCommitDiff`
 3. Know the lines, not the commit ("who wrote this / when / why is it like this")? → `getBlame` with `fromLine`/`toLine` of just those lines, then `getCommitDiff` by the hunk's `hash` with `filePath` = the hunk's `path` (the file's own if absent; after a rename the current path is not in that commit)
 4. Know the line and the text in it, want when that text came in ("since when", "who added this check")? → `getLineOrigin` with `line` and the text as `query` — not a chain of `getBlame` calls: each blame names only the commit behind the line's current content, and following them by hand drifts into neighbouring lines' history. `NOT_IN_LINE` means the line number is stale: re-read the file first
-5. Know the lines, want how they evolved ("how did this method change", "what happened to this block")? → `getCommitLog` with `filePath` and `fromLine`/`toLine` (numbered as at HEAD) — only the commits that changed those lines, newest first — then `getCommitDiff` with `filePath` for the ones that matter
+5. Know the lines, want how they evolved ("how did this method change", "what happened to this block")? → `getCommitLog` with `filePath` and `fromLine`/`toLine` (numbered as `getFileContent` shows them) — only the commits that changed those lines, newest first — then `getCommitDiff` with `filePath` for the ones that matter
 6. Not sure what to look for? → `getCommitLog` (narrow with `filePath`), then `getCommitDiff`
 7. Current working tree changes? → `getUncommittedChanges`
 
