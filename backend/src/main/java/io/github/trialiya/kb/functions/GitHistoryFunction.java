@@ -157,17 +157,16 @@ public class GitHistoryFunction {
     }
 
     /**
-     * Who last changed the given lines — {@code git blame -L}, with the revisions {@code
+     * Who wrote the given lines — {@code git blame -L}, with the revisions {@code
      * .git-blame-ignore-revs} names skipped; see {@link GitService#getBlame(String, String, Integer,
      * Integer, BlameMatching)}.
      *
-     * <p>Unlike the blame column in Files, the walk looks past whitespace and follows lines moved
-     * within the file ({@code -w -M}, {@link BlameMatching}): the model asks who wrote the logic,
-     * and a block wrapped in a {@code try} or a method moved down the file would otherwise go to
-     * whoever re-indented or moved it. Where indentation is syntax ({@link
-     * BlameMatching#whitespaceMatters}: Python, YAML, Makefiles) {@code -w} is off unless asked for:
-     * a line dedented out of an {@code if} is a change in behaviour, and {@code -w} would hide the
-     * commit that made it.
+     * <p>By default the answer is who wrote the lines, not who last touched them ({@link
+     * BlameMatching#authorship}): whitespace edits and moves within the file are looked past, so a
+     * block wrapped in a {@code try} or a method moved down the file keeps its author. The same
+     * looking-past hides what a regression hunt is after — a statement moved below another, a space
+     * taken out of a string literal — so {@code exact=true} is plain {@code git blame} ({@link
+     * BlameMatching#EXACT}), the blame column's own answer.
      *
      * <p>Answers with the hunks alone, not the text of the lines: the model comes here about lines
      * it has already read, and the description points it on from a hunk to the commit that wrote
@@ -182,32 +181,31 @@ public class GitHistoryFunction {
      * @param fromLine first line (1-based, inclusive); null for start of file
      * @param toLine last line (1-based, inclusive); null for end of file
      * @param commit revision to blame the file as of; null blames the working tree
-     * @param ignoreWhitespace look past whitespace-only changes; {@code null} — yes, unless whitespace
-     *     is syntax in this file
+     * @param exact {@code true} — the commit that last touched each line, any edit counted
      */
     @Tool(
-            description = "Who last changed each line of a file (git blame). Answers with hunks —"
+            description = "Who wrote each line of a file (git blame). Answers with hunks —"
                     + " consecutive lines from one commit: fromLine, lineCount, hash, and"
                     + " path + sourceLine (the file's path and the hunk's first line in that"
                     + " commit — they differ after a rename, edits above, or a move or copy"
                     + " within the file; absent means"
                     + " the same as the file's path and fromLine). Each commit is described once"
                     + " in \"commits\", keyed by the full hash: author, date, summary (commit"
-                    + " subject). A hunk with no hash is an uncommitted edit (an uncommitted"
-                    + " re-indent does not show while whitespace is ignored — getUncommittedChanges"
-                    + " does)."
+                    + " subject). A hunk with no hash is an uncommitted edit."
                     + " \"boundary\": true marks a commit at the cut of a shallow clone: its"
                     + " lines are as old as that commit or older, and who wrote them is not in"
                     + " this clone (no author, no summary) — say so, do not credit the commit,"
                     + " and do not diff it: with no parent here, its diff shows every line added."
                     + " Commits named in .git-blame-ignore-revs (mass reformatting) are skipped,"
-                    + " so their lines go to whoever changed them before. Whitespace-only changes"
-                    + " are looked past (not in Python, YAML, Makefiles — indentation is code"
-                    + " there) and lines moved or copied within the file keep the commit that"
-                    + " wrote the original, so a re-indent or a moved method does not take the"
-                    + " credit, and a pasted copy names where it was copied from, not who pasted it —"
-                    + " the answer can differ from GitHub's blame and from the blame column in"
-                    + " Files for that reason. Give fromLine/toLine"
+                    + " so their lines go to whoever changed them before. By default the answer is"
+                    + " who wrote the lines, not who last touched them: whitespace-only changes"
+                    + " are looked past (not where indentation is code — Python, YAML, Makefiles)"
+                    + " and lines moved, copied or reordered within the file keep the commit that"
+                    + " wrote them — so it can differ from GitHub's blame and the blame column in"
+                    + " Files, and an uncommitted re-indent does not show. Hunting the change that"
+                    + " broke something (a reordered statement or a whitespace edit can be it):"
+                    + " exact=true — the commit that last touched each line, any edit counted."
+                    + " Give fromLine/toLine"
                     + " for the lines you care about: the history of a range is walked, not"
                     + " the whole file. lineCount at the top is the whole file's length."
                     + " When a given text entered the line — getLineOrigin, not a chain of"
@@ -239,17 +237,17 @@ public class GitHistoryFunction {
                     @Nullable
                     String commit,
             @ToolParam(
-                            description = "Look past whitespace-only changes. Default: true, false"
-                                    + " where indentation is syntax (Python, YAML, Makefiles)."
-                                    + " Set false to find who changed indentation or spacing,"
-                                    + " e.g. when a whitespace change may be the bug.",
+                            description = "True: the commit that last touched each line, any edit"
+                                    + " counted — whitespace and moves included; for hunting the"
+                                    + " change that broke something. Default false: who wrote"
+                                    + " the lines.",
                             required = false)
                     @Nullable
-                    Boolean ignoreWhitespace,
+                    Boolean exact,
             @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(filePath, "filePath");
         final BlameMatching matching =
-                new BlameMatching(orDefault(ignoreWhitespace, !BlameMatching.whitespaceMatters(filePath)), true);
+                orDefault(exact, false) ? BlameMatching.EXACT : BlameMatching.authorship(filePath);
         log.debug(
                 "getBlame called: filePath='{}', fromLine={}, toLine={}, commit='{}', matching={}, project='{}'",
                 filePath,

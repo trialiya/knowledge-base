@@ -247,28 +247,19 @@ class GitFunctionTest {
     }
 
     /**
-     * Модель спрашивает, кто написал логику: по умолчанию blame смотрит сквозь пробелы и за
-     * перенос строк. {@code ignoreWhitespace=false} выключает только {@code -w} — перенос остаётся.
+     * По умолчанию blame отвечает, кто написал строки ({@code -w -M}), а там, где отступ — синтаксис,
+     * не смотрит сквозь пробелы. {@code exact=true} — последний коммит, тронувший строку: то, что
+     * ищут при регрессии.
      */
     @Test
-    void blameLooksPastWhitespaceUnlessTheCallSaysOtherwise() {
-        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
-
-        history.getBlame(context, "pom.xml", 1, 2, null, false, null);
-
-        verify(billing).getBlame(null, "pom.xml", 1, 2, new BlameMatching(false, true));
-    }
-
-    /** Там, где отступ — синтаксис, по умолчанию пробелы не пропускаются: строка, выведенная из блока, — правка. */
-    @Test
-    void blameOfAPythonFileKeepsWhitespaceUnlessAsked() {
+    void blameAnswersWhoWroteTheLinesUnlessAskedForTheLastTouch() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
         history.getBlame(context, "app/charge.py", 1, 2, null, null, null);
-        history.getBlame(context, "app/charge.py", 1, 2, null, true, null);
+        history.getBlame(context, "pom.xml", 1, 2, null, true, null);
 
         verify(billing).getBlame(null, "app/charge.py", 1, 2, new BlameMatching(false, true));
-        verify(billing).getBlame(null, "app/charge.py", 1, 2, new BlameMatching(true, true));
+        verify(billing).getBlame(null, "pom.xml", 1, 2, BlameMatching.EXACT);
     }
 
     /**

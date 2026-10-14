@@ -92,7 +92,7 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 | Multi-step code + KB search | `searchCodebase` |
 | File content | `getFileContent` (working tree; add `commit` to read it as of a commit) |
 | Commits | `getCommitLog` / `getCommitDiff` |
-| Who last changed these lines | `getBlame` (with `fromLine`/`toLine`) |
+| Who wrote / last changed these lines | `getBlame` (with `fromLine`/`toLine`; `exact=true` for the last change of any kind) |
 | When a text appeared in a line | `getLineOrigin` |
 | Uncommitted changes | `getUncommittedChanges` |
 
