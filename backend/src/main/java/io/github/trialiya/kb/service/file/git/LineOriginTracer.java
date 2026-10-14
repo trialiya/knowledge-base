@@ -19,7 +19,6 @@ import java.util.regex.Pattern;
 import org.eclipse.jgit.blame.BlameGenerator;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.EditList;
-import org.eclipse.jgit.diff.HistogramDiff;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.ObjectId;
@@ -294,11 +293,11 @@ final class LineOriginTracer {
         }
         // Trailing whitespace aside: a working copy checked out with CRLF must not read as every
         // line edited.
-        EditList edits = diff(RawTextComparator.WS_IGNORE_TRAILING, committed, work);
-        Edit edit = editAt(edits, index);
+        EditList edits = LineShift.diff(RawTextComparator.WS_IGNORE_TRAILING, committed, work);
+        Edit edit = LineShift.editAt(edits, index);
         int carried;
         if (edit == null) {
-            carried = unchanged(edits, index);
+            carried = LineShift.unchanged(edits, index);
             String was = FileVersions.lineOf(committed, carried);
             if (!needle.matcher(was).find()) {
                 // Equal but for trailing whitespace — and the substring is in what was added.
@@ -435,11 +434,11 @@ final class LineOriginTracer {
             if (path == null || old == null) {
                 edit = new Edit(0, 0, 0, now.size());
             } else {
-                EditList edits = diff(RawTextComparator.DEFAULT, old, now);
-                Edit hunk = editAt(edits, version.line());
+                EditList edits = LineShift.diff(RawTextComparator.DEFAULT, old, now);
+                Edit hunk = LineShift.editAt(edits, version.line());
                 if (hunk == null) {
                     // Unchanged against this parent of a merge: the line came from that side as it is.
-                    return new Next.Carried(new At(before, path, unchanged(edits, version.line())));
+                    return new Next.Carried(new At(before, path, LineShift.unchanged(edits, version.line())));
                 }
                 int carried = hunk.getLengthA() == 0
                         ? -1
@@ -477,32 +476,6 @@ final class LineOriginTracer {
             }
         }
         return without != null ? without : new Next.None();
-    }
-
-    private static EditList diff(RawTextComparator comparator, RawText old, RawText now) {
-        return new HistogramDiff().diff(comparator, old, now);
-    }
-
-    /** The hunk that holds line {@code line} on its new side; {@code null} when the line is unchanged. */
-    private static @Nullable Edit editAt(EditList edits, int line) {
-        for (Edit edit : edits) {
-            if (edit.getBeginB() <= line && line < edit.getEndB()) {
-                return edit;
-            }
-        }
-        return null;
-    }
-
-    /** Where an unchanged line of the new side sits on the old one: shifted by every hunk above it. */
-    private static int unchanged(EditList edits, int line) {
-        int shift = 0;
-        for (Edit edit : edits) {
-            if (edit.getEndB() > line) {
-                break;
-            }
-            shift += edit.getLengthA() - edit.getLengthB();
-        }
-        return line + shift;
     }
 
     /**

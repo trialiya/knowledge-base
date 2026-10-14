@@ -170,7 +170,7 @@ public class GitService {
         this.visible = new VisibleFiles(project, paths, repository);
         this.grep = new GitGrepRunner(paths, repository, visible);
         this.blame = new GitBlameRunner(paths, repository, visible);
-        this.lineLog = new GitLineLog(paths, repository);
+        this.lineLog = new GitLineLog(paths, repository, visible);
         this.origins = new LineOriginTracer(repository, visible);
         this.writer = new GitWriter(project, paths, visible, git);
         this.branches = new GitBranches(repository, git);
@@ -382,8 +382,8 @@ public class GitService {
     }
 
     /**
-     * The commits that changed lines {@code fromLine}…{@code toLine} of the file as it is at HEAD,
-     * newest first; see {@link GitLineLog}.
+     * The commits that changed lines {@code fromLine}…{@code toLine} of the file, numbered as the
+     * working tree has it, newest first; see {@link GitLineLog}.
      *
      * @param maxCount max commits to return, capped at {@value #MAX_COMMITS}
      */
@@ -662,9 +662,7 @@ public class GitService {
             @Nullable Integer fromLine,
             @Nullable Integer toLine,
             BlameMatching matching) {
-        if (toLine != null && toLine < Math.max(1, fromLine == null ? 1 : fromLine)) {
-            throw new IllegalArgumentException("toLine " + toLine + " is before fromLine " + fromLine);
-        }
+        GitBlame.requireOrdered(fromLine, toLine);
         boolean ranged = fromLine != null || toLine != null;
         return blame(rev, filePath, ranged ? new GitBlameRunner.Range(fromLine, toLine) : null, matching);
     }

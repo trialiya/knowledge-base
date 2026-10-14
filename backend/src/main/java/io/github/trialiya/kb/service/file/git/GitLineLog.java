@@ -3,9 +3,14 @@ package io.github.trialiya.kb.service.file.git;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
+import org.eclipse.jgit.diff.RawText;
+import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -19,6 +24,11 @@ import org.jspecify.annotations.Nullable;
  * <p>A subprocess, like blame and grep: JGit has no line-range log. Only the hashes are read off
  * git's output; the commits themselves are described through JGit, the same way the rest of the
  * history is ({@link Diffs#toGitCommit}).
+ *
+ * <p>The range is numbered as the working tree has it — as the model read it with {@code
+ * getFileContent} or {@code grepContent} — while {@code -L} starts from HEAD. Uncommitted edits
+ * above the range would send git to other lines, so the range is carried to HEAD's numbering
+ * across the diff between the two first ({@link LineShift#toOld}).
  */
 final class GitLineLog {
 
@@ -28,26 +38,34 @@ final class GitLineLog {
      */
     static final Duration TIMEOUT = GitBlameRunner.BLAME_TIMEOUT;
 
+    /** What git prints per commit under {@code --format=%H}: a SHA-1 or a SHA-256 hash. */
+    private static final Pattern HASH = Pattern.compile("[0-9a-f]{40}|[0-9a-f]{64}");
+
     private final Repository repository;
+    private final VisibleFiles visible;
     private final GitReadProcess git;
 
-    GitLineLog(RepoPaths paths, Repository repository) {
+    GitLineLog(RepoPaths paths, Repository repository, VisibleFiles visible) {
         this.repository = repository;
+        this.visible = visible;
         this.git = new GitReadProcess(
                 paths.root(), TIMEOUT, " — narrow fromLine/toLine or lower maxCount: git stops at that many commits");
     }
 
     /**
-     * The commits that changed lines {@code fromLine}…{@code toLine} of the file as it is at HEAD.
+     * The commits that changed lines {@code fromLine}…{@code toLine} of the file.
      *
-     * @param normalized a path {@link RepoPaths#normalize} has cleaned, as it is at HEAD
-     * @param fromLine first line (1-based, inclusive); {@code null} — the file's first
+     * <p>{@code truncated} is exact — git is asked for one commit more than {@code maxCount} — and
+     * also set when the walk ended on the cut of a shallow clone ({@link ShallowClone}): the lines
+     * may be older than the clone, and the oldest commit listed is then not where they came from.
+     *
+     * @param normalized a path {@link RepoPaths#normalize} has cleaned
+     * @param fromLine first line (1-based, inclusive) as the working tree numbers it; {@code null} —
+     *     the file's first
      * @param toLine last line (inclusive); {@code null} — the file's last; one past the end is
      *     pulled in, as with blame
-     * @param maxCount how many commits to return; one more is asked for, so {@code truncated} is
-     *     exact
-     * @throws IllegalArgumentException if HEAD holds no such file, the range starts past its end or
-     *     ends before it starts
+     * @throws IllegalArgumentException if HEAD holds no such file or holds it binary, the range
+     *     misses the file or ends before it starts, or every line of it is an uncommitted addition
      * @throws GitReadTimeoutException if git did not answer in time
      */
     GitCommitSearchResult log(
@@ -56,33 +74,76 @@ final class GitLineLog {
             @Nullable Integer toLine,
             int maxCount,
             boolean includeBody) {
-        if (toLine != null && toLine < Math.max(1, fromLine == null ? 1 : fromLine)) {
-            throw new IllegalArgumentException("toLine " + toLine + " is before fromLine " + fromLine);
-        }
+        GitBlame.requireOrdered(fromLine, toLine);
         String head = CommitFiles.commitOf(repository, "HEAD").name();
-        int total = RepoFiles.lineCount(
-                CommitFiles.read(repository, head, normalized).bytes());
-        GitBlame.Lines lines = GitBlame.fit(fromLine, toLine, total);
-        if (lines == null) {
-            throw new IllegalArgumentException(
-                    "fromLine " + fromLine + " is past the end of " + normalized + " (" + total + " lines at HEAD)");
-        }
+        GitBlame.Lines lines = atHead(normalized, head, fromLine, toLine);
         List<String> command = args(normalized, lines, maxCount + 1, head);
         GitReadProcess.Output out = git.run(command, maxCount + 1, git.deadline());
         out.requireExit(command, 0);
-        List<String> hashes = out.lines().stream()
-                .map(String::strip)
-                .filter(h -> !h.isEmpty())
-                .toList();
-        boolean truncated = hashes.size() > maxCount;
-        return new GitCommitSearchResult(
-                commits(truncated ? hashes.subList(0, maxCount) : hashes, includeBody), truncated);
+        List<String> hashes = hashes(out.lines());
+        boolean more = hashes.size() > maxCount;
+        List<String> shown = more ? hashes.subList(0, maxCount) : hashes;
+        boolean cut =
+                !more && !shown.isEmpty() && ShallowClone.boundaries(repository).contains(shown.getLast());
+        return new GitCommitSearchResult(commits(shown, includeBody), more || cut);
     }
 
     /**
-     * {@code git log -L <from>,<to>:<path> --no-patch --format=%H -n <count> <head>}. The path goes
-     * inside the {@code -L} argument — git takes no {@code --} for it — so a path starting with
-     * {@code -} is never read as an option; {@code head} is a resolved hash.
+     * The asked range in HEAD's numbering. The working-tree file is read when git tracks it there;
+     * without it — deleted, or not served — the numbers are taken as HEAD's.
+     */
+    private GitBlame.Lines atHead(
+            String normalized, String head, @Nullable Integer fromLine, @Nullable Integer toLine) {
+        byte[] committed = CommitFiles.read(repository, head, normalized).bytes();
+        if (RepoFiles.isBinary(committed)) {
+            throw new IllegalArgumentException("Binary file has no line history: " + normalized);
+        }
+        byte[] work = workingCopy(normalized);
+        byte[] numbered = work == null ? committed : work;
+        int total = RepoFiles.lineCount(numbered);
+        GitBlame.Lines asked = GitBlame.fit(fromLine, toLine, total);
+        if (asked == null) {
+            throw new IllegalArgumentException("Lines " + (fromLine == null ? 1 : fromLine) + "–"
+                    + (toLine == null ? "end" : toLine) + " are not in " + normalized + ": it has " + total
+                    + " lines");
+        }
+        if (work == null || Arrays.equals(work, committed)) {
+            return asked;
+        }
+        // Trailing whitespace aside: a working copy checked out with CRLF must not read as every
+        // line edited.
+        GitBlame.Lines carried = LineShift.toOld(
+                LineShift.diff(RawTextComparator.WS_IGNORE_TRAILING, new RawText(committed), new RawText(work)), asked);
+        if (carried == null) {
+            throw new IllegalArgumentException("Lines " + asked.from() + "–" + asked.to() + " of " + normalized
+                    + " are uncommitted additions: they have no history yet");
+        }
+        return carried;
+    }
+
+    /** The file as the working tree has it, or {@code null} when git has no working copy of it to number. */
+    private byte @Nullable [] workingCopy(String normalized) {
+        VisibleFiles.Resolved resolved;
+        try {
+            resolved = visible.require(normalized);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        if (!resolved.tracked() || !Files.isRegularFile(resolved.absolute())) {
+            return null;
+        }
+        if (RepoFiles.sizeOf(normalized, resolved.absolute()) > CommitFiles.MAX_BLOB_SIZE) {
+            throw new IllegalArgumentException("File too large to number its lines: " + normalized);
+        }
+        return RepoFiles.readAll(normalized, resolved.absolute());
+    }
+
+    /**
+     * {@code git log -L <from>,<to>:<path> --no-patch --no-show-signature --format=%H -n <count>
+     * <head>}. The path goes inside the {@code -L} argument — git takes no {@code --} for it — so a
+     * path starting with {@code -} is never read as an option; {@code head} is a resolved hash.
+     * {@code --no-show-signature} overrides a {@code log.showSignature} in the host's config, which
+     * would print signature lines between the hashes.
      */
     static List<String> args(String path, GitBlame.Lines lines, int count, String head) {
         return List.of(
@@ -91,10 +152,31 @@ final class GitLineLog {
                 "-L",
                 lines.from() + "," + lines.to() + ":" + path,
                 "--no-patch",
+                "--no-show-signature",
                 "--format=%H",
                 "-n",
                 String.valueOf(count),
                 head);
+    }
+
+    /**
+     * The hashes, one per line. Anything else is refused rather than skipped: a git that prints the
+     * patch despite {@code --no-patch} would fill the read with diff lines, and the answer would be
+     * short without saying so.
+     */
+    static List<String> hashes(List<String> lines) {
+        List<String> hashes = new ArrayList<>(lines.size());
+        for (String line : lines) {
+            String hash = line.strip();
+            if (hash.isEmpty()) {
+                continue;
+            }
+            if (!HASH.matcher(hash).matches()) {
+                throw new IllegalStateException("Unexpected git log -L output: " + hash);
+            }
+            hashes.add(hash);
+        }
+        return hashes;
     }
 
     private List<GitCommit> commits(List<String> hashes, boolean includeBody) {

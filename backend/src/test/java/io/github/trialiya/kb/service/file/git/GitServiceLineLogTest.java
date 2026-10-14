@@ -72,7 +72,7 @@ class GitServiceLineLogTest {
                 .containsExactly("changed below", "written");
         assertThatThrownBy(() -> service.getLineLog("g.txt", 7, null, 20, false))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("6 lines at HEAD");
+                .hasMessageContaining("it has 6 lines");
         assertThatThrownBy(() -> service.getLineLog("g.txt", 4, 2, 20, false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("before fromLine");
@@ -85,10 +85,74 @@ class GitServiceLineLogTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /**
+     * Номера — как у рабочего дерева, которое модель прочла: незакоммиченная вставка выше сдвигает
+     * их, и без перевода к HEAD git ушёл бы к чужим строкам.
+     */
+    @Test
+    void theRangeIsNumberedAsTheWorkingTreeHasIt() {
+        writeFile("g.txt", "one\ntwo\ntop\na\nvoid m() {\n  two();\n}\nz changed\n");
+
+        assertThat(service.getLineLog("g.txt", 5, 7, 20, false).commits())
+                .extracting(GitCommit::message)
+                .containsExactly("changed inside", "written");
+    }
+
+    /** Строки, которых нет ни в одном коммите, истории не имеют — это ошибка, а не пустой ответ. */
+    @Test
+    void uncommittedAdditionsHaveNoHistory() {
+        writeFile("g.txt", "new 1\nnew 2\ntop\na\nvoid m() {\n  two();\n}\nz changed\n");
+
+        assertThatThrownBy(() -> service.getLineLog("g.txt", 1, 2, 20, false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("uncommitted additions");
+    }
+
+    /**
+     * Обход, упёршийся в границу неглубокого клона, помечен {@code truncated}: строки могут быть
+     * старше клона, и самый старый коммит в списке — его граница, а не их начало.
+     */
+    @Test
+    void aWalkEndingOnAShallowClonesCutIsTruncated(@TempDir Path cloneDir) {
+        runGit(
+                "clone",
+                "-q",
+                "--depth",
+                "2",
+                repoDir.toUri().toString(),
+                cloneDir.resolve("shallow").toString());
+        GitService shallow = TestProjects.gitService(cloneDir.resolve("shallow"), false);
+
+        GitCommitSearchResult log = shallow.getLineLog("g.txt", 3, 5, 20, false);
+
+        assertThat(log.commits()).extracting(GitCommit::message).containsExactly("renamed");
+        assertThat(log.truncated()).isTrue();
+    }
+
     @Test
     void theCommandKeepsThePathInsideTheRangeArgument() {
         assertThat(GitLineLog.args("-x.txt", new GitBlame.Lines(3, 7), 21, "deadbee"))
-                .containsExactly("git", "log", "-L", "3,7:-x.txt", "--no-patch", "--format=%H", "-n", "21", "deadbee");
+                .containsExactly(
+                        "git",
+                        "log",
+                        "-L",
+                        "3,7:-x.txt",
+                        "--no-patch",
+                        "--no-show-signature",
+                        "--format=%H",
+                        "-n",
+                        "21",
+                        "deadbee");
+    }
+
+    /** Только хеши; строка подписи или патча — отказ, а не молча короткий ответ. */
+    @Test
+    void anythingButHashesInTheOutputIsRefused() {
+        String hash = "a".repeat(40);
+
+        assertThat(GitLineLog.hashes(List.of(hash, "", " " + hash + " "))).containsExactly(hash, hash);
+        assertThatThrownBy(() -> GitLineLog.hashes(List.of(hash, "No signature")))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     private void writeFile(String relativePath, String content) {
