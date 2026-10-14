@@ -440,6 +440,9 @@ public class GitFunction {
      * it. A long history is cut at {@link BlameBudget#MAX_HUNKS} hunks, with {@code truncated} and
      * the answer's {@code toLine} saying where to go on from.
      *
+     * <p>In a shallow clone the oldest commit takes every line older than the clone; the hunk says
+     * {@code boundary} so the model does not name it the author (see {@link GitFileBlame.Hunk}).
+     *
      * @param filePath path relative to repo root
      * @param fromLine first line (1-based, inclusive); null for start of file
      * @param toLine last line (1-based, inclusive); null for end of file
@@ -451,13 +454,18 @@ public class GitFunction {
                     + " date, summary (commit subject), and path + sourceLine (the file's path"
                     + " and the hunk's first line in that commit — they differ after a rename"
                     + " or after edits above). A hunk with no hash is an uncommitted edit."
+                    + " \"boundary\": true marks a hunk at the cut of a shallow clone: its"
+                    + " lines are as old as that commit or older, and who wrote them is not in"
+                    + " this clone (no author, no summary) — say so, do not credit the commit,"
+                    + " and do not diff it: with no parent here, its diff shows every line added."
                     + " Commits named in .git-blame-ignore-revs (mass reformatting) are skipped,"
                     + " so their lines go to whoever changed them before. Give fromLine/toLine"
                     + " for the lines you care about: the history of a range is walked, not"
                     + " the whole file. lineCount at the top is the whole file's length."
                     + " \"truncated\": true means more hunks past toLine — continue from the"
-                    + " next line. Why a change was made: getCommitDiff with the hash and"
-                    + " filePath. The lines as that commit wrote them: getFileContent with"
+                    + " next line. Why a change was made (not boundary): getCommitDiff with the hash and"
+                    + " filePath=path (the hunk's: after a rename the current one is not in"
+                    + " that commit). The lines as that commit wrote them: getFileContent with"
                     + " commit=hash, filePath=path, fromLine=sourceLine. Untracked and binary"
                     + " files have no blame. Link a commit as"
                     + " [shortHash](/files?rev=HASH&project=ID) with the full hash and the"

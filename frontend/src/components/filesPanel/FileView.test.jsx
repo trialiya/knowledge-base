@@ -254,6 +254,17 @@ describe('FileView', () => {
       });
     });
 
+    test('ханк на границе клона подписан ею, а не описанием коммита, и ведёт в тот коммит', async () => {
+      // Так ханк приходит с бэкенда: без автора и описания (GitFileBlame.Hunk.atBoundary).
+      const { author: _author, summary: _summary, ...cut } = hunks[0];
+      gitApi.getBlame.mockResolvedValue({ path: 'a.js', hunks: [{ ...cut, boundary: true }, hunks[1]] });
+      render(<FileView file={code} path="a.js" project="kb" blame onToggleBlame={() => {}} />);
+
+      const link = await screen.findByRole('link', { name: /file\.blameBoundary/ });
+      expect(link.title).toMatch(/^file\.blameBoundaryTitle\naaaaaaa · /);
+      expect(link).toHaveAttribute('href', `/files/old.js?project=kb&rev=${hash}&lines=7-8&right=commit`);
+    });
+
     // Номера строк усечённого файла не настоящие, у неотслеживаемого истории нет,
     // а в diff'е строки — не строки файла.
     test('у усечённого, неотслеживаемого и показанного diff-ом файла тумблера нет', () => {

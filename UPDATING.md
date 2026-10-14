@@ -17,6 +17,19 @@ feature that just works after the upgrade belongs there, not here.
 stops working as before, and what to do about it. Name the config keys, files
 and commands involved — the reader is holding a deployment, not a diff.
 
+## Unreleased
+
+### `GET /api/git/files/blame`: hunks at a shallow clone's cut lose `author` and `summary`
+
+In a shallow clone (`git clone --depth N`) git credits the oldest fetched
+commit with every line older than the clone. Such hunks now carry
+`"boundary": true` and come without `author` and `summary` — that commit did
+not necessarily write them, and the clone cannot say who did; `hash`, `date`,
+`path` and `sourceLine` stay. A full clone answers as before. A script or
+integration of your own that reads this endpoint and expects an author on every
+committed hunk must allow for the missing fields (or deepen the clone with
+`git fetch --unshallow`).
+
 ## 1.2.0-RC1
 
 ### `GET /api/git/commits/search` answers `{commits, truncated}`

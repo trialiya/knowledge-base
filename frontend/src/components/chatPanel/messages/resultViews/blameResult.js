@@ -39,6 +39,8 @@ const toRow = (hunk, i, file, project) => {
     author: typeof hunk.author === 'string' ? hunk.author : null,
     date: typeof hunk.date === 'string' ? hunk.date : null,
     summary: typeof hunk.summary === 'string' ? hunk.summary : null,
+    // Граница неглубокого клона: строки не моложе коммита, но не им написаны (GitFileBlame.Hunk).
+    boundary: hunk.boundary === true,
     href: filesUrl(typeof hunk.path === 'string' && hunk.path ? hunk.path : file, project, {
       rev: hash,
       lines: source,

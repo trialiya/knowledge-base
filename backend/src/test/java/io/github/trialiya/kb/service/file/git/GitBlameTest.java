@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -191,5 +192,25 @@ class GitBlameTest {
     @Test
     void anEmptyFileHasNoHunks() {
         assertThat(GitBlame.parse(List.of())).isEmpty();
+    }
+
+    /** Граница неглубокого клона помечается у каждого её ханка, остальные остаются как были. */
+    @Test
+    void hunksOfABoundaryCommitAreMarked() {
+        String cut = "c".repeat(40);
+        List<GitFileBlame.Hunk> hunks = List.of(
+                new GitFileBlame.Hunk(1, 2, cut, "A", null, "squash", "f", 1),
+                new GitFileBlame.Hunk(3, 1, "d".repeat(40), "B", null, "fix", "f", 3),
+                new GitFileBlame.Hunk(4, 1, null, null, null, null, null, null),
+                new GitFileBlame.Hunk(5, 1, cut, "A", null, "squash", "f", 4));
+
+        assertThat(GitBlame.markBoundaries(hunks, Set.of(cut)))
+                .extracting(GitFileBlame.Hunk::fromLine, GitFileBlame.Hunk::boundary)
+                .containsExactly(tuple(1, true), tuple(3, false), tuple(4, false), tuple(5, true));
+        // Кто и зачем писал строки на границе, клон не знает: ни автора, ни описания.
+        assertThat(GitBlame.markBoundaries(hunks, Set.of(cut)).getFirst())
+                .extracting(GitFileBlame.Hunk::hash, GitFileBlame.Hunk::author, GitFileBlame.Hunk::summary)
+                .containsExactly(cut, null, null);
+        assertThat(GitBlame.markBoundaries(hunks, Set.of())).isSameAs(hunks);
     }
 }

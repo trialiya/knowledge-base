@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 /** Плашка вызова {@code getBlame}: заголовок и первые ханки строкой каждый. */
 class GitFileBlameTest {
@@ -45,5 +46,30 @@ class GitFileBlameTest {
                 "a.txt", null, 1, List.of(new GitFileBlame.Hunk(1, 1, HASH, null, null, null, null, 1)), null, null);
 
         assertThat(blame.getFormattedResponse()).endsWith("\n1 a1b2c3d").doesNotContain("null");
+    }
+
+    @Test
+    void aBoundaryHunkIsMarkedInTheGist() {
+        GitFileBlame blame = new GitFileBlame(
+                "a.txt",
+                null,
+                3,
+                List.of(new GitFileBlame.Hunk(
+                                1, 3, HASH, "Alice", OffsetDateTime.parse("2024-03-01T10:00:00Z"), "Squash", "a.txt", 1)
+                        .atBoundary()),
+                null,
+                null);
+
+        assertThat(blame.getFormattedResponse()).endsWith("\n1-3 a1b2c3d boundary 2024-03-01");
+    }
+
+    /** Флаг печатается только там, где он есть: у обычного ханка ключа {@code boundary} нет. */
+    @Test
+    void onlyABoundaryHunkCarriesTheFlagInJson() {
+        JsonMapper json = JsonMapper.builder().build();
+        GitFileBlame.Hunk plain = new GitFileBlame.Hunk(1, 1, HASH, null, null, null, null, 1);
+
+        assertThat(json.writeValueAsString(plain)).doesNotContain("boundary");
+        assertThat(json.writeValueAsString(plain.atBoundary())).contains("\"boundary\":true");
     }
 }

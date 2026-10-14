@@ -51,6 +51,11 @@ describe('detectBlameResult — что попадает в «Обзор»', () =
     expect(data.range).toBeNull();
   });
 
+  it('граница неглубокого клона доходит до строки; без флага её нет', () => {
+    const data = detect(answer({ path: 'a.txt', lineCount: 3, hunks: [hunk(1, 2, { boundary: true }), hunk(3, 1)] }));
+    expect(data.rows.map((row) => row.boundary)).toEqual([true, false]);
+  });
+
   it('снимок коммита и усечение доходят до вида', () => {
     const data = detect(
       answer({ path: 'a.txt', commit: HASH, lineCount: 300, hunks: [hunk(1, 1)], fromLine: 1, toLine: 1 }, true),
