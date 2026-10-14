@@ -19,19 +19,15 @@ class BlameMatchingTest {
         assertThat(BlameMatching.whitespaceMatters("tools/BUILD.bazel")).isTrue();
     }
 
-    /** Путь — как его написала модель: с обратными слешами и пробелами по краям. */
-    @Test
-    void theNameIsReadAsTheCallerSpelledIt() {
-        assertThat(BlameMatching.whitespaceMatters("tools\\Makefile")).isTrue();
-        assertThat(BlameMatching.whitespaceMatters(" app/charge.py ")).isTrue();
-    }
-
     @Test
     void elsewhereItIsNot() {
         assertThat(BlameMatching.whitespaceMatters("src/Billing.java")).isFalse();
         assertThat(BlameMatching.whitespaceMatters("docs/py")).isFalse();
         assertThat(BlameMatching.whitespaceMatters(".yml")).isFalse();
         assertThat(BlameMatching.whitespaceMatters("yaml/README.md")).isFalse();
+        // Частые имена, где отступ не синтаксис: скрипт сборки, шейдер.
+        assertThat(BlameMatching.whitespaceMatters("build")).isFalse();
+        assertThat(BlameMatching.whitespaceMatters("shaders/light.fs")).isFalse();
     }
 
     @Test

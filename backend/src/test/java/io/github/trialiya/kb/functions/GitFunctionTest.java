@@ -26,7 +26,6 @@ import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.tool.ToolResult;
-import io.github.trialiya.kb.service.file.git.BlameMatching;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.tools.ProjectContext;
@@ -82,7 +81,7 @@ class GitFunctionTest {
         when(billing.searchCommitLog(anyString(), anyInt(), any(), anyBoolean()))
                 .thenReturn(new GitCommitSearchResult(List.of(commit()), true));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
-        when(billing.getBlame(any(), anyString(), any(), any(), any()))
+        when(billing.getBlame(any(), anyString(), any(), any(), anyBoolean()))
                 .thenReturn(new GitFileBlame(
                         "pom.xml",
                         null,
@@ -241,25 +240,25 @@ class GitFunctionTest {
 
         ToolResult<GitBlameAnswer> answer = history.getBlame(context, "pom.xml", 3, 9, "HEAD~1", null, null);
 
-        verify(billing).getBlame("HEAD~1", "pom.xml", 3, 9, new BlameMatching(true, true));
+        verify(billing).getBlame("HEAD~1", "pom.xml", 3, 9, false);
         assertThat(answer.truncated()).isNotEqualTo(Boolean.TRUE);
         assertThat(answer.result().hunks()).hasSize(1);
     }
 
     /**
-     * По умолчанию blame отвечает, кто написал строки ({@code -w -M}), а там, где отступ — синтаксис,
-     * не смотрит сквозь пробелы. {@code exact=true} — последний коммит, тронувший строку: то, что
-     * ищут при регрессии.
+     * Пропущенный {@code exact} — «кто написал строки», а не отказ; {@code exact=true} доезжает до
+     * сервиса как есть. Какое сопоставление за этим стоит, решает сервис по нормализованному пути
+     * ({@code GitServiceBlameTest}).
      */
     @Test
-    void blameAnswersWhoWroteTheLinesUnlessAskedForTheLastTouch() {
+    void exactArrivesAtTheServiceAndDefaultsToAuthorship() {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
 
         history.getBlame(context, "app/charge.py", 1, 2, null, null, null);
-        history.getBlame(context, "pom.xml", 1, 2, null, true, null);
+        history.getBlame(context, "app/charge.py", 1, 2, null, true, null);
 
-        verify(billing).getBlame(null, "app/charge.py", 1, 2, new BlameMatching(false, true));
-        verify(billing).getBlame(null, "pom.xml", 1, 2, BlameMatching.EXACT);
+        verify(billing).getBlame(null, "app/charge.py", 1, 2, false);
+        verify(billing).getBlame(null, "app/charge.py", 1, 2, true);
     }
 
     /**

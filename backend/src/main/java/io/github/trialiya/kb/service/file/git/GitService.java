@@ -645,13 +645,26 @@ public class GitService {
      * file, as with the two-argument form. An end before the start is the caller's mistake, not an
      * empty range: told apart from a start past the file's end, which only the file can answer.
      *
+     * <p>Two questions ({@link BlameMatching}): {@code exact} — which commit last touched each line,
+     * any edit counted, as the two-argument form and GitHub answer; otherwise who wrote the lines,
+     * past re-indents and moves within the file, chosen for the file by its normalized name.
+     *
      * @param fromLine first line (1-based, inclusive); null for start of file
      * @param toLine last line (1-based, inclusive); null for end of file
-     * @param matching how a line is paired with its earlier version — the two-argument form is
-     *     {@link BlameMatching#EXACT}
      * @throws IllegalArgumentException if {@code toLine} is before {@code fromLine}
      */
     public GitFileBlame getBlame(
+            @Nullable String rev,
+            @NonNull String filePath,
+            @Nullable Integer fromLine,
+            @Nullable Integer toLine,
+            boolean exact) {
+        BlameMatching matching = exact ? BlameMatching.EXACT : BlameMatching.authorship(normalizePath(filePath));
+        return getBlame(rev, filePath, fromLine, toLine, matching);
+    }
+
+    /** The ranged blame with the matching spelled out — a test's way of trying each switch alone. */
+    GitFileBlame getBlame(
             @Nullable String rev,
             @NonNull String filePath,
             @Nullable Integer fromLine,

@@ -19,15 +19,15 @@ import java.util.Set;
  *     lines. Within the file only — {@code -C} (across files) walks every file a commit touched
  *     and is left out for its cost
  */
-public record BlameMatching(boolean ignoreWhitespace, boolean detectMoves) {
+record BlameMatching(boolean ignoreWhitespace, boolean detectMoves) {
 
     /** Any edit counts: the commit that last touched each line, as GitHub shows it. */
-    public static final BlameMatching EXACT = new BlameMatching(false, false);
+    static final BlameMatching EXACT = new BlameMatching(false, false);
 
     /** Extensions of the languages whose indentation is syntax. */
     private static final Set<String> INDENTED_EXTENSIONS = Set.of(
             "py", "pyi", "pyw", "pyx", "pxd", "bzl", "smk", "yaml", "yml", "mk", "mak", "make", "haml", "pug", "slim",
-            "sass", "styl", "coffee", "nim", "hs", "lhs", "fs", "fsx");
+            "sass", "styl", "coffee", "nim", "hs", "lhs", "fsx");
 
     /** The same by whole file name — build files that go without an extension of their own. */
     private static final Set<String> INDENTED_NAMES = Set.of(
@@ -36,9 +36,7 @@ public record BlameMatching(boolean ignoreWhitespace, boolean detectMoves) {
             "bsdmakefile",
             "makefile.am",
             "makefile.in",
-            "build",
             "build.bazel",
-            "workspace",
             "workspace.bazel",
             "snakefile",
             "sconstruct",
@@ -49,19 +47,18 @@ public record BlameMatching(boolean ignoreWhitespace, boolean detectMoves) {
      * here ({@link #whitespaceMatters}) — there a line dedented out of an {@code if} is a change in
      * behaviour, and {@code -w} would credit it to the commit that first wrote the line.
      */
-    public static BlameMatching authorship(String path) {
-        return new BlameMatching(!whitespaceMatters(path), true);
+    static BlameMatching authorship(String normalized) {
+        return new BlameMatching(!whitespaceMatters(normalized), true);
     }
 
     /**
      * Whether indentation is syntax in this file (Python, YAML, Makefiles, Bazel, …). Read off the
-     * name only, as the caller spelled it — backslashes and stray spaces included; a language this
-     * list misses is blamed with {@code -w}.
+     * name only; a language this list misses is blamed with {@code -w}.
+     *
+     * @param normalized a path {@link RepoPaths#normalize} has cleaned
      */
-    static boolean whitespaceMatters(String path) {
-        String trimmed = path.strip();
-        int slash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
-        String name = trimmed.substring(slash + 1).toLowerCase(Locale.ROOT);
+    static boolean whitespaceMatters(String normalized) {
+        String name = RepoPaths.fileName(normalized).toLowerCase(Locale.ROOT);
         int dot = name.lastIndexOf('.');
         return INDENTED_NAMES.contains(name) || (dot > 0 && INDENTED_EXTENSIONS.contains(name.substring(dot + 1)));
     }

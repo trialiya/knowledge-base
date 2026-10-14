@@ -11,7 +11,6 @@ import io.github.trialiya.kb.model.git.dto.GitCommitSearchResult;
 import io.github.trialiya.kb.model.git.dto.GitFileBlame;
 import io.github.trialiya.kb.model.git.dto.GitLineOrigin;
 import io.github.trialiya.kb.model.tool.ToolResult;
-import io.github.trialiya.kb.service.file.git.BlameMatching;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
@@ -159,14 +158,14 @@ public class GitHistoryFunction {
     /**
      * Who wrote the given lines — {@code git blame -L}, with the revisions {@code
      * .git-blame-ignore-revs} names skipped; see {@link GitService#getBlame(String, String, Integer,
-     * Integer, BlameMatching)}.
+     * Integer, boolean)}.
      *
-     * <p>By default the answer is who wrote the lines, not who last touched them ({@link
-     * BlameMatching#authorship}): whitespace edits and moves within the file are looked past, so a
+     * <p>By default the answer is who wrote the lines, not who last touched them ({@code
+     * BlameMatching.authorship}): whitespace edits and moves within the file are looked past, so a
      * block wrapped in a {@code try} or a method moved down the file keeps its author. The same
      * looking-past hides what a regression hunt is after — a statement moved below another, a space
-     * taken out of a string literal — so {@code exact=true} is plain {@code git blame} ({@link
-     * BlameMatching#EXACT}), the blame column's own answer.
+     * taken out of a string literal — so {@code exact=true} is plain {@code git blame}, the blame
+     * column's own answer.
      *
      * <p>Answers with the hunks alone, not the text of the lines: the model comes here about lines
      * it has already read, and the description points it on from a hunk to the commit that wrote
@@ -202,7 +201,8 @@ public class GitHistoryFunction {
                     + " are looked past (not where indentation is code — Python, YAML, Makefiles)"
                     + " and lines moved, copied or reordered within the file keep the commit that"
                     + " wrote them — so it can differ from GitHub's blame and the blame column in"
-                    + " Files, and an uncommitted re-indent does not show. Hunting the change that"
+                    + " Files, and an uncommitted re-indent does not show (getUncommittedChanges"
+                    + " does). Hunting the change that"
                     + " broke something (a reordered statement or a whitespace edit can be it):"
                     + " exact=true — the commit that last touched each line, any edit counted."
                     + " Give fromLine/toLine"
@@ -246,18 +246,17 @@ public class GitHistoryFunction {
                     Boolean exact,
             @ToolParam(description = GitReads.PROJECT_PARAM, required = false) @Nullable String project) {
         requireText(filePath, "filePath");
-        final BlameMatching matching =
-                orDefault(exact, false) ? BlameMatching.EXACT : BlameMatching.authorship(filePath);
+        final boolean lastTouch = orDefault(exact, false);
         log.debug(
-                "getBlame called: filePath='{}', fromLine={}, toLine={}, commit='{}', matching={}, project='{}'",
+                "getBlame called: filePath='{}', fromLine={}, toLine={}, commit='{}', exact={}, project='{}'",
                 filePath,
                 fromLine,
                 toLine,
                 commit,
-                matching,
+                lastTouch,
                 project);
         GitService git = reads.git(context, project);
-        GitFileBlame blame = git.getBlame(commit, filePath, fromLine, toLine, matching);
+        GitFileBlame blame = git.getBlame(commit, filePath, fromLine, toLine, lastTouch);
         log.debug("getBlame called: {} hunks over lines {}-{}", blame.hunks().size(), blame.fromLine(), blame.toLine());
         return GitReads.answer(git, GitBlameAnswer.of(BlameBudget.cap(blame)), BlameBudget.cut(blame));
     }
@@ -266,8 +265,8 @@ public class GitHistoryFunction {
      * The commit where a substring entered one line of a file — a walk back through that line's
      * versions while each still holds the substring; see {@link GitService#getLineOrigin}.
      *
-     * <p>A question {@link #getBlame} answers badly: blame names the last commit to touch the line,
-     * and a chain of blames by hand drifts — git pairs a changed line by similarity and follows a
+     * <p>A question {@link #getBlame} answers badly: blame names the commit behind the line's
+     * current content, often a later edit on top of the text, and a chain of blames by hand drifts — git pairs a changed line by similarity and follows a
      * neighbour that holds the same text into its history. The walk here picks the earlier version
      * by the substring itself.
      *
@@ -279,7 +278,7 @@ public class GitHistoryFunction {
     @Tool(
             description = "When a substring entered one line of a file: walks back through that"
                     + " line's versions while each still holds the substring, and names the commit"
-                    + " that put it there. Not who last touched the line (getBlame), and not where"
+                    + " that put it there. Not who wrote the line as it reads now (getBlame), and not where"
                     + " the text first appeared anywhere in the repository. query is a literal"
                     + " substring of that line (case-insensitive, no regex) — the identifier,"
                     + " call or value the question is about, not the whole line. status: FOUND —"

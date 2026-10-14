@@ -257,6 +257,34 @@ class GitServiceBlameTest {
     }
 
     /**
+     * Вопрос, а не флаги: без {@code exact} сервис сам выбирает сопоставление по имени файла —
+     * путь, как его написала модель (обратный слеш, пробел по краям), сперва нормализуется. В
+     * Python отступ — синтаксис, и обёртка в {@code if} остаётся правкой; в тексте — нет. {@code
+     * exact} — обычный blame.
+     */
+    @Test
+    void withoutExactTheMatchingFollowsTheNormalizedFileName() {
+        for (String file : List.of("f.txt", "dir/f.py")) {
+            writeFile(file, "first()\nsecond()\nthird()\n");
+        }
+        commitAll("written");
+        for (String file : List.of("f.txt", "dir/f.py")) {
+            writeFile(file, "if on:\n    first()\n    second()\n    third()\n");
+        }
+        commitAll("wrapped");
+
+        assertThat(service.getBlame(null, "f.txt", 2, 4, false).hunks())
+                .extracting(GitFileBlame.Hunk::summary)
+                .containsOnly("written");
+        assertThat(service.getBlame(null, "f.txt", 2, 4, true).hunks())
+                .extracting(GitFileBlame.Hunk::summary)
+                .containsOnly("wrapped");
+        assertThat(service.getBlame(null, " dir\\f.py ", 2, 4, false).hunks())
+                .extracting(GitFileBlame.Hunk::summary)
+                .containsOnly("wrapped");
+    }
+
+    /**
      * {@code -M}: метод, перенесённый вниз файла без единой правки, остаётся за тем, кто его
      * написал, и {@code sourceLine} показывает, где он стоял. Без {@code -M} — даже с {@code -w} —
      * diff видит его удалённым сверху и добавленным снизу.
