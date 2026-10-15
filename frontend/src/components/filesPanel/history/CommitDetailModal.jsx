@@ -99,8 +99,9 @@ const CommitDetailModal = ({ hash, project, onClose, onOpenSnapshot }) => {
 /** Шапка патча: статус, имя и приглушённый каталог — как строка списка слева. */
 const FileTitle = ({ entry }) => {
   const { t } = useTranslation('files');
-  const name = entry.path.split('/').pop();
-  const dir = entry.path.slice(0, entry.path.length - name.length - 1);
+  const slash = entry.path.lastIndexOf('/');
+  const name = entry.path.slice(slash + 1);
+  const dir = slash > 0 ? entry.path.slice(0, slash) : '';
   const status = t(`changes.status.${entry.status}`, { defaultValue: entry.status });
 
   return (
