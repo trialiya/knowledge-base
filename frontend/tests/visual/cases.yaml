@@ -3607,6 +3607,27 @@
     стенде нет: ленте нужна история репозитория, а плашка собрана из общих
     ChangeRow, кнопок и InfoList, у которых эталоны уже есть.
 
+- id: files-commit-detail-renames
+  component: CommitDetailModal + ChangeRow
+  path: frontend/src/components/filesPanel/history/CommitDetailModal.jsx
+  title: Детали коммита — переименования с длинными путями в узком списке файлов
+  status: verified
+  origin:
+    - Сессия 2026-10-15, список файлов в деталях коммита уезжал вбок на строках переименования
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /files?history=1 → «подробнее» на плашке коммита с переименованиями
+  fixtures:
+    - ./fixtures/commitDetail.js#renamedFiles
+  expected:
+    - Строка переименования (R) — буква статуса, имя файла, каталог, «← старый путь» и счётчики «+N/−M» в одну строку
+    - Обрезаются многоточием каталог и старый путь, а не имя; счётчики прижаты к правому краю
+    - У списка нет горизонтальной прокрутки
+    - Старый путь целиком — в подсказке строки
+  notes: |
+    Прогнано стендом (`./run/test.sh harness`), сессия 2026-10-15.
+
 - id: files-compare-revisions
   component: FilesToolbar (RevisionPicker purpose=compare) + ChangesList + CompareInfo
   path: frontend/src/components/filesPanel/compare/CompareInfo.jsx

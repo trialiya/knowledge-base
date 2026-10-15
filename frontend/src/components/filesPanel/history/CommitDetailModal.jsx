@@ -9,6 +9,7 @@ import useSnapshotCommit from '../commit/useSnapshotCommit';
 import ChangeRow from '../changes/ChangeRow';
 import ChangeDiffView from '../changes/ChangeDiffView';
 import useChangeDiff from '../changes/useChangeDiff';
+import '../filesPanel.css';
 
 /**
  * Детали коммита из ленты — как детали вызова инструмента в чате: открываются

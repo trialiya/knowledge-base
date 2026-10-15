@@ -18,6 +18,7 @@ import CompactNotice from '@/components/chatPanel/messages/CompactNotice';
 import FileChangeBlock from '@/components/chatPanel/messages/FileChangeBlock';
 import ToolCallDetailModal from '@/components/chatPanel/messages/ToolCallDetailModal';
 import ToolCallNotifications from '@/components/chatPanel/messages/ToolCallNotifications';
+import CommitDetailModal from '@/components/filesPanel/history/CommitDetailModal';
 import GitBranchBar from '@/components/filesPanel/git/GitBranchBar';
 import Breadcrumb from '@/components/filesPanel/Breadcrumb';
 import FileContent from '@/components/filesPanel/FileContent';
@@ -55,6 +56,7 @@ import * as chatCodeBlocks from '../fixtures/chatCodeBlocks';
 import * as chatCommandMessage from '../fixtures/chatCommandMessage';
 import * as chatFailedAnswer from '../fixtures/chatFailedAnswer';
 import * as chatUnansweredQueued from '../fixtures/chatUnansweredQueued';
+import * as commitDetail from '../fixtures/commitDetail';
 import * as chatInterruptedRun from '../fixtures/chatInterruptedRun';
 import * as chatFind from '../fixtures/chatFind';
 import * as chatHeader from '../fixtures/chatHeader';
@@ -386,6 +388,15 @@ const LIGHT = [
     frame: 'bare',
     api: { '/api/git/outgoing': chatRepo.pushDialogCommits },
     render: (p) => <PushDialog {...p} />,
+  },
+  // Строки переименования в узком столбце списка: старый путь длиннее строки и
+  // не должен ни съедать имя, ни выталкивать счётчики, ни прокручивать список
+  // вбок. Сводку и патч стенд отдаёт одним ответом на GET /api/git/commit.
+  {
+    id: 'commitDetail.js#renamedFiles',
+    frame: 'bare',
+    api: (p) => ({ '/api/git/commit': p }),
+    render: () => <CommitDetailModal hash={commitDetail.hash} onClose={noop} onOpenSnapshot={noop} />,
   },
   { id: 'chatRepo.js#outputCardOk', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
   { id: 'chatRepo.js#outputCardRefused', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
@@ -1061,6 +1072,7 @@ const MODULES = {
   'syncDiff.js': syncDiff,
   'systemInfo.js': systemInfo,
   'toolCallDetail.js': toolCallDetail,
+  'commitDetail.js': commitDetail,
   'toolCallNotifications.js': toolCallNotifications,
   'toolCatalog.js': toolCatalog,
 };
