@@ -218,7 +218,6 @@
     "allFiles_other": "Все {{count}} файла — в деталях",
     "scopeOnly": "Только {{name}}",
     "scopeClear": "Показать всю историю",
-    "detailTitle": "Коммит {{hash}}",
     "openSnapshot": "Открыть снимок",
     "openFile": "Открыть файл"
   },

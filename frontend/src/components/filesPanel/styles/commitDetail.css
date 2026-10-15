@@ -1,11 +1,12 @@
 /* ── Детали коммита из ленты ──
-   Окно того же склада, что детали вызова инструмента в чате: шапка, под ней
-   прокручиваемое тело. Оверлей, Escape и роли — у ModalShell. */
+   Две колонки на всю высоту окна: слева сводка и список файлов, справа патч.
+   Каждая прокручивается сама; на узком окне колонки встают друг под другом и
+   прокручивается тело целиком. Оверлей, Escape и роли — у ModalShell. */
 
 .modal-shell.commit-detail {
   --modal-shell-pad-x: 0px;
   --modal-shell-pad-top: 0px;
-  width: 960px;
+  width: 1040px;
   max-width: 95vw;
   height: 85vh;
   max-height: 85vh;
@@ -14,59 +15,198 @@
   background: var(--kb-surface);
   border-radius: 12px;
   box-shadow: var(--kb-shadow-overlay);
-}
-
-.commit-detail__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--kb-border-light);
-  flex-shrink: 0;
-}
-
-.commit-detail__title {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: var(--kb-text);
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  /* Строки списка — общие .ws-item, а их метрики задаёт .workspace, которого
+     над окном нет (оно в портале). Те же значения, что у левой панели
+     «Файлов» (workspaceLayout.css, filesPanel.css). */
+  --ws-gutter: 14px;
+  --ws-row-min-h: 34px;
+  --ws-row-font: 0.86rem;
+  --ws-indent: 12px;
 }
 
 .commit-detail__body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 12px 16px 16px;
-}
-
-/* Список слева, патч справа; на узком окне — друг под другом. */
-.commit-detail__files {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--kb-border);
+  overflow-y: auto;
 }
 
-.commit-detail__list {
-  flex: 1 1 260px;
-  max-width: 340px;
-  max-height: 60vh;
+.commit-detail__side {
+  flex: 0 1 340px;
+  max-height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
+  background: var(--kb-surface-muted);
+  border-right: 1px solid var(--kb-border);
+}
+
+.commit-detail__main {
+  flex: 999 1 420px;
+  max-height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Сводка */
+.commit-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.commit-summary__hash {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--kb-font-mono);
+  font-size: 0.78rem;
+  color: var(--kb-text-muted);
+}
+
+.commit-summary__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--kb-text);
+  overflow-wrap: anywhere;
+}
+
+/* Описание длинным бывает — свой предел, чтобы список под ним не уезжал. */
+.commit-summary__body {
+  margin: 0;
+  max-height: 8.5em;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--kb-text-secondary);
+}
+
+.commit-summary__facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 2px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--kb-text);
+}
+
+.commit-summary__facts > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-summary__label {
+  color: var(--kb-text-muted);
+}
+
+.commit-summary__parents {
+  display: flex;
+  gap: 8px;
+  font-family: var(--kb-font-mono);
+}
+
+.commit-summary__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--kb-text-muted);
+}
+
+.commit-summary__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Файлы */
+.commit-detail__files-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 0 16px;
+  font-size: 0.8rem;
+}
+
+.commit-detail__files-label {
+  font-weight: 700;
+  color: var(--kb-text);
+}
+
+.icon-btn.commit-detail__layout {
+  margin-left: auto;
+}
+
+/* Список растёт по содержимому: прокручивает его колонка вместе со сводкой. */
+.commit-detail__side .file-changes {
+  flex: none;
+  overflow: visible;
+  padding-bottom: 8px;
+}
+
+/* Секция у списка одна, а число файлов уже в строке над ним. */
+.commit-detail__side .file-changes__section-title {
+  display: none;
+}
+
+/* Патч */
+.commit-detail__file-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 8px 10px 8px 16px;
+  border-bottom: 1px solid var(--kb-border-light);
+  flex-shrink: 0;
+}
+
+.commit-detail__file {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+  font-family: var(--kb-font-mono);
+  font-size: 0.8rem;
+}
+
+.commit-detail__file-name {
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+  color: var(--kb-text);
+}
+
+.commit-detail__file-dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--kb-text-muted);
+}
+
+.icon-btn.commit-detail__close {
+  margin-left: auto;
 }
 
 .commit-detail__diff {
-  flex: 999 1 420px;
-  min-width: 0;
-  overflow-x: auto;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 16px 16px;
 }

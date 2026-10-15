@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { DiffStats } from '@/components/chatPanel/messages/diffRender';
 import { IconEraser } from '@/icons/index';
+import { renamedFrom } from './changeTree';
 
 /**
  * Строка изменённого файла — одна на обе раскладки: в плоской перед именем
@@ -39,8 +40,9 @@ const ChangeRow = ({ entry, depth = 0, showDir = false, selected, onSelect, onDi
       <span className="ws-item__label file-changes__name">{name}</span>
       {showDir && dir && <span className="file-changes__dir">{dir.slice(0, -1)}</span>}
       {/* Переименование: старое имя иначе видно только в diff'е, а по списку
-          файл выглядел бы просто новым. */}
-      {entry.oldPath && <span className="file-changes__from">← {entry.oldPath}</span>}
+          файл выглядел бы просто новым. Общие с новым путём каталоги опущены
+          (renamedFrom), целиком старый путь — в подсказке строки. */}
+      {entry.oldPath && <span className="file-changes__from">← {renamedFrom(entry.path, entry.oldPath)}</span>}
       <span className="file-changes__stats">
         <DiffStats additions={entry.additions} deletions={entry.deletions} />
       </span>
