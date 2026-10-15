@@ -169,14 +169,13 @@ final class Diffs {
         @Nullable String oldPath = normalizedDiffPath(entry.getOldPath());
         @Nullable String newPath = normalizedDiffPath(entry.getNewPath());
 
-        String status =
-                switch (entry.getChangeType()) {
-                    case ADD -> "A";
-                    case DELETE -> "D";
-                    case RENAME -> "R";
-                    case COPY -> "C";
-                    default -> "M";
-                };
+        String status = switch (entry.getChangeType()) {
+            case ADD -> "A";
+            case DELETE -> "D";
+            case RENAME -> "R";
+            case COPY -> "C";
+            default -> "M";
+        };
         // JGit only reports /dev/null (→ null, see normalizedDiffPath) for the side that doesn't
         // exist: oldPath for ADD, newPath for DELETE/everything else — so whichever side `status`
         // picks is always real.
