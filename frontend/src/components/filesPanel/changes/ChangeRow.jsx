@@ -29,7 +29,7 @@ const ChangeRow = ({ entry, depth = 0, showDir = false, selected, onSelect, onDi
       tabIndex={-1}
       className={`ws-item file-changes__row${selected ? ' ws-item--active' : ''}`}
       style={{ '--depth': depth }}
-      title={`${statusLabel} · ${entry.path}`}
+      title={`${statusLabel} · ${entry.path}${entry.oldPath ? ` ← ${entry.oldPath}` : ''}`}
       onClick={() => onSelect(entry)}
     >
       <span className={`file-changes__status file-changes__status--${status}`}>{status}</span>
