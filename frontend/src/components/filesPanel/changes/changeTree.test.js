@@ -1,4 +1,4 @@
-import { buildChangeTree, sortByName } from './changeTree';
+import { buildChangeTree, renamedFrom, sortByName } from './changeTree';
 
 const entry = (path, status = 'M') => ({ status, path, oldPath: null, additions: 1, deletions: 0, patch: null });
 
@@ -59,5 +59,23 @@ describe('sortByName', () => {
     sortByName(entries);
 
     expect(entries.map((e) => e.path)).toEqual(['z.js', 'a.js']);
+  });
+});
+
+describe('renamedFrom', () => {
+  it('drops the directories shared with the new path', () => {
+    expect(renamedFrom('svc/excel/ExcelService.java', 'svc/csv/CsvService.java')).toBe('csv/CsvService.java');
+  });
+
+  it('keeps the old name when only the name changed', () => {
+    expect(renamedFrom('svc/excel/New.java', 'svc/excel/Old.java')).toBe('Old.java');
+  });
+
+  it('keeps the whole path when nothing is shared', () => {
+    expect(renamedFrom('b/New.java', 'a/x/Old.java')).toBe('a/x/Old.java');
+  });
+
+  it('never cuts into the file name of a shallower old path', () => {
+    expect(renamedFrom('a/b/Name.java', 'a/Name.java')).toBe('Name.java');
   });
 });

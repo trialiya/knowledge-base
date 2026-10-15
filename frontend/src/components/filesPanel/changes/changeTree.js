@@ -81,3 +81,24 @@ function collapse(dir) {
   }
   return { ...current, name };
 }
+
+/**
+ * Старый путь переименованного файла — без каталогов, общих с новым.
+ *
+ * В строке рядом уже стоит новое имя (и в плоском списке — его каталог), так
+ * что общее начало пути там лишь повторяется, а в узкой строке после него
+ * не остаётся места для того, что действительно поменялось: `csv/` вместо
+ * `excel/`, старое имя файла. Целиком старый путь — в подсказке строки.
+ *
+ * @param {string} path новый путь
+ * @param {string} oldPath старый путь
+ * @returns {string} хвост старого пути начиная с первого несовпавшего каталога
+ */
+export function renamedFrom(path, oldPath) {
+  const now = path.split('/');
+  const was = oldPath.split('/');
+  let common = 0;
+  // Последний сегмент — имя файла, его не отрезаем никогда.
+  while (common < now.length - 1 && common < was.length - 1 && now[common] === was[common]) common += 1;
+  return was.slice(common).join('/');
+}

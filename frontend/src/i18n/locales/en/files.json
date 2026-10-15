@@ -208,7 +208,6 @@
     "allFiles_other": "All {{count}} files — in details",
     "scopeOnly": "Only {{name}}",
     "scopeClear": "Show the whole history",
-    "detailTitle": "Commit {{hash}}",
     "openSnapshot": "Open snapshot",
     "openFile": "Open file"
   },
