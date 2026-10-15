@@ -42,12 +42,11 @@ public class DocumentSearchGroupService {
      *     GET /api/documents/search} takes; anything else is keyword
      */
     public DocumentSearchGroups search(String q, String mode) {
-        List<SearchResult> ranked =
-                switch (mode.toLowerCase(Locale.ROOT)) {
-                    case "semantic" -> documents.semanticSearch(q, null, null);
-                    case "hybrid" -> documents.hybridSearch(q, null, null, null, null);
-                    default -> documents.search(q);
-                };
+        List<SearchResult> ranked = switch (mode.toLowerCase(Locale.ROOT)) {
+            case "semantic" -> documents.semanticSearch(q, null, null);
+            case "hybrid" -> documents.hybridSearch(q, null, null, null, null);
+            default -> documents.search(q);
+        };
         // Literal, never a regex: the page searches for what was typed, and a query that happens to
         // contain a bracket must not turn into an error or an empty list.
         Pattern pattern = DocumentGrep.compile(q, false);
