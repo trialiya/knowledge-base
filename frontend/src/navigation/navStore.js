@@ -4,6 +4,9 @@ import { normalizeGroup } from '@/constants/settingsGroups';
 import { readPanelState, savePanelState } from './panelState';
 import { readUrl, buildUrl, currentUrl, initialNav, popNav } from './navUrl';
 
+/** Ни сравнения, ни его способа, ни сужения. */
+const NO_COMPARE = Object.freeze({ fileBase: '', fileDirect: false, fileScope: '' });
+
 /**
  * ──────────────────────────────────────────────────────────────────────────
  * navStore — состояние навигации и единственный писатель window.history.
@@ -299,7 +302,7 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
      *   строки открытого сейчас файла, к которым вернёт «Назад» (ханк, по подписи
      *   которого кликнули), — пишутся в ТЕКУЩУЮ запись истории на месте, до
      *   перехода, так что запись по-прежнему одна; `right`: вкладка правой панели — ссылка на коммит
-     *   открывает вкладку «Коммит» (не передан — раскладка раздела как была); `base`, `direct`:
+     *   открывает вкладку «Коммит» (не передан — раскладка раздела как была); `base`, `direct`, `scope`:
      *   сравнение, в котором открыть путь (см. setFileCompare и nextFileCompare)
      */
     openFilePath(path, project, options) {
@@ -428,7 +431,7 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
               ...prev,
               fileMode: mode,
               fileCommit: '',
-              ...(mode === FILE_MODE.CHANGES ? {} : { fileBase: '', fileDirect: false }),
+              ...(mode === FILE_MODE.CHANGES ? {} : NO_COMPARE),
             },
       );
     },
@@ -451,17 +454,28 @@ export function createNavStore({ canLeave = () => true, canReplaceDoc = () => tr
      * С чем сравнивать показанную ревизию в режиме «Изменения»: '' — ни с чем
      * (список незакоммиченного или изменений коммита), иначе имя ветки, тега
      * или хеш. `direct` — сравнивать с самой базой, а не с общим предком.
+     * `scope` — файл или каталог, до которого сравнение сужено; не передан —
+     * остаётся прежний: смена базы или способа сравнения сужение не снимает, а
+     * выход из сравнения снимает.
      * Как и смена ревизии, не переход: путь тот же, и выход из сравнения не
      * должен стоить двух «Назад».
      */
-    setFileCompare(base, direct = false) {
+    setFileCompare(base, direct = false, scope) {
       const nextBase = base || '';
       const nextDirect = !!nextBase && !!direct;
-      replace((prev) =>
-        prev.fileBase === nextBase && prev.fileDirect === nextDirect
+      replace((prev) => {
+        const nextScope = nextBase ? (scope === undefined ? prev.fileScope || '' : scope || '') : '';
+        return prev.fileBase === nextBase && prev.fileDirect === nextDirect && (prev.fileScope || '') === nextScope
           ? prev
-          : { ...prev, fileMode: FILE_MODE.CHANGES, fileCommit: '', fileBase: nextBase, fileDirect: nextDirect },
-      );
+          : {
+              ...prev,
+              fileMode: FILE_MODE.CHANGES,
+              fileCommit: '',
+              fileBase: nextBase,
+              fileDirect: nextDirect,
+              fileScope: nextScope,
+            };
+      });
     },
 
     /**
@@ -677,15 +691,17 @@ function nextFileRev(prev, nextProject, options) {
 function nextFileCompare(prev, nextProject, nextMode, options) {
   // База живёт только в режиме изменений: в другом её не видно в адресе, и
   // всплыла бы она потом, при возврате в «Изменения», ниоткуда.
-  if (nextMode !== FILE_MODE.CHANGES) return { fileBase: '', fileDirect: false };
+  if (nextMode !== FILE_MODE.CHANGES) return NO_COMPARE;
   if (options?.base !== undefined) {
     const base = options.base || '';
-    return { fileBase: base, fileDirect: !!base && !!options.direct };
+    return { fileBase: base, fileDirect: !!base && !!options.direct, fileScope: (base && options.scope) || '' };
   }
   const keep =
     prev.view === 'files' &&
     nextProject === prev.fileProject &&
     options?.rev === undefined &&
     options?.changes === undefined;
-  return keep ? { fileBase: prev.fileBase || '', fileDirect: !!prev.fileDirect } : { fileBase: '', fileDirect: false };
+  return keep
+    ? { fileBase: prev.fileBase || '', fileDirect: !!prev.fileDirect, fileScope: prev.fileScope || '' }
+    : NO_COMPARE;
 }

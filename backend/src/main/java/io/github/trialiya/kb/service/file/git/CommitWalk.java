@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.file.git;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
@@ -46,6 +47,17 @@ final class CommitWalk implements AutoCloseable, Iterable<RevCommit> {
         if (path != null && !path.isBlank()) {
             walk.setTreeFilter(AndTreeFilter.create(
                     PathFilterGroup.createFromStrings(RepoPaths.toForwardSlashes(path.strip())), TreeFilter.ANY_DIFF));
+        }
+        return this;
+    }
+
+    /**
+     * Только коммиты, менявшие хотя бы один из путей; пустой список — все. Как {@link #path}, но
+     * для нескольких путей сразу, — они объединяются, как несколько путей у {@code git log}.
+     */
+    CommitWalk paths(List<String> paths) {
+        if (!paths.isEmpty()) {
+            walk.setTreeFilter(AndTreeFilter.create(PathFilterGroup.createFromStrings(paths), TreeFilter.ANY_DIFF));
         }
         return this;
     }

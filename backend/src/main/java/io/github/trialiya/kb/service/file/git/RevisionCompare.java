@@ -40,6 +40,8 @@ final class RevisionCompare {
      * @param direct сравнивать с самой {@code base}, а не с общим предком
      * @param only оставить запись, отчитанную под этим путём (после поиска переименований — как у
      *     {@code GitService.getCommit}); {@code null} — все файлы и история между ревизиями
+     * @param scope файл или каталог, которым сужено сравнение: файлы — те, у кого под ним старый или
+     *     новый путь, история — коммиты, которые его меняли; {@code ""} — весь репозиторий
      * @throws IllegalArgumentException если ревизия не называет коммит
      */
     static GitComparison compare(
@@ -48,7 +50,8 @@ final class RevisionCompare {
             String head,
             boolean direct,
             boolean includePatch,
-            @Nullable String only) {
+            @Nullable String only,
+            String scope) {
         ObjectId baseId = CommitFiles.commitOf(repository, base);
         ObjectId headId = CommitFiles.commitOf(repository, head);
         try (RevWalk walk = new RevWalk(repository)) {
@@ -57,13 +60,13 @@ final class RevisionCompare {
             RevCommit headCommit = walk.parseCommit(headId);
             @Nullable RevCommit mergeBase = mergeBase(repository, baseId, headId);
             RevCommit diffBase = direct || mergeBase == null ? baseCommit : walk.parseCommit(mergeBase);
-            List<GitDiffEntry> files = diff(repository, reader, diffBase, headCommit, includePatch, only);
+            List<GitDiffEntry> files = diff(repository, reader, diffBase, headCommit, includePatch, only, scope);
             return new GitComparison(
                     Diffs.toGitCommit(baseCommit, null, reader, false),
                     Diffs.toGitCommit(headCommit, null, reader, false),
                     mergeBase == null ? null : mergeBase.getName(),
                     diffBase.getName(),
-                    only == null ? log(repository, baseId, headId) : null,
+                    only == null ? log(repository, baseId, headId, historyPaths(scope, files)) : null,
                     files);
         } catch (IOException e) {
             throw new IllegalStateException("Failed comparing " + base + " with " + head, e);
@@ -91,20 +94,40 @@ final class RevisionCompare {
             RevCommit from,
             RevCommit to,
             boolean includePatch,
-            @Nullable String only)
+            @Nullable String only,
+            String scope)
             throws IOException {
         CanonicalTreeParser oldTree = new CanonicalTreeParser();
         oldTree.reset(reader, from.getTree());
         CanonicalTreeParser newTree = new CanonicalTreeParser();
         newTree.reset(reader, to.getTree());
-        return Diffs.scan(repository, oldTree, newTree, includePatch, null, only);
+        return Diffs.scan(repository, oldTree, newTree, includePatch, null, only, scope);
     }
 
-    private static GitComparisonLog log(Repository repository, ObjectId base, ObjectId head) throws IOException {
+    /**
+     * Пути, по которым считается история суженного сравнения: сам {@code scope} и та сторона каждого
+     * переноса через его границу, что лежит снаружи. Иначе список показал бы перенос со всеми
+     * правками файла до него, а счётчики — один коммит переноса. Пусто — история всего репозитория.
+     */
+    private static List<String> historyPaths(String scope, List<GitDiffEntry> files) {
+        if (scope.isEmpty()) return List.of();
+        List<String> paths = new ArrayList<>();
+        paths.add(scope);
+        for (GitDiffEntry entry : files) {
+            String old = entry.oldPath();
+            if (old == null) continue;
+            if (!Diffs.within(old, scope)) paths.add(old);
+            if (!Diffs.within(entry.path(), scope)) paths.add(entry.path());
+        }
+        return paths;
+    }
+
+    private static GitComparisonLog log(Repository repository, ObjectId base, ObjectId head, List<String> paths)
+            throws IOException {
         List<GitCommit> commits = new ArrayList<>();
         Count ahead = new Count();
         try (CommitWalk walk = new CommitWalk(repository)) {
-            walk.from(head).exclude(base);
+            walk.from(head).exclude(base).paths(paths);
             for (RevCommit commit : walk) {
                 if (!ahead.add()) break;
                 if (commits.size() < MAX_COMMITS) {
@@ -114,7 +137,7 @@ final class RevisionCompare {
         }
         Count behind = new Count();
         try (CommitWalk walk = new CommitWalk(repository)) {
-            walk.from(base).exclude(head);
+            walk.from(base).exclude(head).paths(paths);
             var commit = walk.iterator();
             while (commit.hasNext() && behind.add()) {
                 commit.next();

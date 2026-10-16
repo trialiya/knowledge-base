@@ -49,6 +49,7 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, KB_SEARCH_
  *                   показанная ревизия (rev, без него — HEAD) отличается от этой
  *                   (дефолт — нет сравнения)
  *   ?direct=1       сравнение с самой base, а не с общим предком (дефолт — с предком)
+ *   ?scope=<путь>   сравнение сужено до файла или каталога (дефолт — весь репозиторий)
  *   ?blame=1        файлы: колонка авторства строк у открытого файла (дефолт — нет)
  *   ?lines=<a>[-<b>] файлы: строки, выделенные в открытом файле и прокрученные к
  *                   себе, — так ячейка blame ведёт к ханку в снимке коммита (дефолт — нет)
@@ -148,6 +149,7 @@ export function readUrl() {
   let fileRev = '';
   let fileBase = '';
   let fileDirect = false;
+  let fileScope = '';
   let fileBlame = false;
   let fileFind = '';
   let fileFindRegex = false;
@@ -169,6 +171,7 @@ export function readUrl() {
     // есть лишь там, а в дереве или ленте она была бы мусором в адресе.
     if (fileMode === FILE_MODE.CHANGES) fileBase = p.get('base') || '';
     fileDirect = !!fileBase && p.get('direct') === '1';
+    fileScope = fileBase ? p.get('scope') || '' : '';
     // Колонка blame — состояние экрана того же рода, что режим изменений: файл
     // тот же, меняется только то, что о нём показано рядом с текстом.
     fileBlame = p.get('blame') === '1';
@@ -232,6 +235,7 @@ export function readUrl() {
     fileRev,
     fileBase,
     fileDirect,
+    fileScope,
     fileBlame,
     fileFind,
     fileFindRegex,
@@ -287,6 +291,7 @@ export function buildUrl(nav) {
       if (nav.fileMode === FILE_MODE.CHANGES && nav.fileBase) {
         p.set('base', nav.fileBase);
         if (nav.fileDirect) p.set('direct', '1');
+        if (nav.fileScope) p.set('scope', nav.fileScope);
       }
       if (nav.fileBlame) p.set('blame', '1');
       if (nav.fileFind) p.set('find', nav.fileFind);
@@ -350,6 +355,7 @@ function toNav(u, view, panels) {
     fileRev: u.fileRev,
     fileBase: u.fileBase,
     fileDirect: u.fileDirect,
+    fileScope: u.fileScope,
     fileBlame: u.fileBlame,
     fileFind: u.fileFind,
     fileFindRegex: u.fileFindRegex,

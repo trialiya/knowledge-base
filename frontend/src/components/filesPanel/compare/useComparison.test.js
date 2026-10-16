@@ -31,6 +31,20 @@ describe('useComparison', () => {
     expect(result.current.untracked).toEqual([]);
   });
 
+  /** Сужение — другой ответ: сменилось — спрашивается заново, уже с ним. */
+  test('narrowing to a path asks again with the scope', async () => {
+    gitApi.compare.mockResolvedValue({ files: [] });
+    const { rerender } = renderHook((props) => useComparison(props), {
+      initialProps: { project: 'kb', base: 'main', rev: '' },
+    });
+    await waitFor(() => expect(gitApi.compare).toHaveBeenCalledTimes(1));
+
+    rerender({ project: 'kb', base: 'main', rev: '', scope: 'docs' });
+
+    await waitFor(() => expect(gitApi.compare).toHaveBeenCalledTimes(2));
+    expect(gitApi.compare).toHaveBeenLastCalledWith('main', expect.objectContaining({ scope: 'docs' }));
+  });
+
   /** Ветка после fetch называет другой коммит — и сравнение обязано это заметить. */
   test('asks again when the refs move', async () => {
     gitApi.compare.mockResolvedValue({ files: [] });

@@ -9,32 +9,6 @@
   min-height: 100%;
 }
 
-.commit-history__scope {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px var(--ws-gutter) 0;
-  min-width: 0;
-}
-
-.commit-history__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  max-width: 100%;
-  padding: 1px 2px 1px 8px;
-  border-radius: 6px;
-  background: var(--kb-accent-surface);
-  color: var(--kb-accent);
-  font-size: 0.75rem;
-}
-.commit-history__chip-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .commit-history__list {
   gap: 4px;
   padding: 2px calc(var(--ws-gutter) - 4px) 4px;

@@ -238,6 +238,9 @@ public class GitController {
      * Unlike {@code /commit}, the range here may span years of history, and the patches of every
      * file in it would be one unbounded response. With {@code path} the answer also leaves out the
      * history between the two, which only the summary needs.
+     *
+     * <p>{@code scope} narrows the comparison to a file or directory: the files under it (by either
+     * side of a rename) and the commits that touched it.
      */
     @GetMapping("/compare")
     public GitComparison compare(
@@ -246,6 +249,7 @@ public class GitController {
             @RequestParam(name = "direct", defaultValue = "false") boolean direct,
             @RequestParam(name = "path", required = false) @Nullable String path,
             @RequestParam(name = "patch", defaultValue = "false") boolean patch,
+            @RequestParam(name = "scope", required = false) @Nullable String scope,
             @RequestParam(name = "project", required = false) @Nullable String project) {
         String from = revision(base);
         if (from == null) {
@@ -253,14 +257,18 @@ public class GitController {
         }
         @Nullable String named = revision(head);
         String to = named == null ? "HEAD" : named;
-        final String scope = path != null && !path.isBlank() ? path : null;
-        if (scope != null) {
-            requireSafePath(scope);
+        final String only = path != null && !path.isBlank() ? path : null;
+        if (only != null) {
+            requireSafePath(only);
         } else if (patch) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "patch needs a path");
         }
+        final String within = scope != null && !scope.isBlank() ? scope : null;
+        if (within != null) {
+            requireSafePath(within);
+        }
         GitService git = git(project);
-        return read(() -> git.compare(from, to, direct, patch, scope));
+        return read(() -> git.compare(from, to, direct, patch, only, within));
     }
 
     /**

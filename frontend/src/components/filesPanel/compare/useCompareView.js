@@ -9,6 +9,10 @@ import useComparison from './useComparison';
  *
  * `branch` — текущая ветка рабочего дерева: ею называется сравниваемая
  * сторона, когда снимка нет (на отсоединённом HEAD — сам коммит из ответа).
+ *
+ * `scope` — файл или каталог, до которого сравнение сужено (`?scope=`,
+ * ScopeChip над списком). Оно в адресе, а не в состоянии панели: панель
+ * перемонтируется со сменой ревизии, и «Поменять местами» иначе теряло бы его.
  */
 export default function useCompareView({
   enabled,
@@ -17,13 +21,14 @@ export default function useCompareView({
   rev,
   base,
   direct,
+  scope,
   branch,
   refreshToken,
   refsToken,
   onCompareChange,
   onPathChange,
 }) {
-  const comparison = useComparison({ project, base, rev, direct, refreshToken, refsToken, enabled });
+  const comparison = useComparison({ project, base, rev, direct, scope, refreshToken, refsToken, enabled });
   const headName = rev || branch || '';
 
   const compareTab = useMemo(
@@ -33,6 +38,7 @@ export default function useCompareView({
             base,
             headName,
             direct,
+            scope,
             comparison: comparison.comparison,
             loading: comparison.loading,
             error: comparison.error,
@@ -48,11 +54,12 @@ export default function useCompareView({
                 rev: base,
                 base: headName || comparison.comparison.head.hash,
                 direct,
+                scope,
               }),
             onExit: () => onCompareChange(''),
           }
         : null,
-    [enabled, base, headName, direct, comparison, onCompareChange, onPathChange, path],
+    [enabled, base, headName, direct, scope, comparison, onCompareChange, onPathChange, path],
   );
 
   return { comparison, compareTab };

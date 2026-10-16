@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import gitApi from '@/api/gitApi';
 import useListNavigation from '@/components/common/search/useListNavigation';
-import { IconX } from '@/icons/index';
+import ScopeChip from '../ScopeChip';
 import CommitPlate from './CommitPlate';
 import CommitDetailModal from './CommitDetailModal';
 import useCommitHistory from './useCommitHistory';
@@ -61,32 +61,10 @@ const CommitHistory = ({ project, rev, path, commit, refreshToken, refsToken, on
 
   const groups = useMemo(() => groupByDay(history.commits), [history.commits]);
   const empty = !history.loading && !history.error && history.commits.length === 0;
-  const scopeName = (scope || path).split('/').pop();
 
   return (
     <div className="commit-history">
-      {(scope || path) && (
-        <div className="commit-history__scope">
-          {scope ? (
-            <span className="commit-history__chip" title={scope}>
-              <span className="commit-history__chip-label">{t('history.scopeOnly', { name: scopeName })}</span>
-              <button
-                type="button"
-                className="icon-btn icon-btn--xs icon-btn--quiet"
-                title={t('history.scopeClear')}
-                aria-label={t('history.scopeClear')}
-                onClick={() => setScope('')}
-              >
-                <IconX size={10} />
-              </button>
-            </span>
-          ) : (
-            <button type="button" className="btn btn--ghost btn--xs" title={path} onClick={() => setScope(path)}>
-              {t('history.scopeOnly', { name: scopeName })}
-            </button>
-          )}
-        </div>
-      )}
+      <ScopeChip path={path} scope={scope} onScopeChange={setScope} clearLabel={t('history.scopeClear')} />
       <div
         className="commit-history__list ws-list"
         role="tree"

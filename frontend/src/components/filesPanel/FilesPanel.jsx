@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import FileTree from './FileTree';
 import FileContent from './FileContent';
 import FilesToolbar from './FilesToolbar';
+import ScopeChip from './ScopeChip';
 import ChangesList from './changes/ChangesList';
 import useDiffChoice from './changes/useDiffChoice';
 import useChangesSource from './changes/useChangesSource';
@@ -43,6 +44,7 @@ const FilesPanelForProject = ({
   rev,
   base,
   direct,
+  scope,
   blame,
   find,
   findRegex,
@@ -100,6 +102,7 @@ const FilesPanelForProject = ({
     rev,
     base,
     direct,
+    scope,
     showChanges,
     branch: git.status?.current,
     refreshToken,
@@ -224,6 +227,14 @@ const FilesPanelForProject = ({
                   onOpenSnapshot={(hash) => openSnapshot('', hash)}
                 />
               )}
+              {comparing && (
+                <ScopeChip
+                  path={path}
+                  scope={scope}
+                  onScopeChange={(next) => onCompareChange(base, direct, next)}
+                  clearLabel={t('compare.scopeClear')}
+                />
+              )}
               {showChanges && (
                 <ChangesList
                   tracked={listed.tracked}
@@ -338,6 +349,7 @@ const FilesPanel = ({
   rev,
   base,
   direct,
+  scope,
   blame,
   find,
   findRegex,
@@ -379,6 +391,7 @@ const FilesPanel = ({
       rev={rev || ''}
       base={base || ''}
       direct={!!direct}
+      scope={scope || ''}
       blame={!!blame}
       find={find || ''}
       findRegex={!!findRegex}

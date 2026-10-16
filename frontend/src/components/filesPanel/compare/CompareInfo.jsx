@@ -22,6 +22,7 @@ const CompareInfo = ({
   headName,
   project,
   direct,
+  scope,
   comparison,
   loading,
   error,
@@ -64,6 +65,7 @@ const CompareInfo = ({
       copy: comparison.mergeBase ?? undefined,
       mono: !!comparison.mergeBase,
     },
+    scope && { label: t('compare.scope'), value: scope, mono: true },
     log && {
       label: t('compare.commits'),
       value: t('compare.aheadBehind', {

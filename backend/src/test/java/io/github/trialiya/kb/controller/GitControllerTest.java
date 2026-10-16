@@ -91,7 +91,7 @@ class GitControllerTest {
                         get("/api/git/commit").param("rev", "nosuchtag")),
                 Arguments.of(
                         "comparison with an unknown base",
-                        (Consumer<GitService>) g -> when(g.compare("nosuchtag", "HEAD", false, false, null))
+                        (Consumer<GitService>) g -> when(g.compare("nosuchtag", "HEAD", false, false, null, null))
                                 .thenThrow(new IllegalArgumentException("Commit not found: nosuchtag")),
                         get("/api/git/compare").param("base", "nosuchtag")),
                 Arguments.of(
