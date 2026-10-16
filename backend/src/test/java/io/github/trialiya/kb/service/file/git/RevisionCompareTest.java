@@ -143,6 +143,21 @@ class RevisionCompareTest {
         assertThat(log.ahead()).isEqualTo(1);
     }
 
+    /** «.» — сам репозиторий, пустой или «.» сегмент где угодно ничего не меняет: адрес, набранный руками, не сужает до пустоты. */
+    @Test
+    void aDotScopeIsTheRepositoryAndADotPrefixIsNoDifferentPath() {
+        GitComparison whole = service.compare("main", "feature", false, false, null, null);
+
+        assertThat(service.compare("main", "feature", false, false, null, ".").files())
+                .isEqualTo(whole.files());
+        for (String scope : new String[] {"./README.md", "/./README.md/.", "README.md/"}) {
+            assertThat(service.compare("main", "feature", false, false, null, scope)
+                            .files())
+                    .extracting(GitDiffEntry::path)
+                    .containsExactly("README.md");
+        }
+    }
+
     @Test
     void aFileIsAScopeToo() {
         GitComparison comparison = service.compare("main", "feature", false, false, null, "README.md");

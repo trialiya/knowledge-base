@@ -199,7 +199,7 @@ const gitApi = {
   /**
    * Незакоммиченные изменения рабочего дерева: отслеживаемые файлы (diff против
    * HEAD, вне зависимости от индекса), затем неотслеживаемые, допущенные
-   * `allow-globs` проекта, под статусом 'U'.
+   * `allow-globs` проекта, под статусом `U` (DIFF_STATUS.UNTRACKED).
    *
    * Возвращает GitDiffEntry[] { status, path, oldPath, additions, deletions,
    * patchHeader, patch }: шапка патча приходит отдельно от него самого, а сам

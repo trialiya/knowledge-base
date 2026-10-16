@@ -125,6 +125,22 @@ class GitServiceTest {
         assertThat(underProject.get(0).type()).isEqualTo(FileEntryType.FILE);
     }
 
+    /** Каталог, набранный руками: «.» — корень, «./docs/.» и «/docs/» — тот же docs. */
+    @Test
+    void aDirectorySpelledWithDotsOrSlashesIsTheSameDirectory() {
+        writeFile("docs/readme.md", "hello");
+        writeFile("pom.txt", "root file");
+        commitAll();
+
+        assertThat(service.getFileTree(null, ".")).isEqualTo(service.getFileTree(null, null));
+        for (String docs : new String[] {"./docs/.", "/docs/", "docs//"}) {
+            assertThat(service.getFileTree(null, docs))
+                    .extracting(GitFileNode::path)
+                    .containsExactly("docs/readme.md");
+        }
+        assertThatThrownBy(() -> service.getFileTree(null, "docs/../..")).isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     void sortsDirectoriesBeforeFilesThenAlphabeticallyIgnoringCase() {
         writeFile("banana.txt", "b");

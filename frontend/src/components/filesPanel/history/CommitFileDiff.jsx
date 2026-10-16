@@ -3,6 +3,7 @@ import shortRev from '@/components/common/git/shortRev';
 import Breadcrumb from '../Breadcrumb';
 import ChangeDiffView from '../changes/ChangeDiffView';
 import useChangeDiff from '../changes/useChangeDiff';
+import { DIFF_STATUS } from '@/constants/diffStatus';
 
 /**
  * Центр файлового браузера, когда файл открыт из ленты коммитов: изменение
@@ -33,7 +34,7 @@ const CommitFileDiff = ({ project, path, commit, onNavigate, onOpenFile, onOpenS
               </span>
             )}
             <span className="commit-file-diff__spacer" />
-            {diff.entry?.status !== 'D' && (
+            {diff.entry?.status !== DIFF_STATUS.DELETED && (
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => onOpenFile(path)}>
                 {t('history.openFile')}
               </button>

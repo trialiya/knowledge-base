@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { previewKind } from '@/utils/filePreview';
-import { UNTRACKED_STATUS } from './useUncommittedChanges';
+import { DIFF_STATUS } from '@/constants/diffStatus';
 
 /**
  * Что центр показывает в режиме «Изменения» — оригинал или diff открытого
@@ -28,7 +28,7 @@ export default function useDiffChoice({ path, showChanges, diff }) {
   const diffPending = showChanges && !!path && diff.loading;
   // Картинку смотрят рисунком: текстового патча у неё нет, и diff по умолчанию
   // показал бы заглушку вместо самого изменения.
-  const diffByDefault = !!diff.entry && diff.entry.status !== UNTRACKED_STATUS && previewKind(path) !== 'image';
+  const diffByDefault = !!diff.entry && diff.entry.status !== DIFF_STATUS.UNTRACKED && previewKind(path) !== 'image';
   const showDiff = showChanges && (diffChoice ?? diffByDefault);
 
   return { diffPending, showDiff, setDiffChoice };

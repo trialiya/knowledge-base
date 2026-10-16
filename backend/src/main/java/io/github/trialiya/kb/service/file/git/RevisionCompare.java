@@ -13,7 +13,6 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.revwalk.filter.RevFilter;
-import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
@@ -102,11 +101,14 @@ final class RevisionCompare {
             @Nullable String only,
             @Nullable Pathspec scope)
             throws IOException {
-        CanonicalTreeParser oldTree = new CanonicalTreeParser();
-        oldTree.reset(reader, from.getTree());
-        CanonicalTreeParser newTree = new CanonicalTreeParser();
-        newTree.reset(reader, to.getTree());
-        return Diffs.scan(repository, oldTree, newTree, includePatch, null, only, scope);
+        return Diffs.scan(
+                repository,
+                CommitDiff.tree(reader, from),
+                CommitDiff.tree(reader, to),
+                includePatch,
+                null,
+                only,
+                scope);
     }
 
     /**
@@ -122,7 +124,7 @@ final class RevisionCompare {
         paths.add(scope.literal());
         for (GitDiffEntry entry : files) {
             String old = entry.oldPath();
-            if (old == null || !"R".equals(entry.status())) continue;
+            if (old == null || !DiffStatus.RENAMED.is(entry.status())) continue;
             if (!scope.matches(old)) paths.add(old);
             if (!scope.matches(entry.path())) paths.add(entry.path());
         }

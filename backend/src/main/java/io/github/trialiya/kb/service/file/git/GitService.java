@@ -23,45 +23,20 @@ import io.github.trialiya.kb.model.git.dto.GitRefs;
 import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
 import io.github.trialiya.kb.model.git.dto.TextEdit;
 import io.github.trialiya.kb.model.project.Project;
-import io.github.trialiya.kb.service.file.outline.LanguageDetector;
 import io.github.trialiya.kb.service.file.outline.OutlineService;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HexFormat;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.Status;
-import org.eclipse.jgit.api.StatusCommand;
-import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.diff.DiffEntry;
-import org.eclipse.jgit.diff.DiffFormatter;
-import org.eclipse.jgit.errors.AmbiguousObjectException;
-import org.eclipse.jgit.errors.IncorrectObjectTypeException;
-import org.eclipse.jgit.errors.MissingObjectException;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
-import org.eclipse.jgit.treewalk.AbstractTreeIterator;
-import org.eclipse.jgit.treewalk.CanonicalTreeParser;
-import org.eclipse.jgit.treewalk.EmptyTreeIterator;
-import org.eclipse.jgit.treewalk.FileTreeIterator;
-import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -86,25 +61,6 @@ import org.jspecify.annotations.Nullable;
  */
 @Slf4j
 public class GitService {
-
-    /**
-     * Largest window {@link #getFileBytes} will hand back in one call. Not a limit on the file:
-     * bytes are read positionally, so anything bigger is read window by window — which is also the
-     * only shape in which a caller can process a file larger than it can hold.
-     */
-    private static final long MAX_BYTE_WINDOW = 1024 * 1024;
-
-    /**
-     * Largest file {@link #getRawFile} hands to the browser whole. Bigger than anything a picture
-     * in a source tree has business being, and small enough that a request for the artefact
-     * somebody committed next to it costs a refusal rather than the heap.
-     */
-    private static final long MAX_RAW_FILE_SIZE = 16L * 1024 * 1024;
-
-    /**
-     * Chunk size for reads that only pass bytes through, never keeping them ({@link #hashFile}).
-     */
-    private static final int STREAM_BUFFER_BYTES = 8192;
 
     /**
      * Most commits the push dialog is given. A branch further ahead than this is not a list any
@@ -148,6 +104,12 @@ public class GitService {
     /** The git commands a user runs from the UI; reached only through {@code GitRegistry}. */
     private final GitCommands commands;
 
+    /** What the working tree holds that HEAD does not. */
+    private final WorkingTreeChanges changes;
+
+    /** Raw bytes, binary files included: windows, whole files for previews, hashes. */
+    private final RepoBytes bytes;
+
     public GitService(Project project, OutlineService outlineService) {
         this.project = project;
         this.paths = new RepoPaths(project.path());
@@ -176,6 +138,8 @@ public class GitService {
         this.writer = new GitWriter(project, paths, visible, git);
         this.branches = new GitBranches(repository, git);
         this.commands = new GitCommands(paths, repository, git, branches);
+        this.changes = new WorkingTreeChanges(paths, repository, git, visible);
+        this.bytes = new RepoBytes(repository, visible);
         log.info("GitService initialised for project {}: {}", project.id(), paths.root());
     }
 
@@ -199,6 +163,11 @@ public class GitService {
      */
     private static @Nullable String snapshot(@Nullable String rev) {
         return rev == null || rev.isBlank() ? null : rev;
+    }
+
+    /** An optional file path in git's spelling; {@code null} and blank both mean "none given". */
+    private static @Nullable String pathOrNull(@Nullable String filePath) {
+        return filePath == null || filePath.isBlank() ? null : RepoPaths.toForwardSlashes(filePath.strip());
     }
 
     // ── File tree ────────────────────────────────────────────────────────────
@@ -479,7 +448,7 @@ public class GitService {
      */
     public List<GitCommit> getCommitDiff(
             @NonNull String commitHashes, boolean includePatch, @Nullable String filePath) {
-        String spec = (filePath == null || filePath.isBlank()) ? null : RepoPaths.toForwardSlashes(filePath.strip());
+        String spec = pathOrNull(filePath);
         List<String> hashes = Arrays.stream(commitHashes.split(","))
                 .map(String::strip)
                 .filter(h -> !h.isEmpty())
@@ -490,7 +459,7 @@ public class GitService {
         boolean includeBody = hashes.size() == 1;
         List<GitCommit> result = new ArrayList<>();
         for (String hash : hashes) {
-            result.add(diffForSingleCommit(hash, includePatch, spec, includeBody, null, false));
+            result.add(CommitDiff.of(repository, hash, includePatch, spec, includeBody, null, false));
         }
         return result;
     }
@@ -512,47 +481,8 @@ public class GitService {
      *     HEAD~2}
      */
     public GitCommit getCommit(@NonNull String rev, boolean includePatch, @Nullable String filePath) {
-        String only = (filePath == null || filePath.isBlank()) ? null : RepoPaths.toForwardSlashes(filePath.strip());
-        return diffForSingleCommit(rev.strip(), includePatch, null, true, only, true);
-    }
-
-    /**
-     * @param filePath narrows the diff itself — the tool's reading of a path, renames included
-     * @param only keeps the entry reported under this path, found among the whole commit's entries
-     * @param includeParents name the parents — for the browser's Commit tab, not for the model
-     */
-    private GitCommit diffForSingleCommit(
-            String hash,
-            boolean includePatch,
-            @Nullable String filePath,
-            boolean includeBody,
-            @Nullable String only,
-            boolean includeParents) {
-        try (RevWalk revWalk = new RevWalk(repository);
-                ObjectReader reader = repository.newObjectReader()) {
-            RevCommit commit = revWalk.parseCommit(CommitFiles.commitOf(repository, hash));
-            RevCommit parent = commit.getParentCount() > 0 ? revWalk.parseCommit(commit.getParent(0)) : null;
-
-            // No parent (root commit) → diff against the empty tree, as `git diff-tree --root`
-            // does: without it the very first commit of a repo shows no files at all.
-            AbstractTreeIterator oldTree = parent == null ? new EmptyTreeIterator() : treeIterator(reader, parent);
-            AbstractTreeIterator newTree = treeIterator(reader, commit);
-
-            List<GitDiffEntry> entries = Diffs.scan(repository, oldTree, newTree, includePatch, filePath, only, null);
-            return Diffs.toGitCommit(commit, entries, reader, includeBody, includeParents);
-        } catch (MissingObjectException | IncorrectObjectTypeException e) {
-            throw new IllegalArgumentException("Commit not found: " + hash, e);
-        } catch (AmbiguousObjectException e) {
-            throw new IllegalArgumentException("Ambiguous commit reference: " + hash, e);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed reading commit: " + hash, e);
-        }
-    }
-
-    private static AbstractTreeIterator treeIterator(ObjectReader reader, RevCommit commit) throws IOException {
-        CanonicalTreeParser parser = new CanonicalTreeParser();
-        parser.reset(reader, commit.getTree());
-        return parser;
+        String only = pathOrNull(filePath);
+        return CommitDiff.of(repository, rev.strip(), includePatch, null, true, only, true);
     }
 
     /**
@@ -578,7 +508,7 @@ public class GitService {
             boolean includePatch,
             @Nullable String filePath,
             @Nullable String scope) {
-        String only = (filePath == null || filePath.isBlank()) ? null : RepoPaths.toForwardSlashes(filePath.strip());
+        String only = pathOrNull(filePath);
         return RevisionCompare.compare(
                 repository, base.strip(), head.strip(), direct, includePatch, only, RepoPaths.normalizeDir(scope));
     }
@@ -811,142 +741,28 @@ public class GitService {
 
     // ── Bytes (binary files included) ───────────────────────────────────────
 
-    /**
-     * Size, binary flag and detected language of a tracked file, without reading its content.
-     *
-     * <p>The question {@link #getFileContent} cannot answer cheaply: it has to read the file to
-     * tell whether it is binary, and for a binary one everything it read is thrown away. Scripts
-     * ask this first and only then decide what to read the file with, so it stays a stat plus an 8
-     * KB sniff whatever the file's size.
-     */
+    /** Size, binary flag and language of a served file, without its content; see {@link RepoBytes#info}. */
     public GitFileInfo getFileInfo(@NonNull String filePath) {
-        String normalized = normalizePath(filePath);
-        Path absolute = visible.require(normalized).absolute();
-        return new GitFileInfo(
-                normalized,
-                RepoFiles.sizeOf(normalized, absolute),
-                RepoFiles.isBinary(RepoFiles.readWindow(normalized, absolute, 0, RepoFiles.BINARY_SNIFF_BYTES)),
-                LanguageDetector.detect(normalized));
+        return bytes.info(filePath);
     }
 
-    /**
-     * Raw bytes of a tracked file, binary ones included — the byte-level counterpart of {@link
-     * #getFileContent}, which decodes as UTF-8 and therefore serves text only.
-     *
-     * <p>Only the requested window is read from disk, so the cost of the call follows {@code
-     * length} rather than the size of the file: a caller stepping through a 200 MB archive never
-     * materialises more than its own window. That is also why there is no truncation flag here — a
-     * short window is what was asked for, not an excerpt substituted for the whole.
-     *
-     * @param offset first byte to return, 0-based; clamped to the end of the file
-     * @param length how many bytes to return; {@code 0} or less means "to the end of the file"
-     */
+    /** A window of a served file's raw bytes, binary files included; see {@link RepoBytes#window}. */
     public GitFileBytes getFileBytes(@NonNull String filePath, long offset, long length) {
-        String normalized = normalizePath(filePath);
-        Path absolute = visible.require(normalized).absolute();
-        long size = RepoFiles.sizeOf(normalized, absolute);
-        long from = Math.min(Math.max(offset, 0), size);
-        long want = length > 0 ? Math.min(length, size - from) : size - from;
-        if (want > MAX_BYTE_WINDOW) {
-            throw new IllegalArgumentException("Cannot read "
-                    + want
-                    + " bytes at once (max "
-                    + MAX_BYTE_WINDOW / 1024
-                    + " KB): "
-                    + normalized
-                    + ". Read the file in windows (offset, length).");
-        }
-        byte[] window = RepoFiles.readWindow(normalized, absolute, from, (int) want);
-        // The binary flag describes the file, not the window: it is defined on the head of the
-        // file, so unless this window already covers that head — a short window at offset 0 does
-        // not — the head is read again to answer it. Otherwise a four-byte peek at a file whose
-        // first NUL sits at byte 100 would come back "not binary".
-        boolean windowCoversHead = from == 0 && want >= Math.min(size, RepoFiles.BINARY_SNIFF_BYTES);
-        byte[] head =
-                windowCoversHead ? window : RepoFiles.readWindow(normalized, absolute, 0, RepoFiles.BINARY_SNIFF_BYTES);
-        return new GitFileBytes(normalized, window, from, size, RepoFiles.isBinary(head));
+        return bytes.window(filePath, offset, length);
     }
 
     /**
-     * Whole file, for handing straight to the browser — the bytes behind an inline preview of an
-     * image. Unlike {@link #getFileBytes} there is no window here: a picture is shown or it is not,
-     * and half of one is nothing at all.
-     *
-     * <p>Serves the same files every other read does (tracked, plus what the project's {@code
-     * allow-globs} admit) and refuses anything over {@value #MAX_RAW_FILE_SIZE} bytes rather than
-     * pulling it into memory — a repository holds artefacts as well as sources, and the caller gets
-     * a refusal it can show instead of a browser hanging on a video-sized blob.
-     *
-     * <p>With {@code rev} — the file as of that commit; see {@link #rawFileAt}.
-     *
-     * @param rev the commit to read; {@code null} or blank — the working tree
-     * @throws IllegalArgumentException if the file is bigger than that limit, or — with {@code rev}
-     *     — the revision is unknown or holds no such file
+     * A whole file for the browser to show — the working tree's, or with {@code rev} the commit's;
+     * see {@link RepoBytes#whole}.
      */
     public GitFileBytes getRawFile(@Nullable String rev, @NonNull String filePath) {
         String at = snapshot(rev);
-        if (at != null) return rawFileAt(at, filePath);
-        String normalized = normalizePath(filePath);
-        Path absolute = visible.require(normalized).absolute();
-        long size = RepoFiles.sizeOf(normalized, absolute);
-        requireServableSize(normalized, size);
-        byte[] bytes = RepoFiles.readAll(normalized, absolute);
-        return new GitFileBytes(normalized, bytes, 0, size, RepoFiles.isBinary(bytes));
+        return at == null ? bytes.whole(filePath) : bytes.wholeAt(at, filePath);
     }
 
-    /**
-     * The file as of a commit — {@code git show <rev>:<path>}, so a snapshot of a revision shows the
-     * picture that revision holds and not the one on disk.
-     *
-     * @param rev any revision git resolves: a full or short hash, a branch, a tag, {@code HEAD~2}
-     * @throws IllegalArgumentException if the revision is unknown, holds no such file, or the file
-     *     there is bigger than {@value #MAX_RAW_FILE_SIZE} bytes
-     */
-    private GitFileBytes rawFileAt(String rev, String filePath) {
-        String normalized = normalizePath(filePath);
-        // Предел уходит внутрь чтения: размер объекта известен до того, как он поднят в память, и
-        // отказать по уже прочитанным байтам значило бы заплатить ровно то, ради чего предел есть.
-        CommitFiles.Blob blob = CommitFiles.read(repository, rev.strip(), normalized, MAX_RAW_FILE_SIZE);
-        return new GitFileBytes(normalized, blob.bytes(), 0, blob.size(), RepoFiles.isBinary(blob.bytes()));
-    }
-
-    private static void requireServableSize(String normalized, long size) {
-        if (size > MAX_RAW_FILE_SIZE) {
-            throw new IllegalArgumentException("File is too large to preview ("
-                    + size
-                    + " B, max "
-                    + MAX_RAW_FILE_SIZE / (1024 * 1024)
-                    + " MB): "
-                    + normalized);
-        }
-    }
-
-    /**
-     * SHA-256 of a tracked file's bytes, lowercase hex.
-     *
-     * <p>Streamed, so it costs nothing in memory whatever the file's size — which is the point:
-     * comparing two builds, or spotting that a fixture changed, otherwise means pulling both files
-     * through a caller that only wants to know whether they differ.
-     */
+    /** SHA-256 of a served file's bytes, lowercase hex; see {@link RepoBytes#sha256}. */
     public String hashFile(@NonNull String filePath) {
-        String normalized = normalizePath(filePath);
-        Path absolute = visible.require(normalized).absolute();
-        MessageDigest digest;
-        try {
-            digest = MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is not available", e);
-        }
-        try (InputStream in = Files.newInputStream(absolute)) {
-            byte[] buffer = new byte[STREAM_BUFFER_BYTES];
-            int read;
-            while ((read = in.read(buffer)) > 0) {
-                digest.update(buffer, 0, read);
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot read file: " + normalized, e);
-        }
-        return HexFormat.of().formatHex(digest.digest());
+        return bytes.sha256(filePath);
     }
 
     /**
@@ -1296,7 +1112,7 @@ public class GitService {
      * @param includePatch whether to include unified diff text for modified files
      */
     public List<GitDiffEntry> getUncommittedChanges(boolean includePatch) {
-        return changes(includePatch, true, List.of());
+        return changes.list(includePatch, true, List.of());
     }
 
     /**
@@ -1311,7 +1127,7 @@ public class GitService {
      * @param onlyPath a file path, or {@code null}/blank for the whole working tree
      */
     public List<GitDiffEntry> getUncommittedChanges(boolean includePatch, @Nullable String onlyPath) {
-        return changes(
+        return changes.list(
                 includePatch,
                 true,
                 onlyPath == null || onlyPath.isBlank() ? List.of() : List.of(Pathspec.exact(normalizePath(onlyPath))));
@@ -1350,7 +1166,7 @@ public class GitService {
      */
     public List<GitDiffEntry> getUncommittedChanges(
             boolean includePatch, boolean includeUntracked, List<String> pathFilters) {
-        return changes(
+        return changes.list(
                 includePatch,
                 includeUntracked,
                 pathFilters.stream()
@@ -1361,159 +1177,6 @@ public class GitService {
                         .map(filter -> Pathspec.of(normalizePath(filter)))
                         .filter(Objects::nonNull)
                         .toList());
-    }
-
-    private List<GitDiffEntry> changes(boolean includePatch, boolean includeUntracked, List<Pathspec> wanted) {
-        Status status = status(wanted);
-
-        Set<String> changedPaths = new LinkedHashSet<>();
-        changedPaths.addAll(status.getAdded());
-        changedPaths.addAll(status.getChanged());
-        changedPaths.addAll(status.getModified());
-        changedPaths.addAll(status.getRemoved());
-        changedPaths.addAll(status.getMissing());
-        // Unresolved merge conflicts live in none of the sets above, yet `git diff HEAD` shows
-        // them (worktree content with conflict markers vs HEAD) — without this they'd vanish.
-        changedPaths.addAll(status.getConflicting());
-
-        List<GitDiffEntry> entries = new ArrayList<>();
-
-        if (!changedPaths.isEmpty()) {
-            try (ObjectReader reader = repository.newObjectReader()) {
-                AbstractTreeIterator oldTree = headTreeIterator(reader);
-                FileTreeIterator newTree = new FileTreeIterator(repository);
-
-                var patchOut = new ByteArrayOutputStream();
-                try (DiffFormatter formatter = new DiffFormatter(patchOut)) {
-                    formatter.setRepository(repository);
-                    // Переименование — это пара из удаления и добавления, поэтому искать его
-                    // незачем, когда сканировать нечего кроме правок: детектор всё равно грузит
-                    // содержимое кандидатов, а пар среди одних правок не бывает. Незакрытый
-                    // конфликт слияния тут заодно с ними: чем он окажется в сравнении с HEAD,
-                    // по набору из status не видно.
-                    formatter.setDetectRenames(!status.getAdded().isEmpty()
-                            || !status.getRemoved().isEmpty()
-                            || !status.getMissing().isEmpty()
-                            || !status.getConflicting().isEmpty());
-                    formatter.setPathFilter(PathFilterGroup.createFromStrings(changedPaths));
-
-                    for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
-                        // The scan still covers every changed path even when one was asked for:
-                        // rename detection needs both sides, and narrowing the path filter would
-                        // report a renamed file as an unrelated add. Both sides are matched so
-                        // that a rename opens under either of its names.
-                        if (!admits(wanted, entry.getNewPath()) && !admits(wanted, entry.getOldPath())) continue;
-                        // Мусорный путь отсеивается до разбора: собрать его патч, чтобы тут же
-                        // его выбросить, — работа целиком впустую.
-                        if (RepoPaths.isJunkFile(
-                                DiffEntry.ChangeType.DELETE == entry.getChangeType()
-                                        ? entry.getOldPath()
-                                        : entry.getNewPath())) continue;
-                        entries.add(Diffs.toGitDiffEntry(entry, formatter, includePatch, patchOut));
-                    }
-                }
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed to diff working tree against HEAD", e);
-            }
-        }
-
-        if (!includeUntracked) {
-            return entries;
-        }
-
-        // Straight off the status: what git already reported as untracked is by definition
-        // untracked and not ignored, so the globs are the only question left to ask about it —
-        // walking the allow-glob area again would answer nothing this does not.
-        status.getUntracked().stream()
-                .filter(path -> admits(wanted, path))
-                .filter(path -> !RepoPaths.isJunkFile(path))
-                .filter(visible::matchesAllowGlobs)
-                .sorted()
-                .forEach(path -> entries.add(untrackedDiffEntry(path, includePatch)));
-
-        return entries;
-    }
-
-    /**
-     * The working tree's status, read of one path when the caller asked about one path and nothing
-     * about that path can turn out to be half of a rename.
-     *
-     * <p>Status is the expensive half of this call — it stats the whole working tree, and the diff
-     * that follows only re-reads the paths it named. A single-file question (the files panel opens
-     * one change, a tool asks about one path) does not need the rest of the tree stat'ed, and git's
-     * own {@code status -- <path>} narrows the same way.
-     *
-     * <p>The exception is a rename: it is a pair, and a pair is only visible when both of its
-     * halves are in the same scan. So a narrowed answer is kept only while it holds nothing added,
-     * removed or missing — a modification can never be one half of a rename, and everything else
-     * falls back to the full status the rename detector needs. A pathspec with a wildcard is not
-     * narrowed at all: git resolves those against the whole tree anyway.
-     */
-    private Status status(List<Pathspec> wanted) {
-        String only = wanted.size() == 1 ? wanted.get(0).literal() : null;
-        if (only != null && RepoPaths.indexOfWildcard(only) < 0) {
-            Status narrow = statusOf(only);
-            if (narrow.getAdded().isEmpty()
-                    && narrow.getRemoved().isEmpty()
-                    && narrow.getMissing().isEmpty()) {
-                return narrow;
-            }
-        }
-        return statusOf(null);
-    }
-
-    /**
-     * @param only a path or path prefix to limit the walk to, or null for the whole tree
-     */
-    private Status statusOf(@Nullable String only) {
-        StatusCommand command = git.status();
-        if (only != null) {
-            command.addPath(only);
-        }
-        try {
-            return command.call();
-        } catch (GitAPIException e) {
-            throw new IllegalStateException("Failed to compute working tree status", e);
-        }
-    }
-
-    /**
-     * Whether the caller's filters keep this path. No filters keeps everything — the unnarrowed
-     * call is the common one, and it must not depend on any spec matching.
-     */
-    private static boolean admits(List<Pathspec> filters, @Nullable String path) {
-        return filters.isEmpty() || (path != null && filters.stream().anyMatch(filter -> filter.matches(path)));
-    }
-
-    /**
-     * An admitted untracked file as a whole-file {@code U}, see {@link Diffs#untracked}. An
-     * oversized or unreadable file goes in as {@code null} and is listed without lines or patch.
-     */
-    private GitDiffEntry untrackedDiffEntry(String path, boolean includePatch) {
-        byte @Nullable [] content;
-        try {
-            // Through confineToRepo like every other read: an admitted untracked path may be a
-            // symlink out of the repository, and the change list must not be the one place that
-            // follows it.
-            Path absolute = paths.confine(path);
-            content = Files.size(absolute) > RepoFiles.MAX_FILE_SIZE ? null : Files.readAllBytes(absolute);
-        } catch (IOException | IllegalArgumentException e) {
-            log.warn("Cannot read untracked file {} for the change list", path, e);
-            content = null;
-        }
-        return Diffs.untracked(path, content, includePatch);
-    }
-
-    /** HEAD's tree, or an empty tree when the branch is unborn (no commits yet). */
-    private AbstractTreeIterator headTreeIterator(ObjectReader reader) throws IOException {
-        ObjectId headId = repository.resolve("HEAD");
-        if (headId == null) {
-            return new EmptyTreeIterator();
-        }
-        try (RevWalk revWalk = new RevWalk(repository)) {
-            RevCommit head = revWalk.parseCommit(headId);
-            return treeIterator(reader, head);
-        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

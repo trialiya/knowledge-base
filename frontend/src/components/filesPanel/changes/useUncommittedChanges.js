@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import gitApi from '@/api/gitApi';
-
-/** Статус неотслеживаемого файла — тот же, что отдаёт бэкенд (см. GitDiffEntry). */
-export const UNTRACKED_STATUS = 'U';
+import { DIFF_STATUS } from '@/constants/diffStatus';
 
 /**
  * Незакоммиченные изменения рабочего дерева для левой панели.
@@ -10,7 +8,7 @@ export const UNTRACKED_STATUS = 'U';
  * Список приходит без патчей: строке нужны только статус и счётчики, а патч
  * запрашивается по одному файлу при открытии (см. useChangeDiff). Отслеживаемые
  * и неотслеживаемые разделены здесь, а не в разметке: разделение — это правило
- * про данные (статус 'U'), и обеим раскладкам, плоской и иерархической, оно
+ * про данные (статус DIFF_STATUS.UNTRACKED), и обеим раскладкам, плоской и иерархической, оно
  * нужно одинаковым.
  *
  * `refreshToken` — тот же внешний сигнал «репозиторий мог измениться», что и у
@@ -53,8 +51,8 @@ export default function useUncommittedChanges({ project, refreshToken, enabled }
       // отличить их по пустому списку нельзя.
       answered: !!known,
       entries,
-      tracked: entries.filter((e) => e.status !== UNTRACKED_STATUS),
-      untracked: entries.filter((e) => e.status === UNTRACKED_STATUS),
+      tracked: entries.filter((e) => e.status !== DIFF_STATUS.UNTRACKED),
+      untracked: entries.filter((e) => e.status === DIFF_STATUS.UNTRACKED),
     };
   }, [known, fresh, requestKey]);
 }
