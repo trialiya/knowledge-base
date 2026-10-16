@@ -40,13 +40,15 @@ final class CommitWalk implements AutoCloseable, Iterable<RevCommit> {
     }
 
     /**
-     * Только коммиты, менявшие путь — файл или каталог; {@code null} или пустой — все. То же, что
-     * {@code LogCommand.addPath}: остальные обход пропускает сам, и счёт вызывающего их не видит.
+     * Только коммиты, менявшие путь — файл или каталог; {@code null}, пустой или корень ({@code .})
+     * — все. Путь пишется как у дерева ({@link RepoPaths#normalizeDir}): {@code ./docs} и {@code
+     * docs/} — тот же docs. То же, что {@code LogCommand.addPath}: остальные обход пропускает сам, и
+     * счёт вызывающего их не видит.
      */
     CommitWalk path(@Nullable String path) {
-        if (path != null && !path.isBlank()) {
-            walk.setTreeFilter(AndTreeFilter.create(
-                    PathFilterGroup.createFromStrings(RepoPaths.toForwardSlashes(path.strip())), TreeFilter.ANY_DIFF));
+        String dir = RepoPaths.normalizeDir(path);
+        if (!dir.isEmpty()) {
+            walk.setTreeFilter(AndTreeFilter.create(PathFilterGroup.createFromStrings(dir), TreeFilter.ANY_DIFF));
         }
         return this;
     }

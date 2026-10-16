@@ -36,6 +36,8 @@ final class RepoPaths {
      * apostrophe occur in real repositories, and a path reaches git as one argument of a process or
      * as a literal JGit path filter — never as a shell word or a pathspec.
      */
+    private static final Pattern PATH_SEPARATORS = Pattern.compile("[/\\\\]");
+
     private static final Pattern REFUSED_CHARACTER = Pattern.compile("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\"\u27E6\u27E7]");
 
     /** File names to always exclude from results (OS/IDE junk). */
@@ -174,7 +176,7 @@ final class RepoPaths {
             return "";
         }
         String forward = toForwardSlashes(sub.strip()).replaceAll("^/+", "");
-        return forward.matches("[/.]*") && !forward.contains("..") ? "" : normalize(forward);
+        return forward.matches("[/.]*") && !climbs(forward) ? "" : normalize(forward);
     }
 
     private static void requireSafe(String path) {
@@ -201,13 +203,26 @@ final class RepoPaths {
             return "Path must not be blank";
         }
         // Лидирующий дефис git прочёл бы как ключ команды, а не как имя файла.
-        if (path.startsWith("/") || path.startsWith("-") || path.contains("..")) {
+        if (path.startsWith("/") || path.startsWith("-") || climbs(path)) {
             return "Invalid path: " + path;
         }
         if (REFUSED_CHARACTER.matcher(path).find()) {
             return "Path contains unsupported characters: " + path;
         }
         return null;
+    }
+
+    /**
+     * Whether a segment of the path is {@code ..} — the one spelling that climbs. A name that
+     * merely contains two dots ({@code release..notes.md}) climbs nowhere and is a file like any
+     * other. Both separators count: a backslash is a separator once {@link #toForwardSlashes} has
+     * run, and some callers ask before it does.
+     */
+    static boolean climbs(String path) {
+        for (String segment : PATH_SEPARATORS.split(path, -1)) {
+            if ("..".equals(segment)) return true;
+        }
+        return false;
     }
 
     static String toForwardSlashes(String path) {

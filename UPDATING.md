@@ -19,6 +19,19 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### `GET /api/git/commit` and `/compare`: a `path` that names no file is a 400
+
+`path` on both endpoints (and `filePath` of the model's `getCommitDiff`) is now
+spelled the way every file read spells it: `./a.md` and `docs//a.md` name the
+same file as `a.md`. A `path` that names no file — `.`, `./`, an absolute
+`/a.md` — used to answer with an empty file list and now answers `400`. A
+script or integration of your own that sent such a path to mean "the whole
+commit" must leave `path` out instead.
+
+Names with two dots inside (`release..notes.md`) are no longer taken for a
+path that climbs out of the repository: the file tree lists them and every
+read serves them. Only a `..` segment is refused.
+
 ### `GET /api/git/files/origin`: steps at a shallow clone's cut lose `author` and `summary`
 
 The same rule as for blame below, for the line-origin trace: in a shallow clone

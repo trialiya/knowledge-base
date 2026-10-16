@@ -679,6 +679,65 @@ class GitServiceTest {
         });
     }
 
+    /**
+     * A path spelled with {@code ./} or a doubled slash is the same file to every commit read — the
+     * browser's, the model's diff, the comparison and the history alike.
+     */
+    @Test
+    void aPathSpelledWithDotsOrSlashesNamesTheSameFileInCommitReads() {
+        writeFile("docs/a.txt", "a\n");
+        writeFile("b.txt", "b\n");
+        commitAll("base");
+        writeFile("docs/a.txt", "a\nmore\n");
+        writeFile("b.txt", "b\nmore\n");
+        commitAll("change");
+
+        for (String spelled : new String[] {"./docs/a.txt", "docs//a.txt", "docs/./a.txt"}) {
+            assertThat(service.getCommit("HEAD", true, spelled).files())
+                    .singleElement()
+                    .satisfies(entry -> assertThat(entry.patch()).contains("+more"));
+            assertThat(service.getCommitDiff("HEAD", false, spelled).getFirst().files())
+                    .extracting(GitDiffEntry::path)
+                    .containsExactly("docs/a.txt");
+            assertThat(service.compare("HEAD~1", "HEAD", false, true, spelled, null)
+                            .files())
+                    .extracting(GitDiffEntry::path)
+                    .containsExactly("docs/a.txt");
+        }
+        assertThat(service.getCommitLog(10, "./docs//a.txt", false).commits())
+                .extracting(GitCommit::message)
+                .containsExactly("change", "base");
+        assertThat(service.getCommitLog(10, ".", false).commits()).hasSize(2);
+        // A root names no file and a one-file read refuses it, rather than widening to the whole
+        // commit — for /compare that would be every patch in the range; so it does what names a
+        // file outside the repository or reads as an absolute path.
+        for (String notAFile : new String[] {".", "./", "/docs/a.txt", "../a.txt", "docs/../../a.txt"}) {
+            assertThatThrownBy(() -> service.getCommit("HEAD", true, notAFile))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> service.compare("HEAD~1", "HEAD", false, true, notAFile, null))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    /** Two dots inside a name climb nowhere: such a file is read like any other. */
+    @Test
+    void aNameWithTwoDotsInsideIsAnOrdinaryFile() {
+        writeFile("docs/release..notes.md", "a\n");
+        commitAll("base");
+        writeFile("docs/release..notes.md", "a\nb\n");
+        commitAll("change");
+
+        assertThat(service.getCommit("HEAD", true, "docs/release..notes.md").files())
+                .singleElement()
+                .satisfies(entry -> assertThat(entry.patch()).contains("+b"));
+        assertThat(service.getCommitLog(10, "docs/release..notes.md", false).commits())
+                .hasSize(2);
+        assertThat(service.getFileContent("docs/release..notes.md").content()).isEqualTo("a\nb\n");
+        assertThat(service.getFileTree(null, "docs"))
+                .extracting(GitFileNode::path)
+                .containsExactly("docs/release..notes.md");
+    }
+
     @Test
     void getCommitOfAnUnknownRevisionIsAnArgumentError() {
         writeFile("a.txt", "a\n");
