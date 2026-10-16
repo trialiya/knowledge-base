@@ -54,7 +54,7 @@ class RevisionCompareTest {
      */
     @Test
     void byDefaultTheBranchIsReadFromTheCommonAncestor() {
-        GitComparison comparison = service.compare("main", "feature", false, false, null);
+        GitComparison comparison = service.compare("main", "feature", false, false, null, null);
 
         assertThat(comparison.files())
                 .extracting(GitDiffEntry::status, GitDiffEntry::path)
@@ -67,7 +67,7 @@ class RevisionCompareTest {
     /** Прямое сравнение — разница двух деревьев, и правка {@code main} в ней видна. */
     @Test
     void aDirectComparisonDiffsTheTwoTreesThemselves() {
-        GitComparison comparison = service.compare("main", "feature", true, false, null);
+        GitComparison comparison = service.compare("main", "feature", true, false, null, null);
 
         assertThat(comparison.files())
                 .extracting(GitDiffEntry::path)
@@ -81,7 +81,7 @@ class RevisionCompareTest {
     void theLogCountsBothSidesAndListsTheCommitsOfHead() {
         commitOn("feature", "feature.txt", "more\n", "feature second");
 
-        var log = service.compare("main", "feature", false, false, null).log();
+        var log = service.compare("main", "feature", false, false, null, null).log();
 
         assertThat(log).isNotNull();
         assertThat(log.ahead()).isEqualTo(2);
@@ -94,7 +94,7 @@ class RevisionCompareTest {
     /** Один файл — с патчем и без истории: её спрашивает только сводка. */
     @Test
     void oneFileComesWithItsPatchAndWithoutTheLog() {
-        GitComparison comparison = service.compare("main", "feature", false, true, "README.md");
+        GitComparison comparison = service.compare("main", "feature", false, true, "README.md", null);
 
         assertThat(comparison.log()).isNull();
         assertThat(comparison.files()).singleElement().satisfies(entry -> {
@@ -105,13 +105,88 @@ class RevisionCompareTest {
 
     @Test
     void aFileTheRevisionsShareUnchangedIsAnEmptyAnswer() {
-        assertThat(service.compare("main", "feature", false, true, "shared.txt").files())
+        assertThat(service.compare("main", "feature", false, true, "shared.txt", null)
+                        .files())
                 .isEmpty();
+    }
+
+    /** Сужение каталогом: файлы под ним и только те коммиты, что его меняли, — по обе стороны. */
+    @Test
+    void aScopeNarrowsBothTheFilesAndTheLog() {
+        commitOn("feature", "docs/guide.md", "guide\n", "docs work");
+
+        GitComparison comparison = service.compare("main", "feature", false, false, null, "docs/");
+
+        assertThat(comparison.files()).extracting(GitDiffEntry::path).containsExactly("docs/guide.md");
+        assertThat(comparison.log()).isNotNull();
+        assertThat(comparison.log().ahead()).isEqualTo(1);
+        assertThat(comparison.log().behind()).isZero();
+        assertThat(comparison.log().commits()).extracting(GitCommit::message).containsExactly("docs work");
+    }
+
+    /** Слияние, принёсшее правку в каталог, ей не автор: считается коммит, который её сделал. */
+    @Test
+    void aMergeThatOnlyBringsAChangeIsNotCountedForTheScope() {
+        git("switch", "-q", "feature");
+        git("switch", "-q", "-c", "side");
+        write("docs/side.md", "side\n");
+        git("add", "-A");
+        git("commit", "-q", "-m", "side docs");
+        git("switch", "-q", "feature");
+        git("merge", "-q", "--no-ff", "-m", "merge side", "side");
+        git("switch", "-q", "main");
+
+        var log = service.compare("main", "feature", false, false, null, "docs").log();
+
+        assertThat(log).isNotNull();
+        assertThat(log.commits()).extracting(GitCommit::message).containsExactly("side docs");
+        assertThat(log.ahead()).isEqualTo(1);
+    }
+
+    @Test
+    void aFileIsAScopeToo() {
+        GitComparison comparison = service.compare("main", "feature", false, false, null, "README.md");
+
+        assertThat(comparison.files()).extracting(GitDiffEntry::path).containsExactly("README.md");
+    }
+
+    /**
+     * Перенос в каталог или из него остаётся переносом с любой стороны, а не новым файлом, — и
+     * история считает правки файла и до переноса, раз список показывает их в нём.
+     */
+    @Test
+    void aRenameAcrossTheScopeKeepsBothSidesAndItsHistory() {
+        String lines = "line\n".repeat(20);
+        write("big.txt", lines);
+        git("add", "-A");
+        git("commit", "-q", "-m", "big file");
+        git("switch", "-q", "-c", "moved");
+        write("big.txt", lines + "edited\n");
+        git("commit", "-q", "-am", "edit before move");
+        try {
+            Files.createDirectories(repoDir.resolve("docs"));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        git("mv", "big.txt", "docs/big.txt");
+        git("commit", "-q", "-m", "move");
+        git("switch", "-q", "main");
+
+        for (String scope : new String[] {"docs", "big.txt"}) {
+            GitComparison comparison = service.compare("main", "moved", false, false, null, scope);
+            assertThat(comparison.files())
+                    .extracting(GitDiffEntry::path, GitDiffEntry::oldPath)
+                    .containsExactly(tuple("docs/big.txt", "big.txt"));
+            assertThat(comparison.log()).isNotNull();
+            assertThat(comparison.log().commits())
+                    .extracting(GitCommit::message)
+                    .containsExactly("move", "edit before move");
+        }
     }
 
     @Test
     void aRevisionComparedWithItselfHasNothingBetween() {
-        GitComparison comparison = service.compare("feature", "feature", false, false, null);
+        GitComparison comparison = service.compare("feature", "feature", false, false, null, null);
 
         assertThat(comparison.files()).isEmpty();
         assertThat(comparison.log()).isNotNull();
@@ -127,7 +202,7 @@ class RevisionCompareTest {
         git("add", "-A");
         git("commit", "-q", "-m", "unrelated");
 
-        GitComparison comparison = service.compare("main", "other", false, false, null);
+        GitComparison comparison = service.compare("main", "other", false, false, null, null);
 
         assertThat(comparison.mergeBase()).isNull();
         assertThat(comparison.diffBase()).isEqualTo(comparison.base().hash());
@@ -136,7 +211,7 @@ class RevisionCompareTest {
 
     @Test
     void anUnknownRevisionIsTheCallersMistake() {
-        assertThatThrownBy(() -> service.compare("nosuchtag", "main", false, false, null))
+        assertThatThrownBy(() -> service.compare("nosuchtag", "main", false, false, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -150,7 +225,9 @@ class RevisionCompareTest {
 
     private void write(String name, String text) {
         try {
-            Files.writeString(repoDir.resolve(name), text, StandardCharsets.UTF_8);
+            Path file = repoDir.resolve(name);
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, text, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

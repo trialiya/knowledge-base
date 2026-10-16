@@ -295,6 +295,7 @@ function App() {
               rev={nav.fileRev}
               base={nav.fileBase}
               direct={nav.fileDirect}
+              scope={nav.fileScope}
               blame={nav.fileBlame}
               find={nav.fileFind}
               findRegex={nav.fileFindRegex}

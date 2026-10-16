@@ -538,7 +538,7 @@ public class GitService {
             AbstractTreeIterator oldTree = parent == null ? new EmptyTreeIterator() : treeIterator(reader, parent);
             AbstractTreeIterator newTree = treeIterator(reader, commit);
 
-            List<GitDiffEntry> entries = Diffs.scan(repository, oldTree, newTree, includePatch, filePath, only);
+            List<GitDiffEntry> entries = Diffs.scan(repository, oldTree, newTree, includePatch, filePath, only, null);
             return Diffs.toGitCommit(commit, entries, reader, includeBody, includeParents);
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + hash, e);
@@ -568,15 +568,19 @@ public class GitService {
      *     a tag, {@code HEAD~2}
      * @param head the revision compared, read the same way
      * @param direct diff against {@code base} itself rather than the common ancestor
+     * @param scope a file or directory to narrow the comparison to — both the files and the
+     *     history between the two; {@code null} or blank compares the whole repository
      */
     public GitComparison compare(
             @NonNull String base,
             @NonNull String head,
             boolean direct,
             boolean includePatch,
-            @Nullable String filePath) {
+            @Nullable String filePath,
+            @Nullable String scope) {
         String only = (filePath == null || filePath.isBlank()) ? null : RepoPaths.toForwardSlashes(filePath.strip());
-        return RevisionCompare.compare(repository, base.strip(), head.strip(), direct, includePatch, only);
+        return RevisionCompare.compare(
+                repository, base.strip(), head.strip(), direct, includePatch, only, RepoPaths.normalizeDir(scope));
     }
 
     // ── File search ─────────────────────────────────────────────────────────

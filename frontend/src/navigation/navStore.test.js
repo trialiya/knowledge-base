@@ -459,6 +459,40 @@ describe('сравнение ревизий в «Файлах»', () => {
     expect(url()).toBe('/files/a.js?changes=1');
   });
 
+  it('сужение до пути переживает смену базы и способа, но не выход из сравнения', () => {
+    go('/files/docs?changes=1&base=main');
+    const s = mount();
+    s.setFileCompare('main', false, 'docs');
+    expect(url()).toBe('/files/docs?changes=1&base=main&scope=docs');
+    s.setFileCompare('release', true);
+    expect(url()).toBe('/files/docs?changes=1&base=release&direct=1&scope=docs');
+    s.setFileCompare('release', true, '');
+    expect(url()).toBe('/files/docs?changes=1&base=release&direct=1');
+    s.setFileCompare('main', false, 'docs');
+    s.setFileCompare('');
+    expect(url()).toBe('/files/docs?changes=1');
+    s.setFileCompare('main');
+    expect(url()).toBe('/files/docs?changes=1&base=main');
+  });
+
+  it('уход из режима изменений забывает и сужение; без базы оно в адресе ничего не значит', () => {
+    go('/files/docs?changes=1&base=main&scope=docs');
+    const s = mount();
+    expect(s.nav()).toMatchObject({ fileBase: 'main', fileScope: 'docs' });
+    s.setFileMode('tree');
+    expect(url()).toBe('/files/docs');
+    go('/files/docs?changes=1&scope=docs');
+    expect(mount().nav()).toMatchObject({ fileBase: '', fileScope: '' });
+  });
+
+  /** «Поменять местами» — переход с новой ревизией, и сужение он несёт с собой. */
+  it('переход со сравнением в опциях переносит и сужение', () => {
+    go('/files/docs?changes=1&base=main&scope=docs');
+    const s = mount();
+    s.openFilePath('docs', undefined, { rev: 'main', base: 'feature', direct: false, scope: 'docs' });
+    expect(url()).toBe('/files/docs?changes=1&rev=main&base=feature&scope=docs');
+  });
+
   it('выбор базы из другого режима переключает в изменения: сравнение — это их список', () => {
     go('/files/a.js');
     const s = mount();

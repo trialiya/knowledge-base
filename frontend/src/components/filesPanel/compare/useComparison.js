@@ -11,6 +11,9 @@ import gitApi from '@/api/gitApi';
  * `rev` пустой — сравнивается HEAD рабочего дерева: незакоммиченное в
  * сравнение не входит, у него свой список (режим «Изменения» без базы).
  *
+ * `scope` — файл или каталог, которым сравнение сужено (ScopeChip): сервер
+ * оставляет файлы под ним и коммиты, которые его меняли.
+ *
  * В ключе оба токена: и база, и ревизия бывают ветками, а ветка после коммита,
  * pull или switch (`refreshToken`) и remote-ветка после fetch (`refsToken`)
  * называют уже другой коммит.
@@ -18,12 +21,14 @@ import gitApi from '@/api/gitApi';
  * Отдаёт то же, что useUncommittedChanges (`tracked`/`untracked`), чтобы
  * список слева не знал, чьи изменения показывает.
  */
-export default function useComparison({ project, base, rev, direct, refreshToken, refsToken, enabled = true }) {
+export default function useComparison({ project, base, rev, direct, scope, refreshToken, refsToken, enabled = true }) {
   const requestKey =
     base && enabled
-      ? `${refreshToken ?? 0} ${refsToken ?? 0} ${project ?? ''} ${direct ? 1 : 0} ${rev}\n${base}`
+      ? `${refreshToken ?? 0} ${refsToken ?? 0} ${project ?? ''} ${direct ? 1 : 0} ${rev}\n${base}\n${scope ?? ''}`
       : null;
-  const answer = useKeyedRequest(requestKey, (signal) => gitApi.compare(base, { head: rev, direct, project, signal }));
+  const answer = useKeyedRequest(requestKey, (signal) =>
+    gitApi.compare(base, { head: rev, direct, scope, project, signal }),
+  );
 
   return useMemo(() => {
     const entries = answer.value?.files ?? [];

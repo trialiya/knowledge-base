@@ -114,7 +114,7 @@ describe('CommitHistory', () => {
     const { rerender } = show({ path: 'src/a.js' });
     await screen.findByText('Новый коммит');
 
-    await userEvent.click(screen.getByText(/history.scopeOnly/));
+    await userEvent.click(screen.getByText(/scope.only/));
     await waitFor(() => expect(gitApi.getCommits).toHaveBeenLastCalledWith('src/a.js', expect.anything()));
 
     const calls = gitApi.getCommits.mock.calls.length;

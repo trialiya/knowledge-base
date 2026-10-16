@@ -1,0 +1,28 @@
+/* ── Сужение левого списка до открытого пути (ScopeChip): лента «История» и
+   сравнение с базой ── */
+
+.files-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px var(--ws-gutter) 0;
+  min-width: 0;
+}
+
+.files-scope__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 1px 2px 1px 8px;
+  border-radius: 6px;
+  background: var(--kb-accent-surface);
+  color: var(--kb-accent);
+  font-size: 0.75rem;
+}
+.files-scope__chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

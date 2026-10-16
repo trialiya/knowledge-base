@@ -390,13 +390,15 @@ const gitApi = {
    * предок и коммиты между ними. `head` не передан — HEAD рабочего дерева;
    * `direct` — сравнивать с самой `base`, а не с общим предком. Как у
    * getCommit, патч — по одному файлу (`path`), и тогда истории в ответе нет.
+   * `scope` — файл или каталог, которым сужено сравнение: и файлы, и история.
    */
-  compare: (base, { head, direct = false, path, patch = false, project, signal } = {}) => {
+  compare: (base, { head, direct = false, path, patch = false, scope, project, signal } = {}) => {
     const params = new URLSearchParams({ base });
     if (head) params.set('head', head);
     if (direct) params.set('direct', 'true');
     if (path) params.set('path', path);
     if (patch) params.set('patch', 'true');
+    if (scope) params.set('scope', scope);
     const [qs, init] = opts(params, project, signal);
     return request(`/api/git/compare${qs}`, init);
   },

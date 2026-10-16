@@ -206,6 +206,8 @@ final class Diffs {
      * @param filePath narrows the diff itself — the tool's reading of a path, renames included
      * @param only keeps the entry reported under this path, found among all the entries: a filter
      *     would hide the other side of a rename, and a renamed file would come back as a new one
+     * @param scope keeps the entries with either path matching it, for the same reason matched
+     *     after rename detection; {@code null} keeps them all
      */
     static List<GitDiffEntry> scan(
             Repository repository,
@@ -213,7 +215,8 @@ final class Diffs {
             AbstractTreeIterator newTree,
             boolean includePatch,
             @Nullable String filePath,
-            @Nullable String only)
+            @Nullable String only,
+            @Nullable Pathspec scope)
             throws IOException {
         List<GitDiffEntry> entries = new ArrayList<>();
         var patchOut = new ByteArrayOutputStream();
@@ -225,6 +228,9 @@ final class Diffs {
             }
             for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
                 if (only != null && !only.equals(reportedPath(entry))) continue;
+                if (scope != null && !scope.matches(entry.getNewPath()) && !scope.matches(entry.getOldPath())) {
+                    continue;
+                }
                 entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
             }
         }

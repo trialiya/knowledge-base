@@ -48,6 +48,20 @@ const show = (props = {}) =>
   );
 
 describe('CompareInfo', () => {
+  /** Счётчики и коммиты суженного сравнения — только по пути: сводка обязана это сказать. */
+  test('names the path the comparison is narrowed to', () => {
+    show({ scope: 'docs/guide' });
+
+    expect(screen.getByText('compare.scope')).toBeInTheDocument();
+    expect(screen.getByText('docs/guide')).toBeInTheDocument();
+  });
+
+  test('a whole-repository comparison has no narrowing row', () => {
+    show();
+
+    expect(screen.queryByText('compare.scope')).not.toBeInTheDocument();
+  });
+
   test('summarises the comparison: both sides, the counters and the files', () => {
     show();
 

@@ -216,12 +216,16 @@
     "allFiles_few": "Все {{count}} файла — в деталях",
     "allFiles_many": "Все {{count}} файлов — в деталях",
     "allFiles_other": "Все {{count}} файла — в деталях",
-    "scopeOnly": "Только {{name}}",
     "scopeClear": "Показать всю историю",
     "openSnapshot": "Открыть снимок",
     "openFile": "Открыть файл"
   },
+  "scope": {
+    "only": "Только {{name}}"
+  },
   "compare": {
+    "scope": "Сужено до",
+    "scopeClear": "Сравнить весь репозиторий",
     "head": "Сравнивается",
     "base": "С базой",
     "mergeBase": "Общий предок",
