@@ -20,6 +20,7 @@ import io.github.trialiya.kb.service.file.git.GitReadTimeoutException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.service.file.git.PreviewMedia;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
@@ -510,7 +511,9 @@ public class GitController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "path must not be blank");
         }
         String s = path.strip();
-        if (s.startsWith("/") || s.startsWith("-") || s.contains("..") || s.indexOf('\0') >= 0) {
+        // «..» сегментом поднимается из репозитория; имя с двумя точками внутри — обычный файл.
+        boolean climbs = Arrays.stream(s.split("[/\\\\]", -1)).anyMatch(".."::equals);
+        if (s.startsWith("/") || s.startsWith("-") || climbs || s.indexOf('\0') >= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid path");
         }
     }

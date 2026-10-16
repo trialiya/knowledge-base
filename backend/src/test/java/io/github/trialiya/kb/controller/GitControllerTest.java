@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -126,6 +127,23 @@ class GitControllerTest {
     void aComparisonWithPatchesButNoPathIsABadRequest() throws Exception {
         mockMvc.perform(get("/api/git/compare").param("base", "main").param("patch", "true"))
                 .andExpect(status().isBadRequest());
+    }
+
+    /** «..» сегментом поднимается из репозитория и отвергается до сервиса, в любом месте пути. */
+    @ParameterizedTest
+    @ValueSource(strings = {"../a.md", "docs/../../a.md", "docs\\..\\a.md", "docs/.."})
+    void aPathThatClimbsIsABadRequest(String path) throws Exception {
+        mockMvc.perform(get("/api/git/files/outline").param("path", path)).andExpect(status().isBadRequest());
+    }
+
+    /** Две точки внутри имени никуда не поднимаются — такой файл читается как любой другой. */
+    @Test
+    void aNameWithTwoDotsInsideIsRead() throws Exception {
+        when(git.getFileOutline(null, "docs/release..notes.md"))
+                .thenReturn(new GitFileOutline("docs/release..notes.md", true, "markdown", 1, "markdown", List.of()));
+
+        mockMvc.perform(get("/api/git/files/outline").param("path", "docs/release..notes.md"))
+                .andExpect(status().isOk());
     }
 
     /** Обзор с ревизией читает снимок, без неё — рабочее дерево. */

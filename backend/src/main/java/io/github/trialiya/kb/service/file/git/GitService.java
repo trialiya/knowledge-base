@@ -165,9 +165,16 @@ public class GitService {
         return rev == null || rev.isBlank() ? null : rev;
     }
 
-    /** An optional file path in git's spelling; {@code null} and blank both mean "none given". */
+    /**
+     * An optional file path, spelled as every other file read spells it ({@link #normalizePath})
+     * — so {@code ./README.md} and {@code README.md} name the same file. {@code null} or blank
+     * means none given; a spelling of the root such as {@code .} names no file and is refused like
+     * one, rather than quietly widening a one-file read to the whole commit.
+     *
+     * @throws IllegalArgumentException if the path is unsafe or names no file
+     */
     private static @Nullable String pathOrNull(@Nullable String filePath) {
-        return filePath == null || filePath.isBlank() ? null : RepoPaths.toForwardSlashes(filePath.strip());
+        return filePath == null || filePath.isBlank() ? null : normalizePath(filePath);
     }
 
     // ── File tree ────────────────────────────────────────────────────────────
