@@ -14,7 +14,7 @@ const ScopeChip = ({ path, scope, onScopeChange, clearLabel }) => {
   const { t } = useTranslation('files');
   const shown = scope || path;
   if (!shown) return null;
-  const label = t('scope.only', { name: shown.split('/').pop() });
+  const label = t('scope.only', { name: shown.replace(/\/+$/, '').split('/').pop() });
 
   return (
     <div className="files-scope">

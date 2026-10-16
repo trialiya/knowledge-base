@@ -538,7 +538,7 @@ public class GitService {
             AbstractTreeIterator oldTree = parent == null ? new EmptyTreeIterator() : treeIterator(reader, parent);
             AbstractTreeIterator newTree = treeIterator(reader, commit);
 
-            List<GitDiffEntry> entries = Diffs.scan(repository, oldTree, newTree, includePatch, filePath, only, "");
+            List<GitDiffEntry> entries = Diffs.scan(repository, oldTree, newTree, includePatch, filePath, only, null);
             return Diffs.toGitCommit(commit, entries, reader, includeBody, includeParents);
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + hash, e);

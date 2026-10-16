@@ -124,6 +124,25 @@ class RevisionCompareTest {
         assertThat(comparison.log().commits()).extracting(GitCommit::message).containsExactly("docs work");
     }
 
+    /** Слияние, принёсшее правку в каталог, ей не автор: считается коммит, который её сделал. */
+    @Test
+    void aMergeThatOnlyBringsAChangeIsNotCountedForTheScope() {
+        git("switch", "-q", "feature");
+        git("switch", "-q", "-c", "side");
+        write("docs/side.md", "side\n");
+        git("add", "-A");
+        git("commit", "-q", "-m", "side docs");
+        git("switch", "-q", "feature");
+        git("merge", "-q", "--no-ff", "-m", "merge side", "side");
+        git("switch", "-q", "main");
+
+        var log = service.compare("main", "feature", false, false, null, "docs").log();
+
+        assertThat(log).isNotNull();
+        assertThat(log.commits()).extracting(GitCommit::message).containsExactly("side docs");
+        assertThat(log.ahead()).isEqualTo(1);
+    }
+
     @Test
     void aFileIsAScopeToo() {
         GitComparison comparison = service.compare("main", "feature", false, false, null, "README.md");

@@ -62,6 +62,12 @@ final class CommitWalk implements AutoCloseable, Iterable<RevCommit> {
         return this;
     }
 
+    /** Коммит с разобранной шапкой — у родителя, ещё не выданного обходом, дерево может быть не прочитано. */
+    RevCommit parsed(RevCommit commit) throws IOException {
+        walk.parseHeaders(commit);
+        return commit;
+    }
+
     /** Читатель объектов обхода; принадлежит обходу и закрывается вместе с ним. */
     ObjectReader reader() {
         return walk.getObjectReader();

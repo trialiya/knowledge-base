@@ -14,6 +14,10 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.revwalk.filter.RevFilter;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.treewalk.TreeWalk;
+import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
+import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
+import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -52,6 +56,7 @@ final class RevisionCompare {
             boolean includePatch,
             @Nullable String only,
             String scope) {
+        @Nullable Pathspec within = scope.isEmpty() ? null : new Pathspec(null, scope);
         ObjectId baseId = CommitFiles.commitOf(repository, base);
         ObjectId headId = CommitFiles.commitOf(repository, head);
         try (RevWalk walk = new RevWalk(repository)) {
@@ -60,13 +65,13 @@ final class RevisionCompare {
             RevCommit headCommit = walk.parseCommit(headId);
             @Nullable RevCommit mergeBase = mergeBase(repository, baseId, headId);
             RevCommit diffBase = direct || mergeBase == null ? baseCommit : walk.parseCommit(mergeBase);
-            List<GitDiffEntry> files = diff(repository, reader, diffBase, headCommit, includePatch, only, scope);
+            List<GitDiffEntry> files = diff(repository, reader, diffBase, headCommit, includePatch, only, within);
             return new GitComparison(
                     Diffs.toGitCommit(baseCommit, null, reader, false),
                     Diffs.toGitCommit(headCommit, null, reader, false),
                     mergeBase == null ? null : mergeBase.getName(),
                     diffBase.getName(),
-                    only == null ? log(repository, baseId, headId, historyPaths(scope, files)) : null,
+                    only == null ? log(repository, baseId, headId, historyPaths(within, files)) : null,
                     files);
         } catch (IOException e) {
             throw new IllegalStateException("Failed comparing " + base + " with " + head, e);
@@ -95,7 +100,7 @@ final class RevisionCompare {
             RevCommit to,
             boolean includePatch,
             @Nullable String only,
-            String scope)
+            @Nullable Pathspec scope)
             throws IOException {
         CanonicalTreeParser oldTree = new CanonicalTreeParser();
         oldTree.reset(reader, from.getTree());
@@ -107,58 +112,76 @@ final class RevisionCompare {
     /**
      * Пути, по которым считается история суженного сравнения: сам {@code scope} и та сторона каждого
      * переноса через его границу, что лежит снаружи. Иначе список показал бы перенос со всеми
-     * правками файла до него, а счётчики — один коммит переноса. Пусто — история всего репозитория.
+     * правками файла до него, а счётчики — один коммит переноса. Копия истории источника не несёт:
+     * источник живёт дальше своей жизнью, и его правки к сужению отношения не имеют. Пусто — история
+     * всего репозитория.
      */
-    private static List<String> historyPaths(String scope, List<GitDiffEntry> files) {
-        if (scope.isEmpty()) return List.of();
+    private static List<String> historyPaths(@Nullable Pathspec scope, List<GitDiffEntry> files) {
+        if (scope == null) return List.of();
         List<String> paths = new ArrayList<>();
-        paths.add(scope);
+        paths.add(scope.literal());
         for (GitDiffEntry entry : files) {
             String old = entry.oldPath();
-            if (old == null) continue;
-            if (!Diffs.within(old, scope)) paths.add(old);
-            if (!Diffs.within(entry.path(), scope)) paths.add(entry.path());
+            if (old == null || !"R".equals(entry.status())) continue;
+            if (!scope.matches(old)) paths.add(old);
+            if (!scope.matches(entry.path())) paths.add(entry.path());
         }
         return paths;
     }
 
     private static GitComparisonLog log(Repository repository, ObjectId base, ObjectId head, List<String> paths)
             throws IOException {
-        List<GitCommit> commits = new ArrayList<>();
-        Count ahead = new Count();
-        try (CommitWalk walk = new CommitWalk(repository)) {
-            walk.from(head).exclude(base).paths(paths);
-            for (RevCommit commit : walk) {
-                if (!ahead.add()) break;
-                if (commits.size() < MAX_COMMITS) {
-                    commits.add(Diffs.toGitCommit(commit, null, walk.reader(), false));
-                }
-            }
-        }
-        Count behind = new Count();
-        try (CommitWalk walk = new CommitWalk(repository)) {
-            walk.from(base).exclude(head).paths(paths);
-            var commit = walk.iterator();
-            while (commit.hasNext() && behind.add()) {
-                commit.next();
-            }
-        }
-        return new GitComparisonLog(ahead.value, ahead.capped, behind.value, behind.capped, commits);
+        Side ahead = side(repository, head, base, paths, MAX_COMMITS);
+        Side behind = side(repository, base, head, paths, 0);
+        return new GitComparisonLog(
+                ahead.count(), ahead.truncated(), behind.count(), behind.truncated(), ahead.commits());
     }
 
-    /** Счёт коммитов одной стороны до {@link #MAX_COUNT}; лишний коммит не считается, а отмечается. */
-    private static final class Count {
-        private int value;
-        private boolean capped;
+    /** Одна сторона истории: сколько коммитов, упёрся ли счёт в предел, и первые {@code listed} из них. */
+    private record Side(int count, boolean truncated, List<GitCommit> commits) {}
 
-        /** Засчитывает ещё один коммит; {@code false} — предел уже набран, и этот за ним. */
-        boolean add() {
-            if (value == MAX_COUNT) {
-                capped = true;
-                return false;
+    /**
+     * Коммиты {@code from}, которых нет в {@code exclude}, — по {@code paths}, если они есть. Предел
+     * {@link #MAX_COUNT} — на просмотренные коммиты, а не на подошедшие: фильтр путей у самого обхода
+     * JGit ставит впереди любого своего, и редко менявшийся файл заставил бы обойти всю историю
+     * диапазона, чтобы найти в ней несколько коммитов. Упёршийся в предел счёт — нижняя граница.
+     */
+    private static Side side(Repository repository, ObjectId from, ObjectId exclude, List<String> paths, int listed)
+            throws IOException {
+        List<GitCommit> commits = new ArrayList<>();
+        int count = 0;
+        int seen = 0;
+        try (CommitWalk walk = new CommitWalk(repository);
+                TreeWalk changes = new TreeWalk(repository, walk.reader())) {
+            walk.from(from).exclude(exclude);
+            if (!paths.isEmpty()) {
+                changes.setRecursive(true);
+                changes.setFilter(AndTreeFilter.create(PathFilterGroup.createFromStrings(paths), TreeFilter.ANY_DIFF));
             }
-            value++;
-            return true;
+            for (RevCommit commit : walk) {
+                if (seen++ == MAX_COUNT) return new Side(count, true, commits);
+                if (!paths.isEmpty() && !touches(walk, changes, commit)) continue;
+                count++;
+                if (commits.size() < listed) commits.add(Diffs.toGitCommit(commit, null, walk.reader(), false));
+            }
         }
+        return new Side(count, false, commits);
+    }
+
+    /**
+     * Менял ли коммит пути фильтра {@code changes}: отличается ли от каждого родителя, как коммит,
+     * который {@code git log -- path} не считает совпавшим с историей. Слияние, принёсшее чужую
+     * правку, ей не автор — её коммит обход встретит сам.
+     */
+    private static boolean touches(CommitWalk walk, TreeWalk changes, RevCommit commit) throws IOException {
+        if (commit.getParentCount() == 0) {
+            changes.reset(commit.getTree());
+            return changes.next();
+        }
+        for (RevCommit parent : commit.getParents()) {
+            changes.reset(walk.parsed(parent).getTree(), commit.getTree());
+            if (!changes.next()) return false;
+        }
+        return true;
     }
 }
