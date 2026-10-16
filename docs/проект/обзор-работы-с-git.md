@@ -48,7 +48,9 @@ git-команды — переключение ветки, stash, коммит,
                    GitService — один экземпляр на проект, открытый JGit Repository
                      ├─ RepoPaths · VisibleFiles · Pathspec   какие пути существуют, как пишутся, поиск по имени
                      ├─ RepoFiles · FileViews · CommitFiles · RepoBrowse   чтение
-                     ├─ Diffs                                  коммиты и диффы в DTO API
+                     ├─ RepoBytes                              сырые байты: окна, файл целиком для превью, хеш
+                     ├─ Diffs · CommitDiff · RevisionCompare   коммиты, диффы и сравнение ревизий в DTO API (буквы статусов — DiffStatus)
+                     ├─ WorkingTreeChanges                     незакоммиченное: tracked против HEAD и untracked из allow-globs
                      ├─ GitGrepRunner (+ GitGrep) · GitBlameRunner (+ GitBlame) · GitLineLog   subprocess git на чтении, через GitReadProcess
                      ├─ LineOriginTracer (+ LineShift)          «когда появилось»: обход версий строки в JGit
                      ├─ GitWriter                              правки модели — в индекс, без коммита
@@ -390,7 +392,7 @@ stash и только потом отказывает, и панель, обно
 | Слой | Файлы |
 |---|---|
 | Проекты | `config/model/ProjectProperties.java`, `config/model/GitProperties.java` (запасная однопроектная форма `kb.git.project-path`, когда `kb.projects` пуст), `model/project/Project.java`, `service/file/project/ProjectCatalog.java`, `tools/ProjectContext.java` |
-| Репозиторий | `service/file/git/` — `GitRegistry`, `GitService`, `GitWriter`, `GitBranches`, `GitCommands`, `GitGrepRunner`/`GitGrep`, `GitBlameRunner`/`GitBlame`, `GitReadProcess`, `RepoPaths`, `VisibleFiles`, `Pathspec`, `RepoFiles`, `FileViews`, `CommitFiles`, `RepoBrowse`, `Diffs`, `RevisionCompare`, `PreviewMedia` |
+| Репозиторий | `service/file/git/` — `GitRegistry`, `GitService`, `GitWriter`, `GitBranches`, `GitCommands`, `GitGrepRunner`/`GitGrep`, `GitBlameRunner`/`GitBlame`, `GitReadProcess`, `RepoPaths`, `VisibleFiles`, `Pathspec`, `RepoFiles`, `RepoBytes`, `FileViews`, `CommitFiles`, `RepoBrowse`, `Diffs`, `DiffStatus`, `CommitDiff`, `WorkingTreeChanges`, `RevisionCompare`, `PreviewMedia` |
 | Инструменты | `functions/GitFunction.java` (рабочее дерево), `functions/GitHistoryFunction.java` (история), `functions/GitReads.java` (общее: репозиторий вызова и обёртка ответа), `functions/GitEditFunction.java`, `service/chat/script/ScriptEditPolicy.java` |
 | Эндпоинты | `controller/GitController.java`, `controller/GitCommandController.java`, `controller/ChatFileRevertController.java` |
 | Чат | `service/chat/git/` — `ChatGitLog`, `ChatFileRevert`, `FileRevertPlan`; `model/chat/entity/GitEventMeta.java` |

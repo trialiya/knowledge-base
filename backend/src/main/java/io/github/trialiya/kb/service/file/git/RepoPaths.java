@@ -164,18 +164,17 @@ final class RepoPaths {
     }
 
     /**
-     * A directory path as the tree tools spell it: the repo root is {@code ""}, and a leading or
-     * trailing slash is not a different directory.
+     * A directory path as the tree tools spell it: the repo root is {@code ""} — blank, {@code .},
+     * slashes alone — and otherwise the path as {@link #normalize} spells it, with the same
+     * refusals. A leading slash is not a different directory here, where in {@link #normalize} it is
+     * refused: a directory is typed by hand far more often than a file is.
      */
     static String normalizeDir(@Nullable String sub) {
         if (sub == null || sub.isBlank()) {
             return "";
         }
-        String s = toForwardSlashes(sub.strip()).replaceAll("^/+|/+$", "");
-        if (s.contains("..")) {
-            throw new IllegalArgumentException("Path traversal not allowed");
-        }
-        return s;
+        String forward = toForwardSlashes(sub.strip()).replaceAll("^/+", "");
+        return forward.matches("[/.]*") && !forward.contains("..") ? "" : normalize(forward);
     }
 
     private static void requireSafe(String path) {

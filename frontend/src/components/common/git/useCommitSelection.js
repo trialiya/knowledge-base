@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
-import { UNTRACKED_STATUS } from '@/components/filesPanel/changes/useUncommittedChanges';
+import { DIFF_STATUS } from '@/constants/diffStatus';
 
 /** Отмечено ли по умолчанию: всё, кроме неотслеживаемых файлов. */
-const defaultChecked = (entry) => entry.status !== UNTRACKED_STATUS;
+const defaultChecked = (entry) => entry.status !== DIFF_STATUS.UNTRACKED;
 
 /**
  * Что из незакоммиченного войдёт в коммит.

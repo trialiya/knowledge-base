@@ -43,12 +43,6 @@ final class Diffs {
      */
     private static final int ABBREV_LEN = 7;
 
-    /**
-     * Status letter for an admitted untracked file in {@link GitService#getUncommittedChanges} — git's own
-     * {@code A/M/D/R/C} say what the index holds, and this one says the index holds nothing.
-     */
-    private static final String UNTRACKED_STATUS = "U";
-
     private Diffs() {}
 
     /** Caps a unified diff at {@value #MAX_DIFF_LINES} lines, marking it when it was cut. */
@@ -169,19 +163,12 @@ final class Diffs {
         @Nullable String oldPath = normalizedDiffPath(entry.getOldPath());
         @Nullable String newPath = normalizedDiffPath(entry.getNewPath());
 
-        String status = switch (entry.getChangeType()) {
-            case ADD -> "A";
-            case DELETE -> "D";
-            case RENAME -> "R";
-            case COPY -> "C";
-            default -> "M";
-        };
+        DiffStatus status = DiffStatus.of(entry.getChangeType());
         // JGit only reports /dev/null (→ null, see normalizedDiffPath) for the side that doesn't
         // exist: oldPath for ADD, newPath for DELETE/everything else — so whichever side `status`
         // picks is always real.
-        String path = Objects.requireNonNull("D".equals(status) ? oldPath : newPath);
-        // Renames AND copies both carry a meaningful source path; everything else has none.
-        String reportedOldPath = "R".equals(status) || "C".equals(status) ? oldPath : null;
+        String path = Objects.requireNonNull(status == DiffStatus.DELETED ? oldPath : newPath);
+        String reportedOldPath = status.hasSource() ? oldPath : null;
 
         int add = 0;
         int del = 0;
@@ -196,7 +183,7 @@ final class Diffs {
         // Обрезается патч целиком, а уже потом делится: лимит считает строки того, что собрал
         // formatter, и шапка занимает место наравне с ними, где бы её потом ни показали.
         Parts parts = includePatch ? split(truncate(formatted(entry, formatter, patchOut))) : new Parts(null, null);
-        return new GitDiffEntry(status, path, reportedOldPath, add, del, parts.header(), parts.body());
+        return new GitDiffEntry(status.code(), path, reportedOldPath, add, del, parts.header(), parts.body());
     }
 
     /**
@@ -262,7 +249,7 @@ final class Diffs {
      */
     static GitDiffEntry untracked(String path, byte @Nullable [] content, boolean includePatch) {
         if (content == null || RepoFiles.isBinary(content)) {
-            return new GitDiffEntry(UNTRACKED_STATUS, path, null, 0, 0, null, null);
+            return new GitDiffEntry(DiffStatus.UNTRACKED.code(), path, null, 0, 0, null, null);
         }
         // Список изменений считает строки у каждого допущенного файла, поэтому строки считаются
         // по байтам: раскладывать в строки то, чего никто не покажет, — работа на весь размер
@@ -293,7 +280,7 @@ final class Diffs {
             // блоком читалась бы как сломанный патч.
             patch = sb.isEmpty() ? null : sb.toString();
         }
-        return new GitDiffEntry(UNTRACKED_STATUS, path, null, lineCount, 0, patchHeader, patch);
+        return new GitDiffEntry(DiffStatus.UNTRACKED.code(), path, null, lineCount, 0, patchHeader, patch);
     }
 
     /**

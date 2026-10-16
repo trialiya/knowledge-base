@@ -1,10 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import FileTree from './FileTree';
 import FileContent from './FileContent';
 import FilesToolbar from './FilesToolbar';
-import ScopeChip from './ScopeChip';
-import ChangesList from './changes/ChangesList';
+import FilesLeftList from './FilesLeftList';
 import useDiffChoice from './changes/useDiffChoice';
 import useChangesSource from './changes/useChangesSource';
 import { readChangesFlat, saveChangesFlat } from './changes/changesLayout';
@@ -13,7 +11,6 @@ import useFileTree from './useFileTree';
 import useGitBranch from './git/useGitBranch';
 import useGitActions from './git/useGitActions';
 import FilesGitDialogs from './git/FilesGitDialogs';
-import CommitHistory from './history/CommitHistory';
 import CommitFileDiff from './history/CommitFileDiff';
 import useNotice from '@/components/common/ui/useNotice';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
@@ -214,57 +211,31 @@ const FilesPanelForProject = ({
           // горизонтальный скролл), поэтому тело панели скролл не берёт.
           bodyScroll: false,
           children: (
-            <div className="files-panel-tree">
-              {mode === FILE_MODE.HISTORY && (
-                <CommitHistory
-                  project={project}
-                  rev={rev}
-                  path={path}
-                  commit={commit}
-                  refreshToken={refreshToken}
-                  refsToken={gitRefsToken}
-                  onOpenFile={(filePath, hash) => onPathChange(filePath, undefined, { commit: hash })}
-                  onOpenSnapshot={(hash) => openSnapshot('', hash)}
-                />
-              )}
-              {comparing && (
-                <ScopeChip
-                  path={path}
-                  scope={scope}
-                  onScopeChange={(next) => onCompareChange(base, direct, next)}
-                  clearLabel={t('compare.scopeClear')}
-                />
-              )}
-              {showChanges && (
-                <ChangesList
-                  tracked={listed.tracked}
-                  untracked={listed.untracked}
-                  flat={flat}
-                  loading={listed.loading}
-                  error={listed.error}
-                  selectedPath={path}
-                  onSelect={selectNode}
-                  snapshot={snapshot}
-                  compare={comparing}
-                  // Откат правки предлагается только там, где проекту разрешены
-                  // команды: без разрешения кнопка отвечала бы отказом сервера.
-                  // Коммит откатывать нечем — снимок только для чтения.
-                  onDiscard={
-                    !snapshot && !comparing && git.capabilities?.commands && !git.running ? actions.askDiscard : null
-                  }
-                />
-              )}
-              {mode === FILE_MODE.TREE && (
-                <FileTree
-                  treeCache={treeCache}
-                  loadingDirs={loadingDirs}
-                  expanded={expanded}
-                  selectedPath={path}
-                  onToggle={toggleExpand}
-                  onSelect={selectNode}
-                />
-              )}
-            </div>
+            <FilesLeftList
+              mode={mode}
+              project={project}
+              rev={rev}
+              path={path}
+              commit={commit}
+              refreshToken={refreshToken}
+              gitRefsToken={gitRefsToken}
+              onOpenCommitFile={(filePath, hash) => onPathChange(filePath, undefined, { commit: hash })}
+              onOpenSnapshot={(hash) => openSnapshot('', hash)}
+              scope={scope}
+              onScopeChange={(next) => onCompareChange(base, direct, next)}
+              changes={showChanges ? listed : null}
+              flat={flat}
+              snapshot={snapshot}
+              comparing={comparing}
+              // Откат правки предлагается только там, где проекту разрешены
+              // команды: без разрешения кнопка отвечала бы отказом сервера.
+              // Коммит откатывать нечем — снимок только для чтения.
+              onDiscard={
+                !snapshot && !comparing && git.capabilities?.commands && !git.running ? actions.askDiscard : null
+              }
+              tree={{ treeCache, loadingDirs, expanded, onToggle: toggleExpand }}
+              onSelect={selectNode}
+            />
           ),
         }}
         center={

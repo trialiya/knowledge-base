@@ -9,6 +9,7 @@
 import { patchParts } from '../diffRender';
 import shortRev from '@/components/common/git/shortRev';
 import { nonEmptyString as str } from './fieldValue';
+import { DIFF_STATUS } from '@/constants/diffStatus';
 
 // Больше двух сотен файлов за вызов — это уже не «изменения», а выгрузка;
 // разворачивать её построчно бессмысленно, JSON честнее.
@@ -25,8 +26,8 @@ const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.
 const statusOf = (obj) => {
   const status = str(obj.status);
   if (status) return status.charAt(0).toUpperCase();
-  if (obj.operation === 'create') return 'A';
-  return 'M';
+  if (obj.operation === 'create') return DIFF_STATUS.ADDED;
+  return DIFF_STATUS.MODIFIED;
 };
 
 /** Сам патч: `patch` у записей коммита, `diff` у правки файла. */

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { DiffStats } from '@/components/chatPanel/messages/diffRender';
 import { IconEraser } from '@/icons/index';
 import { renamedFrom } from './changeTree';
+import { DIFF_STATUS } from '@/constants/diffStatus';
 
 /**
  * Строка изменённого файла — одна на обе раскладки: в плоской перед именем
@@ -49,7 +50,7 @@ const ChangeRow = ({ entry, depth = 0, showDir = false, selected, onSelect, onDi
       {/* Откат только у отслеживаемого файла: у неотслеживаемого нет
           закоммиченного состояния, к которому его возвращать, и команда
           ответила бы отказом. Клик не должен открывать файл заодно. */}
-      {onDiscard && entry.status !== 'U' && (
+      {onDiscard && entry.status !== DIFF_STATUS.UNTRACKED && (
         <button
           type="button"
           className="ws-item__action icon-btn--danger"
