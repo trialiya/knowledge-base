@@ -1,7 +1,6 @@
 package io.github.trialiya.kb.utils;
 
 import io.github.trialiya.kb.config.model.BackgroundModelProperties;
-import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -32,7 +31,7 @@ public final class BackgroundCallOptions {
     /** Package-private ради теста. */
     static OpenAiChatOptions.Builder of(OpenAiChatModel chatModel, BackgroundModelProperties properties) {
         final OpenAiChatOptions.Builder options = chatModel.getOptions().mutate();
-        final @Nullable String model = properties.model();
+        final String model = properties.model();
         if (model != null) {
             options.model(model);
         }

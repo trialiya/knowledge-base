@@ -115,7 +115,7 @@ final class GitGrep {
         Block block = new Block(limit, results);
         // The first line of the output names a file; after that only a blank line announces one.
         boolean heading = true;
-        @Nullable String path = null;
+        String path = null;
 
         for (String line : lines) {
             if (line.isBlank()) {
@@ -136,7 +136,7 @@ final class GitGrep {
             // Defensive: git prints no line before the first heading, so a data line without a
             // path is output this parser does not understand — dropping it beats inventing a path.
             if (path == null) continue;
-            @Nullable DataLine data = parseDataLine(line);
+            DataLine data = parseDataLine(line);
             if (data == null) continue;
 
             if (ctx == 0) {

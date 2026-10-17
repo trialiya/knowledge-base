@@ -117,7 +117,7 @@ final class ProjectStampDump implements Closeable {
     }
 
     private DumpRow dumpRow(ChatMessageEntity row) {
-        final @Nullable ChatMessageMeta meta = row.getMeta();
+        final ChatMessageMeta meta = row.getMeta();
         return new DumpRow(
                 row.getId(),
                 row.getConversationId(),

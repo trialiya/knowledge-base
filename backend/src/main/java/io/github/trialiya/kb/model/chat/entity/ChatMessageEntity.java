@@ -10,7 +10,6 @@ import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
@@ -25,20 +24,16 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
     @Id
     private long id;
 
-    @NonNull
     private final String conversationId;
 
-    @NonNull
     private final String content;
 
-    @NonNull
     private final MessageType type;
 
     private final long position;
     private final boolean summarized;
     private final boolean summary;
 
-    @NonNull
     private final LocalDateTime createdAt;
 
     @Nullable
@@ -60,13 +55,13 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
     @PersistenceCreator
     public ChatMessageEntity(
             long id,
-            @NonNull String conversationId,
-            @NonNull String content,
-            @NonNull MessageType type,
+            String conversationId,
+            String content,
+            MessageType type,
             long position,
             boolean summarized,
             boolean summary,
-            @NonNull LocalDateTime createdAt,
+            LocalDateTime createdAt,
             @Nullable ChatMessageMeta meta,
             @Nullable ToolData toolData,
             @Nullable String reasoning) {
@@ -85,13 +80,13 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
 
     public ChatMessageEntity(
             long id,
-            @NonNull String conversationId,
-            @NonNull String content,
-            @NonNull MessageType type,
+            String conversationId,
+            String content,
+            MessageType type,
             long position,
             boolean summarized,
             boolean summary,
-            @NonNull LocalDateTime createdAt,
+            LocalDateTime createdAt,
             @Nullable ChatMessageMeta meta,
             @Nullable ToolData toolData) {
         this(id, conversationId, content, type, position, summarized, summary, createdAt, meta, toolData, null);
@@ -99,13 +94,13 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
 
     public ChatMessageEntity(
             long id,
-            @NonNull String conversationId,
-            @NonNull String content,
-            @NonNull MessageType type,
+            String conversationId,
+            String content,
+            MessageType type,
             long position,
             boolean summarized,
             boolean summary,
-            @NonNull LocalDateTime createdAt,
+            LocalDateTime createdAt,
             @Nullable ChatMessageMeta meta) {
         this(id, conversationId, content, type, position, summarized, summary, createdAt, meta, null);
     }
@@ -142,7 +137,6 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
     }
 
     @Override
-    @NonNull
     public Long getId() {
         return id;
     }
@@ -167,17 +161,14 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
         return Map.of();
     }
 
-    @NonNull
     public String getConversationId() {
         return conversationId;
     }
 
-    @NonNull
     public String getContent() {
         return content;
     }
 
-    @NonNull
     public MessageType getType() {
         return type;
     }
@@ -194,7 +185,6 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
         return summary;
     }
 
-    @NonNull
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }

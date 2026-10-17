@@ -819,7 +819,7 @@ public class ChatHistoryService {
         final Map<Long, String> context = contextItemService.renderAll(conversationId, rows);
         // Блок активного проекта собирается один раз на окно и достаётся одному ряду — см.
         // ActiveProjectNotice.
-        final ActiveProjectNotice.@Nullable Placement project = activeProject.place(conversationId, rows);
+        final ActiveProjectNotice.Placement project = activeProject.place(conversationId, rows);
         return rows.stream()
                 .map(entity -> promptRow(
                         entity,

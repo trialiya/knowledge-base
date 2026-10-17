@@ -12,7 +12,6 @@ import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
@@ -150,7 +149,7 @@ public class AttachmentFunction {
         return attachmentService.search(conversationId, query);
     }
 
-    private static @NonNull String getTruncatedContent(String content) {
+    private static String getTruncatedContent(String content) {
         // Truncate for tool response to avoid flooding the context window
         if (content.length() > 15_000) {
             return content.substring(0, 15_000) + "\n... (content truncated; total chars: " + content.length() + ")";

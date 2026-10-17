@@ -261,7 +261,7 @@ public class ToolCallService {
     public List<@Nullable List<ToolInvocationMeta>> invocationsForPage(List<ChatMessageEntity> page) {
         final List<@Nullable TopUp> topUps = new ArrayList<>(page.size());
         final Set<String> callIds = new LinkedHashSet<>();
-        @Nullable String conversationId = null;
+        String conversationId = null;
         for (ChatMessageEntity row : page) {
             final TopUp topUp = topUpFor(row);
             topUps.add(topUp);

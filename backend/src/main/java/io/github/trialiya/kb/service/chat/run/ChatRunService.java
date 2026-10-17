@@ -518,7 +518,7 @@ public class ChatRunService {
             if (resolvedModel != null) {
                 chatOptions.model(resolvedModel);
             }
-            final ReasoningOptions.@Nullable Level reasoningLevel = options.reasoning();
+            final ReasoningOptions.Level reasoningLevel = options.reasoning();
             if (reasoningLevel != null) {
                 reasoningLevel.applyTo(chatOptions);
             }

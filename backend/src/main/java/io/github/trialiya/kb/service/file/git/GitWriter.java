@@ -16,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Constants;
-import org.jspecify.annotations.NonNull;
 
 /**
  * Working-tree writes for one project: {@code createFile} / {@code editFile} and the whole-content
@@ -59,7 +58,7 @@ final class GitWriter {
      * unreadable orphan — the file is removed again and the call fails), the name is an OS/IDE junk
      * artefact, or the content exceeds {@value RepoFiles#MAX_FILE_SIZE} bytes.
      */
-    GitEditResult createFile(@NonNull String filePath, @NonNull String content) {
+    GitEditResult createFile(String filePath, String content) {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         String normalized = requireCreatable(filePath, bytes);
         int lines = content.isEmpty() ? 0 : content.split("\n", -1).length;
@@ -73,7 +72,7 @@ final class GitWriter {
      * <p>Line counters come back as zero rather than as a count of accidental {@code 0x0A} bytes: a
      * binary file has no lines, and a number that looks like one would be read as if it did.
      */
-    GitEditResult createBinaryFile(@NonNull String filePath, byte @NonNull [] content) {
+    GitEditResult createBinaryFile(String filePath, byte[] content) {
         return create(requireCreatable(filePath, content), content, 0);
     }
 
@@ -133,8 +132,7 @@ final class GitWriter {
      * @return counters plus a unified diff of exactly this edit (truncated to {@value
      *     Diffs#MAX_DIFF_LINES} lines)
      */
-    GitEditResult editFile(
-            @NonNull String filePath, @NonNull String oldString, @NonNull String newString, boolean replaceAll) {
+    GitEditResult editFile(String filePath, String oldString, String newString, boolean replaceAll) {
         // Before the read: a fragment that could not edit anything is an argument error, and
         // saying so must not depend on whether the file opens.
         ExactEdit.requireUsableFragment(oldString, newString);
@@ -163,7 +161,7 @@ final class GitWriter {
      * per file. Not exposed as a tool — the exact-match contract of {@link #editFile} is what
      * forces a model to quote real content, and nothing should be able to skip it.
      */
-    GitEditResult replaceTrackedFile(@NonNull String filePath, @NonNull String newContent) {
+    GitEditResult replaceTrackedFile(String filePath, String newContent) {
         return writeUpdatedText(readEditable(filePath), newContent.replace("\r\n", "\n"));
     }
 
@@ -177,7 +175,7 @@ final class GitWriter {
      * therefore not a diff but git's own answer for a binary change — the two sizes and the fact
      * that they differ.
      */
-    GitEditResult replaceTrackedBytes(@NonNull String filePath, byte @NonNull [] content) {
+    GitEditResult replaceTrackedBytes(String filePath, byte[] content) {
         String normalized = requireWritable(filePath, content);
         Resolved resolved = resolveEditable(normalized);
         long before = RepoFiles.sizeOf(normalized, resolved.absolute());
@@ -256,7 +254,7 @@ final class GitWriter {
      *
      * @param edits applied in the given order, each to the result of the previous one
      */
-    String previewEdited(@NonNull String filePath, @NonNull List<TextEdit> edits) {
+    String previewEdited(String filePath, List<TextEdit> edits) {
         Editable file = readEditable(filePath);
         String text = file.text();
         for (TextEdit edit : edits) {
@@ -290,7 +288,7 @@ final class GitWriter {
      *
      * @param expectedContent the text the file was created with, as its creator passed it
      */
-    void requireDeletable(@NonNull String filePath, @NonNull String expectedContent) {
+    void requireDeletable(String filePath, String expectedContent) {
         String normalized = validateWritablePath(filePath);
         resolveEditable(normalized);
         if (committed(normalized)) {
@@ -312,7 +310,7 @@ final class GitWriter {
      * <p>Re-checks {@link #requireDeletable} rather than trusting a caller that already asked:
      * between the two the tree can have moved, and the checks are a stat and an index lookup.
      */
-    void deleteFile(@NonNull String filePath, @NonNull String expectedContent) {
+    void deleteFile(String filePath, String expectedContent) {
         String normalized = validateWritablePath(filePath);
         Resolved resolved = resolveEditable(normalized);
         requireDeletable(normalized, expectedContent);
@@ -352,7 +350,7 @@ final class GitWriter {
      *
      * @return the normalized path, as {@link #createFile} will spell it
      */
-    String requireCreatable(@NonNull String filePath, byte @NonNull [] content) {
+    String requireCreatable(String filePath, byte[] content) {
         String normalized = requireWritable(filePath, content);
         // Nothing is created that would stay untracked. The allow-globs area is served for reading
         // and editing what is already there — the files in it are produced by something else (a
@@ -377,7 +375,7 @@ final class GitWriter {
      *
      * @return the normalized path, as {@link #replaceTrackedBytes} will spell it
      */
-    String requireReplaceable(@NonNull String filePath, byte @NonNull [] content) {
+    String requireReplaceable(String filePath, byte[] content) {
         String normalized = requireWritable(filePath, content);
         resolveEditable(normalized);
         return normalized;
@@ -395,7 +393,7 @@ final class GitWriter {
      * @return what the gate established, so the read that follows the check does not have to ask
      *     the index the same question a second time
      */
-    Resolved requireEditable(@NonNull String filePath) {
+    Resolved requireEditable(String filePath) {
         return resolveEditable(RepoPaths.normalize(filePath));
     }
 
@@ -433,7 +431,7 @@ final class GitWriter {
      *
      * @return the normalized path, as the write will spell it
      */
-    String requireWritable(@NonNull String filePath, byte @NonNull [] content) {
+    String requireWritable(String filePath, byte[] content) {
         String normalized = validateWritablePath(filePath);
         if (content.length > RepoFiles.MAX_FILE_SIZE) {
             throw new IllegalArgumentException(

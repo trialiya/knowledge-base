@@ -5,7 +5,6 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -139,7 +138,7 @@ final class RepoPaths {
      *
      * @throws IllegalArgumentException if the path is unsafe, or names nothing once collapsed
      */
-    static String normalize(@NonNull String filePath) {
+    static String normalize(String filePath) {
         String forward = toForwardSlashes(filePath.strip());
         requireSafe(forward);
         if (!forward.contains("./")
@@ -180,7 +179,7 @@ final class RepoPaths {
     }
 
     private static void requireSafe(String path) {
-        @Nullable String refusal = refusal(path);
+        String refusal = refusal(path);
         if (refusal != null) {
             throw new IllegalArgumentException(refusal);
         }

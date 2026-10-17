@@ -29,8 +29,8 @@ public interface ReasoningSettings {
      * на опциях модели ({@code mutate()}); {@code extra-body} — через {@link #mergeExtraBody}.
      */
     default void applyTo(OpenAiChatOptions.Builder options) {
-        final @Nullable String reasoningEffort = reasoningEffort();
-        final @Nullable String thinking = thinking();
+        final String reasoningEffort = reasoningEffort();
+        final String thinking = thinking();
         if (reasoningEffort != null) {
             options.reasoningEffort(reasoningEffort);
         }

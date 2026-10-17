@@ -2,7 +2,6 @@ package io.github.trialiya.kb.model.chat.entity;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.domain.Persistable;
@@ -25,13 +24,10 @@ public class ChatPendingMessageEntity implements Persistable<Long> {
     @Id
     private long id;
 
-    @NonNull
     private final String conversationId;
 
-    @NonNull
     private final String user;
 
-    @NonNull
     private final String content;
 
     @Nullable
@@ -52,21 +48,20 @@ public class ChatPendingMessageEntity implements Persistable<Long> {
     @Nullable
     private final String project;
 
-    @NonNull
     private final LocalDateTime createdAt;
 
     public ChatPendingMessageEntity(
             long id,
-            @NonNull String conversationId,
-            @NonNull String user,
-            @NonNull String content,
+            String conversationId,
+            String user,
+            String content,
             @Nullable String clientMsgId,
             @Nullable ChatMessageMeta meta,
             @Nullable String model,
             @Nullable String mode,
             @Nullable String reasoning,
             @Nullable String project,
-            @NonNull LocalDateTime createdAt) {
+            LocalDateTime createdAt) {
         this.id = id;
         this.conversationId = conversationId;
         this.user = user;
@@ -81,7 +76,6 @@ public class ChatPendingMessageEntity implements Persistable<Long> {
     }
 
     @Override
-    @NonNull
     public Long getId() {
         return id;
     }
@@ -91,17 +85,14 @@ public class ChatPendingMessageEntity implements Persistable<Long> {
         return id == 0L;
     }
 
-    @NonNull
     public String getConversationId() {
         return conversationId;
     }
 
-    @NonNull
     public String getUser() {
         return user;
     }
 
-    @NonNull
     public String getContent() {
         return content;
     }
@@ -141,7 +132,6 @@ public class ChatPendingMessageEntity implements Persistable<Long> {
         return project;
     }
 
-    @NonNull
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }

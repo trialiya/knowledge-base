@@ -306,7 +306,7 @@ public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
         if (!(request.prompt().getOptions() instanceof ToolCallingChatOptions options)) {
             return List.of();
         }
-        final @Nullable List<ToolCallback> callbacks = options.getToolCallbacks();
+        final List<ToolCallback> callbacks = options.getToolCallbacks();
         return callbacks == null ? List.of() : callbacks;
     }
 

@@ -4,7 +4,6 @@ import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
@@ -42,7 +41,7 @@ public class ChatInfoFunction {
                 .toString();
     }
 
-    private @NonNull String chatUser(ToolContext context) {
+    private String chatUser(ToolContext context) {
         return Optional.ofNullable(context.getContext().get(USER_NAME))
                 .map(Object::toString)
                 .orElse(ChatUtils.ANONYMOUS_USER);

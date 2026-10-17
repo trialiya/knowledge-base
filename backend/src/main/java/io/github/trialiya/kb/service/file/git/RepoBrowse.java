@@ -136,7 +136,7 @@ final class RepoBrowse {
             String target,
             boolean includeAncestors,
             Function<Boolean, @Nullable GitFileContent> contentOf) {
-        @Nullable FileEntryType typeInPaths = resolvePathType(target, snapshot.paths());
+        FileEntryType typeInPaths = resolvePathType(target, snapshot.paths());
         // Файл, который git помнит, а рабочего дерева уже нет (удалён, переименован, откачен), —
         // это missing, а не отказ: браузер рисует «не найдено», а режим изменений — diff, где
         // такой файл только и виден. Отказ на его месте уносил бы и дерево, и листинги предков,

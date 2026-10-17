@@ -103,7 +103,7 @@ class ActiveProjectNoticeTest {
 
     /** Позиция носителя блока или {@code -1}, если блок ставить некуда. */
     private long anchorOf(List<ChatMessageEntity> rows) {
-        final ActiveProjectNotice.@Nullable Placement placement = notice.place(CONV, rows);
+        final ActiveProjectNotice.Placement placement = notice.place(CONV, rows);
         return placement == null ? -1 : placement.anchor();
     }
 

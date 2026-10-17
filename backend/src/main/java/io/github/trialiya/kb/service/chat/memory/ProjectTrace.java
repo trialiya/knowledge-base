@@ -44,7 +44,7 @@ public record ProjectTrace(
             Supplier<@Nullable String> leadingProject,
             long endPosition) {
         final List<ProjectSpan> spans = new ArrayList<>(inherited(summaries));
-        @Nullable String current;
+        String current;
         long from;
         if (spans.isEmpty()) {
             from = rows.isEmpty() ? 1 : rows.getFirst().getPosition();
@@ -62,7 +62,7 @@ public record ProjectTrace(
             if (row.getPosition() < from) {
                 continue;
             }
-            final @Nullable String carrier = carrier(row);
+            final String carrier = carrier(row);
             if (carrier == null || carrier.equals(current)) {
                 continue;
             }
@@ -85,12 +85,12 @@ public record ProjectTrace(
         if (summaries.isEmpty()) {
             return List.of();
         }
-        final @Nullable ChatMessageMeta meta = summaries.getLast().getMeta();
+        final ChatMessageMeta meta = summaries.getLast().getMeta();
         return meta == null ? List.of() : meta.visitedProjects();
     }
 
     private static @Nullable String carrier(ChatMessageEntity row) {
-        final @Nullable ChatMessageMeta meta = row.getMeta();
+        final ChatMessageMeta meta = row.getMeta();
         return meta == null ? null : meta.project();
     }
 
