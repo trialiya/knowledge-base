@@ -65,7 +65,7 @@ public final class KbEditScriptApi extends KbScriptApi {
         // spellings of one file would otherwise stage two writes, the second computed from the
         // file on disk — silently discarding the first.
         String canonical = canonical(path);
-        GitService.@Nullable EditableFile target = editableTarget(canonical);
+        GitService.EditableFile target = editableTarget(canonical);
         if (oldString.isEmpty()) {
             throw new IllegalArgumentException("oldString must not be empty: " + canonical);
         }

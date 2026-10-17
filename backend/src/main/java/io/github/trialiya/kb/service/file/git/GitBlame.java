@@ -152,7 +152,7 @@ final class GitBlame {
         List<GitFileBlame.Hunk> hunks = new ArrayList<>();
         // The path printed for each hunk, by hunk index; null where git printed none.
         List<@Nullable String> hunkPaths = new ArrayList<>();
-        @Nullable Meta current = null;
+        Meta current = null;
         for (String line : lines) {
             var header = HEADER.matcher(line);
             if (header.matches()) {

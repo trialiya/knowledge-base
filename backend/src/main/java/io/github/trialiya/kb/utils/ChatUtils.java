@@ -8,7 +8,6 @@ import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ToolContext;
@@ -24,7 +23,6 @@ public final class ChatUtils {
 
     private ChatUtils() {}
 
-    @NonNull
     public static String conversationId(ToolContext context) {
         return Optional.ofNullable(context.getContext().get(ChatMemory.CONVERSATION_ID))
                 .map(Object::toString)
@@ -113,7 +111,6 @@ public final class ChatUtils {
      * Текущий аутентифицированный пользователь из {@link SecurityContextHolder}. В контекстах без
      * аутентификации (фоновые потоки, тесты) возвращает {@link #ANONYMOUS_USER}.
      */
-    @NonNull
     public static String getUser() {
         final Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null

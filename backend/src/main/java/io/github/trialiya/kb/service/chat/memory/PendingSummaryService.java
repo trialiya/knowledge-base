@@ -229,7 +229,7 @@ public class PendingSummaryService {
             if (parked.isEmpty()) {
                 return;
             }
-            final @Nullable String reason = due.reason(parked);
+            final String reason = due.reason(parked);
             if (reason == null) {
                 return;
             }
@@ -283,7 +283,7 @@ public class PendingSummaryService {
         if (repository.claim(parked.getId()) == 0) {
             return null;
         }
-        final @Nullable ChatMessageMeta meta = parked.getMeta();
+        final ChatMessageMeta meta = parked.getMeta();
         return summaryWriter.writeCompacted(
                 new SummaryWriter.SummaryRow(
                         conversationId,

@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Repository;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -111,7 +110,7 @@ final class GitGrepRunner {
      *     not a valid regular expression
      */
     GitGrepHits grepHits(
-            @NonNull String pattern,
+            String pattern,
             @Nullable String pathGlob,
             boolean regex,
             @Nullable String rev,
@@ -131,7 +130,7 @@ final class GitGrepRunner {
      * The search page's question: {@link #grepHits} without context, grouped by file.
      */
     GitGrepResult grepPage(
-            @NonNull String pattern,
+            String pattern,
             @Nullable String pathGlob,
             boolean regex,
             @Nullable String rev,
@@ -180,7 +179,7 @@ final class GitGrepRunner {
                 deadline);
         List<GitGrepMatch> extra = GitGrep.parse(extraRun.lines(), ctx, Integer.MAX_VALUE);
         Set<String> trackedPaths = Set.copyOf(visible.trackedPaths());
-        @Nullable Pathspec pathspec = Pathspec.of(glob);
+        Pathspec pathspec = Pathspec.of(glob);
         List<GitGrepMatch> merged = new ArrayList<>(tracked);
         extra.stream()
                 // The roots are wider than the globs, and `--untracked` reports tracked files too;

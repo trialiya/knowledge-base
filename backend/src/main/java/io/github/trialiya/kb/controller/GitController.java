@@ -101,7 +101,7 @@ public class GitController {
         if (query.isBlank()) return new GitGrepResult(0, false, List.of());
         if (pathGlob != null && !pathGlob.isBlank()) requireSafePath(pathGlob);
         GitService git = git(project);
-        @Nullable String revision = revision(rev);
+        String revision = revision(rev);
         return read(() -> git.grepPage(query, pathGlob, regex, revision, untracked, limit));
     }
 
@@ -256,7 +256,7 @@ public class GitController {
         if (from == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "base must not be blank");
         }
-        @Nullable String named = revision(head);
+        String named = revision(head);
         String to = named == null ? "HEAD" : named;
         final String only = path != null && !path.isBlank() ? path : null;
         if (only != null) {

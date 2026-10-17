@@ -44,7 +44,6 @@ import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
 import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
 import io.github.trialiya.kb.service.chat.usage.ChatUsageService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
-import jakarta.annotation.Nonnull;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -52,7 +51,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
@@ -233,7 +231,7 @@ public class ChatController {
             @PathVariable final String conversationId,
             @RequestParam(name = "includeMessages", defaultValue = "true") final boolean includeMessages) {
         final ChatTopicEntity chatTopicEntity = getChatTopic(conversationId);
-        final @Nullable List<ChatMessage> messages = includeMessages
+        final List<ChatMessage> messages = includeMessages
                 ? chatHistory.displayMessages(conversationId).stream()
                         // Пустой текст обычно значит «служебный ряд, показывать нечего», но
                         // у ряда события весь смысл в мете: выбросив его здесь, эта
@@ -603,7 +601,7 @@ public class ChatController {
     //  Helpers
     // ---------------------------------------------------------------------
 
-    private @NonNull ChatTopicEntity getChatTopic(String conversationId) {
+    private ChatTopicEntity getChatTopic(String conversationId) {
         final ChatTopicEntity chatTopicEntity = chatTopicRepository
                 .findById(conversationId)
                 .orElseThrow(
@@ -625,7 +623,7 @@ public class ChatController {
         });
     }
 
-    private void checkChat(@Nonnull final String conversationId, boolean update) {
+    private void checkChat(final String conversationId, boolean update) {
         // Заведение чата — общее с загрузкой вложений (см. ChatTopicService): вложение тоже
         // может оказаться первым, что делают в ещё не начатом разговоре.
         if (chatTopicService.ensureExists(conversationId) && update) {

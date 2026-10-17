@@ -18,7 +18,6 @@ import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.memory.SummarizeWindow.MessageMix;
 import io.github.trialiya.kb.utils.BackgroundCallOptions;
-import jakarta.annotation.Nonnull;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -113,7 +112,7 @@ public class SummarizeService implements DisposableBean {
         executorService.shutdown();
     }
 
-    public void trySummarize(@Nonnull final String conversationId) {
+    public void trySummarize(final String conversationId) {
         executorService.submit(() ->
                 // Замок держит SummaryWriter — он общий с /compact, который сжимает тот же
                 // чат тем же способом и без общего замка успел бы прочитать то же окно.
@@ -126,7 +125,7 @@ public class SummarizeService implements DisposableBean {
                 }));
     }
 
-    public void doSummarize(@Nonnull final String conversationId) {
+    public void doSummarize(final String conversationId) {
         // promptRows is the one place that answers "what does the model see": every row carries the
         // text that will be sent, inventory included, not the text that happens to be stored. The
         // prompt below and the character estimate inside SummarizeWindow both measure exactly that
@@ -188,7 +187,7 @@ public class SummarizeService implements DisposableBean {
         // прогона нет, и без накопителя её токены не попали бы в итог по чату ни одним числом —
         // при том что тратит она столько же, сколько ответ (см. RoundUsageAdvisor).
         final RoundUsageAdvisor roundUsage = new RoundUsageAdvisor();
-        final @Nullable String summaryContent =
+        final String summaryContent =
                 generateSummary(conversationId, existingSummaries, toCompress, collapseSummaries, roundUsage);
         if (summaryContent == null || summaryContent.isBlank()) {
             log.error("[{}] Summarization produced an empty result, skipping this round", conversationId);

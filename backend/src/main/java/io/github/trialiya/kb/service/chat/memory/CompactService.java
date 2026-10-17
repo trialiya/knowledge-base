@@ -385,7 +385,7 @@ public class CompactService {
     private void failed(String conversationId, String runId, long commandId, Exception e) {
         log.error("[{}] Compaction failed: {}", conversationId, e.getMessage(), e);
         hideCommand(commandId);
-        final @Nullable CompactRoundFailed round = e instanceof CompactRoundFailed failed ? failed : null;
+        final CompactRoundFailed round = e instanceof CompactRoundFailed failed ? failed : null;
         events.publish(
                 conversationId,
                 COMPACT_ERROR,
@@ -437,7 +437,7 @@ public class CompactService {
                 .toList();
         final long startPosition = rows.getFirst().entity().getPosition();
         final long oldEndPosition = rows.getLast().entity().getPosition();
-        final @Nullable String model = options.model();
+        final String model = options.model();
         log.info(
                 "[{}] Compacting positions {}-{} ({}, boundary at {}): {} messages, ~{} chars," + " model {}",
                 conversationId,
@@ -467,7 +467,7 @@ public class CompactService {
                         // параметру историю здесь некому.
                         .param(ChatMemory.CONVERSATION_ID, conversationId)
                         .param(ChatClientAttributes.TOOL_CALLING_ADVISOR_AUTO_REGISTER.getKey(), false));
-        final ReasoningOptions.@Nullable Level reasoning = options.reasoning();
+        final ReasoningOptions.Level reasoning = options.reasoning();
         if (model != null || reasoning != null) {
             final OpenAiChatOptions.Builder requestOptions = OpenAiChatOptions.builder();
             if (model != null) {
@@ -478,7 +478,7 @@ public class CompactService {
             }
             spec = spec.options(requestOptions);
         }
-        final @Nullable ChatResponse response = spec.call().chatResponse();
+        final ChatResponse response = spec.call().chatResponse();
         // Замер обращения — накопителем прогона на один вызов: правило сборки у сжатия и у ответа
         // обязано быть одним, иначе одни и те же деньги в двух местах статистики назывались бы
         // разными числами. Снимается он ДО проверок ниже: раунд, который сводки не дал, провайдер
@@ -486,7 +486,7 @@ public class CompactService {
         // в мету он не идёт ни там, ни здесь: «неизвестно» это не ноль.
         final TokenUsage call = TokenUsage.of(response);
         final RunTokenUsage usage = RunTokenUsage.Tally.EMPTY.with(call).view();
-        final @Nullable String content = answerOf(response);
+        final String content = answerOf(response);
         // Ответ с вызовом инструмента не годится в сводку, даже когда текст в нём есть. Модель
         // прочла схемы (они в запросе ради кэша) и не послушалась запрета из compactor.md, а
         // sys.md как раз учит начинать ответ с вызова — то есть вероятная форма такого ответа не
@@ -543,8 +543,8 @@ public class CompactService {
             int messages,
             String content,
             RunTokenUsage usage) {
-        final @Nullable RunTokenUsage carried = pendingSummaries.discard(conversationId);
-        final @Nullable ChatMessageEntity detached = target.detached();
+        final RunTokenUsage carried = pendingSummaries.discard(conversationId);
+        final ChatMessageEntity detached = target.detached();
         if (detached != null) {
             chatMessageRepository.save(detached.asSummarized());
         }
@@ -588,7 +588,7 @@ public class CompactService {
      * вместо этого, знает вызвавший, а не раунд (см. {@link SpentRound}).
      */
     private CompactRoundFailed spentRound(CompactTarget target, TokenUsage call, RunTokenUsage usage, String reason) {
-        final @Nullable Long messageId = target.spentRound().record(call, usage);
+        final Long messageId = target.spentRound().record(call, usage);
         return new CompactRoundFailed(reason, messageId, usage.isEmpty() ? null : usage);
     }
 
@@ -639,7 +639,7 @@ public class CompactService {
     private SpentRound spentRoundOn(ChatMessageEntity commandRow) {
         return (call, usage) -> {
             if (!usage.isEmpty()) {
-                final @Nullable ChatMessageMeta meta = commandRow.getMeta();
+                final ChatMessageMeta meta = commandRow.getMeta();
                 chatMessageRepository.save(
                         commandRow.withMeta(meta == null ? ChatMessageMeta.ofUsage(usage) : meta.withUsage(usage)));
             }
@@ -698,12 +698,12 @@ public class CompactService {
      * она ссылается, не нашлась (чат мог быть удалён между запросами).
      */
     public Optional<CompactDetail> detail(String conversationId, long messageId) {
-        final @Nullable ChatMessageEntity notice =
+        final ChatMessageEntity notice =
                 chatMessageRepository.findById(messageId).orElse(null);
         if (notice == null || !notice.getConversationId().equals(conversationId)) {
             return Optional.empty();
         }
-        final @Nullable CompactMeta compact =
+        final CompactMeta compact =
                 notice.getMeta() == null ? null : notice.getMeta().compact();
         if (compact == null) {
             return Optional.empty();

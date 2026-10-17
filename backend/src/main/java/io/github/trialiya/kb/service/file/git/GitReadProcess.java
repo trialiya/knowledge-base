@@ -120,8 +120,8 @@ final class GitReadProcess {
         if (budget <= 0) {
             throw timedOut(command);
         }
-        @Nullable Process process = null;
-        @Nullable Thread watchdog = null;
+        Process process = null;
+        Thread watchdog = null;
         try {
             // core.quotepath=false: without it, git quotes/octal-escapes any path containing
             // non-ASCII bytes (e.g. Cyrillic filenames) in its output — "docs/проект" becomes

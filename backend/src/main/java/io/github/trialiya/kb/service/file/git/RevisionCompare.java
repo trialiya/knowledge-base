@@ -55,14 +55,14 @@ final class RevisionCompare {
             boolean includePatch,
             @Nullable String only,
             String scope) {
-        @Nullable Pathspec within = scope.isEmpty() ? null : new Pathspec(null, scope);
+        Pathspec within = scope.isEmpty() ? null : new Pathspec(null, scope);
         ObjectId baseId = CommitFiles.commitOf(repository, base);
         ObjectId headId = CommitFiles.commitOf(repository, head);
         try (RevWalk walk = new RevWalk(repository)) {
             ObjectReader reader = walk.getObjectReader();
             RevCommit baseCommit = walk.parseCommit(baseId);
             RevCommit headCommit = walk.parseCommit(headId);
-            @Nullable RevCommit mergeBase = mergeBase(repository, baseId, headId);
+            RevCommit mergeBase = mergeBase(repository, baseId, headId);
             RevCommit diffBase = direct || mergeBase == null ? baseCommit : walk.parseCommit(mergeBase);
             List<GitDiffEntry> files = diff(repository, reader, diffBase, headCommit, includePatch, only, within);
             return new GitComparison(

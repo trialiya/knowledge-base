@@ -17,7 +17,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.DisposableBean;
@@ -105,7 +104,7 @@ public class AiTopicService implements DisposableBean {
         if (chat == null || chat.getUserTopic() != null) {
             return;
         }
-        final @Nullable Integer namedAt = chat.getAiTopicTurn();
+        final Integer namedAt = chat.getAiTopicTurn();
         final int turns = chatMessages.countTurns(conversationId);
         // Между контрольными точками — а это почти каждый ответ — весь фоновый запрос обходится
         // этим COUNT: историю читает только само именование.
@@ -119,7 +118,7 @@ public class AiTopicService implements DisposableBean {
         if (excerpt.isEmpty()) {
             return;
         }
-        final @Nullable String current = chat.getAiTopic();
+        final String current = chat.getAiTopic();
         final String topic = TopicPrompt.clean(chatClient
                 .prompt()
                 .user(TopicPrompt.request(current, excerpt))

@@ -71,7 +71,7 @@ public class ScriptGuideService {
         requireKeepingCeiling(properties, results);
         // Kept results are a deployment switch of their own: with it off no run gets a resultId,
         // and a handbook describing kb.result would send the model after ids it never sees.
-        @Nullable Resource chatResults = results.enabled() ? RESULTS_GUIDE : null;
+        Resource chatResults = results.enabled() ? RESULTS_GUIDE : null;
         this.instructionsForWeakModel = properties.enabled() ? render(properties, chatResults, true, true) : "";
         this.instructionsForStrongModel = properties.enabled() ? render(properties, chatResults, false, true) : "";
         this.readOnlyInstructionsForWeakModel =

@@ -10,7 +10,6 @@ import io.github.trialiya.kb.repository.AttachmentEmbeddingRepository;
 import io.github.trialiya.kb.repository.AttachmentRepository;
 import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
 import io.github.trialiya.kb.service.embedding.EmbeddingService;
-import jakarta.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -151,10 +150,7 @@ public class AttachmentService implements DisposableBean {
      */
     @Transactional
     public Attachment createFromText(
-            @Nonnull String conversationId,
-            @Nonnull String fileName,
-            @Nullable String contentType,
-            @Nonnull String content) {
+            String conversationId, String fileName, @Nullable String contentType, String content) {
         return persistAttachment(AttachmentOwnerType.CHAT, null, conversationId, fileName, contentType, content, (long)
                 content.getBytes(StandardCharsets.UTF_8).length);
     }

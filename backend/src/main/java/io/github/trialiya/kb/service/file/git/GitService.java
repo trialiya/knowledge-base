@@ -37,7 +37,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -365,11 +364,7 @@ public class GitService {
      * @param maxCount max commits to return, capped at {@value #MAX_COMMITS}
      */
     public GitCommitSearchResult getLineLog(
-            @NonNull String filePath,
-            @Nullable Integer fromLine,
-            @Nullable Integer toLine,
-            int maxCount,
-            boolean includeBody) {
+            String filePath, @Nullable Integer fromLine, @Nullable Integer toLine, int maxCount, boolean includeBody) {
         int limit = Math.min(Math.max(maxCount, 1), MAX_COMMITS);
         return lineLog.log(normalizePath(filePath), fromLine, toLine, limit, includeBody);
     }
@@ -400,7 +395,7 @@ public class GitService {
      * @return the matches with {@code truncated}: the picker has to tell "no such commit" from "not
      *     that far back", and "these" from "the first of more"
      */
-    public GitCommitSearchResult searchCommits(@NonNull String query, int maxCount) {
+    public GitCommitSearchResult searchCommits(String query, int maxCount) {
         return CommitSearch.search(repository, query, maxCount, CommitSearch.Scope.SUBJECT);
     }
 
@@ -415,7 +410,7 @@ public class GitService {
      *     such commit" from "not that far back"
      */
     public GitCommitSearchResult searchCommitLog(
-            @NonNull String query, int maxCount, @Nullable String filePath, boolean includeBody) {
+            String query, int maxCount, @Nullable String filePath, boolean includeBody) {
         return CommitSearch.search(
                 repository, query, maxCount, new CommitSearch.Scope(true, includeBody, null, filePath));
     }
@@ -427,7 +422,7 @@ public class GitService {
      *
      * @param rev optional — walk from this revision instead of HEAD
      */
-    public GitCommitGrepResult grepCommits(@NonNull String query, int maxCount, @Nullable String rev) {
+    public GitCommitGrepResult grepCommits(String query, int maxCount, @Nullable String rev) {
         return CommitSearch.grep(repository, query, maxCount, rev);
     }
 
@@ -439,7 +434,7 @@ public class GitService {
      * @param commitHashes comma-separated commit hashes
      * @param includePatch whether to include unified diff text
      */
-    public List<GitCommit> getCommitDiff(@NonNull String commitHashes, boolean includePatch) {
+    public List<GitCommit> getCommitDiff(String commitHashes, boolean includePatch) {
         return getCommitDiff(commitHashes, includePatch, null);
     }
 
@@ -453,8 +448,7 @@ public class GitService {
      * @param filePath optional path (relative to repo root) to restrict the diff to a single file;
      *     null or blank means the whole commit
      */
-    public List<GitCommit> getCommitDiff(
-            @NonNull String commitHashes, boolean includePatch, @Nullable String filePath) {
+    public List<GitCommit> getCommitDiff(String commitHashes, boolean includePatch, @Nullable String filePath) {
         String spec = pathOrNull(filePath);
         List<String> hashes = Arrays.stream(commitHashes.split(","))
                 .map(String::strip)
@@ -487,7 +481,7 @@ public class GitService {
      * @param rev anything git reads as a commit — a full or short hash, a branch, a tag, {@code
      *     HEAD~2}
      */
-    public GitCommit getCommit(@NonNull String rev, boolean includePatch, @Nullable String filePath) {
+    public GitCommit getCommit(String rev, boolean includePatch, @Nullable String filePath) {
         String only = pathOrNull(filePath);
         return CommitDiff.of(repository, rev.strip(), includePatch, null, true, only, true);
     }
@@ -509,8 +503,8 @@ public class GitService {
      *     history between the two; {@code null} or blank compares the whole repository
      */
     public GitComparison compare(
-            @NonNull String base,
-            @NonNull String head,
+            String base,
+            String head,
             boolean direct,
             boolean includePatch,
             @Nullable String filePath,
@@ -523,7 +517,7 @@ public class GitService {
     // ── File search ─────────────────────────────────────────────────────────
 
     /** Fuzzy-searches the visible files by name; see {@link VisibleFiles#searchByName}. */
-    public List<GitFileNode> searchFiles(@NonNull String pattern, int maxResults) {
+    public List<GitFileNode> searchFiles(String pattern, int maxResults) {
         return visible.searchByName(pattern, maxResults);
     }
 
@@ -534,7 +528,7 @@ public class GitService {
      * it returned; see {@link GitGrepRunner#grepHits}.
      */
     public GitGrepHits grepHits(
-            @NonNull String pattern,
+            String pattern,
             @Nullable String pathGlob,
             boolean regex,
             @Nullable String rev,
@@ -549,7 +543,7 @@ public class GitService {
      * GitGrepRunner#grepPage}.
      */
     public GitGrepResult grepPage(
-            @NonNull String pattern,
+            String pattern,
             @Nullable String pathGlob,
             boolean regex,
             @Nullable String rev,
@@ -567,7 +561,7 @@ public class GitService {
      *
      * @param rev the commit to read; {@code null} or blank — the working tree
      */
-    public GitFileBlame getBlame(@Nullable String rev, @NonNull String filePath) {
+    public GitFileBlame getBlame(@Nullable String rev, String filePath) {
         return getBlame(rev, filePath, null, null, BlameMatching.EXACT);
     }
 
@@ -589,7 +583,7 @@ public class GitService {
      */
     public GitFileBlame getBlame(
             @Nullable String rev,
-            @NonNull String filePath,
+            String filePath,
             @Nullable Integer fromLine,
             @Nullable Integer toLine,
             boolean exact) {
@@ -603,12 +597,12 @@ public class GitService {
      */
     GitFileBlame getBlame(
             @Nullable String rev,
-            @NonNull String filePath,
+            String filePath,
             @Nullable Integer fromLine,
             @Nullable Integer toLine,
             BlameMatching matching) {
         GitBlame.requireOrdered(fromLine, toLine);
-        GitBlameRunner.@Nullable Range range =
+        GitBlameRunner.Range range =
                 fromLine == null && toLine == null ? null : new GitBlameRunner.Range(fromLine, toLine);
         String at = snapshot(rev);
         String normalized = normalizePath(filePath);
@@ -625,8 +619,7 @@ public class GitService {
      * @throws IllegalArgumentException for a line below 1 or a blank query, and as {@link
      *     #getBlame(String, String)}
      */
-    public GitLineOrigin getLineOrigin(
-            @Nullable String rev, @NonNull String filePath, int line, @NonNull String query) {
+    public GitLineOrigin getLineOrigin(@Nullable String rev, String filePath, int line, String query) {
         if (line < 1) {
             throw new IllegalArgumentException("line must be 1 or more: " + line);
         }
@@ -667,7 +660,7 @@ public class GitService {
      * @param toLine last line to return (1-based, inclusive); null for end of file
      */
     public GitFileContent getFileContent(
-            @Nullable String rev, @NonNull String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
+            @Nullable String rev, String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
         String at = snapshot(rev);
         return at == null
                 ? readContent(filePath, fromLine, toLine, null)
@@ -713,7 +706,7 @@ public class GitService {
     }
 
     /** Convenience overload: full file, no range. */
-    public GitFileContent getFileContent(@NonNull String filePath) {
+    public GitFileContent getFileContent(String filePath) {
         return getFileContent(null, filePath, null, null);
     }
 
@@ -735,7 +728,7 @@ public class GitService {
      *     outlining ({@link OutlineService#supportedLanguages}), or — with {@code rev} — the revision
      *     is unknown or holds no such file
      */
-    public GitFileOutline getFileOutline(@Nullable String rev, @NonNull String filePath) {
+    public GitFileOutline getFileOutline(@Nullable String rev, String filePath) {
         String at = snapshot(rev);
         if (at != null) {
             String normalized = normalizePath(filePath);
@@ -749,12 +742,12 @@ public class GitService {
     // ── Bytes (binary files included) ───────────────────────────────────────
 
     /** Size, binary flag and language of a served file, without its content; see {@link RepoBytes#info}. */
-    public GitFileInfo getFileInfo(@NonNull String filePath) {
+    public GitFileInfo getFileInfo(String filePath) {
         return bytes.info(filePath);
     }
 
     /** A window of a served file's raw bytes, binary files included; see {@link RepoBytes#window}. */
-    public GitFileBytes getFileBytes(@NonNull String filePath, long offset, long length) {
+    public GitFileBytes getFileBytes(String filePath, long offset, long length) {
         return bytes.window(filePath, offset, length);
     }
 
@@ -762,13 +755,13 @@ public class GitService {
      * A whole file for the browser to show — the working tree's, or with {@code rev} the commit's;
      * see {@link RepoBytes#whole}.
      */
-    public GitFileBytes getRawFile(@Nullable String rev, @NonNull String filePath) {
+    public GitFileBytes getRawFile(@Nullable String rev, String filePath) {
         String at = snapshot(rev);
         return at == null ? bytes.whole(filePath) : bytes.wholeAt(at, filePath);
     }
 
     /** SHA-256 of a served file's bytes, lowercase hex; see {@link RepoBytes#sha256}. */
-    public String hashFile(@NonNull String filePath) {
+    public String hashFile(String filePath) {
         return bytes.sha256(filePath);
     }
 
@@ -904,7 +897,7 @@ public class GitService {
      * files, and the user stashes or commits them first. Losing a working tree to a click is the
      * one outcome this whole feature must not have.
      */
-    public GitCommandResult switchBranch(@NonNull String branch, boolean create) {
+    public GitCommandResult switchBranch(String branch, boolean create) {
         return commands.switchBranch(branch, create);
     }
 
@@ -931,7 +924,7 @@ public class GitService {
      * <p>Refused when the repository has no commit identity: it belongs to whoever owns the
      * deployment, and a history signed with a made-up address is worse than a refusal.
      */
-    public GitCommandResult commit(@NonNull String message) {
+    public GitCommandResult commit(String message) {
         return commands.commit(message);
     }
 
@@ -943,7 +936,7 @@ public class GitService {
      * is staged path by path and committed with those paths alone, so the edits the assistant left
      * in the index do not ride along uninvited.
      */
-    public GitCommandResult commit(@NonNull String message, @NonNull List<String> paths) {
+    public GitCommandResult commit(String message, List<String> paths) {
         return commands.commit(message, paths);
     }
 
@@ -952,7 +945,7 @@ public class GitService {
      * here that destroys work rather than moving it, which is why it takes a path and never a whole
      * tree.
      */
-    public GitCommandResult discard(@NonNull String filePath) {
+    public GitCommandResult discard(String filePath) {
         return commands.discard(filePath);
     }
 
@@ -972,85 +965,84 @@ public class GitService {
     /**
      * @see GitWriter#createFile
      */
-    public GitEditResult createFile(@NonNull String filePath, @NonNull String content) {
+    public GitEditResult createFile(String filePath, String content) {
         return writer.createFile(filePath, content);
     }
 
     /**
      * @see GitWriter#createBinaryFile
      */
-    public GitEditResult createBinaryFile(@NonNull String filePath, byte @NonNull [] content) {
+    public GitEditResult createBinaryFile(String filePath, byte[] content) {
         return writer.createBinaryFile(filePath, content);
     }
 
     /**
      * @see GitWriter#editFile
      */
-    public GitEditResult editFile(
-            @NonNull String filePath, @NonNull String oldString, @NonNull String newString, boolean replaceAll) {
+    public GitEditResult editFile(String filePath, String oldString, String newString, boolean replaceAll) {
         return writer.editFile(filePath, oldString, newString, replaceAll);
     }
 
     /**
      * @see GitWriter#replaceTrackedFile
      */
-    public GitEditResult replaceTrackedFile(@NonNull String filePath, @NonNull String newContent) {
+    public GitEditResult replaceTrackedFile(String filePath, String newContent) {
         return writer.replaceTrackedFile(filePath, newContent);
     }
 
     /**
      * @see GitWriter#replaceTrackedBytes
      */
-    public GitEditResult replaceTrackedBytes(@NonNull String filePath, byte @NonNull [] content) {
+    public GitEditResult replaceTrackedBytes(String filePath, byte[] content) {
         return writer.replaceTrackedBytes(filePath, content);
     }
 
     /**
      * @see GitWriter#previewEdited
      */
-    public String previewEdited(@NonNull String filePath, @NonNull List<TextEdit> edits) {
+    public String previewEdited(String filePath, List<TextEdit> edits) {
         return writer.previewEdited(filePath, edits);
     }
 
     /**
      * @see GitWriter#requireDeletable
      */
-    public void requireDeletable(@NonNull String filePath, @NonNull String expectedContent) {
+    public void requireDeletable(String filePath, String expectedContent) {
         writer.requireDeletable(filePath, expectedContent);
     }
 
     /**
      * @see GitWriter#deleteFile
      */
-    public void deleteFile(@NonNull String filePath, @NonNull String expectedContent) {
+    public void deleteFile(String filePath, String expectedContent) {
         writer.deleteFile(filePath, expectedContent);
     }
 
     /**
      * @see GitWriter#requireCreatable
      */
-    public String requireCreatable(@NonNull String filePath, @NonNull String content) {
+    public String requireCreatable(String filePath, String content) {
         return writer.requireCreatable(filePath, content.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
      * @see GitWriter#requireCreatable
      */
-    public String requireCreatable(@NonNull String filePath, byte @NonNull [] content) {
+    public String requireCreatable(String filePath, byte[] content) {
         return writer.requireCreatable(filePath, content);
     }
 
     /**
      * @see GitWriter#requireReplaceable
      */
-    public String requireReplaceable(@NonNull String filePath, byte @NonNull [] content) {
+    public String requireReplaceable(String filePath, byte[] content) {
         return writer.requireReplaceable(filePath, content);
     }
 
     /**
      * @see GitWriter#requireWritable
      */
-    public String requireWritable(@NonNull String filePath, byte @NonNull [] content) {
+    public String requireWritable(String filePath, byte[] content) {
         return writer.requireWritable(filePath, content);
     }
 
@@ -1067,7 +1059,7 @@ public class GitService {
     /**
      * @see GitWriter#requireEditable
      */
-    public EditableFile requireEditable(@NonNull String filePath) {
+    public EditableFile requireEditable(String filePath) {
         String normalized = normalizePath(filePath);
         return new EditableFile(normalized, writer.requireEditable(normalized).tracked());
     }
@@ -1076,7 +1068,7 @@ public class GitService {
      * Full content of a file already cleared by {@link #requireEditable} — the read {@code kb.edit}
      * does right after its permission check, at no second index read.
      */
-    public GitFileContent getFileContent(@NonNull EditableFile file) {
+    public GitFileContent getFileContent(EditableFile file) {
         return readContent(file.path(), null, null, file.tracked());
     }
 
@@ -1088,7 +1080,7 @@ public class GitService {
      * fails after some of them already exist. Deliberately mirrors what {@code createFile} itself
      * refuses on, including untracked and gitignored files.
      */
-    public boolean exists(@NonNull String filePath) {
+    public boolean exists(String filePath) {
         return Files.exists(paths.confine(normalizePath(filePath)));
     }
 
@@ -1205,7 +1197,7 @@ public class GitService {
      *
      * @throws IllegalArgumentException if the path is unsafe, or names nothing once collapsed
      */
-    public static String normalizePath(@NonNull String filePath) {
+    public static String normalizePath(String filePath) {
         return RepoPaths.normalize(filePath);
     }
 

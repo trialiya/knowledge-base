@@ -1,7 +1,6 @@
 package io.github.trialiya.kb.model.chat.entity;
 
 import java.time.LocalDateTime;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.domain.Persistable;
@@ -18,7 +17,6 @@ public class ChatScriptResultEntity implements Persistable<Long> {
     @Id
     private long id;
 
-    @NonNull
     private final String conversationId;
 
     private final int seq;
@@ -29,23 +27,21 @@ public class ChatScriptResultEntity implements Persistable<Long> {
     @Nullable
     private final String project;
 
-    @NonNull
     private final String valueJson;
 
     private final int chars;
 
-    @NonNull
     private final LocalDateTime createdAt;
 
     public ChatScriptResultEntity(
             long id,
-            @NonNull String conversationId,
+            String conversationId,
             int seq,
             @Nullable String script,
             @Nullable String project,
-            @NonNull String valueJson,
+            String valueJson,
             int chars,
-            @NonNull LocalDateTime createdAt) {
+            LocalDateTime createdAt) {
         this.id = id;
         this.conversationId = conversationId;
         this.seq = seq;
@@ -57,7 +53,6 @@ public class ChatScriptResultEntity implements Persistable<Long> {
     }
 
     @Override
-    @NonNull
     public Long getId() {
         return id;
     }
@@ -67,7 +62,6 @@ public class ChatScriptResultEntity implements Persistable<Long> {
         return id == 0L;
     }
 
-    @NonNull
     public String getConversationId() {
         return conversationId;
     }
@@ -86,7 +80,6 @@ public class ChatScriptResultEntity implements Persistable<Long> {
         return project;
     }
 
-    @NonNull
     public String getValueJson() {
         return valueJson;
     }
@@ -95,7 +88,6 @@ public class ChatScriptResultEntity implements Persistable<Long> {
         return chars;
     }
 
-    @NonNull
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }

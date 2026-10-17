@@ -67,7 +67,7 @@ public class CompactPrompt {
      * @param instructions хвост команды в роли фокуса сжатия; пустой — без фокуса
      */
     public String instruction(String conversationId, List<PromptRow> rows, @Nullable String instructions) {
-        final @Nullable ChatTopicEntity chat =
+        final ChatTopicEntity chat =
                 chatTopicRepository.findById(conversationId).orElse(null);
         final StringBuilder prompt = new StringBuilder();
         prompt.append(compactorPrompt).append("\n\n").append("About this conversation:\n");

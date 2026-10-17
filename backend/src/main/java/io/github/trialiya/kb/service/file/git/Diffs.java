@@ -160,8 +160,8 @@ final class Diffs {
     static GitDiffEntry toGitDiffEntry(
             DiffEntry entry, DiffFormatter formatter, boolean includePatch, ByteArrayOutputStream patchOut)
             throws IOException {
-        @Nullable String oldPath = normalizedDiffPath(entry.getOldPath());
-        @Nullable String newPath = normalizedDiffPath(entry.getNewPath());
+        String oldPath = normalizedDiffPath(entry.getOldPath());
+        String newPath = normalizedDiffPath(entry.getNewPath());
 
         DiffStatus status = DiffStatus.of(entry.getChangeType());
         // JGit only reports /dev/null (→ null, see normalizedDiffPath) for the side that doesn't

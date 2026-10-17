@@ -1,7 +1,6 @@
 package io.github.trialiya.kb.model.chat.entity;
 
 import java.time.LocalDateTime;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.domain.Persistable;
@@ -23,17 +22,14 @@ public class ChatPendingSummaryEntity implements Persistable<Long> {
     @Id
     private long id;
 
-    @NonNull
     private final String conversationId;
 
     private final long startPosition;
     private final long endPosition;
     private final long summaryPosition;
 
-    @NonNull
     private final LocalDateTime summaryCreatedAt;
 
-    @NonNull
     private final String text;
 
     private final int messages;
@@ -42,21 +38,20 @@ public class ChatPendingSummaryEntity implements Persistable<Long> {
     @Nullable
     private final ChatMessageMeta meta;
 
-    @NonNull
     private final LocalDateTime createdAt;
 
     public ChatPendingSummaryEntity(
             long id,
-            @NonNull String conversationId,
+            String conversationId,
             long startPosition,
             long endPosition,
             long summaryPosition,
-            @NonNull LocalDateTime summaryCreatedAt,
-            @NonNull String text,
+            LocalDateTime summaryCreatedAt,
+            String text,
             int messages,
             int summaryChars,
             @Nullable ChatMessageMeta meta,
-            @NonNull LocalDateTime createdAt) {
+            LocalDateTime createdAt) {
         this.id = id;
         this.conversationId = conversationId;
         this.startPosition = startPosition;
@@ -71,7 +66,6 @@ public class ChatPendingSummaryEntity implements Persistable<Long> {
     }
 
     @Override
-    @NonNull
     public Long getId() {
         return id;
     }
@@ -81,7 +75,6 @@ public class ChatPendingSummaryEntity implements Persistable<Long> {
         return id == 0L;
     }
 
-    @NonNull
     public String getConversationId() {
         return conversationId;
     }
@@ -98,12 +91,10 @@ public class ChatPendingSummaryEntity implements Persistable<Long> {
         return summaryPosition;
     }
 
-    @NonNull
     public LocalDateTime getSummaryCreatedAt() {
         return summaryCreatedAt;
     }
 
-    @NonNull
     public String getText() {
         return text;
     }
@@ -121,7 +112,6 @@ public class ChatPendingSummaryEntity implements Persistable<Long> {
         return meta;
     }
 
-    @NonNull
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }

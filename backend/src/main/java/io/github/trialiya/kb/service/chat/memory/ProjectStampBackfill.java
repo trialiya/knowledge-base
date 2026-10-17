@@ -92,7 +92,7 @@ public class ProjectStampBackfill {
         if (backfillStateRepository.existsById(NAME)) {
             return;
         }
-        final @Nullable Path dir = dumpDir();
+        final Path dir = dumpDir();
         if (dir == null) {
             log.warn("Project stamp backfill skipped: kb.chat.backfill.dump-path is not set, and the"
                     + " pass will not rewrite chat_message without a snapshot to restore from."
@@ -136,7 +136,7 @@ public class ProjectStampBackfill {
 
     /** Каталог снимка; {@code null} — не настроен, и тогда проход не идёт (см. javadoc класса). */
     private @Nullable Path dumpDir() {
-        final @Nullable String configured = properties.dumpPath();
+        final String configured = properties.dumpPath();
         return configured == null || configured.isBlank() ? null : Path.of(configured.trim());
     }
 
@@ -168,7 +168,7 @@ public class ProjectStampBackfill {
             return 0;
         }
         dump.write(stored);
-        final @Nullable String leading = leadingProject(conversationId, stored);
+        final String leading = leadingProject(conversationId, stored);
         final List<ChatMessageEntity> changed = new ArrayList<>();
         final List<ChatMessageEntity> rows = new ArrayList<>(stored);
 
@@ -195,7 +195,7 @@ public class ProjectStampBackfill {
             if (!ChatHistoryService.opensATurn(row)) {
                 continue;
             }
-            final @Nullable ChatMessageMeta meta = row.getMeta();
+            final ChatMessageMeta meta = row.getMeta();
             if (meta != null && meta.project() != null) {
                 return Optional.empty();
             }
@@ -236,7 +236,7 @@ public class ProjectStampBackfill {
                             .toList(),
                     () -> leading,
                     row.getPosition());
-            final @Nullable ChatMessageMeta meta = row.getMeta();
+            final ChatMessageMeta meta = row.getMeta();
             final ChatMessageEntity updated = row.withMeta(
                     meta == null
                             ? ChatMessageMeta.ofProject(trace.lastProject(), trace.spans())
@@ -257,7 +257,7 @@ public class ProjectStampBackfill {
      */
     private @Nullable String leadingProject(String conversationId, List<ChatMessageEntity> rows) {
         for (ChatMessageEntity row : rows) {
-            final @Nullable ChatMessageMeta meta = row.getMeta();
+            final ChatMessageMeta meta = row.getMeta();
             if (meta != null && meta.projectSwitchFrom() != null) {
                 return meta.projectSwitchFrom();
             }

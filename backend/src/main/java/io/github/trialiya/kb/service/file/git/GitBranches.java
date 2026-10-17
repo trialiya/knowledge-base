@@ -21,7 +21,6 @@ import org.eclipse.jgit.lib.RepositoryState;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevWalk;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Which branch this repository is on, and what it could be on instead — the read half of the user's
@@ -110,7 +109,7 @@ class GitBranches {
             // Null only when HEAD itself is unreadable — a repository mid-creation, or one whose
             // HEAD was hand-edited. Nothing to report about it beyond that, and guessing a branch
             // name would be worse than saying the checkout is not on one.
-            @Nullable String branch = repository.getBranch();
+            String branch = repository.getBranch();
             // What the working tree itself is in the middle of — read once, because both answers
             // come from the same status walk and the panel needs them together with the branch.
             Working working = working();
@@ -142,7 +141,7 @@ class GitBranches {
                         working.merging(),
                         working.conflicts());
             }
-            @Nullable BranchTrackingStatus tracking = unborn ? null : BranchTrackingStatus.of(repository, branch);
+            BranchTrackingStatus tracking = unborn ? null : BranchTrackingStatus.of(repository, branch);
             return new GitBranchStatus(
                     branch,
                     false,
