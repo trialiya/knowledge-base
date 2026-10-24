@@ -356,6 +356,9 @@ public class ScriptRunner {
         // Deliberately not try-with-resources: closing a context whose execution was cancelled
         // throws the cancellation again, which would replace the result this method just built.
         Context context = newContext();
+        // Outside the try: a call cut short ends the run as a timeout or a stop whichever way it
+        // leaves the guest — caught there and returned over, or thrown out of it.
+        McpScriptApi mcpApi = null;
         Thread watchdog = startWatchdog(context, cancellation, deadlineNanos, finished, cancelReason);
         try {
             Value helpers = context.eval(Helpers.JSON);
@@ -364,7 +367,7 @@ public class ScriptRunner {
             context.getBindings("js").putMember("kb", api);
             // Bound only when the run may call MCP tools: otherwise `mcp` is not defined at all,
             // the same way kb.edit is absent from a read-only run rather than refusing.
-            McpScriptApi mcpApi = mcp.open(mcpScope(request), session, deadlineNanos, cancellation);
+            mcpApi = mcp.open(mcpScope(request), session, deadlineNanos, cancellation);
             if (mcpApi != null) {
                 context.getBindings("js")
                         .putMember("mcp", helpers.getMember("mcp").execute(mcpApi));
@@ -404,6 +407,10 @@ public class ScriptRunner {
             ScriptResultKeeper.Delivered delivered = resultKeeper.deliver(json, request, project, session);
             return success(project, request.source().report(), delivered, session, edits);
         } catch (PolyglotException e) {
+            Kind abandoned = mcpApi == null ? null : mcpApi.abandoned();
+            if (abandoned != null) {
+                return stopped(project, request.source(), session, abandoned, timeout);
+            }
             return failure(project, request.source(), e, session, cancelReason.get(), timeout);
         } catch (ScriptLimitExceededException e) {
             // A budget blown outside guest code (converting the return value, say).
