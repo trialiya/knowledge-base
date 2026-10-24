@@ -120,7 +120,8 @@ public record McpResultLimitCallback(
                     + "') and return only what you need, or save it as a file with saveScriptResult (resultId "
                     + id + "). Do not call the tool again to get the rest.";
         }
-        String why = shelved.note() == null ? "The rest was not kept." : shelved.note();
+        String note = shelved.note();
+        String why = note == null ? "The rest was not kept." : note;
         return cut + why + " Narrow the request instead — filters, fewer fields, a smaller page — if the tool"
                 + " takes them.";
     }
