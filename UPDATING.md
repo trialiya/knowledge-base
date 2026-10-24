@@ -19,6 +19,20 @@ and commands involved — the reader is holding a deployment, not a diff.
 
 ## Unreleased
 
+### MCP tool answers over 20 000 characters reach the model cut
+
+An answer of an external MCP tool longer than `kb.mcp.max-result-chars`
+(default `20000`) is no longer handed to the model whole. The model gets an
+envelope instead — the answer's size, its shape and its head — and the whole
+answer is kept for scripts (`kb.result('rN')`, `saveScriptResult`) where
+`kb.script.enabled` and `kb.script.results.enabled` are on. A server whose long
+answers the model used to read in full (a wiki page, a large search) now shows
+it only the head.
+
+To keep the old behaviour, set `KB_MCP_MAX_RESULT_CHARS=0` (or
+`kb.mcp.max-result-chars: 0`). To lift the limit for one connection only, give
+it its own value under `kb.mcp.result-limits.<connection name>`.
+
 ### `GET /api/git/commit` and `/compare`: a `path` that names no file is a 400
 
 `path` on both endpoints (and `filePath` of the model's `getCommitDiff`) is now

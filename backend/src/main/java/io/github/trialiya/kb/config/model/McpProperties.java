@@ -2,6 +2,7 @@ package io.github.trialiya.kb.config.model;
 
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
  * Settings for external MCP (Model Context Protocol) tool servers, bound from:
@@ -16,6 +17,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     headers:                # connection name -> arbitrary extra headers, for servers that need
  *       jira:                 # more than a bearer token (e.g. a second auth/tenant header)
  *         X-Atlassian-Cloud-Id: ${JIRA_CLOUD_ID}
+ *     max-result-chars: 20000 # how much of one tool answer reaches the model; 0 — all of it
+ *     result-limits:          # connection name -> its own limit
+ *       confluence: 60000
  * </pre>
  *
  * <p>{@code enabled} gates whether tools from connected MCP servers (see {@code
@@ -30,16 +34,24 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * probed again ({@code McpToolRegistry}). It also lives as a raw placeholder in that class's {@code
  * fixedDelayString} — an annotation cannot read a bean — and is bound here as well so the Settings
  * panel reports the same number the scheduler runs on.
+ *
+ * <p>{@code maxResultChars} and {@code resultLimits} bound what one tool answer brings into the
+ * model's context; past them the answer is kept whole for a script and the model is shown its head
+ * — see {@code McpResultLimitCallback}. A non-positive value is "no limit", not a
+ * misconfiguration: it is how a deployment asks for every answer as the server sent it.
  */
 @ConfigurationProperties(prefix = "kb.mcp")
 public record McpProperties(
         boolean enabled,
         long retryIntervalMs,
         Map<String, String> bearerTokens,
-        Map<String, Map<String, String>> headers) {
+        Map<String, Map<String, String>> headers,
+        @DefaultValue("20000") int maxResultChars,
+        Map<String, Integer> resultLimits) {
 
     public McpProperties {
         bearerTokens = bearerTokens == null ? Map.of() : bearerTokens;
         headers = headers == null ? Map.of() : headers;
+        resultLimits = resultLimits == null ? Map.of() : resultLimits;
     }
 }

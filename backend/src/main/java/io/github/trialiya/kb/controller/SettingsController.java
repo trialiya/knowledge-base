@@ -256,7 +256,12 @@ public class SettingsController {
                             entry.getKey(),
                             entry.getValue(),
                             status == null ? Status.PENDING : status.status(),
-                            status == null ? 0 : status.toolCount());
+                            status == null ? 0 : status.toolCount(),
+                            Math.max(
+                                    mcpProperties
+                                            .resultLimits()
+                                            .getOrDefault(entry.getKey(), mcpProperties.maxResultChars()),
+                                    0));
                 })
                 .toList();
     }
@@ -351,8 +356,10 @@ public class SettingsController {
      *     connection keeps the ones it last advertised — they answer with an error rather than
      *     leaving the list (see {@code UnavailableToolCallback}) — so this is zero only for a
      *     connection that has never answered
+     * @param maxResultChars how much of one tool answer reaches the model ({@code
+     *     kb.mcp.result-limits}, else {@code kb.mcp.max-result-chars}); 0 — all of it
      */
-    public record McpConnection(String name, String transport, Status status, int toolCount) {}
+    public record McpConnection(String name, String transport, Status status, int toolCount, int maxResultChars) {}
 
     public record UploadLimits(long maxFileSizeBytes, long maxRequestSizeBytes) {}
 

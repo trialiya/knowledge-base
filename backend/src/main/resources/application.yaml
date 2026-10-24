@@ -481,6 +481,15 @@ kb:
     # headers:
     #   atlassian:
     #     X-Atlassian-Cloud-Id: ${JIRA_CLOUD_ID:}
+    # How much of one MCP tool answer reaches the model, in characters. A larger answer is kept
+    # whole for scripts (kb.result / saveScriptResult — when kb.script.enabled and
+    # kb.script.results.enabled) and the model is shown its shape and head instead; see
+    # McpResultLimitCallback. 0 sends every answer whole, as the server wrote it.
+    max-result-chars: ${KB_MCP_MAX_RESULT_CHARS:20000}
+    # A limit of its own per connection, overriding max-result-chars — for a server whose answers
+    # are long and all of it worth reading (a wiki page, say).
+    # result-limits:
+    #   confluence: 60000
   embedding:
     # Must match spring.ai.openai.embedding.model.
     # Stored alongside every cached vector so that model upgrades invalidate old cache rows.

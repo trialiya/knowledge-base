@@ -40,7 +40,9 @@ import io.github.trialiya.kb.service.chat.skill.SkillService;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ChatToolset;
+import io.github.trialiya.kb.tools.McpResultLimits;
 import io.github.trialiya.kb.tools.McpToolRegistry;
+import io.github.trialiya.kb.tools.ToolResultShelf;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import io.github.trialiya.kb.tools.UnknownToolCallbackResolver;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -404,11 +406,18 @@ public class ChatConfig {
      * <p>Nothing is connected here — the registry reaches the servers after the context is up. See
      * its javadoc for why that is the difference between one unreachable server costing its tools
      * and costing the whole startup.
+     *
+     * <p>A tool answer past {@code kb.mcp.max-result-chars} is kept on the chat's script-result
+     * shelf only where something can read it back — scripts on and results kept, the same two
+     * switches {@link #scriptResultFunction} answers to. Elsewhere it is simply cut.
      */
     @Bean
     @Nullable
     public McpToolRegistry mcpToolRegistry(
             McpProperties mcpProperties,
+            ScriptProperties scriptProperties,
+            ScriptResultProperties scriptResultProperties,
+            ScriptResultStore scriptResultStore,
             ObjectProvider<List<McpSyncClient>> mcpSyncClients,
             ObjectProvider<List<McpAsyncClient>> mcpAsyncClients,
             ObjectProvider<McpClientCommonProperties> mcpCommonProperties,
@@ -440,7 +449,31 @@ public class ChatConfig {
                 mcpCommonProperties,
                 mcpToolFilter,
                 mcpToolNamePrefixGenerator,
-                mcpMetaConverter);
+                mcpMetaConverter,
+                mcpResultLimits(mcpProperties, scriptProperties, scriptResultProperties, scriptResultStore));
+    }
+
+    private static McpResultLimits mcpResultLimits(
+            McpProperties mcpProperties,
+            ScriptProperties scriptProperties,
+            ScriptResultProperties scriptResultProperties,
+            ScriptResultStore scriptResultStore) {
+        boolean readable = scriptProperties.enabled() && scriptResultProperties.enabled();
+        ToolResultShelf shelf = readable
+                ? (conversationId, label, json) -> {
+                    ScriptResultStore.Kept kept = scriptResultStore.keep(conversationId, label, null, json);
+                    return new ToolResultShelf.Shelved(kept.id(), kept.note());
+                }
+                : null;
+        if (readable && mcpProperties.maxResultChars() > scriptResultProperties.maxChars()) {
+            log.warn(
+                    "kb.mcp.max-result-chars={} is over kb.script.results.max-chars={}: an MCP answer"
+                            + " cut at that size is too large to keep, and no script can read it back",
+                    mcpProperties.maxResultChars(),
+                    scriptResultProperties.maxChars());
+        }
+        return new McpResultLimits(
+                mcpProperties.maxResultChars(), mcpProperties.resultLimits(), shelf, scriptResultProperties.maxChars());
     }
 
     /**

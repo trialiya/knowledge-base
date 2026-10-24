@@ -119,6 +119,7 @@ public class McpToolRegistry {
             (connection, tool) -> McpToolUtils.format(tool.name());
 
     private final Map<String, ToolSource> sources;
+    private final McpResultLimits limits;
     private final Map<String, Connection> connections = new ConcurrentHashMap<>();
 
     /**
@@ -150,18 +151,26 @@ public class McpToolRegistry {
             ObjectProvider<McpClientCommonProperties> commonProperties,
             ObjectProvider<McpToolFilter> toolFilter,
             ObjectProvider<McpToolNamePrefixGenerator> prefixGenerator,
-            ObjectProvider<ToolContextToMcpMetaConverter> metaConverter) {
-        this(sources(
-                syncClients.getIfAvailable(List::of),
-                asyncClients.getIfAvailable(List::of),
-                commonProperties.getIfAvailable(McpClientCommonProperties::new).getName(),
-                toolFilter.getIfUnique(),
-                prefixGenerator.getIfUnique(),
-                metaConverter.getIfUnique()));
+            ObjectProvider<ToolContextToMcpMetaConverter> metaConverter,
+            McpResultLimits limits) {
+        this(
+                sources(
+                        syncClients.getIfAvailable(List::of),
+                        asyncClients.getIfAvailable(List::of),
+                        commonProperties.getIfAvailable(McpClientCommonProperties::new).getName(),
+                        toolFilter.getIfUnique(),
+                        prefixGenerator.getIfUnique(),
+                        metaConverter.getIfUnique()),
+                limits);
     }
 
     McpToolRegistry(Map<String, ToolSource> sources) {
+        this(sources, McpResultLimits.none());
+    }
+
+    McpToolRegistry(Map<String, ToolSource> sources, McpResultLimits limits) {
         this.sources = sources;
+        this.limits = limits;
         sources.keySet().forEach(name -> connections.put(name, pending()));
         this.snapshot = snapshot();
         if (sources.isEmpty()) {
@@ -364,10 +373,12 @@ public class McpToolRegistry {
     /**
      * {@link RecordingToolCallback} stays outermost so a call to an unreachable server is a plaque
      * in the chat like any other call — a tool that silently does nothing is the one outcome a user
-     * cannot make sense of.
+     * cannot make sense of — and so the plaque records what the model was answered: the envelope of
+     * a cut answer ({@link McpResultLimitCallback}), not the answer.
      */
-    private static ToolCallback published(ToolCallback tool, String connection, Status status) {
-        return new RecordingToolCallback(status == Status.UP ? tool : new UnavailableToolCallback(tool, connection));
+    private ToolCallback published(ToolCallback tool, String connection, Status status) {
+        return new RecordingToolCallback(
+                status == Status.UP ? limits.wrap(tool, connection) : new UnavailableToolCallback(tool, connection));
     }
 
     private static Connection pending() {

@@ -144,6 +144,8 @@
         "down": "unavailable",
         "pending": "connecting…"
       },
+      "resultLimit": "answers ≤ {{chars}} chars",
+      "resultUnlimited": "answers not limited",
       "retryNote": "An unavailable server does not stop anything: the connection is retried every {{seconds}}s, no restart needed. Tools it has already advertised stay in the model’s tool list (withdrawing them would break the prompt cache) and answer a call with a “server unavailable” error; a server that has never answered has no tools there yet."
     },
     "uploads": {
