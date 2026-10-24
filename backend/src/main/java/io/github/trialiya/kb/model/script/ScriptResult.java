@@ -216,6 +216,9 @@ public record ScriptResult(
         meta.put("bytesRead", stats.bytesRead());
         meta.put("calls", stats.calls());
         meta.put("elapsedMs", stats.elapsedMs());
+        if (stats.mcpCalls() > 0) {
+            meta.put("mcpCalls", stats.mcpCalls());
+        }
         meta.put("paths", filesRead.stream().limit(META_PATH_LIMIT).toList());
         if (!edits.isEmpty()) {
             // Same shape the frontend's file-change block already reads from createFile/editFile.

@@ -279,6 +279,14 @@ class McpToolRegistryTest {
         awaitProbed(registry);
         assertThat(((RecordingToolCallback) registry.callbacks().get(0)).delegate())
                 .isInstanceOf(McpResultLimitCallback.class);
+        // A script gets the answer whole, and its call is a line in the run's log, not a plaque.
+        assertThat(registry.scriptTools()).singleElement().satisfies(tool -> {
+            assertThat(tool.connection()).isEqualTo("jira");
+            assertThat(tool.available()).isTrue();
+            assertThat(tool.callback())
+                    .isNotInstanceOf(McpResultLimitCallback.class)
+                    .isNotInstanceOf(RecordingToolCallback.class);
+        });
 
         reachable.set(false);
         registry.refreshAll();
@@ -287,6 +295,7 @@ class McpToolRegistryTest {
                 .until(() -> registry.statuses().get(0).status() == Status.DOWN);
         assertThat(((RecordingToolCallback) registry.callbacks().get(0)).delegate())
                 .isInstanceOf(UnavailableToolCallback.class);
+        assertThat(registry.scriptTools().get(0).available()).isFalse();
     }
 
     private static List<String> names(McpToolRegistry registry) {

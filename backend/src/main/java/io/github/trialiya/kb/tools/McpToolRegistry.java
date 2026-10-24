@@ -103,7 +103,25 @@ public class McpToolRegistry {
      * The callbacks and the per-connection report, swapped as one: a reader of {@link #callbacks()}
      * building a request must not see a tool list that half a refresh has already replaced.
      */
-    private record Snapshot(List<ToolCallback> callbacks, List<ConnectionStatus> statuses) {}
+    private record Snapshot(
+            List<ToolCallback> callbacks, List<ScriptTool> scriptTools, List<ConnectionStatus> statuses) {}
+
+    /**
+     * A tool as a script calls it ({@code mcp.call}): the server's answer whole, so neither the
+     * answer limit nor the recording wrapper — a script's call is a line in the run's log, not a
+     * plaque of its own.
+     *
+     * @param connection the connection that advertised it — what {@code kb.mcp.script-access} is
+     *     keyed by
+     * @param callback the tool itself while its connection is up, an {@link UnavailableToolCallback}
+     *     while it is down
+     */
+    public record ScriptTool(String name, String connection, String description, ToolCallback callback) {
+
+        public boolean available() {
+            return !(callback instanceof UnavailableToolCallback);
+        }
+    }
 
     /**
      * The starter's naming without its memory. {@link DefaultMcpToolNamePrefixGenerator} remembers
@@ -131,7 +149,7 @@ public class McpToolRegistry {
     /** Connections waiting to be probed, drained by whoever holds {@link #refreshing}. */
     private final Set<String> queued = ConcurrentHashMap.newKeySet();
 
-    private volatile Snapshot snapshot = new Snapshot(List.of(), List.of());
+    private volatile Snapshot snapshot = new Snapshot(List.of(), List.of(), List.of());
 
     /**
      * The tools {@link #snapshot()} left out as duplicates last time, as {@code "name
@@ -183,6 +201,11 @@ public class McpToolRegistry {
     /** The MCP tools the model may be offered right now, already wrapped for run recording. */
     public List<ToolCallback> callbacks() {
         return snapshot.callbacks();
+    }
+
+    /** The same tools as {@link #callbacks()}, as a script calls them — see {@link ScriptTool}. */
+    public List<ScriptTool> scriptTools() {
+        return snapshot.scriptTools();
     }
 
     /** Every configured connection with the state of its last probe, for the Settings panel. */
@@ -347,6 +370,7 @@ public class McpToolRegistry {
      */
     private Snapshot snapshot() {
         List<ToolCallback> callbacks = new ArrayList<>();
+        List<ScriptTool> scriptTools = new ArrayList<>();
         List<ConnectionStatus> statuses = new ArrayList<>();
         Set<String> names = new HashSet<>();
         Set<String> dropped = new HashSet<>();
@@ -356,6 +380,11 @@ public class McpToolRegistry {
                 String toolName = tool.getToolDefinition().name();
                 if (names.add(toolName)) {
                     callbacks.add(published(tool, name, connection.status()));
+                    scriptTools.add(new ScriptTool(
+                            toolName,
+                            name,
+                            tool.getToolDefinition().description(),
+                            connection.status() == Status.UP ? tool : new UnavailableToolCallback(tool, name)));
                 } else {
                     dropped.add(toolName + " (" + name + ")");
                 }
@@ -367,7 +396,7 @@ public class McpToolRegistry {
             log.warn("MCP tools left out, their names are taken by a connection listed earlier: {}", dropped);
         }
         shadowed = Set.copyOf(dropped);
-        return new Snapshot(List.copyOf(callbacks), List.copyOf(statuses));
+        return new Snapshot(List.copyOf(callbacks), List.copyOf(scriptTools), List.copyOf(statuses));
     }
 
     /**

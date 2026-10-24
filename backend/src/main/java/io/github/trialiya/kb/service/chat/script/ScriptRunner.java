@@ -29,6 +29,7 @@ import org.graalvm.polyglot.SourceSection;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.io.IOAccess;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -137,6 +138,17 @@ public class ScriptRunner {
                                     var s = JSON.stringify(x);
                                     return s === undefined ? String(x) : s;
                                   },
+                                  mcp: function (host) {
+                                    return Object.freeze({
+                                      tools: function () { return JSON.parse(host.tools()); },
+                                      call: function (name, args) {
+                                        var json = args === undefined || args === null ? '{}' : JSON.stringify(args);
+                                        var answer = JSON.parse(host.call(String(name), json));
+                                        if ('error' in answer) throw new Error(answer.error);
+                                        return answer.value;
+                                      }
+                                    });
+                                  },
                                   args: function (json) {
                                     return (function deepFreeze(x) {
                                       if (x !== null && typeof x === 'object' && !Object.isFrozen(x)) {
@@ -157,6 +169,7 @@ public class ScriptRunner {
     private final ScriptProperties properties;
     private final ScriptEditPolicy editPolicy;
     private final ScriptResultStore resultStore;
+    private final ScriptMcp mcp;
     private final ScriptResultKeeper resultKeeper;
 
     /**
@@ -178,12 +191,25 @@ public class ScriptRunner {
 
     private final ReentrantLock engineLock = new ReentrantLock();
 
+    /** A runner whose scripts never get an {@code mcp} object — the sandbox tests. */
     public ScriptRunner(
             GitRegistry gitRegistry,
             DocumentService documentService,
             ScriptProperties properties,
             ScriptEditPolicy editPolicy,
             ScriptResultStore resultStore) {
+        this(gitRegistry, documentService, properties, editPolicy, resultStore, ScriptMcp.none());
+    }
+
+    @Autowired
+    public ScriptRunner(
+            GitRegistry gitRegistry,
+            DocumentService documentService,
+            ScriptProperties properties,
+            ScriptEditPolicy editPolicy,
+            ScriptResultStore resultStore,
+            ScriptMcp mcp) {
+        this.mcp = mcp;
         this.gitRegistry = gitRegistry;
         this.documentService = documentService;
         this.properties = properties;
@@ -214,6 +240,17 @@ public class ScriptRunner {
         } finally {
             engineLock.unlock();
         }
+    }
+
+    /**
+     * The request's own scope, except for an attachment's code: that came from whoever uploaded the
+     * file, and a person asking the model to run it has not vouched for what it calls.
+     */
+    private static ScriptMcpScope mcpScope(ScriptRequest request) {
+        ScriptRunSource source = request.source().report();
+        return source != null && source.kind() == ScriptRunSource.Kind.ATTACHMENT
+                ? ScriptMcpScope.NONE
+                : request.mcp();
     }
 
     // Closing the engine is what this method is for; the local is the engine itself.
@@ -327,6 +364,12 @@ public class ScriptRunner {
             Value logFormatter = helpers.getMember("log");
             api.bindFormatter(value -> logFormatter.execute(value).asString());
             context.getBindings("js").putMember("kb", api);
+            // Bound only when the run may call MCP tools: otherwise `mcp` is not defined at all,
+            // the same way kb.edit is absent from a read-only run rather than refusing.
+            McpScriptApi mcpApi = mcp.open(mcpScope(request), session, deadlineNanos, cancellation);
+            if (mcpApi != null) {
+                context.getBindings("js").putMember("mcp", helpers.getMember("mcp").execute(mcpApi));
+            }
             // Модули — гостевой функцией поверх kb.read, а не новым методом хоста: поверхность
             // HostAccess от неё не растёт, а бюджет чтения списывается обычным порядком.
             context.getBindings("js")

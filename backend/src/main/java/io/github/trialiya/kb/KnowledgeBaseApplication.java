@@ -11,6 +11,7 @@ import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.McpProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.config.model.ScriptMcpProperties;
 import io.github.trialiya.kb.config.model.ScriptResultProperties;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.config.model.SecurityProperties;
@@ -31,6 +32,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     GitProperties.class,
     ProjectProperties.class,
     ScriptProperties.class,
+    ScriptMcpProperties.class,
     ScriptResultProperties.class,
     SearchConfiguration.class,
     SubAgentConfig.class,

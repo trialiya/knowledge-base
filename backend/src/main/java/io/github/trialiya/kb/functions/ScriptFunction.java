@@ -6,6 +6,7 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.chat.script.ResultScope;
+import io.github.trialiya.kb.service.chat.script.ScriptMcpScope;
 import io.github.trialiya.kb.service.chat.script.ScriptArgs;
 import io.github.trialiya.kb.service.chat.script.ScriptRequest;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
@@ -139,7 +140,10 @@ public class ScriptFunction {
                                 // The sub-agent's value reaches the chat model only through its
                                 // summary, so an id handed out here would be one nobody can name.
                                 forceReadOnly ? ResultScope.readOnly(chat) : ResultScope.keeping(chat))
-                        .withResultLimit(positiveOrDefault(resultLimit, 0)),
+                        .withResultLimit(positiveOrDefault(resultLimit, 0))
+                        // The sub-agent's copy calls no MCP tools: it is read-only by construction,
+                        // and what an external tool does is not something the config can promise.
+                        .withMcp(forceReadOnly ? ScriptMcpScope.NONE : ScriptMcpScope.CHAT),
                 RunCancellation.from(context));
         log.debug("runScript finished: {}", result.getFormattedResponse());
         return result;

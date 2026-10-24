@@ -206,9 +206,10 @@ public class ScheduledScriptService {
                             schedule.project(),
                             schedule.script(),
                             schedule.args(),
-                            schedule.timeoutSeconds(),
-                            false,
-                            null),
+                                    schedule.timeoutSeconds(),
+                                    false,
+                                    null)
+                            .withMcp(ScriptMcpScope.SCHEDULED),
                     RunCancellation.none());
             lastRuns.put(
                     name,
