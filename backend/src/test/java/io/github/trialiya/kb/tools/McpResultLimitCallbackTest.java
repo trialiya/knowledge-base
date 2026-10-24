@@ -59,6 +59,33 @@ class McpResultLimitCallbackTest {
         assertThat(MAPPER.writeValueAsString(envelope).length()).isLessThanOrEqualTo(LIMIT);
     }
 
+    /** A shape of long keys three levels deep is not bounded by its breadth — the envelope still is. */
+    @Test
+    void theEnvelopeStaysWithinTheLimitWhateverTheShape() {
+        StringBuilder wide = new StringBuilder("{");
+        for (int i = 0; i < 12; i++) {
+            wide.append(i == 0 ? "" : ",")
+                    .append("\"")
+                    .append("k".repeat(300))
+                    .append(i)
+                    .append("\":{");
+            for (int j = 0; j < 12; j++) {
+                wide.append(j == 0 ? "" : ",")
+                        .append("\"")
+                        .append("n".repeat(300))
+                        .append(j)
+                        .append("\":1");
+            }
+            wide.append('}');
+        }
+        String payload = wide.append('}').toString();
+
+        String answered = limited(textBlock(payload), shelf).call("{}", chat("c1"));
+
+        assertThat(answered.length()).isLessThanOrEqualTo(LIMIT);
+        assertThat(MAPPER.readTree(answered).get("resultId").asString()).isEqualTo("r1");
+    }
+
     /** Prose is shown as prose: escaped into a JSON string, a head would spend the limit on {@code \n}. */
     @Test
     void theHeadOfATextAnswerIsTheTextItself() {
@@ -72,7 +99,8 @@ class McpResultLimitCallbackTest {
 
     @Test
     void outsideAChatNothingIsKeptAndTheModelIsToldToNarrowTheRequest() {
-        JsonNode envelope = MAPPER.readTree(limited(textBlock(issues(300)), shelf).call("{}", null));
+        JsonNode envelope =
+                MAPPER.readTree(limited(textBlock(issues(300)), shelf).call("{}", null));
 
         assertThat(kept).isEmpty();
         assertThat(envelope.has("resultId")).isFalse();
@@ -83,7 +111,8 @@ class McpResultLimitCallbackTest {
     void whatTheShelfRefusesItSaysWhy() {
         ToolResultShelf full = (conversationId, label, json) -> new Shelved(null, "Result not kept: too large.");
 
-        JsonNode envelope = MAPPER.readTree(limited(textBlock(issues(300)), full).call("{}", chat("c1")));
+        JsonNode envelope =
+                MAPPER.readTree(limited(textBlock(issues(300)), full).call("{}", chat("c1")));
 
         assertThat(envelope.has("resultId")).isFalse();
         assertThat(envelope.get("note").asString()).contains("Result not kept: too large.");
@@ -92,8 +121,9 @@ class McpResultLimitCallbackTest {
     /** An image is what usually tips an answer over — and once left out, nothing needs cutting. */
     @Test
     void anAnswerThatFitsOnceItsBinaryIsLeftOutIsAnsweredWhole() {
-        String answer = "[{\"type\":\"text\",\"text\":\"chart\"},{\"type\":\"image\",\"mimeType\":\"image/png\",\"data\":\""
-                + "A".repeat(LIMIT * 2) + "\"}]";
+        String answer =
+                "[{\"type\":\"text\",\"text\":\"chart\"},{\"type\":\"image\",\"mimeType\":\"image/png\",\"data\":\""
+                        + "A".repeat(LIMIT * 2) + "\"}]";
 
         String answered = limited(answer, shelf).call("{}", chat("c1"));
 
@@ -104,8 +134,8 @@ class McpResultLimitCallbackTest {
     @Test
     void theCallsDetailViewIsGivenTheWholeAnswer() {
         ToolInvocationCollector collector = new ToolInvocationCollector();
-        ToolContext context = new ToolContext(
-                Map.of(ChatMemory.CONVERSATION_ID, "c1", ToolInvocationCollector.KEY, collector));
+        ToolContext context =
+                new ToolContext(Map.of(ChatMemory.CONVERSATION_ID, "c1", ToolInvocationCollector.KEY, collector));
         String payload = issues(300);
 
         new RecordingToolCallback(limited(textBlock(payload), shelf)).call("{}", context);
@@ -127,7 +157,8 @@ class McpResultLimitCallbackTest {
 
         assertThatThrownBy(() -> new McpResultLimitCallback(failing, LIMIT, shelf, 1_000_000).call("{}", chat("c1")))
                 .isInstanceOf(ToolExecutionException.class)
-                .satisfies(e -> assertThat(e.getMessage()).hasSizeLessThan(LIMIT).contains("error message cut"));
+                .satisfies(
+                        e -> assertThat(e.getMessage()).hasSizeLessThan(LIMIT).contains("error message cut"));
     }
 
     @Test

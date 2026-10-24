@@ -86,13 +86,34 @@ public record McpResultLimitCallback(
                 normalized.json().length(),
                 limit,
                 shelved.id());
-        return MAPPER.writeValueAsString(envelope(normalized, shelved));
+        return bounded(normalized, shelved);
     }
 
-    private ObjectNode envelope(Normalized normalized, Shelved shelved) {
+    /**
+     * The envelope, held to the limit it enforces. The shape is a sketch of bounded breadth but not
+     * of bounded size — long key names, a dozen keys three levels deep — so an envelope that comes
+     * out too large first loses the shape, then as much of the head as it overshoots by.
+     */
+    private String bounded(Normalized normalized, Shelved shelved) {
         boolean text = normalized.value().isString();
         String whole = text ? normalized.value().asString() : normalized.json();
-        String head = whole.substring(0, Math.min(whole.length(), headChars()));
+        int headChars = Math.min(whole.length(), headChars());
+        String answer = MAPPER.writeValueAsString(envelope(normalized, whole, headChars, shelved, !text));
+        if (answer.length() > limit && !text) {
+            answer = MAPPER.writeValueAsString(envelope(normalized, whole, headChars, shelved, false));
+        }
+        if (answer.length() > limit) {
+            // Escaping makes a head take more room than its length, so the cut is by what the
+            // serialized envelope overshoots, which is never less than what the head has to lose.
+            headChars = Math.max(0, headChars - (answer.length() - limit));
+            answer = MAPPER.writeValueAsString(envelope(normalized, whole, headChars, shelved, false));
+        }
+        return answer;
+    }
+
+    private ObjectNode envelope(
+            Normalized normalized, String whole, int headChars, Shelved shelved, boolean withShape) {
+        String head = whole.substring(0, headChars);
         ObjectNode envelope = JsonNodeFactory.instance.objectNode();
         envelope.put("truncated", true);
         envelope.put("totalChars", whole.length());
@@ -100,7 +121,7 @@ public record McpResultLimitCallback(
         if (shelved.id() != null) {
             envelope.put("resultId", shelved.id());
         }
-        if (!text) {
+        if (withShape) {
             envelope.set("shape", McpContent.shape(normalized.value()));
         }
         if (normalized.omittedBytes() > 0) {

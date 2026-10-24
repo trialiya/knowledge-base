@@ -203,9 +203,9 @@ public class ScheduledScriptService {
         try {
             ScriptResult result = runner.run(
                     resolver.resolve(
-                            schedule.project(),
-                            schedule.script(),
-                            schedule.args(),
+                                    schedule.project(),
+                                    schedule.script(),
+                                    schedule.args(),
                                     schedule.timeoutSeconds(),
                                     false,
                                     null)

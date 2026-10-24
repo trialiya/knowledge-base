@@ -248,9 +248,7 @@ public class ScriptRunner {
      */
     private static ScriptMcpScope mcpScope(ScriptRequest request) {
         ScriptRunSource source = request.source().report();
-        return source != null && source.kind() == ScriptRunSource.Kind.ATTACHMENT
-                ? ScriptMcpScope.NONE
-                : request.mcp();
+        return source != null && source.kind() == ScriptRunSource.Kind.ATTACHMENT ? ScriptMcpScope.NONE : request.mcp();
     }
 
     // Closing the engine is what this method is for; the local is the engine itself.
@@ -368,7 +366,8 @@ public class ScriptRunner {
             // the same way kb.edit is absent from a read-only run rather than refusing.
             McpScriptApi mcpApi = mcp.open(mcpScope(request), session, deadlineNanos, cancellation);
             if (mcpApi != null) {
-                context.getBindings("js").putMember("mcp", helpers.getMember("mcp").execute(mcpApi));
+                context.getBindings("js")
+                        .putMember("mcp", helpers.getMember("mcp").execute(mcpApi));
             }
             // Модули — гостевой функцией поверх kb.read, а не новым методом хоста: поверхность
             // HostAccess от неё не растёт, а бюджет чтения списывается обычным порядком.
@@ -384,6 +383,13 @@ public class ScriptRunner {
                             helpers.getMember("args").execute(request.args().json()));
 
             Value returned = context.eval(source(request.source()));
+            // A guest can catch any host exception, the one for an MCP call cut short included —
+            // and a run out of time or stopped by the user must not come back as a success over
+            // the fallback it returned.
+            Kind abandoned = mcpApi == null ? null : mcpApi.abandoned();
+            if (abandoned != null) {
+                return stopped(project, request.source(), session, abandoned, timeout);
+            }
             String json = stringify(helpers.getMember("result"), returned);
             // Retire the watchdog before writing: the budget it enforces is the script's, and a
             // deadline landing mid-apply would mean a stop request that leaves files half written

@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.chat.script;
 
+import io.github.trialiya.kb.config.model.ScriptMcpProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.ScriptResultProperties;
 import io.github.trialiya.kb.model.script.ScriptResult;
@@ -8,6 +9,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -58,6 +60,13 @@ public class ScriptGuideService {
     private static final Resource SUB_AGENT_RESULTS_GUIDE =
             new ClassPathResource("prompt/script-run-results-subagent.md");
 
+    /**
+     * The section on the {@code mcp} object — in every chat rendering when {@link
+     * ScriptMcp#offered()}, never in the sub-agent's, whose runs get no {@code mcp} object. It names
+     * no tools: the list changes with the servers, and {@code mcp.tools()} is how a script asks.
+     */
+    private static final Resource MCP_GUIDE = new ClassPathResource("prompt/script-run-mcp.md");
+
     private final ScriptEditPolicy editPolicy;
     private final String instructionsForWeakModel;
     private final String instructionsForStrongModel;
@@ -65,22 +74,43 @@ public class ScriptGuideService {
     private final String readOnlyInstructionsForStrongModel;
     private final String subAgentInstructions;
 
+    /** A deployment whose scripts get no {@code mcp} object — the tests that are not about MCP. */
     public ScriptGuideService(
             ScriptProperties properties, ScriptResultProperties results, ScriptEditPolicy editPolicy) {
+        this(properties, results, editPolicy, ScriptMcp.none(), ScriptMcpProperties.disabled());
+    }
+
+    @Autowired
+    public ScriptGuideService(
+            ScriptProperties properties,
+            ScriptResultProperties results,
+            ScriptEditPolicy editPolicy,
+            ScriptMcp mcp,
+            ScriptMcpProperties mcpProperties) {
         this.editPolicy = editPolicy;
         requireKeepingCeiling(properties, results);
         // Kept results are a deployment switch of their own: with it off no run gets a resultId,
         // and a handbook describing kb.result would send the model after ids it never sees.
         Resource chatResults = results.enabled() ? RESULTS_GUIDE : null;
-        this.instructionsForWeakModel = properties.enabled() ? render(properties, chatResults, true, true) : "";
-        this.instructionsForStrongModel = properties.enabled() ? render(properties, chatResults, false, true) : "";
+        String mcpSection = mcp.offered() ? mcpSection(mcpProperties) : null;
+        this.instructionsForWeakModel =
+                properties.enabled() ? render(properties, chatResults, mcpSection, true, true) : "";
+        this.instructionsForStrongModel =
+                properties.enabled() ? render(properties, chatResults, mcpSection, false, true) : "";
         this.readOnlyInstructionsForWeakModel =
-                properties.enabled() ? render(properties, chatResults, true, false) : "";
+                properties.enabled() ? render(properties, chatResults, mcpSection, true, false) : "";
         this.readOnlyInstructionsForStrongModel =
-                properties.enabled() ? render(properties, chatResults, false, false) : "";
+                properties.enabled() ? render(properties, chatResults, mcpSection, false, false) : "";
         this.subAgentInstructions = properties.enabled()
-                ? render(properties, results.enabled() ? SUB_AGENT_RESULTS_GUIDE : null, false, false)
+                ? render(properties, results.enabled() ? SUB_AGENT_RESULTS_GUIDE : null, null, false, false)
                 : "";
+    }
+
+    /** {@link #MCP_GUIDE} with its budgets, which live in properties of their own. */
+    private static String mcpSection(ScriptMcpProperties properties) {
+        return read(MCP_GUIDE)
+                .replace("{{max_mcp_calls}}", String.valueOf(properties.maxCalls()))
+                .replace("{{max_mcp_bytes}}", humanBytes(properties.maxBytes()));
     }
 
     /**
@@ -148,15 +178,24 @@ public class ScriptGuideService {
     /**
      * @param resultsSection what the handbook says about kept results; null — nothing, because
      *     keeping is off
+     * @param mcpSection what it says about the {@code mcp} object, budgets filled in; null —
+     *     nothing, because no run of this rendering gets one
      */
     private static String render(
-            ScriptProperties properties, @Nullable Resource resultsSection, boolean extended, boolean editEnabled) {
+            ScriptProperties properties,
+            @Nullable Resource resultsSection,
+            @Nullable String mcpSection,
+            boolean extended,
+            boolean editEnabled) {
         // Two independent gates. The write appendices are added only when kb.edit/kb.create are
         // actually bound, so the handbook can never describe a method the sandbox does not have;
         // the extended halves are added only for a run whose model is flagged weak.
         StringBuilder handbook = new StringBuilder(read(properties.guide()));
         if (resultsSection != null) {
             append(handbook, resultsSection);
+        }
+        if (mcpSection != null) {
+            handbook.append("\n\n").append(mcpSection);
         }
         if (extended) {
             append(handbook, properties.extendedGuide());

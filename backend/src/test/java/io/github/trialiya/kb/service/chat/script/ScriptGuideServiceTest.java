@@ -6,8 +6,12 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import io.github.trialiya.kb.config.model.McpProperties;
+import io.github.trialiya.kb.config.model.ScriptMcpProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.ScriptResultProperties;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -168,6 +172,36 @@ class ScriptGuideServiceTest {
         assertThat(new ScriptGuideService(properties, new ScriptResultProperties(false, 1000, 10), policy)
                         .instructions(false))
                 .doesNotContain("kb.result", "resultId", "saveScriptResult");
+    }
+
+    /**
+     * Про {@code mcp} справочник говорит ровно там, где скрипт его получит: в чате, когда MCP из
+     * скриптов включён и хоть одно соединение открыто скриптам. Сабагенту — никогда: его прогоны
+     * {@code mcp} не получают.
+     */
+    @Test
+    void theMcpSectionFollowsScriptAccessAndSkipsTheSubAgent() {
+        ScriptProperties properties = ScriptProperties.enabledWithDefaults();
+        ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
+        ScriptMcpProperties on = new ScriptMcpProperties(true, 7, DataSize.ofMegabytes(3));
+        McpProperties jira = new McpProperties(
+                true,
+                60_000,
+                Map.of(),
+                Map.of(),
+                20_000,
+                Map.of(),
+                Map.of("jira", new McpProperties.ScriptAccess(List.of("jira_search"), false)));
+        ScriptGuideService offered = new ScriptGuideService(
+                properties, ScriptResultProperties.defaults(), policy, new ScriptMcp(on, jira, List::of), on);
+        McpProperties noAccess = new McpProperties(true, 60_000, Map.of(), Map.of(), 20_000, Map.of(), Map.of());
+        ScriptGuideService notOffered = new ScriptGuideService(
+                properties, ScriptResultProperties.defaults(), policy, new ScriptMcp(on, noAccess, List::of), on);
+
+        assertThat(offered.instructions(false)).contains("mcp.call(name, args)", "7 calls", "3 МБ");
+        assertThat(offered.readOnlyInstructions(true)).contains("mcp.tools()");
+        assertThat(offered.subAgentInstructions()).doesNotContain("mcp.");
+        assertThat(notOffered.instructions(false)).doesNotContain("mcp.");
     }
 
     /**

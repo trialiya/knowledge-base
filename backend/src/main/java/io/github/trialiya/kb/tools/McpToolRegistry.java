@@ -175,7 +175,9 @@ public class McpToolRegistry {
                 sources(
                         syncClients.getIfAvailable(List::of),
                         asyncClients.getIfAvailable(List::of),
-                        commonProperties.getIfAvailable(McpClientCommonProperties::new).getName(),
+                        commonProperties
+                                .getIfAvailable(McpClientCommonProperties::new)
+                                .getName(),
                         toolFilter.getIfUnique(),
                         prefixGenerator.getIfUnique(),
                         metaConverter.getIfUnique()),

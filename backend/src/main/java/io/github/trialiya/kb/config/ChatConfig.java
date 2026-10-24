@@ -42,8 +42,8 @@ import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ChatToolset;
 import io.github.trialiya.kb.tools.McpResultLimits;
 import io.github.trialiya.kb.tools.McpToolRegistry;
-import io.github.trialiya.kb.tools.ToolResultShelf;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
+import io.github.trialiya.kb.tools.ToolResultShelf;
 import io.github.trialiya.kb.tools.UnknownToolCallbackResolver;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
@@ -465,12 +465,22 @@ public class ChatConfig {
                     return new ToolResultShelf.Shelved(kept.id(), kept.note());
                 }
                 : null;
-        if (readable && mcpProperties.maxResultChars() > scriptResultProperties.maxChars()) {
-            log.warn(
-                    "kb.mcp.max-result-chars={} is over kb.script.results.max-chars={}: an MCP answer"
-                            + " cut at that size is too large to keep, and no script can read it back",
-                    mcpProperties.maxResultChars(),
-                    scriptResultProperties.maxChars());
+        if (readable) {
+            Map<String, Integer> limits = new LinkedHashMap<>();
+            limits.put("kb.mcp.max-result-chars", mcpProperties.maxResultChars());
+            mcpProperties
+                    .resultLimits()
+                    .forEach((connection, limit) -> limits.put("kb.mcp.result-limits." + connection, limit));
+            limits.forEach((key, limit) -> {
+                if (limit > scriptResultProperties.maxChars()) {
+                    log.warn(
+                            "{}={} is over kb.script.results.max-chars={}: an MCP answer cut at that size"
+                                    + " is too large to keep, and no script can read it back",
+                            key,
+                            limit,
+                            scriptResultProperties.maxChars());
+                }
+            });
         }
         return new McpResultLimits(
                 mcpProperties.maxResultChars(), mcpProperties.resultLimits(), shelf, scriptResultProperties.maxChars());

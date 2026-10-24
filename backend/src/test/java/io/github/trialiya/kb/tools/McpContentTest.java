@@ -16,7 +16,8 @@ class McpContentTest {
 
     @Test
     void aSingleTextBlockHoldingJsonIsThatJson() {
-        Normalized n = McpContent.normalize("[{\"type\":\"text\",\"text\":\"{\\\"issues\\\":[{\\\"key\\\":\\\"KB-1\\\"}]}\"}]");
+        Normalized n = McpContent.normalize(
+                "[{\"type\":\"text\",\"text\":\"{\\\"issues\\\":[{\\\"key\\\":\\\"KB-1\\\"}]}\"}]");
 
         assertThat(n.json()).isEqualTo("{\"issues\":[{\"key\":\"KB-1\"}]}");
         assertThat(n.value().get("issues").get(0).get("key").asString()).isEqualTo("KB-1");
@@ -81,8 +82,12 @@ class McpContentTest {
         for (int i = 0; i < 20; i++) {
             wide.append(i == 0 ? "" : ",").append("\"k").append(i).append("\":").append(i);
         }
-        String shape = MAPPER.writeValueAsString(McpContent.shape(MAPPER.readTree(wide.append('}').toString())));
+        String shape = MAPPER.writeValueAsString(
+                McpContent.shape(MAPPER.readTree(wide.append('}').toString())));
 
-        assertThat(shape).contains("\"k11\":\"number\"").doesNotContain("\"k12\"").contains("\"…\":\"8 more\"");
+        assertThat(shape)
+                .contains("\"k11\":\"number\"")
+                .doesNotContain("\"k12\"")
+                .contains("\"…\":\"8 more\"");
     }
 }

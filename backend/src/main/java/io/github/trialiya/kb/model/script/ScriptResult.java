@@ -196,6 +196,7 @@ public record ScriptResult(
                 .add("files", stats.filesRead())
                 .add("bytes", stats.bytesRead())
                 .add("calls", stats.calls())
+                .add("mcp", stats.mcpCalls() > 0 ? stats.mcpCalls() : null)
                 .add("edited", stats.filesEdited() > 0 ? stats.filesEdited() : null)
                 .add("ms", stats.elapsedMs())
                 .add("error", error == null ? null : error.kind())
