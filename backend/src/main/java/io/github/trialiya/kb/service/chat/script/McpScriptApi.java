@@ -115,6 +115,7 @@ public final class McpScriptApi {
                     + " MCP calls per run (kb.script.mcp.max-calls). Every call counts, a repeat included:"
                     + " keep an answer in a variable instead of asking again.");
         }
+        refuseIfAbandoned(tool);
         calls++;
         session.countMcpCall();
         long started = System.nanoTime();
@@ -173,13 +174,11 @@ public final class McpScriptApi {
     }
 
     /**
-     * The call on a thread of its own, waited for until the run's deadline or its stop flag —
-     * whichever comes first. What the tool threw is rethrown with its message, which is the text the
-     * script and the model need ("the server is not reachable", the server's own error).
+     * Throws when the run was stopped or is out of time — before the call is counted or sent. A
+     * script that caught an earlier abandonment, or is still running after a Stop, must not get to
+     * send another request: a tool may have side effects the user meant to stop.
      */
-    private String invoke(ScriptTool tool, String argsJson) {
-        // A script that caught an earlier abandonment, or is still running after a Stop, must not
-        // get to send another request: a tool may have side effects the user meant to stop.
+    private void refuseIfAbandoned(ScriptTool tool) {
         if (abandoned == null && cancellation.isStopRequested()) {
             abandoned = ScriptError.Kind.CANCELLED;
         }
@@ -190,6 +189,14 @@ public final class McpScriptApi {
             throw new CallAbandonedException("Not calling MCP tool '" + tool.name() + "': "
                     + (abandoned == ScriptError.Kind.TIMEOUT ? "the run's time is up." : "the run was stopped."));
         }
+    }
+
+    /**
+     * The call on a thread of its own, waited for until the run's deadline or its stop flag —
+     * whichever comes first. What the tool threw is rethrown with its message, which is the text the
+     * script and the model need ("the server is not reachable", the server's own error).
+     */
+    private String invoke(ScriptTool tool, String argsJson) {
         // A FutureTask on a thread of its own rather than a CompletableFuture: cancel(true) on the
         // latter does not interrupt the thread, and a call given up on would hold it — and a
         // request slot of the client — until the client's own timeout.
@@ -224,10 +231,18 @@ public final class McpScriptApi {
         CallAbandonedException(String message) {
             super(message);
         }
+
+        CallAbandonedException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
-    /** The answer if it came within {@code millis}; empty when it is not there yet. */
-    private static Optional<String> poll(ScriptTool tool, FutureTask<String> pending, long millis) {
+    /**
+     * The answer if it came within {@code millis}; empty when it is not there yet. An interrupt is
+     * the watchdog closing the run at its deadline or on Stop, so the call is given up on as such —
+     * not answered as an ordinary failure the script could catch and carry on past.
+     */
+    private Optional<String> poll(ScriptTool tool, FutureTask<String> pending, long millis) {
         try {
             return Optional.of(pending.get(millis, TimeUnit.MILLISECONDS));
         } catch (TimeoutException e) {
@@ -235,7 +250,11 @@ public final class McpScriptApi {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             pending.cancel(true);
-            throw new IllegalStateException("Interrupted while waiting for MCP tool '" + tool.name() + "'", e);
+            abandoned = cancellation.isStopRequested() ? ScriptError.Kind.CANCELLED : ScriptError.Kind.TIMEOUT;
+            throw new CallAbandonedException(
+                    "Stopped waiting for MCP tool '" + tool.name()
+                            + "': the run was interrupted. The request may still reach the server.",
+                    e);
         } catch (ExecutionException e) {
             throw failure(tool, e);
         }

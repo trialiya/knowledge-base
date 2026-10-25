@@ -379,7 +379,7 @@ public class ScriptRunner {
             // the fallback it returned.
             Kind abandoned = mcpApi == null ? null : mcpApi.abandoned();
             if (abandoned != null) {
-                return stopped(project, request.source(), session, abandoned, timeout);
+                return stopped(project, request.source(), session, abandoned, timeout, MCP_TIMEOUT_ADVICE);
             }
             String json = stringify(helpers.getMember("result"), returned);
             // Retire the watchdog before writing: the budget it enforces is the script's, and a
@@ -397,7 +397,7 @@ public class ScriptRunner {
         } catch (PolyglotException e) {
             Kind abandoned = mcpApi == null ? null : mcpApi.abandoned();
             if (abandoned != null) {
-                return stopped(project, request.source(), session, abandoned, timeout);
+                return stopped(project, request.source(), session, abandoned, timeout, MCP_TIMEOUT_ADVICE);
             }
             return failure(project, request.source(), e, session, cancelReason.get(), timeout);
         } catch (ScriptLimitExceededException e) {
@@ -410,7 +410,7 @@ public class ScriptRunner {
             if (cancelReason.get() == null) {
                 throw e;
             }
-            return stopped(project, request.source(), session, cancelReason.get(), timeout);
+            return stopped(project, request.source(), session, cancelReason.get(), timeout, TIMEOUT_ADVICE);
         } finally {
             stopWatchdog(finished, watchdog);
             closeQuietly(context);
@@ -589,7 +589,7 @@ public class ScriptRunner {
             @Nullable Kind cancelReason,
             Duration timeout) {
         if (e.isCancelled() || e.isInterrupted()) {
-            return stopped(project, source, session, cancelReason, timeout);
+            return stopped(project, source, session, cancelReason, timeout, TIMEOUT_ADVICE);
         }
         if (e.isHostException() && e.asHostException() instanceof ScriptLimitExceededException limit) {
             return failed(project, source, session, ScriptError.of(Kind.BUDGET, String.valueOf(limit.getMessage())));
@@ -608,8 +608,21 @@ public class ScriptRunner {
      * The watchdog fired. A timeout is a recoverable result the model can respond to; a user stop
      * is not — nobody is left to read it, so it leaves as an exception.
      */
+    /** What a run out of time is told to do differently — its own work was the slow part. */
+    private static final String TIMEOUT_ADVICE =
+            "Narrow the work (a tighter glob, fewer files) or split it across two runScript calls.";
+
+    /** The same, when the time went waiting for an MCP tool: no glob makes a server answer sooner. */
+    private static final String MCP_TIMEOUT_ADVICE = "The time went waiting for an MCP tool: ask it for less"
+            + " (filters, fewer fields, a smaller page) or give the run a longer timeout.";
+
     private ScriptResult stopped(
-            String project, ScriptSource source, ScriptSession session, @Nullable Kind reason, Duration timeout) {
+            String project,
+            ScriptSource source,
+            ScriptSession session,
+            @Nullable Kind reason,
+            Duration timeout,
+            String advice) {
         if (reason == Kind.CANCELLED) {
             throw new ScriptCancelledException("Script cancelled: the chat response was stopped");
         }
@@ -617,12 +630,7 @@ public class ScriptRunner {
                 project,
                 source,
                 session,
-                ScriptError.of(
-                        Kind.TIMEOUT,
-                        "Timed out after "
-                                + timeout.toSeconds()
-                                + "s. Narrow the work (a tighter glob, fewer files) or split it"
-                                + " across two runScript calls."));
+                ScriptError.of(Kind.TIMEOUT, "Timed out after " + timeout.toSeconds() + "s. " + advice));
     }
 
     private static @Nullable Integer line(PolyglotException e) {

@@ -248,6 +248,36 @@ class ScriptMcpTest {
 
         assertThat(result.error()).isNotNull();
         assertThat(result.value()).isNotEqualTo("fallback");
+        assertThat(result.error().message()).contains("waiting for an MCP tool");
+    }
+
+    /** A call refused because the run is already out of time never went out, so it is not counted. */
+    @Test
+    void aCallAfterTheDeadlineIsNeitherSentNorCounted() {
+        CountDownLatch never = new CountDownLatch(1);
+        AtomicInteger started = new AtomicInteger();
+        ScriptRunner runner = runner(Map.of("jira", JIRA_READS), tools(tool("jira_search", "jira", args -> {
+            started.incrementAndGet();
+            try {
+                never.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return "[]";
+        })));
+
+        ScriptResult result = runner.run(
+                request(
+                        "for (let i = 0; i < 3; i++) { try { mcp.call('jira_search', {}); } catch (e) {} }"
+                                + " return 'fallback';",
+                        ScriptMcpScope.CHAT,
+                        1),
+                RunCancellation.none());
+        never.countDown();
+
+        assertThat(started).hasValue(1);
+        assertThat(result.error()).isNotNull();
+        assertThat(result.stats().mcpCalls()).isEqualTo(1);
     }
 
     /** A server that never answers must not keep the run past its own deadline. */
@@ -352,6 +382,17 @@ class ScriptMcpTest {
         assertThat(run(runner, "return mcp.tools().map(t => t.name);", ScriptMcpScope.CHAT)
                         .value())
                 .isEqualTo(List.of("jira_search", "wiki_search"));
+    }
+
+    /** No connection open to scheduled runs — no object, not one that refuses every call. */
+    @Test
+    void aScheduledRunGetsNoMcpObjectWhenNoConnectionAllowsIt() {
+        ScriptRunner runner = runner(Map.of("jira", JIRA_READS), tools(tool("jira_search", "jira", a -> "[]")));
+
+        assertThat(run(runner, "return typeof mcp;", ScriptMcpScope.SCHEDULED).value())
+                .isEqualTo("undefined");
+        assertThat(run(runner, "return typeof mcp;", ScriptMcpScope.CHAT).value())
+                .isEqualTo("object");
     }
 
     @Test

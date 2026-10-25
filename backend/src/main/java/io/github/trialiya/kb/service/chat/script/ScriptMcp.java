@@ -124,10 +124,19 @@ public class ScriptMcp {
      */
     @Nullable
     McpScriptApi open(ScriptMcpScope scope, ScriptSession session, long deadlineNanos, RunCancellation cancellation) {
-        if (scope == ScriptMcpScope.NONE || !offered()) {
+        if (scope == ScriptMcpScope.NONE || !offered() || !admits(scope)) {
             return null;
         }
         return new McpScriptApi(() -> allowed(scope), properties, session, deadlineNanos, cancellation);
+    }
+
+    /**
+     * Whether any entry lets a run of this kind call something — what decides whether it gets an
+     * {@code mcp} object at all: a scheduled run with no {@code scheduled: true} connection would
+     * get one that refuses every call, and an unavailable thing is absent, not refusing.
+     */
+    private boolean admits(ScriptMcpScope scope) {
+        return scope != ScriptMcpScope.SCHEDULED || access.values().stream().anyMatch(Access::scheduled);
     }
 
     /** The registry's tools that {@code kb.mcp.script-access} lets a run of this kind call. */

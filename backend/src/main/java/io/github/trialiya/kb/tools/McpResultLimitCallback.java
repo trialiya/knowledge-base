@@ -135,8 +135,10 @@ public record McpResultLimitCallback(
     }
 
     private String note(int total, int shown, Shelved shelved) {
-        String cut = "The answer is " + total + " characters, over the limit of " + limit + "; you see its first "
-                + shown + ". ";
+        // Not "N characters, over the limit": a text answer is counted unescaped, and it is the
+        // escaped form that went over — N can be below the limit.
+        String cut = "The answer is too large for the limit of " + limit + " characters: it is " + total
+                + " characters long, and you see its first " + shown + ". ";
         String id = shelved.id();
         if (id != null) {
             return cut + "The whole answer is kept as " + id + ": read it in runScript with kb.result('" + id
@@ -171,9 +173,11 @@ public record McpResultLimitCallback(
         }
         return new ToolExecutionException(
                 e.getToolDefinition(),
-                new IllegalStateException(cut(message, headChars())
-                        + "… [error message cut: " + message.length() + " characters, over the limit of " + limit
-                        + "]"));
+                new IllegalStateException(
+                        cut(message, headChars())
+                                + "… [error message cut: " + message.length() + " characters, over the limit of "
+                                + limit + "]",
+                        e));
     }
 
     /**

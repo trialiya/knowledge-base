@@ -97,6 +97,19 @@ class McpResultLimitCallbackTest {
         assertThat(envelope.has("shape")).isFalse();
     }
 
+    /** A text answer is counted unescaped: below the limit itself, over it only once encoded. */
+    @Test
+    void theNoteDoesNotClaimAnUnescapedTextIsOverTheLimit() {
+        String prose = "\"q\"\n".repeat(LIMIT / 5);
+
+        JsonNode envelope = MAPPER.readTree(limited(textBlock(prose), shelf).call("{}", chat("c1")));
+
+        assertThat(envelope.get("totalChars").asInt()).isLessThan(LIMIT);
+        assertThat(envelope.get("note").asString())
+                .contains("too large for the limit of " + LIMIT)
+                .doesNotContain("over the limit");
+    }
+
     @Test
     void outsideAChatNothingIsKeptAndTheModelIsToldToNarrowTheRequest() {
         JsonNode envelope =
@@ -158,7 +171,8 @@ class McpResultLimitCallbackTest {
         assertThatThrownBy(() -> new McpResultLimitCallback(failing, LIMIT, shelf, 1_000_000).call("{}", chat("c1")))
                 .isInstanceOf(ToolExecutionException.class)
                 .satisfies(
-                        e -> assertThat(e.getMessage()).hasSizeLessThan(LIMIT).contains("error message cut"));
+                        e -> assertThat(e.getMessage()).hasSizeLessThan(LIMIT).contains("error message cut"))
+                .satisfies(e -> assertThat(e.getCause().getCause()).isInstanceOf(ToolExecutionException.class));
     }
 
     @Test

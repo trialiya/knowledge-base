@@ -463,7 +463,14 @@ public class ChatConfig {
         ToolResultShelf shelf = readable
                 ? (conversationId, label, json) -> {
                     ScriptResultStore.Kept kept = scriptResultStore.keep(conversationId, label, null, json);
-                    return new ToolResultShelf.Shelved(kept.id(), kept.note());
+                    // The store's own refusal speaks to a script's return value ("Return less"),
+                    // which a tool answer is not.
+                    return kept.id() == null && json.length() > scriptResultProperties.maxChars()
+                            ? new ToolResultShelf.Shelved(
+                                    null,
+                                    "The whole answer is over kb.script.results.max-chars="
+                                            + scriptResultProperties.maxChars() + ", so it was not kept.")
+                            : new ToolResultShelf.Shelved(kept.id(), kept.note());
                 }
                 : null;
         if (readable) {
