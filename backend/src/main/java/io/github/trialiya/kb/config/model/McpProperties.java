@@ -1,7 +1,10 @@
 package io.github.trialiya.kb.config.model;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
@@ -65,8 +68,26 @@ public record McpProperties(
     public McpProperties {
         bearerTokens = bearerTokens == null ? Map.of() : bearerTokens;
         headers = headers == null ? Map.of() : headers;
-        resultLimits = resultLimits == null ? Map.of() : resultLimits;
-        scriptAccess = scriptAccess == null ? Map.of() : scriptAccess;
+        resultLimits = withoutBlanks(resultLimits);
+        scriptAccess = withoutBlanks(scriptAccess);
+    }
+
+    /**
+     * {@code map} without its blank entries: a connection key left without a value ({@code
+     * confluence:}, or an empty environment variable behind it) binds as a null value, which means
+     * "nothing of its own" — not a startup failure in {@code Map.copyOf} far from the property.
+     */
+    private static <V> Map<String, V> withoutBlanks(@Nullable Map<String, V> map) {
+        if (map == null) {
+            return Map.of();
+        }
+        Map<String, V> kept = new LinkedHashMap<>();
+        map.forEach((key, value) -> {
+            if (value != null) {
+                kept.put(key, value);
+            }
+        });
+        return Collections.unmodifiableMap(kept);
     }
 
     /**

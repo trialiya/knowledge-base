@@ -798,7 +798,7 @@ class ScriptEditTest {
     }
 
     private static ScriptRunner newRunner(GitRegistry gitRegistry, ScriptProperties properties) {
-        return new ScriptRunner(
+        return ScriptFixtures.runner(
                 gitRegistry,
                 null,
                 properties,

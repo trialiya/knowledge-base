@@ -406,18 +406,12 @@ public class ChatConfig {
      * <p>Nothing is connected here — the registry reaches the servers after the context is up. See
      * its javadoc for why that is the difference between one unreachable server costing its tools
      * and costing the whole startup.
-     *
-     * <p>A tool answer past {@code kb.mcp.max-result-chars} is kept on the chat's script-result
-     * shelf only where something can read it back — scripts on and results kept, the same two
-     * switches {@link #scriptResultFunction} answers to. Elsewhere it is simply cut.
      */
     @Bean
     @Nullable
     public McpToolRegistry mcpToolRegistry(
             McpProperties mcpProperties,
-            ScriptProperties scriptProperties,
-            ScriptResultProperties scriptResultProperties,
-            ScriptResultStore scriptResultStore,
+            McpResultLimits mcpResultLimits,
             ObjectProvider<List<McpSyncClient>> mcpSyncClients,
             ObjectProvider<List<McpAsyncClient>> mcpAsyncClients,
             ObjectProvider<McpClientCommonProperties> mcpCommonProperties,
@@ -450,10 +444,17 @@ public class ChatConfig {
                 mcpToolFilter,
                 mcpToolNamePrefixGenerator,
                 mcpMetaConverter,
-                mcpResultLimits(mcpProperties, scriptProperties, scriptResultProperties, scriptResultStore));
+                mcpResultLimits);
     }
 
-    private static McpResultLimits mcpResultLimits(
+    /**
+     * How much of an MCP answer reaches the model — a bean of its own, so the Settings panel reports
+     * the limit the tools are actually held to. A tool answer past the limit is kept on the chat's
+     * script-result shelf only where something can read it back — scripts on and results kept, the
+     * same two switches {@link #scriptResultFunction} answers to. Elsewhere it is simply cut.
+     */
+    @Bean
+    public McpResultLimits mcpResultLimits(
             McpProperties mcpProperties,
             ScriptProperties scriptProperties,
             ScriptResultProperties scriptResultProperties,

@@ -55,7 +55,7 @@ class ScriptCancellationTest {
                 Duration.ofMinutes(1),
                 Duration.ofMillis(20),
                 null);
-        runner = new ScriptRunner(
+        runner = ScriptFixtures.runner(
                 gitRegistry,
                 null,
                 properties,

@@ -17,6 +17,7 @@ import io.github.trialiya.kb.service.chat.ToolCatalogService;
 import io.github.trialiya.kb.service.chat.ToolCatalogService.ToolInfo;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
+import io.github.trialiya.kb.tools.McpResultLimits;
 import io.github.trialiya.kb.tools.McpToolRegistry;
 import io.github.trialiya.kb.tools.McpToolRegistry.Status;
 import java.time.Duration;
@@ -66,6 +67,7 @@ public class SettingsController {
     private final SummarizeProperties summarizeProperties;
     private final ChatTimeoutProperties chatTimeoutProperties;
     private final McpProperties mcpProperties;
+    private final McpResultLimits mcpResultLimits;
     private final ScriptProperties scriptProperties;
     private final ToolCatalogService toolCatalogService;
 
@@ -121,6 +123,7 @@ public class SettingsController {
             SummarizeProperties summarizeProperties,
             ChatTimeoutProperties chatTimeoutProperties,
             McpProperties mcpProperties,
+            McpResultLimits mcpResultLimits,
             ScriptProperties scriptProperties,
             ToolCatalogService toolCatalogService,
             ScriptEditPolicy scriptEditPolicy,
@@ -146,6 +149,7 @@ public class SettingsController {
         this.summarizeProperties = summarizeProperties;
         this.chatTimeoutProperties = chatTimeoutProperties;
         this.mcpProperties = mcpProperties;
+        this.mcpResultLimits = mcpResultLimits;
         this.scriptProperties = scriptProperties;
         this.toolCatalogService = toolCatalogService;
         this.scriptEditActive = scriptEditPolicy.enabled();
@@ -257,11 +261,7 @@ public class SettingsController {
                             entry.getValue(),
                             status == null ? Status.PENDING : status.status(),
                             status == null ? 0 : status.toolCount(),
-                            Math.max(
-                                    mcpProperties
-                                            .resultLimits()
-                                            .getOrDefault(entry.getKey(), mcpProperties.maxResultChars()),
-                                    0));
+                            Math.max(mcpResultLimits.limitFor(entry.getKey()), 0));
                 })
                 .toList();
     }

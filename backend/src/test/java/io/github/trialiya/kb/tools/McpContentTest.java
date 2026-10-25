@@ -42,6 +42,17 @@ class McpContentTest {
         assertThat(n.value().asString()).isEqualTo("42");
     }
 
+    /** A server that answers one block per record means a list of records. */
+    @Test
+    void severalTextBlocksAreAnArrayOfTheirPayloads() {
+        Normalized n = McpContent.normalize("[{\"type\":\"text\",\"text\":\"{\\\"key\\\":\\\"A-1\\\"}\"},"
+                + "{\"type\":\"text\",\"text\":\"{\\\"key\\\":\\\"A-2\\\"}\"},"
+                + "{\"type\":\"text\",\"text\":\"done\"}]");
+
+        assertThat(n.json()).isEqualTo("[{\"key\":\"A-1\"},{\"key\":\"A-2\"},\"done\"]");
+        assertThat(n.value().get(1).get("key").asString()).isEqualTo("A-2");
+    }
+
     @Test
     void binaryBlocksAreReducedToANoteOfWhatWasThere() {
         String base64 = "A".repeat(4096);

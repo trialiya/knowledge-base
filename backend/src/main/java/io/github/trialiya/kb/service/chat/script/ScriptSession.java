@@ -443,12 +443,12 @@ public final class ScriptSession {
     }
 
     /**
-     * Counts one {@code mcp.call} and returns how many this run has made. Its budget is {@code
+     * Counts one {@code mcp.call} that got past its budget, for the run's stats. Its budget is {@code
      * kb.script.mcp.max-calls}, checked by the caller ({@code McpScriptApi}): this class meters the
      * sandbox's own reads, not round trips to an external server.
      */
-    public int countMcpCall() {
-        return ++mcpCalls;
+    public void countMcpCall() {
+        mcpCalls++;
     }
 
     /**

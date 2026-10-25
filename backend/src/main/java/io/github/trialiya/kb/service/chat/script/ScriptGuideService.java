@@ -9,7 +9,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -74,25 +73,14 @@ public class ScriptGuideService {
     private final String readOnlyInstructionsForStrongModel;
     private final String subAgentInstructions;
 
-    /** A deployment whose scripts get no {@code mcp} object — the tests that are not about MCP. */
     public ScriptGuideService(
-            ScriptProperties properties, ScriptResultProperties results, ScriptEditPolicy editPolicy) {
-        this(properties, results, editPolicy, ScriptMcp.none(), ScriptMcpProperties.disabled());
-    }
-
-    @Autowired
-    public ScriptGuideService(
-            ScriptProperties properties,
-            ScriptResultProperties results,
-            ScriptEditPolicy editPolicy,
-            ScriptMcp mcp,
-            ScriptMcpProperties mcpProperties) {
+            ScriptProperties properties, ScriptResultProperties results, ScriptEditPolicy editPolicy, ScriptMcp mcp) {
         this.editPolicy = editPolicy;
         requireKeepingCeiling(properties, results);
         // Kept results are a deployment switch of their own: with it off no run gets a resultId,
         // and a handbook describing kb.result would send the model after ids it never sees.
         Resource chatResults = results.enabled() ? RESULTS_GUIDE : null;
-        String mcpSection = mcp.offered() ? mcpSection(mcpProperties) : null;
+        String mcpSection = mcp.offered() ? mcpSection(mcp.properties()) : null;
         this.instructionsForWeakModel =
                 properties.enabled() ? render(properties, chatResults, mcpSection, true, true) : "";
         this.instructionsForStrongModel =

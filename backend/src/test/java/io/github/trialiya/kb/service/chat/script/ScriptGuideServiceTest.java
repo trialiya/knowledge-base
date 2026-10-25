@@ -6,7 +6,7 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.github.trialiya.kb.config.model.McpProperties;
+import io.github.trialiya.kb.config.model.McpProperties.ScriptAccess;
 import io.github.trialiya.kb.config.model.ScriptMcpProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.ScriptResultProperties;
@@ -155,7 +155,7 @@ class ScriptGuideServiceTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(nullable(String.class))).thenReturn(true);
         when(policy.enabled("readonly")).thenReturn(false);
-        ScriptGuideService service = new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy);
+        ScriptGuideService service = ScriptFixtures.guides(properties, ScriptResultProperties.defaults(), policy);
 
         assertThat(service.instructions(true, "writable")).contains("kb.edit");
         assertThat(service.instructions(true, "readonly")).doesNotContain("kb.edit");
@@ -167,9 +167,10 @@ class ScriptGuideServiceTest {
         ScriptProperties properties = ScriptProperties.enabledWithDefaults();
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
 
-        assertThat(new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy).instructions(false))
+        assertThat(ScriptFixtures.guides(properties, ScriptResultProperties.defaults(), policy)
+                        .instructions(false))
                 .contains("kb.result(id)", "saveScriptResult");
-        assertThat(new ScriptGuideService(properties, new ScriptResultProperties(false, 1000, 10), policy)
+        assertThat(ScriptFixtures.guides(properties, new ScriptResultProperties(false, 1000, 10), policy)
                         .instructions(false))
                 .doesNotContain("kb.result", "resultId", "saveScriptResult");
     }
@@ -184,24 +185,24 @@ class ScriptGuideServiceTest {
         ScriptProperties properties = ScriptProperties.enabledWithDefaults();
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         ScriptMcpProperties on = new ScriptMcpProperties(true, 7, DataSize.ofMegabytes(3));
-        McpProperties jira = new McpProperties(
-                true,
-                60_000,
-                Map.of(),
-                Map.of(),
-                20_000,
-                Map.of(),
-                Map.of("jira", new McpProperties.ScriptAccess(List.of("jira_search"), false)));
         ScriptGuideService offered = new ScriptGuideService(
-                properties, ScriptResultProperties.defaults(), policy, new ScriptMcp(on, jira, List::of), on);
-        McpProperties noAccess = new McpProperties(true, 60_000, Map.of(), Map.of(), 20_000, Map.of(), Map.of());
+                properties,
+                ScriptResultProperties.defaults(),
+                policy,
+                new ScriptMcp(on, Map.of("jira", new ScriptAccess(List.of("jira_search"), false)), List::of));
         ScriptGuideService notOffered = new ScriptGuideService(
-                properties, ScriptResultProperties.defaults(), policy, new ScriptMcp(on, noAccess, List::of), on);
+                properties, ScriptResultProperties.defaults(), policy, new ScriptMcp(on, Map.of(), List::of));
+        ScriptGuideService noTools = new ScriptGuideService(
+                properties,
+                ScriptResultProperties.defaults(),
+                policy,
+                new ScriptMcp(on, Map.of("jira", new ScriptAccess(List.of(), false)), List::of));
 
         assertThat(offered.instructions(false)).contains("mcp.call(name, args)", "7 calls", "3 МБ");
         assertThat(offered.readOnlyInstructions(true)).contains("mcp.tools()");
         assertThat(offered.subAgentInstructions()).doesNotContain("mcp.");
         assertThat(notOffered.instructions(false)).doesNotContain("mcp.");
+        assertThat(noTools.instructions(false)).doesNotContain("mcp.");
     }
 
     /**
@@ -215,11 +216,11 @@ class ScriptGuideServiceTest {
         int shown = properties.limits().maxResultChars();
 
         assertThatThrownBy(() ->
-                        new ScriptGuideService(properties, new ScriptResultProperties(true, shown - 1, 10), policy))
+                        ScriptFixtures.guides(properties, new ScriptResultProperties(true, shown - 1, 10), policy))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("kb.script.results.max-chars");
         // Выключенное хранение ничего не обещает — проверять нечего.
-        new ScriptGuideService(properties, new ScriptResultProperties(false, shown - 1, 10), policy);
+        ScriptFixtures.guides(properties, new ScriptResultProperties(false, shown - 1, 10), policy);
     }
 
     /**
@@ -231,13 +232,13 @@ class ScriptGuideServiceTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(nullable(String.class))).thenReturn(true);
 
-        String subAgent =
-                new ScriptGuideService(properties, ScriptResultProperties.defaults(), policy).subAgentInstructions();
+        String subAgent = ScriptFixtures.guides(properties, ScriptResultProperties.defaults(), policy)
+                .subAgentInstructions();
 
         assertThat(subAgent)
                 .contains("kb.result(id)", "kb.results()", "Your own runs keep nothing")
                 .doesNotContain("saveScriptResult", "kb.edit", "readSkill");
-        assertThat(new ScriptGuideService(properties, new ScriptResultProperties(false, 1000, 10), policy)
+        assertThat(ScriptFixtures.guides(properties, new ScriptResultProperties(false, 1000, 10), policy)
                         .subAgentInstructions())
                 .doesNotContain("kb.result");
     }
@@ -264,6 +265,6 @@ class ScriptGuideServiceTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled()).thenReturn(editEnabled);
         when(policy.enabled(nullable(String.class))).thenReturn(editEnabled);
-        return new ScriptGuideService(properties, NO_RESULTS, policy);
+        return ScriptFixtures.guides(properties, NO_RESULTS, policy);
     }
 }

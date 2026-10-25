@@ -3,7 +3,6 @@ package io.github.trialiya.kb.service.chat.script;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.trialiya.kb.config.model.McpProperties;
 import io.github.trialiya.kb.config.model.McpProperties.ScriptAccess;
 import io.github.trialiya.kb.config.model.ScriptMcpProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
@@ -161,6 +160,37 @@ class ScriptMcpTest {
         assertThat(result.error().message()).contains("maxMcpCalls=2");
     }
 
+    /** A refused call never reached a server, so the stats do not count it. */
+    @Test
+    void aCallRefusedByTheBudgetIsNotCounted() {
+        ScriptRunner runner = runner(
+                new ScriptMcpProperties(true, 2, DataSize.ofMegabytes(16)),
+                Map.of("jira", JIRA_READS),
+                tools(tool("jira_search", "jira", args -> textBlock("{}"))));
+
+        ScriptResult result = run(runner, """
+                for (let i = 0; i < 5; i++) { try { mcp.call('jira_search', {}); } catch (e) {} }
+                return 'done';
+                """, ScriptMcpScope.CHAT);
+
+        assertThat(result.value()).isEqualTo("done");
+        assertThat(result.stats().mcpCalls()).isEqualTo(2);
+    }
+
+    /** The byte budget is bytes: a Cyrillic answer weighs twice its length. */
+    @Test
+    void theByteBudgetCountsUtf8Bytes() {
+        ScriptRunner runner = runner(
+                new ScriptMcpProperties(true, 20, DataSize.ofBytes(100)),
+                Map.of("jira", JIRA_READS),
+                tools(tool("jira_search", "jira", args -> textBlock("я".repeat(60)))));
+
+        ScriptResult result = run(runner, "return mcp.call('jira_search', {}).length;", ScriptMcpScope.CHAT);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("maxMcpBytes");
+    }
+
     @Test
     void theAnswersOfARunAreHeldToTheByteBudget() {
         ScriptRunner runner = runner(
@@ -268,11 +298,34 @@ class ScriptMcpTest {
         assertThat((System.nanoTime() - started) / 1_000_000).isLessThan(5_000);
     }
 
+    /** After Stop a script that swallowed the abandonment must not send the next request. */
+    @Test
+    void aStoppedRunSendsNoFurtherCallsEvenWhenTheScriptCatches() {
+        AtomicBoolean stop = new AtomicBoolean();
+        AtomicInteger started = new AtomicInteger();
+        ScriptRunner runner = runner(Map.of("jira", JIRA_READS), tools(tool("jira_search", "jira", args -> {
+            started.incrementAndGet();
+            stop.set(true);
+            return "[]";
+        })));
+
+        assertThatThrownBy(() -> runner.run(
+                        request(
+                                "for (let i = 0; i < 3; i++) { try { mcp.call('jira_search', {}); } catch (e) {} }"
+                                        + " return 'fallback';",
+                                ScriptMcpScope.CHAT,
+                                30),
+                        new RunCancellation(stop::get)))
+                .isInstanceOf(ScriptCancelledException.class);
+
+        assertThat(started).hasValue(1);
+    }
+
     @Test
     void noMcpObjectWithoutAChatScopeOrWithTheFeatureOff() {
         ScriptRunner noScope = runner(Map.of("jira", JIRA_READS), tools(tool("jira_search", "jira", a -> "[]")));
         ScriptRunner off = runner(
-                ScriptMcpProperties.disabled(),
+                ScriptFixtures.mcpDisabled(),
                 Map.of("jira", JIRA_READS),
                 tools(tool("jira_search", "jira", a -> "[]")));
         ScriptRunner noAccess = runner(Map.of(), tools(tool("jira_search", "jira", a -> "[]")));
@@ -320,14 +373,13 @@ class ScriptMcpTest {
             ScriptMcpProperties mcpProperties,
             Map<String, ScriptAccess> access,
             Supplier<@Nullable List<ScriptTool>> tools) {
-        McpProperties mcp = new McpProperties(true, 60_000, Map.of(), Map.of(), 20_000, Map.of(), access);
         return new ScriptRunner(
                 gitRegistry,
                 null,
                 properties,
                 new ScriptEditPolicy(gitRegistry, properties),
                 new InMemoryScriptResultStore(),
-                new ScriptMcp(mcpProperties, mcp, tools));
+                new ScriptMcp(mcpProperties, access, tools));
     }
 
     private static Supplier<@Nullable List<ScriptTool>> tools(ScriptTool... tools) {

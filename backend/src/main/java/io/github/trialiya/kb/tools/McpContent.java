@@ -47,6 +47,8 @@ public final class McpContent {
      * <ul>
      *   <li>one text block whose text is JSON — that JSON;
      *   <li>one text block — its text;
+     *   <li>several blocks, all of them text — an array of their payloads, each the JSON of its text
+     *       or the text itself: a server that answers one block per record means a list of records;
      *   <li>anything else — the blocks, each binary one reduced to its type, MIME type and size;
      *   <li>not a block array at all — the text as it came, since a server is free to break the
      *       protocol and the answer is still worth showing.
@@ -57,12 +59,14 @@ public final class McpContent {
         if (!(blocks instanceof ArrayNode array)) {
             return text(contentJson);
         }
-        if (array.size() == 1 && isText(array.get(0))) {
-            String text = array.get(0).get("text").asString();
-            JsonNode payload = parse(text);
-            return payload != null && (payload.isObject() || payload.isArray())
-                    ? new Normalized(payload, MAPPER.writeValueAsString(payload), 0)
-                    : text(text);
+        if (!array.isEmpty() && array.valueStream().allMatch(McpContent::isText)) {
+            if (array.size() == 1) {
+                JsonNode payload = payload(array.get(0));
+                return new Normalized(payload, MAPPER.writeValueAsString(payload), 0);
+            }
+            ArrayNode payloads = JsonNodeFactory.instance.arrayNode();
+            array.forEach(block -> payloads.add(payload(block)));
+            return new Normalized(payloads, MAPPER.writeValueAsString(payloads), 0);
         }
         long omitted = 0;
         ArrayNode kept = JsonNodeFactory.instance.arrayNode();
@@ -143,6 +147,15 @@ public final class McpContent {
     private static Normalized text(String text) {
         JsonNode node = JsonNodeFactory.instance.stringNode(text);
         return new Normalized(node, MAPPER.writeValueAsString(node), 0);
+    }
+
+    /** The JSON a text block's text holds when it is an object or an array, else the text itself. */
+    private static JsonNode payload(JsonNode textBlock) {
+        String text = textBlock.get("text").asString();
+        JsonNode payload = parse(text);
+        return payload != null && (payload.isObject() || payload.isArray())
+                ? payload
+                : JsonNodeFactory.instance.stringNode(text);
     }
 
     private static boolean isText(JsonNode block) {

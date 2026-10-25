@@ -171,6 +171,26 @@ class McpResultLimitCallbackTest {
         assertThat(McpResultLimits.none().wrap(tool, "jira")).isSameAs(tool);
     }
 
+    /** An envelope costs a few hundred characters; under a limit that small it would only add. */
+    @Test
+    void aLimitTooSmallForTheEnvelopeGetsAPlainCut() {
+        String prose = "word ".repeat(100);
+
+        String answer = new McpResultLimitCallback(new FakeTool(textBlock(prose)), 200, shelf, 1_000_000)
+                .call("{}", chat("c1"));
+
+        assertThat(answer).hasSizeLessThanOrEqualTo(200).isEqualTo(prose.substring(0, 200));
+    }
+
+    @Test
+    void aCutNeverSplitsASurrogatePair() {
+        String emoji = "\uD83D\uDE00";
+
+        assertThat(McpResultLimitCallback.cut("ab" + emoji, 3)).isEqualTo("ab");
+        assertThat(McpResultLimitCallback.cut("ab" + emoji, 4)).isEqualTo("ab" + emoji);
+        assertThat(McpResultLimitCallback.cut("ab", 10)).isEqualTo("ab");
+    }
+
     private static McpResultLimitCallback limited(String answer, ToolResultShelf shelf) {
         return new McpResultLimitCallback(new FakeTool(answer), LIMIT, shelf, 1_000_000);
     }

@@ -6,11 +6,14 @@ import io.github.trialiya.kb.config.model.ScriptMcpProperties;
 import io.github.trialiya.kb.tools.McpToolRegistry;
 import io.github.trialiya.kb.tools.McpToolRegistry.ScriptTool;
 import io.github.trialiya.kb.tools.RunCancellation;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -28,11 +31,11 @@ import org.springframework.stereotype.Service;
  * connection can come up or go down while a script runs, and a script should see the same state
  * the model's own tool list would.
  */
+@Slf4j
 @Service
 public class ScriptMcp {
 
     private final ScriptMcpProperties properties;
-    private final McpProperties mcpProperties;
     private final Supplier<@Nullable List<ScriptTool>> registry;
 
     /** {@code kb.mcp.script-access}, its globs compiled once rather than on every call. */
@@ -42,48 +45,75 @@ public class ScriptMcp {
 
     public ScriptMcp(
             ScriptMcpProperties properties, McpProperties mcpProperties, ObjectProvider<McpToolRegistry> registry) {
-        this(properties, mcpProperties, () -> {
+        this(properties, configured(mcpProperties.scriptAccess(), registry.getIfAvailable()), () -> {
             McpToolRegistry current = registry.getIfAvailable();
             return current == null ? null : current.scriptTools();
         });
     }
 
     /**
+     * @param scriptAccess {@code kb.mcp.script-access}; an entry that lists no tools is dropped, so
+     *     it does not make the feature look {@linkplain #offered() offered}
      * @param registry {@link McpToolRegistry#scriptTools()}, or null when there is no registry —
      *     MCP switched off, from either side (see {@code ChatConfig#mcpToolRegistry})
      */
     ScriptMcp(
             ScriptMcpProperties properties,
-            McpProperties mcpProperties,
+            Map<String, ScriptAccess> scriptAccess,
             Supplier<@Nullable List<ScriptTool>> registry) {
         this.properties = properties;
-        this.mcpProperties = mcpProperties;
         this.registry = registry;
-        this.access = mcpProperties.scriptAccess().entrySet().stream()
+        this.access = scriptAccess.entrySet().stream()
+                .filter(entry -> !entry.getValue().tools().isEmpty())
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> compile(entry.getValue())));
+    }
+
+    /**
+     * The entries of {@code scriptAccess} that name a configured connection. A misspelt key would
+     * otherwise put the {@code mcp} section in every handbook for an object whose tool list is
+     * always empty — so it is left out and said once, at startup, where the deployment looks.
+     */
+    private static Map<String, ScriptAccess> configured(
+            Map<String, ScriptAccess> scriptAccess, @Nullable McpToolRegistry registry) {
+        if (registry == null || scriptAccess.isEmpty()) {
+            return scriptAccess;
+        }
+        Set<String> connections = registry.statuses().stream()
+                .map(McpToolRegistry.ConnectionStatus::name)
+                .collect(Collectors.toSet());
+        Map<String, ScriptAccess> known = new LinkedHashMap<>();
+        scriptAccess.forEach((connection, access) -> {
+            if (connections.contains(connection)) {
+                known.put(connection, access);
+            } else {
+                log.warn(
+                        "kb.mcp.script-access.{} names no configured MCP connection (configured: {});"
+                                + " scripts get nothing from it",
+                        connection,
+                        connections);
+            }
+        });
+        return known;
     }
 
     private static Access compile(ScriptAccess access) {
         return new Access(access.tools().stream().map(ScriptMcp::glob).toList(), access.scheduled());
     }
 
-    /** No run gets an {@code mcp} object — the sandbox tests that are not about MCP. */
-    static ScriptMcp none() {
-        return new ScriptMcp(
-                ScriptMcpProperties.disabled(),
-                new McpProperties(false, 60_000, Map.of(), Map.of(), 0, Map.of(), Map.of()),
-                () -> null);
+    /** {@code kb.script.mcp.*} — the budgets the handbook quotes. */
+    ScriptMcpProperties properties() {
+        return properties;
     }
 
     /**
      * Whether any chat run can get an {@code mcp} object in this deployment — what decides whether
      * the handbook describes it. Not whether a tool is up right now: that changes by the minute, and
      * the handbook is rendered once. The registry's presence does not change, and it is what says
-     * MCP is switched off from the starter's side ({@code
-     * spring.ai.mcp.client.toolcallback.enabled}) as well as from ours.
+     * MCP is switched off — by {@code kb.mcp.enabled} or by the starter's own {@code
+     * spring.ai.mcp.client.toolcallback.enabled}.
      */
     public boolean offered() {
-        return properties.enabled() && mcpProperties.enabled() && !access.isEmpty() && registry.get() != null;
+        return properties.enabled() && !access.isEmpty() && registry.get() != null;
     }
 
     /**

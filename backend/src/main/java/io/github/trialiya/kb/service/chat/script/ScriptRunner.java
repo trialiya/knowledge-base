@@ -29,7 +29,6 @@ import org.graalvm.polyglot.SourceSection;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.io.IOAccess;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -191,17 +190,6 @@ public class ScriptRunner {
 
     private final ReentrantLock engineLock = new ReentrantLock();
 
-    /** A runner whose scripts never get an {@code mcp} object — the sandbox tests. */
-    public ScriptRunner(
-            GitRegistry gitRegistry,
-            DocumentService documentService,
-            ScriptProperties properties,
-            ScriptEditPolicy editPolicy,
-            ScriptResultStore resultStore) {
-        this(gitRegistry, documentService, properties, editPolicy, resultStore, ScriptMcp.none());
-    }
-
-    @Autowired
     public ScriptRunner(
             GitRegistry gitRegistry,
             DocumentService documentService,

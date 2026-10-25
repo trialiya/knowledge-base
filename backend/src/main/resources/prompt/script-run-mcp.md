@@ -7,7 +7,7 @@ External MCP tools can also be called from a script, through a second object, `m
 | `mcp.call(name)` | the answer | no arguments |
 | `mcp.call(name, args)` | the answer | `args` — the same object you would pass the tool directly |
 
-The answer is the payload, not the protocol envelope: a JSON answer comes back as an object or array, a text answer as a string, an image as `{type, mimeType, data: "omitted (N KB)"}`.
+The answer is the payload, not the protocol envelope: a JSON answer comes back as an object or array, a text answer as a string, several text blocks as an array of their payloads, an image as `{type, mimeType, data: "omitted (N KB)"}`.
 
 - `mcp` is not defined at all where scripts may not call MCP tools (`typeof mcp === 'undefined'`). Then call the tool directly.
 - A failed call (server down, tool not allowed, server error) throws an `Error` with the reason in `message`: `try { … } catch (e) { … }` to carry on without it.

@@ -92,7 +92,9 @@ public record McpResultLimitCallback(
     /**
      * The envelope, held to the limit it enforces. The shape is a sketch of bounded breadth but not
      * of bounded size — long key names, a dozen keys three levels deep — so an envelope that comes
-     * out too large first loses the shape, then as much of the head as it overshoots by.
+     * out too large first loses the shape, then as much of the head as it overshoots by. A limit too
+     * small for even an empty envelope gets a plain cut instead: the envelope would cost more than
+     * the answer it stands for.
      */
     private String bounded(Normalized normalized, Shelved shelved) {
         boolean text = normalized.value().isString();
@@ -108,12 +110,12 @@ public record McpResultLimitCallback(
             headChars = Math.max(0, headChars - (answer.length() - limit));
             answer = MAPPER.writeValueAsString(envelope(normalized, whole, headChars, shelved, false));
         }
-        return answer;
+        return answer.length() <= limit ? answer : cut(whole, limit);
     }
 
     private ObjectNode envelope(
             Normalized normalized, String whole, int headChars, Shelved shelved, boolean withShape) {
-        String head = whole.substring(0, headChars);
+        String head = cut(whole, headChars);
         ObjectNode envelope = JsonNodeFactory.instance.objectNode();
         envelope.put("truncated", true);
         envelope.put("totalChars", whole.length());
@@ -147,6 +149,15 @@ public record McpResultLimitCallback(
                 + " takes them.";
     }
 
+    /** The first {@code chars} of {@code text}, a step shorter rather than half a surrogate pair. */
+    static String cut(String text, int chars) {
+        int end = Math.min(chars, text.length());
+        if (end > 0 && end < text.length() && Character.isHighSurrogate(text.charAt(end - 1))) {
+            end--;
+        }
+        return text.substring(0, end);
+    }
+
     /** The head's share of the limit: what the envelope leaves, and never less than half. */
     private int headChars() {
         return Math.max(limit - ENVELOPE_CHARS, limit / 2);
@@ -160,7 +171,7 @@ public record McpResultLimitCallback(
         }
         return new ToolExecutionException(
                 e.getToolDefinition(),
-                new IllegalStateException(message.substring(0, headChars())
+                new IllegalStateException(cut(message, headChars())
                         + "… [error message cut: " + message.length() + " characters, over the limit of " + limit
                         + "]"));
     }

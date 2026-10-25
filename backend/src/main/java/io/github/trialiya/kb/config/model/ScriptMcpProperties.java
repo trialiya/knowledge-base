@@ -35,8 +35,4 @@ public record ScriptMcpProperties(
                     + "; to call nothing, set kb.script.mcp.enabled=false");
         }
     }
-
-    public static ScriptMcpProperties disabled() {
-        return new ScriptMcpProperties(false, 20, DataSize.ofMegabytes(16));
-    }
 }

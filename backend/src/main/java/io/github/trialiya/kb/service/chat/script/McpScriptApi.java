@@ -1,12 +1,11 @@
 package io.github.trialiya.kb.service.chat.script;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.config.model.ScriptMcpProperties;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.tools.McpContent;
 import io.github.trialiya.kb.tools.McpToolRegistry.ScriptTool;
 import io.github.trialiya.kb.tools.RunCancellation;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.graalvm.polyglot.HostAccess;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.tool.execution.ToolExecutionException;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The host half of the {@code mcp} object a script gets when it may call MCP tools — one per run,
@@ -44,7 +44,7 @@ import org.springframework.ai.tool.execution.ToolExecutionException;
 @Slf4j
 public final class McpScriptApi {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
     /** How often a call being waited for checks the run's stop flag. */
     private static final long POLL_MILLIS = 100;
@@ -55,6 +55,9 @@ public final class McpScriptApi {
     private final long deadlineNanos;
     private final RunCancellation cancellation;
     private long bytes;
+
+    /** Calls that got past the budget checks — a refused one is not a call. */
+    private int calls;
 
     /** Why a call was given up on mid-wait; null while none was — see {@link #abandoned()}. */
     private ScriptError.@Nullable Kind abandoned;
@@ -79,7 +82,7 @@ public final class McpScriptApi {
     /** The tools this run may call, as JSON: {@code [{name, connection, description, available}]}. */
     @HostAccess.Export
     public String tools() {
-        List<Map<String, Object>> rows = tools.get().stream()
+        return MAPPER.writeValueAsString(tools.get().stream()
                 .map(tool -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("name", tool.name());
@@ -88,12 +91,7 @@ public final class McpScriptApi {
                     row.put("available", tool.available());
                     return row;
                 })
-                .toList();
-        try {
-            return OBJECT_MAPPER.writeValueAsString(rows);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("The MCP tool list does not serialise", e);
-        }
+                .toList());
     }
 
     /**
@@ -112,12 +110,13 @@ public final class McpScriptApi {
         if (bytes >= properties.maxBytes().toBytes()) {
             throw bytesExceeded();
         }
-        int count = session.countMcpCall();
-        if (count > properties.maxCalls()) {
+        if (calls >= properties.maxCalls()) {
             throw new ScriptLimitExceededException("Budget exceeded: maxMcpCalls=" + properties.maxCalls()
                     + " MCP calls per run (kb.script.mcp.max-calls). Every call counts, a repeat included:"
                     + " keep an answer in a variable instead of asking again.");
         }
+        calls++;
+        session.countMcpCall();
         long started = System.nanoTime();
         String raw;
         try {
@@ -127,7 +126,7 @@ public final class McpScriptApi {
             return error(String.valueOf(e.getMessage()));
         }
         McpContent.Normalized answer = McpContent.normalize(raw);
-        bytes += answer.json().length();
+        bytes += answer.json().getBytes(StandardCharsets.UTF_8).length;
         session.log(
                 "mcp.call('" + name + "'): " + answer.json().length() + " chars in " + millisSince(started) + " ms");
         log.info(
@@ -157,11 +156,7 @@ public final class McpScriptApi {
     }
 
     private static String error(String message) {
-        try {
-            return OBJECT_MAPPER.writeValueAsString(Map.of("error", message));
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("An error message does not serialise", e);
-        }
+        return MAPPER.writeValueAsString(Map.of("error", message));
     }
 
     private Optional<ScriptTool> find(String name) {
@@ -183,9 +178,17 @@ public final class McpScriptApi {
      * script and the model need ("the server is not reachable", the server's own error).
      */
     private String invoke(ScriptTool tool, String argsJson) {
-        if (System.nanoTime() >= deadlineNanos) {
+        // A script that caught an earlier abandonment, or is still running after a Stop, must not
+        // get to send another request: a tool may have side effects the user meant to stop.
+        if (abandoned == null && cancellation.isStopRequested()) {
+            abandoned = ScriptError.Kind.CANCELLED;
+        }
+        if (abandoned == null && System.nanoTime() >= deadlineNanos) {
             abandoned = ScriptError.Kind.TIMEOUT;
-            throw new CallAbandonedException("No time left in this run to call MCP tool '" + tool.name() + "'.");
+        }
+        if (abandoned != null) {
+            throw new CallAbandonedException("Not calling MCP tool '" + tool.name() + "': "
+                    + (abandoned == ScriptError.Kind.TIMEOUT ? "the run's time is up." : "the run was stopped."));
         }
         // A FutureTask on a thread of its own rather than a CompletableFuture: cancel(true) on the
         // latter does not interrupt the thread, and a call given up on would hold it — and a
