@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.1.1'
+    id 'org.springframework.boot' version '4.1.2'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'com.diffplug.spotless'
     id 'net.ltgt.errorprone'
@@ -9,7 +9,7 @@ plugins {
     id 'info.solidsoft.pitest' version '1.19.0'
     id 'com.gorylenko.gradle-git-properties' version '4.0.1'
     // apply false: плагин включается по флагу ниже, иначе он меняет обычный bootJar.
-    id 'org.graalvm.buildtools.native' version '1.1.14' apply false
+    id 'org.graalvm.buildtools.native' version '1.1.17' apply false
 }
 
 group = 'io.github.trialiya.kb'
@@ -35,7 +35,7 @@ repositories {
 // ${springAiVersion} в mavenBom ниже только для этой формы (и для котлиновской extra.set) —
 // с вызовом set(...) версия остаётся неразрешённой, и зависимость молча выпадает из проверки.
 ext {
-    springAiVersion = '2.0.1'
+    springAiVersion = '2.0.2'
 }
 
 dependencies {
@@ -100,8 +100,8 @@ dependencies {
     implementation 'org.graalvm.polyglot:js-community:25.0.4.1'
 
     implementation 'org.jspecify:jspecify:1.0.1'
-    errorprone 'com.google.errorprone:error_prone_core:2.50.0'
-    errorprone 'com.uber.nullaway:nullaway:0.14.2'
+    errorprone 'com.google.errorprone:error_prone_core:2.51.0'
+    errorprone 'com.uber.nullaway:nullaway:0.14.3'
     // In-process Git access for GitService (file tree, log, diff, status). git grep has no JGit
     // equivalent, so that one operation still shells out to the git binary.
     implementation 'org.eclipse.jgit:org.eclipse.jgit:7.8.0.202609011348-r'
