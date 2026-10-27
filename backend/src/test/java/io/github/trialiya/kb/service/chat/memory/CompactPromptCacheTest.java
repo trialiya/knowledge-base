@@ -12,6 +12,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.github.trialiya.kb.config.ChatConfig;
 import io.github.trialiya.kb.config.ChatModelRegistry;
+import io.github.trialiya.kb.config.StubEndpointConnection;
 import io.github.trialiya.kb.config.model.SystemPromptProperties;
 import io.github.trialiya.kb.functions.ChatInfoFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -32,7 +33,6 @@ import io.github.trialiya.kb.tools.RecordingToolCallback;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,7 +41,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
@@ -53,14 +52,11 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties;
-import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -123,13 +119,8 @@ class CompactPromptCacheTest {
         endpoint.createContext("/", this::respond);
         endpoint.start();
 
-        final OpenAiCommonProperties common = new OpenAiCommonProperties();
-        common.setBaseUrl("http://127.0.0.1:" + endpoint.getAddress().getPort());
-        common.setApiKey("sk-stub");
-        common.setTimeout(Duration.ofSeconds(30));
-        common.setMaxRetries(0);
-        chatModel = ChatModelRegistry.buildDefaultModel(
-                common, new OpenAiChatProperties(), ToolCallingManager.builder().build(), absent(), absent(), empty());
+        chatModel = StubEndpointConnection.to(
+                "http://127.0.0.1:" + endpoint.getAddress().getPort());
         systemPrompts = systemPrompts();
         // Настоящий инструмент, а не заглушка: в тела запросов уезжает его JSON-схема, и сравнение
         // должно ловить расхождение именно в ней.
@@ -357,21 +348,5 @@ class CompactPromptCacheTest {
                 new ChatMessageEntity(
                         position + 1, CONV, content, type, position, false, false, LocalDateTime.now(), null, toolData),
                 content);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> ObjectProvider<T> absent() {
-        final ObjectProvider<T> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(null);
-        when(provider.getIfAvailable(any(Supplier.class)))
-                .thenAnswer(call -> ((Supplier<T>) call.getArgument(0)).get());
-        return provider;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> ObjectProvider<T> empty() {
-        final ObjectProvider<T> provider = mock(ObjectProvider.class);
-        when(provider.orderedStream()).thenAnswer(call -> Stream.empty());
-        return provider;
     }
 }

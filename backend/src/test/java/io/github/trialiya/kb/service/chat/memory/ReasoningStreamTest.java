@@ -2,16 +2,14 @@ package io.github.trialiya.kb.service.chat.memory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.github.trialiya.kb.config.ChatConfig;
-import io.github.trialiya.kb.config.ChatModelRegistry;
+import io.github.trialiya.kb.config.StubEndpointConnection;
 import io.github.trialiya.kb.model.chat.spring.AssistantChatMessage;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
@@ -20,11 +18,9 @@ import io.github.trialiya.kb.tools.ChatToolset;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,14 +30,11 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties;
-import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.ClassPathResource;
 
 /**
@@ -91,13 +84,8 @@ class ReasoningStreamTest {
         endpoint = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         endpoint.createContext("/", this::respond);
         endpoint.start();
-        final OpenAiCommonProperties common = new OpenAiCommonProperties();
-        common.setBaseUrl("http://127.0.0.1:" + endpoint.getAddress().getPort());
-        common.setApiKey("sk-stub");
-        common.setTimeout(Duration.ofSeconds(30));
-        common.setMaxRetries(0);
-        chatModel = ChatModelRegistry.buildDefaultModel(
-                common, new OpenAiChatProperties(), ToolCallingManager.builder().build(), absent(), absent(), empty());
+        chatModel = StubEndpointConnection.to(
+                "http://127.0.0.1:" + endpoint.getAddress().getPort());
     }
 
     @AfterEach
@@ -198,21 +186,5 @@ class ReasoningStreamTest {
                 + ",\"finish_reason\":"
                 + (finishReason == null ? "null" : "\"" + finishReason + "\"")
                 + "}]}\n\n";
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> ObjectProvider<T> absent() {
-        final ObjectProvider<T> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(null);
-        when(provider.getIfAvailable(any(Supplier.class)))
-                .thenAnswer(call -> ((Supplier<T>) call.getArgument(0)).get());
-        return provider;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> ObjectProvider<T> empty() {
-        final ObjectProvider<T> provider = mock(ObjectProvider.class);
-        when(provider.orderedStream()).thenAnswer(call -> Stream.empty());
-        return provider;
     }
 }
