@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.model.openai.autoconfigure.AbstractOpenAiProperties;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties;
 import org.springframework.ai.model.tool.ToolCallingManager;
@@ -78,22 +77,18 @@ class ChatModelRegistryTest {
     }
 
     @Test
-    void everyConnectionCarriesTheCallDeadlineInItsRequestOptions() {
-        // Дедлайн вызова живёт в опциях запроса, а не в клиенте: OpenAiChatModel собирает из них
-        // RequestOptions, а таймаут запроса сильнее клиентского. Причём опции несут его всегда —
-        // билдер OpenAiChatOptions по умолчанию ставит 60 с, и ни одно свойство до этого поля не
-        // достаёт, — так что без подстановки здесь ЛЮБОЙ вызов приложения жил бы минуту. Замерено:
-        // с клиентом на 10m ответ, приходящий на 75-й секунде, обрывается на 61-й.
+    void ownConnectionsLeaveTheCallDeadlineToTheirClient() {
+        // Таймаут в опциях запроса сильнее клиентского (OpenAiChatModel собирает из них
+        // RequestOptions SDK), так что любой таймаут в опциях соединения отменил бы
+        // spring.ai.openai.timeout. Опции поэтому не несут никакого — дедлайн решает клиент.
         OpenAiCommonProperties common = new OpenAiCommonProperties();
         common.setBaseUrl("https://default.example");
         common.setApiKey("sk-default");
         common.setTimeout(Duration.ofMinutes(10));
         OpenAiChatProperties chat = new OpenAiChatProperties();
 
-        OpenAiChatModel shared = ChatModelRegistry.buildDefaultModel(
-                common, chat, mock(ToolCallingManager.class), absent(), absent(), empty());
         ChatModelRegistry registry = ChatModelRegistry.build(
-                shared,
+                mock(OpenAiChatModel.class),
                 new ChatModelProperties(
                         DEFAULT_MODEL,
                         List.of(new ModelOption(
@@ -105,12 +100,10 @@ class ChatModelRegistryTest {
                 absent(),
                 empty());
 
-        assertThat(shared.getOptions().getTimeout())
-                .isEqualTo(Duration.ofMinutes(10))
-                .isNotEqualTo(AbstractOpenAiProperties.DEFAULT_TIMEOUT);
-        assertThat(registry.forModel("remote").getOptions().getTimeout()).isEqualTo(Duration.ofMinutes(10));
-        // Ловушка, ради которой это закреплено тестом: незаданный дедлайн — не «как у клиента».
-        assertThat(chat.toOptions().getTimeout()).isEqualTo(AbstractOpenAiProperties.DEFAULT_TIMEOUT);
+        assertThat(registry.forModel("remote").getOptions().getTimeout()).isNull();
+        // То же у общего соединения, которое строит автоконфигурация из тех же свойств: незаданный
+        // таймаут чата не становится 60 с по умолчанию.
+        assertThat(chat.toOptions().getTimeout()).isNull();
     }
 
     private static ChatModelRegistry build(OpenAiChatModel defaultConnection, ModelOption... models) {

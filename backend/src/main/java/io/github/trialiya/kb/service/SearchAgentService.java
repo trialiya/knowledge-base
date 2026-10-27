@@ -15,7 +15,6 @@ import io.github.trialiya.kb.tools.ProjectContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -164,7 +163,7 @@ public class SearchAgentService {
                 .id();
         final String fullTask = buildTask(task, context, scope, pathGlob);
 
-        final OpenAiChatOptions toolOptions = callOptions()
+        final OpenAiChatOptions toolOptions = requestOptions(config)
                 .toolCallbacks(toolCallbacks)
                 .toolContext(context(conversationId).project(projectId).build())
                 .build();
@@ -288,7 +287,7 @@ public class SearchAgentService {
         messages.add(new UserMessage("Напоминание исходной задачи:\n" + fullTask));
         messages.add(new UserMessage(instruction));
 
-        final OpenAiChatOptions finalOptions = callOptions()
+        final OpenAiChatOptions finalOptions = requestOptions(config)
                 // Keep the SAME tool set as the loop calls, then forbid their use with
                 // tool_choice=none. Dropping the tools here would change the request's
                 // `tools` array, and OpenAI prompt caching only reuses a prefix when that
@@ -338,41 +337,22 @@ public class SearchAgentService {
     }
 
     /**
-     * Опции, общие у обоих обращений сабагента.
-     *
-     * <p>Дедлайн вызова здесь приходится ставить руками, и это не перестраховка: сабагент зовёт
-     * модель напрямую ({@code chatModel.call(prompt)}), а не через {@code ChatClient}, и опции
-     * промпта уезжают в SDK как есть — настроенного у модели они не наследуют. Билдер же ставит в
-     * {@code timeout} свои 60 с (почему именно так — {@code ChatModelRegistry#withCallDeadline}),
-     * так что без этой строки итоговый вызов — тот, что везёт всю накопленную историю инструментов
-     * — обрывался бы на минуте с {@code Error reading response}. Замерено: на ответе, приходящем на
-     * 75-й секунде, прямой вызов со свежесобранными опциями умирает на 61-й, с ней — доживает.
-     *
-     * <p>Берётся именно дедлайн, а не {@code getOptions().mutate()} целиком: параметры
-     * сэмплирования у сабагента свои, и наследовать вместе с таймаутом ещё и top-p с extra-body
-     * деплоя он не должен.
-     */
-    private OpenAiChatOptions.Builder callOptions() {
-        return requestOptions(config, chatModel.getOptions().getTimeout());
-    }
-
-    /**
      * Опции запроса из настроек сабагента. Не заданное поле не отправляется: {@code thinking}
      * незнакомый эндпоинт отвергает вместе со всем запросом, а температуру, отличную от своей,
      * reasoning-модели OpenAI не принимают вовсе.
      *
-     * <p>{@code thinking} — единственное поле extra-body, и это не упущение: extra-body модели
-     * сабагент не наследует (см. {@link #callOptions}), поэтому «размышлять ли» решает только его
-     * собственная настройка, а не {@code spring.ai.openai.chat.options.extra-body.thinking}.
+     * <p>Собираются с нуля, а не через {@code chatModel.getOptions().mutate()}: сабагент зовёт
+     * модель напрямую, и опции промпта уходят в SDK как есть, а параметры сэмплирования у него
+     * свои — top-p и extra-body деплоя он наследовать не должен. Поэтому и {@code thinking} —
+     * единственное поле extra-body: «размышлять ли» решает только его собственная настройка, а не
+     * {@code spring.ai.openai.chat.options.extra-body.thinking}. Таймаута в опциях нет намеренно —
+     * без него вызов живёт по дедлайну клиента ({@code spring.ai.openai.timeout}).
      *
      * <p>Package-private ради теста: что уходит модели, решается здесь, а не в цикле.
      */
-    static OpenAiChatOptions.Builder requestOptions(SubAgentConfig config, @Nullable Duration timeout) {
+    static OpenAiChatOptions.Builder requestOptions(SubAgentConfig config) {
         final OpenAiChatOptions.Builder options =
                 OpenAiChatOptions.builder().model(config.modelId()).maxTokens(config.maxTokens());
-        if (timeout != null) {
-            options.timeout(timeout);
-        }
         if (config.temperature() != null) {
             options.temperature(config.temperature());
         }

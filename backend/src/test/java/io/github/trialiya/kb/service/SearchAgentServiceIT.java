@@ -16,7 +16,6 @@ import io.github.trialiya.kb.support.TestProjects;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,15 +83,8 @@ class SearchAgentServiceIT {
                 .toArray(ToolCallback[]::new);
 
         chatModel = mock(OpenAiChatModel.class);
-        // Дедлайн соединения (ChatModelRegistry ставит его в опции модели). Сабагент зовёт модель
-        // напрямую, минуя ChatClient, поэтому обязан перенести его в опции каждого промпта сам —
-        // иначе билдер молча подставит свои 60 с.
-        when(chatModel.getOptions())
-                .thenReturn(OpenAiChatOptions.builder().timeout(DEADLINE).build());
         toolCallingManager = DefaultToolCallingManager.builder().build();
     }
-
-    private static final Duration DEADLINE = Duration.ofMinutes(10);
 
     private SearchAgentService newService(int maxIterations) {
         return newService(maxIterations, true);
@@ -144,10 +136,10 @@ class SearchAgentServiceIT {
 
         ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
         verify(chatModel, times(4)).call(prompts.capture());
-        // Итоговый вызов везёт всю накопленную историю инструментов и живёт дольше остальных:
-        // без перенесённого дедлайна он обрывался бы на минуте с «Error reading response».
+        // Итоговый вызов везёт всю накопленную историю инструментов и живёт дольше остальных.
+        // Таймаута запроса у него нет: свой отменил бы дедлайн клиента (spring.ai.openai.timeout).
         assertThat(((OpenAiChatOptions) prompts.getAllValues().getLast().getOptions()).getTimeout())
-                .isEqualTo(DEADLINE);
+                .isNull();
 
         Prompt finalCall = prompts.getAllValues().get(3);
         // The summarization call still forbids more tool use, but does so via tool_choice=none

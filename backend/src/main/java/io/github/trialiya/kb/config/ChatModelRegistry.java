@@ -4,7 +4,6 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
-import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +15,6 @@ import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer;
 import org.springframework.ai.openai.setup.OpenAiSetup;
 import org.springframework.beans.factory.ObjectProvider;
@@ -102,32 +100,6 @@ public class ChatModelRegistry {
         return new ChatModelRegistry(chatModelProperties.defaultModel().id(), defaultModel, byModelId);
     }
 
-    /**
-     * The shared connection — every model that did not name an endpoint of its own — built here
-     * instead of by {@code OpenAiChatAutoConfiguration}, whose bean stands down for ours
-     * ({@code @ConditionalOnMissingBean}). One reason: the request deadline, which upstream leaves
-     * at 60s and no property can move (see {@link #withCallDeadline}).
-     *
-     * <p>What comes out is otherwise the connection Spring AI would have built, with one thing not
-     * carried over: a {@code ChatModelObservationConvention} bean, upstream's customization point
-     * for observation naming, is not applied — nothing here declares one.
-     */
-    public static OpenAiChatModel buildDefaultModel(
-            OpenAiCommonProperties commonProperties,
-            OpenAiChatProperties chatProperties,
-            ToolCallingManager toolCallingManager,
-            ObjectProvider<ObservationRegistry> observationRegistry,
-            ObjectProvider<MeterRegistry> meterRegistry,
-            ObjectProvider<OpenAiHttpClientBuilderCustomizer> httpClientCustomizers) {
-        return buildConnection(
-                OpenAiAutoConfigurationUtil.resolveCommonProperties(commonProperties, chatProperties),
-                chatProperties,
-                toolCallingManager,
-                observationRegistry.getIfAvailable(() -> ObservationRegistry.NOOP),
-                meterRegistry,
-                httpClientCustomizers.orderedStream().toList());
-    }
-
     private static OpenAiChatModel buildModel(
             ModelOption option,
             OpenAiCommonProperties commonProperties,
@@ -173,12 +145,11 @@ public class ChatModelRegistry {
             ObservationRegistry observations,
             ObjectProvider<MeterRegistry> meterRegistry,
             List<OpenAiHttpClientBuilderCustomizer> customizers) {
-        OpenAiChatOptions options = withCallDeadline(chatProperties.toOptions(), connection.getTimeout());
         // Mirrors the autoconfiguration: the meter registry is handed to the client only when
         // connection-pool metrics are asked for, otherwise the pool is not instrumented at all.
         MeterRegistry meters = connection.isConnectionPoolMetricsEnabled() ? meterRegistry.getIfAvailable() : null;
-        // Both clients get the same deadline: a blocking call can carry the whole context in one
-        // request, a streaming one a long generation, and either outlives the framework default.
+        // The call deadline is the clients' alone: options without a timeout send no per-request
+        // one, and a per-request timeout would outrank the client's.
         return OpenAiChatModel.builder()
                 .openAiClient(OpenAiSetup.setupSyncClient(
                         connection.getBaseUrl(),
@@ -214,37 +185,10 @@ public class ChatModelRegistry {
                         observations,
                         meters,
                         customizers))
-                .options(options)
+                .options(chatProperties.toOptions())
                 .toolCallingManager(toolCallingManager)
                 .observationRegistry(observations)
                 .meterRegistry(meters)
                 .build();
-    }
-
-    /**
-     * Puts the connection's deadline into the request options, which is what actually holds a long
-     * call open.
-     *
-     * <p>The client deadline ({@code spring.ai.openai.timeout}) does not decide when a chat call is
-     * cut. {@code OpenAiChatModel} builds the SDK's {@code RequestOptions} from the chat options of
-     * the prompt, a request deadline outranks the client's, and {@code OpenAiChatOptions} carries
-     * one whether or not anybody asked: its builder defaults {@code timeout} to 60s, and neither
-     * {@code spring.ai.openai.chat.timeout} nor {@code spring.ai.openai.chat.options.timeout}
-     * reaches that field. So without this line every call in the application is a 60s call.
-     * Measured, not deduced: against a server that answers after 75s, a client built with a 10m
-     * timeout dies at 61s with {@code InterruptedIOException: timeout}; with the deadline in the
-     * options, the same call answers.
-     *
-     * <p>Sixty seconds is enough for an answer, which is why this surfaced late and only on the
-     * longest single request the application makes — a compaction round, which carries the entire
-     * live context in one blocking call and answers with a whole document. It arrives as {@code
-     * OpenAIInvalidDataException: Error reading response}, naming neither deadline.
-     *
-     * <p>On the defaults rather than per call: a request that overrides options — the model of a
-     * run, {@code /compact} — merges over these, so it inherits the deadline instead of having to
-     * remember it.
-     */
-    private static OpenAiChatOptions withCallDeadline(OpenAiChatOptions options, Duration timeout) {
-        return options.mutate().timeout(timeout).build();
     }
 }
