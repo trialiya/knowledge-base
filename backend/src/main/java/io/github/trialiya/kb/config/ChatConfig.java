@@ -40,8 +40,10 @@ import io.github.trialiya.kb.service.chat.skill.SkillService;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ChatToolset;
+import io.github.trialiya.kb.tools.McpResultLimits;
 import io.github.trialiya.kb.tools.McpToolRegistry;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
+import io.github.trialiya.kb.tools.ToolResultShelf;
 import io.github.trialiya.kb.tools.UnknownToolCallbackResolver;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
@@ -409,6 +411,7 @@ public class ChatConfig {
     @Nullable
     public McpToolRegistry mcpToolRegistry(
             McpProperties mcpProperties,
+            McpResultLimits mcpResultLimits,
             ObjectProvider<List<McpSyncClient>> mcpSyncClients,
             ObjectProvider<List<McpAsyncClient>> mcpAsyncClients,
             ObjectProvider<McpClientCommonProperties> mcpCommonProperties,
@@ -440,7 +443,55 @@ public class ChatConfig {
                 mcpCommonProperties,
                 mcpToolFilter,
                 mcpToolNamePrefixGenerator,
-                mcpMetaConverter);
+                mcpMetaConverter,
+                mcpResultLimits);
+    }
+
+    /**
+     * How much of an MCP answer reaches the model — a bean of its own, so the Settings panel reports
+     * the limit the tools are actually held to. A tool answer past the limit is kept on the chat's
+     * script-result shelf only where something can read it back — scripts on and results kept, the
+     * same two switches {@link #scriptResultFunction} answers to. Elsewhere it is simply cut.
+     */
+    @Bean
+    public McpResultLimits mcpResultLimits(
+            McpProperties mcpProperties,
+            ScriptProperties scriptProperties,
+            ScriptResultProperties scriptResultProperties,
+            ScriptResultStore scriptResultStore) {
+        boolean readable = scriptProperties.enabled() && scriptResultProperties.enabled();
+        ToolResultShelf shelf = readable
+                ? (conversationId, label, json) -> {
+                    ScriptResultStore.Kept kept = scriptResultStore.keep(conversationId, label, null, json);
+                    // The store's own refusal speaks to a script's return value ("Return less"),
+                    // which a tool answer is not.
+                    return kept.id() == null && json.length() > scriptResultProperties.maxChars()
+                            ? new ToolResultShelf.Shelved(
+                                    null,
+                                    "The whole answer is over kb.script.results.max-chars="
+                                            + scriptResultProperties.maxChars() + ", so it was not kept.")
+                            : new ToolResultShelf.Shelved(kept.id(), kept.note());
+                }
+                : null;
+        if (readable) {
+            Map<String, Integer> limits = new LinkedHashMap<>();
+            limits.put("kb.mcp.max-result-chars", mcpProperties.maxResultChars());
+            mcpProperties
+                    .resultLimits()
+                    .forEach((connection, limit) -> limits.put("kb.mcp.result-limits." + connection, limit));
+            limits.forEach((key, limit) -> {
+                if (limit > scriptResultProperties.maxChars()) {
+                    log.warn(
+                            "{}={} is over kb.script.results.max-chars={}: an MCP answer cut at that size"
+                                    + " is too large to keep, and no script can read it back",
+                            key,
+                            limit,
+                            scriptResultProperties.maxChars());
+                }
+            });
+        }
+        return new McpResultLimits(
+                mcpProperties.maxResultChars(), mcpProperties.resultLimits(), shelf, scriptResultProperties.maxChars());
     }
 
     /**

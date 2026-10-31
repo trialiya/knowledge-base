@@ -94,6 +94,7 @@ public final class ScriptSession {
 
     private long bytesRead;
     private int calls;
+    private int mcpCalls;
     private int logChars;
 
     /**
@@ -433,7 +434,21 @@ public final class ScriptSession {
 
     public ScriptStats stats() {
         return new ScriptStats(
-                filesRead.size(), bytesRead, calls, pending.size(), (System.nanoTime() - startNanos) / 1_000_000);
+                filesRead.size(),
+                bytesRead,
+                calls,
+                pending.size(),
+                (System.nanoTime() - startNanos) / 1_000_000,
+                mcpCalls);
+    }
+
+    /**
+     * Counts one {@code mcp.call} that got past its budget, for the run's stats. Its budget is {@code
+     * kb.script.mcp.max-calls}, checked by the caller ({@code McpScriptApi}): this class meters the
+     * sandbox's own reads, not round trips to an external server.
+     */
+    public void countMcpCall() {
+        mcpCalls++;
     }
 
     /**

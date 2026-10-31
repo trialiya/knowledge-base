@@ -102,6 +102,6 @@ class McpClientConfigTest {
 
     private static McpProperties properties(
             Map<String, String> bearerTokens, Map<String, Map<String, String>> headers) {
-        return new McpProperties(true, 60_000, bearerTokens, headers);
+        return new McpProperties(true, 60_000, bearerTokens, headers, 20_000, Map.of(), Map.of());
     }
 }

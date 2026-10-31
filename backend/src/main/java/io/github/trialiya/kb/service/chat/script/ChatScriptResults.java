@@ -40,7 +40,7 @@ public class ChatScriptResults implements ScriptResultStore {
     private final ScriptResultProperties properties;
 
     @Override
-    public Kept keep(String conversationId, @Nullable String script, String project, String json) {
+    public Kept keep(String conversationId, @Nullable String script, @Nullable String project, String json) {
         if (!properties.enabled()) {
             return Kept.not(null);
         }
@@ -72,7 +72,7 @@ public class ChatScriptResults implements ScriptResultStore {
         return Kept.as(idOf(seq));
     }
 
-    private int insert(String conversationId, @Nullable String script, String project, String json) {
+    private int insert(String conversationId, @Nullable String script, @Nullable String project, String json) {
         for (int attempt = 1; ; attempt++) {
             final int seq = repository.maxSeq(conversationId) + 1;
             try {

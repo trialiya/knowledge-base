@@ -89,17 +89,25 @@ const ToolsSections = ({ config }) => {
  * только тот случай, когда оба включены.
  */
 const McpConnections = ({ mcp }) => {
-  const { t } = useTranslation('settings');
+  const { t, i18n } = useTranslation('settings');
   // Именно DOWN, а не «всё, что не UP»: PENDING — это первые секунды после старта,
   // и обещать по нему повтор подключения рано.
   const anyDown = mcp.active && mcp.connections.some((c) => c.status === 'DOWN');
+  // Сверх лимита ответ инструмента целиком уходит скриптам, а модель видит его начало
+  // (McpResultLimitCallback на бэкенде); 0 — ответ отдаётся модели как есть.
+  const resultLimit = (c) =>
+    c.maxResultChars > 0
+      ? t('tools.mcp.resultLimit', { chars: new Intl.NumberFormat(i18n.language).format(c.maxResultChars) })
+      : t('tools.mcp.resultUnlimited');
   return (
     <>
       <ConfigBlock label={t('tools.mcp.connections')}>
         <ConfigTags
           items={mcp.connections.map((c) =>
             mcp.active
-              ? `${c.name} · ${c.transport} · ${t(`tools.mcp.state.${c.status.toLowerCase()}`, { tools: c.toolCount })}`
+              ? `${c.name} · ${c.transport} · ${t(`tools.mcp.state.${c.status.toLowerCase()}`, {
+                  tools: c.toolCount,
+                })} · ${resultLimit(c)}`
               : `${c.name} · ${c.transport}`,
           )}
           empty={t('tools.mcp.connectionsEmpty')}

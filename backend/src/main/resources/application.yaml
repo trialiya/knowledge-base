@@ -449,6 +449,14 @@ kb:
       enabled: ${KB_SCRIPT_RESULTS_ENABLED:true}
       max-chars: 500000         # a larger value is still returned (truncated) but gets no id; must be >= max-result-chars
       keep-per-chat: 30         # older results of a chat are dropped as new ones arrive
+    # MCP tools called from scripts (mcp.call), so a large answer is filtered by code instead of
+    # passing through the model. Off by default: a script in a loop calls external servers with
+    # nobody approving each call. Which tools is set per connection in kb.mcp.script-access —
+    # nothing is callable until a connection is listed there. See ScriptMcp / McpScriptApi.
+    mcp:
+      enabled: ${KB_SCRIPT_MCP_ENABLED:false}
+      max-calls: 20             # MCP calls per run; every call counts, a repeat included
+      max-bytes: 16MB           # total size of the answers one run takes in
   mcp:
     # Expose tools from external MCP (Model Context Protocol) servers to the chat model, in
     # addition to the built-in git/document tools. Default off — external MCP servers run
@@ -480,6 +488,23 @@ kb:
     # headers:
     #   atlassian:
     #     X-Atlassian-Cloud-Id: ${JIRA_CLOUD_ID:}
+    # How much of one MCP tool answer reaches the model, in characters. A larger answer is kept
+    # whole for scripts (kb.result / saveScriptResult — when kb.script.enabled and
+    # kb.script.results.enabled) and the model is shown its shape and head instead; see
+    # McpResultLimitCallback. 0 sends every answer whole, as the server wrote it.
+    max-result-chars: ${KB_MCP_MAX_RESULT_CHARS:20000}
+    # A limit of its own per connection, overriding max-result-chars — for a server whose answers
+    # are long and all of it worth reading (a wiki page, say).
+    # result-limits:
+    #   confluence: 60000
+    # What scripts may call from each connection (mcp.call, with kb.script.mcp.enabled on). Tool
+    # name globs, as the model sees the names; a connection not listed gives scripts nothing. The
+    # server's own readOnlyHint is not consulted — list the tools you know only read, or the ones
+    # you accept a script calling in a loop. scheduled: true lets scheduled scripts call them too.
+    # script-access:
+    #   atlassian:
+    #     tools: [jira_search, jira_get_*, confluence_search]
+    #     scheduled: false
   embedding:
     # Must match spring.ai.openai.embedding.model.
     # Stored alongside every cached vector so that model upgrades invalidate old cache rows.

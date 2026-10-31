@@ -16,7 +16,7 @@ import io.github.trialiya.kb.service.chat.script.InMemoryScriptResultStore;
 import io.github.trialiya.kb.service.chat.script.SavedScriptCatalog;
 import io.github.trialiya.kb.service.chat.script.SavedScriptResolver;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
-import io.github.trialiya.kb.service.chat.script.ScriptRunner;
+import io.github.trialiya.kb.service.chat.script.ScriptFixtures;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import io.github.trialiya.kb.support.TestProjects;
@@ -308,7 +308,7 @@ class SavedScriptFunctionTest {
                 new SavedScriptResolver(
                         new SavedScriptCatalog(projects, registry, properties),
                         new AttachmentScriptService(attachments, properties)),
-                new ScriptRunner(registry, null, properties, editPolicy, new InMemoryScriptResultStore()),
+                ScriptFixtures.runner(registry, null, properties, editPolicy, new InMemoryScriptResultStore()),
                 editPolicy);
     }
 
