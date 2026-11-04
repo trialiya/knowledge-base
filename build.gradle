@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'com.diffplug.spotless' version '8.10.4' apply false
-    id 'net.ltgt.errorprone' version '5.1.1' apply false
+    id 'net.ltgt.errorprone' version '5.2.0' apply false
 }
 
 // Документация — такой же вход `spotlessCheck`, как код: хвостовые пробелы и отсутствие
