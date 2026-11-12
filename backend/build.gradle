@@ -9,7 +9,7 @@ plugins {
     id 'info.solidsoft.pitest' version '1.19.0'
     id 'com.gorylenko.gradle-git-properties' version '4.0.1'
     // apply false: плагин включается по флагу ниже, иначе он меняет обычный bootJar.
-    id 'org.graalvm.buildtools.native' version '1.1.17' apply false
+    id 'org.graalvm.buildtools.native' version '1.1.18' apply false
 }
 
 group = 'io.github.trialiya.kb'
@@ -81,7 +81,7 @@ dependencies {
     // Java-time module back onto the compile classpath. Version is managed by the Jackson 2 BOM.
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 
-    implementation 'com.google.guava:guava:33.7.2-jre'
+    implementation 'com.google.guava:guava:33.8.0-jre'
 
     implementation 'io.github.bonede:tree-sitter:0.26.6'
     implementation 'io.github.bonede:tree-sitter-java:0.23.5'
@@ -100,11 +100,11 @@ dependencies {
     implementation 'org.graalvm.polyglot:js-community:25.0.4.1'
 
     implementation 'org.jspecify:jspecify:1.0.1'
-    errorprone 'com.google.errorprone:error_prone_core:2.51.0'
+    errorprone 'com.google.errorprone:error_prone_core:2.52.0'
     errorprone 'com.uber.nullaway:nullaway:0.14.3'
     // In-process Git access for GitService (file tree, log, diff, status). git grep has no JGit
     // equivalent, so that one operation still shells out to the git binary.
-    implementation 'org.eclipse.jgit:org.eclipse.jgit:7.8.0.202609011348-r'
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:7.8.1.202611041320-r'
     compileOnly 'org.projectlombok:lombok'
 
 //	developmentOnly 'org.springframework.boot:spring-boot-devtools'
