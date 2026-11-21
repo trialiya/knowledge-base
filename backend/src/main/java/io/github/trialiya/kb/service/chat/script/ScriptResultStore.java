@@ -18,11 +18,14 @@ public interface ScriptResultStore {
      * Keeps {@code json} as the chat's next result. Never throws: a run has already finished by the
      * time it is kept, and failing to keep it must not turn a result into an error.
      *
-     * @param script the name the script was run by; null for an inline script
-     * @param project canonical id of the repository the run read
-     * @param json the run's value, serialised by the guest's own {@code JSON.stringify}
+     * @param script the name the script was run by; null for an inline script; {@code mcp:<tool>}
+     *     for the answer of an MCP tool too large for the model's context ({@code
+     *     McpResultLimitCallback})
+     * @param project canonical id of the repository the run read; null for an MCP answer, which
+     *     read none
+     * @param json the value as JSON — a run's as the guest's own {@code JSON.stringify} wrote it
      */
-    Kept keep(String conversationId, @Nullable String script, String project, String json);
+    Kept keep(String conversationId, @Nullable String script, @Nullable String project, String json);
 
     /** The value kept under {@code id} in this chat, as JSON; empty when there is no such id. */
     Optional<String> valueJson(String conversationId, String id);

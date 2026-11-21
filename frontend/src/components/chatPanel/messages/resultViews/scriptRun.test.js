@@ -105,6 +105,12 @@ describe('detectScriptRun — что попадает в «Обзор»', () => 
     const data = detect(JSON.stringify(result({ stats: { calls: 3, retries: 1 } })));
     expect(data.stats.map((s) => s.key)).toEqual(['calls', 'retries']);
   });
+
+  it('вызовы MCP стоят рядом с вызовами kb, а не в хвосте', () => {
+    // mcpCalls приходит только у прогона, который звал MCP-инструменты (ScriptStats).
+    const data = detect(JSON.stringify(result({ stats: { calls: 3, elapsedMs: 9, mcpCalls: 2 } })));
+    expect(data.stats.map((s) => s.key)).toEqual(['calls', 'mcpCalls', 'elapsedMs']);
+  });
 });
 
 describe('detectScriptRun — источник скрипта', () => {

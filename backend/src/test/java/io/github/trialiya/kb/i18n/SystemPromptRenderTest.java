@@ -11,6 +11,7 @@ import io.github.trialiya.kb.config.model.ScriptResultProperties;
 import io.github.trialiya.kb.config.model.SystemPromptProperties;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
+import io.github.trialiya.kb.service.chat.script.ScriptFixtures;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.skill.SkillService;
 import java.io.IOException;
@@ -46,7 +47,7 @@ class SystemPromptRenderTest {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled(org.mockito.ArgumentMatchers.nullable(String.class)))
                 .thenReturn(true);
-        String handbook = new ScriptGuideService(
+        String handbook = ScriptFixtures.guides(
                         ScriptProperties.enabledWithDefaults(), ScriptResultProperties.defaults(), policy)
                 .instructions(true);
         assertThat(handbook).contains("kb.grep", "kb.edit", "{", "}");

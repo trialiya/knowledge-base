@@ -278,7 +278,8 @@ class ScriptResultSharingTest {
 
     private ScriptRunner newRunner(ScriptProperties properties) {
         GitRegistry gitRegistry = TestProjects.registry(repoDir, false);
-        return new ScriptRunner(gitRegistry, null, properties, new ScriptEditPolicy(gitRegistry, properties), store);
+        return ScriptFixtures.runner(
+                gitRegistry, null, properties, new ScriptEditPolicy(gitRegistry, properties), store);
     }
 
     private static ScriptProperties withLimits(ScriptProperties.Limits limits) {

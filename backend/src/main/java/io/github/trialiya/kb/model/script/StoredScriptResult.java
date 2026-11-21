@@ -8,8 +8,9 @@ import org.jspecify.annotations.Nullable;
  * is read on its own ({@code ScriptResultStore#valueJson}) because it can be a megabyte.
  *
  * @param id what the model and the user call it — {@code r3}
- * @param script the name the script was run by; null for a script the model wrote inline
- * @param project canonical id of the repository the run read
+ * @param script the name the script was run by; null for a script the model wrote inline; {@code
+ *     mcp:<tool>} for a kept MCP tool answer
+ * @param project canonical id of the repository the run read; null for an MCP tool answer
  * @param chars length of the kept value as JSON
  * @param createdAt when the run that produced it finished
  */

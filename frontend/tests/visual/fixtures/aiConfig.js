@@ -78,7 +78,7 @@ export const defaultAiConfig = {
       enabled: false,
       active: false,
       retryIntervalMs: 60000,
-      connections: [{ name: 'atlassian', transport: 'streamable-http', status: 'PENDING', toolCount: 0 }],
+      connections: [{ name: 'atlassian', transport: 'streamable-http', status: 'PENDING', toolCount: 0, maxResultChars: 20000 }],
     },
     uploads: { maxFileSizeBytes: 1048576, maxRequestSizeBytes: 2097152 },
   },
@@ -129,8 +129,8 @@ export const editEnabledButReadOnlyTree = {
       // больше не падает при старте: инструменты первого выданы, второй ждёт
       // повтора (см. McpToolRegistry).
       connections: [
-        { name: 'atlassian', transport: 'streamable-http', status: 'UP', toolCount: 12 },
-        { name: 'filesystem', transport: 'stdio', status: 'DOWN', toolCount: 0 },
+        { name: 'atlassian', transport: 'streamable-http', status: 'UP', toolCount: 12, maxResultChars: 20000 },
+        { name: 'filesystem', transport: 'stdio', status: 'DOWN', toolCount: 0, maxResultChars: 0 },
       ],
     },
   },

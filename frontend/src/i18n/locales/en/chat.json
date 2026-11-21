@@ -242,6 +242,7 @@
           "filesRead": "files read",
           "bytesRead": "read",
           "calls": "calls",
+          "mcpCalls": "MCP calls",
           "filesEdited": "files edited",
           "elapsedMs": "ms"
         },

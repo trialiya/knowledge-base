@@ -245,6 +245,7 @@
           "filesRead": "прочитано файлов",
           "bytesRead": "прочитано",
           "calls": "вызовов",
+          "mcpCalls": "вызовов MCP",
           "filesEdited": "изменено файлов",
           "elapsedMs": "мс"
         },

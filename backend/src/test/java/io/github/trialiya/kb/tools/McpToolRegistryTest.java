@@ -263,6 +263,41 @@ class McpToolRegistryTest {
         }
     }
 
+    /**
+     * The answer limit wraps the tools of a connection that answers, inside the recording wrapper so
+     * the plaque shows what the model got — and stays off a connection that is down, whose tools
+     * never reach a server to answer anything.
+     */
+    @Test
+    void aConnectionsAnswerLimitWrapsItsToolsWhileItIsUp() {
+        AtomicReference<Boolean> reachable = new AtomicReference<>(true);
+        McpToolRegistry registry = new McpToolRegistry(
+                sources("jira", () -> reachable.get() ? List.of(tool("issue")) : unreachable()),
+                new McpResultLimits(20_000, Map.of(), null, 0));
+
+        registry.connect();
+        awaitProbed(registry);
+        assertThat(((RecordingToolCallback) registry.callbacks().get(0)).delegate())
+                .isInstanceOf(McpResultLimitCallback.class);
+        // A script gets the answer whole, and its call is a line in the run's log, not a plaque.
+        assertThat(registry.scriptTools()).singleElement().satisfies(tool -> {
+            assertThat(tool.connection()).isEqualTo("jira");
+            assertThat(tool.available()).isTrue();
+            assertThat(tool.callback())
+                    .isNotInstanceOf(McpResultLimitCallback.class)
+                    .isNotInstanceOf(RecordingToolCallback.class);
+        });
+
+        reachable.set(false);
+        registry.refreshAll();
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .until(() -> registry.statuses().get(0).status() == Status.DOWN);
+        assertThat(((RecordingToolCallback) registry.callbacks().get(0)).delegate())
+                .isInstanceOf(UnavailableToolCallback.class);
+        assertThat(registry.scriptTools().get(0).available()).isFalse();
+    }
+
     private static List<String> names(McpToolRegistry registry) {
         return registry.callbacks().stream()
                 .map(callback -> callback.getToolDefinition().name())

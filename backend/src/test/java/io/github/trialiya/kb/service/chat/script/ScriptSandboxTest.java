@@ -70,7 +70,7 @@ class ScriptSandboxTest {
 
     private ScriptRunner newRunner(ScriptProperties properties, @Nullable DocumentService documentService) {
         GitRegistry gitRegistry = TestProjects.registry(repoDir, false);
-        return new ScriptRunner(
+        return ScriptFixtures.runner(
                 gitRegistry,
                 documentService,
                 properties,

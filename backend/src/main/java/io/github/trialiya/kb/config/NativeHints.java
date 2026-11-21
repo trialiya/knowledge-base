@@ -16,6 +16,7 @@ import io.github.trialiya.kb.functions.SkillFunction;
 import io.github.trialiya.kb.model.tool.ModelView;
 import io.github.trialiya.kb.service.chat.script.KbEditScriptApi;
 import io.github.trialiya.kb.service.chat.script.KbScriptApi;
+import io.github.trialiya.kb.service.chat.script.McpScriptApi;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -62,7 +63,7 @@ import org.springframework.util.ClassUtils;
  * found». Держатели перечислены списком, а не найдены сканированием: полноту списка держит {@code
  * NativeHintsTest}, который обходит пакет сам и краснеет на пропущенном классе.
  *
- * <p>Объект {@code kb} в скриптах. {@code HostAccess.EXPLICIT} собирает список того, что видно
+ * <p>Объекты {@code kb} и {@code mcp} в скриптах. {@code HostAccess.EXPLICIT} собирает список того, что видно
  * гостю, обходя рефлексией публичные методы связанного объекта и проверяя на каждом
  * {@code @HostAccess.Export}. В образе этот обход видит только зарегистрированные методы, а {@code
  * KbScriptApi} бином не является — его создаёт {@code ScriptRunner} через {@code new}, — так что
@@ -104,8 +105,9 @@ public class NativeHints implements RuntimeHintsRegistrar {
             SkillFunction.class,
             ChatInfoFunction.class);
 
-    /** Классы, чьи объекты связываются с гостевым {@code kb} — см. {@code ScriptRunner}. */
-    private static final List<Class<?>> SCRIPT_APIS = List.of(KbScriptApi.class, KbEditScriptApi.class);
+    /** Классы, чьи объекты связываются с гостевыми {@code kb} и {@code mcp} — см. {@code ScriptRunner}. */
+    private static final List<Class<?>> SCRIPT_APIS =
+            List.of(KbScriptApi.class, KbEditScriptApi.class, McpScriptApi.class);
 
     /** Полезные нагрузки событий чата — см. {@code ConversationHub}. */
     private static final String CHAT_EVENT_PAYLOADS = "classpath*:io/github/trialiya/kb/model/chat/dto/*.class";

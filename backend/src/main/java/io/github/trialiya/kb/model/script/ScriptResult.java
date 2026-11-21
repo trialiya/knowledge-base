@@ -196,6 +196,7 @@ public record ScriptResult(
                 .add("files", stats.filesRead())
                 .add("bytes", stats.bytesRead())
                 .add("calls", stats.calls())
+                .add("mcp", stats.mcpCalls() > 0 ? stats.mcpCalls() : null)
                 .add("edited", stats.filesEdited() > 0 ? stats.filesEdited() : null)
                 .add("ms", stats.elapsedMs())
                 .add("error", error == null ? null : error.kind())
@@ -216,6 +217,9 @@ public record ScriptResult(
         meta.put("bytesRead", stats.bytesRead());
         meta.put("calls", stats.calls());
         meta.put("elapsedMs", stats.elapsedMs());
+        if (stats.mcpCalls() > 0) {
+            meta.put("mcpCalls", stats.mcpCalls());
+        }
         meta.put("paths", filesRead.stream().limit(META_PATH_LIMIT).toList());
         if (!edits.isEmpty()) {
             // Same shape the frontend's file-change block already reads from createFile/editFile.

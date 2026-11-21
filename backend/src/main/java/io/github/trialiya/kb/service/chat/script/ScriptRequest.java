@@ -25,6 +25,8 @@ import org.jspecify.annotations.Nullable;
  *     run that belongs to no chat
  * @param resultLimit how many elements of the returned value the model is shown ({@code resultLimit}
  *     of the call, see {@link ResultLimit}); 0 — the value whole
+ * @param mcp which kind of run this is for MCP tools ({@link ScriptMcpScope}); {@code NONE} unless
+ *     the caller says otherwise
  */
 public record ScriptRequest(
         ScriptSource source,
@@ -34,7 +36,8 @@ public record ScriptRequest(
         @Nullable ToolInvocationCollector priorInvocations,
         @Nullable String projectId,
         @Nullable ResultScope results,
-        int resultLimit) {
+        int resultLimit,
+        ScriptMcpScope mcp) {
 
     /** A run whose value the model is shown whole. */
     public ScriptRequest(
@@ -45,18 +48,32 @@ public record ScriptRequest(
             @Nullable ToolInvocationCollector priorInvocations,
             @Nullable String projectId,
             @Nullable ResultScope results) {
-        this(source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results, 0);
+        this(source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results, 0, ScriptMcpScope.NONE);
     }
 
     /** The same run, belonging to {@code results}'s chat. */
     public ScriptRequest withResults(ResultScope results) {
         return new ScriptRequest(
-                source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results, resultLimit);
+                source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results, resultLimit, mcp);
     }
 
     /** The same run, its value shown to the model cut to {@code limit} elements; 0 — whole. */
     public ScriptRequest withResultLimit(int limit) {
         return new ScriptRequest(
-                source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results, Math.max(limit, 0));
+                source,
+                args,
+                timeoutSeconds,
+                forceReadOnly,
+                priorInvocations,
+                projectId,
+                results,
+                Math.max(limit, 0),
+                mcp);
+    }
+
+    /** The same run, of the given kind as far as MCP tools are concerned. */
+    public ScriptRequest withMcp(ScriptMcpScope scope) {
+        return new ScriptRequest(
+                source, args, timeoutSeconds, forceReadOnly, priorInvocations, projectId, results, resultLimit, scope);
     }
 }

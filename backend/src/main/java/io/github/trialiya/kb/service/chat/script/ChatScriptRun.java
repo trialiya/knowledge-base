@@ -77,7 +77,8 @@ public class ChatScriptRun {
                             projectId, name, args, timeoutSeconds, editPolicy.enabled(projectId), null)
                     // Kept like the model's own runs: the notice names the id, so the
                     // model can pick the value up in a script without it being retyped.
-                    .withResults(ResultScope.keeping(conversationId));
+                    .withResults(ResultScope.keeping(conversationId))
+                    .withMcp(ScriptMcpScope.CHAT);
             log.info(
                     "/script in chat {}: '{}' ({}), args={}, project='{}', readOnly={}",
                     conversationId,

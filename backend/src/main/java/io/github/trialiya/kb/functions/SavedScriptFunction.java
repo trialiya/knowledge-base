@@ -8,6 +8,7 @@ import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.chat.script.ResultScope;
 import io.github.trialiya.kb.service.chat.script.SavedScriptResolver;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
+import io.github.trialiya.kb.service.chat.script.ScriptMcpScope;
 import io.github.trialiya.kb.service.chat.script.ScriptRequest;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
@@ -94,6 +95,7 @@ public class SavedScriptFunction {
                         editPolicy.enabled(projectId),
                         ToolInvocationCollector.from(context))
                 .withResults(ResultScope.keeping(conversationId(context)))
+                .withMcp(ScriptMcpScope.CHAT)
                 .withResultLimit(positiveOrDefault(resultLimit, 0));
         log.debug(
                 "runSavedScript called: '{}' ({}), args={}, project='{}', readOnly={}",
